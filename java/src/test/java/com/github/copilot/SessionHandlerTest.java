@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.copilot.rpc.AgentStopHookOutput;
 import com.github.copilot.rpc.PermissionRequestResult;
 import com.github.copilot.rpc.PermissionRequestResultKind;
 import com.github.copilot.rpc.SessionEndHookOutput;
@@ -25,6 +26,7 @@ import com.github.copilot.rpc.ToolDefinition;
 import com.github.copilot.rpc.UserInputRequest;
 import com.github.copilot.rpc.UserInputResponse;
 import com.github.copilot.rpc.UserPromptSubmittedHookOutput;
+import com.github.copilot.rpc.UserPromptTransformedHookOutput;
 
 /**
  * Unit tests for CopilotSession internal handler methods.
@@ -224,6 +226,26 @@ public class SessionHandlerTest {
         assertEquals("modified prompt", output.modifiedPrompt());
     }
 
+    @Test
+    void testHandleHooksInvokeUserPromptTransformed() throws Exception {
+        var hooks = new SessionHooks().setOnUserPromptTransformed((hookInput, invocation) -> {
+            assertEquals("handler-test-session", invocation.getSessionId());
+            assertEquals("original prompt", hookInput.prompt());
+            assertEquals("transformed prompt", hookInput.transformedPrompt());
+            return CompletableFuture.completedFuture(new UserPromptTransformedHookOutput("replacement prompt"));
+        });
+        session.registerHooks(hooks);
+
+        JsonNode input = MAPPER.valueToTree(Map.of("sessionId", "runtime-session", "timestamp", 1735689600L, "cwd",
+                "/tmp", "prompt", "original prompt", "transformedPrompt", "transformed prompt"));
+
+        Object result = session.handleHooksInvoke("userPromptTransformed", input).get();
+
+        assertInstanceOf(UserPromptTransformedHookOutput.class, result);
+        var output = (UserPromptTransformedHookOutput) result;
+        assertEquals("replacement prompt", output.modifiedTransformedPrompt());
+    }
+
     // ===== handleHooksInvoke: sessionStart =====
 
     @Test
@@ -260,6 +282,32 @@ public class SessionHandlerTest {
         assertInstanceOf(SessionEndHookOutput.class, result);
         var output = (SessionEndHookOutput) result;
         assertEquals("summary", output.sessionSummary());
+    }
+
+    // ===== handleHooksInvoke: agentStop =====
+
+    @Test
+    void testHandleHooksInvokeAgentStop() throws Exception {
+        var hooks = new SessionHooks().setOnAgentStop((hookInput, invocation) -> {
+            assertEquals("handler-test-session", invocation.getSessionId());
+            assertEquals("runtime-session-123", hookInput.getSessionId());
+            assertEquals("end_turn", hookInput.getStopReason());
+            assertEquals("/tmp/transcript.jsonl", hookInput.getTranscriptPath());
+            assertTrue(hookInput.getStopHookActive());
+            return CompletableFuture.completedFuture(
+                    new AgentStopHookOutput().setDecision("block").setReason("finish the remaining work"));
+        });
+        session.registerHooks(hooks);
+
+        JsonNode input = MAPPER.valueToTree(Map.of("sessionId", "runtime-session-123", "timestamp", 1735689600L, "cwd",
+                "/tmp", "stopReason", "end_turn", "transcriptPath", "/tmp/transcript.jsonl", "stop_hook_active", true));
+
+        Object result = session.handleHooksInvoke("agentStop", input).get();
+
+        assertInstanceOf(AgentStopHookOutput.class, result);
+        var output = (AgentStopHookOutput) result;
+        assertEquals("block", output.getDecision());
+        assertEquals("finish the remaining work", output.getReason());
     }
 
     // ===== handleHooksInvoke: sessionId deserialization on hook inputs =====

@@ -4,10 +4,20 @@
 
 package com.github.copilot.rpc;
 
+import java.io.IOException;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
+import com.fasterxml.jackson.annotation.JsonAnySetter;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonToken;
+import com.fasterxml.jackson.databind.DeserializationContext;
+import com.fasterxml.jackson.databind.JsonDeserializer;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 
 /**
  * Represents a permission request from the AI assistant.
@@ -20,7 +30,10 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * @since 1.0.0
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class PermissionRequest {
+
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     @JsonProperty("kind")
     private String kind;
@@ -28,7 +41,52 @@ public class PermissionRequest {
     @JsonProperty("toolCallId")
     private String toolCallId;
 
+    @JsonProperty("managedApprovalRequired")
+    @JsonDeserialize(using = ManagedApprovalRequiredDeserializer.class)
+    private Boolean managedApprovalRequired;
+
     private Map<String, Object> extensionData;
+
+    @JsonAnySetter
+    private void setExtensionDataEntry(String key, Object value) {
+        if (extensionData == null) {
+            extensionData = new LinkedHashMap<>();
+        }
+        extensionData.put(key, value);
+    }
+
+    private static final class ManagedApprovalRequiredDeserializer extends JsonDeserializer<Boolean> {
+
+        @Override
+        public Boolean deserialize(JsonParser parser, DeserializationContext context) throws IOException {
+            JsonToken token = parser.currentToken();
+            if (token == JsonToken.VALUE_TRUE) {
+                return true;
+            }
+            if (token == JsonToken.VALUE_FALSE) {
+                return false;
+            }
+            parser.skipChildren();
+            return true;
+        }
+    }
+
+    /**
+     * Converts the value exposed by a {@code permission.requested} event into a
+     * typed permission request.
+     *
+     * @param value
+     *            the event's {@code permissionRequest} value
+     * @return the typed permission request
+     * @throws IllegalArgumentException
+     *             if the value cannot be converted
+     */
+    public static PermissionRequest fromJsonValue(Object value) {
+        if (value instanceof PermissionRequest request) {
+            return request;
+        }
+        return MAPPER.convertValue(value, PermissionRequest.class);
+    }
 
     /**
      * Gets the kind of permission being requested.
@@ -66,6 +124,26 @@ public class PermissionRequest {
      */
     public void setToolCallId(String toolCallId) {
         this.toolCallId = toolCallId;
+    }
+
+    /**
+     * Gets whether managed policy requires an explicit human decision.
+     *
+     * @return {@code true} when automatic approval must be bypassed, otherwise
+     *         {@code false} or {@code null}
+     */
+    public Boolean getManagedApprovalRequired() {
+        return managedApprovalRequired;
+    }
+
+    /**
+     * Sets whether managed policy requires an explicit human decision.
+     *
+     * @param managedApprovalRequired
+     *            whether managed approval is required
+     */
+    public void setManagedApprovalRequired(Boolean managedApprovalRequired) {
+        this.managedApprovalRequired = managedApprovalRequired;
     }
 
     /**

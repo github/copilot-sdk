@@ -1,13 +1,17 @@
 use std::ffi::{OsStr, OsString};
 use std::future::Future;
 use std::io::{BufRead, BufReader, Read, Write};
-use std::net::TcpStream;
+use std::net::{TcpStream, ToSocketAddrs};
+use std::ops::Deref;
+use std::panic::AssertUnwindSafe;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::process::{Child, Command, Stdio};
 use std::sync::LazyLock;
-use std::time::Duration;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::{Duration, Instant};
 
+use futures_util::FutureExt;
 use github_copilot_sdk::handler::ApproveAllHandler;
 use github_copilot_sdk::session::Session;
 use github_copilot_sdk::subscription::{EventSubscription, LifecycleSubscription};
@@ -16,15 +20,280 @@ use github_copilot_sdk::{
     SessionId, SessionLifecycleEvent, Transport,
 };
 use serde_json::json;
-use tokio::sync::Semaphore;
+use tokio::sync::{Mutex, Semaphore};
 
 static E2E_CONCURRENCY: LazyLock<Semaphore> = LazyLock::new(|| Semaphore::new(e2e_concurrency()));
+static SHARED_E2E_RUNTIME: LazyLock<tokio::runtime::Runtime> = LazyLock::new(|| {
+    tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .thread_name("rust-e2e-shared")
+        .build()
+        .expect("create shared E2E runtime")
+});
+const SHARED_E2E_CLEANUP_TIMEOUT: Duration = Duration::from_secs(10);
 
 pub const DEFAULT_TEST_TOKEN: &str = "rust-e2e-token";
 
 type TestFuture<'a> = Pin<Box<dyn Future<Output = ()> + 'a>>;
 
-pub async fn with_e2e_context<F>(category: &str, snapshot_name: &str, test: F)
+/// Fixed client options for one explicitly declared shared E2E group.
+pub type SharedClientOptions = fn(&E2eContext) -> ClientOptions;
+
+/// A file- or group-scoped shared E2E runtime.
+///
+/// This deliberately has no options-keyed registry: every Rust source group owns
+/// its own static instance and selects its options at that declaration site.
+pub struct SharedE2eGroup {
+    category: &'static str,
+    client_options: SharedClientOptions,
+    expected_invocations: usize,
+    completed_invocations: AtomicUsize,
+    state: Mutex<Option<SharedE2eState>>,
+}
+
+struct SharedE2eState {
+    context: E2eContext,
+    client: Client,
+}
+
+/// Test facade over a group's shared context and client.
+///
+/// It dereferences to [`E2eContext`] for proxy and fixture helpers, while
+/// [`Self::start_client`] returns a clone of the group's already-started client.
+pub struct SharedE2eContext<'a> {
+    context: &'a mut E2eContext,
+    client: Client,
+}
+
+/// A clone of a group's shared client.
+///
+/// `stop` is deliberately a no-op: tests retain their existing local teardown
+/// shape without shutting down the next test's runtime. The group stops the
+/// actual client after its final expected invocation. Tests that verify
+/// stopping or force-stopping a client stay on the dedicated helper.
+#[derive(Clone)]
+pub struct SharedE2eClient(Client);
+
+impl Deref for SharedE2eClient {
+    type Target = Client;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl SharedE2eClient {
+    pub async fn stop(&self) -> std::result::Result<(), github_copilot_sdk::StopErrors> {
+        Ok(())
+    }
+}
+
+impl Deref for SharedE2eContext<'_> {
+    type Target = E2eContext;
+
+    fn deref(&self) -> &Self::Target {
+        self.context
+    }
+}
+
+impl SharedE2eContext<'_> {
+    /// Clone the group client. Shared tests must not call `Client::stop`; the
+    /// group tears it down after its final expected test invocation.
+    pub async fn start_client(&self) -> SharedE2eClient {
+        SharedE2eClient(self.client.clone())
+    }
+}
+
+impl SharedE2eGroup {
+    pub const fn new(
+        category: &'static str,
+        client_options: SharedClientOptions,
+        expected_invocations: usize,
+    ) -> Self {
+        Self {
+            category,
+            client_options,
+            expected_invocations,
+            completed_invocations: AtomicUsize::new(0),
+            state: Mutex::const_new(None),
+        }
+    }
+
+    pub const fn standard(category: &'static str, expected_invocations: usize) -> Self {
+        Self::new(
+            category,
+            standard_shared_client_options,
+            expected_invocations,
+        )
+    }
+}
+
+/// The standard stdio/default-transport options used by most shared groups.
+pub fn standard_shared_client_options(context: &E2eContext) -> ClientOptions {
+    context.client_options()
+}
+
+/// Run a test against an explicitly declared, file/group-scoped shared client.
+///
+/// Calls using one group serialize, while different groups still use the suite
+/// concurrency limit. Before and after every test, sessions are disconnected and
+/// deleted, the work directory is emptied, and the proxy is reconfigured for the
+/// test's snapshot so exchanges cannot bleed across tests. After the declared
+/// number of invocations completes, the group's client and proxy are stopped.
+pub async fn with_shared_e2e_context<F>(
+    group: &'static SharedE2eGroup,
+    category: &str,
+    snapshot_name: &str,
+    test: F,
+) where
+    F: for<'a> FnOnce(&'a mut SharedE2eContext<'a>) -> TestFuture<'a>,
+{
+    assert_eq!(
+        category, group.category,
+        "shared E2E group category must match the test's snapshots"
+    );
+    let mut state = group.state.lock().await;
+    let _permit = E2E_CONCURRENCY
+        .acquire()
+        .await
+        .expect("E2E concurrency semaphore should stay open");
+    let completed = group.completed_invocations.fetch_add(1, Ordering::Relaxed) + 1;
+    if state.is_none() {
+        let context = E2eContext::new(group.category, snapshot_name)
+            .await
+            .unwrap_or_else(|err| panic!("create shared E2E context: {err}"));
+        let _env_guard = InProcessEnvGuard::activate(&context);
+        let options = (group.client_options)(&context);
+        let mut startup = SHARED_E2E_RUNTIME.spawn(async move {
+            let client = Client::start(options).await?;
+            client.start_router_for_test();
+            Ok::<_, github_copilot_sdk::Error>(client)
+        });
+        let client = match tokio::time::timeout(default_test_timeout(), &mut startup).await {
+            Ok(result) => result
+                .expect("join shared E2E client startup")
+                .expect("start shared E2E client"),
+            Err(_) => {
+                startup.abort();
+                let _ = tokio::time::timeout(SHARED_E2E_CLEANUP_TIMEOUT, startup).await;
+                panic!(
+                    "timed out after {:?} starting shared E2E client",
+                    default_test_timeout()
+                );
+            }
+        };
+        *state = Some(SharedE2eState { context, client });
+    }
+
+    let _env_guard = InProcessEnvGuard::activate(
+        &state
+            .as_ref()
+            .expect("shared E2E state initialized")
+            .context,
+    );
+    let (result, cleanup_result) = {
+        let state = state.as_mut().expect("shared E2E state initialized");
+        let result = match tokio::time::timeout(
+            SHARED_E2E_CLEANUP_TIMEOUT,
+            state.prepare_test(group.category, snapshot_name),
+        )
+        .await
+        {
+            Ok(Ok(())) => Ok({
+                let mut context = SharedE2eContext {
+                    context: &mut state.context,
+                    client: state.client.clone(),
+                };
+                AssertUnwindSafe(tokio::time::timeout(
+                    default_test_timeout(),
+                    test(&mut context),
+                ))
+                .catch_unwind()
+                .await
+            }),
+            Ok(Err(error)) => Err(error),
+            Err(_) => Err(std::io::Error::other(format!(
+                "timed out after {SHARED_E2E_CLEANUP_TIMEOUT:?} preparing shared E2E test"
+            ))),
+        };
+        let cleanup_result = match tokio::time::timeout(
+            SHARED_E2E_CLEANUP_TIMEOUT,
+            state.cleanup_after_test(),
+        )
+        .await
+        {
+            Ok(result) => result,
+            Err(_) => {
+                state.client.force_stop();
+                Err(std::io::Error::other(format!(
+                    "timed out after {SHARED_E2E_CLEANUP_TIMEOUT:?} cleaning up shared E2E test"
+                )))
+            }
+        };
+        (result, cleanup_result)
+    };
+
+    let test_succeeded = matches!(&result, Ok(Ok(Ok(()))));
+    let skip_writing_cache = !test_succeeded || cleanup_result.is_err();
+    let teardown_result = if !test_succeeded
+        || cleanup_result.is_err()
+        || is_filtered_test_run()
+        || completed == group.expected_invocations
+    {
+        state
+            .take()
+            .expect("shared E2E state initialized")
+            .shutdown_bounded(skip_writing_cache)
+            .await
+    } else {
+        Ok(())
+    };
+
+    match result {
+        Ok(Ok(Ok(()))) => {
+            cleanup_result.unwrap_or_else(|error| panic!("clean up shared E2E test: {error}"));
+            teardown_result.unwrap_or_else(|error| panic!("tear down shared E2E group: {error}"));
+        }
+        Ok(Ok(Err(_))) => {
+            if let Err(error) = cleanup_result {
+                eprintln!("failed to clean up timed-out shared E2E test: {error}");
+            }
+            if let Err(error) = teardown_result {
+                eprintln!("failed to tear down shared E2E group after timeout: {error}");
+            }
+            panic!(
+                "timed out after {:?} running shared E2E test {}/{}",
+                default_test_timeout(),
+                group.category,
+                snapshot_name
+            );
+        }
+        Ok(Err(payload)) => {
+            if let Err(error) = cleanup_result {
+                eprintln!("failed to clean up shared E2E test after panic: {error}");
+            }
+            if let Err(error) = teardown_result {
+                eprintln!("failed to tear down shared E2E group after panic: {error}");
+            }
+            std::panic::resume_unwind(payload);
+        }
+        Err(error) => {
+            if let Err(cleanup_error) = cleanup_result {
+                eprintln!(
+                    "failed to clean up shared E2E test after setup failure: {cleanup_error}"
+                );
+            }
+            if let Err(teardown_error) = teardown_result {
+                eprintln!(
+                    "failed to tear down shared E2E group after setup failure: {teardown_error}"
+                );
+            }
+            panic!("prepare shared E2E test: {error}");
+        }
+    }
+}
+
+pub async fn with_dedicated_e2e_context<F>(category: &str, snapshot_name: &str, test: F)
 where
     F: for<'a> FnOnce(&'a mut E2eContext) -> TestFuture<'a>,
 {
@@ -56,11 +325,56 @@ where
     );
 }
 
-/// Like [`with_e2e_context`] but starts the CapiProxy without loading a
+pub async fn with_dedicated_group_e2e_context<F>(
+    _group: &'static SharedE2eGroup,
+    category: &str,
+    snapshot_name: &str,
+    test: F,
+) where
+    F: for<'a> FnOnce(&'a mut E2eContext) -> TestFuture<'a>,
+{
+    with_dedicated_e2e_context(category, snapshot_name, test).await;
+}
+
+pub async fn skip_shared_e2e_inprocess(group: &'static SharedE2eGroup, reason: &str) -> bool {
+    if !skip_inprocess(reason) {
+        return false;
+    }
+
+    let mut state = group.state.lock().await;
+    let _permit = E2E_CONCURRENCY
+        .acquire()
+        .await
+        .expect("E2E concurrency semaphore should stay open");
+    let completed = group.completed_invocations.fetch_add(1, Ordering::Relaxed) + 1;
+    if completed == group.expected_invocations
+        && let Some(state) = state.take()
+    {
+        state
+            .shutdown_bounded(false)
+            .await
+            .unwrap_or_else(|error| panic!("tear down shared E2E group after skip: {error}"));
+    }
+    true
+}
+
+/// Run a dedicated one-client E2E test.
+///
+/// New tests should call [`with_dedicated_e2e_context`] to make the lifecycle
+/// choice visible at the call site. This name remains for existing dedicated
+/// tests while they are migrated group by group.
+pub async fn with_e2e_context<F>(category: &str, snapshot_name: &str, test: F)
+where
+    F: for<'a> FnOnce(&'a mut E2eContext) -> TestFuture<'a>,
+{
+    with_dedicated_e2e_context(category, snapshot_name, test).await;
+}
+
+/// Like [`with_dedicated_e2e_context`] but starts the CapiProxy without loading a
 /// recorded snapshot. Used by the LLM inference callback tests, whose
 /// registered provider fabricates every model-layer response so no CAPI
 /// replay is needed — only the auth/user endpoints are served by the proxy.
-pub async fn with_e2e_context_no_snapshot<F>(test: F)
+pub async fn with_dedicated_e2e_context_no_snapshot<F>(test: F)
 where
     F: for<'a> FnOnce(&'a mut E2eContext) -> TestFuture<'a>,
 {
@@ -87,6 +401,15 @@ where
         "timed out after {:?} running no-snapshot E2E test",
         default_test_timeout()
     );
+}
+
+/// Dedicated no-snapshot compatibility helper. See
+/// [`with_dedicated_e2e_context_no_snapshot`].
+pub async fn with_e2e_context_no_snapshot<F>(test: F)
+where
+    F: for<'a> FnOnce(&'a mut E2eContext) -> TestFuture<'a>,
+{
+    with_dedicated_e2e_context_no_snapshot(test).await;
 }
 
 pub struct E2eContext {
@@ -193,6 +516,7 @@ impl E2eContext {
     /// `node <entrypoint> --embedded-host` argv itself and loads the sibling
     /// runtime cdylib), so a `.js` entrypoint is not split into node +
     /// prefix_args here.
+    #[cfg_attr(not(feature = "bundled-in-process"), allow(dead_code))]
     pub async fn start_inprocess_client(&self) -> Client {
         let options = ClientOptions::new().with_transport(Transport::InProcess);
         Client::start(options)
@@ -330,6 +654,9 @@ impl E2eContext {
                     .as_os_str()
                     .to_owned(),
             ),
+        ]);
+        env.extend(isolated_cache_environment(self.home_dir.path()));
+        env.extend([
             ("COPILOT_MCP_APPS".into(), "true".into()),
             ("MCP_APPS".into(), "true".into()),
             ("GH_TOKEN".into(), DEFAULT_TEST_TOKEN.into()),
@@ -345,6 +672,130 @@ impl E2eContext {
     fn proxy(&self) -> &CapiProxy {
         self.proxy.as_ref().expect("proxy already stopped")
     }
+}
+
+impl SharedE2eState {
+    async fn prepare_test(&mut self, category: &str, snapshot_name: &str) -> std::io::Result<()> {
+        self.cleanup_sessions().await?;
+        clear_directory_contents(self.context.work_dir())?;
+        self.context.configure(category, snapshot_name)?;
+        self.context.set_default_copilot_user();
+        Ok(())
+    }
+
+    async fn cleanup_after_test(&mut self) -> std::io::Result<()> {
+        self.cleanup_sessions().await?;
+        clear_directory_contents(self.context.work_dir())
+    }
+
+    async fn cleanup_sessions(&self) -> std::io::Result<()> {
+        self.client
+            .cleanup_sessions_for_test()
+            .await
+            .map_err(|err| {
+                std::io::Error::other(format!("clean up shared E2E sessions failed: {err}"))
+            })
+    }
+
+    async fn shutdown_bounded(mut self, skip_writing_cache: bool) -> std::io::Result<()> {
+        let client_result =
+            match tokio::time::timeout(SHARED_E2E_CLEANUP_TIMEOUT, self.client.stop()).await {
+                Ok(result) => result.map_err(|err| {
+                    std::io::Error::other(format!("stop shared E2E client failed: {err}"))
+                }),
+                Err(_) => {
+                    self.client.force_stop();
+                    Err(std::io::Error::other(format!(
+                        "timed out after {SHARED_E2E_CLEANUP_TIMEOUT:?} stopping shared E2E client"
+                    )))
+                }
+            };
+        let proxy_result = self.context.cleanup(skip_writing_cache).await;
+
+        match (client_result, proxy_result) {
+            (Ok(()), Ok(())) => Ok(()),
+            (Err(error), Ok(())) | (Ok(()), Err(error)) => Err(error),
+            (Err(client_error), Err(proxy_error)) => Err(std::io::Error::other(format!(
+                "{client_error}; stop shared E2E proxy failed: {proxy_error}"
+            ))),
+        }
+    }
+}
+
+fn wait_for_child_exit(child: &mut Child) -> std::io::Result<()> {
+    let deadline = Instant::now() + SHARED_E2E_CLEANUP_TIMEOUT;
+    loop {
+        if child.try_wait()?.is_some() {
+            return Ok(());
+        }
+        if Instant::now() >= deadline {
+            kill_and_wait_child(child);
+            return Err(std::io::Error::other(format!(
+                "timed out after {SHARED_E2E_CLEANUP_TIMEOUT:?} waiting for child process"
+            )));
+        }
+        std::thread::sleep(Duration::from_millis(25));
+    }
+}
+
+fn kill_and_wait_child(child: &mut Child) {
+    if let Err(error) = child.kill() {
+        eprintln!("failed to kill E2E child process: {error}");
+    }
+    let deadline = Instant::now() + SHARED_E2E_CLEANUP_TIMEOUT;
+    loop {
+        match child.try_wait() {
+            Ok(Some(_)) => return,
+            Ok(None) => {}
+            Err(error) => {
+                eprintln!("failed to inspect E2E child process after kill: {error}");
+                return;
+            }
+        }
+        if Instant::now() >= deadline {
+            eprintln!(
+                "timed out after {SHARED_E2E_CLEANUP_TIMEOUT:?} waiting for killed E2E child process"
+            );
+            return;
+        }
+        std::thread::sleep(Duration::from_millis(25));
+    }
+}
+
+fn connect_with_timeout(host: &str, port: u16) -> std::io::Result<TcpStream> {
+    let mut last_error = None;
+    for address in (host, port).to_socket_addrs()? {
+        match TcpStream::connect_timeout(&address, SHARED_E2E_CLEANUP_TIMEOUT) {
+            Ok(stream) => {
+                stream.set_read_timeout(Some(SHARED_E2E_CLEANUP_TIMEOUT))?;
+                stream.set_write_timeout(Some(SHARED_E2E_CLEANUP_TIMEOUT))?;
+                return Ok(stream);
+            }
+            Err(error) => last_error = Some(error),
+        }
+    }
+    Err(last_error.unwrap_or_else(|| {
+        std::io::Error::other(format!("no socket addresses resolved for {host}:{port}"))
+    }))
+}
+
+fn is_filtered_test_run() -> bool {
+    std::env::args().skip(1).any(|arg| {
+        !arg.starts_with('-') || matches!(arg.as_str(), "--ignored" | "--include-ignored")
+    })
+}
+
+fn clear_directory_contents(directory: &Path) -> std::io::Result<()> {
+    for entry in std::fs::read_dir(directory)? {
+        let entry = entry?;
+        let path = entry.path();
+        if entry.file_type()?.is_dir() {
+            std::fs::remove_dir_all(path)?;
+        } else {
+            std::fs::remove_file(path)?;
+        }
+    }
+    Ok(())
 }
 
 impl Drop for E2eContext {
@@ -783,6 +1234,20 @@ fn canonical_temp_path(path: &Path) -> PathBuf {
     std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
 }
 
+fn isolated_cache_environment(path: &Path) -> [(OsString, OsString); 2] {
+    let home_dir = canonical_temp_path(path);
+    let cache_dir = home_dir.join(".cache");
+    // COPILOT_HOME does not redirect platform cache paths, so isolate the cache
+    // to prevent concurrent CLI processes from sharing mutable startup state.
+    [
+        (
+            "COPILOT_CACHE_HOME".into(),
+            cache_dir.join("copilot").into_os_string(),
+        ),
+        ("XDG_CACHE_HOME".into(), cache_dir.into_os_string()),
+    ]
+}
+
 struct CapiProxy {
     child: Option<Child>,
     proxy_url: String,
@@ -802,38 +1267,85 @@ impl CapiProxy {
             .spawn()?;
 
         let stdout = child.stdout.take().expect("proxy stdout");
-        let reader = BufReader::new(stdout);
+        let (line_tx, line_rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            for line in BufReader::new(stdout).lines() {
+                let failed = line.is_err();
+                if line_tx.send(line).is_err() || failed {
+                    break;
+                }
+            }
+        });
         let re = regex::Regex::new(r"Listening: (http://[^\s]+)\s+(\{.*\})$").unwrap();
-        for line in reader.lines() {
-            let line = line?;
+        let deadline = Instant::now() + SHARED_E2E_CLEANUP_TIMEOUT;
+        while let Some(remaining) = deadline.checked_duration_since(Instant::now()) {
+            let line = match line_rx.recv_timeout(remaining) {
+                Ok(Ok(line)) => line,
+                Ok(Err(error)) => {
+                    kill_and_wait_child(&mut child);
+                    return Err(error);
+                }
+                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                    kill_and_wait_child(&mut child);
+                    return Err(std::io::Error::other("proxy exited before startup"));
+                }
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => break,
+            };
             if let Some(captures) = re.captures(&line) {
-                let metadata: serde_json::Value =
-                    serde_json::from_str(captures.get(2).unwrap().as_str())?;
-                let connect_proxy_url = metadata
-                    .get("connectProxyUrl")
-                    .and_then(|value| value.as_str())
-                    .expect("connectProxyUrl")
-                    .to_string();
-                let ca_file_path = metadata
-                    .get("caFilePath")
-                    .and_then(|value| value.as_str())
-                    .expect("caFilePath")
-                    .to_string();
+                let parsed = (|| {
+                    let proxy_url = captures
+                        .get(1)
+                        .ok_or_else(|| {
+                            std::io::Error::other("proxy startup line missing URL capture")
+                        })?
+                        .as_str()
+                        .to_string();
+                    let metadata_text = captures.get(2).ok_or_else(|| {
+                        std::io::Error::other("proxy startup line missing metadata capture")
+                    })?;
+                    let metadata: serde_json::Value = serde_json::from_str(metadata_text.as_str())?;
+                    let connect_proxy_url = metadata
+                        .get("connectProxyUrl")
+                        .and_then(|value| value.as_str())
+                        .ok_or_else(|| {
+                            std::io::Error::other("proxy startup metadata missing connectProxyUrl")
+                        })?
+                        .to_string();
+                    let ca_file_path = metadata
+                        .get("caFilePath")
+                        .and_then(|value| value.as_str())
+                        .ok_or_else(|| {
+                            std::io::Error::other("proxy startup metadata missing caFilePath")
+                        })?
+                        .to_string();
+                    Ok::<_, std::io::Error>((proxy_url, connect_proxy_url, ca_file_path))
+                })();
+                let (proxy_url, connect_proxy_url, ca_file_path) = match parsed {
+                    Ok(metadata) => metadata,
+                    Err(error) => {
+                        kill_and_wait_child(&mut child);
+                        return Err(error);
+                    }
+                };
                 return Ok(Self {
                     child: Some(child),
-                    proxy_url: captures.get(1).unwrap().as_str().to_string(),
+                    proxy_url,
                     connect_proxy_url,
                     ca_file_path,
                 });
             }
             if line.contains("Listening: ") {
+                kill_and_wait_child(&mut child);
                 return Err(std::io::Error::other(format!(
                     "proxy startup line missing metadata: {line}"
                 )));
             }
         }
 
-        Err(std::io::Error::other("proxy exited before startup"))
+        kill_and_wait_child(&mut child);
+        Err(std::io::Error::other(format!(
+            "timed out after {SHARED_E2E_CLEANUP_TIMEOUT:?} waiting for proxy startup"
+        )))
     }
 
     fn url(&self) -> &str {
@@ -874,7 +1386,7 @@ impl CapiProxy {
         };
         let result = self.post_json(path, "");
         if let Some(mut child) = self.child.take() {
-            let _ = child.wait();
+            wait_for_child_exit(&mut child)?;
         }
         result
     }
@@ -926,7 +1438,7 @@ impl CapiProxy {
 
     fn request(&self, method: &str, path: &str, body: &str) -> std::io::Result<String> {
         let (host, port) = parse_http_url(&self.proxy_url)?;
-        let mut stream = TcpStream::connect((host.as_str(), port))?;
+        let mut stream = connect_with_timeout(&host, port)?;
         write!(
             stream,
             "{method} {path} HTTP/1.1\r\nHost: {host}:{port}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
@@ -1002,4 +1514,26 @@ fn node_program() -> &'static str {
 
 fn npx_program() -> &'static str {
     if cfg!(windows) { "npx.cmd" } else { "npx" }
+}
+
+#[test]
+fn e2e_context_isolates_copilot_cache() {
+    let home_dir = tempfile::tempdir().expect("create test home");
+    let home_dir = canonical_temp_path(home_dir.path());
+    let cache_dir = home_dir.join(".cache");
+    let expected = [
+        ("COPILOT_CACHE_HOME", cache_dir.join("copilot")),
+        ("XDG_CACHE_HOME", cache_dir),
+    ];
+
+    let environment = isolated_cache_environment(&home_dir);
+
+    for (key, value) in expected {
+        assert!(
+            environment.iter().any(|(actual_key, actual_value)| {
+                actual_key == key && actual_value == value.as_os_str()
+            }),
+            "{key} should use the isolated test home"
+        );
+    }
 }

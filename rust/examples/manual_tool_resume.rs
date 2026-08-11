@@ -113,8 +113,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .rpc()
         .permissions()
         .handle_pending_permission_request(PermissionDecisionRequest {
+            decision_context: None,
             request_id: permission.request_id,
             result: PermissionDecision::ApproveOnce(PermissionDecisionApproveOnce {
+                approved_interactively: None,
                 kind: PermissionDecisionApproveOnceKind::ApproveOnce,
             }),
         })

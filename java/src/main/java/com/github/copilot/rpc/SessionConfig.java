@@ -13,7 +13,6 @@ import java.util.function.Consumer;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.databind.JsonNode;
 
 import com.github.copilot.CopilotExperimental;
 import com.github.copilot.generated.SessionEvent;
@@ -59,6 +58,7 @@ public class SessionConfig {
     private Boolean enableSessionTelemetry;
     private Boolean enableCitations;
     private SessionLimitsConfig sessionLimits;
+    private Boolean enableExperimentalMode;
     private Boolean skipCustomInstructions;
     private Boolean customAgentsLocalOnly;
     private Boolean coauthorEnabled;
@@ -68,6 +68,7 @@ public class SessionConfig {
     private UserInputHandler onUserInputRequest;
     private SessionHooks hooks;
     private String workingDirectory;
+    private List<String> additionalDirectories;
     private boolean streaming;
     private Boolean includeSubAgentStreamingEvents;
     private Map<String, McpServerConfig> mcpServers;
@@ -83,6 +84,7 @@ public class SessionConfig {
     private ToolSearchConfig toolSearch;
     private MemoryConfiguration memory;
     private List<String> disabledSkills;
+    private List<String> disabledMcpServers;
     private String configDirectory;
     private Boolean enableConfigDiscovery;
     private Boolean skipEmbeddingRetrieval;
@@ -100,11 +102,13 @@ public class SessionConfig {
     private ExitPlanModeHandler onExitPlanMode;
     private AutoModeSwitchHandler onAutoModeSwitch;
     private boolean enableMcpApps;
+    private GitHubMcpToolConfig githubMcpToolConfig;
     private String gitHubToken;
     private String remoteSession;
     private CloudSessionOptions cloud;
-    private JsonNode expAssignments;
+    private CopilotExpAssignmentResponse expAssignments;
     private Boolean enableManagedSettings;
+    private ManagedSettings managedSettings;
 
     /**
      * Gets the custom session ID.
@@ -178,7 +182,8 @@ public class SessionConfig {
     /**
      * Gets the reasoning effort level.
      *
-     * @return the reasoning effort level ("low", "medium", "high", or "xhigh")
+     * @return the reasoning effort level ("low", "medium", "high", "xhigh", or
+     *         "max")
      */
     public String getReasoningEffort() {
         return reasoningEffort;
@@ -187,8 +192,8 @@ public class SessionConfig {
     /**
      * Sets the reasoning effort level for models that support it.
      * <p>
-     * Valid values: "low", "medium", "high", "xhigh". Only applies to models where
-     * {@code capabilities.supports.reasoningEffort} is true.
+     * Valid values: "low", "medium", "high", "xhigh", "max". Only applies to models
+     * where {@code capabilities.supports.reasoningEffort} is true.
      *
      * @param reasoningEffort
      *            the reasoning effort level
@@ -575,6 +580,52 @@ public class SessionConfig {
     }
 
     /**
+     * Clears the sessionLimits setting, reverting to the default behavior.
+     *
+     * @return this instance for method chaining
+     */
+    @CopilotExperimental
+    public SessionConfig clearSessionLimits() {
+        this.sessionLimits = null;
+        return this;
+    }
+
+    /**
+     * Controls whether the session enables experimental features.
+     *
+     * @return {@code true} when experimental features are enabled, {@code false}
+     *         when they are disabled, or empty to use the mode-specific default
+     */
+    @JsonIgnore
+    public Optional<Boolean> getEnableExperimentalMode() {
+        return Optional.ofNullable(enableExperimentalMode);
+    }
+
+    /**
+     * Controls whether the session enables experimental features.
+     *
+     * @param enableExperimentalMode
+     *            {@code true} to enable experimental features; {@code false} to
+     *            disable them
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setEnableExperimentalMode(boolean enableExperimentalMode) {
+        this.enableExperimentalMode = enableExperimentalMode;
+        return this;
+    }
+
+    /**
+     * Clears the enableExperimentalMode setting. In {@link CopilotClientMode#EMPTY
+     * EMPTY} mode this defaults to {@code false}; otherwise the runtime decides.
+     *
+     * @return this instance for method chaining
+     */
+    public SessionConfig clearEnableExperimentalMode() {
+        this.enableExperimentalMode = null;
+        return this;
+    }
+
+    /**
      * Gets whether custom instruction file loading is suppressed.
      *
      * @return {@code true} to suppress, or empty if not explicitly set
@@ -632,11 +683,11 @@ public class SessionConfig {
      * Sets whether custom-agent discovery is restricted to the session's local
      * working directory (no organisation-level discovery).
      * <p>
-     * This option is sent to the server via a {@code session.options.update}
-     * JSON-RPC call immediately after session creation. In
-     * {@link CopilotClientMode#EMPTY EMPTY} mode the default is {@code true} (local
-     * only); in {@link CopilotClientMode#COPILOT_CLI COPILOT_CLI} mode the value is
-     * forwarded only when explicitly set.
+     * This option is sent with the initial create request and maintained via
+     * {@code session.options.update}. In {@link CopilotClientMode#EMPTY EMPTY} mode
+     * the default is {@code true} (local only); in
+     * {@link CopilotClientMode#COPILOT_CLI COPILOT_CLI} mode the value is forwarded
+     * only when explicitly set.
      *
      * @param customAgentsLocalOnly
      *            whether to restrict to local agents
@@ -859,6 +910,27 @@ public class SessionConfig {
      */
     public SessionConfig setWorkingDirectory(String workingDirectory) {
         this.workingDirectory = workingDirectory;
+        return this;
+    }
+
+    /**
+     * Gets the directories the agent may access beyond the working directory.
+     *
+     * @return the additional directory paths
+     */
+    public List<String> getAdditionalDirectories() {
+        return additionalDirectories;
+    }
+
+    /**
+     * Sets directories the agent may access beyond the working directory.
+     *
+     * @param additionalDirectories
+     *            the additional directory paths
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setAdditionalDirectories(List<String> additionalDirectories) {
+        this.additionalDirectories = additionalDirectories;
         return this;
     }
 
@@ -1199,6 +1271,29 @@ public class SessionConfig {
     }
 
     /**
+     * Gets exact MCP server names disabled for this session.
+     *
+     * @return the disabled MCP server names, or {@code null} when none are disabled
+     */
+    public List<String> getDisabledMcpServers() {
+        return disabledMcpServers == null ? null : Collections.unmodifiableList(disabledMcpServers);
+    }
+
+    /**
+     * Sets exact MCP server names to disable for this session. Disabled servers are
+     * not started or authenticated on create or cold resume; a resident resume
+     * cannot stop servers already running.
+     *
+     * @param disabledMcpServers
+     *            the server names to disable
+     * @return this config for method chaining
+     */
+    public SessionConfig setDisabledMcpServers(List<String> disabledMcpServers) {
+        this.disabledMcpServers = disabledMcpServers;
+        return this;
+    }
+
+    /**
      * Gets the custom configuration directory.
      *
      * @return the config directory path
@@ -1235,14 +1330,8 @@ public class SessionConfig {
     }
 
     /**
-     * Sets whether to automatically discover MCP server configurations and skill
-     * directories from the working directory.
-     * <p>
-     * When {@code true}, the CLI scans the working directory for {@code .mcp.json},
-     * {@code .vscode/mcp.json} and skill directories, and merges them with
-     * explicitly provided {@link #setMcpServers(Map)} and
-     * {@link #setSkillDirectories(List)}, with explicit values taking precedence on
-     * name collision.
+     * Enables runtime discovery of supported configuration. Explicitly supplied
+     * configuration takes precedence over discovered values.
      *
      * @param enableConfigDiscovery
      *            {@code true} to enable discovery, {@code false} to disable
@@ -1720,6 +1809,27 @@ public class SessionConfig {
     }
 
     /**
+     * Gets the configuration for the built-in GitHub MCP server.
+     *
+     * @return the GitHub MCP configuration, or {@code null}
+     */
+    public GitHubMcpToolConfig getGitHubMcpToolConfig() {
+        return githubMcpToolConfig;
+    }
+
+    /**
+     * Sets the configuration for the built-in GitHub MCP server.
+     *
+     * @param githubMcpToolConfig
+     *            the GitHub MCP configuration
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setGitHubMcpToolConfig(GitHubMcpToolConfig githubMcpToolConfig) {
+        this.githubMcpToolConfig = githubMcpToolConfig;
+        return this;
+    }
+
+    /**
      * Gets the exit-plan-mode request handler.
      *
      * @return the exit-plan-mode handler, or {@code null}
@@ -1873,15 +1983,15 @@ public class SessionConfig {
      *
      * @return the ExP assignment data, or {@code null} if not set
      */
-    public JsonNode getExpAssignments() {
+    public CopilotExpAssignmentResponse getExpAssignments() {
         return expAssignments;
     }
 
     /**
      * Sets ExP assignment ("flight") data injected by a trusted integrator.
      * <p>
-     * The value is opaque JSON in the same shape the Copilot CLI fetches from the
-     * experimentation service ({@code CopilotExpAssignmentResponse}). When
+     * The value is in the same shape the Copilot CLI fetches from the
+     * experimentation service ({@link CopilotExpAssignmentResponse}). When
      * provided, the runtime feeds it into the same feature-flag path as CLI-fetched
      * assignments and stamps it onto telemetry and the CAPI request header. When
      * absent, the session does not block on ExP. Intended for out-of-process
@@ -1892,10 +2002,10 @@ public class SessionConfig {
      * advertised public surface.
      *
      * @param expAssignments
-     *            the opaque ExP assignment data
+     *            the ExP assignment data
      * @return this config instance for method chaining
      */
-    public SessionConfig setExpAssignments(JsonNode expAssignments) {
+    public SessionConfig setExpAssignments(CopilotExpAssignmentResponse expAssignments) {
         this.expAssignments = expAssignments;
         return this;
     }
@@ -1933,6 +2043,29 @@ public class SessionConfig {
     }
 
     /**
+     * Gets host-injected managed settings for this session.
+     *
+     * @return the managed settings, or {@code null} when unset
+     */
+    public ManagedSettings getManagedSettings() {
+        return managedSettings;
+    }
+
+    /**
+     * Supplies permissions-only managed settings at session startup. The runtime
+     * validates and composes this policy restrictively with self-fetched and device
+     * policy. Re-supply it on resume because it is not persisted.
+     *
+     * @param managedSettings
+     *            the host-injected managed settings
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setManagedSettings(ManagedSettings managedSettings) {
+        this.managedSettings = managedSettings;
+        return this;
+    }
+
+    /**
      * Creates a shallow clone of this {@code SessionConfig} instance.
      * <p>
      * Mutable collection properties are copied into new collection instances so
@@ -1966,6 +2099,7 @@ public class SessionConfig {
         copy.enableSessionTelemetry = this.enableSessionTelemetry;
         copy.enableCitations = this.enableCitations;
         copy.sessionLimits = this.sessionLimits;
+        copy.enableExperimentalMode = this.enableExperimentalMode;
         copy.skipCustomInstructions = this.skipCustomInstructions;
         copy.customAgentsLocalOnly = this.customAgentsLocalOnly;
         copy.coauthorEnabled = this.coauthorEnabled;
@@ -1974,6 +2108,9 @@ public class SessionConfig {
         copy.onUserInputRequest = this.onUserInputRequest;
         copy.hooks = this.hooks;
         copy.workingDirectory = this.workingDirectory;
+        copy.additionalDirectories = this.additionalDirectories != null
+                ? new ArrayList<>(this.additionalDirectories)
+                : null;
         copy.streaming = this.streaming;
         copy.includeSubAgentStreamingEvents = this.includeSubAgentStreamingEvents;
         copy.mcpServers = this.mcpServers != null ? new java.util.HashMap<>(this.mcpServers) : null;
@@ -1990,6 +2127,7 @@ public class SessionConfig {
         copy.toolSearch = this.toolSearch;
         copy.memory = this.memory;
         copy.disabledSkills = this.disabledSkills != null ? new ArrayList<>(this.disabledSkills) : null;
+        copy.disabledMcpServers = this.disabledMcpServers != null ? new ArrayList<>(this.disabledMcpServers) : null;
         copy.configDirectory = this.configDirectory;
         copy.enableConfigDiscovery = this.enableConfigDiscovery;
         copy.skipEmbeddingRetrieval = this.skipEmbeddingRetrieval;
@@ -2008,11 +2146,13 @@ public class SessionConfig {
         copy.onExitPlanMode = this.onExitPlanMode;
         copy.onAutoModeSwitch = this.onAutoModeSwitch;
         copy.enableMcpApps = this.enableMcpApps;
+        copy.githubMcpToolConfig = this.githubMcpToolConfig;
         copy.gitHubToken = this.gitHubToken;
         copy.remoteSession = this.remoteSession;
         copy.cloud = this.cloud;
         copy.expAssignments = this.expAssignments;
         copy.enableManagedSettings = this.enableManagedSettings;
+        copy.managedSettings = this.managedSettings;
         return copy;
     }
 }

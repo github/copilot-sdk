@@ -78,6 +78,11 @@ import com.github.copilot.tool.Param;
  * @param metadata
  *            opaque, host-defined metadata; keys are namespaced and not part of
  *            the stable public API; {@code null} when unset
+ * @param isTerminal
+ *            when {@code true}, a successful call to this tool ends the agent
+ *            turn: the runtime's tool phase halts instead of feeding the result
+ *            back to the model for another round; {@code null} or {@code false}
+ *            leaves the turn running
  * @see SessionConfig#setTools(java.util.List)
  * @see ToolHandler
  * @since 1.0.0
@@ -87,13 +92,13 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
         @JsonProperty("parameters") Object parameters, @JsonIgnore ToolHandler handler,
         @JsonProperty("overridesBuiltInTool") Boolean overridesBuiltInTool,
         @JsonProperty("skipPermission") Boolean skipPermission, @JsonProperty("defer") ToolDefer defer,
-        @JsonProperty("metadata") Map<String, Object> metadata) {
+        @JsonProperty("metadata") Map<String, Object> metadata, @JsonProperty("isTerminal") Boolean isTerminal) {
 
     /**
-     * Creates a tool definition without a {@code metadata} bag.
+     * Creates a tool definition without a {@code metadata} bag or terminality hint.
      * <p>
      * Convenience overload equivalent to the canonical constructor with
-     * {@code metadata} set to {@code null}.
+     * {@code metadata} and {@code isTerminal} set to {@code null}.
      *
      * @param name
      *            the unique name of the tool
@@ -114,7 +119,37 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
      */
     public ToolDefinition(String name, String description, Object parameters, ToolHandler handler,
             Boolean overridesBuiltInTool, Boolean skipPermission, ToolDefer defer) {
-        this(name, description, parameters, handler, overridesBuiltInTool, skipPermission, defer, null);
+        this(name, description, parameters, handler, overridesBuiltInTool, skipPermission, defer, null, null);
+    }
+
+    /**
+     * Creates a tool definition without a terminality hint.
+     * <p>
+     * Convenience overload equivalent to the canonical constructor with
+     * {@code isTerminal} set to {@code null}.
+     *
+     * @param name
+     *            the unique name of the tool
+     * @param description
+     *            a description of what the tool does
+     * @param parameters
+     *            the JSON Schema for the tool's parameters
+     * @param handler
+     *            the handler function to execute when invoked
+     * @param overridesBuiltInTool
+     *            whether this tool overrides a built-in tool; {@code null} for the
+     *            default
+     * @param skipPermission
+     *            whether the tool may run without a permission check; {@code null}
+     *            for the default
+     * @param defer
+     *            the deferral mode; {@code null} lets the runtime decide
+     * @param metadata
+     *            the opaque, host-defined metadata; {@code null} when unset
+     */
+    public ToolDefinition(String name, String description, Object parameters, ToolHandler handler,
+            Boolean overridesBuiltInTool, Boolean skipPermission, ToolDefer defer, Map<String, Object> metadata) {
+        this(name, description, parameters, handler, overridesBuiltInTool, skipPermission, defer, metadata, null);
     }
 
     /**
@@ -304,7 +339,8 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
      */
     @CopilotExperimental
     public ToolDefinition overridesBuiltInTool(boolean value) {
-        return new ToolDefinition(name, description, parameters, handler, value, skipPermission, defer, metadata);
+        return new ToolDefinition(name, description, parameters, handler, value, skipPermission, defer, metadata,
+                isTerminal);
     }
 
     /**
@@ -318,7 +354,8 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
      */
     @CopilotExperimental
     public ToolDefinition skipPermission(boolean value) {
-        return new ToolDefinition(name, description, parameters, handler, overridesBuiltInTool, value, defer, metadata);
+        return new ToolDefinition(name, description, parameters, handler, overridesBuiltInTool, value, defer, metadata,
+                isTerminal);
     }
 
     /**
@@ -333,7 +370,7 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
     @CopilotExperimental
     public ToolDefinition defer(ToolDefer value) {
         return new ToolDefinition(name, description, parameters, handler, overridesBuiltInTool, skipPermission, value,
-                metadata);
+                metadata, isTerminal);
     }
 
     /**
@@ -348,7 +385,22 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
     @CopilotExperimental
     public ToolDefinition metadata(Map<String, Object> value) {
         return new ToolDefinition(name, description, parameters, handler, overridesBuiltInTool, skipPermission, defer,
-                value);
+                value, isTerminal);
+    }
+
+    /**
+     * Returns a copy with the {@code isTerminal} flag set.
+     *
+     * @param value
+     *            {@code true} to end the agent turn after a successful call to this
+     *            tool
+     * @return a new {@code ToolDefinition} with the flag applied
+     * @since 1.0.11
+     */
+    @CopilotExperimental
+    public ToolDefinition isTerminal(boolean value) {
+        return new ToolDefinition(name, description, parameters, handler, overridesBuiltInTool, skipPermission, defer,
+                metadata, value);
     }
 
     // ------------------------------------------------------------------

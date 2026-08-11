@@ -643,9 +643,27 @@ func TestSessionE2E(t *testing.T) {
 		}
 
 		// We should be able to send another message
-		answer, err := session.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "What is 2+2?"})
+		answerCh := make(chan *copilot.SessionEvent, 1)
+		answerErrCh := make(chan error, 1)
+		go func() {
+			evt, err := testharness.GetNextEventOfType(session, copilot.SessionEventTypeAssistantMessage, 60*time.Second)
+			if err != nil {
+				answerErrCh <- err
+			} else {
+				answerCh <- evt
+			}
+		}()
+
+		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "What is 2+2?"})
 		if err != nil {
 			t.Fatalf("Failed to send message after abort: %v", err)
+		}
+
+		var answer *copilot.SessionEvent
+		select {
+		case answer = <-answerCh:
+		case err := <-answerErrCh:
+			t.Fatalf("Failed waiting for assistant message after abort: %v", err)
 		}
 
 		if ad, ok := answer.Data.(*copilot.AssistantMessageData); !ok || !strings.Contains(ad.Content, "4") {
@@ -1029,7 +1047,12 @@ func getSystemMessage(exchange testharness.ParsedHttpExchange) string {
 }
 
 func TestSetModelWithReasoningEffortE2E(t *testing.T) {
+	t.Run("should set model with reasoningeffort", runSetModelWithReasoningEffortE2E)
+}
+
+func runSetModelWithReasoningEffortE2E(t *testing.T) {
 	ctx := testharness.NewTestContext(t)
+	ctx.ConfigureForTest(t)
 	client := ctx.NewClient()
 	t.Cleanup(func() { client.ForceStop() })
 
@@ -1054,15 +1077,15 @@ func TestSetModelWithReasoningEffortE2E(t *testing.T) {
 		}
 	})
 
-	if err := session.SetModel(t.Context(), "gpt-4.1", &copilot.SetModelOptions{ReasoningEffort: copilot.String("high")}); err != nil {
+	if err := session.SetModel(t.Context(), "gpt-5.4", &copilot.SetModelOptions{ReasoningEffort: copilot.String("high")}); err != nil {
 		t.Fatalf("SetModel returned error: %v", err)
 	}
 
 	select {
 	case evt := <-modelChanged:
 		md, mdOk := evt.Data.(*copilot.SessionModelChangeData)
-		if !mdOk || md.NewModel != "gpt-4.1" {
-			t.Errorf("Expected newModel 'gpt-4.1', got %v", evt.Data)
+		if !mdOk || md.NewModel != "gpt-5.4" {
+			t.Errorf("Expected newModel 'gpt-5.4', got %v", evt.Data)
 		}
 		if !mdOk || md.ReasoningEffort == nil || *md.ReasoningEffort != "high" {
 			t.Errorf("Expected reasoningEffort 'high', got %v", evt.Data)

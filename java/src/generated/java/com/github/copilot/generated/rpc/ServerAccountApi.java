@@ -29,13 +29,26 @@ public final class ServerAccountApi {
 
     /**
      * Optional GitHub token used to look up quota for a specific user instead of the global auth context.
+     * <p>
+     * Invokes the method with no params, applying the runtime defaults.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
     @CopilotExperimental
     public CompletableFuture<AccountGetQuotaResult> getQuota() {
-        return caller.invoke("account.getQuota", java.util.Map.of(), AccountGetQuotaResult.class);
+        return getQuota(null);
+    }
+
+    /**
+     * Optional GitHub token used to look up quota for a specific user instead of the global auth context.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<AccountGetQuotaResult> getQuota(AccountGetQuotaParams params) {
+        return caller.invoke("account.getQuota", params == null ? java.util.Map.of() : params, AccountGetQuotaResult.class);
     }
 
     /**

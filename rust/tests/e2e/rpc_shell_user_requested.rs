@@ -5,11 +5,12 @@ use std::time::Duration;
 use github_copilot_sdk::RequestId;
 use github_copilot_sdk::rpc::{ShellCancelUserRequestedRequest, ShellExecuteUserRequestedRequest};
 
-use super::support::{wait_for_condition, with_e2e_context};
+use super::support::wait_for_condition;
 
 #[tokio::test]
 async fn should_execute_user_requested_shell_command() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_shell_user_requested",
         "should_execute_user_requested_shell_command",
         |ctx| {
@@ -52,7 +53,8 @@ async fn should_execute_user_requested_shell_command() {
 
 #[tokio::test]
 async fn should_cancel_user_requested_shell_command() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_shell_user_requested",
         "should_cancel_user_requested_shell_command",
         |ctx| {
@@ -171,3 +173,5 @@ fn powershell_quote(path: &Path) -> String {
 fn posix_shell_quote(path: &Path) -> String {
     format!("'{}'", path.display().to_string().replace('\'', "'\\''"))
 }
+static E2E: super::support::SharedE2eGroup =
+    super::support::SharedE2eGroup::standard("rpc_shell_user_requested", 2);

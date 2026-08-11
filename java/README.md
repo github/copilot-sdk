@@ -32,14 +32,14 @@ Replace `${copilot.sdk.version}` with the latest release from Maven Central.
 <dependency>
     <groupId>com.github</groupId>
     <artifactId>copilot-sdk-java</artifactId>
-    <version>1.0.5-01</version>
+    <version>1.0.10-preview.0</version>
 </dependency>
 ```
 
 ### Gradle
 
 ```groovy
-implementation 'com.github:copilot-sdk-java:1.0.7-preview.3-01'
+implementation 'com.github:copilot-sdk-java:1.0.10-preview.0'
 ```
 
 #### Snapshot Builds
@@ -58,7 +58,7 @@ Snapshot builds of the next development version are published to Maven Central S
 <dependency>
     <groupId>com.github</groupId>
     <artifactId>copilot-sdk-java</artifactId>
-    <version>1.0.8-preview.3-SNAPSHOT</version>
+    <version>1.0.11-preview.0-SNAPSHOT</version>
 </dependency>
 ```
 
@@ -67,7 +67,7 @@ Snapshot builds of the next development version are published to Maven Central S
 Replace `${copilot.sdk.version}` with the latest release from Maven Central.
 
 ```groovy
-implementation 'com.github:copilot-sdk-java:1.0.7-preview.3-01-SNAPSHOT'
+implementation 'com.github:copilot-sdk-java:1.0.11-preview.0-SNAPSHOT'
 ```
 
 ## Quick Start
@@ -118,6 +118,38 @@ public class CopilotSDK {
         System.exit(success ? 0 : -1);
     }
 }
+```
+
+When targeting MCP tools configured through `setMcpServers(...)`, remember the
+runtime tool name is `<server-key>-<tool-name>`. For `setAvailableTools(...)`
+and `setExcludedTools(...)`, prefer the source-qualified filter form
+`mcp:<server-key>-<tool-name>`. For `CustomAgentConfig.setTools(...)` and
+`DefaultAgentConfig.setExcludedTools(...)`, use `<server-key>-<tool-name>`
+directly.
+
+`CopilotClientOptions.setCwd(...)` sets the runtime process working directory, which otherwise inherits the current process working directory. `SessionConfig.setWorkingDirectory(...)` sets the session working directory, which otherwise defaults to the runtime process working directory.
+
+## Permission Handling
+
+`PermissionHandler.APPROVE_ALL` approves requests when managed settings are disabled. When `enableManagedSettings` is true, it completes exceptionally. Custom handlers can inspect `request.getManagedApprovalRequired()` for human-facing confirmation logic.
+
+When handling `PermissionRequestedEvent` directly, convert its generated event value with `PermissionRequest.fromJsonValue(event.getData().permissionRequest())` to access the typed metadata.
+
+Custom handlers must check managed approval before applying kind-specific automatic decisions:
+
+```java
+import java.util.concurrent.CompletableFuture;
+
+import com.github.copilot.rpc.PermissionHandler;
+import com.github.copilot.rpc.PermissionRequestResult;
+
+PermissionHandler handler = (request, invocation) -> {
+    if (Boolean.TRUE.equals(request.getManagedApprovalRequired())) {
+        return CompletableFuture.completedFuture(PermissionRequestResult.noResult());
+    }
+
+    return CompletableFuture.completedFuture(PermissionRequestResult.approveOnce());
+};
 ```
 
 ## Try it with JBang
@@ -231,6 +263,10 @@ Chain fluent modifiers to set tool options:
 - `.overridesBuiltInTool(boolean)` — shadow built-in tools
 
 For design context and decision rationale, see [ADR-006](docs/adr/adr-006-tool-definition-inline.md).
+
+## Session Store
+
+`enableSessionStore` on `SessionConfig` enables the cross-session store for search and retrieval across sessions. When unset in the default `CopilotClientMode.COPILOT_CLI` mode, the runtime default applies (enabled). In `CopilotClientMode.EMPTY` mode, defaults to disabled.
 
 ## Memory
 
@@ -386,7 +422,7 @@ The gate also applies to individual methods annotated with `@CopilotExperimental
 
 ### Development Setup
 
-Requires JDK 25 or later for development. The following steps validate the artifact built with JDK 25 runs on both 25 and 17, preserving the MR-JAR behavior.
+Requires JDK 25 or later and a supported [Node.js version](../nodejs/README.md#prerequisites) for development. The following steps validate the artifact built with JDK 25 runs on both 25 and 17, preserving the MR-JAR behavior.
 
 ```bash
 # Clone the repository

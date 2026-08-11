@@ -7,11 +7,12 @@ use github_copilot_sdk::hooks::{
 };
 use tokio::sync::mpsc;
 
-use super::support::{recv_with_timeout, with_e2e_context};
+use super::support::recv_with_timeout;
 
 #[tokio::test]
 async fn should_invoke_pretooluse_hook_when_model_runs_a_tool() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "hooks",
         "should_invoke_pretooluse_hook_when_model_runs_a_tool",
         |ctx| {
@@ -51,7 +52,8 @@ async fn should_invoke_pretooluse_hook_when_model_runs_a_tool() {
 
 #[tokio::test]
 async fn should_invoke_posttooluse_hook_after_model_runs_a_tool() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "hooks",
         "should_invoke_posttooluse_hook_after_model_runs_a_tool",
         |ctx| {
@@ -92,7 +94,7 @@ async fn should_invoke_posttooluse_hook_after_model_runs_a_tool() {
 
 #[tokio::test]
 async fn should_invoke_both_pretooluse_and_posttooluse_hooks_for_single_tool_call() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(&E2E,
         "hooks",
         "should_invoke_both_pretooluse_and_posttooluse_hooks_for_single_tool_call",
         |ctx| {
@@ -147,7 +149,8 @@ async fn should_invoke_both_pretooluse_and_posttooluse_hooks_for_single_tool_cal
 
 #[tokio::test]
 async fn should_deny_tool_execution_when_pretooluse_returns_deny() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "hooks",
         "should_deny_tool_execution_when_pretooluse_returns_deny",
         |ctx| {
@@ -226,3 +229,4 @@ impl SessionHooks for RecordingHooks {
         None
     }
 }
+static E2E: super::support::SharedE2eGroup = super::support::SharedE2eGroup::standard("hooks", 4);

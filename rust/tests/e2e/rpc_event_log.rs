@@ -7,11 +7,10 @@ use github_copilot_sdk::session_events::{
 };
 use serde_json::json;
 
-use super::support::with_e2e_context;
-
 #[tokio::test]
 async fn should_read_persisted_events_from_beginning() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_event_log",
         "should_read_persisted_events_from_beginning",
         |ctx| {
@@ -43,8 +42,11 @@ async fn should_read_persisted_events_from_beginning() {
                     .rpc()
                     .event_log()
                     .read(EventLogReadRequest {
+                        agent_ids: None,
                         agent_scope: None,
                         cursor: None,
+                        direction: None,
+                        include_ephemeral: None,
                         max: Some(100),
                         types: Some(json!("*")),
                         wait_ms: Some(0),
@@ -70,7 +72,8 @@ async fn should_read_persisted_events_from_beginning() {
 
 #[tokio::test]
 async fn should_return_tail_cursor_and_read_empty_when_no_new_events() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_event_log",
         "should_return_tail_cursor_and_read_empty_when_no_new_events",
         |ctx| {
@@ -88,8 +91,11 @@ async fn should_return_tail_cursor_and_read_empty_when_no_new_events() {
                     .rpc()
                     .event_log()
                     .read(EventLogReadRequest {
+                        agent_ids: None,
                         agent_scope: None,
                         cursor: Some(tail.cursor),
+                        direction: None,
+                        include_ephemeral: None,
                         max: Some(10),
                         types: Some(json!("*")),
                         wait_ms: Some(0),
@@ -110,7 +116,8 @@ async fn should_return_tail_cursor_and_read_empty_when_no_new_events() {
 
 #[tokio::test]
 async fn should_register_and_release_event_interest_idempotently() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_event_log",
         "should_register_and_release_event_interest_idempotently",
         |ctx| {
@@ -156,7 +163,8 @@ async fn should_register_and_release_event_interest_idempotently() {
 
 #[tokio::test]
 async fn should_longpoll_with_types_filter_for_titlechanged_event() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_event_log",
         "should_longpoll_with_types_filter_for_titlechanged_event",
         |ctx| {
@@ -170,8 +178,11 @@ async fn should_longpoll_with_types_filter_for_titlechanged_event() {
                 let tail = session.rpc().event_log().tail().await.expect("tail");
                 let event_log = session.rpc().event_log();
                 let read_future = event_log.read(EventLogReadRequest {
+                    agent_ids: None,
                     agent_scope: None,
                     cursor: Some(tail.cursor),
+                    direction: None,
+                    include_ephemeral: None,
                     max: Some(10),
                     types: Some(json!(["session.title_changed"])),
                     wait_ms: Some(5_000),
@@ -204,3 +215,5 @@ async fn should_longpoll_with_types_filter_for_titlechanged_event() {
     )
     .await;
 }
+static E2E: super::support::SharedE2eGroup =
+    super::support::SharedE2eGroup::standard("rpc_event_log", 4);

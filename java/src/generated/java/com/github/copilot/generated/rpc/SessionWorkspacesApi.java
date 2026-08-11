@@ -42,6 +42,38 @@ public final class SessionWorkspacesApi {
     }
 
     /**
+     * Workspace metadata fields to update.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionWorkspacesUpdateMetadataResult> updateMetadata(SessionWorkspacesUpdateMetadataParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.workspaces.updateMetadata", _p, SessionWorkspacesUpdateMetadataResult.class);
+    }
+
+    /**
+     * Optional session context used when creating a local workspace.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionWorkspacesEnsureResult> ensure(SessionWorkspacesEnsureParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.workspaces.ensure", _p, SessionWorkspacesEnsureResult.class);
+    }
+
+    /**
      * Identifies the target session.
      *
      * @apiNote This method is experimental and may change in a future version.
@@ -109,6 +141,87 @@ public final class SessionWorkspacesApi {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
         return caller.invoke("session.workspaces.readCheckpoint", _p, SessionWorkspacesReadCheckpointResult.class);
+    }
+
+    /**
+     * Compaction summary checkpoint to persist.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionWorkspacesAddSummaryResult> addSummary(SessionWorkspacesAddSummaryParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.workspaces.addSummary", _p, SessionWorkspacesAddSummaryResult.class);
+    }
+
+    /**
+     * Rollback point for local workspace summaries.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionWorkspacesTruncateSummariesResult> truncateSummaries(SessionWorkspacesTruncateSummariesParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.workspaces.truncateSummaries", _p, SessionWorkspacesTruncateSummariesResult.class);
+    }
+
+    /**
+     * Identifies the target session.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionWorkspacesReadAutopilotObjectiveResult> readAutopilotObjective() {
+        return caller.invoke("session.workspaces.readAutopilotObjective", java.util.Map.of("sessionId", this.sessionId), SessionWorkspacesReadAutopilotObjectiveResult.class);
+    }
+
+    /**
+     * Autopilot objective file content to persist.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionWorkspacesWriteAutopilotObjectiveResult> writeAutopilotObjective(SessionWorkspacesWriteAutopilotObjectiveParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.workspaces.writeAutopilotObjective", _p, SessionWorkspacesWriteAutopilotObjectiveResult.class);
+    }
+
+    /**
+     * Identifies the target session.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionWorkspacesDeleteAutopilotObjectiveResult> deleteAutopilotObjective() {
+        return caller.invoke("session.workspaces.deleteAutopilotObjective", java.util.Map.of("sessionId", this.sessionId), SessionWorkspacesDeleteAutopilotObjectiveResult.class);
+    }
+
+    /**
+     * Identifies the target session.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionWorkspacesAutopilotObjectiveExistsResult> autopilotObjectiveExists() {
+        return caller.invoke("session.workspaces.autopilotObjectiveExists", java.util.Map.of("sessionId", this.sessionId), SessionWorkspacesAutopilotObjectiveExistsResult.class);
     }
 
     /**

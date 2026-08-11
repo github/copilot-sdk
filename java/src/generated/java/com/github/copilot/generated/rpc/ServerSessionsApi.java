@@ -33,8 +33,8 @@ public final class ServerSessionsApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<SessionsOpenResult> open() {
-        return caller.invoke("sessions.open", java.util.Map.of(), SessionsOpenResult.class);
+    public CompletableFuture<SessionsOpenResult> open(SessionsOpenParams params) {
+        return caller.invoke("sessions.open", params, SessionsOpenResult.class);
     }
 
     /**
@@ -61,13 +61,48 @@ public final class ServerSessionsApi {
 
     /**
      * Optional source filter, metadata-load limit, and context filter applied to the returned sessions.
+     * <p>
+     * Invokes the method with no params, applying the runtime defaults.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
     @CopilotExperimental
     public CompletableFuture<SessionsListResult> list() {
-        return caller.invoke("sessions.list", java.util.Map.of(), SessionsListResult.class);
+        return list(null);
+    }
+
+    /**
+     * Optional source filter, metadata-load limit, and context filter applied to the returned sessions.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionsListResult> list(SessionsListParams params) {
+        return caller.invoke("sessions.list", params == null ? java.util.Map.of() : params, SessionsListResult.class);
+    }
+
+    /**
+     * Session ID whose persisted metadata should be read.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionsGetMetadataResult> getMetadata(SessionsGetMetadataParams params) {
+        return caller.invoke("sessions.getMetadata", params, SessionsGetMetadataResult.class);
+    }
+
+    /**
+     * Limit for non-empty local session IDs.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionsListNonEmptySessionIdsResult> listNonEmptySessionIds(SessionsListNonEmptySessionIdsParams params) {
+        return caller.invoke("sessions.listNonEmptySessionIds", params, SessionsListNonEmptySessionIdsResult.class);
     }
 
     /**
@@ -167,6 +202,17 @@ public final class ServerSessionsApi {
     @CopilotExperimental
     public CompletableFuture<SessionsBulkDeleteResult> bulkDelete(SessionsBulkDeleteParams params) {
         return caller.invoke("sessions.bulkDelete", params, SessionsBulkDeleteResult.class);
+    }
+
+    /**
+     * Session ID to delete from disk.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<Void> delete(SessionsDeleteParams params) {
+        return caller.invoke("sessions.delete", params, Void.class);
     }
 
     /**
@@ -292,13 +338,26 @@ public final class ServerSessionsApi {
 
     /**
      * Parameters for stopping the remote-control singleton.
+     * <p>
+     * Invokes the method with no params, applying the runtime defaults.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
     @CopilotExperimental
     public CompletableFuture<SessionsStopRemoteControlResult> stopRemoteControl() {
-        return caller.invoke("sessions.stopRemoteControl", java.util.Map.of(), SessionsStopRemoteControlResult.class);
+        return stopRemoteControl(null);
+    }
+
+    /**
+     * Parameters for stopping the remote-control singleton.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionsStopRemoteControlResult> stopRemoteControl(SessionsStopRemoteControlParams params) {
+        return caller.invoke("sessions.stopRemoteControl", params == null ? java.util.Map.of() : params, SessionsStopRemoteControlResult.class);
     }
 
     /**

@@ -750,6 +750,10 @@ func extractTransformCallbacks(config *SystemMessageConfig) (*SystemMessageConfi
 	return wireConfig, callbacks
 }
 
+func hasManagedSettings(enableManagedSettings *bool, managedSettings *ManagedSettings) bool {
+	return (enableManagedSettings != nil && *enableManagedSettings) || managedSettings != nil
+}
+
 func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Session, error) {
 	if config == nil {
 		config = &SessionConfig{}
@@ -796,12 +800,14 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.EnableSessionTelemetry = config.EnableSessionTelemetry
 	req.EnableCitations = config.EnableCitations
 	req.SessionLimits = config.SessionLimits
+	req.IsExperimentalMode = config.EnableExperimentalMode
 	req.SkipCustomInstructions = config.SkipCustomInstructions
 	req.CustomAgentsLocalOnly = config.CustomAgentsLocalOnly
 	req.CoauthorEnabled = config.CoauthorEnabled
 	req.ManageScheduleEnabled = config.ManageScheduleEnabled
 	req.ModelCapabilities = config.ModelCapabilities
 	req.WorkingDirectory = config.WorkingDirectory
+	req.AdditionalDirectories = config.AdditionalDirectories
 	req.MCPServers = config.MCPServers
 	req.MCPOAuthTokenStorage = config.MCPOAuthTokenStorage
 	req.EnvValueMode = "direct"
@@ -812,6 +818,9 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.PluginDirectories = config.PluginDirectories
 	req.InstructionDirectories = config.InstructionDirectories
 	req.DisabledSkills = config.DisabledSkills
+	if config.DisabledMCPServers != nil {
+		req.DisabledMCPServers = &config.DisabledMCPServers
+	}
 	req.InfiniteSessions = config.InfiniteSessions
 	req.LargeOutput = config.LargeOutput
 	req.ToolSearch = config.ToolSearch
@@ -828,6 +837,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.ExtensionInfo = config.ExtensionInfo
 	req.ExpAssignments = config.ExpAssignments
 	req.EnableManagedSettings = config.EnableManagedSettings
+	req.ManagedSettings = config.ManagedSettings
 
 	if len(config.Commands) > 0 {
 		cmds := make([]wireCommand, 0, len(config.Commands))
@@ -848,6 +858,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	if config.EnableMCPApps {
 		req.RequestMCPApps = Bool(true)
 	}
+	req.GitHubMCPToolConfig = config.GitHubMCPToolConfig
 
 	if config.Streaming != nil {
 		req.Streaming = config.Streaming
@@ -868,9 +879,11 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 		config.Hooks.OnPostToolUse != nil ||
 		config.Hooks.OnPostToolUseFailure != nil ||
 		config.Hooks.OnUserPromptSubmitted != nil ||
+		config.Hooks.OnUserPromptTransformed != nil ||
 		config.Hooks.OnSessionStart != nil ||
 		config.Hooks.OnSessionEnd != nil ||
-		config.Hooks.OnErrorOccurred != nil) {
+		config.Hooks.OnErrorOccurred != nil ||
+		config.Hooks.OnAgentStop != nil) {
 		req.Hooks = Bool(true)
 	}
 	if config.OnPermissionRequest != nil {
@@ -905,7 +918,12 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	// message is dispatched) so notifications for the new session id are
 	// routed to a registered session.
 	initializeSession := func(sessionID string) (*Session, error) {
-		s := newSession(sessionID, c.client, "")
+		s := newSession(
+			sessionID,
+			c.client,
+			"",
+			hasManagedSettings(config.EnableManagedSettings, config.ManagedSettings),
+		)
 
 		s.registerTools(config.Tools)
 		s.registerPermissionHandler(config.OnPermissionRequest)
@@ -1115,6 +1133,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	req.Providers = config.Providers
 	req.Models = config.Models
 	req.EnableSessionTelemetry = config.EnableSessionTelemetry
+	req.IsExperimentalMode = config.EnableExperimentalMode
 	req.SkipCustomInstructions = config.SkipCustomInstructions
 	req.CustomAgentsLocalOnly = config.CustomAgentsLocalOnly
 	req.CoauthorEnabled = config.CoauthorEnabled
@@ -1149,12 +1168,15 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 		config.Hooks.OnPostToolUse != nil ||
 		config.Hooks.OnPostToolUseFailure != nil ||
 		config.Hooks.OnUserPromptSubmitted != nil ||
+		config.Hooks.OnUserPromptTransformed != nil ||
 		config.Hooks.OnSessionStart != nil ||
 		config.Hooks.OnSessionEnd != nil ||
-		config.Hooks.OnErrorOccurred != nil) {
+		config.Hooks.OnErrorOccurred != nil ||
+		config.Hooks.OnAgentStop != nil) {
 		req.Hooks = Bool(true)
 	}
 	req.WorkingDirectory = config.WorkingDirectory
+	req.AdditionalDirectories = config.AdditionalDirectories
 	req.ConfigDir = config.ConfigDirectory
 	req.EnableConfigDiscovery = config.EnableConfigDiscovery
 	req.SkipEmbeddingRetrieval = config.SkipEmbeddingRetrieval
@@ -1179,6 +1201,9 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	req.PluginDirectories = config.PluginDirectories
 	req.InstructionDirectories = config.InstructionDirectories
 	req.DisabledSkills = config.DisabledSkills
+	if config.DisabledMCPServers != nil {
+		req.DisabledMCPServers = &config.DisabledMCPServers
+	}
 	req.InfiniteSessions = config.InfiniteSessions
 	req.LargeOutput = config.LargeOutput
 	req.ToolSearch = config.ToolSearch
@@ -1195,6 +1220,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	req.ExtensionInfo = config.ExtensionInfo
 	req.ExpAssignments = config.ExpAssignments
 	req.EnableManagedSettings = config.EnableManagedSettings
+	req.ManagedSettings = config.ManagedSettings
 	if config.OnPermissionRequest != nil {
 		req.RequestPermission = Bool(true)
 	}
@@ -1218,6 +1244,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	if config.EnableMCPApps {
 		req.RequestMCPApps = Bool(true)
 	}
+	req.GitHubMCPToolConfig = config.GitHubMCPToolConfig
 
 	traceparent, tracestate := getTraceContext(ctx)
 	req.Traceparent = traceparent
@@ -1225,7 +1252,12 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 
 	// Create and register the session before issuing the RPC so that
 	// events emitted by the CLI (e.g. session.start) are not dropped.
-	session := newSession(sessionID, c.client, "")
+	session := newSession(
+		sessionID,
+		c.client,
+		"",
+		hasManagedSettings(config.EnableManagedSettings, config.ManagedSettings),
+	)
 
 	session.registerTools(config.Tools)
 	session.registerPermissionHandler(config.OnPermissionRequest)
@@ -2290,7 +2322,6 @@ func (c *Client) setupNotificationHandler() {
 	c.client.SetRequestHandler("userInput.request", jsonrpc2.RequestHandlerFor(c.handleUserInputRequest))
 	c.client.SetRequestHandler("exitPlanMode.request", jsonrpc2.RequestHandlerFor(c.handleExitPlanModeRequest))
 	c.client.SetRequestHandler("autoModeSwitch.request", jsonrpc2.RequestHandlerFor(c.handleAutoModeSwitchRequest))
-	c.client.SetRequestHandler("hooks.invoke", jsonrpc2.RequestHandlerFor(c.handleHooksInvoke))
 	c.client.SetRequestHandler("systemMessage.transform", jsonrpc2.RequestHandlerFor(c.handleSystemMessageTransform))
 	rpc.RegisterClientSessionAPIHandlers(c.client, func(sessionID string) *rpc.ClientSessionAPIHandlers {
 		c.sessionsMux.Lock()
@@ -2301,21 +2332,25 @@ func (c *Client) setupNotificationHandler() {
 		}
 		return session.clientSessionAPIs
 	})
-	if c.options.RequestHandler != nil || c.options.OnGitHubTelemetry != nil {
-		handlers := &rpc.ClientGlobalAPIHandlers{}
-		if c.options.RequestHandler != nil {
-			handlers.LlmInference = newCopilotRequestAdapter(c.options.RequestHandler, func() *rpc.ServerLlmInferenceAPI {
-				if c.RPC == nil {
-					return nil
-				}
-				return c.RPC.LlmInference
-			})
-		}
-		if c.options.OnGitHubTelemetry != nil {
-			handlers.GitHubTelemetry = &gitHubTelemetryAdapter{callback: c.options.OnGitHubTelemetry}
-		}
-		rpc.RegisterClientGlobalAPIHandlers(c.client, handlers)
+	// hooks.invoke is a client-global RPC method: one connection-level handler
+	// receives every hook callback and routes to the owning session via the
+	// payload's sessionId. Always register the global handlers so the generated
+	// hooks.invoke handler is wired to our dispatcher.
+	handlers := &rpc.ClientGlobalAPIHandlers{
+		Hooks: &hooksAdapter{client: c},
 	}
+	if c.options.RequestHandler != nil {
+		handlers.LlmInference = newCopilotRequestAdapter(c.options.RequestHandler, func() *rpc.ServerLlmInferenceAPI {
+			if c.RPC == nil {
+				return nil
+			}
+			return c.RPC.LlmInference
+		})
+	}
+	if c.options.OnGitHubTelemetry != nil {
+		handlers.GitHubTelemetry = &gitHubTelemetryAdapter{callback: c.options.OnGitHubTelemetry}
+	}
+	rpc.RegisterClientGlobalAPIHandlers(c.client, handlers)
 }
 
 // gitHubTelemetryAdapter adapts the OnGitHubTelemetry option to the generated
@@ -2423,7 +2458,8 @@ func (c *Client) handleAutoModeSwitchRequest(req autoModeSwitchRequest) (*autoMo
 	return &autoModeSwitchResponse{Response: response}, nil
 }
 
-// handleHooksInvoke handles a hooks invocation from the CLI server.
+// handleHooksInvoke routes a hook callback to its owning session, keyed by the
+// payload's sessionId.
 func (c *Client) handleHooksInvoke(req hooksInvokeRequest) (map[string]any, *jsonrpc2.Error) {
 	if req.SessionID == "" || req.Type == "" {
 		return nil, &jsonrpc2.Error{Code: -32602, Message: "invalid hooks invoke payload"}
@@ -2446,6 +2482,34 @@ func (c *Client) handleHooksInvoke(req hooksInvokeRequest) (map[string]any, *jso
 		result["output"] = output
 	}
 	return result, nil
+}
+
+// hooksAdapter implements the generated rpc.HooksHandler, delegating to the
+// client's per-session hook dispatcher.
+type hooksAdapter struct {
+	client *Client
+}
+
+func (a *hooksAdapter) Invoke(request *rpc.HookInvokeRequest) (*rpc.HookInvokeResponse, error) {
+	rawInput, err := json.Marshal(request.Input)
+	if err != nil {
+		return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("invalid hooks invoke payload: %v", err)}
+	}
+
+	result, rpcErr := a.client.handleHooksInvoke(hooksInvokeRequest{
+		SessionID: request.SessionID,
+		Type:      string(request.HookType),
+		Input:     rawInput,
+	})
+	if rpcErr != nil {
+		return nil, rpcErr
+	}
+
+	response := &rpc.HookInvokeResponse{}
+	if result != nil {
+		response.Output = result["output"]
+	}
+	return response, nil
 }
 
 // handleSystemMessageTransform handles a system message transform request from the CLI server.

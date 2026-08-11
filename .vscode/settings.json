@@ -25,6 +25,7 @@
   "[go]": {
     "editor.defaultFormatter": "golang.go"
   },
+  "java.autobuild.enabled": false,
   "java.configuration.updateBuildConfiguration": "automatic",
   "java.compile.nullAnalysis.mode": "automatic"
 }

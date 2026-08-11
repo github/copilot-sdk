@@ -35,17 +35,20 @@ Homepage = "https://github.com/github/copilot-sdk"
 Repository = "https://github.com/github/copilot-sdk"
 
 [project.optional-dependencies]
+telemetry = [
+    "opentelemetry-api>=1.0.0",
+]
+
+[dependency-groups]
 dev = [
-    "ruff>=0.1.0",
+    "ruff==0.16.0",
     "ty>=0.0.2,<0.0.25",
     "pytest>=7.0.0",
     "pytest-asyncio>=0.21.0",
     "pytest-timeout>=2.0.0",
+    "pytest-xdist>=3.6.0",
     "websockets>=12.0",
     "opentelemetry-sdk>=1.0.0",
-]
-telemetry = [
-    "opentelemetry-api>=1.0.0",
 ]
 
 [tool.setuptools.packages.find]
@@ -90,3 +93,7 @@ python_files = "test_*.py"
 python_classes = "Test*"
 python_functions = "test_*"
 asyncio_mode = "auto"
+# Bound every test so a deadlock fails fast with a stack dump instead of occupying the
+# whole CI leg until GitHub's 6-hour job limit. The full suite runs in ~10 minutes, so no
+# individual test legitimately approaches this.
+timeout = 300

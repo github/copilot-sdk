@@ -10,7 +10,6 @@ import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.databind.JsonNode;
 
 import com.github.copilot.CopilotExperimental;
 import com.github.copilot.generated.rpc.SessionLimitsConfig;
@@ -98,6 +97,9 @@ public final class ResumeSessionRequest {
     @JsonProperty("workingDirectory")
     private String workingDirectory;
 
+    @JsonProperty("additionalDirectories")
+    private List<String> additionalDirectories;
+
     @JsonProperty("configDir")
     private String configDirectory;
 
@@ -160,6 +162,9 @@ public final class ResumeSessionRequest {
     @JsonProperty("customAgents")
     private List<CustomAgentConfig> customAgents;
 
+    @JsonProperty("customAgentsLocalOnly")
+    private Boolean customAgentsLocalOnly;
+
     @JsonProperty("defaultAgent")
     private DefaultAgentConfig defaultAgent;
 
@@ -187,6 +192,9 @@ public final class ResumeSessionRequest {
     @JsonProperty("disabledSkills")
     private List<String> disabledSkills;
 
+    @JsonProperty("disabledMcpServers")
+    private List<String> disabledMcpServers;
+
     @JsonProperty("infiniteSessions")
     private InfiniteSessionConfig infiniteSessions;
 
@@ -198,6 +206,13 @@ public final class ResumeSessionRequest {
 
     @JsonProperty("requestMcpApps")
     private Boolean requestMcpApps;
+
+    @JsonProperty("githubMcpToolConfig")
+    private GitHubMcpToolConfig githubMcpToolConfig;
+
+    @JsonProperty("isExperimentalMode")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private Boolean isExperimentalMode;
 
     @JsonProperty("requestExitPlanMode")
     private Boolean requestExitPlanMode;
@@ -215,11 +230,15 @@ public final class ResumeSessionRequest {
     private String remoteSession;
 
     @JsonProperty("expAssignments")
-    private JsonNode expAssignments;
+    private CopilotExpAssignmentResponse expAssignments;
 
     @JsonProperty("enableManagedSettings")
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private Boolean enableManagedSettings;
+
+    @JsonProperty("managedSettings")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private ManagedSettings managedSettings;
 
     /** Gets the session ID. @return the session ID */
     public String getSessionId() {
@@ -496,6 +515,21 @@ public final class ResumeSessionRequest {
     /** Sets working directory. @param workingDirectory the working directory */
     public void setWorkingDirectory(String workingDirectory) {
         this.workingDirectory = workingDirectory;
+    }
+
+    /** Gets additional directories. @return the additional directories */
+    public List<String> getAdditionalDirectories() {
+        return additionalDirectories;
+    }
+
+    /**
+     * Sets additional directories.
+     *
+     * @param additionalDirectories
+     *            the additional directories
+     */
+    public void setAdditionalDirectories(List<String> additionalDirectories) {
+        this.additionalDirectories = additionalDirectories;
     }
 
     /** Gets config directory. @return the config directory */
@@ -779,6 +813,19 @@ public final class ResumeSessionRequest {
         this.customAgents = customAgents;
     }
 
+    /** Gets whether custom agents are local only. @return the flag */
+    public Boolean getCustomAgentsLocalOnly() {
+        return customAgentsLocalOnly;
+    }
+
+    /**
+     * Sets whether custom agents are local only. @param customAgentsLocalOnly the
+     * flag
+     */
+    public void setCustomAgentsLocalOnly(Boolean customAgentsLocalOnly) {
+        this.customAgentsLocalOnly = customAgentsLocalOnly;
+    }
+
     /** Gets the default agent config. @return the default agent config */
     public DefaultAgentConfig getDefaultAgent() {
         return defaultAgent;
@@ -873,6 +920,18 @@ public final class ResumeSessionRequest {
         this.disabledSkills = disabledSkills;
     }
 
+    /** Gets disabled MCP server names. @return the server names */
+    public List<String> getDisabledMcpServers() {
+        return disabledMcpServers == null ? null : Collections.unmodifiableList(disabledMcpServers);
+    }
+
+    /**
+     * Sets disabled MCP server names. @param disabledMcpServers the server names
+     */
+    public void setDisabledMcpServers(List<String> disabledMcpServers) {
+        this.disabledMcpServers = disabledMcpServers;
+    }
+
     /** Gets infinite sessions config. @return the infinite sessions config */
     public InfiniteSessionConfig getInfiniteSessions() {
         return infiniteSessions;
@@ -926,6 +985,40 @@ public final class ResumeSessionRequest {
     /** Clears the requestMcpApps setting, reverting to the default behavior. */
     public void clearRequestMcpApps() {
         this.requestMcpApps = null;
+    }
+
+    /** Gets the GitHub MCP tool configuration. @return the configuration */
+    public GitHubMcpToolConfig getGitHubMcpToolConfig() {
+        return githubMcpToolConfig;
+    }
+
+    /** Sets the GitHub MCP tool configuration. @param config the value */
+    public void setGitHubMcpToolConfig(GitHubMcpToolConfig config) {
+        this.githubMcpToolConfig = config;
+    }
+
+    /**
+     * Gets the isExperimentalMode flag.
+     *
+     * @return the flag
+     */
+    public Boolean getIsExperimentalMode() {
+        return isExperimentalMode;
+    }
+
+    /**
+     * Sets the isExperimentalMode flag.
+     *
+     * @param isExperimentalMode
+     *            the flag
+     */
+    public void setIsExperimentalMode(boolean isExperimentalMode) {
+        this.isExperimentalMode = isExperimentalMode;
+    }
+
+    /** Clears the isExperimentalMode setting, reverting to the default behavior. */
+    public void clearIsExperimentalMode() {
+        this.isExperimentalMode = null;
     }
 
     /** Gets the requestExitPlanMode flag. @return the flag */
@@ -988,14 +1081,14 @@ public final class ResumeSessionRequest {
     }
 
     /** Gets the ExP assignment data. @return the ExP assignment data */
-    public JsonNode getExpAssignments() {
+    public CopilotExpAssignmentResponse getExpAssignments() {
         return expAssignments;
     }
 
     /**
      * Sets the ExP assignment data. @param expAssignments the ExP assignment data
      */
-    public void setExpAssignments(JsonNode expAssignments) {
+    public void setExpAssignments(CopilotExpAssignmentResponse expAssignments) {
         this.expAssignments = expAssignments;
     }
 
@@ -1020,5 +1113,18 @@ public final class ResumeSessionRequest {
      */
     public void clearEnableManagedSettings() {
         this.enableManagedSettings = null;
+    }
+
+    /** @return host-injected managed settings, or {@code null} when unset */
+    public ManagedSettings getManagedSettings() {
+        return managedSettings;
+    }
+
+    /**
+     * @param managedSettings
+     *            host-injected managed settings
+     */
+    public void setManagedSettings(ManagedSettings managedSettings) {
+        this.managedSettings = managedSettings;
     }
 }

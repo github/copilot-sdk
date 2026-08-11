@@ -6,10 +6,10 @@ import { CopilotClient } from "./client.js";
 import type { CopilotSession } from "./session.js";
 import {
     defaultJoinSessionPermissionHandler,
-    type ExtensionInfo,
     type PermissionHandler,
     type ResumeSessionConfig,
 } from "./types.js";
+import type { FactoryHandle } from "./factory.js";
 
 export {
     Canvas,
@@ -27,9 +27,42 @@ export type JoinSessionConfig = Omit<
     "onPermissionRequest" | "extensionSdkPath"
 > & {
     onPermissionRequest?: PermissionHandler;
+    /**
+     * Factory handles to register when the extension joins the session.
+     *
+     * @experimental Part of the experimental Agent Factories surface and may
+     * change or be removed in future SDK or CLI releases.
+     */
+    factories?: FactoryHandle[];
 };
 
-export type { ExtensionInfo };
+export type { ExtensionInfo, FactoryLimits, FactoryMeta } from "./types.js";
+export {
+    defineFactory,
+    FactoryResumeError,
+    isFactoryRunTerminal,
+    type RunOptions,
+    type ResumeOptions,
+    type FactoryResumeErrorCode,
+    type SessionFactoryApi,
+    type FactoryAgentOptions,
+    type FactoryContext,
+    type FactoryDefinition,
+    type FactoryHandle,
+    type FactoryJsonSchema,
+    type JsonValue,
+    type FactoryPipelineStage,
+    type FactoryStepOptions,
+    type FactoryRunResult,
+    type FactoryRunStatus,
+    type FactoryRunSummary,
+    type FactoryRunDetail,
+    type FactoryProgressPage,
+    type FactoryProgressLine,
+    type FactoryPhaseObservation,
+    type FactoryPhaseStatus,
+    type FactoryAgentSummary,
+} from "./factory.js";
 
 /**
  * Joins the current foreground session.
@@ -58,14 +91,22 @@ export async function joinSession(config: JoinSessionConfig = {}): Promise<Copil
     // at the type level — untyped (JS) callers can still slip it through, and
     // honoring it here would be misleading since the extension subprocess has
     // already been forked by the host with the SDK the host chose.
-    const { extensionSdkPath: _stripped, ...rest } = config as JoinSessionConfig & {
+    const {
+        extensionSdkPath: _stripped,
+        factories,
+        ...rest
+    } = config as JoinSessionConfig & {
         extensionSdkPath?: string;
     };
     void _stripped;
 
-    return client.resumeSession(sessionId, {
-        ...rest,
-        onPermissionRequest: config.onPermissionRequest ?? defaultJoinSessionPermissionHandler,
-        suppressResumeEvent: config.suppressResumeEvent ?? true,
-    });
+    return client.resumeSessionForExtension(
+        sessionId,
+        {
+            ...rest,
+            onPermissionRequest: config.onPermissionRequest ?? defaultJoinSessionPermissionHandler,
+            suppressResumeEvent: config.suppressResumeEvent ?? true,
+        },
+        factories
+    );
 }

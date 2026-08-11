@@ -93,7 +93,7 @@ function handleMessage(message) {
     return;
   }
 
-  if (message.method === "session.create") {
+  if (message.method === "session.create" || message.method === "session.resume") {
     const sessionId = message.params?.sessionId ?? message.params?.[0]?.sessionId ?? "fake-session";
     writeResponse(message.id, { sessionId, workspacePath: null, capabilities: null });
     return;
@@ -329,6 +329,7 @@ describe("Client options", async () => {
             enableConfigDiscovery: true,
             enableOnDemandInstructionDiscovery: true,
             includeSubAgentStreamingEvents: false,
+            customAgentsLocalOnly: false,
         });
 
         const updatedRaw = fs.readFileSync(capturePath, "utf8");
@@ -339,6 +340,7 @@ describe("Client options", async () => {
                     enableConfigDiscovery?: boolean;
                     enableOnDemandInstructionDiscovery?: boolean;
                     includeSubAgentStreamingEvents?: boolean;
+                    customAgentsLocalOnly?: boolean;
                 };
             }[];
         };
@@ -347,8 +349,83 @@ describe("Client options", async () => {
         expect(createRequests[0].params.enableConfigDiscovery).toBe(true);
         expect(createRequests[0].params.enableOnDemandInstructionDiscovery).toBe(true);
         expect(createRequests[0].params.includeSubAgentStreamingEvents).toBe(false);
+        expect(createRequests[0].params.customAgentsLocalOnly).toBe(false);
 
+        const sessionId = session.sessionId;
         await session.disconnect();
+
+        const resumed = await client.resumeSession(sessionId, {
+            onPermissionRequest: approveAll,
+            customAgentsLocalOnly: false,
+        });
+        const resumedCapture = JSON.parse(fs.readFileSync(capturePath, "utf8")) as {
+            requests: {
+                method: string;
+                params: { customAgentsLocalOnly?: boolean };
+            }[];
+        };
+        const resumeRequests = resumedCapture.requests.filter((r) => r.method === "session.resume");
+        expect(resumeRequests).toHaveLength(1);
+        expect(resumeRequests[0].params.customAgentsLocalOnly).toBe(false);
+        await resumed.disconnect();
+    });
+
+    it("should send empty-mode custom agent locality defaults in initial requests", async () => {
+        const cliPath = path.join(
+            workDir,
+            `fake-cli-empty-${Date.now()}-${Math.random().toString(36).slice(2)}.js`
+        );
+        const capturePath = path.join(
+            workDir,
+            `fake-cli-empty-capture-${Date.now()}-${Math.random().toString(36).slice(2)}.json`
+        );
+        fs.writeFileSync(cliPath, FAKE_STDIO_CLI_SCRIPT);
+
+        const client = new CopilotClient({
+            mode: "empty",
+            baseDirectory: workDir,
+            workingDirectory: workDir,
+            env,
+            connection: RuntimeConnection.forStdio({
+                path: cliPath,
+                args: ["--capture-file", capturePath],
+            }),
+            useLoggedInUser: false,
+        });
+        onTestFinished(async () => {
+            try {
+                await client.forceStop();
+            } catch {
+                // Ignore cleanup errors
+            }
+        });
+
+        const session = await client.createSession({
+            availableTools: ["builtin:ask_user"],
+            customAgentsLocalOnly: undefined,
+            onPermissionRequest: approveAll,
+        });
+        const sessionId = session.sessionId;
+        await session.disconnect();
+
+        const resumed = await client.resumeSession(sessionId, {
+            availableTools: ["builtin:ask_user"],
+            customAgentsLocalOnly: undefined,
+            onPermissionRequest: approveAll,
+        });
+
+        const capture = JSON.parse(fs.readFileSync(capturePath, "utf8")) as {
+            requests: {
+                method: string;
+                params: { customAgentsLocalOnly?: boolean };
+            }[];
+        };
+        const createRequest = capture.requests.find((r) => r.method === "session.create");
+        const resumeRequest = capture.requests.find((r) => r.method === "session.resume");
+        expect(createRequest?.params.customAgentsLocalOnly).toBe(true);
+        expect(resumeRequest?.params.customAgentsLocalOnly).toBe(true);
+
+        await resumed.disconnect();
     });
 
     it("should forward advanced session options in create wire request", async () => {

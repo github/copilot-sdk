@@ -10,7 +10,7 @@ This style guide applies to all documentation in the `docs/` directory. These do
 
 Use **sentence case** for all headings. Capitalize only the first word and proper nouns.
 
-* `## Quick start: Azure AI Foundry` — not `## Quick Start: Azure AI Foundry`
+* `## Quick start: Microsoft Foundry` — not `## Quick Start: Microsoft Foundry`
 * `# Custom agents and sub-agent orchestration` — not `# Custom Agents & Sub-Agent Orchestration`
 
 Use `and` instead of `&` in headings.
@@ -26,7 +26,7 @@ Do not use `**bold**` or `*italic*` markers inside headings. The heading level p
 * Acronyms: MCP, BYOK, MAF, SDK, CLI, API, HMAC, CI/CD, SaaS, ISV, FAQ, LLM, AI, EMU, ID, UI, PNG
 * Tools (keep canonical casing): npm, npx, stdio
 * Code identifiers in headings: SessionConfig, MessageOptions, TelemetryConfig, ProviderConfig, CopilotClient
-* Multi-word proper names: GitHub App, GitHub Actions, GitHub OAuth, Foundry Local, Azure AD, Container Instances
+* Multi-word proper names: GitHub App, GitHub Actions, GitHub OAuth, Foundry Local, Managed Identity, Container Instances
 
 ## Callouts
 
@@ -49,7 +49,7 @@ When a callout applies to a specific language, put the qualifier as bold text in
 
 ```markdown
 > [!TIP]
-> **(Python / Go)** These SDKs use a single `Data` class/struct with all fields optional.
+> **(Python / Go)** These SDKs use separate, per-event data types.
 ```
 
 ## Lists

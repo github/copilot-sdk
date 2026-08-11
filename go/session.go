@@ -67,6 +67,7 @@ type Session struct {
 	toolHandlersM         sync.RWMutex
 	permissionHandler     PermissionHandlerFunc
 	permissionMux         sync.RWMutex
+	managedSettings       bool
 	mcpAuthHandler        MCPAuthHandler
 	mcpAuthMu             sync.RWMutex
 	userInputHandler      UserInputHandler
@@ -365,10 +366,16 @@ func canvasResultError(err error) error {
 }
 
 // newSession creates a new session wrapper with the given session ID and client.
-func newSession(sessionID string, client *jsonrpc2.Client, workspacePath string) *Session {
+func newSession(
+	sessionID string,
+	client *jsonrpc2.Client,
+	workspacePath string,
+	managedSettings bool,
+) *Session {
 	s := &Session{
 		SessionID:         sessionID,
 		workspacePath:     workspacePath,
+		managedSettings:   managedSettings,
 		client:            client,
 		clientSessionAPIs: &rpc.ClientSessionAPIHandlers{},
 		handlers:          make([]sessionHandler, 0),
@@ -779,6 +786,16 @@ func (s *Session) handleHooksInvoke(hookType string, rawInput json.RawMessage) (
 		}
 		return hooks.OnUserPromptSubmitted(input, invocation)
 
+	case "userPromptTransformed":
+		if hooks.OnUserPromptTransformed == nil {
+			return nil, nil
+		}
+		var input UserPromptTransformedHookInput
+		if err := json.Unmarshal(rawInput, &input); err != nil {
+			return nil, fmt.Errorf("invalid hook input: %w", err)
+		}
+		return hooks.OnUserPromptTransformed(input, invocation)
+
 	case "sessionStart":
 		if hooks.OnSessionStart == nil {
 			return nil, nil
@@ -808,6 +825,17 @@ func (s *Session) handleHooksInvoke(hookType string, rawInput json.RawMessage) (
 			return nil, fmt.Errorf("invalid hook input: %w", err)
 		}
 		return hooks.OnErrorOccurred(input, invocation)
+
+	case "agentStop":
+		if hooks.OnAgentStop == nil {
+			return nil, nil
+		}
+		var input AgentStopHookInput
+		if err := json.Unmarshal(rawInput, &input); err != nil {
+			return nil, fmt.Errorf("invalid hook input: %w", err)
+		}
+		return hooks.OnAgentStop(input, invocation)
+
 	default:
 		return nil, nil
 	}
@@ -1564,6 +1592,20 @@ func (s *Session) executeToolAndRespond(requestID, toolName, toolCallID string, 
 	if result.Error != "" {
 		rpcResult.Error = &result.Error
 	}
+	if result.SessionLog != "" {
+		rpcResult.SessionLog = &result.SessionLog
+	}
+	for _, b := range result.BinaryResultsForLLM {
+		entry := rpc.ExternalToolTextResultForLlmBinaryResultsForLlm{
+			Data:     b.Data,
+			MIMEType: b.MIMEType,
+			Type:     rpc.ExternalToolTextResultForLlmBinaryResultsForLlmType(b.Type),
+		}
+		if b.Description != "" {
+			entry.Description = &b.Description
+		}
+		rpcResult.BinaryResultsForLlm = append(rpcResult.BinaryResultsForLlm, entry)
+	}
 	s.RPC.Tools.HandlePendingToolCall(ctx, &rpc.HandlePendingToolCallRequest{
 		RequestID: requestID,
 		Result:    rpcResult,
@@ -1582,11 +1624,13 @@ func (s *Session) executePermissionAndRespond(requestID string, permissionReques
 	}()
 
 	invocation := PermissionInvocation{
-		SessionID: s.SessionID,
+		SessionID:              s.SessionID,
+		ManagedSettingsEnabled: s.managedSettings,
 	}
 
 	decision, err := handler(permissionRequest, invocation)
 	if err != nil {
+		log.Printf("permission handler failed: session_id=%s request_id=%s error=%v", s.SessionID, requestID, err)
 		s.RPC.Permissions.HandlePendingPermissionRequest(context.Background(), &rpc.PermissionDecisionRequest{
 			RequestID: requestID,
 			Result:    &rpc.PermissionDecisionUserNotAvailable{},
@@ -1735,7 +1779,7 @@ func (s *Session) Abort(ctx context.Context) error {
 
 // SetModelOptions configures optional parameters for SetModel.
 type SetModelOptions struct {
-	// ReasoningEffort sets the reasoning effort level for the new model (e.g., "low", "medium", "high", "xhigh").
+	// ReasoningEffort sets the reasoning effort level for the new model (e.g., "low", "medium", "high", "xhigh", "max").
 	ReasoningEffort *string
 	// ReasoningSummary sets the reasoning summary mode for the new model.
 	// Use ReasoningSummaryNone to suppress summary output regardless of whether reasoning is enabled.

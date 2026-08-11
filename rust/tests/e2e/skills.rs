@@ -2,13 +2,14 @@ use std::path::{Path, PathBuf};
 
 use github_copilot_sdk::CustomAgentConfig;
 
-use super::support::{assert_uuid_like, assistant_message_content, with_e2e_context};
+use super::support::{assert_uuid_like, assistant_message_content};
 
 const SKILL_MARKER: &str = "PINEAPPLE_COCONUT_42";
 
 #[tokio::test]
 async fn should_load_and_apply_skill_from_skilldirectories() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "skills",
         "should_load_and_apply_skill_from_skilldirectories",
         |ctx| {
@@ -42,7 +43,8 @@ async fn should_load_and_apply_skill_from_skilldirectories() {
 
 #[tokio::test]
 async fn should_not_apply_skill_when_disabled_via_disabledskills() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "skills",
         "should_not_apply_skill_when_disabled_via_disabledskills",
         |ctx| {
@@ -77,7 +79,8 @@ async fn should_not_apply_skill_when_disabled_via_disabledskills() {
 
 #[tokio::test]
 async fn should_allow_agent_with_skills_to_invoke_skill() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "skills",
         "should_allow_agent_with_skills_to_invoke_skill",
         |ctx| {
@@ -118,7 +121,8 @@ async fn should_allow_agent_with_skills_to_invoke_skill() {
 
 #[tokio::test]
 async fn should_not_provide_skills_to_agent_without_skills_field() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "skills",
         "should_not_provide_skills_to_agent_without_skills_field",
         |ctx| {
@@ -176,3 +180,4 @@ fn create_skill_dir(work_dir: &Path) -> PathBuf {
     .expect("write skill file");
     skills_dir
 }
+static E2E: super::support::SharedE2eGroup = super::support::SharedE2eGroup::standard("skills", 4);

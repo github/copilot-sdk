@@ -453,6 +453,49 @@ export function cloneSchemaForCodegen<T>(value: T): T {
     return value;
 }
 
+const PERMISSION_REQUEST_DEFINITION_NAMES = [
+    "PermissionRequestCustomTool",
+    "PermissionRequestExtensionManagement",
+    "PermissionRequestExtensionPermissionAccess",
+    "PermissionRequestFactory",
+    "PermissionRequestHook",
+    "PermissionRequestMcp",
+    "PermissionRequestMemory",
+    "PermissionRequestRead",
+    "PermissionRequestShell",
+    "PermissionRequestUrl",
+    "PermissionRequestWrite",
+] as const;
+
+/**
+ * Add managed approval metadata until the pinned CLI schema includes the field.
+ */
+export function addManagedApprovalRequiredToPermissionRequests<T extends JSONSchema7>(schema: T): T {
+    const cloned = cloneSchemaForCodegen(schema);
+    const property: JSONSchema7 = {
+        description:
+            "When true, managed policy requires an explicit user decision and automatic approval must be bypassed.",
+        type: ["boolean", "null"],
+    };
+    (property as Record<string, unknown>)["x-copilot-sdk-append-last"] = true;
+
+    for (const definitions of [cloned.definitions, cloned.$defs]) {
+        if (!definitions) continue;
+        for (const name of PERMISSION_REQUEST_DEFINITION_NAMES) {
+            const definition = definitions[name];
+            if (!definition || typeof definition !== "object") continue;
+            const objectDefinition = definition as JSONSchema7;
+            objectDefinition.properties = {
+                ...objectDefinition.properties,
+                managedApprovalRequired:
+                    objectDefinition.properties?.managedApprovalRequired ?? cloneSchemaForCodegen(property),
+            };
+        }
+    }
+
+    return cloned;
+}
+
 export function getEnumValueDescriptions(schema: JSONSchema7 | null | undefined): EnumValueDescriptions | undefined {
     if (!schema || typeof schema !== "object") return undefined;
 
@@ -898,6 +941,34 @@ export function propagateInternalVisibility(schema: JSONSchema7): JSONSchema7 {
  */
 export function isOpaqueJson(schema: JSONSchema7 | null | undefined): boolean {
     return typeof schema === "object" && schema !== null && (schema as Record<string, unknown>)["x-opaque-json"] === true;
+}
+
+/** Returns true when a JSON Schema node is marked `x-opaque-in-process: true`. */
+export function isOpaqueInProcess(schema: JSONSchema7 | null | undefined): boolean {
+    return typeof schema === "object" && schema !== null && (schema as Record<string, unknown>)["x-opaque-in-process"] === true;
+}
+
+/**
+ * Returns true when a schema node has no structural constraints that describe a
+ * more precise TypeScript type than an opaque marker.
+ */
+export function isBareSchemaNode(schema: JSONSchema7 | null | undefined): boolean {
+    if (typeof schema !== "object" || schema === null) return false;
+    const node = schema as Record<string, unknown>;
+    return ![
+        "type",
+        "anyOf",
+        "oneOf",
+        "allOf",
+        "$ref",
+        "properties",
+        "items",
+        "enum",
+        "const",
+        "additionalProperties",
+        "not",
+        "patternProperties",
+    ].some((key) => key in node);
 }
 
 /**

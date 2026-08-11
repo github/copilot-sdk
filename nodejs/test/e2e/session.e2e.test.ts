@@ -503,8 +503,10 @@ describe("Sessions", () => {
         expect(messages.some((m) => m.type === "abort")).toBe(true);
 
         // We should be able to send another message
-        const answer = await session.sendAndWait({ prompt: "What is 2+2?" });
-        expect(answer?.data.content).toContain("4");
+        const nextAssistantMessage = getNextEventOfType(session, "assistant.message");
+        await session.send({ prompt: "What is 2+2?" });
+        const answer = await nextAssistantMessage;
+        expect(answer.data.content).toContain("4");
     });
 
     it("should receive session events", async () => {
@@ -962,15 +964,21 @@ describe("Send Blocking Behavior", async () => {
         expect(event.data.newModel).toBe("gpt-4.1");
     });
 
-    it("should set model with reasoningEffort", async () => {
-        await using session = await client.createSession({ onPermissionRequest: approveAll });
+    describe("reasoning effort model switch (isolated to avoid models cache contamination)", async () => {
+        const { copilotClient: reasoningClient } = await createSdkTestContext();
 
-        const modelChangePromise = getNextEventOfType(session, "session.model_change");
+        it("should set model with reasoningEffort", async () => {
+            await using session = await reasoningClient.createSession({
+                onPermissionRequest: approveAll,
+            });
 
-        await session.setModel("gpt-4.1", { reasoningEffort: "high" });
+            const modelChangePromise = getNextEventOfType(session, "session.model_change");
 
-        const event = await modelChangePromise;
-        expect(event.data.newModel).toBe("gpt-4.1");
-        expect(event.data.reasoningEffort).toBe("high");
+            await session.setModel("gpt-5.4", { reasoningEffort: "high" });
+
+            const event = await modelChangePromise;
+            expect(event.data.newModel).toBe("gpt-5.4");
+            expect(event.data.reasoningEffort).toBe("high");
+        });
     });
 });

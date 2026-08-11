@@ -7,7 +7,7 @@
 
     <groupId>com.github</groupId>
     <artifactId>copilot-sdk-java</artifactId>
-    <version>1.0.8-preview.3-SNAPSHOT</version>
+    <version>1.0.11-preview.0-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <name>GitHub Copilot SDK :: Java</name>
@@ -76,6 +76,8 @@
             require npm or network access.
         -->
         <skip.cli.install>${skip.test.harness}</skip.cli.install>
+        <!-- Override with -Dnpm.loglevel=verbose when troubleshooting npm. -->
+        <npm.loglevel>notice</npm.loglevel>
         <!-- Extra JVM args for Surefire; overridden by the jdk21+ profile -->
         <surefire.jvm.args />
         <!--
@@ -86,7 +88,7 @@
             DO NOT EDIT MANUALLY. Updated by the update-copilot-dependency
             workflow.
         -->
-        <readonly-copilot-sdk-ref-impl-version-from-lastmerge-file-updated-by-reference-impl-sync>^1.0.71-2</readonly-copilot-sdk-ref-impl-version-from-lastmerge-file-updated-by-reference-impl-sync>
+        <readonly-copilot-sdk-ref-impl-version-from-lastmerge-file-updated-by-reference-impl-sync>^1.0.79</readonly-copilot-sdk-ref-impl-version-from-lastmerge-file-updated-by-reference-impl-sync>
 
     </properties>
 
@@ -95,7 +97,7 @@
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
-            <version>2.22.0</version>
+            <version>2.22.1</version>
         </dependency>
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
@@ -105,14 +107,14 @@
         <dependency>
             <groupId>com.fasterxml.jackson.datatype</groupId>
             <artifactId>jackson-datatype-jsr310</artifactId>
-            <version>2.22.0</version>
+            <version>2.22.1</version>
         </dependency>
 
         <!-- SpotBugs annotations for suppressing warnings -->
         <dependency>
             <groupId>com.github.spotbugs</groupId>
             <artifactId>spotbugs-annotations</artifactId>
-            <version>4.10.2</version>
+            <version>4.10.3</version>
             <scope>provided</scope>
         </dependency>
 
@@ -147,7 +149,7 @@
                 <plugin>
                     <groupId>com.github.spotbugs</groupId>
                     <artifactId>spotbugs-maven-plugin</artifactId>
-                    <version>4.10.2.0</version>
+                    <version>4.10.3.0</version>
                     <configuration>
                         <excludeFilterFile>config/spotbugs/spotbugs-exclude.xml</excludeFilterFile>
                     </configuration>
@@ -174,7 +176,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>
-                <version>3.5.0</version>
+                <version>3.5.1</version>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -213,6 +215,8 @@
                             <workingDirectory>${copilot.sdk.root}/test/harness</workingDirectory>
                             <arguments>
                                 <argument>ci</argument>
+                                <argument>--loglevel</argument>
+                                <argument>${npm.loglevel}</argument>
                             </arguments>
                         </configuration>
                     </execution>
@@ -235,6 +239,8 @@
                             <arguments>
                                 <argument>ci</argument>
                                 <argument>--ignore-scripts</argument>
+                                <argument>--loglevel</argument>
+                                <argument>${npm.loglevel}</argument>
                             </arguments>
                         </configuration>
                     </execution>
@@ -456,7 +462,7 @@
             <plugin>
                 <groupId>org.sonatype.central</groupId>
                 <artifactId>central-publishing-maven-plugin</artifactId>
-                <version>0.10.0</version>
+                <version>0.11.0</version>
                 <extensions>true</extensions>
                 <configuration>
                     <publishingServerId>central</publishingServerId>

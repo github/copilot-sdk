@@ -35,6 +35,28 @@ public class CopilotToolTests
     }
 
     [Fact]
+    public void DefineTool_Sets_IsTerminal_Metadata()
+    {
+        var function = CopilotTool.DefineTool(
+            ReturnsOk,
+            new CopilotToolOptions
+            {
+                IsTerminal = true
+            });
+
+        Assert.True(function.AdditionalProperties.TryGetValue("is_terminal", out var isTerminal));
+        Assert.True((bool)isTerminal!);
+    }
+
+    [Fact]
+    public void DefineTool_Omits_IsTerminal_When_Not_Set()
+    {
+        var function = CopilotTool.DefineTool(ReturnsOk);
+
+        Assert.False(function.AdditionalProperties.ContainsKey("is_terminal"));
+    }
+
+    [Fact]
     public void DefineTool_Omits_Copilot_Metadata_When_Flags_Are_False()
     {
         var function = CopilotTool.DefineTool(ReturnsOk);

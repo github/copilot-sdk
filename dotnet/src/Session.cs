@@ -1,4 +1,4 @@
-﻿/*---------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
@@ -63,6 +63,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     private readonly CopilotClient _parentClient;
 
     private volatile Func<PermissionRequest, PermissionInvocation, Task<PermissionDecision>>? _permissionHandler;
+    private bool _managedSettingsEnabled;
     private volatile Func<McpAuthContext, Task<McpAuthResult?>>? _mcpAuthHandler;
     private volatile Func<UserInputRequest, UserInputInvocation, Task<UserInputResponse>>? _userInputHandler;
     private volatile Func<ElicitationContext, Task<ElicitationResult>>? _elicitationHandler;
@@ -262,7 +263,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     ///     Prompt = "Explain this code",
     ///     Attachments = new List&lt;Attachment&gt;
     ///     {
-    ///         new() { Type = "file", Path = "./Program.cs" }
+    ///         new AttachmentFile { Path = "./Program.cs", DisplayName = "Program.cs" }
     ///     }
     /// });
     /// </code>
@@ -557,13 +558,17 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// Registers a handler for permission requests.
     /// </summary>
     /// <param name="handler">The permission handler function.</param>
+    /// <param name="managedSettingsEnabled">Whether managed settings are enabled for the session.</param>
     /// <remarks>
     /// When the assistant needs permission to perform certain actions (e.g., file operations),
     /// this handler is called to approve or deny the request.
     /// </remarks>
-    internal void RegisterPermissionHandler(Func<PermissionRequest, PermissionInvocation, Task<PermissionDecision>>? handler)
+    internal void RegisterPermissionHandler(
+        Func<PermissionRequest, PermissionInvocation, Task<PermissionDecision>>? handler,
+        bool managedSettingsEnabled)
     {
         _permissionHandler = handler;
+        _managedSettingsEnabled = managedSettingsEnabled;
     }
 
     internal void RegisterMcpAuthHandler(Func<McpAuthContext, Task<McpAuthResult?>>? handler)
@@ -590,7 +595,8 @@ public sealed partial class CopilotSession : IAsyncDisposable
 
         var invocation = new PermissionInvocation
         {
-            SessionId = SessionId
+            SessionId = SessionId,
+            ManagedSettingsEnabled = _managedSettingsEnabled
         };
 
         var permissionTimestamp = Stopwatch.GetTimestamp();
@@ -932,7 +938,8 @@ public sealed partial class CopilotSession : IAsyncDisposable
         {
             var invocation = new PermissionInvocation
             {
-                SessionId = SessionId
+                SessionId = SessionId,
+                ManagedSettingsEnabled = _managedSettingsEnabled
             };
 
             var permissionTimestamp = Stopwatch.GetTimestamp();
@@ -954,8 +961,9 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 SessionId,
                 requestId);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            _logger.LogError(ex, "Permission handler or response delivery failed. SessionId={SessionId}, RequestId={RequestId}", SessionId, requestId);
             try
             {
                 await Rpc.Permissions.HandlePendingPermissionRequestAsync(requestId, PermissionDecision.UserNotAvailable());
@@ -1145,7 +1153,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
         ClientSessionApis.Canvas = handler is null ? null : new CanvasHandlerAdapter(handler);
     }
 
-    private static readonly JsonElement NullJsonElement = JsonDocument.Parse("null").RootElement.Clone();
+    private static readonly JsonElement NullJsonElement = JsonElement.Parse("null");
 
     private static JsonElement SerializeActionResult(object? value)
     {
@@ -1605,6 +1613,11 @@ public sealed partial class CopilotSession : IAsyncDisposable
                         JsonSerializer.Deserialize(input.GetRawText(), SessionJsonContext.Default.UserPromptSubmittedHookInput)!,
                         invocation)
                     : null,
+                "userPromptTransformed" => hooks.OnUserPromptTransformed != null
+                    ? await hooks.OnUserPromptTransformed(
+                        JsonSerializer.Deserialize(input.GetRawText(), SessionJsonContext.Default.UserPromptTransformedHookInput)!,
+                        invocation)
+                    : null,
                 "sessionStart" => hooks.OnSessionStart != null
                     ? await hooks.OnSessionStart(
                         JsonSerializer.Deserialize(input.GetRawText(), SessionJsonContext.Default.SessionStartHookInput)!,
@@ -1618,6 +1631,11 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 "errorOccurred" => hooks.OnErrorOccurred != null
                     ? await hooks.OnErrorOccurred(
                         JsonSerializer.Deserialize(input.GetRawText(), SessionJsonContext.Default.ErrorOccurredHookInput)!,
+                        invocation)
+                    : null,
+                "agentStop" => hooks.OnAgentStop != null
+                    ? await hooks.OnAgentStop(
+                        JsonSerializer.Deserialize(input.GetRawText(), SessionJsonContext.Default.AgentStopHookInput)!,
                         invocation)
                     : null,
                 _ => null
@@ -1777,7 +1795,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// The new model takes effect for the next message. Conversation history is preserved.
     /// </summary>
     /// <param name="model">Model ID to switch to (e.g., "gpt-5.4").</param>
-    /// <param name="reasoningEffort">Reasoning effort level (e.g., "low", "medium", "high", "xhigh").</param>
+    /// <param name="reasoningEffort">Reasoning effort level (e.g., "low", "medium", "high", "xhigh", "max").</param>
     /// <param name="modelCapabilities">Per-property overrides for model capabilities, deep-merged over runtime defaults.</param>
     /// <param name="cancellationToken">Optional cancellation token.</param>
     /// <example>
@@ -1818,6 +1836,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
             null,
             options.ModelCapabilities,
             options.ContextTier,
+            null,
             cancellationToken);
     }
 
@@ -1987,6 +2006,8 @@ public sealed partial class CopilotSession : IAsyncDisposable
         AllowOutOfOrderMetadataProperties = true,
         NumberHandling = JsonNumberHandling.AllowReadingFromString,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonSerializable(typeof(AgentStopHookInput))]
+    [JsonSerializable(typeof(AgentStopHookOutput))]
     [JsonSerializable(typeof(AutoModeSwitchRequest))]
     [JsonSerializable(typeof(AutoModeSwitchResponse))]
     [JsonSerializable(typeof(Dictionary<string, SystemMessageTransformSection>))]
@@ -2017,5 +2038,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     [JsonSerializable(typeof(Attachment))]
     [JsonSerializable(typeof(UserPromptSubmittedHookInput))]
     [JsonSerializable(typeof(UserPromptSubmittedHookOutput))]
+    [JsonSerializable(typeof(UserPromptTransformedHookInput))]
+    [JsonSerializable(typeof(UserPromptTransformedHookOutput))]
     internal partial class SessionJsonContext : JsonSerializerContext;
 }

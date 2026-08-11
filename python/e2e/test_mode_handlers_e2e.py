@@ -119,7 +119,7 @@ class TestModeHandlers:
             assert len(exit_plan_mode_requests) == 1
             request = exit_plan_mode_requests[0]
             assert request["summary"] == PLAN_SUMMARY
-            assert request["actions"] == ["interactive", "autopilot", "exit_only"]
+            assert request["actions"] == ["autopilot", "interactive", "exit_only"]
             assert request["recommendedAction"] == "interactive"
             assert request.get("planContent") is not None
 

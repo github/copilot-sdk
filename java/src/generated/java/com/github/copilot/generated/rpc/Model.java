@@ -34,8 +34,6 @@ public record Model(
     @JsonProperty("billing") ModelBilling billing,
     /** Supported reasoning effort levels (only present if model supports reasoning effort) */
     @JsonProperty("supportedReasoningEfforts") List<String> supportedReasoningEfforts,
-    /** Default reasoning effort level (only present if model supports reasoning effort) */
-    @JsonProperty("defaultReasoningEffort") String defaultReasoningEffort,
     /** Model capability category for grouping in the model picker */
     @JsonProperty("modelPickerCategory") ModelPickerCategory modelPickerCategory,
     /** Relative cost tier for token-based billing users */

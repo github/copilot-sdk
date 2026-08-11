@@ -85,6 +85,7 @@ import type {
     TypedSessionLifecycleHandler,
 } from "./types.js";
 import { defaultJoinSessionPermissionHandler } from "./types.js";
+import type { FactoryHandle } from "./factory.js";
 
 /**
  * Minimum protocol version this SDK can communicate with.
@@ -1318,9 +1319,15 @@ export class CopilotClient {
                 enableSessionStore: false,
                 enableSkills: false,
                 memory: { enabled: false },
+                customAgentsLocalOnly: true,
             };
         }
         return {};
+    }
+
+    /** Mode-specific default for enableExperimentalMode. */
+    private experimentalModeForMode(supplied: boolean | undefined): boolean | undefined {
+        return this.options.mode === "empty" ? (supplied ?? false) : supplied;
     }
 
     /**
@@ -1420,7 +1427,9 @@ export class CopilotClient {
             await this.start();
         }
 
-        config = { ...this.configDefaultsForMode(), ...config };
+        const modeDefaults = this.configDefaultsForMode();
+        config = { ...modeDefaults, ...config };
+        config.customAgentsLocalOnly ??= modeDefaults.customAgentsLocalOnly;
         config.systemMessage = this.getSystemMessageConfigForMode(config.systemMessage);
 
         // For cloud sessions, let the CLI/server assign the session id and
@@ -1456,7 +1465,12 @@ export class CopilotClient {
                 this.connection!,
                 undefined,
                 this.onGetTraceContext,
-                { mcpAuthHandler: config.onMcpAuthRequest }
+                {
+                    mcpAuthHandler: config.onMcpAuthRequest,
+                    managedSettingsEnabled:
+                        config.enableManagedSettings === true ||
+                        config.managedSettings !== undefined,
+                }
             );
             s.registerTools(config.tools);
             s.registerCanvases(config.canvases);
@@ -1513,6 +1527,7 @@ export class CopilotClient {
                 clientName: config.clientName,
                 reasoningEffort: config.reasoningEffort,
                 reasoningSummary: config.reasoningSummary,
+                isExperimentalMode: this.experimentalModeForMode(config.enableExperimentalMode),
                 contextTier: config.contextTier,
                 tools: config.tools?.map((tool) => ({
                     name: tool.name,
@@ -1522,6 +1537,7 @@ export class CopilotClient {
                     skipPermission: tool.skipPermission,
                     defer: tool.defer,
                     metadata: tool.metadata,
+                    isTerminal: tool.isTerminal,
                 })),
                 toolSearch: config.toolSearch,
                 canvases: config.canvases?.map((canvas) => canvas.declaration),
@@ -1552,10 +1568,14 @@ export class CopilotClient {
                 requestUserInput: !!config.onUserInputRequest,
                 requestElicitation: !!config.onElicitationRequest,
                 ...(config.enableMcpApps ? { requestMcpApps: true } : {}),
+                ...(config.githubMcpToolConfig != null
+                    ? { githubMcpToolConfig: config.githubMcpToolConfig }
+                    : {}),
                 requestExitPlanMode: !!config.onExitPlanModeRequest,
                 requestAutoModeSwitch: !!config.onAutoModeSwitchRequest,
                 hooks: !!(config.hooks && Object.values(config.hooks).some(Boolean)),
                 workingDirectory: config.workingDirectory,
+                additionalDirectories: config.additionalDirectories,
                 streaming: config.streaming,
                 includeSubAgentStreamingEvents: config.includeSubAgentStreamingEvents ?? true,
                 ...(this.onGitHubTelemetry != null
@@ -1565,6 +1585,7 @@ export class CopilotClient {
                 mcpOAuthTokenStorage: config.mcpOAuthTokenStorage,
                 envValueMode: "direct",
                 customAgents: toWireCustomAgents(config.customAgents),
+                customAgentsLocalOnly: config.customAgentsLocalOnly,
                 defaultAgent: config.defaultAgent,
                 agent: config.agent,
                 configDir: config.configDirectory,
@@ -1581,6 +1602,7 @@ export class CopilotClient {
                 pluginDirectories: config.pluginDirectories,
                 instructionDirectories: config.instructionDirectories,
                 disabledSkills: config.disabledSkills,
+                disabledMcpServers: config.disabledMcpServers,
                 infiniteSessions: config.infiniteSessions,
                 memory: config.memory,
                 gitHubToken: config.gitHubToken,
@@ -1588,6 +1610,7 @@ export class CopilotClient {
                 cloud: config.cloud,
                 expAssignments: config.expAssignments,
                 enableManagedSettings: config.enableManagedSettings,
+                managedSettings: config.managedSettings,
             });
 
             const {
@@ -1658,6 +1681,23 @@ export class CopilotClient {
      * ```
      */
     async resumeSession(sessionId: string, config: ResumeSessionConfig): Promise<CopilotSession> {
+        return this.resumeSessionInternal(sessionId, config);
+    }
+
+    /** @internal */
+    async resumeSessionForExtension(
+        sessionId: string,
+        config: ResumeSessionConfig,
+        factories?: FactoryHandle[]
+    ): Promise<CopilotSession> {
+        return this.resumeSessionInternal(sessionId, config, factories);
+    }
+
+    private async resumeSessionInternal(
+        sessionId: string,
+        config: ResumeSessionConfig,
+        factories?: FactoryHandle[]
+    ): Promise<CopilotSession> {
         if (!this.connection) {
             await this.start();
         }
@@ -1669,11 +1709,16 @@ export class CopilotClient {
             this.connection!,
             undefined,
             this.onGetTraceContext,
-            { mcpAuthHandler: config.onMcpAuthRequest }
+            {
+                mcpAuthHandler: config.onMcpAuthRequest,
+                managedSettingsEnabled:
+                    config.enableManagedSettings === true || config.managedSettings !== undefined,
+            }
         );
         session.registerTools(config.tools);
         session.registerCanvases(config.canvases);
         session.registerCommands(config.commands);
+        session.registerFactories(factories);
         const {
             wireProvider: bearerWireProvider,
             wireProviders: bearerWireProviders,
@@ -1699,7 +1744,9 @@ export class CopilotClient {
             session.registerHooks(config.hooks);
         }
 
-        config = { ...this.configDefaultsForMode(), ...config };
+        const modeDefaults = this.configDefaultsForMode();
+        config = { ...modeDefaults, ...config };
+        config.customAgentsLocalOnly ??= modeDefaults.customAgentsLocalOnly;
         config.systemMessage = this.getSystemMessageConfigForMode(config.systemMessage);
 
         const { wirePayload: wireSystemMessage, transformCallbacks } = extractTransformCallbacks(
@@ -1725,6 +1772,7 @@ export class CopilotClient {
                 model: config.model,
                 reasoningEffort: config.reasoningEffort,
                 reasoningSummary: config.reasoningSummary,
+                isExperimentalMode: this.experimentalModeForMode(config.enableExperimentalMode),
                 contextTier: config.contextTier,
                 systemMessage: wireSystemMessage,
                 availableTools: toolFilterOptions.availableTools,
@@ -1742,9 +1790,11 @@ export class CopilotClient {
                     skipPermission: tool.skipPermission,
                     defer: tool.defer,
                     metadata: tool.metadata,
+                    isTerminal: tool.isTerminal,
                 })),
                 toolSearch: config.toolSearch,
                 canvases: config.canvases?.map((canvas) => canvas.declaration),
+                factories: factories?.map((factory) => factory.meta),
                 requestCanvasRenderer: config.requestCanvasRenderer,
                 requestExtensions: config.requestExtensions,
                 extensionSdkPath: config.extensionSdkPath,
@@ -1765,10 +1815,14 @@ export class CopilotClient {
                 requestUserInput: !!config.onUserInputRequest,
                 requestElicitation: !!config.onElicitationRequest,
                 ...(config.enableMcpApps ? { requestMcpApps: true } : {}),
+                ...(config.githubMcpToolConfig != null
+                    ? { githubMcpToolConfig: config.githubMcpToolConfig }
+                    : {}),
                 requestExitPlanMode: !!config.onExitPlanModeRequest,
                 requestAutoModeSwitch: !!config.onAutoModeSwitchRequest,
                 hooks: !!(config.hooks && Object.values(config.hooks).some(Boolean)),
                 workingDirectory: config.workingDirectory,
+                additionalDirectories: config.additionalDirectories,
                 configDir: config.configDirectory,
                 enableConfigDiscovery: config.enableConfigDiscovery,
                 skipEmbeddingRetrieval: config.skipEmbeddingRetrieval,
@@ -1788,12 +1842,14 @@ export class CopilotClient {
                 mcpOAuthTokenStorage: config.mcpOAuthTokenStorage,
                 envValueMode: "direct",
                 customAgents: toWireCustomAgents(config.customAgents),
+                customAgentsLocalOnly: config.customAgentsLocalOnly,
                 defaultAgent: config.defaultAgent,
                 agent: config.agent,
                 skillDirectories: config.skillDirectories,
                 pluginDirectories: config.pluginDirectories,
                 instructionDirectories: config.instructionDirectories,
                 disabledSkills: config.disabledSkills,
+                disabledMcpServers: config.disabledMcpServers,
                 infiniteSessions: config.infiniteSessions,
                 memory: config.memory,
                 disableResume: config.suppressResumeEvent,
@@ -1803,6 +1859,7 @@ export class CopilotClient {
                 openCanvases: config.openCanvases,
                 expAssignments: config.expAssignments,
                 enableManagedSettings: config.enableManagedSettings,
+                managedSettings: config.managedSettings,
             });
 
             const { workspacePath, capabilities, openCanvases } = response as {
@@ -2797,15 +2854,6 @@ export class CopilotClient {
         );
 
         this.connection.onRequest(
-            "hooks.invoke",
-            async (params: {
-                sessionId: string;
-                hookType: string;
-                input: unknown;
-            }): Promise<{ output?: unknown }> => await this.handleHooksInvoke(params)
-        );
-
-        this.connection.onRequest(
             "systemMessage.transform",
             async (params: {
                 sessionId: string;
@@ -2826,6 +2874,17 @@ export class CopilotClient {
         // same connection. These methods carry no implicit sessionId dispatch
         // — the runtime calls into a single handler for the whole connection.
         registerClientGlobalApiHandlers(this.connection, this.clientGlobalHandlers);
+
+        // `hooks.invoke` is an internal RPC method: the runtime calls it to
+        // invoke a hook callback on the client. Route each call to the matching
+        // session's dispatcher. Not part of the public ClientGlobalApiHandlers
+        // interface because HookInvokeRequest/HookType are internal types.
+        this.connection.onRequest(
+            "hooks.invoke",
+            async (params: { sessionId: string; hookType: string; input: unknown }) => {
+                return await this.handleHooksInvoke(params);
+            }
+        );
 
         this.connection.onClose(() => {
             this.state = "disconnected";

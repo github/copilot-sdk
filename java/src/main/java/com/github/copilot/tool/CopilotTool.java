@@ -48,6 +48,9 @@ public @interface CopilotTool {
     /** Whether to skip permission checks. */
     boolean skipPermission() default false;
 
+    /** Whether a successful call to this tool ends the agent turn. */
+    boolean isTerminal() default false;
+
     /** Defer configuration for this tool. */
     ToolDefer defer() default ToolDefer.NONE;
 

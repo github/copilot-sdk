@@ -120,6 +120,7 @@ class ConfigCloneTest {
         original.setReasoningSummary("detailed");
         original.setContextTier("long_context");
         original.setPluginDirectories(List.of("/plugins/a", "/plugins/b"));
+        original.setDisabledMcpServers(List.of("local-files", "remote-github"));
         original.setLargeOutput(
                 new LargeToolOutputConfig().setEnabled(true).setMaxSizeBytes(1024L).setOutputDirectory("/tmp/out"));
         original.setMemory(new MemoryConfiguration().setEnabled(true));
@@ -133,6 +134,7 @@ class ConfigCloneTest {
         assertEquals(original.getReasoningSummary(), cloned.getReasoningSummary());
         assertEquals(original.getContextTier(), cloned.getContextTier());
         assertEquals(original.getPluginDirectories(), cloned.getPluginDirectories());
+        assertEquals(original.getDisabledMcpServers(), cloned.getDisabledMcpServers());
         assertEquals(original.getLargeOutput(), cloned.getLargeOutput());
         assertEquals(original.getMemory(), cloned.getMemory());
         assertEquals(original.isStreaming(), cloned.isStreaming());
@@ -146,6 +148,7 @@ class ConfigCloneTest {
         toolList.add("bash");
         original.setAvailableTools(toolList);
         original.setInstructionDirectories(new ArrayList<>(List.of("/path/a", "/path/b")));
+        original.setDisabledMcpServers(new ArrayList<>(List.of("local-files")));
 
         SessionConfig cloned = original.clone();
 
@@ -156,6 +159,7 @@ class ConfigCloneTest {
         assertEquals(2, cloned.getAvailableTools().size());
         assertEquals(3, original.getAvailableTools().size());
         assertEquals(List.of("/path/a", "/path/b"), cloned.getInstructionDirectories());
+        assertEquals(List.of("local-files"), cloned.getDisabledMcpServers());
     }
 
     @Test
@@ -194,6 +198,7 @@ class ConfigCloneTest {
         original.setReasoningSummary("none");
         original.setContextTier("long_context");
         original.setPluginDirectories(List.of("/plugins/r"));
+        original.setDisabledMcpServers(List.of("local-files-r"));
         original.setLargeOutput(
                 new LargeToolOutputConfig().setEnabled(false).setMaxSizeBytes(2048L).setOutputDirectory("/tmp/resume"));
         original.setMemory(new MemoryConfiguration().setEnabled(false));
@@ -205,6 +210,7 @@ class ConfigCloneTest {
         assertEquals(original.getReasoningSummary(), cloned.getReasoningSummary());
         assertEquals(original.getContextTier(), cloned.getContextTier());
         assertEquals(original.getPluginDirectories(), cloned.getPluginDirectories());
+        assertEquals(original.getDisabledMcpServers(), cloned.getDisabledMcpServers());
         assertEquals(original.getLargeOutput(), cloned.getLargeOutput());
         assertEquals(original.getMemory(), cloned.getMemory());
         assertEquals(original.isStreaming(), cloned.isStreaming());
@@ -440,12 +446,15 @@ class ConfigCloneTest {
     void sessionConfigNewFieldsCloned() {
         SessionConfig original = new SessionConfig();
         original.setGitHubToken("ghp_per_session_token");
+        original.setAdditionalDirectories(new java.util.ArrayList<>(List.of("/repo/shared")));
         DefaultAgentConfig defaultAgent = new DefaultAgentConfig().setExcludedTools(List.of("secret_tool"));
         original.setDefaultAgent(defaultAgent);
 
         SessionConfig cloned = original.clone();
 
         assertEquals("ghp_per_session_token", cloned.getGitHubToken());
+        assertEquals(List.of("/repo/shared"), cloned.getAdditionalDirectories());
+        assertNotSame(original.getAdditionalDirectories(), cloned.getAdditionalDirectories());
         assertSame(defaultAgent, cloned.getDefaultAgent());
     }
 
@@ -453,12 +462,15 @@ class ConfigCloneTest {
     void resumeSessionConfigNewFieldsCloned() {
         ResumeSessionConfig original = new ResumeSessionConfig();
         original.setGitHubToken("ghp_per_session_token");
+        original.setAdditionalDirectories(new java.util.ArrayList<>(List.of("/repo/resumed")));
         DefaultAgentConfig defaultAgent = new DefaultAgentConfig().setExcludedTools(List.of("secret_tool"));
         original.setDefaultAgent(defaultAgent);
 
         ResumeSessionConfig cloned = original.clone();
 
         assertEquals("ghp_per_session_token", cloned.getGitHubToken());
+        assertEquals(List.of("/repo/resumed"), cloned.getAdditionalDirectories());
+        assertNotSame(original.getAdditionalDirectories(), cloned.getAdditionalDirectories());
         assertSame(defaultAgent, cloned.getDefaultAgent());
     }
 

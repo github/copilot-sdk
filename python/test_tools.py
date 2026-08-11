@@ -8,10 +8,12 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from copilot import define_tool
 from copilot.generated.rpc import ExternalToolTextResultForLlm
 from copilot.tools import (
+    ToolBinaryResult,
     ToolInvocation,
     ToolResult,
     _normalize_result,
     convert_mcp_call_tool_result,
+    tool_result_to_external_tool_text_result_for_llm,
 )
 
 
@@ -387,6 +389,44 @@ class TestNormalizeResult:
         assert parsed == [{"name": "a", "value": 1}, {"name": "b", "value": 2}]
         assert result.result_type == "success"
 
+    def test_pydantic_model_with_non_primitive_fields_is_serialized(self):
+        from datetime import date, datetime
+        from decimal import Decimal
+        from enum import Enum
+        from uuid import UUID
+
+        class Status(Enum):
+            ACTIVE = "active"
+
+        class Record(BaseModel):
+            id: UUID
+            created: datetime
+            day: date
+            score: Decimal
+            status: Status
+            tags: set[str]
+
+        record = Record(
+            id=UUID("12345678-1234-5678-1234-567812345678"),
+            created=datetime(2026, 1, 15, 10, 30, 0),
+            day=date(2026, 1, 15),
+            score=Decimal("99.5"),
+            status=Status.ACTIVE,
+            tags={"python", "sdk"},
+        )
+        result = _normalize_result(record)
+        parsed = json.loads(result.text_result_for_llm)
+        assert parsed == {
+            "id": "12345678-1234-5678-1234-567812345678",
+            "created": "2026-01-15T10:30:00",
+            "day": "2026-01-15",
+            "score": "99.5",
+            "status": "active",
+            "tags": parsed["tags"],
+        }
+        assert set(parsed["tags"]) == {"python", "sdk"}
+        assert result.result_type == "success"
+
     def test_raises_for_unserializable_value(self):
         # Functions cannot be JSON serialized
         with pytest.raises(TypeError, match="Failed to serialize"):
@@ -550,3 +590,47 @@ class TestToolReferences:
             }
         )
         assert wire.tool_references == ["alpha", "beta"]
+
+
+class TestToolResultToExternalToolTextResultForLlm:
+    def test_forwards_binary_results_and_session_log(self):
+        tool_result = ToolResult(
+            text_result_for_llm="screenshot captured",
+            binary_results_for_llm=[
+                ToolBinaryResult(
+                    data="base64data",
+                    mime_type="image/png",
+                    type="image",
+                    description="screenshot.png",
+                )
+            ],
+            session_log="tool execution details",
+            tool_telemetry={"duration_ms": 42},
+        )
+
+        rpc_result = tool_result_to_external_tool_text_result_for_llm(tool_result)
+
+        assert rpc_result.text_result_for_llm == "screenshot captured"
+        assert rpc_result.session_log == "tool execution details"
+        assert rpc_result.tool_telemetry == {"duration_ms": 42}
+        assert rpc_result.binary_results_for_llm is not None
+        assert len(rpc_result.binary_results_for_llm) == 1
+        assert rpc_result.binary_results_for_llm[0].data == "base64data"
+        assert rpc_result.binary_results_for_llm[0].mime_type == "image/png"
+        assert rpc_result.binary_results_for_llm[0].type.value == "image"
+        assert rpc_result.binary_results_for_llm[0].description == "screenshot.png"
+
+    def test_omits_binary_results_when_none(self):
+        tool_result = ToolResult(text_result_for_llm="done")
+        rpc_result = tool_result_to_external_tool_text_result_for_llm(tool_result)
+        assert rpc_result.binary_results_for_llm is None
+        assert rpc_result.session_log is None
+
+    def test_forwards_tool_references(self):
+        tool_result = ToolResult(
+            text_result_for_llm="found tools",
+            result_type="success",
+            tool_references=["get_weather", "check_status"],
+        )
+        rpc_result = tool_result_to_external_tool_text_result_for_llm(tool_result)
+        assert rpc_result.tool_references == ["get_weather", "check_status"]

@@ -18,7 +18,10 @@ use crate::generated::api_types::{
     SessionFsReaddirWithTypesRequest, SessionFsReaddirWithTypesResult, SessionFsRenameRequest,
     SessionFsRmRequest, SessionFsSqliteExistsParams, SessionFsSqliteExistsResult,
     SessionFsSqliteQueryRequest, SessionFsSqliteQueryResult as GeneratedSqliteQueryResult,
-    SessionFsStatRequest, SessionFsStatResult, SessionFsWriteFileRequest,
+    SessionFsSqliteTransactionError as GeneratedSqliteTransactionError,
+    SessionFsSqliteTransactionErrorClass, SessionFsSqliteTransactionRequest,
+    SessionFsSqliteTransactionResult as GeneratedSqliteTransactionResult, SessionFsStatRequest,
+    SessionFsStatResult, SessionFsWriteFileRequest,
 };
 use crate::session_fs::SessionFsProvider;
 use crate::{Client, JsonRpcRequest, JsonRpcResponse, error_codes};
@@ -371,6 +374,69 @@ pub(crate) async fn sqlite_query(
     respond(client, id, result).await;
 }
 
+pub(crate) async fn sqlite_transaction(
+    client: &Client,
+    provider: &Arc<dyn SessionFsProvider>,
+    request: JsonRpcRequest,
+) {
+    let params: SessionFsSqliteTransactionRequest = match parse_params(&request) {
+        Some(p) => p,
+        None => {
+            send_error(
+                client,
+                request.id,
+                "invalid sessionFs.sqliteTransaction params",
+            )
+            .await;
+            return;
+        }
+    };
+    let id = request.id;
+    let sqlite = match provider.sqlite() {
+        Some(s) => s,
+        None => {
+            // SQLite not supported — return a result-level error, not a
+            // transport error, so the CLI can surface it gracefully.
+            respond(
+                client,
+                id,
+                GeneratedSqliteTransactionResult {
+                    results: Vec::new(),
+                    error: Some(GeneratedSqliteTransactionError {
+                        error_class: SessionFsSqliteTransactionErrorClass::Fatal,
+                        message: "SQLite is not supported by this SessionFs provider".to_string(),
+                    }),
+                },
+            )
+            .await;
+            return;
+        }
+    };
+    let result = match sqlite.sqlite_transaction(&params.statements).await {
+        Ok(results) => GeneratedSqliteTransactionResult {
+            results: results
+                .into_iter()
+                .map(|result| GeneratedSqliteQueryResult {
+                    columns: result.columns,
+                    rows: result.rows,
+                    rows_affected: result.rows_affected,
+                    last_insert_rowid: result.last_insert_rowid,
+                    error: None,
+                })
+                .collect(),
+            error: None,
+        },
+        Err(e) => GeneratedSqliteTransactionResult {
+            results: Vec::new(),
+            error: Some(GeneratedSqliteTransactionError {
+                error_class: e.error_class,
+                message: e.message,
+            }),
+        },
+    };
+    respond(client, id, result).await;
+}
+
 pub(crate) async fn sqlite_exists(
     client: &Client,
     provider: &Arc<dyn SessionFsProvider>,
@@ -431,6 +497,7 @@ pub(crate) async fn dispatch(
         "sessionFs.rm" => rm(client, &provider, request).await,
         "sessionFs.rename" => rename(client, &provider, request).await,
         "sessionFs.sqliteQuery" => sqlite_query(client, &provider, request).await,
+        "sessionFs.sqliteTransaction" => sqlite_transaction(client, &provider, request).await,
         "sessionFs.sqliteExists" => sqlite_exists(client, &provider, request).await,
         _ => {
             warn!(method = %method, "unknown sessionFs.* method");

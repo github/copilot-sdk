@@ -37,7 +37,8 @@ public final class AssistantReasoningEvent extends SessionEvent {
         /** Unique identifier for this reasoning block */
         @JsonProperty("reasoningId") String reasoningId,
         /** The complete extended thinking text from the model */
-        @JsonProperty("content") String content
+        @JsonProperty("content") String content,
+        @JsonProperty("rte") Boolean rte
     ) {
     }
 }

@@ -78,6 +78,7 @@ import com.github.copilot.rpc.ExitPlanModeResult;
 import com.github.copilot.rpc.ElicitationSchema;
 import com.github.copilot.rpc.BearerTokenProvider;
 import com.github.copilot.rpc.GetMessagesResponse;
+import com.github.copilot.rpc.AgentStopHookInput;
 import com.github.copilot.rpc.HookInvocation;
 import com.github.copilot.rpc.InputOptions;
 import com.github.copilot.rpc.MessageOptions;
@@ -109,6 +110,7 @@ import com.github.copilot.rpc.UserInputInvocation;
 import com.github.copilot.rpc.UserInputRequest;
 import com.github.copilot.rpc.UserInputResponse;
 import com.github.copilot.rpc.UserPromptSubmittedHookInput;
+import com.github.copilot.rpc.UserPromptTransformedHookInput;
 
 /**
  * Represents a single conversation session with the Copilot CLI.
@@ -184,6 +186,7 @@ public final class CopilotSession implements AutoCloseable {
     private final Map<String, CommandHandler> commandHandlers = new ConcurrentHashMap<>();
     private final Map<String, BearerTokenProvider> bearerTokenProviders = new ConcurrentHashMap<>();
     private final AtomicReference<PermissionHandler> permissionHandler = new AtomicReference<>();
+    private volatile boolean managedSettingsEnabled;
     private final AtomicReference<McpAuthHandler> mcpAuthHandler = new AtomicReference<>();
     private final AtomicReference<UserInputHandler> userInputHandler = new AtomicReference<>();
     private final AtomicReference<ElicitationHandler> elicitationHandler = new AtomicReference<>();
@@ -1012,6 +1015,7 @@ public final class CopilotSession implements AutoCloseable {
             try {
                 var invocation = new PermissionInvocation();
                 invocation.setSessionId(sessionId);
+                invocation.setManagedSettingsEnabled(managedSettingsEnabled);
                 handler.handle(permissionRequest, invocation).thenAccept(result -> {
                     try {
                         PermissionRequestResultKind kind = new PermissionRequestResultKind(result.getKind());
@@ -1021,18 +1025,19 @@ public final class CopilotSession implements AutoCloseable {
                             return;
                         }
                         getRpc().permissions.handlePendingPermissionRequest(
-                                new SessionPermissionsHandlePendingPermissionRequestParams(sessionId, requestId,
-                                        result));
+                                new SessionPermissionsHandlePendingPermissionRequestParams(sessionId, requestId, result,
+                                        null));
                     } catch (Exception e) {
                         LOG.log(Level.WARNING, "Error sending permission result for requestId=" + requestId, e);
                     }
                 }).exceptionally(ex -> {
+                    LOG.log(Level.SEVERE, "Permission handler failed for requestId=" + requestId, ex);
                     try {
                         PermissionRequestResult denied = new PermissionRequestResult();
                         denied.setKind(PermissionRequestResultKind.DENIED_COULD_NOT_REQUEST_FROM_USER);
                         getRpc().permissions.handlePendingPermissionRequest(
-                                new SessionPermissionsHandlePendingPermissionRequestParams(sessionId, requestId,
-                                        denied));
+                                new SessionPermissionsHandlePendingPermissionRequestParams(sessionId, requestId, denied,
+                                        null));
                     } catch (Exception e) {
                         LOG.log(Level.WARNING, "Error sending permission denied for requestId=" + requestId, e);
                     }
@@ -1044,7 +1049,8 @@ public final class CopilotSession implements AutoCloseable {
                     PermissionRequestResult denied = new PermissionRequestResult();
                     denied.setKind(PermissionRequestResultKind.DENIED_COULD_NOT_REQUEST_FROM_USER);
                     getRpc().permissions.handlePendingPermissionRequest(
-                            new SessionPermissionsHandlePendingPermissionRequestParams(sessionId, requestId, denied));
+                            new SessionPermissionsHandlePendingPermissionRequestParams(sessionId, requestId, denied,
+                                    null));
                 } catch (Exception sendEx) {
                     LOG.log(Level.WARNING, "Error sending permission denied for requestId=" + requestId, sendEx);
                 }
@@ -1377,6 +1383,10 @@ public final class CopilotSession implements AutoCloseable {
         permissionHandler.set(handler);
     }
 
+    void setManagedSettingsEnabled(boolean managedSettingsEnabled) {
+        this.managedSettingsEnabled = managedSettingsEnabled;
+    }
+
     void registerMcpAuthHandler(McpAuthHandler handler) {
         mcpAuthHandler.set(handler);
     }
@@ -1402,6 +1412,7 @@ public final class CopilotSession implements AutoCloseable {
             PermissionRequest request = MAPPER.treeToValue(permissionRequestData, PermissionRequest.class);
             var invocation = new PermissionInvocation();
             invocation.setSessionId(sessionId);
+            invocation.setManagedSettingsEnabled(managedSettingsEnabled);
             return handler.handle(request, invocation).exceptionally(ex -> {
                 LOG.log(Level.SEVERE, "Permission handler threw an exception", ex);
                 PermissionRequestResult result = new PermissionRequestResult();
@@ -1860,6 +1871,17 @@ public final class CopilotSession implements AutoCloseable {
                         return promptResult.thenApply(output -> (Object) output);
                     }
                     break;
+                case "userPromptTransformed" :
+                    if (hooks.getOnUserPromptTransformed() != null) {
+                        UserPromptTransformedHookInput transformedInput = MAPPER.treeToValue(input,
+                                UserPromptTransformedHookInput.class);
+                        var transformedResult = hooks.getOnUserPromptTransformed().handle(transformedInput, invocation);
+                        if (transformedResult == null) {
+                            return CompletableFuture.completedFuture(null);
+                        }
+                        return transformedResult.thenApply(output -> (Object) output);
+                    }
+                    break;
                 case "sessionStart" :
                     if (hooks.getOnSessionStart() != null) {
                         SessionStartHookInput startInput = MAPPER.treeToValue(input, SessionStartHookInput.class);
@@ -1878,6 +1900,16 @@ public final class CopilotSession implements AutoCloseable {
                             return CompletableFuture.completedFuture(null);
                         }
                         return endResult.thenApply(output -> (Object) output);
+                    }
+                    break;
+                case "agentStop" :
+                    if (hooks.getOnAgentStop() != null) {
+                        AgentStopHookInput stopInput = MAPPER.treeToValue(input, AgentStopHookInput.class);
+                        var stopResult = hooks.getOnAgentStop().handle(stopInput, invocation);
+                        if (stopResult == null) {
+                            return CompletableFuture.completedFuture(null);
+                        }
+                        return stopResult.thenApply(output -> (Object) output);
                     }
                     break;
                 default :
@@ -1953,7 +1985,8 @@ public final class CopilotSession implements AutoCloseable {
      *            the model ID to switch to (e.g., {@code "gpt-5.4"})
      * @param reasoningEffort
      *            reasoning effort level (e.g., {@code "low"}, {@code "medium"},
-     *            {@code "high"}, {@code "xhigh"}); {@code null} to use default
+     *            {@code "high"}, {@code "xhigh"}, {@code "max"}); {@code null} to
+     *            use default
      * @return a future that completes when the model switch is acknowledged
      * @throws IllegalStateException
      *             if this session has been terminated
@@ -1962,7 +1995,8 @@ public final class CopilotSession implements AutoCloseable {
     public CompletableFuture<Void> setModel(String model, String reasoningEffort) {
         ensureNotTerminated();
         return getRpc().model
-                .switchTo(new SessionModelSwitchToParams(sessionId, model, reasoningEffort, null, null, null, null))
+                .switchTo(
+                        new SessionModelSwitchToParams(sessionId, model, reasoningEffort, null, null, null, null, null))
                 .thenApply(r -> null);
     }
 
@@ -1983,7 +2017,8 @@ public final class CopilotSession implements AutoCloseable {
      *            the model ID to switch to (e.g., {@code "gpt-5.4"})
      * @param reasoningEffort
      *            reasoning effort level (e.g., {@code "low"}, {@code "medium"},
-     *            {@code "high"}, {@code "xhigh"}); {@code null} to use default
+     *            {@code "high"}, {@code "xhigh"}, {@code "max"}); {@code null} to
+     *            use default
      * @param modelCapabilities
      *            per-property overrides for model capabilities; {@code null} to use
      *            runtime defaults
@@ -2043,7 +2078,7 @@ public final class CopilotSession implements AutoCloseable {
                 ? null
                 : com.github.copilot.generated.rpc.ReasoningSummary.fromValue(reasoningSummary);
         return getRpc().model.switchTo(new SessionModelSwitchToParams(sessionId, model, reasoningEffort,
-                generatedReasoningSummary, null, generatedCapabilities, null)).thenApply(r -> null);
+                generatedReasoningSummary, null, generatedCapabilities, null, null)).thenApply(r -> null);
     }
 
     /**

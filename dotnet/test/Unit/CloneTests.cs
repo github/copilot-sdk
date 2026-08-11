@@ -75,14 +75,16 @@ public class CloneTests
             ExcludedTools = ["tool3"],
             ExcludedBuiltInAgents = ["explore", "task"],
             WorkingDirectory = "/workspace",
+            AdditionalDirectories = ["/shared", "/generated"],
             Streaming = true,
             EnableCitations = true,
             EnableSessionTelemetry = false,
+            EnableExperimentalMode = true,
             EnableOnDemandInstructionDiscovery = true,
             IncludeSubAgentStreamingEvents = false,
             McpServers = new Dictionary<string, McpServerConfig> { ["server1"] = new McpStdioServerConfig { Command = "echo" } },
             McpOAuthTokenStorage = McpOAuthTokenStorageMode.Persistent,
-            CustomAgents = [new CustomAgentConfig { Name = "agent1", Model = "claude-haiku-4.5" }],
+            CustomAgents = [new CustomAgentConfig { Name = "agent1", Model = "claude-haiku-4.5", ReasoningEffort = "high" }],
             Agent = "agent1",
             Capi = new CapiSessionOptions { EnableWebSocketResponses = false },
             Cloud = new CloudSessionOptions
@@ -98,6 +100,7 @@ public class CloneTests
             SkillDirectories = ["/skills"],
             InstructionDirectories = ["/instructions"],
             DisabledSkills = ["skill1"],
+            DisabledMcpServers = ["server1"],
             PluginDirectories = ["/plugins"],
             LargeOutput = new LargeToolOutputConfig { Enabled = true, MaxSizeBytes = 2048, OutputDirectory = "/tmp/out" },
             Memory = new MemoryConfiguration { Enabled = true },
@@ -119,15 +122,18 @@ public class CloneTests
         Assert.Equal(original.ExcludedTools, clone.ExcludedTools);
         Assert.Equal(original.ExcludedBuiltInAgents, clone.ExcludedBuiltInAgents);
         Assert.Equal(original.WorkingDirectory, clone.WorkingDirectory);
+        Assert.Equal(original.AdditionalDirectories, clone.AdditionalDirectories);
         Assert.Equal(original.Streaming, clone.Streaming);
         Assert.Equal(original.EnableCitations, clone.EnableCitations);
         Assert.Equal(original.EnableSessionTelemetry, clone.EnableSessionTelemetry);
+        Assert.Equal(original.EnableExperimentalMode, clone.EnableExperimentalMode);
         Assert.Equal(original.EnableOnDemandInstructionDiscovery, clone.EnableOnDemandInstructionDiscovery);
         Assert.Equal(original.IncludeSubAgentStreamingEvents, clone.IncludeSubAgentStreamingEvents);
         Assert.Equal(original.McpServers.Count, clone.McpServers!.Count);
         Assert.Equal(original.McpOAuthTokenStorage, clone.McpOAuthTokenStorage);
         Assert.Equal(original.CustomAgents.Count, clone.CustomAgents!.Count);
         Assert.Equal(original.CustomAgents[0].Model, clone.CustomAgents[0].Model);
+        Assert.Equal(original.CustomAgents[0].ReasoningEffort, clone.CustomAgents[0].ReasoningEffort);
         Assert.Equal(original.Agent, clone.Agent);
         Assert.Same(original.Capi, clone.Capi);
         Assert.Same(original.Cloud, clone.Cloud);
@@ -135,6 +141,7 @@ public class CloneTests
         Assert.Equal(original.SkillDirectories, clone.SkillDirectories);
         Assert.Equal(original.InstructionDirectories, clone.InstructionDirectories);
         Assert.Equal(original.DisabledSkills, clone.DisabledSkills);
+        Assert.Equal(original.DisabledMcpServers, clone.DisabledMcpServers);
         Assert.Equal(original.PluginDirectories, clone.PluginDirectories);
         Assert.Same(original.LargeOutput, clone.LargeOutput);
         Assert.Same(original.Memory, clone.Memory);
@@ -153,9 +160,11 @@ public class CloneTests
             ExcludedBuiltInAgents = ["explore"],
             McpServers = new Dictionary<string, McpServerConfig> { ["s1"] = new McpStdioServerConfig { Command = "echo" } },
             CustomAgents = [new CustomAgentConfig { Name = "a1" }],
+            AdditionalDirectories = ["/shared"],
             SkillDirectories = ["/skills"],
             InstructionDirectories = ["/instructions"],
             DisabledSkills = ["skill1"],
+            DisabledMcpServers = ["server1"],
         };
 
         var clone = original.Clone();
@@ -166,9 +175,11 @@ public class CloneTests
         clone.ExcludedBuiltInAgents!.Add("task");
         clone.McpServers!["s2"] = new McpStdioServerConfig { Command = "echo" };
         clone.CustomAgents!.Add(new CustomAgentConfig { Name = "a2" });
+        clone.AdditionalDirectories!.Add("/generated");
         clone.SkillDirectories!.Add("/more");
         clone.InstructionDirectories!.Add("/more-instructions");
         clone.DisabledSkills!.Add("skill99");
+        clone.DisabledMcpServers!.Add("server99");
 
         // Original is unaffected
         Assert.Single(original.AvailableTools!);
@@ -176,9 +187,11 @@ public class CloneTests
         Assert.Single(original.ExcludedBuiltInAgents!);
         Assert.Single(original.McpServers!);
         Assert.Single(original.CustomAgents!);
+        Assert.Single(original.AdditionalDirectories!);
         Assert.Single(original.SkillDirectories!);
         Assert.Single(original.InstructionDirectories!);
         Assert.Single(original.DisabledSkills!);
+        Assert.Single(original.DisabledMcpServers!);
     }
 
     [Fact]
@@ -202,9 +215,11 @@ public class CloneTests
             ExcludedBuiltInAgents = ["explore"],
             McpServers = new Dictionary<string, McpServerConfig> { ["s1"] = new McpStdioServerConfig { Command = "echo" } },
             CustomAgents = [new CustomAgentConfig { Name = "a1" }],
+            AdditionalDirectories = ["/shared"],
             SkillDirectories = ["/skills"],
             InstructionDirectories = ["/instructions"],
             DisabledSkills = ["skill1"],
+            DisabledMcpServers = ["server1"],
         };
 
         var clone = original.Clone();
@@ -215,9 +230,11 @@ public class CloneTests
         clone.ExcludedBuiltInAgents!.Add("task");
         clone.McpServers!["s2"] = new McpStdioServerConfig { Command = "echo" };
         clone.CustomAgents!.Add(new CustomAgentConfig { Name = "a2" });
+        clone.AdditionalDirectories!.Add("/generated");
         clone.SkillDirectories!.Add("/more");
         clone.InstructionDirectories!.Add("/more-instructions");
         clone.DisabledSkills!.Add("skill99");
+        clone.DisabledMcpServers!.Add("server99");
 
         // Original is unaffected
         Assert.Single(original.AvailableTools!);
@@ -225,9 +242,11 @@ public class CloneTests
         Assert.Single(original.ExcludedBuiltInAgents!);
         Assert.Single(original.McpServers!);
         Assert.Single(original.CustomAgents!);
+        Assert.Single(original.AdditionalDirectories!);
         Assert.Single(original.SkillDirectories!);
         Assert.Single(original.InstructionDirectories!);
         Assert.Single(original.DisabledSkills!);
+        Assert.Single(original.DisabledMcpServers!);
     }
 
     [Fact]
@@ -288,6 +307,7 @@ public class CloneTests
         Assert.Null(clone.SkillDirectories);
         Assert.Null(clone.InstructionDirectories);
         Assert.Null(clone.DisabledSkills);
+        Assert.Null(clone.DisabledMcpServers);
         Assert.Null(clone.Tools);
         Assert.Null(clone.DefaultAgent);
         Assert.True(clone.IncludeSubAgentStreamingEvents);
@@ -370,6 +390,19 @@ public class CloneTests
         var clone = original.Clone();
 
         Assert.False(clone.EnableSessionTelemetry);
+    }
+
+    [Fact]
+    public void ResumeSessionConfig_Clone_CopiesEnableExperimentalMode()
+    {
+        var original = new ResumeSessionConfig
+        {
+            EnableExperimentalMode = true,
+        };
+
+        var clone = original.Clone();
+
+        Assert.True(clone.EnableExperimentalMode);
     }
 
     [Fact]
@@ -457,6 +490,26 @@ public class CloneTests
         var clone = original.Clone();
 
         Assert.Null(clone.EnableSessionTelemetry);
+    }
+
+    [Fact]
+    public void SessionConfig_Clone_PreservesEnableExperimentalModeDefault()
+    {
+        var original = new SessionConfig();
+
+        var clone = original.Clone();
+
+        Assert.Null(clone.EnableExperimentalMode);
+    }
+
+    [Fact]
+    public void ResumeSessionConfig_Clone_PreservesEnableExperimentalModeDefault()
+    {
+        var original = new ResumeSessionConfig();
+
+        var clone = original.Clone();
+
+        Assert.Null(clone.EnableExperimentalMode);
     }
 
     [Fact]

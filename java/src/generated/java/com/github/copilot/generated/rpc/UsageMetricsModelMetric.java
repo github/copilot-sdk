@@ -10,6 +10,7 @@ package com.github.copilot.generated.rpc;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import java.time.OffsetDateTime;
 import java.util.Map;
 import javax.annotation.processing.Generated;
 
@@ -26,6 +27,8 @@ public record UsageMetricsModelMetric(
     @JsonProperty("requests") UsageMetricsModelMetricRequests requests,
     /** Token usage metrics for this model */
     @JsonProperty("usage") UsageMetricsModelMetricUsage usage,
+    /** Latest known prompt-cache expiration for this model. A timestamp in the past indicates that the observed cache has expired. */
+    @JsonProperty("cacheExpiresAt") OffsetDateTime cacheExpiresAt,
     /** Accumulated nano-AI units cost for this model */
     @JsonProperty("totalNanoAiu") Double totalNanoAiu,
     /** Token count details per type */

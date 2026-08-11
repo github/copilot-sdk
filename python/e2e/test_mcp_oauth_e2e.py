@@ -326,6 +326,20 @@ class TestMcpOAuth:
             ) as session:
                 await _wait_for_mcp_server_status(session, server_name, McpServerStatus.NEEDS_AUTH)
 
+                # The MCP connection is kicked off by session.create, but the SDK only registers
+                # its `mcp.oauth_required` event interest once create returns. If the server's
+                # initial 401 wins that race, the runtime records `needs-auth` WITHOUT invoking
+                # the host callback, so `observed_request` is briefly None even after `needs-auth`
+                # is observed. A later auth retry (now that interest is registered) invokes the
+                # callback with the same `initial` reason. Wait for the callback rather than
+                # sampling it the instant `needs-auth` first appears, which made this test flaky.
+                await wait_for_condition(
+                    lambda: observed_request is not None,
+                    timeout=60.0,
+                    poll_interval=0.2,
+                    timeout_message=f"{server_name} OAuth request did not reach the host callback",
+                )
+
             assert observed_request is not None
             assert observed_request["serverName"] == server_name
             assert observed_request["reason"] == "initial"

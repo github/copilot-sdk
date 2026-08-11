@@ -4,7 +4,7 @@ A Rust SDK for programmatic access to the GitHub Copilot CLI.
 
 See [github/copilot-sdk](https://github.com/github/copilot-sdk) for the equivalent SDKs in TypeScript, Python, Go, .NET, and Java. The Rust SDK seeks parity with those SDKs; see [Differences From Other SDKs](#differences-from-other-sdks) below for the small set of intentional divergences.
 
-**Releases:** [github.com/github/copilot-sdk/releases?q=rust%2F](https://github.com/github/copilot-sdk/releases?q=rust%2F) — per-version release notes for the Rust crate.
+**Releases:** [github.com/github/copilot-sdk/releases](https://github.com/github/copilot-sdk/releases) — combined release notes for all SDK languages.
 
 ## Prerequisites
 
@@ -30,6 +30,12 @@ client.stop().await.ok();
 # Ok(())
 # }
 ```
+
+When targeting MCP tools configured through `mcp_servers`, remember the runtime
+tool name is `<server-key>-<tool-name>`. For `available_tools` and
+`excluded_tools`, prefer `ToolSet::new().add_mcp("<server-key>-<tool-name>")`
+or the raw `mcp:<server-key>-<tool-name>` form. For `custom_agents[].tools`
+and `default_agent.excluded_tools`, use `<server-key>-<tool-name>` directly.
 
 ## Architecture
 
@@ -70,6 +76,20 @@ let pong = client.ping("hello").await?;
 client.stop().await?;
 ```
 
+After `Client::start` succeeds, inspect its startup cost without parsing logs:
+
+```rust,ignore
+let timings = client.startup_timings().expect("started by Client::start");
+println!(
+    "startup={}ms transport={}ms handshake={}ms",
+    timings.total_ms, timings.transport_setup_ms, timings.handshake_ms
+);
+```
+
+Transport-specific phases are optional. For example, `port_wait_ms` is present
+only for TCP and `process_spawn_ms` is absent for external and in-process
+transports.
+
 **`ClientOptions`:**
 
 | Field               | Type                        | Description                                                       |
@@ -87,6 +107,8 @@ With the default `CliProgram::Resolve`, `Client::start()` resolves the CLI in th
 ### Session
 
 Created via `Client::create_session` or `Client::resume_session`. Owns an internal event loop that dispatches CLI callbacks to the focused handler traits you install on `SessionConfig`, and broadcasts session events through `subscribe()`.
+
+`SessionConfig::working_directory` sets the session working directory. When unset, the runtime uses its process working directory.
 
 ```rust,ignore
 use github_copilot_sdk::MessageOptions;
@@ -210,6 +232,10 @@ impl PermissionHandler for MyPermissions {
         _rid: RequestId,
         data: PermissionRequestData,
     ) -> PermissionResult {
+        if data.managed_approval_required == Some(true) {
+            return PermissionResult::no_result();
+        }
+
         if data.extra.get("tool").and_then(|v| v.as_str()) == Some("view") {
             PermissionResult::approve_once()
         } else {
@@ -230,7 +256,7 @@ let config = SessionConfig::default()
     .with_user_input_handler(h);
 ```
 
-The built-in `ApproveAllHandler` and `DenyAllHandler` implement `PermissionHandler` for the common cases. To observe streamed session events (assistant messages, tool calls, etc.), call `session.subscribe()` — see [Streaming](#streaming) below.
+The built-in `ApproveAllHandler` and `DenyAllHandler` implement `PermissionHandler` for the common cases. When `enable_managed_settings` is true, `ApproveAllHandler` logs an error and returns a user-not-available decision; custom handlers can inspect `managed_approval_required` when implementing a human-facing confirmation flow. To observe streamed session events (assistant messages, tool calls, etc.), call `session.subscribe()` — see [Streaming](#streaming) below.
 
 ### SessionConfig
 
@@ -294,7 +320,7 @@ let session = client
     .await?;
 ```
 
-**Hook events:** `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `UserPromptSubmitted`, `SessionStart`, `SessionEnd`, `ErrorOccurred`. Each carries typed input/output structs. `PostToolUse` only fires on success; override `on_post_tool_use_failure` to observe failed tool calls. Return `HookOutput::None` for events you don't handle.
+**Hook events:** `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `UserPromptSubmitted`, `UserPromptTransformed`, `SessionStart`, `SessionEnd`, `ErrorOccurred`. Each carries typed input/output structs. `PostToolUse` only fires on success; override `on_post_tool_use_failure` to observe failed tool calls. Return `HookOutput::None` for events you don't handle.
 
 ### System Message Transforms
 
@@ -409,6 +435,8 @@ Reach for the `ToolHandler` trait directly when you need shared state across mul
 ### Permission Policies
 
 Set a permission policy directly on `SessionConfig` with the chainable builders. They install a synthesized `PermissionHandler` so only permission requests are intercepted; every other event flows through unchanged.
+
+When `enable_managed_settings` is true, the approve-all policy logs an error and returns a user-not-available decision. Custom handlers can inspect `managed_approval_required` for human-facing confirmation logic.
 
 ```rust,ignore
 let session = client
@@ -570,6 +598,8 @@ config.infinite_sessions = Some(infinite);
 ```
 
 The CLI emits `session.compaction_start` / `session.compaction_complete` events around each compaction. The session id remains stable across compactions; resume with `Client::resume_session` to pick up a prior conversation. Workspace state lives under `~/.copilot/session-state/{sessionId}` by default — override with `workspace_path` to relocate.
+
+`enable_session_store` on `SessionConfig` enables the cross-session store for search and retrieval across sessions. When unset in the default client mode, the runtime default applies (enabled). In `Empty` mode, defaults to disabled.
 
 ### Memory
 
@@ -934,4 +964,23 @@ github-copilot-sdk = { version = "0.1", default-features = false }
 
 # Derive JSON Schema for tool parameters (adds to default bundled-cli).
 github-copilot-sdk = { version = "0.1", features = ["derive"] }
+```
+
+## Development
+
+Tests require a supported [Node.js version](../nodejs/README.md#prerequisites). From the repository root:
+
+```bash
+cd nodejs
+npm ci
+```
+
+```bash
+cd test/harness
+npm ci
+```
+
+```bash
+cd rust
+cargo test --features test-support
 ```

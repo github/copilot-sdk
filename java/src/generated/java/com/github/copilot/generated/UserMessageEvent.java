@@ -45,7 +45,7 @@ public final class UserMessageEvent extends SessionEvent {
         @JsonProperty("supportedNativeDocumentMimeTypes") List<String> supportedNativeDocumentMimeTypes,
         /** Path-backed native document attachments that stayed on the tagged_files path flow because native upload could not read them or would exceed the request size limit */
         @JsonProperty("nativeDocumentPathFallbackPaths") List<String> nativeDocumentPathFallbackPaths,
-        /** Origin of this message, used for timeline filtering (e.g., "skill-pdf" for skill-injected messages that should be hidden from the user) */
+        /** Origin of this message, used for timeline filtering and attribution (e.g., `skill-pdf` for hidden skill injection or `agent-<agent-id>` for an inter-agent prompt) */
         @JsonProperty("source") String source,
         /** How this message was delivered to the agentic loop relative to loop state (idle-start vs. steering/queued while busy). The timing axis; combine with `source` (origin) for the full picture. Used for telemetry attribution. */
         @JsonProperty("delivery") UserMessageDelivery delivery,

@@ -4,43 +4,62 @@ on:
   push:
     branches:
       - main
-  pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
-    paths:
-      - 'dotnet/**'
-      - 'test/**'
-      - 'nodejs/package.json'
-      - '.github/workflows/dotnet-sdk-tests.yml'
-      - '!**/*.md'
-      - '!**/LICENSE*'
-      - '!**/.gitignore'
-      - '!**/.editorconfig'
-      - '!**/*.png'
-      - '!**/*.jpg'
-      - '!**/*.jpeg'
-      - '!**/*.gif'
-      - '!**/*.svg'
   workflow_dispatch:
-  merge_group:
+  workflow_call:
 
 permissions:
   contents: read
 
 jobs:
   test:
-    name: ".NET SDK Tests (${{ matrix.os }}, ${{ matrix.transport }})"
+    name: ".NET SDK Tests (${{ matrix.os }}, ${{ matrix.transport }}, ${{ matrix.backend }}, ${{ matrix.shard }})"
     if: github.event.repository.fork == false
     env:
       POWERSHELL_UPDATECHECK: Off
+      COPILOT_SDK_E2E_BACKEND: ${{ matrix.backend }}
+      DOTNET_TEST_FILTER: ${{ matrix.test-filter }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         transport: ["default", "inprocess"]
-        # TODO: Re-enable after fixing in-process sqlite file locking on shutdown on Windows
+        backend: [capi]
+        shard: [full]
+        # TODO: Re-enable after fixing in-process sqlite file locking on shutdown on Windows.
         exclude:
           - os: windows-latest
             transport: "inprocess"
+          - os: windows-latest
+            transport: default
+            shard: full
+        include:
+          # Keep xUnit serial within each process, but split the slow Windows
+          # default-transport suite across two isolated test hosts. Keep both
+          # target frameworks in each shard: separate framework jobs did not
+          # shorten the critical path and doubled the Windows job count.
+          - os: windows-latest
+            transport: default
+            backend: capi
+            shard: "1"
+          - os: windows-latest
+            transport: default
+            backend: capi
+            shard: "2"
+          - os: ubuntu-latest
+            transport: inprocess
+            backend: anthropic-messages
+            shard: full
+            test-filter: "FullyQualifiedName~GitHub.Copilot.Test.E2E&E2EBackend!=SelfConfiguredBackend&E2EBackend!=CapiOnly"
+          - os: ubuntu-latest
+            transport: inprocess
+            backend: openai-responses
+            shard: full
+            test-filter: "FullyQualifiedName~GitHub.Copilot.Test.E2E&E2EBackend!=SelfConfiguredBackend&E2EBackend!=CapiOnly"
+          - os: ubuntu-latest
+            transport: inprocess
+            backend: openai-completions
+            shard: full
+            test-filter: "FullyQualifiedName~GitHub.Copilot.Test.E2E&E2EBackend!=SelfConfiguredBackend&E2EBackend!=CapiOnly"
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -92,4 +111,30 @@ jobs:
       - name: Run .NET SDK tests
         env:
           COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
-        run: dotnet test --no-build -v n
+          DOTNET_TEST_SHARD: ${{ matrix.shard }}
+        run: |
+          args=(--no-build -v n)
+
+          filter="$DOTNET_TEST_FILTER"
+          if [[ "$DOTNET_TEST_SHARD" != "full" ]]; then
+            if [[ "$DOTNET_TEST_SHARD" == "1" ]]; then
+              initials=(A C D H I J K L N Q S U W Y)
+              shard_filter="FullyQualifiedName~GitHub.Copilot.Test.ConnectionToken"
+            else
+              initials=(B E F G M O P R T V X Z)
+              shard_filter=""
+            fi
+
+            for namespace in E2E Unit; do
+              for initial in "${initials[@]}"; do
+                clause="FullyQualifiedName~GitHub.Copilot.Test.${namespace}.${initial}"
+                shard_filter="${shard_filter:+${shard_filter}|}${clause}"
+              done
+            done
+            filter="${filter:+(${filter})&}(${shard_filter})"
+          fi
+
+          if [[ -n "$filter" ]]; then
+            args+=(--filter "$filter")
+          fi
+          dotnet test "${args[@]}"

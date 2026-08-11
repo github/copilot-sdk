@@ -9,11 +9,11 @@ use github_copilot_sdk::{
 use serde_json::json;
 use tokio::sync::{Mutex, mpsc};
 
-use super::support::{assistant_message_content, recv_with_timeout, with_e2e_context};
+use super::support::{assistant_message_content, recv_with_timeout};
 
 #[tokio::test]
 async fn invokes_built_in_tools() {
-    with_e2e_context("tools", "invokes_built_in_tools", |ctx| {
+    super::support::with_shared_e2e_context(&E2E, "tools", "invokes_built_in_tools", |ctx| {
         Box::pin(async move {
             ctx.set_default_copilot_user();
             std::fs::write(
@@ -43,7 +43,7 @@ async fn invokes_built_in_tools() {
 
 #[tokio::test]
 async fn invokes_custom_tool() {
-    with_e2e_context("tools", "invokes_custom_tool", |ctx| {
+    super::support::with_shared_e2e_context(&E2E, "tools", "invokes_custom_tool", |ctx| {
         Box::pin(async move {
             ctx.set_default_copilot_user();
             let client = ctx.start_client().await;
@@ -75,7 +75,7 @@ async fn invokes_custom_tool() {
 
 #[tokio::test]
 async fn low_level_tool_definition() {
-    with_e2e_context("tools", "low_level_tool_definition", |ctx| {
+    super::support::with_shared_e2e_context(&E2E, "tools", "low_level_tool_definition", |ctx| {
         Box::pin(async move {
             ctx.set_default_copilot_user();
             let client = ctx.start_client().await;
@@ -124,7 +124,7 @@ async fn low_level_tool_definition() {
 
 #[tokio::test]
 async fn handles_tool_calling_errors() {
-    with_e2e_context("tools", "handles_tool_calling_errors", |ctx| {
+    super::support::with_shared_e2e_context(&E2E, "tools", "handles_tool_calling_errors", |ctx| {
         Box::pin(async move {
             ctx.set_default_copilot_user();
             let client = ctx.start_client().await;
@@ -173,7 +173,7 @@ async fn handles_tool_calling_errors() {
 
 #[tokio::test]
 async fn can_receive_and_return_complex_types() {
-    with_e2e_context("tools", "can_receive_and_return_complex_types", |ctx| {
+    super::support::with_shared_e2e_context(&E2E, "tools", "can_receive_and_return_complex_types", |ctx| {
         Box::pin(async move {
             ctx.set_default_copilot_user();
             let client = ctx.start_client().await;
@@ -212,76 +212,89 @@ async fn can_receive_and_return_complex_types() {
 
 #[tokio::test]
 async fn overrides_built_in_tool_with_custom_tool() {
-    with_e2e_context("tools", "overrides_built_in_tool_with_custom_tool", |ctx| {
-        Box::pin(async move {
-            ctx.set_default_copilot_user();
-            let client = ctx.start_client().await;
-            let __perm = Arc::new(ApproveAllHandler);
-            let tools = vec![custom_grep_tool()];
-            let session = client
-                .create_session(
-                    SessionConfig::default()
-                        .with_github_token(super::support::DEFAULT_TEST_TOKEN)
-                        .with_permission_handler(__perm)
-                        .with_tools(tools),
-                )
-                .await
-                .expect("create session");
+    super::support::with_shared_e2e_context(
+        &E2E,
+        "tools",
+        "overrides_built_in_tool_with_custom_tool",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let client = ctx.start_client().await;
+                let __perm = Arc::new(ApproveAllHandler);
+                let tools = vec![custom_grep_tool()];
+                let session = client
+                    .create_session(
+                        SessionConfig::default()
+                            .with_github_token(super::support::DEFAULT_TEST_TOKEN)
+                            .with_permission_handler(__perm)
+                            .with_tools(tools),
+                    )
+                    .await
+                    .expect("create session");
 
-            let answer = session
-                .send_and_wait("Use grep to search for the word 'hello'")
-                .await
-                .expect("send")
-                .expect("assistant message");
-            assert!(assistant_message_content(&answer).contains("CUSTOM_GREP_RESULT"));
+                let answer = session
+                    .send_and_wait("Use grep to search for the word 'hello'")
+                    .await
+                    .expect("send")
+                    .expect("assistant message");
+                assert!(assistant_message_content(&answer).contains("CUSTOM_GREP_RESULT"));
 
-            session.disconnect().await.expect("disconnect session");
-            client.stop().await.expect("stop client");
-        })
-    })
+                session.disconnect().await.expect("disconnect session");
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
     .await;
 }
 
 #[tokio::test]
 async fn skippermission_sent_in_tool_definition() {
-    with_e2e_context("tools", "skippermission_sent_in_tool_definition", |ctx| {
-        Box::pin(async move {
-            ctx.set_default_copilot_user();
-            let client = ctx.start_client().await;
-            let (permission_tx, mut permission_rx) = mpsc::unbounded_channel();
-            let handler = Arc::new(RecordingPermissionHandler {
-                permission_tx,
-                decision: PermissionResult::reject(None),
-            });
-            let __perm = handler;
-            let tools = vec![safe_lookup_tool()];
-            let session = client
-                .create_session(
-                    SessionConfig::default()
-                        .with_github_token(super::support::DEFAULT_TEST_TOKEN)
-                        .with_permission_handler(__perm)
-                        .with_tools(tools),
-                )
-                .await
-                .expect("create session");
+    super::support::with_shared_e2e_context(
+        &E2E,
+        "tools",
+        "skippermission_sent_in_tool_definition",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let client = ctx.start_client().await;
+                let (permission_tx, mut permission_requests) = mpsc::unbounded_channel();
+                let handler = Arc::new(RecordingPermissionHandler {
+                    permission_tx,
+                    decision: PermissionResult::reject(None),
+                });
+                let __perm = handler;
+                let tools = vec![safe_lookup_tool()];
+                let session = client
+                    .create_session(
+                        SessionConfig::default()
+                            .with_github_token(super::support::DEFAULT_TEST_TOKEN)
+                            .with_permission_handler(__perm)
+                            .with_tools(tools),
+                    )
+                    .await
+                    .expect("create session");
 
-            let answer = session
-                .send_and_wait("Use safe_lookup to look up 'test123'")
-                .await
-                .expect("send")
-                .expect("assistant message");
-            assert!(assistant_message_content(&answer).contains("RESULT"));
-            assert!(
-                tokio::time::timeout(std::time::Duration::from_millis(100), permission_rx.recv())
+                let answer = session
+                    .send_and_wait("Use safe_lookup to look up 'test123'")
+                    .await
+                    .expect("send")
+                    .expect("assistant message");
+                assert!(assistant_message_content(&answer).contains("RESULT"));
+                assert!(
+                    tokio::time::timeout(
+                        std::time::Duration::from_millis(100),
+                        permission_requests.recv()
+                    )
                     .await
                     .is_err(),
-                "skip_permission tool should not request permission"
-            );
+                    "skip_permission tool should not request permission"
+                );
 
-            session.disconnect().await.expect("disconnect session");
-            client.stop().await.expect("stop client");
-        })
-    })
+                session.disconnect().await.expect("disconnect session");
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
     .await;
 }
 
@@ -291,7 +304,8 @@ async fn can_return_binary_result() {}
 
 #[tokio::test]
 async fn invokes_custom_tool_with_permission_handler() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "tools",
         "invokes_custom_tool_with_permission_handler",
         |ctx| {
@@ -334,7 +348,8 @@ async fn invokes_custom_tool_with_permission_handler() {
 
 #[tokio::test]
 async fn denies_custom_tool_when_permission_denied() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "tools",
         "denies_custom_tool_when_permission_denied",
         |ctx| {
@@ -380,7 +395,7 @@ async fn denies_custom_tool_when_permission_denied() {
 
 #[tokio::test]
 async fn should_execute_multiple_custom_tools_in_parallel_single_turn() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(&E2E,
         "tools",
         "should_execute_multiple_custom_tools_in_parallel_single_turn",
         |ctx| {
@@ -428,7 +443,8 @@ async fn should_execute_multiple_custom_tools_in_parallel_single_turn() {
 
 #[tokio::test]
 async fn should_respect_availabletools_and_excludedtools_combined() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "tools",
         "should_respect_availabletools_and_excludedtools_combined",
         |ctx| {
@@ -864,3 +880,4 @@ impl ToolHandler for DbQueryTool {
         ))
     }
 }
+static E2E: super::support::SharedE2eGroup = super::support::SharedE2eGroup::standard("tools", 11);

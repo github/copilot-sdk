@@ -2,7 +2,7 @@
 #![allow(clippy::unwrap_used)]
 
 use github_copilot_sdk::test_support::{JsonRpcClient, JsonRpcNotification, JsonRpcRequest};
-use tokio::io::{AsyncWrite, AsyncWriteExt, duplex};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, duplex};
 use tokio::sync::{broadcast, mpsc};
 
 /// Write a Content-Length framed JSON-RPC message to a writer.
@@ -11,6 +11,28 @@ async fn write_framed(writer: &mut (impl AsyncWrite + Unpin), body: &[u8]) {
     writer.write_all(header.as_bytes()).await.unwrap();
     writer.write_all(body).await.unwrap();
     writer.flush().await.unwrap();
+}
+
+async fn read_framed(reader: &mut (impl AsyncRead + Unpin)) -> Vec<u8> {
+    let mut header = String::new();
+    loop {
+        let mut byte = [0u8; 1];
+        reader.read_exact(&mut byte).await.unwrap();
+        header.push(byte[0] as char);
+        if header.ends_with("\r\n\r\n") {
+            break;
+        }
+    }
+
+    let length = header
+        .trim()
+        .strip_prefix("Content-Length: ")
+        .unwrap()
+        .parse()
+        .unwrap();
+    let mut body = vec![0u8; length];
+    reader.read_exact(&mut body).await.unwrap();
+    body
 }
 
 #[tokio::test]
@@ -408,5 +430,118 @@ async fn send_request_cancellation_does_not_leak_pending() {
 
     let response = client.send_request("second", None).await.unwrap();
     assert_eq!(response.result.unwrap()["ok"], true);
+    server_task.await.unwrap();
+}
+
+#[test]
+fn lone_surrogate_yields_unexpected_end_of_hex_escape() {
+    let error = serde_json::from_slice::<serde_json::Value>(br#""\ud83d""#).unwrap_err();
+
+    assert_eq!(
+        error.to_string(),
+        "unexpected end of hex escape at line 1 column 8"
+    );
+}
+
+#[tokio::test]
+async fn lone_surrogate_frame_is_recovered_without_closing_connection() {
+    let (client_write, mut server_read) = duplex(4096);
+    let (mut server_write, client_read) = duplex(4096);
+    let (notification_tx, _) = broadcast::channel(16);
+    let (request_tx, _) = mpsc::unbounded_channel();
+    let client = JsonRpcClient::new(client_write, client_read, notification_tx, request_tx);
+
+    let server_task = tokio::spawn(async move {
+        let request: JsonRpcRequest =
+            serde_json::from_slice(&read_framed(&mut server_read).await).unwrap();
+        let response = format!(
+            r#"{{"jsonrpc":"2.0","id":{},"result":{{"name":"invalid \ud83d value"}}}}"#,
+            request.id
+        );
+        write_framed(&mut server_write, response.as_bytes()).await;
+
+        let request: JsonRpcRequest =
+            serde_json::from_slice(&read_framed(&mut server_read).await).unwrap();
+        let response = serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": request.id,
+            "result": {"name": "still connected"}
+        });
+        write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
+    });
+
+    let response = client.send_request("models.list", None).await.unwrap();
+    assert_eq!(
+        response.result.unwrap()["name"],
+        serde_json::json!("invalid \u{FFFD} value")
+    );
+
+    let response = client.send_request("account.getQuota", None).await.unwrap();
+    assert_eq!(
+        response.result.unwrap()["name"],
+        serde_json::json!("still connected")
+    );
+    server_task.await.unwrap();
+}
+
+#[tokio::test]
+async fn unrepairable_frame_remains_fatal() {
+    let (client_write, mut server_read) = duplex(4096);
+    let (mut server_write, client_read) = duplex(4096);
+    let (notification_tx, _) = broadcast::channel(16);
+    let (request_tx, _) = mpsc::unbounded_channel();
+    let client = JsonRpcClient::new(client_write, client_read, notification_tx, request_tx);
+
+    let server_task = tokio::spawn(async move {
+        let request: JsonRpcRequest =
+            serde_json::from_slice(&read_framed(&mut server_read).await).unwrap();
+        let response = format!(
+            r#"{{"jsonrpc":"2.0","id":{},"result":{{"surrogate":"\ud83d","escape":"\q"}}}}"#,
+            request.id
+        );
+        write_framed(&mut server_write, response.as_bytes()).await;
+    });
+
+    let error = tokio::time::timeout(
+        std::time::Duration::from_secs(2),
+        client.send_request("models.list", None),
+    )
+    .await
+    .expect("unrepairable frame did not terminate the pending request")
+    .unwrap_err();
+
+    assert_eq!(error.to_string(), "request cancelled");
+    assert!(error.is_transport_failure());
+    server_task.await.unwrap();
+}
+
+#[tokio::test]
+async fn valid_pairs_and_escaped_backslashes_are_untouched() {
+    let (client_write, mut server_read) = duplex(4096);
+    let (mut server_write, client_read) = duplex(4096);
+    let (notification_tx, _) = broadcast::channel(16);
+    let (request_tx, _) = mpsc::unbounded_channel();
+    let client = JsonRpcClient::new(client_write, client_read, notification_tx, request_tx);
+
+    let server_task = tokio::spawn(async move {
+        let request: JsonRpcRequest =
+            serde_json::from_slice(&read_framed(&mut server_read).await).unwrap();
+        let response = format!(
+            r#"{{"jsonrpc":"2.0","id":{},"result":{{"emoji":"\ud83d\ude00","path":"C:\\ud83d","invalid":"\ud83d"}}}}"#,
+            request.id
+        );
+        write_framed(&mut server_write, response.as_bytes()).await;
+    });
+
+    let result = client
+        .send_request("models.list", None)
+        .await
+        .unwrap()
+        .result
+        .unwrap();
+
+    assert_eq!(result["emoji"], serde_json::json!("😀"));
+    assert_eq!(result["path"], serde_json::json!(r"C:\ud83d"));
+    assert_eq!(result["invalid"], serde_json::json!("\u{FFFD}"));
     server_task.await.unwrap();
 }

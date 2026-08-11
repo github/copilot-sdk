@@ -1,41 +1,47 @@
 use github_copilot_sdk::SessionId;
 
-use super::support::{wait_for_condition, with_e2e_context};
+use super::support::wait_for_condition;
 
 #[tokio::test]
 async fn should_delete_session_by_id() {
-    with_e2e_context("client_api", "should_delete_session_by_id", |ctx| {
-        Box::pin(async move {
-            ctx.set_default_copilot_user();
-            let client = ctx.start_client().await;
-            let session = client
-                .create_session(ctx.approve_all_session_config())
-                .await
-                .expect("create session");
-            let session_id = session.id().clone();
+    super::support::with_shared_e2e_context(
+        &E2E,
+        "client_api",
+        "should_delete_session_by_id",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let client = ctx.start_client().await;
+                let session = client
+                    .create_session(ctx.approve_all_session_config())
+                    .await
+                    .expect("create session");
+                let session_id = session.id().clone();
 
-            session.send_and_wait("Say OK.").await.expect("send");
-            session.disconnect().await.expect("disconnect session");
-            client
-                .delete_session(&session_id)
-                .await
-                .expect("delete session");
+                session.send_and_wait("Say OK.").await.expect("send");
+                session.disconnect().await.expect("disconnect session");
+                client
+                    .delete_session(&session_id)
+                    .await
+                    .expect("delete session");
 
-            let metadata = client
-                .get_session_metadata(&session_id)
-                .await
-                .expect("get metadata");
-            assert!(metadata.is_none());
+                let metadata = client
+                    .get_session_metadata(&session_id)
+                    .await
+                    .expect("get metadata");
+                assert!(metadata.is_none());
 
-            client.stop().await.expect("stop client");
-        })
-    })
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
     .await;
 }
 
 #[tokio::test]
 async fn should_report_error_when_deleting_unknown_session_id() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "client_api",
         "should_report_error_when_deleting_unknown_session_id",
         |ctx| {
@@ -62,7 +68,7 @@ async fn should_report_error_when_deleting_unknown_session_id() {
 
 #[tokio::test]
 async fn should_get_null_last_session_id_before_any_sessions_exist() {
-    with_e2e_context(
+    super::support::with_dedicated_e2e_context(
         "client_api",
         "should_get_null_last_session_id_before_any_sessions_exist",
         |ctx| {
@@ -81,7 +87,8 @@ async fn should_get_null_last_session_id_before_any_sessions_exist() {
 
 #[tokio::test]
 async fn should_track_last_session_id_after_session_created() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "client_api",
         "should_track_last_session_id_after_session_created",
         |ctx| {
@@ -122,7 +129,8 @@ async fn should_track_last_session_id_after_session_created() {
 
 #[tokio::test]
 async fn should_get_null_foreground_session_id_in_headless_mode() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "client_api",
         "should_get_null_foreground_session_id_in_headless_mode",
         |ctx| {
@@ -144,7 +152,8 @@ async fn should_get_null_foreground_session_id_in_headless_mode() {
 
 #[tokio::test]
 async fn should_report_error_when_setting_foreground_session_in_headless_mode() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "client_api",
         "should_report_error_when_setting_foreground_session_in_headless_mode",
         |ctx| {
@@ -175,3 +184,5 @@ async fn should_report_error_when_setting_foreground_session_in_headless_mode() 
     )
     .await;
 }
+static E2E: super::support::SharedE2eGroup =
+    super::support::SharedE2eGroup::standard("client_api", 5);

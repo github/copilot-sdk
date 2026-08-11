@@ -18,6 +18,12 @@ from pydantic import BaseModel, ValidationError
 if TYPE_CHECKING:
     from .generated.rpc import CurrentToolMetadata
 
+from .generated.rpc import (
+    ExternalToolTextResultForLlm,
+    ExternalToolTextResultForLlmBinaryResultsForLlm,
+    ExternalToolTextResultForLlmBinaryResultsForLlmType,
+)
+
 ToolResultType = Literal["success", "failure", "rejected", "denied", "timeout"]
 
 
@@ -76,6 +82,11 @@ class Tool:
     skip_permission: bool = False
     defer: Literal["auto", "never"] | None = None
     metadata: dict[str, Any] | None = None
+    #: When true, a successful call to this tool ends the agent turn: the
+    #: runtime halts instead of feeding the result back to the model for
+    #: another round. A failed call leaves the loop running so the model can
+    #: read the error and retry.
+    is_terminal: bool = False
 
 
 T = TypeVar("T", bound=BaseModel)
@@ -91,6 +102,7 @@ def define_tool(
     skip_permission: bool = False,
     defer: Literal["auto", "never"] | None = None,
     metadata: dict[str, Any] | None = None,
+    is_terminal: bool = False,
 ) -> Callable[[Callable[..., Any]], Tool]:
     pass
 
@@ -106,6 +118,7 @@ def define_tool(
     skip_permission: bool = False,
     defer: Literal["auto", "never"] | None = None,
     metadata: dict[str, Any] | None = None,
+    is_terminal: bool = False,
 ) -> Tool:
     pass
 
@@ -121,6 +134,7 @@ def define_tool(
     skip_permission: bool = False,
     defer: Literal["auto", "never"] | None = None,
     metadata: dict[str, Any] | None = None,
+    is_terminal: bool = False,
 ) -> Tool:
     pass
 
@@ -135,6 +149,7 @@ def define_tool(
     skip_permission: bool = False,
     defer: Literal["auto", "never"] | None = None,
     metadata: dict[str, Any] | None = None,
+    is_terminal: bool = False,
 ) -> Tool | Callable[[Callable[[Any, ToolInvocation], Any]], Tool]:
     """
     Define a tool with automatic JSON schema generation from Pydantic models.
@@ -187,6 +202,10 @@ def define_tool(
                     Keys are namespaced and not part of the stable public API; values
                     are not interpreted and may be recognized to inform host-specific
                     behavior. Unknown keys are preserved.
+        is_terminal: When True, a successful call to this tool ends the agent turn:
+                    the runtime halts instead of feeding the result back to the model
+                    for another round. A failed call leaves the loop running so the
+                    model can read the error and retry.
 
     Returns:
         A Tool instance
@@ -282,6 +301,7 @@ def define_tool(
             skip_permission=skip_permission,
             defer=defer,
             metadata=metadata,
+            is_terminal=is_terminal,
         )
 
     # If handler is provided, call decorator immediately
@@ -302,6 +322,7 @@ def define_tool(
             skip_permission=skip_permission,
             defer=defer,
             metadata=metadata,
+            is_terminal=is_terminal,
         )
 
     # Otherwise return decorator for @define_tool(...) usage
@@ -345,7 +366,7 @@ def _normalize_result(result: Any) -> ToolResult:
     # Everything else gets JSON-serialized (with Pydantic model support)
     def default(obj: Any) -> Any:
         if isinstance(obj, BaseModel):
-            return obj.model_dump()
+            return obj.model_dump(mode="json")
         raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
 
     try:
@@ -407,4 +428,31 @@ def convert_mcp_call_tool_result(call_result: dict[str, Any]) -> ToolResult:
         text_result_for_llm="\n".join(text_parts),
         result_type="failure" if call_result.get("isError") is True else "success",
         binary_results_for_llm=binary_results if binary_results else None,
+    )
+
+
+def tool_result_to_external_tool_text_result_for_llm(
+    tool_result: ToolResult,
+) -> ExternalToolTextResultForLlm:
+    """Convert a ToolResult into the RPC payload sent to HandlePendingToolCall."""
+    binary_results_for_llm = None
+    if tool_result.binary_results_for_llm:
+        binary_results_for_llm = [
+            ExternalToolTextResultForLlmBinaryResultsForLlm(
+                data=binary_result.data,
+                mime_type=binary_result.mime_type,
+                type=ExternalToolTextResultForLlmBinaryResultsForLlmType(binary_result.type),
+                description=binary_result.description or None,
+            )
+            for binary_result in tool_result.binary_results_for_llm
+        ]
+
+    return ExternalToolTextResultForLlm(
+        text_result_for_llm=tool_result.text_result_for_llm,
+        binary_results_for_llm=binary_results_for_llm,
+        error=tool_result.error,
+        result_type=tool_result.result_type,
+        session_log=tool_result.session_log,
+        tool_references=tool_result.tool_references,
+        tool_telemetry=tool_result.tool_telemetry,
     )

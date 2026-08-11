@@ -30,12 +30,10 @@ public class AskUserE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
             }
         });
 
-        await session.SendAsync(new MessageOptions
+        await session.SendAndWaitAsync(new MessageOptions
         {
             Prompt = "Ask me to choose between 'Option A' and 'Option B' using the ask_user tool. Wait for my response before continuing."
         });
-
-        await TestHelper.GetFinalAssistantMessageAsync(session);
 
         // Should have received at least one user input request
         Assert.NotEmpty(userInputRequests);
@@ -62,12 +60,10 @@ public class AskUserE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
             }
         });
 
-        await session.SendAsync(new MessageOptions
+        await session.SendAndWaitAsync(new MessageOptions
         {
             Prompt = "Use the ask_user tool to ask me to pick between exactly two options: 'Red' and 'Blue'. These should be provided as choices. Wait for my answer."
         });
-
-        await TestHelper.GetFinalAssistantMessageAsync(session);
 
         // Should have received a request
         Assert.NotEmpty(userInputRequests);

@@ -8,6 +8,7 @@ import os
 import sqlite3
 import tempfile
 from pathlib import Path
+from typing import Any
 
 import pytest
 import pytest_asyncio
@@ -17,6 +18,8 @@ from copilot.rpc import (
     SessionFSReaddirWithTypesEntry,
     SessionFSReaddirWithTypesEntryType,
     SessionFSSqliteQueryType,
+    SessionFSSqliteTransactionErrorClass,
+    SessionFSSqliteTransactionStatement,
 )
 from copilot.session import PermissionHandler
 from copilot.session_fs_provider import (
@@ -24,6 +27,7 @@ from copilot.session_fs_provider import (
     SessionFsProvider,
     SessionFsSqliteProvider,
     SessionFsSqliteQueryResult,
+    SessionFsSqliteTransactionFailure,
 )
 
 from .testharness import DEFAULT_GITHUB_TOKEN, E2ETestContext
@@ -151,6 +155,46 @@ class _InMemorySessionFsSqliteProvider(SessionFsProvider, SessionFsSqliteProvide
         query: str,
         params: dict[str, float | str | None] | None = None,
     ) -> SessionFsSqliteQueryResult | None:
+        return self._run_statement(self._get_or_create_db(), query_type, query, params)
+
+    async def sqlite_transaction(
+        self,
+        statements: list[SessionFSSqliteTransactionStatement],
+    ) -> list[SessionFsSqliteQueryResult]:
+        db = self._get_or_create_db()
+        db.execute("BEGIN IMMEDIATE")
+        try:
+            results = [
+                self._run_statement(
+                    db, statement.query_type, statement.query, statement.params, commit=False
+                )
+                for statement in statements
+            ]
+        except Exception as exc:
+            db.rollback()
+            message = str(exc)
+            error_class = (
+                SessionFSSqliteTransactionErrorClass.BUSY_OR_LOCKED
+                if "locked" in message or "busy" in message
+                else SessionFSSqliteTransactionErrorClass.FATAL
+            )
+            raise SessionFsSqliteTransactionFailure(message, error_class) from exc
+        try:
+            db.commit()
+        except Exception as exc:
+            raise SessionFsSqliteTransactionFailure(
+                str(exc), SessionFSSqliteTransactionErrorClass.POST_COMMIT_AMBIGUOUS
+            ) from exc
+        return results
+
+    def _run_statement(
+        self,
+        db: sqlite3.Connection,
+        query_type: SessionFSSqliteQueryType,
+        query: str,
+        params: dict[str, Any] | None = None,
+        commit: bool = True,
+    ) -> SessionFsSqliteQueryResult:
         self._sqlite_calls.append(
             {
                 "sessionId": self._session_id,
@@ -159,14 +203,16 @@ class _InMemorySessionFsSqliteProvider(SessionFsProvider, SessionFsSqliteProvide
             }
         )
 
-        db = self._get_or_create_db()
         trimmed = query.strip()
         if not trimmed:
             return SessionFsSqliteQueryResult(columns=[], rows=[], rows_affected=0)
 
         if query_type == SessionFSSqliteQueryType.EXEC:
-            db.executescript(trimmed)
-            db.commit()
+            if commit:
+                db.executescript(trimmed)
+                db.commit()
+            else:
+                db.execute(trimmed)
             return SessionFsSqliteQueryResult(columns=[], rows=[], rows_affected=0)
 
         if query_type == SessionFSSqliteQueryType.QUERY:
@@ -177,7 +223,8 @@ class _InMemorySessionFsSqliteProvider(SessionFsProvider, SessionFsSqliteProvide
 
         # run (INSERT/UPDATE/DELETE)
         cursor = db.execute(trimmed, params or {})
-        db.commit()
+        if commit:
+            db.commit()
         return SessionFsSqliteQueryResult(
             columns=[],
             rows=[],

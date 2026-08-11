@@ -1,10 +1,11 @@
 use github_copilot_sdk::rpc::{ShellExecRequest, ShellKillRequest};
 
-use super::support::{wait_for_condition, with_e2e_context};
+use super::support::wait_for_condition;
 
 #[tokio::test]
 async fn should_execute_shell_command() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_shell_and_fleet",
         "should_execute_shell_command",
         |ctx| {
@@ -41,42 +42,47 @@ async fn should_execute_shell_command() {
 
 #[tokio::test]
 async fn should_kill_shell_process() {
-    with_e2e_context("rpc_shell_and_fleet", "should_kill_shell_process", |ctx| {
-        Box::pin(async move {
-            ctx.set_default_copilot_user();
-            let client = ctx.start_client().await;
-            let session = client
-                .create_session(ctx.approve_all_session_config())
-                .await
-                .expect("create session");
+    super::support::with_shared_e2e_context(
+        &E2E,
+        "rpc_shell_and_fleet",
+        "should_kill_shell_process",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let client = ctx.start_client().await;
+                let session = client
+                    .create_session(ctx.approve_all_session_config())
+                    .await
+                    .expect("create session");
 
-            let exec = session
-                .rpc()
-                .shell()
-                .exec(ShellExecRequest {
-                    command: long_running_command(),
-                    cwd: Some(ctx.work_dir().display().to_string()),
-                    timeout: None,
-                })
-                .await
-                .expect("start shell process");
-            assert!(!exec.process_id.trim().is_empty());
+                let exec = session
+                    .rpc()
+                    .shell()
+                    .exec(ShellExecRequest {
+                        command: long_running_command(),
+                        cwd: Some(ctx.work_dir().display().to_string()),
+                        timeout: None,
+                    })
+                    .await
+                    .expect("start shell process");
+                assert!(!exec.process_id.trim().is_empty());
 
-            let killed = session
-                .rpc()
-                .shell()
-                .kill(ShellKillRequest {
-                    process_id: exec.process_id,
-                    signal: None,
-                })
-                .await
-                .expect("kill shell process");
-            assert!(killed.killed);
+                let killed = session
+                    .rpc()
+                    .shell()
+                    .kill(ShellKillRequest {
+                        process_id: exec.process_id,
+                        signal: None,
+                    })
+                    .await
+                    .expect("kill shell process");
+                assert!(killed.killed);
 
-            session.disconnect().await.expect("disconnect session");
-            client.stop().await.expect("stop client");
-        })
-    })
+                session.disconnect().await.expect("disconnect session");
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
     .await;
 }
 
@@ -113,3 +119,5 @@ fn long_running_command() -> String {
 fn long_running_command() -> String {
     "sleep 30".to_string()
 }
+static E2E: super::support::SharedE2eGroup =
+    super::support::SharedE2eGroup::standard("rpc_shell_and_fleet", 2);

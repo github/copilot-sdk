@@ -14,8 +14,9 @@ import (
 // Mirrors dotnet/test/HookLifecycleAndOutputTests.cs (snapshot category "hooks_extended").
 //
 // Covers each handler exposed on copilot.SessionHooks: OnPreToolUse,
-// OnPostToolUse, OnPostToolUseFailure, OnUserPromptSubmitted, OnSessionStart,
-// OnSessionEnd, OnErrorOccurred. Output-shape behavior (modifiedPrompt /
+// OnPostToolUse, OnPostToolUseFailure, OnUserPromptSubmitted,
+// OnUserPromptTransformed, OnSessionStart, OnSessionEnd, OnErrorOccurred,
+// OnAgentStop. Output-shape behavior (modifiedPrompt / modifiedTransformedPrompt /
 // additionalContext / errorHandling / modifiedArgs / modifiedResult /
 // sessionSummary) is asserted alongside hook invocation. If a new handler is
 // added to SessionHooks, add a corresponding test here.
@@ -69,6 +70,59 @@ func TestHooksExtendedE2E(t *testing.T) {
 		assistantMessage, ok := response.Data.(*copilot.AssistantMessageData)
 		if !ok || !strings.Contains(assistantMessage.Content, "HOOKED_PROMPT") {
 			t.Errorf("Expected response to contain 'HOOKED_PROMPT', got %v", response.Data)
+		}
+	})
+
+	t.Run("should invoke userPromptTransformed hook and modify transformed prompt", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		var (
+			mu     sync.Mutex
+			inputs []copilot.UserPromptTransformedHookInput
+		)
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			Hooks: &copilot.SessionHooks{
+				OnUserPromptTransformed: func(input copilot.UserPromptTransformedHookInput, invocation copilot.HookInvocation) (*copilot.UserPromptTransformedHookOutput, error) {
+					mu.Lock()
+					inputs = append(inputs, input)
+					mu.Unlock()
+					if invocation.SessionID == "" {
+						t.Error("Expected non-empty session ID in invocation")
+					}
+					return &copilot.UserPromptTransformedHookOutput{
+						ModifiedTransformedPrompt: copilot.String("Reply with exactly: HOOKED_TRANSFORMED_PROMPT"),
+					}, nil
+				},
+			},
+		})
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+
+		response, err := session.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "Answer the request above."})
+		if err != nil {
+			t.Fatalf("Failed to send message: %v", err)
+		}
+
+		mu.Lock()
+		defer mu.Unlock()
+		if len(inputs) == 0 {
+			t.Fatal("Expected at least one userPromptTransformed hook invocation")
+		}
+		if !strings.Contains(inputs[0].Prompt, "Answer the request above.") {
+			t.Errorf("Expected original prompt in hook input, got %q", inputs[0].Prompt)
+		}
+		if !strings.Contains(inputs[0].TransformedPrompt, "Answer the request above.") ||
+			!strings.Contains(inputs[0].TransformedPrompt, "<current_datetime>") {
+			t.Errorf("Expected runtime-transformed prompt in hook input, got %q", inputs[0].TransformedPrompt)
+		}
+		if !inputs[0].Timestamp.After(time.UnixMilli(0)) || inputs[0].WorkingDirectory == "" {
+			t.Error("Expected timestamp and working directory in hook input")
+		}
+		assistantMessage, ok := response.Data.(*copilot.AssistantMessageData)
+		if !ok || !strings.Contains(assistantMessage.Content, "HOOKED_TRANSFORMED_PROMPT") {
+			t.Errorf("Expected transformed prompt response, got %v", response.Data)
 		}
 	})
 
@@ -212,6 +266,66 @@ func TestHooksExtendedE2E(t *testing.T) {
 		}
 		if session.SessionID == "" {
 			t.Error("Expected session id to be set")
+		}
+	})
+
+	t.Run("should invoke agentStop hook and apply block response", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		var (
+			mu     sync.Mutex
+			inputs []copilot.AgentStopHookInput
+		)
+
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			Hooks: &copilot.SessionHooks{
+				OnAgentStop: func(input copilot.AgentStopHookInput, invocation copilot.HookInvocation) (*copilot.AgentStopHookOutput, error) {
+					mu.Lock()
+					inputs = append(inputs, input)
+					callCount := len(inputs)
+					mu.Unlock()
+					if invocation.SessionID == "" {
+						t.Error("Expected non-empty session ID in invocation")
+					}
+					if callCount == 1 {
+						return &copilot.AgentStopHookOutput{
+							Decision: "block",
+							Reason:   "Reply with exactly: AGENT_STOP_CONTINUED",
+						}, nil
+					}
+					return nil, nil
+				},
+			},
+		})
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+
+		response, err := session.SendAndWait(t.Context(), copilot.MessageOptions{
+			Prompt: "Reply with exactly: AGENT_STOP_INITIAL",
+		})
+		if err != nil {
+			t.Fatalf("Failed to send message: %v", err)
+		}
+
+		mu.Lock()
+		defer mu.Unlock()
+		if len(inputs) != 2 {
+			t.Fatalf("Expected two agentStop hook invocations, got %+v", inputs)
+		}
+		if inputs[0].StopHookActive {
+			t.Error("Expected first agentStop invocation to not be a continuation")
+		}
+		if !inputs[1].StopHookActive {
+			t.Error("Expected second agentStop invocation to be a continuation")
+		}
+		if inputs[0].StopReason != "end_turn" || inputs[0].TranscriptPath == "" {
+			t.Errorf("Unexpected first agentStop input: %+v", inputs[0])
+		}
+		assistantMessage, ok := response.Data.(*copilot.AssistantMessageData)
+		if !ok || !strings.Contains(assistantMessage.Content, "AGENT_STOP_CONTINUED") {
+			t.Errorf("Expected final response to contain AGENT_STOP_CONTINUED, got %v", response.Data)
 		}
 	})
 

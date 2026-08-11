@@ -47,6 +47,22 @@ public final class SessionMcpOauthApi {
     }
 
     /**
+     * Identifies the MCP server whose persisted OAuth credentials were updated.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<Void> authenticationStateChanged(SessionMcpOauthAuthenticationStateChangedParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.mcp.oauth.authenticationStateChanged", _p, Void.class);
+    }
+
+    /**
      * Remote MCP server name and optional overrides controlling reauthentication, OAuth client display name, callback success-page copy, and static OAuth client selection.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
@@ -60,6 +76,22 @@ public final class SessionMcpOauthApi {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
         return caller.invoke("session.mcp.oauth.login", _p, SessionMcpOauthLoginResult.class);
+    }
+
+    /**
+     * Pending MCP OAuth request id to respond to.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionMcpOauthRespondResult> respond(SessionMcpOauthRespondParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.mcp.oauth.respond", _p, SessionMcpOauthRespondResult.class);
     }
 
 }

@@ -13,7 +13,6 @@ import java.util.function.Consumer;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.databind.JsonNode;
 
 import com.github.copilot.CopilotExperimental;
 import com.github.copilot.generated.SessionEvent;
@@ -55,6 +54,7 @@ public class ResumeSessionConfig {
     private Boolean enableSessionTelemetry;
     private Boolean enableCitations;
     private SessionLimitsConfig sessionLimits;
+    private Boolean enableExperimentalMode;
     private Boolean skipCustomInstructions;
     private Boolean customAgentsLocalOnly;
     private Boolean coauthorEnabled;
@@ -68,6 +68,7 @@ public class ResumeSessionConfig {
     private UserInputHandler onUserInputRequest;
     private SessionHooks hooks;
     private String workingDirectory;
+    private List<String> additionalDirectories;
     private String configDirectory;
     private Boolean enableConfigDiscovery;
     private Boolean skipEmbeddingRetrieval;
@@ -93,6 +94,7 @@ public class ResumeSessionConfig {
     private ToolSearchConfig toolSearch;
     private MemoryConfiguration memory;
     private List<String> disabledSkills;
+    private List<String> disabledMcpServers;
     private InfiniteSessionConfig infiniteSessions;
     private Consumer<SessionEvent> onEvent;
     private List<CommandDefinition> commands;
@@ -100,10 +102,12 @@ public class ResumeSessionConfig {
     private ExitPlanModeHandler onExitPlanMode;
     private AutoModeSwitchHandler onAutoModeSwitch;
     private boolean enableMcpApps;
+    private GitHubMcpToolConfig githubMcpToolConfig;
     private String gitHubToken;
     private String remoteSession;
-    private JsonNode expAssignments;
+    private CopilotExpAssignmentResponse expAssignments;
     private Boolean enableManagedSettings;
+    private ManagedSettings managedSettings;
 
     /**
      * Gets the AI model to use.
@@ -473,6 +477,52 @@ public class ResumeSessionConfig {
     }
 
     /**
+     * Clears the sessionLimits setting, reverting to the default behavior.
+     *
+     * @return this instance for method chaining
+     */
+    @CopilotExperimental
+    public ResumeSessionConfig clearSessionLimits() {
+        this.sessionLimits = null;
+        return this;
+    }
+
+    /**
+     * Controls whether the session enables experimental features.
+     *
+     * @return {@code true} when experimental features are enabled, {@code false}
+     *         when they are disabled, or empty to use the mode-specific default
+     */
+    @JsonIgnore
+    public Optional<Boolean> getEnableExperimentalMode() {
+        return Optional.ofNullable(enableExperimentalMode);
+    }
+
+    /**
+     * Controls whether the session enables experimental features.
+     *
+     * @param enableExperimentalMode
+     *            {@code true} to enable experimental features; {@code false} to
+     *            disable them
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setEnableExperimentalMode(boolean enableExperimentalMode) {
+        this.enableExperimentalMode = enableExperimentalMode;
+        return this;
+    }
+
+    /**
+     * Clears the enableExperimentalMode setting. In {@link CopilotClientMode#EMPTY
+     * EMPTY} mode this defaults to {@code false}; otherwise the runtime decides.
+     *
+     * @return this instance for method chaining
+     */
+    public ResumeSessionConfig clearEnableExperimentalMode() {
+        this.enableExperimentalMode = null;
+        return this;
+    }
+
+    /**
      * Gets whether custom instruction file loading is suppressed.
      *
      * @return {@code true} to suppress, or empty if not explicitly set
@@ -527,11 +577,11 @@ public class ResumeSessionConfig {
      * Sets whether custom-agent discovery is restricted to the session's local
      * working directory.
      * <p>
-     * This option is sent to the server via a {@code session.options.update}
-     * JSON-RPC call immediately after session resume. In
-     * {@link CopilotClientMode#EMPTY EMPTY} mode the default is {@code true} (local
-     * only); in {@link CopilotClientMode#COPILOT_CLI COPILOT_CLI} mode the value is
-     * forwarded only when explicitly set.
+     * This option is sent with the initial resume request and maintained via
+     * {@code session.options.update}. In {@link CopilotClientMode#EMPTY EMPTY} mode
+     * the default is {@code true} (local only); in
+     * {@link CopilotClientMode#COPILOT_CLI COPILOT_CLI} mode the value is forwarded
+     * only when explicitly set.
      *
      * @param customAgentsLocalOnly
      *            whether to restrict to local agents
@@ -637,7 +687,8 @@ public class ResumeSessionConfig {
     /**
      * Gets the reasoning effort level.
      *
-     * @return the reasoning effort level ("low", "medium", "high", or "xhigh")
+     * @return the reasoning effort level ("low", "medium", "high", "xhigh", or
+     *         "max")
      */
     public String getReasoningEffort() {
         return reasoningEffort;
@@ -646,7 +697,7 @@ public class ResumeSessionConfig {
     /**
      * Sets the reasoning effort level for models that support it.
      * <p>
-     * Valid values: "low", "medium", "high", "xhigh".
+     * Valid values: "low", "medium", "high", "xhigh", "max".
      *
      * @param reasoningEffort
      *            the reasoning effort level
@@ -813,6 +864,27 @@ public class ResumeSessionConfig {
     }
 
     /**
+     * Gets the directories the agent may access beyond the working directory.
+     *
+     * @return the additional directory paths
+     */
+    public List<String> getAdditionalDirectories() {
+        return additionalDirectories;
+    }
+
+    /**
+     * Sets directories the agent may access beyond the working directory.
+     *
+     * @param additionalDirectories
+     *            the additional directory paths
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setAdditionalDirectories(List<String> additionalDirectories) {
+        this.additionalDirectories = additionalDirectories;
+        return this;
+    }
+
+    /**
      * Gets the configuration directory path.
      *
      * @return the configuration directory path
@@ -848,12 +920,8 @@ public class ResumeSessionConfig {
     }
 
     /**
-     * Sets whether to automatically discover MCP server configurations and skill
-     * directories from the working directory.
-     * <p>
-     * When {@code true}, the CLI scans the working directory for {@code .mcp.json},
-     * {@code .vscode/mcp.json} and skill directories, and merges them with
-     * explicitly provided configurations.
+     * Enables runtime discovery of supported configuration. Explicitly supplied
+     * configuration takes precedence over discovered values.
      *
      * @param enableConfigDiscovery
      *            {@code true} to enable discovery, {@code false} to disable
@@ -1512,6 +1580,29 @@ public class ResumeSessionConfig {
     }
 
     /**
+     * Gets exact MCP server names disabled for this session.
+     *
+     * @return the disabled MCP server names, or {@code null} when none are disabled
+     */
+    public List<String> getDisabledMcpServers() {
+        return disabledMcpServers == null ? null : Collections.unmodifiableList(disabledMcpServers);
+    }
+
+    /**
+     * Sets exact MCP server names to disable for this session. Disabled servers are
+     * not started or authenticated on create or cold resume; a resident resume
+     * cannot stop servers already running.
+     *
+     * @param disabledMcpServers
+     *            the server names to disable
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setDisabledMcpServers(List<String> disabledMcpServers) {
+        this.disabledMcpServers = disabledMcpServers;
+        return this;
+    }
+
+    /**
      * Gets the infinite session configuration.
      *
      * @return the infinite session config
@@ -1636,6 +1727,27 @@ public class ResumeSessionConfig {
     }
 
     /**
+     * Gets the configuration for the built-in GitHub MCP server.
+     *
+     * @return the GitHub MCP configuration, or {@code null}
+     */
+    public GitHubMcpToolConfig getGitHubMcpToolConfig() {
+        return githubMcpToolConfig;
+    }
+
+    /**
+     * Sets the configuration for the built-in GitHub MCP server.
+     *
+     * @param githubMcpToolConfig
+     *            the GitHub MCP configuration
+     * @return this config instance for method chaining
+     */
+    public ResumeSessionConfig setGitHubMcpToolConfig(GitHubMcpToolConfig githubMcpToolConfig) {
+        this.githubMcpToolConfig = githubMcpToolConfig;
+        return this;
+    }
+
+    /**
      * Gets the exit-plan-mode request handler.
      *
      * @return the exit-plan-mode handler, or {@code null}
@@ -1749,21 +1861,22 @@ public class ResumeSessionConfig {
      *
      * @return the ExP assignment data, or {@code null} if not set
      */
-    public JsonNode getExpAssignments() {
+    public CopilotExpAssignmentResponse getExpAssignments() {
         return expAssignments;
     }
 
     /**
      * Sets ExP assignment ("flight") data injected by a trusted integrator.
      * <p>
-     * See {@link SessionConfig#setExpAssignments(JsonNode)} for details. The
-     * runtime supports injecting ExP assignments on resume as well as create.
+     * See {@link SessionConfig#setExpAssignments(CopilotExpAssignmentResponse)} for
+     * details. The runtime supports injecting ExP assignments on resume as well as
+     * create.
      *
      * @param expAssignments
-     *            the opaque ExP assignment data
+     *            the ExP assignment data
      * @return this config for method chaining
      */
-    public ResumeSessionConfig setExpAssignments(JsonNode expAssignments) {
+    public ResumeSessionConfig setExpAssignments(CopilotExpAssignmentResponse expAssignments) {
         this.expAssignments = expAssignments;
         return this;
     }
@@ -1798,6 +1911,24 @@ public class ResumeSessionConfig {
         return this;
     }
 
+    /** @return host-injected managed settings, or {@code null} when unset */
+    public ManagedSettings getManagedSettings() {
+        return managedSettings;
+    }
+
+    /**
+     * Supplies permissions-only managed settings for this resume. The value
+     * replaces the prior injected layer and is not persisted.
+     *
+     * @param managedSettings
+     *            the host-injected managed settings
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setManagedSettings(ManagedSettings managedSettings) {
+        this.managedSettings = managedSettings;
+        return this;
+    }
+
     /**
      * Creates a shallow clone of this {@code ResumeSessionConfig} instance.
      * <p>
@@ -1828,6 +1959,7 @@ public class ResumeSessionConfig {
         copy.enableSessionTelemetry = this.enableSessionTelemetry;
         copy.enableCitations = this.enableCitations;
         copy.sessionLimits = this.sessionLimits;
+        copy.enableExperimentalMode = this.enableExperimentalMode;
         copy.reasoningEffort = this.reasoningEffort;
         copy.reasoningSummary = this.reasoningSummary;
         copy.contextTier = this.contextTier;
@@ -1836,6 +1968,9 @@ public class ResumeSessionConfig {
         copy.onUserInputRequest = this.onUserInputRequest;
         copy.hooks = this.hooks;
         copy.workingDirectory = this.workingDirectory;
+        copy.additionalDirectories = this.additionalDirectories != null
+                ? new ArrayList<>(this.additionalDirectories)
+                : null;
         copy.configDirectory = this.configDirectory;
         copy.enableConfigDiscovery = this.enableConfigDiscovery;
         copy.skipEmbeddingRetrieval = this.skipEmbeddingRetrieval;
@@ -1862,6 +1997,7 @@ public class ResumeSessionConfig {
         copy.toolSearch = this.toolSearch;
         copy.memory = this.memory;
         copy.disabledSkills = this.disabledSkills != null ? new ArrayList<>(this.disabledSkills) : null;
+        copy.disabledMcpServers = this.disabledMcpServers != null ? new ArrayList<>(this.disabledMcpServers) : null;
         copy.infiniteSessions = this.infiniteSessions;
         copy.onEvent = this.onEvent;
         copy.commands = this.commands != null ? new ArrayList<>(this.commands) : null;
@@ -1870,10 +2006,12 @@ public class ResumeSessionConfig {
         copy.onExitPlanMode = this.onExitPlanMode;
         copy.onAutoModeSwitch = this.onAutoModeSwitch;
         copy.enableMcpApps = this.enableMcpApps;
+        copy.githubMcpToolConfig = this.githubMcpToolConfig;
         copy.gitHubToken = this.gitHubToken;
         copy.remoteSession = this.remoteSession;
         copy.expAssignments = this.expAssignments;
         copy.enableManagedSettings = this.enableManagedSettings;
+        copy.managedSettings = this.managedSettings;
         return copy;
     }
 }
