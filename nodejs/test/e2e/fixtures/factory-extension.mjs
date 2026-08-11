@@ -38,15 +38,30 @@ const forwardsSubagentOptions = defineFactory({
         phases: [],
     },
     run: async ({ agent }) => {
+        // Only the runtime's acceptance of the payload is under test. A refused
+        // request rejects quickly, because the runtime parses the options before
+        // it starts a subagent. A subagent that is merely slow to reach a model
+        // proves the payload was accepted, so waiting for it adds nothing and
+        // hangs wherever no model is reachable.
+        const call = agent("Confirm that this request is accepted.", {
+            agent: "reviewer",
+            reasoningEffort: "high",
+            contextTier: "long_context",
+        });
+        // A rejection that lands after the race still needs a handler.
+        call.catch(() => {});
+        let settleTimer;
+        const stillPending = new Promise((resolve) => {
+            settleTimer = setTimeout(() => resolve(undefined), 3000);
+            settleTimer.unref?.();
+        });
         try {
-            await agent("Confirm that this request is accepted.", {
-                agent: "reviewer",
-                reasoningEffort: "high",
-                contextTier: "long_context",
-            });
+            await Promise.race([call, stillPending]);
             return { didThrow: false };
         } catch {
             return { didThrow: true };
+        } finally {
+            clearTimeout(settleTimer);
         }
     },
 });

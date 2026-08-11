@@ -108,7 +108,10 @@ it.skipIf(isInProcessTransport)(
             status: "completed",
             result: { didThrow: false },
         });
-    }
+    },
+    // The factory abandons its subagent once the runtime has accepted the
+    // request, so the run settles only after the runtime drains that work.
+    60_000
 );
 
 it.skipIf(isInProcessTransport)(
