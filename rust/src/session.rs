@@ -1021,13 +1021,21 @@ impl Client {
     /// Call [`PreparedSession::start`] to actually create the session.
     ///
     /// This is the loss-free entry point for consumers that must observe
-    /// every event a session emits, including events the CLI emits while
-    /// `session.create` is still in flight and ephemeral events (such as
-    /// `session.idle`) that cannot be recovered from
+    /// every *routed* event a session emits, including events the CLI emits
+    /// while `session.create` is still in flight and ephemeral events (such
+    /// as `session.idle`) that cannot be recovered from
     /// [`Session::get_messages`]. [`create_session`](Self::create_session)
     /// is a thin wrapper over `prepare_session(...)?.start()` and cannot
     /// offer the same guarantee, because the subscription can only be
     /// installed after the returned `Session` exists.
+    ///
+    /// Routing requires a known session ID. When the server assigns the ID,
+    /// the SDK cannot register the session on its notification router until
+    /// the `session.create` response arrives, so notifications emitted
+    /// before that point are not routable and stay unobservable. Pin
+    /// [`SessionConfig::session_id`](crate::types::SessionConfig::session_id)
+    /// for complete pre-response coverage — see the "Server-assigned session
+    /// IDs" section on [`PreparedSession`].
     ///
     /// # Inertness
     ///
