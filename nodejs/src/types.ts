@@ -19,7 +19,7 @@ import type {
     SessionEvent as GeneratedSessionEvent,
 } from "./generated/session-events.js";
 import type { CopilotSession } from "./session.js";
-import type { JsonValue } from "./factory.js";
+import type { FactoryJsonSchema, JsonValue } from "./factory.js";
 import type {
     GitHubTelemetryNotification,
     ModelBillingTokenPrices,
@@ -2007,6 +2007,25 @@ export interface FactoryMeta {
     description: string;
     /** Display metadata for the progress phases the factory may report. */
     phases: Array<{ title: string; detail?: string }>;
+    /**
+     * Optional declared shape of the arguments this factory expects as `ctx.args`.
+     *
+     * Declaring one is strongly recommended for any factory that reads `ctx.args`.
+     * The CLI validates the caller's `args` against it **before** the run starts, so a
+     * malformed call from the model is rejected with a correction hint and retried
+     * without ever creating a run row, prompting the user for permission, or spending
+     * credits. A factory that declares nothing is never validated: a malformed call
+     * starts, takes an approval, spends credits, and then fails inside the factory
+     * body. `factories_manage` with `operation: "inspect"` reports the declared shape
+     * so an agent can read it before invoking.
+     *
+     * Enforcement covers structure — types, required properties, and enum/const
+     * values. Finer constraints such as `minLength`, `pattern`, and
+     * `additionalProperties` are recorded in the declaration but not enforced. See
+     * {@link FactoryJsonSchema} for the accepted subset. A declaration outside that
+     * subset is rejected at registration.
+     */
+    argsSchema?: FactoryJsonSchema;
     /** Optional resource ceilings presented to the user before execution. */
     limits?: FactoryLimits;
 }

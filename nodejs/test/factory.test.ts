@@ -15,6 +15,7 @@ import {
     type FactoryAgentOptions,
     type FactoryContext,
     type FactoryDefinition,
+    type FactoryJsonSchema,
     type JsonValue,
 } from "../src/factory.js";
 
@@ -459,6 +460,96 @@ describe("factories", () => {
         expect(normalizedPublicApi).toContain(
             "session instance returned by `joinSession`. It refuses calls that start or resume a factory run"
         );
+    });
+
+    it("carries a declared argsSchema through defineFactory into the registration payload", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => stopClient(client));
+
+        const argsSchema = {
+            type: "object",
+            required: ["repoPath"],
+            properties: {
+                repoPath: { type: "string" },
+                depth: { type: ["integer", "null"] },
+                mode: { enum: ["fast", "thorough"] },
+            },
+        } satisfies FactoryJsonSchema;
+        const meta = {
+            name: "declares-args",
+            description: "Declares the argument shape it expects",
+            phases: [],
+            argsSchema,
+        };
+        const factory = defineFactory({ meta, run: async () => ({ ok: true }) });
+
+        // The declaration is snapshotted and deep-frozen like the rest of the
+        // metadata, so it cannot be mutated after registration.
+        expect(factory.meta.argsSchema).toEqual(argsSchema);
+        expect(factory.meta.argsSchema).not.toBe(argsSchema);
+        expect(Object.isFrozen(factory.meta.argsSchema)).toBe(true);
+        expect(() => {
+            // @ts-expect-error handle.meta.argsSchema is deeply readonly.
+            factory.meta.argsSchema!.type = "array";
+        }).toThrow(TypeError);
+
+        const omitted = defineFactory({
+            meta: { name: "omits-args", description: "Declares nothing", phases: [] },
+            run: async () => ({ ok: true }),
+        });
+        expect(omitted.meta.argsSchema).toBeUndefined();
+        expect("argsSchema" in omitted.meta).toBe(false);
+
+        const sendRequest = vi
+            .spyOn(
+                (client as never as { connection: { sendRequest: Function } }).connection,
+                "sendRequest"
+            )
+            .mockImplementation(async (method: string, params: Record<string, unknown>) => {
+                if (method === "session.resume") {
+                    return { sessionId: params.sessionId };
+                }
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        await client.resumeSessionForExtension(
+            "session-args-schema",
+            { onPermissionRequest: () => ({ kind: "approved" }) },
+            [factory, omitted]
+        );
+
+        const payload = sendRequest.mock.calls.find(
+            ([method]) => method === "session.resume"
+        )![1] as { factories: Array<Record<string, unknown>> };
+        // The schema has to survive JSON serialization to reach the runtime, which
+        // validates `args` against it before a run row exists.
+        expect(JSON.parse(JSON.stringify(payload.factories))[0].argsSchema).toEqual(argsSchema);
+        expect(payload.factories[1]).not.toHaveProperty("argsSchema");
+    });
+
+    it("documents argsSchema consistently with the runtime's enforced subset", () => {
+        const publicTypes = readFileSync(new URL("../src/types.ts", import.meta.url), "utf8");
+        const publicApi = readFileSync(new URL("../src/factory.ts", import.meta.url), "utf8");
+        const guide = readFileSync(new URL("../docs/factories.md", import.meta.url), "utf8");
+        const normalizeJSDoc = (document: string) =>
+            document.replace(/\r?\n\s*\* ?/g, " ").replace(/\s+/g, " ");
+
+        expect(publicTypes).toContain("argsSchema?: FactoryJsonSchema;");
+
+        // The `run_factory` tool tells the model exactly this. The two surfaces
+        // have to agree about what a declaration does and does not enforce.
+        for (const document of [normalizeJSDoc(publicTypes), guide]) {
+            expect(document).toContain("types, required properties, and enum");
+            expect(document).toMatch(
+                /`minLength`, `pattern`,? (?:and|or) `additionalProperties` are recorded/
+            );
+        }
+        expect(normalizeJSDoc(publicTypes)).toContain("before** the run starts");
+        expect(normalizeJSDoc(publicApi)).toContain(
+            "`null`, `boolean`, `integer`, `number`, `string`, `array`, or `object`"
+        );
+        expect(guide).toContain("no run row, permission prompt, or credit spend happens");
     });
 
     it("serializes only factory metadata in the extension resume payload", async () => {

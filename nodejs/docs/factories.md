@@ -16,6 +16,13 @@ const reviewChanged = defineFactory({
             "Review changed files and verify the findings. " +
             "args: { files: string[] } — the paths to review.",
         phases: [{ title: "Review" }, { title: "Verify" }],
+        argsSchema: {
+            type: "object",
+            required: ["files"],
+            properties: {
+                files: { type: "array", items: { type: "string" } },
+            },
+        },
         limits: {
             maxConcurrentSubagents: 3,
             maxTotalSubagents: 10,
@@ -41,9 +48,17 @@ const reviewChanged = defineFactory({
 const session = await joinSession({ factories: [reviewChanged] });
 ```
 
-Factory metadata contains a stable `name`, a human-readable `description`, declared `phases`, and optional `limits`. Phase entries contain a `title` and optional `detail`.
+Factory metadata contains a stable `name`, a human-readable `description`, declared `phases`, an optional `argsSchema`, and optional `limits`. Phase entries contain a `title` and optional `detail`.
 
-There is no declared schema for `ctx.args`. The `run_factory` tool forwards `args` verbatim and its parameter is untyped, so **the `description` is the only thing telling an agent what arguments to supply** — state the expected shape there whenever a factory reads `ctx.args`, as the example above does. Arguments supplied by an extension calling `session.factory.run(...)` directly are typed through `defineFactory<TArgs>`, but that typing does not reach the model. A factory that reads `ctx.args` should validate it rather than assume a shape.
+## Declaring an argument shape
+
+A factory that reads `ctx.args` should declare `meta.argsSchema`, as the example above does. The CLI validates the caller's `args` against it **before** the run starts.
+
+Declaring one turns an expensive failure into a cheap one. With a schema, a malformed call is rejected up front — the model gets a correction hint and retries, and no run row, permission prompt, or credit spend happens. Without one, nothing validates: the run starts, takes a user approval, spends credits, and then dies inside the factory body with a confusing error. Agents can read the declared shape with `factories_manage` using `operation: "inspect"`.
+
+Enforcement covers structure — types, required properties, and enum or const values. Finer constraints such as `minLength`, `pattern`, or `additionalProperties` are recorded in the declaration but not enforced. The accepted vocabulary is the `FactoryJsonSchema` subset also used for subagent structured output: `type`, `required`, `enum`, `const`, recursive `properties`/`items`, and `anyOf`/`oneOf`/`allOf`. A `type` is one of `null`, `boolean`, `integer`, `number`, `string`, `array`, or `object`, or a non-empty array of those such as `["object", "null"]`. A declaration outside that subset is rejected at registration.
+
+`argsSchema` is optional and backward compatible. A factory that omits it behaves exactly as before, so **the `description` is then the only thing telling an agent what arguments to supply** — state the expected shape there. Arguments supplied by an extension calling `session.factory.run(...)` directly are typed through `defineFactory<TArgs>`, but that typing does not reach the model. A factory that reads `ctx.args` should still validate it rather than assume a shape, because the declared subset does not enforce every constraint.
 
 `defineFactory<TArgs, TResult>` accepts a `run(context)` function returning `Promise<TResult>`, where `TResult` is `JsonValue | void`. Objects, arrays, strings, numbers, booleans, and `null` are valid results. Returning `undefined` completes the factory with no result. Other non-JSON values are rejected.
 
@@ -193,7 +208,7 @@ async ({ args, agent, phase }) => {
 };
 ```
 
-Authoring registers the factory but does not run it. Invoke it afterwards with `run_factory`. Use `factories_manage` with `operation: "list"` to see the factories already registered in the session and `operation: "inspect"` to read one factory's description, phases, and limits before running it.
+Authoring registers the factory but does not run it. Invoke it afterwards with `run_factory`. Use `factories_manage` with `operation: "list"` to see the factories already registered in the session and `operation: "inspect"` to read one factory's description, phases, declared argument shape, and limits before running it.
 
 ## Observe a run
 

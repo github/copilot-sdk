@@ -18,6 +18,9 @@ const argumentEcho = defineFactory({
         name: "argument-echo",
         description: "Return the invocation arguments verbatim.",
         phases: [],
+        // A declared shape has to survive the SDK boundary and reach the runtime,
+        // which validates `args` against it before a run row exists.
+        argsSchema: { type: ["object", "null"] },
     },
     run: async ({ args }) => args,
 });
