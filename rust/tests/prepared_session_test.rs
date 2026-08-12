@@ -8,12 +8,16 @@
 #![allow(clippy::unwrap_used)]
 
 use std::marker::PhantomData;
+use std::sync::Arc;
 use std::time::Duration;
 
+use async_trait::async_trait;
+use github_copilot_sdk::handler::{McpAuthHandler, McpAuthRequest, McpAuthResult};
 use github_copilot_sdk::session::PreparedSession;
 use github_copilot_sdk::subscription::{EventSubscription, RecvErrorKind};
 use github_copilot_sdk::types::{
-    CloudSessionOptions, CloudSessionRepository, ResumeSessionConfig, SessionConfig, SessionId,
+    CloudSessionOptions, CloudSessionRepository, RequestId, ResumeSessionConfig, SessionConfig,
+    SessionId,
 };
 use github_copilot_sdk::{Client, ErrorKind, SessionErrorKind};
 use serde_json::{Value, json};
@@ -137,6 +141,23 @@ impl FakeServer {
         let request = self.read_request().await;
         assert_eq!(request["method"], "session.skills.reload");
         self.respond(&request, json!({})).await;
+    }
+}
+
+/// Minimal MCP-auth handler: its presence is what makes the SDK register
+/// `mcp.oauth_required` interest after create/resume, which is the branch
+/// under test. It is never invoked by these tests.
+struct CancelMcpAuthHandler;
+
+#[async_trait]
+impl McpAuthHandler for CancelMcpAuthHandler {
+    async fn handle(
+        &self,
+        _session_id: SessionId,
+        _request_id: RequestId,
+        _request: McpAuthRequest,
+    ) -> McpAuthResult {
+        McpAuthResult::Cancelled
     }
 }
 
@@ -623,6 +644,89 @@ async fn resume_session_id_mismatch_preserves_kind_and_cleans_up() {
     );
     await_no_registrations(&client).await;
     expect_closed(&mut events).await;
+}
+
+/// The MCP-auth interest registration that follows a successful
+/// `session.create` is the last fallible step before the session handle is
+/// handed out. When it fails, the startup must unwind exactly like any
+/// other create failure: original error kind preserved, router
+/// registration removed, and subscriptions taken before `start()` closed.
+#[tokio::test]
+async fn create_mcp_auth_interest_error_preserves_kind_and_cleans_up() {
+    let (client, mut server) = make_client();
+    let session_id = SessionId::new("prepared-create-interest-error");
+
+    let prepared = client
+        .prepare_session(
+            SessionConfig::default()
+                .with_session_id(session_id.clone())
+                .with_mcp_auth_handler(Arc::new(CancelMcpAuthHandler)),
+        )
+        .unwrap();
+    let mut events = prepared.subscribe();
+    let start = tokio::spawn(prepared.start());
+
+    let create_req = server.read_request().await;
+    assert_eq!(create_req["method"], "session.create");
+    server
+        .respond(&create_req, create_result(session_id.as_str()))
+        .await;
+
+    let interest_req = server.read_request().await;
+    assert_eq!(interest_req["method"], "session.eventLog.registerInterest");
+    assert_eq!(interest_req["params"]["eventType"], "mcp.oauth_required");
+    server
+        .respond_error(&interest_req, -32003, "interest registration failed")
+        .await;
+
+    let error = expect_error(timeout(TIMEOUT, start).await.unwrap().unwrap());
+    assert!(
+        matches!(error.kind(), ErrorKind::Rpc { code: -32003 }),
+        "unexpected error kind: {:?}",
+        error.kind()
+    );
+    expect_closed(&mut events).await;
+    await_no_registrations(&client).await;
+}
+
+/// The resume counterpart. Interest registration runs before the
+/// best-effort `session.skills.reload`, so a failure must abort the
+/// startup without issuing the reload.
+#[tokio::test]
+async fn resume_mcp_auth_interest_error_preserves_kind_and_cleans_up() {
+    let (client, mut server) = make_client();
+    let session_id = SessionId::new("prepared-resume-interest-error");
+
+    let prepared = client
+        .prepare_resume_session(
+            ResumeSessionConfig::new(session_id.clone())
+                .with_mcp_auth_handler(Arc::new(CancelMcpAuthHandler)),
+        )
+        .unwrap();
+    let mut events = prepared.subscribe();
+    let start = tokio::spawn(prepared.start());
+
+    let resume_req = server.read_request().await;
+    assert_eq!(resume_req["method"], "session.resume");
+    server
+        .respond(&resume_req, json!({ "sessionId": session_id.as_str() }))
+        .await;
+
+    let interest_req = server.read_request().await;
+    assert_eq!(interest_req["method"], "session.eventLog.registerInterest");
+    server
+        .respond_error(&interest_req, -32004, "interest registration failed")
+        .await;
+
+    let error = expect_error(timeout(TIMEOUT, start).await.unwrap().unwrap());
+    assert!(
+        matches!(error.kind(), ErrorKind::Rpc { code: -32004 }),
+        "unexpected error kind: {:?}",
+        error.kind()
+    );
+    server.expect_quiet().await;
+    expect_closed(&mut events).await;
+    await_no_registrations(&client).await;
 }
 
 #[tokio::test]
