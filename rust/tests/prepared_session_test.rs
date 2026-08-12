@@ -186,13 +186,19 @@ fn expect_error<T>(result: Result<T, github_copilot_sdk::Error>) -> github_copil
 }
 
 /// Poll (bounded) until the client's router has no registered sessions.
+///
+/// Diagnostics report how many registrations are outstanding rather than
+/// which ones: session IDs are not written to test output.
 async fn await_no_registrations(client: &Client) {
     let deadline = tokio::time::Instant::now() + TIMEOUT;
-    while !client.registered_session_ids_for_test().is_empty() {
+    loop {
+        let outstanding = client.registered_session_ids_for_test().len();
+        if outstanding == 0 {
+            return;
+        }
         assert!(
             tokio::time::Instant::now() < deadline,
-            "session registration was never cleaned up: {:?}",
-            client.registered_session_ids_for_test()
+            "{outstanding} session registration(s) were never cleaned up"
         );
         tokio::task::yield_now().await;
     }
@@ -1043,6 +1049,9 @@ async fn cancelled_deferred_create_leaves_no_registration() {
 }
 
 /// Poll (bounded) until `session_id` shows up on the client's router.
+///
+/// The failure message names the expectation, not the ID: session IDs are
+/// not written to test output.
 async fn await_registered(client: &Client, session_id: &str) {
     let deadline = tokio::time::Instant::now() + TIMEOUT;
     while !client
@@ -1052,7 +1061,7 @@ async fn await_registered(client: &Client, session_id: &str) {
     {
         assert!(
             tokio::time::Instant::now() < deadline,
-            "inline callback never registered {session_id}"
+            "inline callback never registered the expected session"
         );
         tokio::task::yield_now().await;
     }
