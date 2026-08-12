@@ -2016,7 +2016,9 @@ impl Client {
     ///
     /// Crate-internal so in-crate unit tests can assert registration
     /// lifecycle without depending on the `test-support` feature, which
-    /// only gates the equivalent *public* test helper.
+    /// only gates the equivalent *public* test helper. Compiled only for
+    /// those two configurations — a default-feature build has no caller.
+    #[cfg(any(test, feature = "test-support"))]
     pub(crate) fn registered_session_ids(&self) -> Vec<SessionId> {
         self.inner.router.session_ids()
     }
