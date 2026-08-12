@@ -25,13 +25,15 @@ import java.util.Properties;
  * Resolution order:
  * <ol>
  * <li><strong>{@code COPILOT_CLI_PATH}</strong> — checks for
- * {@code runtime.node} alongside the configured CLI before any classpath or
- * platform work.</li>
+ * {@code runtime.node} alongside the configured CLI or in its npm
+ * {@code prebuilds/<classifier>} directory before any classpath or platform
+ * work.</li>
  * <li><strong>Classpath resource</strong>
  * {@code native/<classifier>/runtime.node} — extracted atomically to
  * {@code ~/.copilot/runtime-cache/<version>/<classifier>/runtime.node}.</li>
- * <li>{@code runtime.node} alongside the bundled {@code copilot}
- * executable.</li>
+ * <li><strong>PATH compatibility fallback</strong> — finds {@code copilot} on
+ * {@code PATH} and accepts only a flat sibling {@code runtime.node}. This
+ * fallback does not support normal npm or Homebrew installation layouts.</li>
  * </ol>
  */
 public final class NativeRuntimeLoader {
@@ -431,9 +433,9 @@ public final class NativeRuntimeLoader {
     }
 
     /**
-     * Finds the runtime executable on the {@code PATH}.
+     * Finds the Copilot CLI executable on the {@code PATH}.
      *
-     * @return the absolute path, or {@code null} if none was found
+     * @return the absolute CLI path, or {@code null} if none was found
      */
     public static String findRuntimeOnPath() {
         String pathValue = System.getenv("PATH");
