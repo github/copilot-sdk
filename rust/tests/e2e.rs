@@ -110,6 +110,8 @@ mod rpc_tasks_and_handlers;
 mod rpc_ui_ephemeral_query;
 #[path = "e2e/rpc_workspace_checkpoints.rs"]
 mod rpc_workspace_checkpoints;
+#[path = "e2e/rewind.rs"]
+mod rewind;
 #[path = "e2e/session.rs"]
 mod session;
 #[path = "e2e/session_config.rs"]

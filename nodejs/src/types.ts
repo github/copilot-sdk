@@ -2365,6 +2365,14 @@ export interface SessionConfigBase {
     enableCitations?: boolean;
 
     /**
+     * Opt in to capturing file changes for session rewind and cumulative session
+     * diff. On create, capture starts with the first turn. On resume, this can
+     * enable tracking only when the session still has a valid baseline; it cannot
+     * reconstruct changes from earlier untracked turns.
+     */
+    enableFileChangeTracking?: boolean;
+
+    /**
      * Limits applied to this session's current accounting window.
      *
      * @experimental

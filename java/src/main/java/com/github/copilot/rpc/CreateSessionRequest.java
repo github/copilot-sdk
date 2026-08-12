@@ -80,6 +80,9 @@ public final class CreateSessionRequest {
     @JsonProperty("enableCitations")
     private Boolean enableCitations;
 
+    @JsonProperty("enableFileChangeTracking")
+    private Boolean enableFileChangeTracking;
+
     @JsonProperty("sessionLimits")
     private SessionLimitsConfig sessionLimits;
 
@@ -432,6 +435,21 @@ public final class CreateSessionRequest {
     /** Sets enable citations flag. @param enableCitations the flag */
     public void setEnableCitations(boolean enableCitations) {
         this.enableCitations = enableCitations;
+    }
+
+    /** Gets the file change tracking flag. @return the flag */
+    public Boolean getEnableFileChangeTracking() {
+        return enableFileChangeTracking;
+    }
+
+    /**
+     * Sets the file change tracking flag.
+     *
+     * @param enableFileChangeTracking
+     *            the flag
+     */
+    public void setEnableFileChangeTracking(boolean enableFileChangeTracking) {
+        this.enableFileChangeTracking = enableFileChangeTracking;
     }
 
     /** Gets the session limits. @return the session limits */

@@ -799,6 +799,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.Models = config.Models
 	req.EnableSessionTelemetry = config.EnableSessionTelemetry
 	req.EnableCitations = config.EnableCitations
+	req.EnableFileChangeTracking = config.EnableFileChangeTracking
 	req.SessionLimits = config.SessionLimits
 	req.IsExperimentalMode = config.EnableExperimentalMode
 	req.SkipCustomInstructions = config.SkipCustomInstructions
@@ -1148,6 +1149,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	req.ToolFilterPrecedence = precedence
 	req.ExcludedBuiltInAgents = config.ExcludedBuiltInAgents
 	req.EnableCitations = config.EnableCitations
+	req.EnableFileChangeTracking = config.EnableFileChangeTracking
 	req.SessionLimits = config.SessionLimits
 	if config.Streaming != nil {
 		req.Streaming = config.Streaming

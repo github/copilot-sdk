@@ -229,12 +229,13 @@ public class SessionRequestBuilderTest {
     void testBuildCreateRequestForwardsSessionPolicyOptions() {
         var sessionLimits = new SessionLimitsConfig(30.0);
         var config = new SessionConfig().setExcludedBuiltInAgents(List.of("explore")).setEnableCitations(true)
-                .setSessionLimits(sessionLimits);
+                .setEnableFileChangeTracking(true).setSessionLimits(sessionLimits);
 
         CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config, "session-policy");
 
         assertEquals(List.of("explore"), request.getExcludedBuiltInAgents());
         assertTrue(request.getEnableCitations());
+        assertTrue(request.getEnableFileChangeTracking());
         assertSame(sessionLimits, request.getSessionLimits());
     }
 
@@ -434,12 +435,13 @@ public class SessionRequestBuilderTest {
     void testBuildResumeRequestForwardsSessionPolicyOptions() {
         var sessionLimits = new SessionLimitsConfig(30.0);
         var config = new ResumeSessionConfig().setExcludedBuiltInAgents(List.of("explore")).setEnableCitations(true)
-                .setSessionLimits(sessionLimits);
+                .setEnableFileChangeTracking(true).setSessionLimits(sessionLimits);
 
         ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-policy", config);
 
         assertEquals(List.of("explore"), request.getExcludedBuiltInAgents());
         assertTrue(request.getEnableCitations());
+        assertTrue(request.getEnableFileChangeTracking());
         assertSame(sessionLimits, request.getSessionLimits());
     }
 

@@ -2094,6 +2094,7 @@ class CopilotClient:
         models: list[ProviderModelConfig] | None = None,
         enable_session_telemetry: bool | None = None,
         enable_citations: bool | None = None,
+        enable_file_change_tracking: bool | None = None,
         excluded_builtin_agents: list[str] | None = None,
         session_limits: SessionLimitsConfig | None = None,
         skip_custom_instructions: bool | None = None,
@@ -2210,6 +2211,8 @@ class CopilotClient:
                 OpenTelemetry configuration.
             enable_citations: **Experimental.** Enables native model citations for
                 supported providers.
+            enable_file_change_tracking: Opts in to capturing file changes from the
+                first turn for session rewind and cumulative session diff.
             excluded_builtin_agents: Built-in agent names to exclude from the
                 session. Excluded built-in agents are hidden from discovery and
                 cannot be selected or invoked unless a custom agent with the same
@@ -2500,6 +2503,8 @@ class CopilotClient:
             payload["enableSessionTelemetry"] = enable_session_telemetry
         if enable_citations is not None:
             payload["enableCitations"] = enable_citations
+        if enable_file_change_tracking is not None:
+            payload["enableFileChangeTracking"] = enable_file_change_tracking
         if excluded_builtin_agents is not None:
             payload["excludedBuiltinAgents"] = excluded_builtin_agents
         if session_limits is not None:
@@ -2817,6 +2822,7 @@ class CopilotClient:
         models: list[ProviderModelConfig] | None = None,
         enable_session_telemetry: bool | None = None,
         enable_citations: bool | None = None,
+        enable_file_change_tracking: bool | None = None,
         excluded_builtin_agents: list[str] | None = None,
         session_limits: SessionLimitsConfig | None = None,
         skip_custom_instructions: bool | None = None,
@@ -2934,6 +2940,9 @@ class CopilotClient:
                 OpenTelemetry configuration.
             enable_citations: **Experimental.** Enables native model citations for
                 supported providers.
+            enable_file_change_tracking: Opts in to capturing file changes for
+                session rewind and cumulative session diff when the resumed session
+                has a valid baseline. Earlier untracked changes cannot be reconstructed.
             excluded_builtin_agents: Built-in agent names to exclude from the
                 resumed session. Excluded built-in agents are hidden from discovery
                 and cannot be selected or invoked unless a custom agent with the
@@ -3139,6 +3148,8 @@ class CopilotClient:
             payload["enableSessionTelemetry"] = enable_session_telemetry
         if enable_citations is not None:
             payload["enableCitations"] = enable_citations
+        if enable_file_change_tracking is not None:
+            payload["enableFileChangeTracking"] = enable_file_change_tracking
         if excluded_builtin_agents is not None:
             payload["excludedBuiltinAgents"] = excluded_builtin_agents
         if session_limits is not None:

@@ -130,6 +130,7 @@ final class SessionRequestBuilder {
         request.setModels(config.getModels());
         config.getEnableSessionTelemetry().ifPresent(request::setEnableSessionTelemetry);
         config.getEnableCitations().ifPresent(request::setEnableCitations);
+        config.getEnableFileChangeTracking().ifPresent(request::setEnableFileChangeTracking);
         request.setSessionLimits(config.getSessionLimits());
         experimentalModeForMode(mode, config.getEnableExperimentalMode().orElse(null))
                 .ifPresent(request::setIsExperimentalMode);
@@ -265,6 +266,7 @@ final class SessionRequestBuilder {
         request.setModels(config.getModels());
         config.getEnableSessionTelemetry().ifPresent(request::setEnableSessionTelemetry);
         config.getEnableCitations().ifPresent(request::setEnableCitations);
+        config.getEnableFileChangeTracking().ifPresent(request::setEnableFileChangeTracking);
         request.setSessionLimits(config.getSessionLimits());
         experimentalModeForMode(mode, config.getEnableExperimentalMode().orElse(null))
                 .ifPresent(request::setIsExperimentalMode);

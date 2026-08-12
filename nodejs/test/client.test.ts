@@ -792,12 +792,14 @@ describe("CopilotClient", () => {
         const session = await client.createSession({
             onPermissionRequest: approveAll,
             enableCitations: true,
+            enableFileChangeTracking: true,
             excludedBuiltinAgents: ["explore"],
             sessionLimits: { maxAiCredits: 30 },
         });
         await client.resumeSession(session.sessionId, {
             onPermissionRequest: approveAll,
             enableCitations: false,
+            enableFileChangeTracking: false,
             excludedBuiltinAgents: ["task"],
             sessionLimits: { maxAiCredits: 15 },
         });
@@ -809,9 +811,11 @@ describe("CopilotClient", () => {
             ([method]) => method === "session.resume"
         )![1] as any;
         expect(createPayload.enableCitations).toBe(true);
+        expect(createPayload.enableFileChangeTracking).toBe(true);
         expect(createPayload.excludedBuiltinAgents).toEqual(["explore"]);
         expect(createPayload.sessionLimits).toEqual({ maxAiCredits: 30 });
         expect(resumePayload.enableCitations).toBe(false);
+        expect(resumePayload.enableFileChangeTracking).toBe(false);
         expect(resumePayload.excludedBuiltinAgents).toEqual(["task"]);
         expect(resumePayload.sessionLimits).toEqual({ maxAiCredits: 15 });
     });

@@ -398,14 +398,15 @@ func TestClient_ForwardsNewSessionOptionsToSessionRequests(t *testing.T) {
 	})
 
 	_, err := client.CreateSession(t.Context(), &SessionConfig{
-		ExcludedBuiltInAgents: []string{"explore"},
-		EnableCitations:       Bool(true),
-		SessionLimits:         &rpc.SessionLimitsConfig{MaxAiCredits: float64Ptr(30)},
+		ExcludedBuiltInAgents:    []string{"explore"},
+		EnableCitations:          Bool(true),
+		EnableFileChangeTracking: Bool(true),
+		SessionLimits:            &rpc.SessionLimitsConfig{MaxAiCredits: float64Ptr(30)},
 	})
 	if err != nil {
 		t.Fatalf("CreateSession failed: %v", err)
 	}
-	assertNewSessionOptions(t, <-createParams, true, "explore", 30)
+	assertNewSessionOptions(t, <-createParams, true, true, "explore", 30)
 
 	resumeParams := make(chan json.RawMessage, 1)
 	server.SetRequestHandler("session.resume", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
@@ -414,14 +415,15 @@ func TestClient_ForwardsNewSessionOptionsToSessionRequests(t *testing.T) {
 	})
 
 	_, err = client.ResumeSessionWithOptions(t.Context(), "resumed-options", &ResumeSessionConfig{
-		ExcludedBuiltInAgents: []string{"task"},
-		EnableCitations:       Bool(false),
-		SessionLimits:         &rpc.SessionLimitsConfig{MaxAiCredits: float64Ptr(15)},
+		ExcludedBuiltInAgents:    []string{"task"},
+		EnableCitations:          Bool(false),
+		EnableFileChangeTracking: Bool(false),
+		SessionLimits:            &rpc.SessionLimitsConfig{MaxAiCredits: float64Ptr(15)},
 	})
 	if err != nil {
 		t.Fatalf("ResumeSessionWithOptions failed: %v", err)
 	}
-	assertNewSessionOptions(t, <-resumeParams, false, "task", 15)
+	assertNewSessionOptions(t, <-resumeParams, false, false, "task", 15)
 }
 
 func assertCapiEnableWebSocketResponses(t *testing.T, params json.RawMessage) {
@@ -445,6 +447,7 @@ func assertNewSessionOptions(
 	t *testing.T,
 	params json.RawMessage,
 	expectedCitations bool,
+	expectedFileChangeTracking bool,
 	expectedAgent string,
 	expectedCredits float64,
 ) {
@@ -456,6 +459,9 @@ func assertNewSessionOptions(
 	}
 	if decoded["enableCitations"] != expectedCitations {
 		t.Fatalf("expected enableCitations=%v, got %v", expectedCitations, decoded["enableCitations"])
+	}
+	if decoded["enableFileChangeTracking"] != expectedFileChangeTracking {
+		t.Fatalf("expected enableFileChangeTracking=%v, got %v", expectedFileChangeTracking, decoded["enableFileChangeTracking"])
 	}
 	agents, ok := decoded["excludedBuiltinAgents"].([]any)
 	if !ok || len(agents) != 1 || agents[0] != expectedAgent {

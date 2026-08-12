@@ -57,6 +57,7 @@ public class SessionConfig {
     private List<ProviderModelConfig> models;
     private Boolean enableSessionTelemetry;
     private Boolean enableCitations;
+    private Boolean enableFileChangeTracking;
     private SessionLimitsConfig sessionLimits;
     private Boolean enableExperimentalMode;
     private Boolean skipCustomInstructions;
@@ -553,6 +554,40 @@ public class SessionConfig {
     @CopilotExperimental
     public SessionConfig clearEnableCitations() {
         this.enableCitations = null;
+        return this;
+    }
+
+    /**
+     * Gets whether file change tracking is enabled for rewind and cumulative
+     * session diff.
+     *
+     * @return an {@link java.util.Optional} containing the setting, or
+     *         {@link java.util.Optional#empty()} for the default
+     */
+    @JsonIgnore
+    public Optional<Boolean> getEnableFileChangeTracking() {
+        return Optional.ofNullable(enableFileChangeTracking);
+    }
+
+    /**
+     * Enables or disables file change tracking from the first turn.
+     *
+     * @param enableFileChangeTracking
+     *            whether to enable file change tracking
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setEnableFileChangeTracking(boolean enableFileChangeTracking) {
+        this.enableFileChangeTracking = enableFileChangeTracking;
+        return this;
+    }
+
+    /**
+     * Clears the file change tracking setting, reverting to the default behavior.
+     *
+     * @return this instance for method chaining
+     */
+    public SessionConfig clearEnableFileChangeTracking() {
+        this.enableFileChangeTracking = null;
         return this;
     }
 
@@ -2098,6 +2133,7 @@ public class SessionConfig {
         copy.models = this.models != null ? new ArrayList<>(this.models) : null;
         copy.enableSessionTelemetry = this.enableSessionTelemetry;
         copy.enableCitations = this.enableCitations;
+        copy.enableFileChangeTracking = this.enableFileChangeTracking;
         copy.sessionLimits = this.sessionLimits;
         copy.enableExperimentalMode = this.enableExperimentalMode;
         copy.skipCustomInstructions = this.skipCustomInstructions;

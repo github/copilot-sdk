@@ -181,13 +181,14 @@ class ConfigCloneTest {
         var sessionLimits = new SessionLimitsConfig(30.0);
         var excludedAgents = new ArrayList<>(List.of("explore"));
         SessionConfig original = new SessionConfig().setExcludedBuiltInAgents(excludedAgents).setEnableCitations(true)
-                .setSessionLimits(sessionLimits);
+                .setEnableFileChangeTracking(true).setSessionLimits(sessionLimits);
 
         SessionConfig cloned = original.clone();
         excludedAgents.add("task");
 
         assertEquals(List.of("explore"), cloned.getExcludedBuiltInAgents());
         assertTrue(cloned.getEnableCitations().orElse(false));
+        assertTrue(cloned.getEnableFileChangeTracking().orElse(false));
         assertSame(sessionLimits, cloned.getSessionLimits());
     }
 
@@ -235,13 +236,14 @@ class ConfigCloneTest {
         var sessionLimits = new SessionLimitsConfig(30.0);
         var excludedAgents = new ArrayList<>(List.of("explore"));
         ResumeSessionConfig original = new ResumeSessionConfig().setExcludedBuiltInAgents(excludedAgents)
-                .setEnableCitations(true).setSessionLimits(sessionLimits);
+                .setEnableCitations(true).setEnableFileChangeTracking(true).setSessionLimits(sessionLimits);
 
         ResumeSessionConfig cloned = original.clone();
         excludedAgents.add("task");
 
         assertEquals(List.of("explore"), cloned.getExcludedBuiltInAgents());
         assertTrue(cloned.getEnableCitations().orElse(false));
+        assertTrue(cloned.getEnableFileChangeTracking().orElse(false));
         assertSame(sessionLimits, cloned.getSessionLimits());
     }
 
