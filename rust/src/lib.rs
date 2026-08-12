@@ -1976,15 +1976,18 @@ impl Client {
 
     /// Register a session to receive filtered events and requests.
     ///
-    /// Returns per-session channels for notifications and requests, routed
-    /// by `sessionId`. Starts the internal router on first call.
+    /// Returns the per-session channels plus a
+    /// [`RegistrationToken`](crate::router::RegistrationToken) identifying
+    /// *this* registration. Registering an ID that is already registered
+    /// replaces the previous registration.
     ///
-    /// When done, call [`unregister_session`](Self::unregister_session) to
-    /// clean up (typically on session destroy).
+    /// When done, call
+    /// [`unregister_session_owned`](Self::unregister_session_owned) with
+    /// that token to clean up (typically on session destroy).
     pub(crate) fn register_session(
         &self,
         session_id: &SessionId,
-    ) -> crate::router::SessionChannels {
+    ) -> crate::router::SessionRegistration {
         self.inner.router.ensure_started(
             &self.inner.notification_tx,
             &self.inner.request_rx,
@@ -1994,9 +1997,28 @@ impl Client {
         self.inner.router.register(session_id)
     }
 
-    /// Unregister a session, dropping its per-session channels.
-    pub(crate) fn unregister_session(&self, session_id: &SessionId) {
-        self.inner.router.unregister(session_id);
+    /// Unregister a session only if `token` still identifies the live
+    /// registration.
+    ///
+    /// Session IDs can be reused: a caller may retry a cancelled startup
+    /// with the same pinned ID while the previous owner is still being torn
+    /// down. Compare-and-remove keeps a stale owner from unregistering the
+    /// live session that replaced it.
+    pub(crate) fn unregister_session_owned(
+        &self,
+        session_id: &SessionId,
+        token: crate::router::RegistrationToken,
+    ) {
+        self.inner.router.unregister_owned(session_id, token);
+    }
+
+    /// Snapshot the session IDs currently registered on the router.
+    ///
+    /// Crate-internal so in-crate unit tests can assert registration
+    /// lifecycle without depending on the `test-support` feature, which
+    /// only gates the equivalent *public* test helper.
+    pub(crate) fn registered_session_ids(&self) -> Vec<SessionId> {
+        self.inner.router.session_ids()
     }
 
     /// Returns the protocol version negotiated with the CLI server, if any.
@@ -2215,7 +2237,7 @@ impl Client {
     /// notification router. This is test-harness plumbing, not part of the
     /// supported SDK API.
     pub fn registered_session_ids_for_test(&self) -> Vec<SessionId> {
-        self.inner.router.session_ids()
+        self.registered_session_ids()
     }
 
     #[cfg(feature = "test-support")]

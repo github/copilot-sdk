@@ -134,66 +134,206 @@ struct PendingSessionRegistration {
     disarmed: bool,
 }
 
-/// Which session ID a [`PendingSessionRegistration`] should unregister on
-/// cleanup.
+/// Which registration a [`PendingSessionRegistration`] owns and may remove
+/// on cleanup.
 ///
-/// `session.create` for cloud sessions without a caller-pinned ID does not
-/// know the ID until the response arrives, at which point the inline
-/// response callback registers it and stashes it. The guard therefore reads
-/// the stash at cleanup time instead of capturing an ID up front.
+/// Removal is always by *identity*, never by session ID alone: a caller can
+/// abort a startup and immediately retry with the same pinned ID, so a
+/// stale guard must not unregister the retry that replaced it.
 enum PendingSessionId {
-    /// The ID was known before the RPC was issued (resume, and create with a
-    /// client- or caller-supplied ID).
-    Known(SessionId),
-    /// Server-assigned ID, populated by the `session.create` inline response
-    /// callback. `None` in the stash means nothing was ever registered.
-    Deferred(Arc<ParkingLotMutex<Option<(SessionId, crate::router::SessionChannels)>>>),
+    /// The registration was made before the RPC and its identity is known.
+    Known {
+        id: SessionId,
+        token: crate::router::RegistrationToken,
+    },
+    /// `session.create` where registration happens (or has yet to happen)
+    /// inside the inline response callback. The shared slot arbitrates
+    /// between the callback and this guard.
+    Deferred(DeferredRegistrationSlot),
 }
 
-impl PendingSessionRegistration {
-    fn new(client: Client, session_id: SessionId, shutdown: CancellationToken) -> Self {
-        Self {
-            client,
-            session_id: PendingSessionId::Known(session_id),
-            shutdown,
-            disarmed: false,
+/// State of a `session.create` registration that the inline response
+/// callback owns until the startup path claims it.
+///
+/// The callback runs on the JSON-RPC read task, which removes the pending
+/// response entry *before* invoking the callback. A startup future dropped
+/// in that window would otherwise see nothing to clean up and the callback
+/// would then register a session nobody owns. The state machine closes that
+/// window: every transition happens under one lock, so the callback and the
+/// guard always agree on who owns the registration.
+enum DeferredRegistration {
+    /// No registration exists yet. The callback may still create one.
+    Pending,
+    /// A registration exists and this slot owns it.
+    Registered {
+        id: SessionId,
+        channels: crate::router::SessionChannels,
+        token: crate::router::RegistrationToken,
+    },
+    /// Startup was cancelled or failed. The callback must not register.
+    Cancelled,
+    /// The startup path took ownership; the guard tracks it as
+    /// [`PendingSessionId::Known`] from here on.
+    Claimed,
+}
+
+/// Handle to a [`DeferredRegistration`], shared between the inline response
+/// callback and the startup cancellation guard.
+#[derive(Clone)]
+struct DeferredRegistrationSlot(Arc<ParkingLotMutex<DeferredRegistration>>);
+
+impl DeferredRegistrationSlot {
+    /// Slot for a session whose ID the server assigns: nothing is
+    /// registered until the response arrives.
+    fn pending() -> Self {
+        Self(Arc::new(ParkingLotMutex::new(
+            DeferredRegistration::Pending,
+        )))
+    }
+
+    /// Slot for a session registered up front, before the RPC was issued.
+    fn registered(
+        id: SessionId,
+        channels: crate::router::SessionChannels,
+        token: crate::router::RegistrationToken,
+    ) -> Self {
+        Self(Arc::new(ParkingLotMutex::new(
+            DeferredRegistration::Registered {
+                id,
+                channels,
+                token,
+            },
+        )))
+    }
+
+    /// Register `id` on behalf of the inline response callback.
+    ///
+    /// Registration happens *under the slot lock* so it is atomic with
+    /// publishing the result: a guard running concurrently either wins and
+    /// marks the slot cancelled (in which case nothing is registered at
+    /// all), or loses and finds a `Registered` slot to clean up. Never both.
+    fn register(&self, client: &Client, id: SessionId) {
+        let mut state = self.0.lock();
+        if matches!(*state, DeferredRegistration::Pending) {
+            let registration = client.register_session(&id);
+            *state = DeferredRegistration::Registered {
+                id,
+                channels: registration.channels,
+                token: registration.token,
+            };
+        }
+        // Cancelled: startup is gone, so deliberately register nothing —
+        // there is no owner left to tear it down. Registered/Claimed:
+        // already resolved; a second registration would orphan the first.
+    }
+
+    /// Take ownership of the registration on the successful startup path.
+    fn claim(
+        &self,
+    ) -> Option<(
+        SessionId,
+        crate::router::SessionChannels,
+        crate::router::RegistrationToken,
+    )> {
+        let mut state = self.0.lock();
+        match std::mem::replace(&mut *state, DeferredRegistration::Claimed) {
+            DeferredRegistration::Registered {
+                id,
+                channels,
+                token,
+            } => Some((id, channels, token)),
+            other => {
+                *state = other;
+                None
+            }
         }
     }
 
-    /// Guard for a registration whose session ID is assigned by the server.
-    fn deferred(
+    /// Cancel the slot on behalf of a startup guard.
+    ///
+    /// Returns the registration to remove, if one exists. After this call
+    /// the callback will not register anything.
+    fn cancel(&self) -> Option<(SessionId, crate::router::RegistrationToken)> {
+        let mut state = self.0.lock();
+        match std::mem::replace(&mut *state, DeferredRegistration::Cancelled) {
+            DeferredRegistration::Registered {
+                id,
+                channels,
+                token,
+            } => {
+                drop(channels);
+                Some((id, token))
+            }
+            DeferredRegistration::Pending | DeferredRegistration::Cancelled => None,
+            // The startup path owns it now; leave it alone.
+            DeferredRegistration::Claimed => {
+                *state = DeferredRegistration::Claimed;
+                None
+            }
+        }
+    }
+}
+
+impl PendingSessionRegistration {
+    fn new(
         client: Client,
-        stash: Arc<ParkingLotMutex<Option<(SessionId, crate::router::SessionChannels)>>>,
+        session_id: SessionId,
+        token: crate::router::RegistrationToken,
         shutdown: CancellationToken,
     ) -> Self {
         Self {
             client,
-            session_id: PendingSessionId::Deferred(stash),
+            session_id: PendingSessionId::Known {
+                id: session_id,
+                token,
+            },
             shutdown,
             disarmed: false,
         }
     }
 
-    fn registered_id(&self) -> Option<SessionId> {
-        match &self.session_id {
-            PendingSessionId::Known(id) => Some(id.clone()),
-            PendingSessionId::Deferred(stash) => stash.lock().as_ref().map(|(id, _)| id.clone()),
+    /// Guard for a `session.create` registration arbitrated through a
+    /// shared slot.
+    fn deferred(
+        client: Client,
+        slot: DeferredRegistrationSlot,
+        shutdown: CancellationToken,
+    ) -> Self {
+        Self {
+            client,
+            session_id: PendingSessionId::Deferred(slot),
+            shutdown,
+            disarmed: false,
         }
     }
 
-    /// Re-target the guard at a now-known session ID. Used by
-    /// `session.create` once the response has been parsed and the stash has
-    /// been drained into the event loop.
-    fn resolve_to(&mut self, session_id: SessionId) {
-        self.session_id = PendingSessionId::Known(session_id);
+    /// Re-target the guard at a now-known registration. Used by
+    /// `session.create` once the slot has been claimed by the startup path.
+    fn resolve_to(&mut self, session_id: SessionId, token: crate::router::RegistrationToken) {
+        self.session_id = PendingSessionId::Known {
+            id: session_id,
+            token,
+        };
+    }
+
+    /// Remove the registration this guard owns, if it still owns one.
+    fn release(&mut self) {
+        match &self.session_id {
+            PendingSessionId::Known { id, token } => {
+                self.client.unregister_session_owned(id, *token);
+            }
+            PendingSessionId::Deferred(slot) => {
+                if let Some((id, token)) = slot.cancel() {
+                    self.client.unregister_session_owned(&id, token);
+                }
+            }
+        }
     }
 
     async fn cleanup(mut self, event_loop: JoinHandle<()>) {
         self.shutdown.cancel();
         let _ = event_loop.await;
-        if let Some(id) = self.registered_id() {
-            self.client.unregister_session(&id);
-        }
+        self.release();
         self.disarmed = true;
     }
 
@@ -206,9 +346,7 @@ impl Drop for PendingSessionRegistration {
     fn drop(&mut self) {
         if !self.disarmed {
             self.shutdown.cancel();
-            if let Some(id) = self.registered_id() {
-                self.client.unregister_session(&id);
-            }
+            self.release();
         }
     }
 }
@@ -263,6 +401,10 @@ pub struct Session {
     open_canvases: Arc<parking_lot::RwLock<Vec<OpenCanvasInstance>>>,
     /// Broadcast channel for runtime event subscribers — see [`Session::subscribe`].
     event_tx: tokio::sync::broadcast::Sender<SessionEvent>,
+    /// Identity of this session's router registration. Unregistering is a
+    /// compare-and-remove against this token so a superseded handle for a
+    /// reused session ID cannot evict the live registration.
+    registration_token: crate::router::RegistrationToken,
 }
 
 impl Session {
@@ -649,7 +791,8 @@ impl Session {
             )
             .await?;
         self.stop_event_loop().await;
-        self.client.unregister_session(&self.id);
+        self.client
+            .unregister_session_owned(&self.id, self.registration_token);
         Ok(())
     }
 
@@ -726,7 +869,8 @@ impl Drop for Session {
         // tokio runtime when it next polls; we intentionally don't await
         // it here because Drop is sync.
         self.shutdown.cancel();
-        self.client.unregister_session(&self.id);
+        self.client
+            .unregister_session_owned(&self.id, self.registration_token);
     }
 }
 
@@ -1157,19 +1301,28 @@ impl Client {
         // the session synchronously the instant the response arrives.
         // For non-cloud sessions, register up-front so the CLI can issue
         // session-scoped requests during session.create processing.
-        let inline_stash: Arc<
-            ParkingLotMutex<Option<(SessionId, crate::router::SessionChannels)>>,
-        > = Arc::new(ParkingLotMutex::new(None));
+        // Either way the registration lives in a shared slot that arbitrates
+        // between the callback, this startup path, and the cancellation
+        // guard below.
+        let slot = match local_session_id {
+            Some(ref sid) => {
+                let registration = self.register_session(sid);
+                DeferredRegistrationSlot::registered(
+                    sid.clone(),
+                    registration.channels,
+                    registration.token,
+                )
+            }
+            None => DeferredRegistrationSlot::pending(),
+        };
 
-        let inline_callback: Option<crate::jsonrpc::InlineResponseCallback> = if let Some(ref sid) =
-            local_session_id
+        let inline_callback: Option<crate::jsonrpc::InlineResponseCallback> = if local_session_id
+            .is_some()
         {
-            let channels = self.register_session(sid);
-            *inline_stash.lock() = Some((sid.clone(), channels));
             None
         } else {
             let client = self.clone();
-            let stash = inline_stash.clone();
+            let slot = slot.clone();
             let expected = caller_session_id.clone();
             Some(Box::new(move |response| {
                 let result = response.result.as_ref().ok_or_else(|| {
@@ -1186,35 +1339,22 @@ impl Client {
                     })
                     .into());
                 }
-                // Register and stash under a single stash-lock hold. The
-                // cancellation guard identifies the session to unregister by
-                // peeking this stash, so registering outside the lock would
-                // leave a window where a concurrent guard drop (caller
-                // cancellation) sees `None` and leaks the registration.
-                // `register_session` takes the router lock, never the stash
-                // lock, so there is no lock-order inversion here.
-                let mut stashed = stash.lock();
-                let channels = client.register_session(&parsed.session_id);
-                *stashed = Some((parsed.session_id, channels));
+                // Registers only if the slot is still `Pending`. The read
+                // task removes the pending-response entry before calling
+                // this, so a startup future dropped in that window has
+                // already marked the slot `Cancelled` and nothing is
+                // registered for a caller that no longer exists.
+                slot.register(&client, parsed.session_id);
                 Ok(())
             }))
         };
 
         // Armed for the whole startup sequence: any early return, and any
         // drop of this future (caller cancellation), cancels the session
-        // token and unregisters whatever was registered on the router. For
-        // the cloud path the ID is only known once the inline callback has
-        // run, so the guard reads the stash at cleanup time.
-        let mut registration = match local_session_id {
-            Some(ref sid) => {
-                PendingSessionRegistration::new(self.clone(), sid.clone(), shutdown.clone())
-            }
-            None => PendingSessionRegistration::deferred(
-                self.clone(),
-                inline_stash.clone(),
-                shutdown.clone(),
-            ),
-        };
+        // token and removes the registration this startup owns — by
+        // identity, so a same-ID retry started in the meantime survives.
+        let mut registration =
+            PendingSessionRegistration::deferred(self.clone(), slot.clone(), shutdown.clone());
 
         let rpc_start = Instant::now();
         let result = self
@@ -1236,11 +1376,10 @@ impl Client {
             .into());
         }
 
-        let (session_id, channels) = inline_stash
-            .lock()
-            .take()
-            .expect("session registration must have populated stash on success");
-        registration.resolve_to(session_id.clone());
+        let (session_id, channels, registration_token) = slot
+            .claim()
+            .expect("session registration must have populated the slot on success");
+        registration.resolve_to(session_id.clone(), registration_token);
         let event_loop = spawn_event_loop(
             session_id.clone(),
             self.clone(),
@@ -1292,6 +1431,7 @@ impl Client {
             capabilities,
             open_canvases,
             event_tx,
+            registration_token,
         };
         apply_mode_post_create_patch(
             &session,
@@ -1434,7 +1574,9 @@ impl Client {
 
         let capabilities = Arc::new(parking_lot::RwLock::new(SessionCapabilities::default()));
         let setup_start = Instant::now();
-        let channels = self.register_session(&session_id);
+        let session_registration = self.register_session(&session_id);
+        let registration_token = session_registration.token;
+        let channels = session_registration.channels;
         let idle_waiter = Arc::new(ParkingLotMutex::new(None));
         let open_canvases = Arc::new(parking_lot::RwLock::new(Vec::new()));
         let event_loop = spawn_event_loop(
@@ -1454,8 +1596,12 @@ impl Client {
             event_tx.clone(),
             shutdown.clone(),
         );
-        let mut registration =
-            PendingSessionRegistration::new(self.clone(), session_id.clone(), shutdown.clone());
+        let mut registration = PendingSessionRegistration::new(
+            self.clone(),
+            session_id.clone(),
+            registration_token,
+            shutdown.clone(),
+        );
         tracing::debug!(
             elapsed_ms = setup_start.elapsed().as_millis(),
             session_id = %session_id,
@@ -1557,6 +1703,7 @@ impl Client {
             capabilities,
             open_canvases,
             event_tx,
+            registration_token,
         };
         apply_mode_post_create_patch(
             &session,
@@ -1593,9 +1740,11 @@ impl Client {
 /// * Dropping the [`start`](Self::start) future mid-flight cancels the
 ///   session token, unregisters the session from the router if it was
 ///   registered, and closes early subscriptions. A retry with the same
-///   session ID succeeds. Cleanup of already-spawned tasks is signalled,
-///   not awaited: `Drop` is synchronous and cannot await, so the event loop
-///   terminates promptly but not synchronously.
+///   session ID succeeds — cleanup removes only the exact registration that
+///   startup owned, so a retry started before the abandoned attempt has
+///   finished unwinding is never evicted by it. Cleanup of already-spawned
+///   tasks is signalled, not awaited: `Drop` is synchronous and cannot
+///   await, so the event loop terminates promptly but not synchronously.
 /// * A startup error from [`start`](Self::start) performs the same cleanup
 ///   and preserves the [`ErrorKind`] the equivalent
 ///   [`Client::create_session`] / [`Client::resume_session`] call has always
@@ -2916,8 +3065,107 @@ fn inject_transform_sections_resume(
 mod tests {
     use serde_json::json;
 
-    use super::{has_managed_settings, notification_permission_payload, permission_request_data};
+    use super::{
+        DeferredRegistrationSlot, has_managed_settings, notification_permission_payload,
+        permission_request_data,
+    };
     use crate::handler::PermissionResult;
+    use crate::types::SessionId;
+
+    fn test_client() -> crate::Client {
+        let (client_write, _server_read) = tokio::io::duplex(1024);
+        let (_server_write, client_read) = tokio::io::duplex(1024);
+        crate::Client::from_streams(client_read, client_write, std::env::temp_dir())
+            .expect("from_streams")
+    }
+
+    /// The window the inline response callback runs in: the JSON-RPC read
+    /// task removes the pending-response entry *before* invoking the
+    /// callback, so a startup future dropped in between finds nothing to
+    /// clean up. Driving the two sides in that exact order asserts the
+    /// callback declines to register for a caller that is already gone.
+    #[tokio::test]
+    async fn deferred_slot_cancelled_before_callback_registers_nothing() {
+        let client = test_client();
+        let slot = DeferredRegistrationSlot::pending();
+
+        // Gate: the guard lands first, while the slot is still `Pending`.
+        assert!(slot.cancel().is_none(), "nothing was registered yet");
+
+        // The inline callback now runs with a server-assigned ID.
+        slot.register(&client, SessionId::new("server-assigned"));
+
+        assert!(
+            client.registered_session_ids().is_empty(),
+            "a cancelled startup left a registration behind"
+        );
+        assert!(
+            slot.claim().is_none(),
+            "a cancelled slot must stay unclaimable"
+        );
+        client.force_stop();
+    }
+
+    /// The other interleaving: the callback registers first, so the guard
+    /// finds the registration and owns its removal.
+    #[tokio::test]
+    async fn deferred_slot_registered_before_cancel_is_cleaned_up() {
+        let client = test_client();
+        let slot = DeferredRegistrationSlot::pending();
+        let id = SessionId::new("server-assigned");
+
+        slot.register(&client, id.clone());
+        assert_eq!(client.registered_session_ids(), vec![id.clone()]);
+
+        let (cancelled_id, token) = slot.cancel().expect("guard must own the registration");
+        assert_eq!(cancelled_id, id);
+        client.unregister_session_owned(&cancelled_id, token);
+        assert!(client.registered_session_ids().is_empty());
+        client.force_stop();
+    }
+
+    /// Once the startup path claims the registration, the guard tracks it
+    /// by identity instead and must not tear it down through the slot.
+    #[tokio::test]
+    async fn claimed_slot_is_not_cancelled_by_a_later_guard_drop() {
+        let client = test_client();
+        let slot = DeferredRegistrationSlot::pending();
+        let id = SessionId::new("server-assigned");
+
+        slot.register(&client, id.clone());
+        let (claimed_id, _channels, _token) = slot.claim().expect("startup path claims once");
+        assert_eq!(claimed_id, id);
+
+        assert!(
+            slot.cancel().is_none(),
+            "a claimed slot must not be cancellable"
+        );
+        assert!(slot.claim().is_none(), "a slot can only be claimed once");
+        assert_eq!(client.registered_session_ids(), vec![id]);
+        client.force_stop();
+    }
+
+    /// A duplicate callback invocation must not orphan the first
+    /// registration by silently replacing it.
+    #[tokio::test]
+    async fn deferred_slot_registers_at_most_once() {
+        let client = test_client();
+        let slot = DeferredRegistrationSlot::pending();
+        let id = SessionId::new("server-assigned");
+
+        slot.register(&client, id.clone());
+        let first_token = match &*slot.0.lock() {
+            super::DeferredRegistration::Registered { token, .. } => *token,
+            _ => panic!("expected a registered slot"),
+        };
+        slot.register(&client, id.clone());
+        let second_token = match &*slot.0.lock() {
+            super::DeferredRegistration::Registered { token, .. } => *token,
+            _ => panic!("expected a registered slot"),
+        };
+        assert_eq!(first_token, second_token, "slot re-registered the session");
+        client.force_stop();
+    }
 
     #[test]
     fn direct_injection_enables_managed_safeguards() {
