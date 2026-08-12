@@ -28,6 +28,10 @@ run_case() {
         "    <version>${old_dev_version}</version>" \
         '</dependency>' \
         "implementation 'com.github:copilot-sdk-java:${old_dev_version}'" \
+        '<dependency>' \
+        '    <artifactId>jna</artifactId>' \
+        '    <version>5.19.1</version>' \
+        '</dependency>' \
         > "${case_dir}/README.md"
     printf '%s\n' \
         "///usr/bin/env jbang \"\$0\" \"\$@\" ; exit \$?" \
@@ -40,6 +44,7 @@ run_case() {
     grep -Fqx "implementation 'com.github:copilot-sdk-java:${version}'" "${case_dir}/README.md"
     grep -Fqx "    <version>${dev_version}</version>" "${case_dir}/README.md"
     grep -Fqx "implementation 'com.github:copilot-sdk-java:${dev_version}'" "${case_dir}/README.md"
+    grep -Fqx '    <version>5.19.1</version>' "${case_dir}/README.md"
     grep -Fqx "//DEPS com.github:copilot-sdk-java:${version}" "${case_dir}/jbang-example.java"
 
     if grep -Fq "$old_version" "${case_dir}/README.md" "${case_dir}/jbang-example.java" ||
