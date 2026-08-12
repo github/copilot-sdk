@@ -1958,6 +1958,90 @@ describe("CopilotClient", () => {
         spy.mockRestore();
     });
 
+    it("sends includedBuiltinSkills=[] in the empty-mode post-create options patch", async () => {
+        const client = new CopilotClient({ mode: "empty", baseDirectory: "/tmp/copilot-test" });
+        await client.start();
+        onTestFinished(() => stopClient(client));
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId ?? "s1" };
+                if (method === "session.options.update") return {};
+                throw new Error(`Unexpected method: ${method}`);
+            });
+        await client.createSession({ onPermissionRequest: approveAll, availableTools: [] });
+
+        const patch = spy.mock.calls.find((c) => c[0] === "session.options.update")![1] as any;
+        expect(patch.includedBuiltinSkills).toEqual([]);
+        expect(patch.installedPlugins).toEqual([]);
+    });
+
+    it("sends includedBuiltinSkills=[] in the empty-mode post-resume options patch", async () => {
+        const client = new CopilotClient({ mode: "empty", baseDirectory: "/tmp/copilot-test" });
+        await client.start();
+        onTestFinished(() => stopClient(client));
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId ?? "s1" };
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                if (method === "session.options.update") return {};
+                throw new Error(`Unexpected method: ${method}`);
+            });
+        await client.createSession({ onPermissionRequest: approveAll, availableTools: [] });
+        spy.mockClear();
+        await client.resumeSession("s1", { onPermissionRequest: approveAll, availableTools: [] });
+
+        const patch = spy.mock.calls.find((c) => c[0] === "session.options.update")![1] as any;
+        expect(patch.includedBuiltinSkills).toEqual([]);
+    });
+
+    it("keeps includedBuiltinSkills=[] even when the caller opts into custom skills in empty mode", async () => {
+        const client = new CopilotClient({ mode: "empty", baseDirectory: "/tmp/copilot-test" });
+        await client.start();
+        onTestFinished(() => stopClient(client));
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId ?? "s1" };
+                if (method === "session.options.update") return {};
+                throw new Error(`Unexpected method: ${method}`);
+            });
+        await client.createSession({
+            onPermissionRequest: approveAll,
+            availableTools: [],
+            enableSkills: true,
+            skillDirectories: ["/tmp/custom-skills"],
+        });
+
+        const createPayload = spy.mock.calls.find((c) => c[0] === "session.create")![1] as any;
+        expect(createPayload.enableSkills).toBe(true);
+        expect(createPayload.skillDirectories).toEqual(["/tmp/custom-skills"]);
+        const patch = spy.mock.calls.find((c) => c[0] === "session.options.update")![1] as any;
+        expect(patch.includedBuiltinSkills).toEqual([]);
+    });
+
+    it("does not send includedBuiltinSkills in copilot-cli mode", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => stopClient(client));
+
+        const spy = vi.spyOn((client as any).connection!, "sendRequest");
+        await client.createSession({ onPermissionRequest: approveAll });
+
+        const patch = spy.mock.calls.find((c) => c[0] === "session.options.update");
+        // copilot-cli mode sends no post-create options patch at all here.
+        if (patch) {
+            expect((patch[1] as any).includedBuiltinSkills).toBeUndefined();
+        }
+        const createPayload = spy.mock.calls.find((c) => c[0] === "session.create")![1] as any;
+        expect(createPayload.includedBuiltinSkills).toBeUndefined();
+        spy.mockRestore();
+    });
+
     it("forwards continuePendingWork in session.resume request", async () => {
         const client = new CopilotClient();
         await client.start();

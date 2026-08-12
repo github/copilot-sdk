@@ -343,6 +343,100 @@ public sealed class ClientSessionLifetimeTests
     }
 
     [Fact]
+    public async Task EmptyMode_Create_Sends_Empty_IncludedBuiltinSkills()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions
+        {
+            Connection = RuntimeConnection.ForUri(server.Url),
+            Mode = CopilotClientMode.Empty,
+            BaseDirectory = Path.GetTempPath(),
+        });
+
+        await using var created = await client.CreateSessionAsync(new SessionConfig
+        {
+            AvailableTools = [],
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        var update = Assert.Single(server.Requests, request => request.Method == "session.options.update");
+        Assert.True(update.Params.TryGetProperty("includedBuiltinSkills", out var skills));
+        Assert.Equal(JsonValueKind.Array, skills.ValueKind);
+        Assert.Equal(0, skills.GetArrayLength());
+        // Adjacent unconditional plugin isolation is still present.
+        Assert.True(update.Params.TryGetProperty("installedPlugins", out var plugins));
+        Assert.Equal(0, plugins.GetArrayLength());
+    }
+
+    [Fact]
+    public async Task EmptyMode_Resume_Sends_Empty_IncludedBuiltinSkills()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions
+        {
+            Connection = RuntimeConnection.ForUri(server.Url),
+            Mode = CopilotClientMode.Empty,
+            BaseDirectory = Path.GetTempPath(),
+        });
+
+        await using var resumed = await client.ResumeSessionAsync("resume-empty-skills", new ResumeSessionConfig
+        {
+            AvailableTools = [],
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        var update = Assert.Single(server.Requests, request => request.Method == "session.options.update");
+        Assert.True(update.Params.TryGetProperty("includedBuiltinSkills", out var skills));
+        Assert.Equal(JsonValueKind.Array, skills.ValueKind);
+        Assert.Equal(0, skills.GetArrayLength());
+    }
+
+    [Fact]
+    public async Task EmptyMode_Create_With_EnableSkills_Still_Sends_Empty_IncludedBuiltinSkills()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions
+        {
+            Connection = RuntimeConnection.ForUri(server.Url),
+            Mode = CopilotClientMode.Empty,
+            BaseDirectory = Path.GetTempPath(),
+        });
+
+        // Caller opts into their own custom skills. Runtime-bundled built-ins must
+        // still be excluded: the empty post-patch cannot be weakened by the caller.
+        await using var created = await client.CreateSessionAsync(new SessionConfig
+        {
+            AvailableTools = [],
+            EnableSkills = true,
+            SkillDirectories = [Path.Combine(Path.GetTempPath(), "skills")],
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        var update = Assert.Single(server.Requests, request => request.Method == "session.options.update");
+        Assert.True(update.Params.TryGetProperty("includedBuiltinSkills", out var skills));
+        Assert.Equal(JsonValueKind.Array, skills.ValueKind);
+        Assert.Equal(0, skills.GetArrayLength());
+    }
+
+    [Fact]
+    public async Task CopilotCliMode_Create_Does_Not_Inject_IncludedBuiltinSkills()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+
+        await using var created = await client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        // In the default copilot-cli mode with no overridable options set, no
+        // options patch is sent at all, so the field is never injected.
+        Assert.DoesNotContain(server.Requests, request =>
+            request.Method == "session.options.update"
+            && request.Params.TryGetProperty("includedBuiltinSkills", out _));
+    }
+
+    [Fact]
     public async Task CreateSessionAsync_Registers_McpAuth_Interest_Only_When_Handler_Configured()
     {
         await using var server = await FakeCopilotServer.StartAsync();
@@ -1066,6 +1160,10 @@ public sealed class ClientSessionLifetimeTests
                 "session.send" => new Dictionary<string, object?>
                 {
                     ["messageId"] = "message-1"
+                },
+                "session.options.update" => new Dictionary<string, object?>
+                {
+                    ["success"] = true
                 },
                 "session.mcp.oauth.handlePendingRequest" => new Dictionary<string, object?>
                 {

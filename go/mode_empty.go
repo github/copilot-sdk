@@ -225,7 +225,9 @@ func (c *Client) applyResumeDefaultsForMode(config *ResumeSessionConfig) {
 // updateSessionOptionsForMode applies the per-mode safe-defaults patch via
 // session.options.update after create/resume succeeds. In empty mode the
 // four overridable feature flags default to safe values; caller values win.
-// installedPlugins=[] is unconditional in empty mode.
+// installedPlugins=[] and includedBuiltinSkills=[] are unconditional in empty
+// mode. Callers may still opt into their own custom skills (via EnableSkills /
+// SkillDirectories) without re-enabling runtime-bundled built-in skills.
 func (c *Client) updateSessionOptionsForMode(ctx context.Context, session *Session, base optBackInFields) error {
 	patch := &rpc.SessionUpdateOptionsParams{}
 	hasAny := false
@@ -255,6 +257,7 @@ func (c *Client) updateSessionOptionsForMode(ctx context.Context, session *Sessi
 			patch.ManageScheduleEnabled = &f
 		}
 		patch.InstalledPlugins = []rpc.SessionInstalledPlugin{}
+		patch.IncludedBuiltinSkills = []string{}
 		hasAny = true
 	} else {
 		if base.SkipCustomInstructions != nil {

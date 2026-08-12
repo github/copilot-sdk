@@ -302,7 +302,10 @@ def _post_create_options_patch(
     """Build the patch sent via ``session.options.update`` after create/resume.
 
     In empty mode the four overridable flags default to safe values
-    (caller-supplied values win); ``installedPlugins=[]`` is unconditional.
+    (caller-supplied values win); ``installedPlugins=[]`` and
+    ``includedBuiltinSkills=[]`` are unconditional. Callers may still opt into
+    their own custom skills (via ``enable_skills``/``skill_directories``)
+    without re-enabling runtime-bundled built-in skills.
     Returns ``None`` if no patch should be sent.
     """
     if mode == "empty":
@@ -318,6 +321,7 @@ def _post_create_options_patch(
                 manage_schedule_enabled if manage_schedule_enabled is not None else False
             ),
             "installedPlugins": [],
+            "includedBuiltinSkills": [],
         }
         return patch
     patch = {}

@@ -1029,9 +1029,12 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// Applies the post-create / post-resume <c>session.options.update</c>
     /// patch for the current mode. In empty mode this defaults the four
     /// overridable feature flags to safe values (caller values from
-    /// <paramref name="config"/> win); <c>installedPlugins=[]</c> is
-    /// unconditional under empty mode so apps that need plugins must switch
-    /// modes. In copilot-cli mode only explicitly-set fields are forwarded.
+    /// <paramref name="config"/> win); <c>installedPlugins=[]</c> and
+    /// <c>includedBuiltinSkills=[]</c> are unconditional under empty mode so
+    /// apps that need plugins must switch modes, while callers may still opt
+    /// into their own custom skills (via <c>EnableSkills</c>/<c>SkillDirectories</c>)
+    /// without re-enabling runtime-bundled built-in skills. In copilot-cli mode
+    /// only explicitly-set fields are forwarded.
     /// </summary>
     private async Task UpdateSessionOptionsForModeAsync(CopilotSession session, SessionConfigBase config, CancellationToken cancellationToken)
     {
@@ -1041,6 +1044,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         bool? coauthorEnabled = null;
         bool? manageScheduleEnabled = null;
         IList<SessionInstalledPlugin>? installedPlugins = null;
+        IList<string>? includedBuiltinSkills = null;
 
         if (_options.Mode == CopilotClientMode.Empty)
         {
@@ -1049,6 +1053,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             coauthorEnabled = config.CoauthorEnabled ?? false;
             manageScheduleEnabled = config.ManageScheduleEnabled ?? false;
             installedPlugins = [];
+            includedBuiltinSkills = [];
             hasAnyPatch = true;
         }
         else
@@ -1070,6 +1075,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 coauthorEnabled: coauthorEnabled,
                 manageScheduleEnabled: manageScheduleEnabled,
                 installedPlugins: installedPlugins,
+                includedBuiltinSkills: includedBuiltinSkills,
                 cancellationToken: cancellationToken).ConfigureAwait(false);
 #pragma warning restore GHCP001
         }

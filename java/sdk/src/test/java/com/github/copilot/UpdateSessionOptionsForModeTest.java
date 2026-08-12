@@ -144,6 +144,8 @@ class UpdateSessionOptionsForModeTest {
             assertTrue(pair.lastParams.path("manageScheduleEnabled").isMissingNode(),
                     "manageScheduleEnabled should be absent");
             assertTrue(pair.lastParams.path("installedPlugins").isMissingNode(), "installedPlugins should be absent");
+            assertTrue(pair.lastParams.path("includedBuiltinSkills").isMissingNode(),
+                    "includedBuiltinSkills should be absent in COPILOT_CLI mode");
             client.close();
         }
     }
@@ -197,6 +199,9 @@ class UpdateSessionOptionsForModeTest {
             assertFalse(pair.lastParams.get("manageScheduleEnabled").asBoolean(), "default: schedule disabled");
             assertTrue(pair.lastParams.get("installedPlugins").isArray(), "installedPlugins should be empty array");
             assertEquals(0, pair.lastParams.get("installedPlugins").size());
+            assertTrue(pair.lastParams.get("includedBuiltinSkills").isArray(),
+                    "includedBuiltinSkills should be empty array");
+            assertEquals(0, pair.lastParams.get("includedBuiltinSkills").size());
             client.close();
         }
     }
@@ -218,6 +223,9 @@ class UpdateSessionOptionsForModeTest {
             assertTrue(pair.lastParams.get("installedPlugins").isArray(),
                     "installedPlugins always empty in EMPTY mode");
             assertEquals(0, pair.lastParams.get("installedPlugins").size());
+            assertTrue(pair.lastParams.get("includedBuiltinSkills").isArray(),
+                    "includedBuiltinSkills always empty in EMPTY mode");
+            assertEquals(0, pair.lastParams.get("includedBuiltinSkills").size());
             client.close();
         }
     }

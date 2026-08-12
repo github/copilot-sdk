@@ -248,6 +248,7 @@ class TestPostCreatePatch:
             "coauthorEnabled": False,
             "manageScheduleEnabled": False,
             "installedPlugins": [],
+            "includedBuiltinSkills": [],
         }
 
     def test_empty_mode_caller_wins(self):
@@ -258,10 +259,23 @@ class TestPostCreatePatch:
             "coauthorEnabled": True,
             "manageScheduleEnabled": True,
             "installedPlugins": [],
+            "includedBuiltinSkills": [],
         }
+
+    def test_empty_mode_included_builtin_skills_always_empty(self):
+        # The Empty post-patch must always exclude runtime-bundled built-in
+        # skills, regardless of the caller-overridable flags.
+        for args in ((None, None, None, None), (False, False, True, True)):
+            patch = _post_create_options_patch("empty", *args)
+            assert patch is not None
+            assert patch["includedBuiltinSkills"] == []
 
     def test_copilot_cli_returns_none_when_unset(self):
         assert _post_create_options_patch("copilot-cli", None, None, None, None) is None
+        # Non-empty mode never injects the built-in skill restriction.
+        assert "includedBuiltinSkills" not in (
+            _post_create_options_patch("copilot-cli", True, None, False, None) or {}
+        )
 
     def test_copilot_cli_passes_through_explicit_values(self):
         patch = _post_create_options_patch("copilot-cli", True, None, False, None)

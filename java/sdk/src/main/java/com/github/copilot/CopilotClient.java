@@ -1197,8 +1197,11 @@ public final class CopilotClient implements AutoCloseable {
      * <p>
      * In {@link CopilotClientMode#EMPTY EMPTY} mode this defaults the four
      * overridable feature flags to safe values (caller values from the config win);
-     * {@code installedPlugins=[]} is unconditional under empty mode so apps that
-     * need plugins must switch modes. In {@link CopilotClientMode#COPILOT_CLI
+     * {@code installedPlugins=[]} and {@code includedBuiltinSkills=[]} are
+     * unconditional under empty mode so apps that need plugins must switch modes,
+     * while callers may still opt into their own custom skills (via
+     * {@code enableSkills}/{@code skillDirectories}) without re-enabling
+     * runtime-bundled built-in skills. In {@link CopilotClientMode#COPILOT_CLI
      * COPILOT_CLI} mode only explicitly-set fields are forwarded.
      *
      * @param session
@@ -1221,6 +1224,7 @@ public final class CopilotClient implements AutoCloseable {
         Boolean patchCoauthor = null;
         Boolean patchSchedule = null;
         List<SessionInstalledPlugin> patchPlugins = null;
+        List<String> patchSkills = null;
         boolean hasAnyPatch = false;
 
         if (options.getMode() == CopilotClientMode.EMPTY) {
@@ -1229,6 +1233,7 @@ public final class CopilotClient implements AutoCloseable {
             patchCoauthor = coauthorEnabled != null ? coauthorEnabled : false;
             patchSchedule = manageScheduleEnabled != null ? manageScheduleEnabled : false;
             patchPlugins = List.of();
+            patchSkills = List.of();
             hasAnyPatch = true;
         } else {
             if (skipCustomInstructions != null) {
@@ -1271,6 +1276,7 @@ public final class CopilotClient implements AutoCloseable {
                 null, // excludedTools
                 null, // includedBuiltinAgents
                 null, // excludedBuiltinAgents
+                patchSkills, // includedBuiltinSkills
                 null, // toolFilterPrecedence
                 null, // enableScriptSafety
                 null, // shell
