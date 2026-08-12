@@ -36,7 +36,7 @@ class TestSessions:
 
         await session.disconnect()
 
-        with pytest.raises(Exception, match="Session not found"):
+        with pytest.raises(RuntimeError, match="has been disconnected"):
             await session.get_events()
 
     async def test_should_have_stateful_conversation(self, ctx: E2ETestContext):

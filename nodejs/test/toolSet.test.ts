@@ -406,6 +406,7 @@ describe("Empty-mode safe defaults", () => {
                 if (method === "session.options.update") {
                     throw new Error("update rejected");
                 }
+                if (method === "session.detach") return { success: true };
                 throw new Error(`Unexpected method: ${method}`);
             }
         );

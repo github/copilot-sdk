@@ -274,7 +274,8 @@ class GitHubTelemetryTest {
                     respond(server, id, Map.of("sessionId", params.path("sessionId").asText("resume-1"),
                             "workspacePath", "/workspace"));
                 });
-                server.registerMethodHandler("session.destroy", (id, params) -> respond(server, id, Map.of()));
+                server.registerMethodHandler("session.detach",
+                        (id, params) -> respond(server, id, Map.of("success", true)));
                 server.registerMethodHandler("runtime.shutdown", (id, params) -> respond(server, id, Map.of()));
                 ready.complete(server);
             } catch (IOException e) {

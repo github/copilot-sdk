@@ -874,6 +874,10 @@ function handleMessage(message) {
     writeResponse(message.id, { sessionId, workspacePath: null, capabilities: null });
     return;
   }
+  if (message.method === "session.detach") {
+    writeResponse(message.id, { success: true });
+    return;
+  }
   writeResponse(message.id, {});
 }
 

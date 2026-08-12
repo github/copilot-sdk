@@ -1388,7 +1388,7 @@ async fn session_rpc_methods_send_correct_method_names() {
     let cases: Vec<(&str, Option<&str>)> = vec![
         ("session.abort", None),
         ("session.log", Some("message")),
-        ("session.destroy", None),
+        ("session.detach", None),
     ];
 
     for (expected_method, extra_param_key) in cases {
@@ -1397,7 +1397,7 @@ async fn session_rpc_methods_send_correct_method_names() {
             match expected_method {
                 "session.abort" => s.abort().await.map(|_| ()),
                 "session.log" => s.log("test msg", None).await,
-                "session.destroy" => s.disconnect().await,
+                "session.detach" => s.disconnect().await,
                 _ => unreachable!(),
             }
         });
@@ -1415,6 +1415,7 @@ async fn session_rpc_methods_send_correct_method_names() {
             "session.log" => {
                 serde_json::json!({ "eventId": "00000000-0000-0000-0000-000000000000" })
             }
+            "session.detach" => serde_json::json!({ "success": true }),
             _ => serde_json::json!({}),
         };
         server.respond(&request, response).await;
@@ -4049,9 +4050,9 @@ async fn rpc_namespace_client_models_list_dispatches_correctly() {
 }
 
 #[tokio::test]
-async fn client_stop_sends_session_destroy_for_each_active_session() {
+async fn client_stop_sends_session_detach_for_each_active_session() {
     // One client, two registered sessions. Client::stop must send
-    // session.destroy for each before returning Ok.
+    // session.detach for each before returning Ok.
     let (client, server_read, server_write) = make_client();
 
     let mut server = FakeServer {
@@ -4101,31 +4102,33 @@ async fn client_stop_sends_session_destroy_for_each_active_session() {
         .await;
     let _session_b = timeout(TIMEOUT, create_b).await.unwrap();
 
-    // Drive Client::stop and respond to each destroy in turn.
+    // Drive Client::stop and respond to each detach in turn.
     let stop_handle = tokio::spawn({
         let client = client.clone();
         async move { client.stop().await }
     });
 
-    let mut destroyed = Vec::new();
+    let mut detached = Vec::new();
     for _ in 0..2 {
         let req = server.read_request().await;
-        assert_eq!(req["method"], "session.destroy");
-        destroyed.push(req["params"]["sessionId"].as_str().unwrap().to_string());
-        server.respond(&req, serde_json::json!(null)).await;
+        assert_eq!(req["method"], "session.detach");
+        detached.push(req["params"]["sessionId"].as_str().unwrap().to_string());
+        server
+            .respond(&req, serde_json::json!({ "success": true }))
+            .await;
     }
-    destroyed.sort();
+    detached.sort();
     let mut expected = [session_id_a.clone(), session_id_b.clone()];
     expected.sort();
-    assert_eq!(destroyed, expected);
+    assert_eq!(detached, expected);
 
     let stop_result = timeout(TIMEOUT, stop_handle).await.unwrap().unwrap();
     assert!(stop_result.is_ok(), "stop returned errors: {stop_result:?}");
 }
 
 #[tokio::test]
-async fn client_stop_aggregates_session_destroy_errors() {
-    // session.destroy fails on the wire — Client::stop returns
+async fn client_stop_aggregates_session_detach_errors() {
+    // session.detach fails on the wire — Client::stop returns
     // StopErrors carrying the failure rather than short-circuiting.
     let (session, mut server) = create_session_pair().await;
     let client = session.client().clone();
@@ -4133,7 +4136,7 @@ async fn client_stop_aggregates_session_destroy_errors() {
     let stop_handle = tokio::spawn(async move { client.stop().await });
 
     let req = server.read_request().await;
-    assert_eq!(req["method"], "session.destroy");
+    assert_eq!(req["method"], "session.detach");
     let id = req["id"].as_u64().unwrap();
     let response = serde_json::json!({
         "jsonrpc": "2.0",

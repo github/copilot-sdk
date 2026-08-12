@@ -327,7 +327,7 @@ describe("Multi-client broadcast", async () => {
             });
 
             // Client 2 resumes with ephemeral_tool
-            await client2.resumeSession(session1.sessionId, {
+            const session2 = await client2.resumeSession(session1.sessionId, {
                 onPermissionRequest: approveAll,
                 tools: [toolB],
             });
@@ -343,28 +343,16 @@ describe("Multi-client broadcast", async () => {
             });
             expect(ephemeralResponse?.data.content).toContain("EPHEMERAL_test2");
 
-            // Disconnect client 2 without destroying the shared session.
-            // Suppress "Connection is disposed" rejections that occur when the server
-            // broadcasts events (e.g. tool_changed_notice) to the now-dead connection.
-            const suppressDisposed = (reason: unknown) => {
-                if (reason instanceof Error && reason.message.includes("Connection is disposed")) {
-                    return;
-                }
-                throw reason;
-            };
-            process.on("unhandledRejection", suppressDisposed);
-            await client2.forceStop();
+            // Detach client 2's session without destroying client 1's live session.
+            await session2.disconnect();
 
-            // Give the server time to process the connection close and remove tools
+            // Give the server time to remove client 2's tools.
             await new Promise((resolve) => setTimeout(resolve, 500));
-            process.removeListener("unhandledRejection", suppressDisposed);
 
-            // Recreate client2 for cleanup in afterAll (but don't rejoin the session)
-            client2 = new CopilotClient({
-                connection: RuntimeConnection.forUri(`localhost:${runtimePort}`, {
-                    connectionToken: tcpConnectionToken,
-                }),
-            });
+            const toolMetadata = await session1.rpc.tools.getCurrentMetadata();
+            const toolNames = toolMetadata.tools?.map((tool) => tool.name) ?? [];
+            expect(toolNames).toContain("stable_tool");
+            expect(toolNames).not.toContain("ephemeral_tool");
 
             // Now only stable_tool should be available
             const afterResponse = await session1.sendAndWait({

@@ -201,6 +201,8 @@ public final class CopilotSession implements AutoCloseable {
 
     /** Tracks whether this session instance has been terminated via close(). */
     private volatile boolean isTerminated = false;
+    private volatile Runnable onClosed = () -> {
+    };
 
     /**
      * Creates a new session with the given ID and RPC client.
@@ -250,6 +252,10 @@ public final class CopilotSession implements AutoCloseable {
      */
     void setExecutor(Executor executor) {
         this.executor = executor;
+    }
+
+    void setOnClosed(Runnable onClosed) {
+        this.onClosed = onClosed;
     }
 
     /**
@@ -2286,9 +2292,10 @@ public final class CopilotSession implements AutoCloseable {
     /**
      * Disposes the session and releases all associated resources.
      * <p>
-     * This destroys the session on the server, clears all event handlers, and
-     * releases tool and permission handlers. After calling this method, the session
-     * cannot be used again. Subsequent calls to this method have no effect.
+     * This detaches the session from this client, clears all event handlers, and
+     * releases tool and permission handlers. Persisted session state remains
+     * resumable. After calling this method, the session cannot be used again.
+     * Subsequent calls to this method have no effect.
      */
     @Override
     public void close() {
@@ -2301,10 +2308,20 @@ public final class CopilotSession implements AutoCloseable {
 
         timeoutScheduler.shutdownNow();
 
+        RuntimeException detachFailure = null;
         try {
-            rpc.invoke("session.destroy", Map.of("sessionId", sessionId), Void.class).get(5, TimeUnit.SECONDS);
+            SessionDetachResponse response = rpc
+                    .invoke("session.detach", Map.of("sessionId", sessionId), SessionDetachResponse.class)
+                    .get(5, TimeUnit.SECONDS);
+            if (response == null || !response.success()) {
+                String detail = response != null && response.error() != null ? response.error() : "unknown error";
+                detachFailure = new IllegalStateException("Failed to detach session " + sessionId + ": " + detail);
+            }
         } catch (Exception e) {
-            LOG.log(Level.FINE, "Error destroying session", e);
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            detachFailure = new IllegalStateException("Failed to detach session " + sessionId, e);
         }
 
         eventHandlers.clear();
@@ -2316,9 +2333,18 @@ public final class CopilotSession implements AutoCloseable {
         exitPlanModeHandler.set(null);
         autoModeSwitchHandler.set(null);
         hooksHandler.set(null);
+        onClosed.run();
+
+        if (detachFailure != null) {
+            throw detachFailure;
+        }
     }
 
     // ===== Internal response types for agent API =====
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record SessionDetachResponse(@JsonProperty("success") boolean success, @JsonProperty("error") String error) {
+    }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     private record AgentListResponse(@JsonProperty("agents") List<AgentInfo> agents) {

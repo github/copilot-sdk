@@ -436,6 +436,7 @@ export class CopilotSession {
     private _capabilities: SessionCapabilities = {};
     private openCanvasInstances: OpenCanvasInstance[] = [];
     private disconnected = false;
+    private readonly onDisconnected?: (session: CopilotSession) => void;
 
     /** @internal Client session API handlers, populated by CopilotClient during create/resume. */
     clientSessionApis: ClientSessionApiHandlers = {};
@@ -615,21 +616,33 @@ export class CopilotSession {
         private connection: MessageConnection,
         private _workspacePath?: string,
         traceContextProvider?: TraceContextProvider,
-        options?: { mcpAuthHandler?: McpAuthHandler; managedSettingsEnabled?: boolean }
+        options?: {
+            mcpAuthHandler?: McpAuthHandler;
+            managedSettingsEnabled?: boolean;
+            onDisconnected?: (session: CopilotSession) => void;
+        }
     ) {
         this.traceContextProvider = traceContextProvider;
         this.mcpAuthHandler = options?.mcpAuthHandler;
         this.managedSettingsEnabled = options?.managedSettingsEnabled === true;
+        this.onDisconnected = options?.onDisconnected;
     }
 
     /**
      * Typed session-scoped RPC methods.
      */
     get rpc(): ReturnType<typeof createSessionRpc> {
+        this.ensureConnected();
         if (!this._rpc) {
             this._rpc = createSessionRpc(this.connection, this.sessionId);
         }
         return this._rpc;
+    }
+
+    private ensureConnected(): void {
+        if (this.disconnected) {
+            throw new Error(`Session ${this.sessionId} has been disconnected`);
+        }
     }
 
     /**
@@ -691,6 +704,7 @@ export class CopilotSession {
     async send(prompt: string): Promise<string>;
     async send(options: MessageOptions): Promise<string>;
     async send(optionsOrPrompt: MessageOptions | string): Promise<string> {
+        this.ensureConnected();
         const options: MessageOptions =
             typeof optionsOrPrompt === "string" ? { prompt: optionsOrPrompt } : optionsOrPrompt;
         const response = await this.connection.sendRequest("session.send", {
@@ -1937,6 +1951,7 @@ export class CopilotSession {
      * ```
      */
     async getEvents(): Promise<SessionEvent[]> {
+        this.ensureConnected();
         const response = await this.connection.sendRequest("session.getMessages", {
             sessionId: this.sessionId,
         });
@@ -1969,10 +1984,19 @@ export class CopilotSession {
         if (this.disconnected) {
             return;
         }
-        await this.connection.sendRequest("session.destroy", {
-            sessionId: this.sessionId,
-        });
+        let response: { success: boolean; error?: string } = { success: false };
+        for (let attempt = 0; attempt < 2 && !response.success; attempt++) {
+            response = (await this.connection.sendRequest("session.detach", {
+                sessionId: this.sessionId,
+            })) as { success: boolean; error?: string };
+        }
+        if (!response.success) {
+            throw new Error(
+                `Failed to disconnect session ${this.sessionId}: ${response.error || "Unknown error"}`
+            );
+        }
         this._markDisconnected();
+        this.onDisconnected?.(this);
     }
 
     /** Enables `await using session = ...` syntax for automatic cleanup. */
@@ -2001,6 +2025,7 @@ export class CopilotSession {
      * ```
      */
     async abort(): Promise<void> {
+        this.ensureConnected();
         await this.connection.sendRequest("session.abort", {
             sessionId: this.sessionId,
         });

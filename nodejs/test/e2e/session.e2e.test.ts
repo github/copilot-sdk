@@ -112,7 +112,7 @@ describe("Sessions", () => {
         ]);
 
         await session.disconnect();
-        await expect(() => session.getEvents()).rejects.toThrow(/Session not found/);
+        await expect(() => session.getEvents()).rejects.toThrow(/has been disconnected/);
     });
 
     // TODO: Re-enable once test harness CAPI proxy supports this test's session lifecycle
@@ -334,7 +334,7 @@ describe("Sessions", () => {
         // All can be disconnected
         await Promise.all([s1.disconnect(), s2.disconnect(), s3.disconnect()]);
         for (const s of [s1, s2, s3]) {
-            await expect(() => s.getEvents()).rejects.toThrow(/Session not found/);
+            await expect(() => s.getEvents()).rejects.toThrow(/has been disconnected/);
         }
     });
 

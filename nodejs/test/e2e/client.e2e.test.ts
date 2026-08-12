@@ -107,7 +107,7 @@ describe("Client", () => {
                 expect(errors[0].message).toContain("Failed to disconnect session");
             }
         },
-        // Generous timeout: client.stop() must wait for session.destroy to time out
+        // Generous timeout: client.stop() must wait for session.detach to time out
         // when the server process is dead. The default 30s can flake on slow CI under load.
         60_000
     );

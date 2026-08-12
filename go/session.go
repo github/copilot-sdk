@@ -95,8 +95,11 @@ type Session struct {
 
 	// eventCh serializes user event handler dispatch. dispatchEvent enqueues;
 	// a single goroutine (processEvents) dequeues and invokes handlers in FIFO order.
-	eventCh   chan SessionEvent
-	closeOnce sync.Once // guards eventCh close so Disconnect is safe to call more than once
+	eventCh        chan SessionEvent
+	closeOnce      sync.Once // guards eventCh close so Disconnect is safe to call more than once
+	disconnectMu   sync.Mutex
+	disconnected   bool
+	onDisconnected func()
 
 	// RPC provides typed session-scoped RPC methods.
 	RPC *rpc.SessionRPC
@@ -1716,11 +1719,28 @@ func (s *Session) GetEvents(ctx context.Context) ([]SessionEvent, error) {
 //	    log.Printf("Failed to disconnect session: %v", err)
 //	}
 func (s *Session) Disconnect() error {
-	_, err := s.client.Request(context.Background(), "session.destroy", sessionDestroyRequest{SessionID: s.SessionID})
+	s.disconnectMu.Lock()
+	defer s.disconnectMu.Unlock()
+	if s.disconnected {
+		return nil
+	}
+
+	result, err := s.client.Request(context.Background(), "session.detach", sessionDetachRequest{SessionID: s.SessionID})
 	if err != nil {
 		return fmt.Errorf("failed to disconnect session: %w", err)
 	}
+	var response sessionDetachResponse
+	if err := json.Unmarshal(result, &response); err != nil {
+		return fmt.Errorf("failed to decode session detach response: %w", err)
+	}
+	if !response.Success {
+		if response.Error == "" {
+			response.Error = "unknown error"
+		}
+		return fmt.Errorf("failed to disconnect session: %s", response.Error)
+	}
 
+	s.disconnected = true
 	s.closeOnce.Do(func() { close(s.eventCh) })
 
 	// Clear handlers
@@ -1744,6 +1764,9 @@ func (s *Session) Disconnect() error {
 	s.elicitationHandler = nil
 	s.elicitationMu.Unlock()
 
+	if s.onDisconnected != nil {
+		s.onDisconnected()
+	}
 	return nil
 }
 

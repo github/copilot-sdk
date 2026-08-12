@@ -925,6 +925,13 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 			"",
 			hasManagedSettings(config.EnableManagedSettings, config.ManagedSettings),
 		)
+		s.onDisconnected = func() {
+			c.sessionsMux.Lock()
+			defer c.sessionsMux.Unlock()
+			if c.sessions[sessionID] == s {
+				delete(c.sessions, sessionID)
+			}
+		}
 
 		s.registerTools(config.Tools)
 		s.registerPermissionHandler(config.OnPermissionRequest)
@@ -1260,6 +1267,13 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 		"",
 		hasManagedSettings(config.EnableManagedSettings, config.ManagedSettings),
 	)
+	session.onDisconnected = func() {
+		c.sessionsMux.Lock()
+		defer c.sessionsMux.Unlock()
+		if c.sessions[sessionID] == session {
+			delete(c.sessions, sessionID)
+		}
+	}
 
 	session.registerTools(config.Tools)
 	session.registerPermissionHandler(config.OnPermissionRequest)

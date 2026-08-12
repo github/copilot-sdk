@@ -1920,8 +1920,12 @@ public sealed partial class CopilotSession : IAsyncDisposable
 
         try
         {
-            await InvokeRpcAsync<object>(
-                "session.destroy", [new SessionDestroyRequest() { SessionId = SessionId }], CancellationToken.None);
+            var response = await InvokeRpcAsync<SessionDetachResponse>(
+                "session.detach", [new SessionDetachRequest() { SessionId = SessionId }], CancellationToken.None);
+            if (!response.Success)
+            {
+                LogSessionDetachFailed(SessionId, response.Error ?? "unknown error");
+            }
         }
         catch (ObjectDisposedException)
         {
@@ -1934,18 +1938,17 @@ public sealed partial class CopilotSession : IAsyncDisposable
         finally
         {
             RemoveFromClient();
+            _eventHandlers = ImmutableInterlocked.InterlockedExchange(ref _eventHandlers, ImmutableArray<EventSubscription>.Empty);
+            _toolHandlers.Clear();
+            _commandHandlers.Clear();
+
+            _permissionHandler = null;
+            _userInputHandler = null;
+            _elicitationHandler = null;
+            _exitPlanModeHandler = null;
+            _autoModeSwitchHandler = null;
             GC.SuppressFinalize(this);
         }
-
-        _eventHandlers = ImmutableInterlocked.InterlockedExchange(ref _eventHandlers, ImmutableArray<EventSubscription>.Empty);
-        _toolHandlers.Clear();
-        _commandHandlers.Clear();
-
-        _permissionHandler = null;
-        _userInputHandler = null;
-        _elicitationHandler = null;
-        _exitPlanModeHandler = null;
-        _autoModeSwitchHandler = null;
     }
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Unhandled exception in broadcast event handler")]
@@ -1956,6 +1959,9 @@ public sealed partial class CopilotSession : IAsyncDisposable
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "Failed to fetch tool metadata for {toolName}")]
     private partial void LogToolMetadataFetchFailed(Exception exception, string toolName);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Failed to detach session {sessionId}: {error}")]
+    private partial void LogSessionDetachFailed(string sessionId, string error);
 
     internal record SendMessageRequest
     {
@@ -1991,9 +1997,15 @@ public sealed partial class CopilotSession : IAsyncDisposable
         public string SessionId { get; init; } = string.Empty;
     }
 
-    internal record SessionDestroyRequest
+    internal record SessionDetachRequest
     {
         public string SessionId { get; init; } = string.Empty;
+    }
+
+    internal record SessionDetachResponse
+    {
+        public bool Success { get; init; }
+        public string? Error { get; init; }
     }
 
     internal void ThrowIfDisposed()
@@ -2028,7 +2040,8 @@ public sealed partial class CopilotSession : IAsyncDisposable
     [JsonSerializable(typeof(SendMessageRequest))]
     [JsonSerializable(typeof(SendMessageResponse))]
     [JsonSerializable(typeof(SessionAbortRequest))]
-    [JsonSerializable(typeof(SessionDestroyRequest))]
+    [JsonSerializable(typeof(SessionDetachRequest))]
+    [JsonSerializable(typeof(SessionDetachResponse))]
     [JsonSerializable(typeof(SessionEndHookInput))]
     [JsonSerializable(typeof(SessionEndHookOutput))]
     [JsonSerializable(typeof(SessionStartHookInput))]

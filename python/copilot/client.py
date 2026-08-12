@@ -2653,6 +2653,7 @@ class CopilotClient:
                 workspace_path=None,
                 managed_settings_enabled=enable_managed_settings is True
                 or managed_settings is not None,
+                on_disconnected=self._unregister_session,
             )
             if self._session_fs_config:
                 if create_session_fs_handler is None:
@@ -3329,6 +3330,7 @@ class CopilotClient:
             workspace_path=None,
             managed_settings_enabled=enable_managed_settings is True
             or managed_settings is not None,
+            on_disconnected=self._unregister_session,
         )
         if self._session_fs_config:
             if create_session_fs_handler is None:
@@ -4565,6 +4567,11 @@ class CopilotClient:
     def _get_session(self, session_id: str) -> CopilotSession | None:
         with self._sessions_lock:
             return self._sessions.get(session_id)
+
+    def _unregister_session(self, session: CopilotSession) -> None:
+        with self._sessions_lock:
+            if self._sessions.get(session.session_id) is session:
+                del self._sessions[session.session_id]
 
     async def _set_llm_inference_provider(self) -> None:
         if self._request_handler is None or self._rpc is None:
