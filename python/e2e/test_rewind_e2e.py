@@ -29,9 +29,7 @@ def _same_path(left: str | Path, right: str | Path) -> bool:
 
 
 class TestRewind:
-    async def test_should_restore_tracked_file_and_conversation(
-        self, ctx: E2ETestContext
-    ):
+    async def test_should_restore_tracked_file_and_conversation(self, ctx: E2ETestContext):
         file_path = Path(ctx.work_dir) / FILE_NAME
         session = await ctx.client.create_session(
             model="claude-sonnet-4.5",

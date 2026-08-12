@@ -58,13 +58,14 @@ class RewindIT {
         Path filePath = ctx.getWorkDir().resolve(FILE_NAME);
 
         try (CopilotClient client = ctx.createClient();
-                CopilotSession session = client.createSession(new SessionConfig().setModel("claude-sonnet-4.5")
-                        .setEnableFileChangeTracking(true).setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
+                CopilotSession session = client
+                        .createSession(
+                                new SessionConfig().setModel("claude-sonnet-4.5").setEnableFileChangeTracking(true)
+                                        .setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
                         .get(30, TimeUnit.SECONDS)) {
             AssistantMessageEvent response = session
-                    .sendAndWait(new MessageOptions()
-                            .setPrompt("Use the create tool to create " + FILE_NAME + " containing exactly "
-                                    + FILE_CONTENT
+                    .sendAndWait(new MessageOptions().setPrompt(
+                            "Use the create tool to create " + FILE_NAME + " containing exactly " + FILE_CONTENT
                                     + ". After the tool succeeds, reply with exactly SDK_REWIND_DONE."),
                             30_000)
                     .get(60, TimeUnit.SECONDS);

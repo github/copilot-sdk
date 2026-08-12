@@ -81,11 +81,7 @@ async fn should_restore_tracked_file_and_conversation() {
                 assert!(!file_path.exists());
 
                 let events = session.get_events().await.expect("get events after rewind");
-                assert!(
-                    events
-                        .iter()
-                        .all(|event| event.id != rewind_point.event_id)
-                );
+                assert!(events.iter().all(|event| event.id != rewind_point.event_id));
 
                 session.disconnect().await.expect("disconnect session");
                 client.stop().await.expect("stop client");
@@ -127,5 +123,4 @@ fn assert_same_path(expected: &Path, actual: &Path) {
     }
 }
 
-static E2E: super::support::SharedE2eGroup =
-    super::support::SharedE2eGroup::standard("rewind", 1);
+static E2E: super::support::SharedE2eGroup = super::support::SharedE2eGroup::standard("rewind", 1);
