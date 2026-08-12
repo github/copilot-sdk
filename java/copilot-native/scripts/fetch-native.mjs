@@ -51,18 +51,37 @@ if (!integrity.startsWith('sha512-')) {
 const outDir = path.join(stagingDir, classifier);
 const resourceDir = path.join(outDir, 'native', classifier);
 const runtimePath = path.join(resourceDir, 'runtime.node');
+const isWindows = classifier.startsWith('win32');
+const cliTarballMember = isWindows ? 'package/copilot.exe' : 'package/copilot';
+const cliFilename = isWindows ? 'copilot.exe' : 'copilot';
+const cliPath = path.join(resourceDir, cliFilename);
+const platformPropertiesPath = path.join(resourceDir, 'platform.properties');
+const expectedPlatformProperties = `classifier=${classifier}\nversion=${version}\n`;
 const stampPath = path.join(outDir, '.version');
 
-// Idempotence: skip the download when the staged binary already matches.
-// The stamp stores version + integrity + binary digest to ensure a corrupted
-// binary or lockfile integrity change is detected.
-if (fs.existsSync(runtimePath) && fs.existsSync(stampPath)) {
+// Idempotence: skip the download only when every required staged artifact
+// matches the package identity recorded in the stamp.
+if (
+  fs.existsSync(runtimePath) &&
+  fs.existsSync(cliPath) &&
+  fs.existsSync(platformPropertiesPath) &&
+  fs.existsSync(stampPath)
+) {
   const stampLines = fs.readFileSync(stampPath, 'utf8').trim().split('\n');
   const stampVersion = stampLines[0] || '';
   const stampIntegrity = stampLines[1] || '';
-  const stampBinaryDigest = stampLines[2] || '';
-  const currentBinaryDigest = `sha512-${createHash('sha512').update(fs.readFileSync(runtimePath)).digest('base64')}`;
-  if (stampVersion === version && stampIntegrity === integrity && stampBinaryDigest === currentBinaryDigest) {
+  const stampRuntimeDigest = stampLines[2] || '';
+  const stampCliDigest = stampLines[3] || '';
+  const currentRuntimeDigest = digestFile(runtimePath);
+  const currentCliDigest = digestFile(cliPath);
+  const currentPlatformProperties = fs.readFileSync(platformPropertiesPath, 'utf8');
+  if (
+    stampVersion === version &&
+    stampIntegrity === integrity &&
+    stampRuntimeDigest === currentRuntimeDigest &&
+    stampCliDigest === currentCliDigest &&
+    currentPlatformProperties === expectedPlatformProperties
+  ) {
     console.log(`${packageName}@${version} already staged at ${runtimePath}`);
     process.exit(0);
   }
@@ -94,10 +113,6 @@ fs.renameSync(path.join(outDir, memberPath), runtimePath);
 
 // Extract the copilot CLI executable (necessary-and-sufficient runtime artifact invariant:
 // host_start needs both runtime.node and the copilot CLI from the same package version).
-const isWindows = classifier.startsWith('win32');
-const cliTarballMember = isWindows ? 'package/copilot.exe' : 'package/copilot';
-const cliFilename = isWindows ? 'copilot.exe' : 'copilot';
-const cliPath = path.join(resourceDir, cliFilename);
 execFileSync('tar', ['-xzf', tarballPath, '-C', outDir, cliTarballMember], { stdio: 'inherit' });
 fs.renameSync(path.join(outDir, cliTarballMember), cliPath);
 if (!isWindows) {
@@ -107,8 +122,13 @@ if (!isWindows) {
 fs.rmSync(path.join(outDir, 'package'), { recursive: true, force: true });
 fs.rmSync(tarballPath, { force: true });
 
-fs.writeFileSync(path.join(resourceDir, 'platform.properties'), `classifier=${classifier}\nversion=${version}\n`);
-const binaryDigest = `sha512-${createHash('sha512').update(fs.readFileSync(runtimePath)).digest('base64')}`;
-fs.writeFileSync(stampPath, `${version}\n${integrity}\n${binaryDigest}\n`);
+fs.writeFileSync(platformPropertiesPath, expectedPlatformProperties);
+const runtimeDigest = digestFile(runtimePath);
+const cliDigest = digestFile(cliPath);
+fs.writeFileSync(stampPath, `${version}\n${integrity}\n${runtimeDigest}\n${cliDigest}\n`);
 
 console.log(`Staged ${runtimePath}`);
+
+function digestFile(filePath) {
+  return `sha512-${createHash('sha512').update(fs.readFileSync(filePath)).digest('base64')}`;
+}
