@@ -18,7 +18,7 @@ public class RewindE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     [Fact]
     public async Task Should_Restore_Tracked_File_And_Conversation()
     {
-        var filePath = Path.Combine(Ctx.WorkDir, FileName);
+        var filePath = Path.Join(Ctx.WorkDir, FileName);
         await using var session = await CreateSessionAsync(new SessionConfig
         {
             Model = "claude-sonnet-4.5",
