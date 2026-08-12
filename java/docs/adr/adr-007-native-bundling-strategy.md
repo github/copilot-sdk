@@ -201,7 +201,7 @@ The selected connection is strict:
 When the in-process connection is selected, the Java loader resolves `runtime.node` in this order:
 
 1. `COPILOT_CLI_PATH`: accept either a flat sibling `runtime.node` or the npm `prebuilds/<classifier>/runtime.node` layout.
-1. Classpath resource: extract `native/<classifier>/runtime.node` and the bundled CLI from the classifier or monolithic JAR into the versioned runtime cache.
+1. Classpath resource: extract `native/<classifier>/runtime.node` and the bundled CLI from the classifier or monolithic JAR into a cache keyed by SDK version, native package version, and classifier.
 1. PATH compatibility fallback: find `copilot` on `PATH` and accept a flat sibling `runtime.node`.
 
 If none succeeds, startup fails. The PATH fallback does not claim to support every npm or Homebrew installation layout.
@@ -275,7 +275,7 @@ native/win32-arm64/copilot.exe
 
 #### The coordination artifact selects at runtime through the classloader
 
-`NativeRuntimeLoader` detects the current classifier and requests `native/<classifier>/runtime.node` and `native/<classifier>/copilot` from the classloader. It writes each artifact to a unique sibling temporary file, forces the file contents to storage, and atomically publishes the completed file into `~/.copilot/runtime-cache/<version>/<classifier>/`.
+`NativeRuntimeLoader` detects the current classifier and requests `native/<classifier>/runtime.node`, `native/<classifier>/platform.properties`, and `native/<classifier>/copilot` from the classloader. It uses the native package version from `platform.properties` as part of the cache identity, writes each executable artifact to a unique sibling temporary file, forces the file contents to storage, and atomically publishes the completed file into `~/.copilot/runtime-cache/<sdk-version>/<native-version>/<classifier>/`.
 
 On non-Windows platforms, the loader makes the temporary CLI executable and verifies its executable status before atomic publication. A nonempty but non-executable cached CLI is repaired instead of being accepted as valid.
 
@@ -343,7 +343,7 @@ With all classifier JARs declared as dependencies:
 | Concern                      | How it's handled                                                                                                                   |
 | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | No resource path collisions  | Each platform has its own subdirectory (`native/<classifier>/`)                                                                    |
-| Extraction only happens once | Cached to `~/.copilot/runtime-cache/<version>/<classifier>/`                                                                       |
+| Extraction only happens once | Cached to `~/.copilot/runtime-cache/<sdk-version>/<native-version>/<classifier>/`                                                   |
 | Works without uber-JAR too   | The classloader finds the same resource in a separate classifier JAR                                                               |
 | Subset selection             | Consumer declares only the classifiers they need; missing platforms get a clear error at runtime                                   |
 | JNA loading                  | `Native.load(path, interface)` loads from an absolute filesystem path after extraction                                             |

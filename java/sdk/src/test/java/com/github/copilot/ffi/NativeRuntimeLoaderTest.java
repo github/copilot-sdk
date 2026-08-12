@@ -37,9 +37,11 @@ class NativeRuntimeLoaderTest {
     private static final String TEST_CLASSIFIER = "linux-x64";
     private static final String OTHER_CLASSIFIER = "darwin-arm64";
     private static final String TEST_VERSION = "1.2.3-test";
+    private static final String TEST_NATIVE_VERSION = "0.0.1-test";
     private static final byte[] FAKE_BINARY_CONTENT = "fake runtime.node binary content".getBytes();
     private static final byte[] FAKE_CLI_CONTENT = "fake copilot CLI content".getBytes();
     private static final byte[] OTHER_BINARY_CONTENT = "other runtime.node binary content".getBytes();
+    private static final byte[] OTHER_CLI_CONTENT = "other copilot CLI content".getBytes();
 
     // -------------------------------------------------------------------------
     // Version properties resource reading
@@ -196,7 +198,7 @@ class NativeRuntimeLoaderTest {
 
         Path result = NativeRuntimeLoader.extractToCache(cacheBase, loader, TEST_CLASSIFIER, TEST_VERSION);
 
-        Path expected = cacheBase.resolve(TEST_VERSION).resolve(TEST_CLASSIFIER)
+        Path expected = cacheBase.resolve(TEST_VERSION).resolve(TEST_NATIVE_VERSION).resolve(TEST_CLASSIFIER)
                 .resolve(NativeRuntimeLoader.RUNTIME_FILENAME);
         assertEquals(expected, result);
         assertTrue(Files.isRegularFile(result));
@@ -223,12 +225,45 @@ class NativeRuntimeLoaderTest {
     }
 
     @Test
+    void changedNativeVersionDoesNotReuseCachedArtifactsForSameSdkVersion(@TempDir Path tempDir) throws Exception {
+        Path cacheBase = tempDir.resolve("cache");
+        ClassLoader firstLoader = classLoaderWithNativeArtifacts(tempDir.resolve("native-v1"), TEST_CLASSIFIER, "1.0.0",
+                FAKE_BINARY_CONTENT, FAKE_CLI_CONTENT);
+        ClassLoader secondLoader = classLoaderWithNativeArtifacts(tempDir.resolve("native-v2"), TEST_CLASSIFIER,
+                "1.1.0", OTHER_BINARY_CONTENT, OTHER_CLI_CONTENT);
+
+        Path firstRuntime = NativeRuntimeLoader.extractToCache(cacheBase, firstLoader, TEST_CLASSIFIER, TEST_VERSION);
+        Path secondRuntime = NativeRuntimeLoader.extractToCache(cacheBase, secondLoader, TEST_CLASSIFIER, TEST_VERSION);
+
+        assertNotEquals(firstRuntime, secondRuntime, "Different native versions must use different cache entries");
+        assertBytesEqual(FAKE_BINARY_CONTENT, Files.readAllBytes(firstRuntime));
+        assertBytesEqual(FAKE_CLI_CONTENT,
+                Files.readAllBytes(firstRuntime.getParent().resolve(NativeRuntimeLoader.CLI_FILENAME)));
+        assertBytesEqual(OTHER_BINARY_CONTENT, Files.readAllBytes(secondRuntime));
+        assertBytesEqual(OTHER_CLI_CONTENT,
+                Files.readAllBytes(secondRuntime.getParent().resolve(NativeRuntimeLoader.CLI_FILENAME)));
+    }
+
+    @Test
     void extractToCacheThrowsWhenClasspathResourceMissing(@TempDir Path tempDir) {
         Path cacheBase = tempDir.resolve("cache");
         ClassLoader emptyLoader = new URLClassLoader(new URL[0], null);
 
         assertThrows(IOException.class,
                 () -> NativeRuntimeLoader.extractToCache(cacheBase, emptyLoader, TEST_CLASSIFIER, TEST_VERSION));
+    }
+
+    @Test
+    void extractToCacheThrowsWhenNativeMetadataMissing(@TempDir Path tempDir) throws Exception {
+        Path resourceDir = tempDir.resolve("native").resolve(TEST_CLASSIFIER);
+        Files.createDirectories(resourceDir);
+        Files.write(resourceDir.resolve(NativeRuntimeLoader.RUNTIME_FILENAME), FAKE_BINARY_CONTENT);
+        ClassLoader loader = new URLClassLoader(new URL[]{tempDir.toUri().toURL()}, null);
+
+        IOException ex = assertThrows(IOException.class, () -> NativeRuntimeLoader
+                .extractToCache(tempDir.resolve("cache"), loader, TEST_CLASSIFIER, TEST_VERSION));
+
+        assertTrue(ex.getMessage().contains("platform.properties"));
     }
 
     @Test
@@ -258,7 +293,7 @@ class NativeRuntimeLoaderTest {
     @Test
     void extractToCacheRepairsInvalidCacheEntry(@TempDir Path tempDir) throws Exception {
         Path cacheBase = tempDir.resolve("cache");
-        Path cached = cacheBase.resolve(TEST_VERSION).resolve(TEST_CLASSIFIER)
+        Path cached = cacheBase.resolve(TEST_VERSION).resolve(TEST_NATIVE_VERSION).resolve(TEST_CLASSIFIER)
                 .resolve(NativeRuntimeLoader.RUNTIME_FILENAME);
         Files.createDirectories(cached.getParent());
         Files.createFile(cached);
@@ -274,7 +309,7 @@ class NativeRuntimeLoaderTest {
     void nonExecutableCachedCliIsNotAcceptedAsValid(@TempDir Path tempDir) throws Exception {
         assumeTrue(Files.getFileStore(tempDir).supportsFileAttributeView("posix"));
         Path cacheBase = tempDir.resolve("cache");
-        Path cacheDir = cacheBase.resolve(TEST_VERSION).resolve(TEST_CLASSIFIER);
+        Path cacheDir = cacheBase.resolve(TEST_VERSION).resolve(TEST_NATIVE_VERSION).resolve(TEST_CLASSIFIER);
         Files.createDirectories(cacheDir);
         Files.write(cacheDir.resolve(NativeRuntimeLoader.RUNTIME_FILENAME), FAKE_BINARY_CONTENT);
         Path cachedCli = Files.write(cacheDir.resolve(NativeRuntimeLoader.CLI_FILENAME), FAKE_CLI_CONTENT);
@@ -321,8 +356,8 @@ class NativeRuntimeLoaderTest {
         Path result = NativeRuntimeLoader.resolve(null, cacheBase, loader, TEST_CLASSIFIER, TEST_VERSION,
                 bundledCliDir);
 
-        Path expectedFromClasspath = cacheBase.resolve(TEST_VERSION).resolve(TEST_CLASSIFIER)
-                .resolve(NativeRuntimeLoader.RUNTIME_FILENAME);
+        Path expectedFromClasspath = cacheBase.resolve(TEST_VERSION).resolve(TEST_NATIVE_VERSION)
+                .resolve(TEST_CLASSIFIER).resolve(NativeRuntimeLoader.RUNTIME_FILENAME);
         assertEquals(expectedFromClasspath, result,
                 "Source 2 (classpath) must win over source 3 (bundled-CLI sibling)");
         assertNotEquals(bundledCliDir.resolve(NativeRuntimeLoader.RUNTIME_FILENAME), result);
@@ -441,7 +476,7 @@ class NativeRuntimeLoaderTest {
         pool.shutdown();
         assertTrue(pool.awaitTermination(10, TimeUnit.SECONDS));
 
-        Path expected = cacheBase.resolve(TEST_VERSION).resolve(TEST_CLASSIFIER)
+        Path expected = cacheBase.resolve(TEST_VERSION).resolve(TEST_NATIVE_VERSION).resolve(TEST_CLASSIFIER)
                 .resolve(NativeRuntimeLoader.RUNTIME_FILENAME);
         for (Future<Path> future : futures) {
             Path result = future.get();
@@ -518,10 +553,22 @@ class NativeRuntimeLoaderTest {
         return new URLClassLoader(new URL[]{tempDir.toUri().toURL()}, null);
     }
 
+    private static ClassLoader classLoaderWithNativeArtifacts(Path tempDir, String classifier, String nativeVersion,
+            byte[] runtimeContent, byte[] cliContent) throws IOException {
+        writeRuntimeResource(tempDir, classifier, runtimeContent);
+        Path resourceDir = tempDir.resolve("native").resolve(classifier);
+        Files.write(resourceDir.resolve(NativeRuntimeLoader.CLI_FILENAME), cliContent);
+        Files.writeString(resourceDir.resolve("platform.properties"),
+                "classifier=" + classifier + "\nversion=" + nativeVersion + "\n");
+        return new URLClassLoader(new URL[]{tempDir.toUri().toURL()}, null);
+    }
+
     private static void writeRuntimeResource(Path tempDir, String classifier, byte[] content) throws IOException {
         Path resourceDir = tempDir.resolve("native").resolve(classifier);
         Files.createDirectories(resourceDir);
         Files.write(resourceDir.resolve(NativeRuntimeLoader.RUNTIME_FILENAME), content);
+        Files.writeString(resourceDir.resolve("platform.properties"),
+                "classifier=" + classifier + "\nversion=" + TEST_NATIVE_VERSION + "\n");
     }
 
     private static void assertBytesEqual(byte[] expected, byte[] actual) {

@@ -30,7 +30,7 @@ import java.util.Properties;
  * work.</li>
  * <li><strong>Classpath resource</strong>
  * {@code native/<classifier>/runtime.node} — extracted atomically to
- * {@code ~/.copilot/runtime-cache/<version>/<classifier>/runtime.node}.</li>
+ * {@code ~/.copilot/runtime-cache/<sdk-version>/<native-version>/<classifier>/runtime.node}.</li>
  * <li><strong>PATH compatibility fallback</strong> — finds {@code copilot} on
  * {@code PATH} and accepts only a flat sibling {@code runtime.node}. This
  * fallback does not support normal npm or Homebrew installation layouts.</li>
@@ -41,6 +41,7 @@ public final class NativeRuntimeLoader {
     static final String RUNTIME_FILENAME = "runtime.node";
     static final String CLI_FILENAME = "copilot";
     static final String CLI_FILENAME_WINDOWS = "copilot.exe";
+    static final String PLATFORM_PROPERTIES_FILENAME = "platform.properties";
     /** Environment variable that overrides where the runtime is loaded from. */
     public static final String COPILOT_CLI_PATH_ENV = "COPILOT_CLI_PATH";
     static final String VERSION_RESOURCE = "copilot-runtime.properties";
@@ -188,6 +189,25 @@ public final class NativeRuntimeLoader {
         return version;
     }
 
+    private static String readNativePackageVersion(ClassLoader loader, String classifier) throws IOException {
+        String resourcePath = "native/" + classifier + "/" + PLATFORM_PROPERTIES_FILENAME;
+        URL resource = loader.getResource(resourcePath);
+        if (resource == null) {
+            throw new FileNotFoundException("Native runtime metadata not found on classpath: " + resourcePath
+                    + " — add the matching classifier JAR to the classpath");
+        }
+
+        Properties props = new Properties();
+        try (InputStream in = resource.openStream()) {
+            props.load(in);
+        }
+        String version = props.getProperty("version");
+        if (version == null || version.isBlank()) {
+            throw new IllegalStateException("Blank or missing 'version' property in " + resourcePath);
+        }
+        return version;
+    }
+
     /**
      * Resolves the runtime binary path using the given parameters. Package-private
      * to allow injection of test doubles in unit tests.
@@ -261,7 +281,7 @@ public final class NativeRuntimeLoader {
      * @param classifier
      *            platform classifier (e.g. {@code linux-x64})
      * @param version
-     *            SDK version used as the cache key
+     *            SDK version used as part of the cache key
      * @return path to the extracted {@code runtime.node} binary
      * @throws IOException
      *             if I/O or the atomic rename fails
@@ -285,7 +305,7 @@ public final class NativeRuntimeLoader {
      * @param classifier
      *            platform classifier
      * @param version
-     *            SDK version used as the cache key
+     *            SDK version used as part of the cache key
      * @param publisher
      *            atomic publish implementation
      * @return path to the extracted {@code runtime.node} binary
@@ -297,7 +317,8 @@ public final class NativeRuntimeLoader {
     static Path extractToCache(Path cacheBase, ClassLoader loader, String classifier, String version,
             AtomicPublisher publisher) throws IOException {
         String resourcePath = "native/" + classifier + "/" + RUNTIME_FILENAME;
-        Path cacheDir = cacheBase.resolve(version).resolve(classifier);
+        String nativeVersion = readNativePackageVersion(loader, classifier);
+        Path cacheDir = cacheBase.resolve(version).resolve(nativeVersion).resolve(classifier);
         Path cached = cacheDir.resolve(RUNTIME_FILENAME);
 
         // Step 1 — fast path: return an existing valid cache entry.
