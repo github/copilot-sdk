@@ -1726,9 +1726,13 @@ impl PreparedSession {
     /// ephemeral events such as `session.idle` that
     /// [`Session::get_messages`] cannot recover.
     ///
-    /// May be called any number of times; every subscriber receives every
-    /// event. Subscriptions taken here close if the prepared session is
-    /// dropped without starting, or if startup fails.
+    /// May be called any number of times, and each subscriber receives its
+    /// own copy of the stream — subject to the buffering contract above. A
+    /// subscriber that falls further behind than the configured capacity
+    /// observes [`Lagged`](crate::subscription::Lagged) and skips the
+    /// events it missed, rather than stalling the session's event loop.
+    /// Subscriptions taken here close if the prepared session is dropped
+    /// without starting, or if startup fails.
     pub fn subscribe(&self) -> crate::subscription::EventSubscription {
         crate::subscription::EventSubscription::new(self.event_tx.subscribe())
     }

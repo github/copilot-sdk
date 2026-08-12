@@ -62,7 +62,7 @@ The guarantee is scoped to *routed* events. For cloud sessions where the server 
 
 `prepare_*` is synchronous and inert: it validates the buffer capacity and allocates a local channel, and performs no router registration, task spawn, or wire activity until `start()` is first polled. `start(self)` consumes the handle and `PreparedSession` is not `Clone`, so a prepared session can never produce two event loops. Dropping an unstarted handle leaves no state behind; dropping a polled `start()` future cancels the startup and unregisters the session, so a retry with the same session ID succeeds. Session registrations now carry an ownership identity, so cleanup removes only the exact registration it owns and an abandoned startup can never evict a same-ID retry (or a session that replaced it).
 
-Both `SessionConfig` and `ResumeSessionConfig` gained a runtime-only `event_buffer_capacity` option (default 512, `Some(0)` rejected as an invalid config). The buffer is finite, so slow subscribers observe `Lagged` rather than applying backpressure; consumers that need a lossless view of a large startup burst should size the buffer accordingly or drain concurrently with `start()`.
+Both `SessionConfig` and `ResumeSessionConfig` gained a runtime-only `event_buffer_capacity` option (default 512, `Some(0)` rejected as an invalid config). The buffer is finite, so slow subscribers observe `Lagged` rather than applying backpressure; consumers that need a lossless view of a large startup burst must size the buffer accordingly or drain concurrently with `start()`.
 
 `create_session` and `resume_session` are unchanged wrappers over `prepare_*(...)?.start()` with identical RPC sequences and error kinds.
 

@@ -255,7 +255,7 @@ Startup buffering is worth planning for:
 
 * The event buffer is finite—512 events unless `event_buffer_capacity` overrides it. A capacity of `0` is rejected with an invalid-config error rather than clamped.
 * Slow subscribers observe a `Lagged` error reporting how many events were skipped. They never apply backpressure to the session's event loop.
-* Consumers that need a lossless view of a large startup burst should either configure a capacity that covers it or drain the subscription concurrently with `start()`.
+* Consumers that need a lossless view of a large startup burst must either configure a capacity that covers it or drain the subscription concurrently with `start()`.
 
 > [!NOTE]
 > For cloud sessions where the server assigns the session ID, the SDK cannot route notifications until the create response arrives and the ID is known. Events emitted before that point are not routable to any session. The guarantee is narrower: routed events are never dropped for lack of an installed receiver. Pin `session_id` on the config to get routing—and full pre-response coverage—from the first byte.
