@@ -2211,6 +2211,15 @@ impl Client {
 
     #[cfg(feature = "test-support")]
     #[doc(hidden)]
+    /// Snapshot the session IDs currently registered on this client's
+    /// notification router. This is test-harness plumbing, not part of the
+    /// supported SDK API.
+    pub fn registered_session_ids_for_test(&self) -> Vec<SessionId> {
+        self.inner.router.session_ids()
+    }
+
+    #[cfg(feature = "test-support")]
+    #[doc(hidden)]
     /// Disconnect and delete every session owned by this test client's isolated
     /// runtime. This is test-harness plumbing, not part of the supported SDK API.
     pub async fn cleanup_sessions_for_test(&self) -> Result<()> {
