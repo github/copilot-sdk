@@ -46,7 +46,7 @@ const token = process.env.GITHUB_TOKEN;
 
 ### Feature: early session-event subscription (Rust)
 
-The Rust SDK can now observe a session's events from its very first event. `Client::prepare_session` and `Client::prepare_resume_session` return an inert `PreparedSession` that owns the session's event channel, so a subscription can be installed *before* any protocol activity begins:
+The Rust SDK can now observe every event routed to a session, starting with that session's very first routed event. `Client::prepare_session` and `Client::prepare_resume_session` return an inert `PreparedSession` that owns the session's event channel, so a subscription can be installed *before* any protocol activity begins:
 
 ```rust
 let prepared = client.prepare_session(
@@ -57,6 +57,8 @@ let session = prepared.start().await?;
 ```
 
 Previously, `Session::subscribe` could only be called on the returned session, so events the runtime emitted while `session.create` / `session.resume` was still in flight were broadcast with no receiver installed and dropped. Ephemeral events such as `session.idle` are not persisted, so they could not be recovered with `getMessages` either.
+
+The guarantee is scoped to *routed* events. For cloud sessions where the server assigns the session ID, the SDK cannot route notifications until the `session.create` response arrives and the ID is known, so events emitted before that point are not routable to any session. Pin `session_id` on the config to get router registration before the RPC, and with it complete pre-response coverage.
 
 `prepare_*` is synchronous and inert: it validates the buffer capacity and allocates a local channel, and performs no router registration, task spawn, or wire activity until `start()` is first polled. `start(self)` consumes the handle and `PreparedSession` is not `Clone`, so a prepared session can never produce two event loops. Dropping an unstarted handle leaves no state behind; dropping a polled `start()` future cancels the startup and unregisters the session, so a retry with the same session ID succeeds. Session registrations now carry an ownership identity, so cleanup removes only the exact registration it owns and an abandoned startup can never evict a same-ID retry (or a session that replaced it).
 
