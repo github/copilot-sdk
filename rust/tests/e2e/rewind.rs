@@ -117,7 +117,12 @@ fn assert_same_path(expected: &Path, actual: &Path) {
     let expected = expected.to_string_lossy();
     let actual = actual.to_string_lossy();
     if cfg!(windows) {
-        assert!(expected.eq_ignore_ascii_case(&actual));
+        let expected = expected.replace('\\', "/");
+        let actual = actual.replace('\\', "/");
+        assert!(
+            expected.eq_ignore_ascii_case(&actual),
+            "expected path {expected:?}, got {actual:?}"
+        );
     } else {
         assert_eq!(expected, actual);
     }
