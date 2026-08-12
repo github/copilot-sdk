@@ -340,7 +340,7 @@ public final class NativeRuntimeLoader {
         String cliResourcePath = "native/" + classifier + "/" + cliName;
         Path cachedCli = cacheDir.resolve(cliName);
 
-        if (isValidCachedFile(cachedCli)) {
+        if (isValidCachedCli(cachedCli)) {
             return;
         }
 
@@ -355,18 +355,14 @@ public final class NativeRuntimeLoader {
         Path temp = Files.createTempFile(cacheDir, "cli-tmp-", "");
         try {
             copyResourceToTemp(cliResource, cliResourcePath, temp);
+            makeExecutable(temp);
             publisher.publish(temp, cachedCli);
         } finally {
             tryDelete(temp);
         }
 
-        // Set executable permission on non-Windows systems.
-        if (!isWindows()) {
-            try {
-                cachedCli.toFile().setExecutable(true, false);
-            } catch (SecurityException ignored) {
-                // Best-effort; the file may already be executable from the temp copy.
-            }
+        if (!isValidCachedCli(cachedCli)) {
+            throw new IOException("Published Copilot CLI is not a non-empty executable file: " + cachedCli);
         }
     }
 
@@ -400,6 +396,25 @@ public final class NativeRuntimeLoader {
             return false;
         }
         return Files.size(path) > 0;
+    }
+
+    private static boolean isValidCachedCli(Path path) throws IOException {
+        return isValidCachedFile(path) && (isWindows() || Files.isExecutable(path));
+    }
+
+    private static void makeExecutable(Path path) throws IOException {
+        if (isWindows()) {
+            return;
+        }
+        final boolean executableSet;
+        try {
+            executableSet = path.toFile().setExecutable(true, false);
+        } catch (SecurityException ex) {
+            throw new IOException("Failed to make Copilot CLI executable: " + path, ex);
+        }
+        if (!executableSet || !Files.isExecutable(path)) {
+            throw new IOException("Failed to make Copilot CLI executable: " + path);
+        }
     }
 
     private static void copyResourceToTemp(URL resource, String resourcePath, Path temp) throws IOException {

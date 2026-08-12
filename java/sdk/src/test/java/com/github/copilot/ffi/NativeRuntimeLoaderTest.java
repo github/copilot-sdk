@@ -11,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.io.IOException;
 import java.net.URL;
@@ -18,6 +19,8 @@ import java.net.URLClassLoader;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -35,6 +38,7 @@ class NativeRuntimeLoaderTest {
     private static final String OTHER_CLASSIFIER = "darwin-arm64";
     private static final String TEST_VERSION = "1.2.3-test";
     private static final byte[] FAKE_BINARY_CONTENT = "fake runtime.node binary content".getBytes();
+    private static final byte[] FAKE_CLI_CONTENT = "fake copilot CLI content".getBytes();
     private static final byte[] OTHER_BINARY_CONTENT = "other runtime.node binary content".getBytes();
 
     // -------------------------------------------------------------------------
@@ -266,6 +270,22 @@ class NativeRuntimeLoaderTest {
         assertBytesEqual(FAKE_BINARY_CONTENT, Files.readAllBytes(result));
     }
 
+    @Test
+    void nonExecutableCachedCliIsNotAcceptedAsValid(@TempDir Path tempDir) throws Exception {
+        assumeTrue(Files.getFileStore(tempDir).supportsFileAttributeView("posix"));
+        Path cacheBase = tempDir.resolve("cache");
+        Path cacheDir = cacheBase.resolve(TEST_VERSION).resolve(TEST_CLASSIFIER);
+        Files.createDirectories(cacheDir);
+        Files.write(cacheDir.resolve(NativeRuntimeLoader.RUNTIME_FILENAME), FAKE_BINARY_CONTENT);
+        Path cachedCli = Files.write(cacheDir.resolve(NativeRuntimeLoader.CLI_FILENAME), FAKE_CLI_CONTENT);
+        Files.setPosixFilePermissions(cachedCli, PosixFilePermissions.fromString("rw-------"));
+        ClassLoader loader = classLoaderWithRuntimeAndCliResources(tempDir, TEST_CLASSIFIER);
+
+        NativeRuntimeLoader.extractToCache(cacheBase, loader, TEST_CLASSIFIER, TEST_VERSION);
+
+        assertTrue(Files.isExecutable(cachedCli), "A non-executable cached CLI must be repaired or replaced");
+    }
+
     // -------------------------------------------------------------------------
     // Source 3: bundled-CLI sibling
     // -------------------------------------------------------------------------
@@ -337,6 +357,21 @@ class NativeRuntimeLoaderTest {
         assertTrue(Files.isRegularFile(target), "Target must exist after publication");
         assertTrue(Files.size(target) > 0, "Target must be non-empty");
         assertFalse(Files.exists(temp), "Source temp file must be absent after atomic move");
+    }
+
+    @Test
+    void cliIsExecutableBeforeAtomicPublication(@TempDir Path tempDir) throws Exception {
+        assumeTrue(Files.getFileStore(tempDir).supportsFileAttributeView("posix"));
+        Path cacheBase = tempDir.resolve("cache");
+        ClassLoader loader = classLoaderWithRuntimeAndCliResources(tempDir, TEST_CLASSIFIER);
+        NativeRuntimeLoader.AtomicPublisher publisher = (temp, cached) -> {
+            if (cached.getFileName().toString().equals(NativeRuntimeLoader.CLI_FILENAME)) {
+                assertTrue(Files.isExecutable(temp), "CLI temp file must be executable before atomic publication");
+            }
+            Files.move(temp, cached, StandardCopyOption.REPLACE_EXISTING);
+        };
+
+        NativeRuntimeLoader.extractToCache(cacheBase, loader, TEST_CLASSIFIER, TEST_VERSION, publisher);
     }
 
     @Test
@@ -472,6 +507,14 @@ class NativeRuntimeLoaderTest {
 
     private static ClassLoader classLoaderWithRuntimeResource(Path tempDir, String classifier) throws IOException {
         writeRuntimeResource(tempDir, classifier, FAKE_BINARY_CONTENT);
+        return new URLClassLoader(new URL[]{tempDir.toUri().toURL()}, null);
+    }
+
+    private static ClassLoader classLoaderWithRuntimeAndCliResources(Path tempDir, String classifier)
+            throws IOException {
+        writeRuntimeResource(tempDir, classifier, FAKE_BINARY_CONTENT);
+        Path resourceDir = tempDir.resolve("native").resolve(classifier);
+        Files.write(resourceDir.resolve(NativeRuntimeLoader.CLI_FILENAME), FAKE_CLI_CONTENT);
         return new URLClassLoader(new URL[]{tempDir.toUri().toURL()}, null);
     }
 
