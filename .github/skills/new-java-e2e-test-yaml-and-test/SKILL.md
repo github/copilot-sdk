@@ -54,7 +54,7 @@ conversations:
 
 ### Step 3: Create the Java IT test class
 
-Place it in `java/src/test/java/com/github/copilot/` with an `IT` suffix
+Place it in `java/sdk/src/test/java/com/github/copilot/` with an `IT` suffix
 (e.g., `MyFeatureIT.java`). The failsafe plugin picks up `*IT.java` files.
 
 **Template:**
@@ -141,12 +141,12 @@ mvn clean verify
 
 | What | Where |
 |------|-------|
-| Test context (manages proxy, workDir, CLI) | `java/src/test/java/com/github/copilot/E2ETestContext.java` |
-| Java proxy wrapper | `java/src/test/java/com/github/copilot/CapiProxy.java` |
+| Test context (manages proxy, workDir, CLI) | `java/sdk/src/test/java/com/github/copilot/E2ETestContext.java` |
+| Java proxy wrapper | `java/sdk/src/test/java/com/github/copilot/CapiProxy.java` |
 | Replay proxy (TypeScript) | `test/harness/replayingCapiProxy.ts` |
 | Proxy server entry point | `test/harness/server.ts` |
 | Snapshot files | `test/snapshots/<category>/<name>.yaml` |
-| Existing IT tests for reference | `java/src/test/java/com/github/copilot/*IT.java` |
+| Existing IT tests for reference | `java/sdk/src/test/java/com/github/copilot/*IT.java` |
 
 ## How the Proxy Matches Requests
 

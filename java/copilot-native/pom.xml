@@ -18,6 +18,14 @@
 
     <name>GitHub Copilot SDK :: Java :: Native Runtime</name>
     <description>Native runtime binaries for the GitHub Copilot Java SDK, published as per-platform classifier JARs</description>
+    <url>https://github.com/github/copilot-sdk</url>
+
+    <scm>
+        <connection>scm:git:https://github.com/github/copilot-sdk.git</connection>
+        <developerConnection>scm:git:https://github.com/github/copilot-sdk.git</developerConnection>
+        <url>https://github.com/github/copilot-sdk</url>
+        <tag>HEAD</tag>
+    </scm>
 
     <properties>
         <!--
@@ -105,7 +113,8 @@
                 <executions>
                     <!--
                         Additional classifier JAR containing
-                        native/<classifier>/runtime.node and
+                        native/<classifier>/runtime.node,
+                        native/<classifier>/copilot, and
                         native/<classifier>/platform.properties.
                     -->
                     <execution>
@@ -155,7 +164,8 @@
             </plugin>
             <!--
                 Structural guards: assert that the classifier JAR carries the
-                native binary and that the placeholder JAR does not.
+                complete native artifact set and that the placeholder JAR does
+                not carry the native binary.
             -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

@@ -14,7 +14,7 @@ docs/.validation/
 *.csproj.lscache
 
 # Java
-java/target
+java/**/target/
 java/smoke-test
 java/.classpath
 java/.project
