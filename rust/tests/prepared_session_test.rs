@@ -12,7 +12,9 @@ use std::time::Duration;
 
 use github_copilot_sdk::session::PreparedSession;
 use github_copilot_sdk::subscription::{EventSubscription, RecvErrorKind};
-use github_copilot_sdk::types::{ResumeSessionConfig, SessionConfig, SessionId};
+use github_copilot_sdk::types::{
+    CloudSessionOptions, CloudSessionRepository, ResumeSessionConfig, SessionConfig, SessionId,
+};
 use github_copilot_sdk::{Client, ErrorKind, SessionErrorKind};
 use serde_json::{Value, json};
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, duplex};
@@ -149,6 +151,10 @@ fn make_client() -> (Client, FakeServer) {
             write: server_write,
         },
     )
+}
+
+fn cloud_options() -> CloudSessionOptions {
+    CloudSessionOptions::with_repository(CloudSessionRepository::new("octocat", "hello-world"))
 }
 
 fn create_result(session_id: &str) -> Value {
@@ -800,4 +806,313 @@ fn prepared_session_is_send_static_and_not_clone() {
     // ... then assert `PreparedSession` deliberately is not, so a prepared
     // session can never be started twice.
     assert!(!CloneProbe::<PreparedSession>(PhantomData).is_clone());
+}
+
+// ---------------------------------------------------------------------------
+// Registration ownership: a stale startup guard must never unregister a
+// newer registration that reused the same session ID.
+// ---------------------------------------------------------------------------
+
+/// Drive a startup future until it parks awaiting its RPC response.
+///
+/// The duration is a bound, not a correctness sleep: whether the future
+/// actually reached the wire is asserted afterwards by reading the request,
+/// which fails loudly on its own timeout if it did not.
+const DRIVE: Duration = Duration::from_millis(50);
+
+#[tokio::test]
+async fn stale_create_guard_does_not_unregister_same_id_retry() {
+    let (client, mut server) = make_client();
+    let session_id = SessionId::new("stale-create-guard");
+
+    // First attempt: registers, sends `session.create`, then parks.
+    let mut first = Box::pin(
+        client
+            .prepare_session(SessionConfig::default().with_session_id(session_id.clone()))
+            .unwrap()
+            .start(),
+    );
+    let _ = timeout(DRIVE, &mut first).await;
+    let first_req = server.read_request().await;
+    assert_eq!(first_req["method"], "session.create");
+
+    // Second attempt with the same pinned ID, started before the first is
+    // dropped, so it replaces the first attempt's router registration.
+    let prepared = client
+        .prepare_session(
+            SessionConfig::default()
+                .with_session_id(session_id.clone())
+                .with_event_buffer_capacity(64),
+        )
+        .unwrap();
+    let mut events = prepared.subscribe();
+    let mut second = Box::pin(prepared.start());
+    let _ = timeout(DRIVE, &mut second).await;
+    let second_req = server.read_request().await;
+    assert_eq!(second_req["method"], "session.create");
+
+    // The stale guard runs now. It must not touch the live registration.
+    drop(first);
+    assert_eq!(
+        client.registered_session_ids_for_test(),
+        vec![session_id.clone()],
+        "a stale startup guard unregistered the live retry"
+    );
+
+    server
+        .respond(&second_req, create_result(session_id.as_str()))
+        .await;
+    let session = timeout(TIMEOUT, &mut second).await.unwrap().unwrap();
+
+    // Events must still route to the surviving registration.
+    server
+        .send_event(
+            session_id.as_str(),
+            "evt-after-stale",
+            "assistant.message",
+            false,
+        )
+        .await;
+    let event = timeout(TIMEOUT, events.recv()).await.unwrap().unwrap();
+    assert_eq!(event.id.as_str(), "evt-after-stale");
+    drop(session);
+}
+
+#[tokio::test]
+async fn stale_resume_guard_does_not_unregister_same_id_retry() {
+    let (client, mut server) = make_client();
+    let session_id = SessionId::new("stale-resume-guard");
+
+    let mut first = Box::pin(
+        client
+            .prepare_resume_session(ResumeSessionConfig::new(session_id.clone()))
+            .unwrap()
+            .start(),
+    );
+    let _ = timeout(DRIVE, &mut first).await;
+    let first_req = server.read_request().await;
+    assert_eq!(first_req["method"], "session.resume");
+
+    let prepared = client
+        .prepare_resume_session(
+            ResumeSessionConfig::new(session_id.clone()).with_event_buffer_capacity(64),
+        )
+        .unwrap();
+    let mut events = prepared.subscribe();
+    let mut second = Box::pin(prepared.start());
+    let _ = timeout(DRIVE, &mut second).await;
+    let second_req = server.read_request().await;
+    assert_eq!(second_req["method"], "session.resume");
+
+    drop(first);
+    assert_eq!(
+        client.registered_session_ids_for_test(),
+        vec![session_id.clone()],
+        "a stale startup guard unregistered the live retry"
+    );
+
+    // Hand the surviving startup to a task: resume issues a follow-up
+    // `session.skills.reload` that only makes progress while it is polled.
+    let second = tokio::spawn(second);
+    server
+        .respond(&second_req, json!({ "sessionId": session_id.as_str() }))
+        .await;
+    server.answer_skills_reload().await;
+    let session = timeout(TIMEOUT, second).await.unwrap().unwrap().unwrap();
+
+    server
+        .send_event(
+            session_id.as_str(),
+            "evt-after-stale",
+            "assistant.message",
+            false,
+        )
+        .await;
+    let event = timeout(TIMEOUT, events.recv()).await.unwrap().unwrap();
+    assert_eq!(event.id.as_str(), "evt-after-stale");
+    drop(session);
+}
+
+/// A disconnected session must not unregister a same-ID session that
+/// replaced it.
+#[tokio::test]
+async fn dropping_superseded_session_does_not_unregister_its_replacement() {
+    let (client, mut server) = make_client();
+    let session_id = SessionId::new("superseded-session");
+
+    let first = tokio::spawn(
+        client
+            .prepare_session(SessionConfig::default().with_session_id(session_id.clone()))
+            .unwrap()
+            .start(),
+    );
+    let first_req = server.read_request().await;
+    server
+        .respond(&first_req, create_result(session_id.as_str()))
+        .await;
+    let first_session = timeout(TIMEOUT, first).await.unwrap().unwrap().unwrap();
+
+    let prepared = client
+        .prepare_session(
+            SessionConfig::default()
+                .with_session_id(session_id.clone())
+                .with_event_buffer_capacity(64),
+        )
+        .unwrap();
+    let mut events = prepared.subscribe();
+    let second = tokio::spawn(prepared.start());
+    let second_req = server.read_request().await;
+    server
+        .respond(&second_req, create_result(session_id.as_str()))
+        .await;
+    let second_session = timeout(TIMEOUT, second).await.unwrap().unwrap().unwrap();
+
+    // The superseded handle goes away; the live session must survive.
+    drop(first_session);
+    assert_eq!(
+        client.registered_session_ids_for_test(),
+        vec![session_id.clone()],
+        "dropping a superseded Session unregistered its replacement"
+    );
+
+    server
+        .send_event(
+            session_id.as_str(),
+            "evt-survivor",
+            "assistant.message",
+            false,
+        )
+        .await;
+    let event = timeout(TIMEOUT, events.recv()).await.unwrap().unwrap();
+    assert_eq!(event.id.as_str(), "evt-survivor");
+    drop(second_session);
+}
+
+// ---------------------------------------------------------------------------
+// Deferred (server-assigned ID) create cancellation
+// ---------------------------------------------------------------------------
+
+/// Cancelling a cloud create before the response arrives must leave no
+/// registration behind, even though the session ID is only known to the
+/// inline response callback.
+#[tokio::test]
+async fn cancelled_deferred_create_leaves_no_registration() {
+    let (client, mut server) = make_client();
+
+    let prepared = client
+        .prepare_session(SessionConfig::default().with_cloud(cloud_options()))
+        .unwrap();
+    let mut events = prepared.subscribe();
+    let start = tokio::spawn(prepared.start());
+
+    let create_req = server.read_request().await;
+    assert_eq!(create_req["method"], "session.create");
+    assert!(create_req["params"]["sessionId"].is_null());
+
+    // Cancel before the server answers, then answer: the response carries
+    // the server-assigned ID the inline callback would register.
+    start.abort();
+    let _ = start.await;
+    server
+        .respond(&create_req, create_result("server-assigned-id"))
+        .await;
+
+    expect_closed(&mut events).await;
+    await_no_registrations(&client).await;
+    // Nothing may appear after the response has been fully processed.
+    server.expect_quiet().await;
+    assert!(
+        client.registered_session_ids_for_test().is_empty(),
+        "a cancelled deferred create left a registration behind"
+    );
+
+    // A fresh cloud create still works afterwards.
+    let retry = tokio::spawn(
+        client
+            .prepare_session(SessionConfig::default().with_cloud(cloud_options()))
+            .unwrap()
+            .start(),
+    );
+    let retry_req = server.read_request().await;
+    server
+        .respond(&retry_req, create_result("server-assigned-retry"))
+        .await;
+    let session = timeout(TIMEOUT, retry).await.unwrap().unwrap().unwrap();
+    assert_eq!(session.id().as_str(), "server-assigned-retry");
+    drop(session);
+}
+
+/// Poll (bounded) until `session_id` shows up on the client's router.
+async fn await_registered(client: &Client, session_id: &str) {
+    let deadline = tokio::time::Instant::now() + TIMEOUT;
+    while !client
+        .registered_session_ids_for_test()
+        .iter()
+        .any(|id| id.as_str() == session_id)
+    {
+        assert!(
+            tokio::time::Instant::now() < deadline,
+            "inline callback never registered {session_id}"
+        );
+        tokio::task::yield_now().await;
+    }
+}
+
+/// The other half of the deferred-create window: cancellation lands *after*
+/// the inline response callback has already registered the server-assigned
+/// ID. The startup guard owns that registration and must remove it.
+///
+/// Deterministic by construction — the start future is parked on its
+/// response and never polled again, so the callback (which runs on the
+/// JSON-RPC read task, independently of the caller) is guaranteed to have
+/// registered before the future is dropped.
+#[tokio::test]
+async fn deferred_create_cancelled_after_callback_registered_is_cleaned_up() {
+    let (client, mut server) = make_client();
+
+    let prepared = client
+        .prepare_session(SessionConfig::default().with_cloud(cloud_options()))
+        .unwrap();
+    let mut events = prepared.subscribe();
+    let mut start = Box::pin(prepared.start());
+
+    // Drive to the wire, then park.
+    let _ = timeout(DRIVE, &mut start).await;
+    let create_req = server.read_request().await;
+    assert_eq!(create_req["method"], "session.create");
+
+    // The read task runs the inline callback and registers the ID while the
+    // caller's future stays unpolled.
+    server
+        .respond(&create_req, create_result("registered-then-cancelled"))
+        .await;
+    await_registered(&client, "registered-then-cancelled").await;
+
+    // Cancellation now lands on a slot that already owns a registration.
+    drop(start);
+
+    expect_closed(&mut events).await;
+    await_no_registrations(&client).await;
+    server.expect_quiet().await;
+
+    // The same server-assigned ID can be handed out again without the dead
+    // attempt's cleanup interfering.
+    let retry = tokio::spawn(
+        client
+            .prepare_session(SessionConfig::default().with_cloud(cloud_options()))
+            .unwrap()
+            .start(),
+    );
+    let retry_req = server.read_request().await;
+    server
+        .respond(&retry_req, create_result("registered-then-cancelled"))
+        .await;
+    let session = timeout(TIMEOUT, retry).await.unwrap().unwrap().unwrap();
+    assert_eq!(session.id().as_str(), "registered-then-cancelled");
+    assert_eq!(
+        client.registered_session_ids_for_test().len(),
+        1,
+        "retry must hold exactly one registration"
+    );
+    drop(session);
 }

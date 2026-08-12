@@ -267,6 +267,8 @@ pub struct Session {
     event_tx: tokio::sync::broadcast::Sender<SessionEvent>,
     github_token_registration:
         ParkingLotMutex<Option<crate::github_token::GitHubTokenRegistration>>,
+    /// Identity of this session's router registration.
+    registration_token: crate::router::RegistrationToken,
 }
 
 impl Session {
@@ -665,8 +667,9 @@ impl Session {
             )
             .await?;
         self.stop_event_loop().await;
-        self.client.unregister_session(&self.id);
         self.github_token_registration.lock().take();
+        self.client
+            .unregister_session_owned(&self.id, self.registration_token);
         Ok(())
     }
 
@@ -743,8 +746,9 @@ impl Drop for Session {
         // tokio runtime when it next polls; we intentionally don't await
         // it here because Drop is sync.
         self.shutdown.cancel();
-        self.client.unregister_session(&self.id);
         self.github_token_registration.lock().take();
+        self.client
+            .unregister_session_owned(&self.id, self.registration_token);
     }
 }
 
@@ -1319,6 +1323,7 @@ impl Client {
             open_canvases,
             event_tx,
             github_token_registration: ParkingLotMutex::new(github_token_registration),
+            registration_token,
         };
         apply_mode_post_create_patch(
             &session,
@@ -1599,6 +1604,7 @@ impl Client {
             open_canvases,
             event_tx,
             github_token_registration: ParkingLotMutex::new(github_token_registration),
+            registration_token,
         };
         apply_mode_post_create_patch(
             &session,

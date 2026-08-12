@@ -254,7 +254,7 @@ async fn create_without_missing_startup_events(
 
 </details>
 
-`prepare_*` is synchronous and inert: it validates the buffer capacity, allocates a local channel, and does nothing else. No session is registered and nothing reaches the CLI until `start()` is first polled. Dropping a prepared session that was never started leaves no state behind and closes its subscriptions; dropping the `start()` future cancels the in-flight startup and unregisters the session, so a retry with the same session ID succeeds.
+`prepare_*` is synchronous and inert: it validates the buffer capacity, allocates a local channel, and does nothing else. No session is registered and nothing reaches the CLI until `start()` is first polled. Dropping a prepared session that was never started leaves no state behind and closes its subscriptions; dropping the `start()` future cancels the in-flight startup and unregisters the session, so a retry with the same session ID succeeds. Cleanup is scoped to the exact registration the abandoned startup owned, so it cannot evict a retry that has already taken over the same session ID.
 
 Startup buffering is worth planning for:
 

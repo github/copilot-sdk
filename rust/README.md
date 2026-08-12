@@ -718,7 +718,7 @@ tokio::spawn(async move {
 let session = prepared.start().await?;
 ```
 
-`prepare_*` is synchronous and inert — it validates the buffer capacity, allocates a local channel and cancellation token, and touches neither the router nor the transport until `start()` is first polled. `start(self)` consumes the handle and `PreparedSession` is deliberately not `Clone`, so a prepared session can never spawn two event loops. Dropping an unstarted handle leaves no state and closes its subscriptions; dropping the `start()` future cancels the startup, unregisters the session, and lets a same-ID retry succeed.
+`prepare_*` is synchronous and inert — it validates the buffer capacity, allocates a local channel and cancellation token, and touches neither the router nor the transport until `start()` is first polled. `start(self)` consumes the handle and `PreparedSession` is deliberately not `Clone`, so a prepared session can never spawn two event loops. Dropping an unstarted handle leaves no state and closes its subscriptions; dropping the `start()` future cancels the startup, unregisters the session, and lets a same-ID retry succeed. Cleanup removes only the exact registration that startup owned, so a retry started while an abandoned attempt is still unwinding is never evicted by it.
 
 The buffer is finite — `session::DEFAULT_EVENT_BUFFER_CAPACITY` (512) unless `event_buffer_capacity` overrides it, and `Some(0)` is rejected as `ErrorKind::InvalidConfig` rather than clamped. Subscribers that fall behind observe `RecvErrorKind::Lagged` with the skipped count instead of applying backpressure, so a consumer that needs a lossless view of a large startup burst must configure enough capacity or drain concurrently with `start()`.
 
