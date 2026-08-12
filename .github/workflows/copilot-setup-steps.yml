@@ -25,11 +25,11 @@ jobs:
     steps:
       # Checkout the repository to install dependencies
       - name: Checkout code
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@v7
 
       # Setup Node.js (for TypeScript/JavaScript SDK and tooling)
       - name: Set up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: "22"
           cache: "npm"
@@ -40,7 +40,7 @@ jobs:
 
       # Setup Python (for Python SDK)
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
@@ -52,19 +52,19 @@ jobs:
 
       # Setup Go (for Go SDK)
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version: "1.24"
 
       # Setup .NET (for .NET SDK)
       - name: Set up .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: "10.0.x"
 
       # Setup Java (for Java SDK)
       - name: Set up JDK
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: "microsoft"
           java-version: "17"
@@ -72,11 +72,11 @@ jobs:
 
       # Install just command runner
       - name: Install just
-        uses: extractions/setup-just@v3
+        uses: extractions/setup-just@v4
 
       # Install gh-aw extension for advanced GitHub CLI features
       - name: Install gh-aw extension
-        uses: github/gh-aw-actions/setup-cli@05205436a78512d71a2d842e46586ed05f4fa058 # v0.82.10
+        uses: github/gh-aw-actions/setup-cli@8914f47b6c1bb8a802c7549f5ac1a81434b66403 # v0.86.1
         with:
           version: v0.82.10
 
