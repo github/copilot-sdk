@@ -282,6 +282,82 @@ class TestPostCreatePatch:
         assert patch == {"skipCustomInstructions": True, "coauthorEnabled": False}
 
 
+class _CapturingOptions:
+    """Captures the params passed to ``session.rpc.options.update``."""
+
+    def __init__(self) -> None:
+        self.captured: list = []
+
+    async def update(self, params) -> None:
+        self.captured.append(params)
+
+
+class _CapturingRpc:
+    def __init__(self) -> None:
+        self.options = _CapturingOptions()
+
+
+class _FakeSession:
+    def __init__(self, session_id: str = "sid-1") -> None:
+        self.session_id = session_id
+        self.rpc = _CapturingRpc()
+
+    async def disconnect(self) -> None:
+        pass
+
+
+class TestApplyPostCreateOptionsPatch:
+    """Guards the translation from the patch dict to ``SessionUpdateOptionsParams``.
+
+    This covers the wire request emitted on both create and resume, which both
+    funnel through ``_apply_post_create_options_patch``.
+    """
+
+    def _make_client(self):
+        return CopilotClient(
+            mode="empty",
+            connection=UriRuntimeConnection(url="http://localhost:1234"),
+        )
+
+    async def test_empty_mode_sends_included_builtin_skills_empty(self):
+        client = self._make_client()
+        session = _FakeSession()
+        await client._apply_post_create_options_patch(session, "empty", None, None, None, None)
+        assert len(session.rpc.options.captured) == 1
+        params = session.rpc.options.captured[0]
+        # The Empty post-patch must reach the wire request as an empty list, not
+        # be silently dropped during translation.
+        assert params.included_builtin_skills == []
+        assert params.installed_plugins == []
+
+    async def test_empty_mode_caller_flags_still_send_empty_skills(self):
+        client = self._make_client()
+        session = _FakeSession()
+        # Caller-overridable flags must not weaken the built-in skill isolation.
+        await client._apply_post_create_options_patch(session, "empty", False, False, True, True)
+        params = session.rpc.options.captured[0]
+        assert params.included_builtin_skills == []
+
+    async def test_copilot_cli_mode_omits_included_builtin_skills(self):
+        client = self._make_client()
+        session = _FakeSession()
+        # Non-empty mode with no overrides sends no patch at all.
+        await client._apply_post_create_options_patch(
+            session, "copilot-cli", None, None, None, None
+        )
+        assert session.rpc.options.captured == []
+
+    async def test_copilot_cli_mode_never_sets_included_builtin_skills(self):
+        client = self._make_client()
+        session = _FakeSession()
+        await client._apply_post_create_options_patch(
+            session, "copilot-cli", True, None, False, None
+        )
+        params = session.rpc.options.captured[0]
+        # copilot-cli mode must not inject the built-in skill restriction.
+        assert params.included_builtin_skills is None
+
+
 class TestClientConstruction:
     def test_empty_mode_without_storage_raises(self):
         with pytest.raises(ValueError, match="requires base_directory"):

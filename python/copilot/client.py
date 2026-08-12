@@ -4548,6 +4548,9 @@ class CopilotClient:
                 SessionInstalledPlugin.from_dict(p) if isinstance(p, dict) else p
                 for p in patch["installedPlugins"]
             ]
+        if "includedBuiltinSkills" in patch:
+            skills = patch["includedBuiltinSkills"]
+            params.included_builtin_skills = list(skills) if skills is not None else None
 
         try:
             await session.rpc.options.update(params)
