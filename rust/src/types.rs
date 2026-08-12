@@ -2266,6 +2266,23 @@ pub struct SessionConfig {
     /// `session.options.update` after create/resume. Defaults to `false` in
     /// [`crate::ClientMode::Empty`] when unset.
     pub manage_schedule_enabled: Option<bool>,
+    /// Capacity of the per-session broadcast buffer backing
+    /// [`Session::subscribe`](crate::session::Session::subscribe) and
+    /// [`PreparedSession::subscribe`](crate::session::PreparedSession::subscribe).
+    ///
+    /// Runtime-only — never sent on the wire. Defaults to
+    /// [`DEFAULT_EVENT_BUFFER_CAPACITY`](crate::session::DEFAULT_EVENT_BUFFER_CAPACITY)
+    /// when unset. Must be non-zero;
+    /// `Some(0)` is rejected with
+    /// [`ErrorKind::InvalidConfig`](crate::ErrorKind::InvalidConfig) by
+    /// [`Client::prepare_session`](crate::Client::prepare_session).
+    ///
+    /// The buffer is finite: subscribers that fall behind observe
+    /// [`Lagged`](crate::subscription::Lagged) rather than applying
+    /// backpressure to the event loop. Raise this when a consumer needs a
+    /// lossless view of a large startup burst without draining
+    /// concurrently.
+    pub event_buffer_capacity: Option<usize>,
 }
 
 impl std::fmt::Debug for SessionConfig {
@@ -2401,6 +2418,7 @@ impl std::fmt::Debug for SessionConfig {
                 "system_message_transform",
                 &self.system_message_transform.as_ref().map(|_| "<set>"),
             )
+            .field("event_buffer_capacity", &self.event_buffer_capacity)
             .finish()
     }
 }
@@ -2497,6 +2515,7 @@ impl Default for SessionConfig {
             enable_experimental_mode: None,
             coauthor_enabled: None,
             manage_schedule_enabled: None,
+            event_buffer_capacity: None,
         }
     }
 }
@@ -3297,6 +3316,15 @@ impl SessionConfig {
     /// Set feature-flag values resolved by the host for this session.
     pub fn with_feature_flags(mut self, feature_flags: HashMap<String, bool>) -> Self {
         self.feature_flags = Some(feature_flags);
+    /// Set [`Self::event_buffer_capacity`].
+    ///
+    /// A capacity of `0` is rejected with
+    /// [`ErrorKind::InvalidConfig`](crate::ErrorKind::InvalidConfig) by
+    /// [`Client::prepare_session`](crate::Client::prepare_session) and
+    /// [`Client::create_session`](crate::Client::create_session); the value
+    /// is never clamped.
+    pub fn with_event_buffer_capacity(mut self, capacity: usize) -> Self {
+        self.event_buffer_capacity = Some(capacity);
         self
     }
 
@@ -3602,6 +3630,8 @@ pub struct ResumeSessionConfig {
     pub coauthor_enabled: Option<bool>,
     /// See [`SessionConfig::manage_schedule_enabled`].
     pub manage_schedule_enabled: Option<bool>,
+    /// See [`SessionConfig::event_buffer_capacity`].
+    pub event_buffer_capacity: Option<usize>,
 }
 
 impl std::fmt::Debug for ResumeSessionConfig {
@@ -3735,6 +3765,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
             )
             .field("suppress_resume_event", &self.suppress_resume_event)
             .field("continue_pending_work", &self.continue_pending_work)
+            .field("event_buffer_capacity", &self.event_buffer_capacity)
             .finish()
     }
 }
@@ -3986,6 +4017,7 @@ impl ResumeSessionConfig {
             enable_experimental_mode: None,
             coauthor_enabled: None,
             manage_schedule_enabled: None,
+            event_buffer_capacity: None,
         }
     }
 
@@ -4594,6 +4626,15 @@ impl ResumeSessionConfig {
     /// Re-supply feature-flag values resolved by the host on resume.
     pub fn with_feature_flags(mut self, feature_flags: HashMap<String, bool>) -> Self {
         self.feature_flags = Some(feature_flags);
+    /// Set [`Self::event_buffer_capacity`].
+    ///
+    /// A capacity of `0` is rejected with
+    /// [`ErrorKind::InvalidConfig`](crate::ErrorKind::InvalidConfig) by
+    /// [`Client::prepare_resume_session`](crate::Client::prepare_resume_session)
+    /// and [`Client::resume_session`](crate::Client::resume_session); the
+    /// value is never clamped.
+    pub fn with_event_buffer_capacity(mut self, capacity: usize) -> Self {
+        self.event_buffer_capacity = Some(capacity);
         self
     }
 

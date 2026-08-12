@@ -118,6 +118,8 @@ required-features = ["test-support"]
 test = false
 bench = false
 
+name = "prepared_session_test"
+required-features = ["test-support"]
 [build-dependencies]
 dirs = "5"
 flate2 = "1"
