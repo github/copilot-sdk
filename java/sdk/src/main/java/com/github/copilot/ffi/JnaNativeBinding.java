@@ -10,8 +10,10 @@ import com.sun.jna.Pointer;
 
 import java.nio.file.Path;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Logger;
 
 /**
@@ -42,6 +44,14 @@ import java.util.logging.Logger;
  * enters the outbound callback and decremented when the callback returns.
  * Callers (e.g. {@code FfiRuntimeHost}) must drain this counter to zero before
  * calling {@link #connectionClose} or {@link #hostShutdown}.
+ *
+ * <h2>Callback lifetime</h2>
+ * <p>
+ * The native runtime can invoke an outbound callback after connection close and
+ * host shutdown return. Each JNA callback wrapper is therefore retained for the
+ * lifetime of the JVM. After host shutdown, its Java delegate is detached so a
+ * late native invocation safely becomes a no-op without retaining the complete
+ * host object graph.
  *
  * <h2>GraalVM Native Image</h2>
  * <p>
@@ -101,6 +111,13 @@ final class JnaNativeBinding implements NativeBinding {
     /** The loaded JNA library interface. Never released after first set. */
     private static volatile CopilotRuntimeLibrary loadedLib;
 
+    /**
+     * Process-lifetime roots for JNA callback trampolines. Native code can invoke a
+     * callback after connection and host teardown return, so entries are never
+     * removed in production.
+     */
+    private static final Set<OutboundCallback> RETAINED_CALLBACKS = ConcurrentHashMap.newKeySet();
+
     // -------------------------------------------------------------------------
     // Instance state
     // -------------------------------------------------------------------------
@@ -123,15 +140,43 @@ final class JnaNativeBinding implements NativeBinding {
     final AtomicInteger activeCallbacks = new AtomicInteger(0);
 
     /**
-     * Tracked callback wrappers keyed by connection handle. Prevents GC of the JNA
-     * callback function pointer while native code still holds it.
+     * Callback registrations keyed by connection handle.
      * <p>
-     * Note: values are intentionally never read — the sole purpose of this map is
-     * to keep the callbacks reachable (strong GC roots) while native code holds the
-     * corresponding function pointers. Entries are removed on connection close.
+     * Registrations remain here through connection close because native callbacks
+     * can still arrive. Successful host shutdown detaches their Java delegates; the
+     * wrappers themselves remain rooted by {@link #RETAINED_CALLBACKS}.
      */
-    @SuppressWarnings("MismatchedQueryAndUpdateOfCollection") // GC-root — read access is not needed
-    private final Map<Integer, OutboundCallback> trackedCallbacks = new ConcurrentHashMap<>();
+    private final Map<Integer, CallbackRegistration> callbackRegistrations = new ConcurrentHashMap<>();
+
+    private static final class CallbackRegistration {
+        private final int serverId;
+        private final AtomicReference<OutboundCallback> delegate;
+        private final AtomicInteger activeCallbacks;
+        private final OutboundCallback wrapper;
+
+        private CallbackRegistration(int serverId, OutboundCallback delegate, AtomicInteger activeCallbacks) {
+            this.serverId = serverId;
+            this.delegate = new AtomicReference<>(delegate);
+            this.activeCallbacks = activeCallbacks;
+            this.wrapper = this::invoke;
+        }
+
+        private void invoke(Pointer userData, Pointer data, SizeT len) {
+            activeCallbacks.incrementAndGet();
+            try {
+                OutboundCallback callback = delegate.get();
+                if (callback != null) {
+                    callback.invoke(userData, data, len);
+                }
+            } finally {
+                activeCallbacks.decrementAndGet();
+            }
+        }
+
+        private void detach() {
+            delegate.set(null);
+        }
+    }
 
     // -------------------------------------------------------------------------
     // Constructors
@@ -193,26 +238,26 @@ final class JnaNativeBinding implements NativeBinding {
 
     @Override
     public boolean hostShutdown(int serverId) {
-        return lib.copilot_runtime_host_shutdown(serverId) != 0;
+        boolean shutdown = lib.copilot_runtime_host_shutdown(serverId) != 0;
+        if (shutdown) {
+            callbackRegistrations.forEach((connectionId, registration) -> {
+                if (registration.serverId == serverId && callbackRegistrations.remove(connectionId, registration)) {
+                    registration.detach();
+                }
+            });
+        }
+        return shutdown;
     }
 
     @Override
     public int connectionOpen(int serverId, OutboundCallback callback, Pointer userData, byte[] extSource,
             int extSourceLen, byte[] extName, int extNameLen, byte[] connToken, int connTokenLen) {
-        // Wrap the caller's callback to maintain active-callback tracking.
-        OutboundCallback tracked = (ud, data, len) -> {
-            activeCallbacks.incrementAndGet();
-            try {
-                callback.invoke(ud, data, len);
-            } finally {
-                activeCallbacks.decrementAndGet();
-            }
-        };
-        int connectionId = lib.copilot_runtime_connection_open(serverId, tracked, userData, extSource,
+        CallbackRegistration registration = new CallbackRegistration(serverId, callback, activeCallbacks);
+        int connectionId = lib.copilot_runtime_connection_open(serverId, registration.wrapper, userData, extSource,
                 new SizeT(extSourceLen), extName, new SizeT(extNameLen), connToken, new SizeT(connTokenLen));
         if (connectionId != 0) {
-            // Hold a strong reference to prevent GC of the JNA function pointer.
-            trackedCallbacks.put(connectionId, tracked);
+            RETAINED_CALLBACKS.add(registration.wrapper);
+            callbackRegistrations.put(connectionId, registration);
         }
         return connectionId;
     }
@@ -224,12 +269,7 @@ final class JnaNativeBinding implements NativeBinding {
 
     @Override
     public boolean connectionClose(int connectionId) {
-        boolean closed = lib.copilot_runtime_connection_close(connectionId) != 0;
-        if (closed) {
-            // Native side has released ownership; safe to drop our GC root.
-            trackedCallbacks.remove(connectionId);
-        }
-        return closed;
+        return lib.copilot_runtime_connection_close(connectionId) != 0;
     }
 
     // -------------------------------------------------------------------------
@@ -249,6 +289,7 @@ final class JnaNativeBinding implements NativeBinding {
         synchronized (LOAD_LOCK) {
             loadedPath = null;
             loadedLib = null;
+            RETAINED_CALLBACKS.clear();
         }
     }
 }

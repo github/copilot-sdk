@@ -13,6 +13,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.sun.jna.Pointer;
 
+import java.lang.ref.WeakReference;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -226,6 +227,44 @@ class JnaNativeBindingTest {
         StubRuntimeLibrary stub = new StubRuntimeLibrary();
         JnaNativeBinding binding = new JnaNativeBinding(stub);
         assertEquals(0, binding.activeCallbacks.get(), "Active callback counter must start at zero");
+    }
+
+    @Test
+    void callbackWrapperRemainsReachableAfterConnectionClose() throws InterruptedException {
+        StubRuntimeLibrary stub = new StubRuntimeLibrary();
+        stub.connectionOpenReturn = 99;
+        JnaNativeBinding binding = new JnaNativeBinding(stub);
+        AtomicInteger invocations = new AtomicInteger();
+
+        WeakReference<OutboundCallback> callbackReference = openAndCloseConnection(binding, stub,
+                (userData, data, len) -> invocations.incrementAndGet());
+
+        awaitGarbageCollection(callbackReference);
+
+        OutboundCallback callback = callbackReference.get();
+        assertNotNull(callback, "Callback wrapper must remain strongly reachable after connection close");
+        callback.invoke(Pointer.NULL, Pointer.NULL, new SizeT(0));
+        assertEquals(1, invocations.get(), "A callback queued before close must remain safely invocable");
+    }
+
+    private static WeakReference<OutboundCallback> openAndCloseConnection(JnaNativeBinding binding,
+            StubRuntimeLibrary stub, OutboundCallback callback) {
+        int connectionId = binding.connectionOpen(1, callback, Pointer.NULL, null, 0, null, 0, null, 0);
+        assertEquals(99, connectionId);
+        assertNotNull(stub.lastCallback);
+
+        WeakReference<OutboundCallback> callbackReference = new WeakReference<>(stub.lastCallback);
+        stub.lastCallback = null;
+        assertTrue(binding.connectionClose(connectionId));
+        return callbackReference;
+    }
+
+    private static void awaitGarbageCollection(WeakReference<?> reference) throws InterruptedException {
+        for (int attempt = 0; attempt < 20 && reference.get() != null; attempt++) {
+            System.gc();
+            System.runFinalization();
+            Thread.sleep(10);
+        }
     }
 
     // =========================================================================
