@@ -244,9 +244,6 @@ let client = Client::start(
 
 Applications that ship their own trusted plugins can register them as a client startup option. The SDK sends the complete ordered set after connecting and verifying the protocol, before `start` returns or any session can be created. Paths must be absolute; leaving the option unset or empty makes no RPC call.
 
-<details open>
-<summary><strong>Node.js / TypeScript</strong></summary>
-
 <!-- docs-validate: hidden -->
 ```typescript
 import { CopilotClient } from "@github/copilot-sdk";
@@ -264,8 +261,6 @@ async function main() {
 main();
 ```
 <!-- /docs-validate: hidden -->
-
-</details>
 
 The equivalent option in each SDK is:
 

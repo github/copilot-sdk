@@ -211,6 +211,40 @@ func TestClient_BuiltinPluginDirectories(t *testing.T) {
 		}()
 		NewClient(&ClientOptions{BuiltinPluginDirectories: []string{"plugins/core"}})
 	})
+
+	t.Run("startup RPC failure clears transport for reconnect", func(t *testing.T) {
+		url, _, cleanup := newStartupRPCServerWithBuiltinFailure(t, true)
+		defer cleanup()
+		cwd, err := os.Getwd()
+		if err != nil {
+			t.Fatalf("Getwd failed: %v", err)
+		}
+		client := NewClient(&ClientOptions{
+			Connection:               URIConnection{URL: url},
+			BuiltinPluginDirectories: []string{filepath.Join(cwd, "plugins", "core")},
+		})
+
+		if err := client.Start(t.Context()); err == nil {
+			t.Fatal("Start unexpectedly succeeded")
+		}
+		if client.client != nil {
+			t.Fatal("client transport was not cleared after startup RPC failure")
+		}
+		if client.conn != nil {
+			t.Fatal("connection was not cleared after startup RPC failure")
+		}
+		if client.RPC != nil {
+			t.Fatal("typed RPC client was not cleared after startup RPC failure")
+		}
+		if client.internalRPC != nil {
+			t.Fatal("internal RPC client was not cleared after startup RPC failure")
+		}
+
+		if err := client.Start(t.Context()); err != nil {
+			t.Fatalf("second Start failed: %v", err)
+		}
+		defer client.ForceStop()
+	})
 }
 
 type startupRPCRequest struct {
@@ -219,6 +253,10 @@ type startupRPCRequest struct {
 }
 
 func newStartupRPCServer(t *testing.T) (string, func() []startupRPCRequest, func()) {
+	return newStartupRPCServerWithBuiltinFailure(t, false)
+}
+
+func newStartupRPCServerWithBuiltinFailure(t *testing.T, failFirstBuiltin bool) (string, func() []startupRPCRequest, func()) {
 	t.Helper()
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -227,31 +265,41 @@ func newStartupRPCServer(t *testing.T) (string, func() []startupRPCRequest, func
 
 	var mux sync.Mutex
 	var requests []startupRPCRequest
-	serverReady := make(chan *jsonrpc2.Client, 1)
+	serverReady := make(chan *jsonrpc2.Client, 8)
+	var builtinSetCount int
 	go func() {
-		conn, acceptErr := listener.Accept()
-		if acceptErr != nil {
-			return
-		}
-		server := jsonrpc2.NewClient(conn, conn)
-		record := func(method string, params json.RawMessage) {
-			mux.Lock()
-			requests = append(requests, startupRPCRequest{
-				Method: method,
-				Params: append(json.RawMessage(nil), params...),
+		for {
+			conn, acceptErr := listener.Accept()
+			if acceptErr != nil {
+				return
+			}
+			server := jsonrpc2.NewClient(conn, conn)
+			record := func(method string, params json.RawMessage) {
+				mux.Lock()
+				requests = append(requests, startupRPCRequest{
+					Method: method,
+					Params: append(json.RawMessage(nil), params...),
+				})
+				mux.Unlock()
+			}
+			server.SetRequestHandler("connect", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+				record("connect", params)
+				return []byte(`{"ok":true,"protocolVersion":3,"version":"test"}`), nil
 			})
-			mux.Unlock()
+			server.SetRequestHandler("plugins.builtin.set", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+				record("plugins.builtin.set", params)
+				mux.Lock()
+				builtinSetCount++
+				shouldFail := failFirstBuiltin && builtinSetCount == 1
+				mux.Unlock()
+				if shouldFail {
+					return nil, &jsonrpc2.Error{Code: -32000, Message: "builtin registration failed"}
+				}
+				return []byte(`{}`), nil
+			})
+			server.Start()
+			serverReady <- server
 		}
-		server.SetRequestHandler("connect", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-			record("connect", params)
-			return []byte(`{"ok":true,"protocolVersion":3,"version":"test"}`), nil
-		})
-		server.SetRequestHandler("plugins.builtin.set", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-			record("plugins.builtin.set", params)
-			return []byte(`{}`), nil
-		})
-		server.Start()
-		serverReady <- server
 	}()
 
 	snapshot := func() []startupRPCRequest {
@@ -261,10 +309,15 @@ func newStartupRPCServer(t *testing.T) (string, func() []startupRPCRequest, func
 	}
 	cleanup := func() {
 		listener.Close()
-		select {
-		case server := <-serverReady:
-			server.Stop()
-		case <-time.After(time.Second):
+		for {
+			select {
+			case server := <-serverReady:
+				server.Stop()
+			case <-time.After(time.Second):
+				return
+			default:
+				return
+			}
 		}
 	}
 	return listener.Addr().String(), snapshot, cleanup

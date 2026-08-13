@@ -465,6 +465,10 @@ func (c *Client) Start(ctx context.Context) error {
 			"paths": c.options.BuiltinPluginDirectories,
 		}); err != nil {
 			c.client.Stop()
+			c.client = nil
+			c.conn = nil
+			c.RPC = nil
+			c.internalRPC = nil
 			killErr := c.killProcess()
 			c.state = stateError
 			return errors.Join(err, killErr)
