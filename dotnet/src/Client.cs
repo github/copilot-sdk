@@ -140,15 +140,12 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         _options = options ?? new();
         _connection = _options.Connection ?? ResolveDefaultConnection(_options);
         _builtinPluginDirectories = _options.BuiltinPluginDirectories?.ToArray() ?? [];
-        foreach (var path in _builtinPluginDirectories)
+        foreach (var path in _builtinPluginDirectories.Where(path => !IsFullyQualifiedPath(path)))
         {
-            if (!IsFullyQualifiedPath(path))
-            {
-                throw new ArgumentException(
-                    $"{nameof(CopilotClientOptions)}.{nameof(CopilotClientOptions.BuiltinPluginDirectories)} " +
-                    $"must contain only absolute paths: {path}",
-                    nameof(options));
-            }
+            throw new ArgumentException(
+                $"{nameof(CopilotClientOptions)}.{nameof(CopilotClientOptions.BuiltinPluginDirectories)} " +
+                $"must contain only absolute paths: {path}",
+                nameof(options));
         }
 
         switch (_connection)

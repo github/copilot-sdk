@@ -39,8 +39,8 @@ public sealed class GitHubTelemetryTests
     {
         var paths = new[]
         {
-            Path.GetFullPath(Path.Combine("plugins", "core")),
-            Path.GetFullPath(Path.Combine("plugins", "github")),
+            Path.GetFullPath(Path.Join("plugins", "core")),
+            Path.GetFullPath(Path.Join("plugins", "github")),
         };
         await using var server = await FakeTelemetryServer.StartAsync();
         await using var client = new CopilotClient(new CopilotClientOptions
