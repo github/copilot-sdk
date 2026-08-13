@@ -2011,13 +2011,18 @@ export interface FactoryMeta {
      * Optional declared shape of the arguments this factory expects as `ctx.args`.
      *
      * Declaring one is strongly recommended for any factory that reads `ctx.args`.
-     * The CLI validates the caller's `args` against it **before** the run starts, so a
-     * malformed call from the model is rejected with a correction hint and retried
-     * without ever creating a run row, prompting the user for permission, or spending
-     * credits. A factory that declares nothing is never validated: a malformed call
-     * starts, takes an approval, spends credits, and then fails inside the factory
-     * body. `factories_manage` with `operation: "inspect"` reports the declared shape
-     * so an agent can read it before invoking.
+     * When the model invokes the factory through the `run_factory` tool, the CLI
+     * validates `args` against this declaration **before** the run starts, so a
+     * malformed call is rejected with a correction hint and retried without ever
+     * creating a run row, prompting the user for permission, or spending credits. A
+     * factory that declares nothing is never validated: a malformed call starts,
+     * takes an approval, spends credits, and then fails inside the factory body.
+     * `factories_manage` with `operation: "inspect"` reports the declared shape so an
+     * agent can read it before invoking.
+     *
+     * This covers the model's `run_factory` path only. `session.factory.run(...)` is
+     * not validated against the declaration, so a factory should still check
+     * `ctx.args` rather than assume the declared shape held.
      *
      * Enforcement covers structure — types, required properties, and enum/const
      * values. Finer constraints such as `minLength`, `pattern`, and

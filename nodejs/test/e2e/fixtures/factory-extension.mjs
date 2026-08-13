@@ -18,9 +18,15 @@ const argumentEcho = defineFactory({
         name: "argument-echo",
         description: "Return the invocation arguments verbatim.",
         phases: [],
-        // A declared shape has to survive the SDK boundary and reach the runtime,
-        // which validates `args` against it before a run row exists.
-        argsSchema: { type: ["object", "null"] },
+        // Proves a declared shape survives the SDK boundary and registers against a
+        // real runtime. It does not exercise enforcement: `argsSchema` is checked by
+        // the model's `run_factory` tool, and these tests invoke `session.factory.run`,
+        // which does not validate. The declaration stays as wide as this factory's
+        // actual contract — it echoes any JsonValue, and is called with an array, an
+        // object, and nothing — so it cannot constrain the runs below.
+        argsSchema: {
+            type: ["object", "array", "string", "number", "integer", "boolean", "null"],
+        },
     },
     run: async ({ args }) => args,
 });

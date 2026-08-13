@@ -546,6 +546,14 @@ describe("factories", () => {
             );
         }
         expect(normalizeJSDoc(publicTypes)).toContain("before** the run starts");
+        // Enforcement is tool-path only: `toolRunFactoryValidateArgs` is called from
+        // the runtime's runFactoryTool, and never from `session.factory.run`. Both
+        // surfaces must keep saying so, or authors will assume their own SDK-initiated
+        // runs are checked.
+        expect(normalizeJSDoc(publicTypes)).toContain(
+            "`session.factory.run(...)` is not validated against the declaration"
+        );
+        expect(guide).toContain("Validation covers the model's `run_factory` path only");
         expect(normalizeJSDoc(publicApi)).toContain(
             "`null`, `boolean`, `integer`, `number`, `string`, `array`, or `object`"
         );
