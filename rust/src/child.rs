@@ -205,19 +205,16 @@ impl ChildLifecycle {
             state: self.state.subscribe(),
         }
     }
+}
 
-    /// Best-effort signal used on `Drop`, where there is no opportunity to
-    /// await anything. Leaves the child in place so a reaper that is
-    /// already running keeps ownership.
-    pub(crate) fn signal_on_drop(&self) {
-        if let Some(child) = self.child.lock().as_mut() {
-            let pid = child.id();
-            match child.start_kill() {
-                Ok(()) => info!(pid = ?pid, "kill signal sent for CLI process on drop"),
-                Err(error) => {
-                    warn!(pid = ?pid, error = %error, "failed to kill CLI process on drop");
-                }
-            }
+/// Terminating on drop is what keeps the reaping guarantee honest for a
+/// client that is simply dropped: signalling alone would leave the same
+/// zombie this type exists to prevent, so hand the child to the reaper.
+impl Drop for ChildLifecycle {
+    fn drop(&mut self) {
+        if self.has_child() {
+            info!("client dropped with a live CLI process; terminating it");
+            drop(self.begin_termination());
         }
     }
 }
@@ -666,6 +663,40 @@ mod tests {
                 "a child left to exit on its own should report success: {status:?}"
             ),
             other => panic!("expected a reaped child, got {other:?}"),
+        }
+    }
+
+    /// Dropping a client that was never stopped must still reap its CLI
+    /// process. Signalling alone would leave exactly the zombie this type
+    /// exists to prevent.
+    #[cfg(unix)]
+    #[test]
+    fn dropping_an_unstopped_lifecycle_reaps_the_child() {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("build runtime");
+        let lifecycle = runtime.block_on(async { ChildLifecycle::new(Some(spawn_sleeper())) });
+        let pid = lifecycle.pid().expect("sleeper should report a pid");
+
+        // No stop, no force stop, no handle — just drop it.
+        drop(lifecycle);
+
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        loop {
+            let output = std::process::Command::new("ps")
+                .args(["-o", "stat=", "-p", &pid.to_string()])
+                .output()
+                .expect("run ps");
+            let state = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if state.is_empty() {
+                return;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "the CLI process was left unreaped after drop (ps state {state:?})"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(50));
         }
     }
 

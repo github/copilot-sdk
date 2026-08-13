@@ -2684,7 +2684,8 @@ impl Client {
 
 impl Drop for ClientInner {
     fn drop(&mut self) {
-        self.child.signal_on_drop();
+        // The CLI child is terminated and reaped by `ChildLifecycle`'s own
+        // `Drop`, which runs when this struct's fields drop.
         #[cfg(feature = "bundled-in-process")]
         {
             if let Some(host) = self.ffi_host.lock().take() {
