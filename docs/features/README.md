@@ -16,10 +16,12 @@ These guides cover the capabilities you can add to your Copilot SDK application.
 | [Skills](./skills.md) | Load reusable prompt modules from directories |
 | [Plugin Directories](./plugin-directories.md) | Bundle skills, hooks, MCP servers, and agents as a single loadable plugin |
 | [Session limits](./session-limits.md) | Set an AI Credits budget for a session and observe budget events |
+| [Citations](./citations.md) | Link assistant responses back to their supporting sources |
 | [Image Input](./image-input.md) | Send images to sessions as attachments |
 | [Streaming Events](./streaming-events.md) | Subscribe to real-time session events (40+ event types) |
 | [Usage and Billing](./usage-and-billing.md) | Read token counts, context-window utilization, AI credit cost, and account quota |
 | [Steering & Queueing](./steering-and-queueing.md) | Control message delivery—immediate steering vs. sequential queueing |
+| [Context Clearing](./context-management.md) | Replace conversation context safely with terminal tools |
 | [Session Persistence](./session-persistence.md) | Resume sessions across restarts, manage session storage |
 | [Remote Sessions](./remote-sessions.md) | Share locally hosted sessions to GitHub web and mobile via Mission Control |
 | [Cloud Sessions](./cloud-sessions.md) | Run sessions on GitHub-hosted compute through Mission Control |

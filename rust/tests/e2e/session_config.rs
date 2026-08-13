@@ -15,9 +15,10 @@ use http::{HeaderMap, HeaderValue};
 use parking_lot::Mutex;
 use serde_json::{Value, json};
 
-use super::support::{
-    DEFAULT_TEST_TOKEN, E2eContext, with_e2e_context, with_e2e_context_no_snapshot,
-};
+use super::support::{DEFAULT_TEST_TOKEN, E2eContext, with_e2e_context_no_snapshot};
+
+static E2E: super::support::SharedE2eGroup =
+    super::support::SharedE2eGroup::standard("session_config", 4);
 
 const SYNTHETIC_TEXT: &str = "OK from the synthetic stream.";
 const CITATION_PROMPT: &str = "Summarize the attached PDF with citations enabled.";
@@ -90,7 +91,8 @@ fn task_agent_types(exchange: &Value) -> Vec<String> {
 
 #[tokio::test]
 async fn should_apply_session_limits_on_create() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "session_config",
         "should_apply_session_limits_on_create",
         |ctx| {
@@ -123,7 +125,8 @@ async fn should_apply_session_limits_on_create() {
 
 #[tokio::test]
 async fn should_apply_session_limits_on_resume() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "session_config",
         "should_apply_session_limits_on_resume",
         |ctx| {
@@ -169,7 +172,8 @@ async fn should_apply_session_limits_on_resume() {
 
 #[tokio::test]
 async fn should_apply_excluded_built_in_agents_on_create() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "session_config",
         "should_apply_excluded_built_in_agents_on_create",
         |ctx| {
@@ -222,7 +226,8 @@ async fn should_apply_excluded_built_in_agents_on_create() {
 
 #[tokio::test]
 async fn should_apply_excluded_built_in_agents_on_resume() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "session_config",
         "should_apply_excluded_built_in_agents_on_resume",
         |ctx| {

@@ -39,6 +39,7 @@ from ._mode import (
     ToolSet,
     _custom_agents_local_only_default,
     _embedding_cache_storage_default,
+    _enable_experimental_mode_default,
     _enable_file_hooks_default,
     _enable_host_git_operations_default,
     _enable_on_demand_instruction_discovery_default,
@@ -243,6 +244,63 @@ def _capi_session_options_to_wire(options: CapiSessionOptions) -> dict[str, Any]
     wire: dict[str, Any] = {}
     if "enable_web_socket_responses" in options:
         wire["enableWebSocketResponses"] = options["enable_web_socket_responses"]
+    return wire
+
+
+@dataclass
+class ManagedSettingsPermissions:
+    """Permissions-only managed policy injected via :class:`ManagedSettings`.
+
+    Rule strings use the same vocabulary the runtime accepts for fetched
+    managed policy (e.g. ``"Read(**)"``, ``"Shell(git push *)"``); malformed
+    rules are rejected by the runtime at session creation.
+    """
+
+    disable_bypass_permissions_mode: Literal["disable"] | None = None
+    """When ``"disable"``, turns off bypass-permissions ("yolo") mode for the
+    session. Deny-wins: no other layer can re-enable it. Sent on the wire as
+    ``disableBypassPermissionsMode``."""
+    deny: list[str] | None = None
+    """Operations that must always be denied. Unioned across managed layers."""
+    ask: list[str] | None = None
+    """Operations that must prompt for approval. Unioned across managed layers."""
+    allow: list[str] | None = None
+    """Operations permitted without prompting. Every declared ``allow`` list
+    across managed layers must admit an operation for it to be allowed."""
+
+
+@dataclass
+class ManagedSettings:
+    """Host-injected enterprise managed settings for a session.
+
+    Unlike ``enable_managed_settings`` — which asks the runtime to *self-fetch*
+    account/org and device policy — this supplies the managed policy directly.
+    The runtime validates it with the same managed-permission parser it uses
+    for fetched policy and composes it restrictively with any self-fetched
+    (server) and device-managed (MDM) layers.
+
+    The first supported contract is permissions-only; unknown sibling keys are
+    rejected by the runtime. Serialized on the wire as ``managedSettings``.
+    """
+
+    permissions: ManagedSettingsPermissions | None = None
+    """Managed permission policy for the session."""
+
+
+def _managed_settings_to_dict(settings: ManagedSettings) -> dict[str, Any]:
+    wire: dict[str, Any] = {}
+    permissions = settings.permissions
+    if permissions is not None:
+        perms: dict[str, Any] = {}
+        if permissions.disable_bypass_permissions_mode is not None:
+            perms["disableBypassPermissionsMode"] = permissions.disable_bypass_permissions_mode
+        if permissions.deny is not None:
+            perms["deny"] = list(permissions.deny)
+        if permissions.ask is not None:
+            perms["ask"] = list(permissions.ask)
+        if permissions.allow is not None:
+            perms["allow"] = list(permissions.allow)
+        wire["permissions"] = perms
     return wire
 
 
@@ -2019,6 +2077,7 @@ class CopilotClient:
         client_name: str | None = None,
         reasoning_effort: ReasoningEffort | None = None,
         reasoning_summary: ReasoningSummary | None = None,
+        enable_experimental_mode: bool | None = None,
         context_tier: ContextTier | None = None,
         tools: list[Tool] | None = None,
         system_message: SystemMessageConfig | None = None,
@@ -2028,12 +2087,14 @@ class CopilotClient:
         on_user_input_request: UserInputHandler | None = None,
         hooks: SessionHooks | None = None,
         working_directory: str | None = None,
+        additional_directories: list[str] | None = None,
         provider: ProviderConfig | None = None,
         capi: CapiSessionOptions | None = None,
         providers: list[NamedProviderConfig] | None = None,
         models: list[ProviderModelConfig] | None = None,
         enable_session_telemetry: bool | None = None,
         enable_citations: bool | None = None,
+        enable_file_change_tracking: bool | None = None,
         excluded_builtin_agents: list[str] | None = None,
         session_limits: SessionLimitsConfig | None = None,
         skip_custom_instructions: bool | None = None,
@@ -2062,6 +2123,7 @@ class CopilotClient:
         plugin_directories: list[str] | None = None,
         instruction_directories: list[str] | None = None,
         disabled_skills: list[str] | None = None,
+        disabled_mcp_servers: list[str] | None = None,
         infinite_sessions: InfiniteSessionConfig | None = None,
         large_output: LargeToolOutputConfig | None = None,
         memory: MemoryConfiguration | None = None,
@@ -2086,6 +2148,7 @@ class CopilotClient:
         exp_assignments: CopilotExpAssignmentResponse | None = None,
         enable_managed_settings: bool | None = None,
         github_mcp_tool_config: GitHubMcpToolConfig | None = None,
+        managed_settings: ManagedSettings | None = None,
     ) -> CopilotSession:
         """
         Create a new conversation session with the Copilot CLI.
@@ -2105,6 +2168,9 @@ class CopilotClient:
             reasoning_summary: Reasoning summary mode for supported models.
                 Use ``"none"`` to suppress summary output regardless of whether
                 reasoning is enabled.
+            enable_experimental_mode: Controls whether the session enables
+                experimental features. Defaults to ``False`` in ``"empty"``
+                mode; otherwise the runtime decides when omitted.
             context_tier: Context window tier for models that support it. Use
                 ``"long_context"`` to pin the session to the long-context tier.
             tools: Custom tools to register with the session.
@@ -2145,6 +2211,8 @@ class CopilotClient:
                 OpenTelemetry configuration.
             enable_citations: **Experimental.** Enables native model citations for
                 supported providers.
+            enable_file_change_tracking: Opts in to capturing file changes from the
+                first turn for session rewind and cumulative session diff.
             excluded_builtin_agents: Built-in agent names to exclude from the
                 session. Excluded built-in agents are hidden from discovery and
                 cannot be selected or invoked unless a custom agent with the same
@@ -2187,6 +2255,10 @@ class CopilotClient:
             instruction_directories: Additional directories to search for custom
                 instruction files.
             disabled_skills: Skills to disable.
+            disabled_mcp_servers: Exact MCP server names to disable only for this
+                session. Disabled servers are not started or authenticated on
+                create or cold resume; a resident resume cannot stop servers
+                already running. This does not change global MCP settings.
             infinite_sessions: Infinite session configuration.
             memory: Session memory configuration.
             cloud: Creates a remote session in the cloud instead of a local
@@ -2230,6 +2302,15 @@ class CopilotClient:
                 expected to reject session creation (fail-closed). When unset,
                 behaves exactly as before. Sent on the wire as
                 ``enableManagedSettings``.
+            managed_settings: Host-injected enterprise managed settings for the
+                session. Supplies managed policy directly instead of
+                self-fetching; the runtime validates it and composes it
+                restrictively with any self-fetched (server) and device-managed
+                layers. Startup-only and not persisted: re-supply on
+                :meth:`resume_session` (omitting it clears the injected layer).
+                May be combined with ``enable_managed_settings``. Requires a
+                runtime whose RPC schema includes ``managedSettings``. Sent on
+                the wire as ``managedSettings``.
 
         Returns:
             A :class:`CopilotSession` instance for the new session.
@@ -2271,6 +2352,8 @@ class CopilotClient:
                     definition["defer"] = tool.defer
                 if tool.metadata is not None:
                     definition["metadata"] = tool.metadata
+                if tool.is_terminal:
+                    definition["isTerminal"] = True
                 tool_defs.append(definition)
 
         # Empty-mode validation and normalization
@@ -2297,6 +2380,7 @@ class CopilotClient:
         enable_session_store = _enable_session_store_default(mode, enable_session_store)
         enable_skills = _enable_skills_default(mode, enable_skills)
         custom_agents_local_only = _custom_agents_local_only_default(mode, custom_agents_local_only)
+        enable_experimental_mode = _enable_experimental_mode_default(mode, enable_experimental_mode)
 
         payload: dict[str, Any] = {}
         if model:
@@ -2307,6 +2391,8 @@ class CopilotClient:
             payload["reasoningEffort"] = reasoning_effort
         if reasoning_summary:
             payload["reasoningSummary"] = reasoning_summary
+        if enable_experimental_mode is not None:
+            payload["isExperimentalMode"] = enable_experimental_mode
         if context_tier:
             payload["contextTier"] = context_tier
         if tool_defs:
@@ -2373,9 +2459,15 @@ class CopilotClient:
         if enable_managed_settings is not None:
             payload["enableManagedSettings"] = enable_managed_settings
 
+        # Host-injected managed settings (permissions-only contract)
+        if managed_settings is not None:
+            payload["managedSettings"] = _managed_settings_to_dict(managed_settings)
+
         # Add working directory if provided
         if working_directory:
             payload["workingDirectory"] = working_directory
+        if additional_directories:
+            payload["additionalDirectories"] = additional_directories
 
         # Add streaming option if provided
         if streaming is not None:
@@ -2411,6 +2503,8 @@ class CopilotClient:
             payload["enableSessionTelemetry"] = enable_session_telemetry
         if enable_citations is not None:
             payload["enableCitations"] = enable_citations
+        if enable_file_change_tracking is not None:
+            payload["enableFileChangeTracking"] = enable_file_change_tracking
         if excluded_builtin_agents is not None:
             payload["excludedBuiltinAgents"] = excluded_builtin_agents
         if session_limits is not None:
@@ -2485,6 +2579,8 @@ class CopilotClient:
         # Add disabled skills configuration if provided
         if disabled_skills:
             payload["disabledSkills"] = disabled_skills
+        if disabled_mcp_servers is not None:
+            payload["disabledMcpServers"] = disabled_mcp_servers
 
         # Add infinite sessions configuration if provided
         if infinite_sessions:
@@ -2555,7 +2651,8 @@ class CopilotClient:
                 sid,
                 self._client,
                 workspace_path=None,
-                managed_settings_enabled=enable_managed_settings is True,
+                managed_settings_enabled=enable_managed_settings is True
+                or managed_settings is not None,
             )
             if self._session_fs_config:
                 if create_session_fs_handler is None:
@@ -2708,6 +2805,7 @@ class CopilotClient:
         client_name: str | None = None,
         reasoning_effort: ReasoningEffort | None = None,
         reasoning_summary: ReasoningSummary | None = None,
+        enable_experimental_mode: bool | None = None,
         context_tier: ContextTier | None = None,
         tools: list[Tool] | None = None,
         system_message: SystemMessageConfig | None = None,
@@ -2717,12 +2815,14 @@ class CopilotClient:
         on_user_input_request: UserInputHandler | None = None,
         hooks: SessionHooks | None = None,
         working_directory: str | None = None,
+        additional_directories: list[str] | None = None,
         provider: ProviderConfig | None = None,
         capi: CapiSessionOptions | None = None,
         providers: list[NamedProviderConfig] | None = None,
         models: list[ProviderModelConfig] | None = None,
         enable_session_telemetry: bool | None = None,
         enable_citations: bool | None = None,
+        enable_file_change_tracking: bool | None = None,
         excluded_builtin_agents: list[str] | None = None,
         session_limits: SessionLimitsConfig | None = None,
         skip_custom_instructions: bool | None = None,
@@ -2751,6 +2851,7 @@ class CopilotClient:
         plugin_directories: list[str] | None = None,
         instruction_directories: list[str] | None = None,
         disabled_skills: list[str] | None = None,
+        disabled_mcp_servers: list[str] | None = None,
         infinite_sessions: InfiniteSessionConfig | None = None,
         large_output: LargeToolOutputConfig | None = None,
         memory: MemoryConfiguration | None = None,
@@ -2776,6 +2877,7 @@ class CopilotClient:
         exp_assignments: CopilotExpAssignmentResponse | None = None,
         enable_managed_settings: bool | None = None,
         github_mcp_tool_config: GitHubMcpToolConfig | None = None,
+        managed_settings: ManagedSettings | None = None,
     ) -> CopilotSession:
         """
         Resume an existing conversation session by its ID.
@@ -2795,6 +2897,9 @@ class CopilotClient:
             reasoning_summary: Reasoning summary mode for supported models.
                 Use ``"none"`` to suppress summary output regardless of whether
                 reasoning is enabled.
+            enable_experimental_mode: Controls whether the session enables
+                experimental features. Defaults to ``False`` in ``"empty"``
+                mode; otherwise the runtime decides when omitted.
             context_tier: Context window tier for models that support it. Use
                 ``"long_context"`` to pin the session to the long-context tier.
             tools: Custom tools to register with the session.
@@ -2835,6 +2940,9 @@ class CopilotClient:
                 OpenTelemetry configuration.
             enable_citations: **Experimental.** Enables native model citations for
                 supported providers.
+            enable_file_change_tracking: Opts in to capturing file changes for
+                session rewind and cumulative session diff when the resumed session
+                has a valid baseline. Earlier untracked changes cannot be reconstructed.
             excluded_builtin_agents: Built-in agent names to exclude from the
                 resumed session. Excluded built-in agents are hidden from discovery
                 and cannot be selected or invoked unless a custom agent with the
@@ -2877,6 +2985,10 @@ class CopilotClient:
             instruction_directories: Additional directories to search for custom
                 instruction files.
             disabled_skills: Skills to disable.
+            disabled_mcp_servers: Exact MCP server names to disable only for this
+                session. Disabled servers are not started or authenticated on
+                create or cold resume; a resident resume cannot stop servers
+                already running. This does not change global MCP settings.
             infinite_sessions: Infinite session configuration.
             memory: Session memory configuration.
             on_event: Callback for session events.
@@ -2921,6 +3033,11 @@ class CopilotClient:
                 expected to reject session creation (fail-closed). When unset,
                 behaves exactly as before. Sent on the wire as
                 ``enableManagedSettings``.
+            managed_settings: Host-injected enterprise managed settings for the
+                session. Must be re-supplied on resume; it replaces the prior
+                injected layer, and omitting it clears that layer so warm and
+                cold resume behave identically. See :meth:`create_session`. Sent
+                on the wire as ``managedSettings``.
 
         Returns:
             A :class:`CopilotSession` instance for the resumed session.
@@ -2964,6 +3081,8 @@ class CopilotClient:
                     definition["defer"] = tool.defer
                 if tool.metadata is not None:
                     definition["metadata"] = tool.metadata
+                if tool.is_terminal:
+                    definition["isTerminal"] = True
                 tool_defs.append(definition)
 
         # Empty-mode validation and normalization
@@ -2987,6 +3106,7 @@ class CopilotClient:
         enable_session_store = _enable_session_store_default(mode, enable_session_store)
         enable_skills = _enable_skills_default(mode, enable_skills)
         custom_agents_local_only = _custom_agents_local_only_default(mode, custom_agents_local_only)
+        enable_experimental_mode = _enable_experimental_mode_default(mode, enable_experimental_mode)
 
         payload: dict[str, Any] = {"sessionId": session_id}
 
@@ -2998,6 +3118,8 @@ class CopilotClient:
             payload["reasoningEffort"] = reasoning_effort
         if reasoning_summary:
             payload["reasoningSummary"] = reasoning_summary
+        if enable_experimental_mode is not None:
+            payload["isExperimentalMode"] = enable_experimental_mode
         if context_tier:
             payload["contextTier"] = context_tier
         if tool_defs:
@@ -3026,6 +3148,8 @@ class CopilotClient:
             payload["enableSessionTelemetry"] = enable_session_telemetry
         if enable_citations is not None:
             payload["enableCitations"] = enable_citations
+        if enable_file_change_tracking is not None:
+            payload["enableFileChangeTracking"] = enable_file_change_tracking
         if excluded_builtin_agents is not None:
             payload["excludedBuiltinAgents"] = excluded_builtin_agents
         if session_limits is not None:
@@ -3087,8 +3211,14 @@ class CopilotClient:
         if enable_managed_settings is not None:
             payload["enableManagedSettings"] = enable_managed_settings
 
+        # Host-injected managed settings (permissions-only contract)
+        if managed_settings is not None:
+            payload["managedSettings"] = _managed_settings_to_dict(managed_settings)
+
         if working_directory:
             payload["workingDirectory"] = working_directory
+        if additional_directories:
+            payload["additionalDirectories"] = additional_directories
         if config_directory:
             payload["configDir"] = config_directory
         if enable_config_discovery is not None:
@@ -3144,6 +3274,8 @@ class CopilotClient:
             payload["instructionDirectories"] = instruction_directories
         if disabled_skills:
             payload["disabledSkills"] = disabled_skills
+        if disabled_mcp_servers is not None:
+            payload["disabledMcpServers"] = disabled_mcp_servers
 
         if infinite_sessions:
             wire_config: dict[str, Any] = {}
@@ -3195,7 +3327,8 @@ class CopilotClient:
             session_id,
             self._client,
             workspace_path=None,
-            managed_settings_enabled=enable_managed_settings is True,
+            managed_settings_enabled=enable_managed_settings is True
+            or managed_settings is not None,
         )
         if self._session_fs_config:
             if create_session_fs_handler is None:

@@ -14,11 +14,10 @@ use github_copilot_sdk::rpc::{
 };
 use github_copilot_sdk::{IndexMap, McpServerConfig, McpStdioServerConfig};
 
-use super::support::with_e2e_context;
-
 #[tokio::test]
 async fn should_list_and_toggle_session_skills() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_mcp_and_skills",
         "should_list_and_toggle_session_skills",
         |ctx| {
@@ -87,7 +86,8 @@ async fn should_list_and_toggle_session_skills() {
 
 #[tokio::test]
 async fn should_ensure_skills_are_loaded_and_list_invoked_skills() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_mcp_and_skills",
         "should_ensure_skills_are_loaded_and_list_invoked_skills",
         |ctx| {
@@ -137,7 +137,8 @@ async fn should_ensure_skills_are_loaded_and_list_invoked_skills() {
 
 #[tokio::test]
 async fn should_reload_session_skills() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_mcp_and_skills",
         "should_reload_session_skills",
         |ctx| {
@@ -183,7 +184,8 @@ async fn should_reload_session_skills() {
 
 #[tokio::test]
 async fn should_list_mcp_servers_with_configured_server() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_mcp_and_skills",
         "should_list_mcp_servers_with_configured_server",
         |ctx| {
@@ -217,7 +219,8 @@ async fn should_list_mcp_servers_with_configured_server() {
 
 #[tokio::test]
 async fn should_set_mcp_env_value_mode_and_remove_github_server() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_mcp_and_skills",
         "should_set_mcp_env_value_mode_and_remove_github_server",
         |ctx| {
@@ -256,7 +259,8 @@ async fn should_set_mcp_env_value_mode_and_remove_github_server() {
 
 #[tokio::test]
 async fn should_report_mcp_sampling_failure_and_cancel_missing_sampling() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_mcp_and_skills",
         "should_report_mcp_sampling_failure_and_cancel_missing_sampling",
         |ctx| {
@@ -312,76 +316,87 @@ async fn should_report_mcp_sampling_failure_and_cancel_missing_sampling() {
 
 #[tokio::test]
 async fn should_list_plugins() {
-    with_e2e_context("rpc_mcp_and_skills", "should_list_plugins", |ctx| {
-        Box::pin(async move {
-            ctx.set_default_copilot_user();
-            let client = ctx.start_client().await;
-            let session = client
-                .create_session(ctx.approve_all_session_config())
-                .await
-                .expect("create session");
+    super::support::with_shared_e2e_context(
+        &E2E,
+        "rpc_mcp_and_skills",
+        "should_list_plugins",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let client = ctx.start_client().await;
+                let session = client
+                    .create_session(ctx.approve_all_session_config())
+                    .await
+                    .expect("create session");
 
-            let result = session.rpc().plugins().list().await.expect("plugins list");
-            assert!(
-                result.plugins.iter().all(|plugin| !plugin.name.is_empty()),
-                "plugins should have names: {:?}",
-                result.plugins
-            );
+                let result = session.rpc().plugins().list().await.expect("plugins list");
+                assert!(
+                    result.plugins.iter().all(|plugin| !plugin.name.is_empty()),
+                    "plugins should have names: {:?}",
+                    result.plugins
+                );
 
-            session.disconnect().await.expect("disconnect session");
-            client.stop().await.expect("stop client");
-        })
-    })
+                session.disconnect().await.expect("disconnect session");
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
     .await;
 }
 
 #[tokio::test]
 async fn should_list_extensions() {
-    with_e2e_context("rpc_mcp_and_skills", "should_list_extensions", |ctx| {
-        Box::pin(async move {
-            ctx.set_default_copilot_user();
-            let client = ctx.start_client().await;
-            let session = client
-                .create_session(ctx.approve_all_session_config())
-                .await
-                .expect("create session");
-            session
-                .rpc()
-                .permissions()
-                .set_allow_all(PermissionsSetAllowAllRequest {
-                    enabled: None,
-                    mode: Some(PermissionsAllowAllMode::On),
-                    model: None,
-                    source: None,
-                })
-                .await
-                .expect("enable allow-all");
+    super::support::with_shared_e2e_context(
+        &E2E,
+        "rpc_mcp_and_skills",
+        "should_list_extensions",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let client = ctx.start_client().await;
+                let session = client
+                    .create_session(ctx.approve_all_session_config())
+                    .await
+                    .expect("create session");
+                session
+                    .rpc()
+                    .permissions()
+                    .set_allow_all(PermissionsSetAllowAllRequest {
+                        enabled: None,
+                        mode: Some(PermissionsAllowAllMode::On),
+                        model: None,
+                        source: None,
+                    })
+                    .await
+                    .expect("enable allow-all");
 
-            let result = session
-                .rpc()
-                .extensions()
-                .list()
-                .await
-                .expect("extensions list");
-            assert!(
-                result
-                    .extensions
-                    .iter()
-                    .all(|extension| !extension.id.is_empty() && !extension.name.is_empty()),
-                "extensions should have ids and names: {:?}",
-                result.extensions
-            );
+                let result = session
+                    .rpc()
+                    .extensions()
+                    .list()
+                    .await
+                    .expect("extensions list");
+                assert!(
+                    result
+                        .extensions
+                        .iter()
+                        .all(|extension| !extension.id.is_empty() && !extension.name.is_empty()),
+                    "extensions should have ids and names: {:?}",
+                    result.extensions
+                );
 
-            session.disconnect().await.expect("disconnect session");
-            client.stop().await.expect("stop client");
-        })
-    })
+                session.disconnect().await.expect("disconnect session");
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
     .await;
 }
 
 #[tokio::test]
 async fn should_round_trip_mcp_app_host_context() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_mcp_and_skills",
         "should_round_trip_mcp_app_host_context",
         |ctx| {
@@ -439,7 +454,8 @@ async fn should_round_trip_mcp_app_host_context() {
 
 #[tokio::test]
 async fn should_diagnose_and_report_mcp_app_capability_errors() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_mcp_and_skills",
         "should_diagnose_and_report_mcp_app_capability_errors",
         |ctx| {
@@ -503,7 +519,8 @@ async fn should_diagnose_and_report_mcp_app_capability_errors() {
 
 #[tokio::test]
 async fn should_report_error_when_mcp_app_resource_is_not_available() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_mcp_and_skills",
         "should_report_error_when_mcp_app_resource_is_not_available",
         |ctx| {
@@ -544,7 +561,8 @@ async fn should_report_error_when_mcp_app_resource_is_not_available() {
 
 #[tokio::test]
 async fn should_report_error_when_mcp_host_is_not_initialized() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_mcp_and_skills",
         "should_report_error_when_mcp_host_is_not_initialized",
         |ctx| {
@@ -600,7 +618,8 @@ async fn should_report_error_when_mcp_host_is_not_initialized() {
 
 #[tokio::test]
 async fn should_report_error_when_mcp_oauth_server_is_not_configured() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_mcp_and_skills",
         "should_report_error_when_mcp_oauth_server_is_not_configured",
         |ctx| {
@@ -639,7 +658,8 @@ async fn should_report_error_when_mcp_oauth_server_is_not_configured() {
 
 #[tokio::test]
 async fn should_report_error_when_mcp_oauth_server_is_not_remote() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_mcp_and_skills",
         "should_report_error_when_mcp_oauth_server_is_not_remote",
         |ctx| {
@@ -680,7 +700,8 @@ async fn should_report_error_when_mcp_oauth_server_is_not_remote() {
 
 #[tokio::test]
 async fn should_report_error_when_extensions_are_not_available() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_mcp_and_skills",
         "should_report_error_when_extensions_are_not_available",
         |ctx| {
@@ -814,3 +835,5 @@ async fn expect_err_contains<T>(
         "expected error to contain {expected:?}, got {err}"
     );
 }
+static E2E: super::support::SharedE2eGroup =
+    super::support::SharedE2eGroup::standard("rpc_mcp_and_skills", 15);

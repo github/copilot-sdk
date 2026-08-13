@@ -8,17 +8,19 @@ use github_copilot_sdk::hooks::{
     PostToolUseFailureInput, PostToolUseFailureOutput, PostToolUseInput, PostToolUseOutput,
     PreToolUseInput, PreToolUseOutput, SessionEndInput, SessionEndOutput, SessionHooks,
     SessionStartInput, SessionStartOutput, UserPromptSubmittedInput, UserPromptSubmittedOutput,
+    UserPromptTransformedInput, UserPromptTransformedOutput,
 };
 use github_copilot_sdk::tool::ToolHandler;
 use github_copilot_sdk::{Error, SessionConfig, Tool, ToolInvocation, ToolResult};
 use serde_json::json;
 use tokio::sync::mpsc;
 
-use super::support::{assistant_message_content, recv_with_timeout, with_e2e_context};
+use super::support::{assistant_message_content, recv_with_timeout};
 
 #[tokio::test]
 async fn should_invoke_onsessionstart_hook_on_new_session() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "hooks_extended",
         "should_invoke_onsessionstart_hook_on_new_session",
         |ctx| {
@@ -50,7 +52,8 @@ async fn should_invoke_onsessionstart_hook_on_new_session() {
 
 #[tokio::test]
 async fn should_invoke_onuserpromptsubmitted_hook_when_sending_a_message() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "hooks_extended",
         "should_invoke_onuserpromptsubmitted_hook_when_sending_a_message",
         |ctx| {
@@ -82,7 +85,8 @@ async fn should_invoke_onuserpromptsubmitted_hook_when_sending_a_message() {
 
 #[tokio::test]
 async fn should_invoke_onsessionend_hook_when_session_is_disconnected() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "hooks_extended",
         "should_invoke_onsessionend_hook_when_session_is_disconnected",
         |ctx| {
@@ -113,7 +117,8 @@ async fn should_invoke_onsessionend_hook_when_session_is_disconnected() {
 
 #[tokio::test]
 async fn should_invoke_onerroroccurred_hook_when_error_occurs() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "hooks_extended",
         "should_invoke_onerroroccurred_hook_when_error_occurs",
         |ctx| {
@@ -144,7 +149,8 @@ async fn should_invoke_onerroroccurred_hook_when_error_occurs() {
 
 #[tokio::test]
 async fn should_invoke_userpromptsubmitted_hook_and_modify_prompt() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "hooks_extended",
         "should_invoke_userpromptsubmitted_hook_and_modify_prompt",
         |ctx| {
@@ -185,70 +191,125 @@ async fn should_invoke_userpromptsubmitted_hook_and_modify_prompt() {
 }
 
 #[tokio::test]
+async fn should_invoke_userprompttransformed_hook_and_modify_transformed_prompt() {
+    super::support::with_shared_e2e_context(
+        &E2E,
+        "hooks_extended",
+        "should_invoke_userprompttransformed_hook_and_modify_transformed_prompt",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let (tx, mut rx) = mpsc::unbounded_channel();
+                let client = ctx.start_client().await;
+                let session = client
+                    .create_session(
+                        ctx.approve_all_session_config()
+                            .with_hooks(Arc::new(UserPromptTransformedHooks { tx })),
+                    )
+                    .await
+                    .expect("create session");
+
+                let answer = session
+                    .send_and_wait("Answer the request above.")
+                    .await
+                    .expect("send")
+                    .expect("assistant message");
+                let input = recv_with_timeout(&mut rx, "userPromptTransformed hook").await;
+                assert!(input.prompt.contains("Answer the request above."));
+                assert!(
+                    input
+                        .transformed_prompt
+                        .contains("Answer the request above.")
+                );
+                assert!(input.transformed_prompt.contains("<current_datetime>"));
+                assert!(input.timestamp > 0.0);
+                assert!(!input.working_directory.as_os_str().is_empty());
+                assert!(assistant_message_content(&answer).contains("HOOKED_TRANSFORMED_PROMPT"));
+
+                session.disconnect().await.expect("disconnect session");
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
+    .await;
+}
+
+#[tokio::test]
 async fn should_invoke_sessionstart_hook() {
-    with_e2e_context("hooks_extended", "should_invoke_sessionstart_hook", |ctx| {
-        Box::pin(async move {
-            ctx.set_default_copilot_user();
-            let (tx, mut rx) = mpsc::unbounded_channel();
-            let client = ctx.start_client().await;
-            let session = client
-                .create_session(ctx.approve_all_session_config().with_hooks(Arc::new(
-                    RecordingHooks::session_start(
-                        tx,
-                        Some(SessionStartOutput {
-                            additional_context: Some("Session start hook context.".to_string()),
-                            ..SessionStartOutput::default()
-                        }),
-                    ),
-                )))
-                .await
-                .expect("create session");
+    super::support::with_shared_e2e_context(
+        &E2E,
+        "hooks_extended",
+        "should_invoke_sessionstart_hook",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let (tx, mut rx) = mpsc::unbounded_channel();
+                let client = ctx.start_client().await;
+                let session = client
+                    .create_session(ctx.approve_all_session_config().with_hooks(Arc::new(
+                        RecordingHooks::session_start(
+                            tx,
+                            Some(SessionStartOutput {
+                                additional_context: Some("Session start hook context.".to_string()),
+                                ..SessionStartOutput::default()
+                            }),
+                        ),
+                    )))
+                    .await
+                    .expect("create session");
 
-            session.send_and_wait("Say hi").await.expect("send");
-            let input = recv_with_timeout(&mut rx, "sessionStart hook").await;
-            assert_eq!(input.source, "new");
+                session.send_and_wait("Say hi").await.expect("send");
+                let input = recv_with_timeout(&mut rx, "sessionStart hook").await;
+                assert_eq!(input.source, "new");
 
-            session.disconnect().await.expect("disconnect session");
-            client.stop().await.expect("stop client");
-        })
-    })
+                session.disconnect().await.expect("disconnect session");
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
     .await;
 }
 
 #[tokio::test]
 async fn should_invoke_sessionend_hook() {
-    with_e2e_context("hooks_extended", "should_invoke_sessionend_hook", |ctx| {
-        Box::pin(async move {
-            ctx.set_default_copilot_user();
-            let (tx, mut rx) = mpsc::unbounded_channel();
-            let client = ctx.start_client().await;
-            let session = client
-                .create_session(ctx.approve_all_session_config().with_hooks(Arc::new(
-                    RecordingHooks::session_end(
-                        tx,
-                        Some(SessionEndOutput {
-                            session_summary: Some("session ended".to_string()),
-                            ..SessionEndOutput::default()
-                        }),
-                    ),
-                )))
-                .await
-                .expect("create session");
+    super::support::with_shared_e2e_context(
+        &E2E,
+        "hooks_extended",
+        "should_invoke_sessionend_hook",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let (tx, mut rx) = mpsc::unbounded_channel();
+                let client = ctx.start_client().await;
+                let session = client
+                    .create_session(ctx.approve_all_session_config().with_hooks(Arc::new(
+                        RecordingHooks::session_end(
+                            tx,
+                            Some(SessionEndOutput {
+                                session_summary: Some("session ended".to_string()),
+                                ..SessionEndOutput::default()
+                            }),
+                        ),
+                    )))
+                    .await
+                    .expect("create session");
 
-            session.send_and_wait("Say bye").await.expect("send");
-            session.disconnect().await.expect("disconnect session");
-            let input = recv_with_timeout(&mut rx, "sessionEnd hook").await;
-            assert!(input.timestamp > 0.0);
+                session.send_and_wait("Say bye").await.expect("send");
+                session.disconnect().await.expect("disconnect session");
+                let input = recv_with_timeout(&mut rx, "sessionEnd hook").await;
+                assert!(input.timestamp > 0.0);
 
-            client.stop().await.expect("stop client");
-        })
-    })
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
     .await;
 }
 
 #[tokio::test]
 async fn should_register_erroroccurred_hook() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "hooks_extended",
         "should_register_erroroccurred_hook",
         |ctx| {
@@ -284,7 +345,8 @@ async fn should_register_erroroccurred_hook() {
 
 #[tokio::test]
 async fn should_invoke_agentstop_hook_and_apply_block_response() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "hooks_extended",
         "should_invoke_agentstop_hook_and_apply_block_response",
         |ctx| {
@@ -326,7 +388,8 @@ async fn should_invoke_agentstop_hook_and_apply_block_response() {
 
 #[tokio::test]
 async fn should_allow_pretooluse_to_return_modifiedargs_and_suppressoutput() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "hooks_extended",
         "should_allow_pretooluse_to_return_modifiedargs_and_suppressoutput",
         |ctx| {
@@ -369,7 +432,8 @@ async fn should_allow_pretooluse_to_return_modifiedargs_and_suppressoutput() {
 
 #[tokio::test]
 async fn should_allow_posttooluse_to_return_modifiedresult() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "hooks_extended",
         "should_allow_posttooluse_to_return_modifiedresult",
         |ctx| {
@@ -415,7 +479,7 @@ async fn should_allow_posttooluse_to_return_modifiedresult() {
 #[tokio::test]
 #[ignore = "Fails with 1.0.64-0 runtime: built-in tools are not available when hooks restrict availableTools, so the failure path cannot be exercised. Follow up with runtime team."]
 async fn should_invoke_posttoolusefailure_hook_for_failed_tool_result() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(&E2E,
         "hooks_extended",
         "should_invoke_posttoolusefailure_hook_for_failed_tool_result",
         |ctx| {
@@ -487,6 +551,27 @@ struct RecordingHooks {
 struct AgentStopHooks {
     tx: mpsc::UnboundedSender<AgentStopInput>,
     call_count: AtomicUsize,
+}
+
+struct UserPromptTransformedHooks {
+    tx: mpsc::UnboundedSender<UserPromptTransformedInput>,
+}
+
+#[async_trait]
+impl SessionHooks for UserPromptTransformedHooks {
+    async fn on_user_prompt_transformed(
+        &self,
+        input: UserPromptTransformedInput,
+        ctx: HookContext,
+    ) -> Option<UserPromptTransformedOutput> {
+        assert!(!ctx.session_id.as_str().is_empty());
+        let _ = self.tx.send(input);
+        Some(UserPromptTransformedOutput {
+            modified_transformed_prompt: Some(
+                "Reply with exactly: HOOKED_TRANSFORMED_PROMPT".to_string(),
+            ),
+        })
+    }
 }
 
 #[async_trait]
@@ -719,3 +804,5 @@ impl ToolHandler for EchoValueTool {
         ))
     }
 }
+static E2E: super::support::SharedE2eGroup =
+    super::support::SharedE2eGroup::standard("hooks_extended", 12);

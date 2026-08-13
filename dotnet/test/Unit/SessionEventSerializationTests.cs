@@ -368,4 +368,65 @@ public class SessionEventSerializationTests
         Assert.NotNull(authEvent.Data.StaticClientConfig);
         Assert.Equal("static-secret", authEvent.Data.StaticClientConfig.ClientSecret);
     }
+
+    [Fact]
+    public void ManagedSettingsResolvedData_Preserves_Client_Provenance()
+    {
+        Assert.Equal("server", ManagedSettingsResolvedSource.Server.Value);
+        Assert.Equal("device", ManagedSettingsResolvedSource.Device.Value);
+        Assert.Equal("client", ManagedSettingsResolvedSource.Client.Value);
+        Assert.Equal("mixed", ManagedSettingsResolvedSource.Mixed.Value);
+        Assert.Equal("none", ManagedSettingsResolvedSource.None.Value);
+
+        const string clientJson = """
+            {
+              "id": "11111111-1111-1111-1111-111111111111",
+              "timestamp": "2026-03-15T21:26:54.987Z",
+              "parentId": null,
+              "type": "session.managed_settings_resolved",
+              "data": {
+                "source": "client",
+                "serverManaged": false,
+                "deviceManaged": false,
+                "clientManaged": true,
+                "failClosed": false,
+                "bypassPermissionsDisabled": true,
+                "managedKeys": ["permissions"]
+              }
+            }
+            """;
+
+        var clientEvent = Assert.IsType<SessionManagedSettingsResolvedEvent>(
+            SessionEvent.FromJson(clientJson));
+        Assert.Equal(ManagedSettingsResolvedSource.Client, clientEvent.Data.Source);
+        Assert.True(clientEvent.Data.ClientManaged);
+        using (var document = JsonDocument.Parse(clientEvent.ToJson()))
+        {
+            Assert.True(document.RootElement.GetProperty("data").GetProperty("clientManaged").GetBoolean());
+        }
+
+        const string mixedJson = """
+            {
+              "id": "22222222-2222-2222-2222-222222222222",
+              "timestamp": "2026-03-15T21:26:54.987Z",
+              "parentId": null,
+              "type": "session.managed_settings_resolved",
+              "data": {
+                "source": "mixed",
+                "serverManaged": true,
+                "deviceManaged": true,
+                "failClosed": false,
+                "bypassPermissionsDisabled": true,
+                "managedKeys": ["permissions"]
+              }
+            }
+            """;
+
+        var mixedEvent = Assert.IsType<SessionManagedSettingsResolvedEvent>(
+            SessionEvent.FromJson(mixedJson));
+        Assert.Equal(ManagedSettingsResolvedSource.Mixed, mixedEvent.Data.Source);
+        Assert.Null(mixedEvent.Data.ClientManaged);
+        using var mixedDocument = JsonDocument.Parse(mixedEvent.ToJson());
+        Assert.False(mixedDocument.RootElement.GetProperty("data").TryGetProperty("clientManaged", out _));
+    }
 }

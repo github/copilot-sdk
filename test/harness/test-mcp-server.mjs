@@ -13,9 +13,17 @@
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { appendFile } from "node:fs/promises";
 import { z } from "zod";
 
-const server = new McpServer({ name: "env-echo", version: "1.0.0" });
+function getArgument(name) {
+    const index = process.argv.indexOf(name);
+    return index === -1 ? undefined : process.argv[index + 1];
+}
+
+const startupMarkerPath = getArgument("--startup-marker");
+const serverName = getArgument("--server-name") ?? "env-echo";
+const server = new McpServer({ name: serverName, version: "1.0.0" });
 
 server.tool(
     "get_env",
@@ -27,5 +35,7 @@ server.tool(
 );
 
 const transport = new StdioServerTransport();
+if (startupMarkerPath) {
+    await appendFile(startupMarkerPath, `${serverName}\n`);
+}
 await server.connect(transport);
-

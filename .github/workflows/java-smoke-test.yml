@@ -63,7 +63,7 @@ jobs:
           The SDK has already been built and installed into the local Maven repository.
           JDK 17 and Maven are already installed and on PATH.
 
-          Execute the prompt at `src/test/prompts/PROMPT-smoke-test.md` with the following critical overrides:
+          Execute the prompt at `sdk/src/test/prompts/PROMPT-smoke-test.md` with the following critical overrides:
 
           **Critical override — disable SNAPSHOT updates (but allow downloads):** The goal of this workflow is to validate the SDK SNAPSHOT that was just built and installed locally, not any newer SNAPSHOT that might exist in a remote repository. To ensure Maven does not download a newer timestamped SNAPSHOT of the SDK while still allowing it to download any missing plugins or dependencies, you must run the smoke-test Maven build without `-U` and with `--no-snapshot-updates`, so that it uses the locally installed SDK artifact. Use `mvn --no-snapshot-updates clean package` instead of `mvn -U clean package` or `mvn -o clean package`.
 
@@ -136,7 +136,7 @@ jobs:
           The SDK has already been built and installed into the local Maven repository.
           JDK 25 and Maven are already installed and on PATH.
 
-          Execute the prompt at `src/test/prompts/PROMPT-smoke-test.md` with the following critical overrides:
+          Execute the prompt at `sdk/src/test/prompts/PROMPT-smoke-test.md` with the following critical overrides:
 
           **Critical override — disable SNAPSHOT updates (but allow downloads):** The goal of this workflow is to validate the SDK SNAPSHOT that was just built and installed locally, not any newer SNAPSHOT that might exist in a remote repository. To ensure Maven does not download a newer timestamped SNAPSHOT of the SDK while still allowing it to download any missing plugins or dependencies, you must run the smoke-test Maven build without `-U` and with `--no-snapshot-updates`, so that it uses the locally installed SDK artifact. Use `mvn --no-snapshot-updates clean package` instead of `mvn -U clean package` or `mvn -o clean package`.
 

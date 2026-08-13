@@ -5,11 +5,12 @@ use github_copilot_sdk::rpc::{
 };
 use github_copilot_sdk::session_events::SessionMode;
 
-use super::support::{wait_for_condition, with_e2e_context};
+use super::support::wait_for_condition;
 
 #[tokio::test]
 async fn shell_exec_with_zero_timeout_does_not_kill_long_running_command() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_additional_edge_cases",
         "shell_exec_with_zero_timeout_does_not_kill_long_running_command",
         |ctx| {
@@ -49,7 +50,8 @@ async fn shell_exec_with_zero_timeout_does_not_kill_long_running_command() {
 
 #[tokio::test]
 async fn workspaces_create_file_with_empty_content_round_trips() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_additional_edge_cases",
         "workspaces_create_file_with_empty_content_round_trips",
         |ctx| {
@@ -98,7 +100,8 @@ async fn workspaces_create_file_with_empty_content_round_trips() {
 
 #[tokio::test]
 async fn workspaces_create_file_with_unicode_content_round_trips() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_additional_edge_cases",
         "workspaces_create_file_with_unicode_content_round_trips",
         |ctx| {
@@ -141,7 +144,8 @@ async fn workspaces_create_file_with_unicode_content_round_trips() {
 
 #[tokio::test]
 async fn workspaces_create_file_with_large_content_round_trips() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_additional_edge_cases",
         "workspaces_create_file_with_large_content_round_trips",
         |ctx| {
@@ -187,7 +191,8 @@ async fn workspaces_create_file_with_large_content_round_trips() {
 
 #[tokio::test]
 async fn plan_update_with_empty_content_then_read_returns_empty() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_additional_edge_cases",
         "plan_update_with_empty_content_then_read_returns_empty",
         |ctx| {
@@ -220,7 +225,8 @@ async fn plan_update_with_empty_content_then_read_returns_empty() {
 
 #[tokio::test]
 async fn plan_delete_when_none_exists_is_idempotent() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_additional_edge_cases",
         "plan_delete_when_none_exists_is_idempotent",
         |ctx| {
@@ -252,7 +258,8 @@ async fn plan_delete_when_none_exists_is_idempotent() {
 
 #[tokio::test]
 async fn mode_set_to_same_value_multiple_times_stays_stable() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_additional_edge_cases",
         "mode_set_to_same_value_multiple_times_stays_stable",
         |ctx| {
@@ -289,7 +296,8 @@ async fn mode_set_to_same_value_multiple_times_stays_stable() {
 
 #[tokio::test]
 async fn name_set_with_unicode_round_trips() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_additional_edge_cases",
         "name_set_with_unicode_round_trips",
         |ctx| {
@@ -323,7 +331,8 @@ async fn name_set_with_unicode_round_trips() {
 
 #[tokio::test]
 async fn usage_get_metrics_on_fresh_session_returns_zero_tokens() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_additional_edge_cases",
         "usage_get_metrics_on_fresh_session_returns_zero_tokens",
         |ctx| {
@@ -351,7 +360,8 @@ async fn usage_get_metrics_on_fresh_session_returns_zero_tokens() {
 
 #[tokio::test]
 async fn permissions_reset_session_approvals_on_fresh_session_is_noop() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_additional_edge_cases",
         "permissions_reset_session_approvals_on_fresh_session_is_noop",
         |ctx| {
@@ -381,7 +391,8 @@ async fn permissions_reset_session_approvals_on_fresh_session_is_noop() {
 
 #[tokio::test]
 async fn permissions_set_approve_all_toggle_round_trips() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_additional_edge_cases",
         "permissions_set_approve_all_toggle_round_trips",
         |ctx| {
@@ -440,7 +451,8 @@ async fn permissions_set_approve_all_toggle_round_trips() {
 
 #[tokio::test]
 async fn workspaces_createfile_then_listfiles_returns_all_files() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_additional_edge_cases",
         "workspaces_createfile_then_listfiles_returns_all_files",
         |ctx| {
@@ -492,7 +504,8 @@ async fn workspaces_createfile_then_listfiles_returns_all_files() {
 
 #[tokio::test]
 async fn workspaces_getworkspace_returns_stable_result_across_calls() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_additional_edge_cases",
         "workspaces_getworkspace_returns_stable_result_across_calls",
         |ctx| {
@@ -545,3 +558,5 @@ fn delayed_marker_command(marker_path: &std::path::Path) -> String {
         marker_path.display()
     )
 }
+static E2E: super::support::SharedE2eGroup =
+    super::support::SharedE2eGroup::standard("rpc_additional_edge_cases", 13);

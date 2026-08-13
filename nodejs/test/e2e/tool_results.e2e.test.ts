@@ -59,6 +59,7 @@ describe("Tool Results", async () => {
             tools: [
                 defineTool("check_status", {
                     description: "Checks the status of a service",
+                    isTerminal: true,
                     handler: (): ToolResultObject => ({
                         textResultForLlm: "Service unavailable",
                         resultType: "failure",
@@ -74,6 +75,7 @@ describe("Tool Results", async () => {
 
         const failureContent = assistantMessage?.data.content ?? "";
         expect(failureContent).toMatch(/service is down/i);
+        expect(await openAiEndpoint.getExchanges()).toHaveLength(2);
 
         await session.disconnect();
     });

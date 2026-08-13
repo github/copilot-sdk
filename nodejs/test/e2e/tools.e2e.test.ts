@@ -7,7 +7,7 @@ import { join } from "path";
 import { assert, describe, expect, it } from "vitest";
 import { z } from "zod";
 import { defineTool, approveAll, ToolSet } from "../../src/index.js";
-import type { PermissionRequest } from "../../src/index.js";
+import type { CopilotSession, PermissionRequest, SessionEvent } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext";
 
 describe("Custom tools", async () => {
@@ -43,6 +43,46 @@ describe("Custom tools", async () => {
             prompt: "Use encrypt_string to encrypt this string: Hello",
         });
         expect(assistantMessage?.data.content).toContain("HELLO");
+    });
+
+    it("clears context from a terminal tool and starts the seeded turn", async () => {
+        const seedPrompt = "Reply with exactly FRESH_CONTEXT.";
+        const events: SessionEvent[] = [];
+        let session: CopilotSession;
+        session = await client.createSession({
+            onPermissionRequest: approveAll,
+            onEvent: (event) => events.push(event),
+            tools: [
+                defineTool("clear_context", {
+                    description: "Clears the conversation and starts a fresh context window",
+                    parameters: z.object({ prompt: z.string() }),
+                    isTerminal: true,
+                    defer: "never",
+                    handler: async () => {
+                        const result = await session.rpc.history.clearContext({
+                            prompt: seedPrompt,
+                        });
+                        return `Cleared ${result.messagesCleared} messages.`;
+                    },
+                }),
+            ],
+        });
+
+        const assistantMessage = await session.sendAndWait({
+            prompt: `Call clear_context with prompt "${seedPrompt}" now.`,
+        });
+
+        expect(assistantMessage?.data.content).toContain("FRESH_CONTEXT");
+        const contextCleared = events.find((event) => event.type === "session.context_cleared");
+        expect(contextCleared).toBeDefined();
+        if (contextCleared?.type === "session.context_cleared") {
+            expect(contextCleared.data.messagesCleared).toBeGreaterThan(0);
+            expect(contextCleared.data.initialMessage).toBe(seedPrompt);
+        }
+
+        const traffic = await openAiEndpoint.getExchanges();
+        expect(traffic).toHaveLength(2);
+        expect(JSON.stringify(traffic[1]?.request.messages)).toContain(seedPrompt);
     });
 
     it("low_level_tool_definition", async () => {

@@ -18,6 +18,9 @@ public static class CopilotTool
     /// <summary>The key used in <see cref="AITool.AdditionalProperties"/> to indicate that a tool can execute without a permission prompt.</summary>
     internal const string SkipPermissionKey = "skip_permission";
 
+    /// <summary>The key used in <see cref="AITool.AdditionalProperties"/> to indicate that a successful call to the tool ends the agent turn.</summary>
+    internal const string IsTerminalKey = "is_terminal";
+
     /// <summary>The key used in <see cref="AITool.AdditionalProperties"/> to carry the tool's <see cref="CopilotToolDefer"/> deferral mode.</summary>
     internal const string DeferKey = "defer";
 
@@ -91,7 +94,7 @@ public static class CopilotTool
 
         static void ApplyToolOptions(AIFunctionFactoryOptions factoryOptions, CopilotToolOptions? toolOptions)
         {
-            if (toolOptions is not null && (toolOptions.OverridesBuiltInTool || toolOptions.SkipPermission || toolOptions.Defer is not null || toolOptions.Metadata is not null))
+            if (toolOptions is not null && (toolOptions.OverridesBuiltInTool || toolOptions.SkipPermission || toolOptions.IsTerminal || toolOptions.Defer is not null || toolOptions.Metadata is not null))
             {
                 Dictionary<string, object?> additionalProperties = new(StringComparer.Ordinal);
                 if (factoryOptions.AdditionalProperties is not null)
@@ -110,6 +113,11 @@ public static class CopilotTool
                 if (toolOptions.SkipPermission)
                 {
                     additionalProperties[SkipPermissionKey] = true;
+                }
+
+                if (toolOptions.IsTerminal)
+                {
+                    additionalProperties[IsTerminalKey] = true;
                 }
 
                 if (toolOptions.Defer is { } defer)
@@ -151,6 +159,16 @@ public sealed class CopilotToolOptions
     /// the resulting <see cref="AIFunction"/> will include "skip_permission": true in its <see cref="AITool.AdditionalProperties"/>.
     /// </remarks>
     public bool SkipPermission { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether a successful call to this tool ends the agent turn.
+    /// </summary>
+    /// <remarks>
+    /// When true, the runtime's tool phase halts after a successful call instead of feeding the result back to the
+    /// model for another round. A failed call leaves the loop running so the model can read the error and retry.
+    /// The resulting <see cref="AIFunction"/> includes "is_terminal": true in its <see cref="AITool.AdditionalProperties"/>.
+    /// </remarks>
+    public bool IsTerminal { get; set; }
 
     /// <summary>
     /// Gets or sets a value controlling whether this tool may be deferred (loaded lazily via tool search) rather than always pre-loaded.

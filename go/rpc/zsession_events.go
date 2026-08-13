@@ -131,6 +131,7 @@ const (
 	SessionEventTypeSessionCompactionComplete          SessionEventType = "session.compaction_complete"
 	SessionEventTypeSessionCompactionStart             SessionEventType = "session.compaction_start"
 	SessionEventTypeSessionContextChanged              SessionEventType = "session.context_changed"
+	SessionEventTypeSessionContextCleared              SessionEventType = "session.context_cleared"
 	SessionEventTypeSessionCustomAgentsUpdated         SessionEventType = "session.custom_agents_updated"
 	SessionEventTypeSessionCustomNotification          SessionEventType = "session.custom_notification"
 	SessionEventTypeSessionError                       SessionEventType = "session.error"
@@ -402,6 +403,19 @@ func (*SessionCompactionStartData) Type() SessionEventType {
 	return SessionEventTypeSessionCompactionStart
 }
 
+// Context-cleared details emitted when the host clears the conversation (the session.history.clearContext RPC / Session.clearContextMessages)
+type SessionContextClearedData struct {
+	// Optional initial message set after clearing
+	InitialMessage *string `json:"initialMessage,omitempty"`
+	// Number of conversation messages that were cleared
+	MessagesCleared int64 `json:"messagesCleared"`
+}
+
+func (*SessionContextClearedData) sessionEventData() {}
+func (*SessionContextClearedData) Type() SessionEventType {
+	return SessionEventTypeSessionContextCleared
+}
+
 // Conversation compaction results including success status, metrics, and optional error details
 type SessionCompactionCompleteData struct {
 	// Checkpoint snapshot number created for recovery
@@ -635,24 +649,26 @@ func (*PendingMessagesModifiedData) Type() SessionEventType {
 	return SessionEventTypePendingMessagesModified
 }
 
-// Enterprise managed-settings resolution: the effective managed settings the session applied and where they came from, so SDK clients can show users what is enterprise-managed and by which authority. Fires whenever managed policy is (re)applied — at session start, on resume, and on account switch. This is an ephemeral live snapshot (delivered to subscribers but not persisted to the session event log), because at session start it resolves before `session.start` is emitted; for a session-independent pull, use the SDK `getManagedSettings()` API, which returns the identical payload. Managed settings have a single authoritative source, so the highest-authority present layer (server > device) wins wholesale; `bypassPermissionsDisabled` is deny-wins across layers. Marked experimental while the managed-settings surface stabilizes.
+// Enterprise managed-settings resolution: the effective managed settings the session applied and which channels contributed, so SDK clients can show users what is enterprise-managed. Fires whenever managed policy is (re)applied — at session start, on resume, and on account switch. This is an ephemeral live snapshot (delivered to subscribers but not persisted to the session event log), because at session start it resolves before `session.start` is emitted. Device values take precedence over server values per ordinary key, while permissions compose restrictively across device, server, and SDK-client layers. The account-scoped `getManagedSettings()` API does not include session-local client injection. Marked experimental while the managed-settings surface stabilizes.
 // Experimental: SessionManagedSettingsResolvedData is part of an experimental API and may change or be removed.
 type SessionManagedSettingsResolvedData struct {
 	// Whether enterprise policy disables bypass-permissions ("yolo") mode for this session. Deny-wins across layers, and forced on when `failClosed` is true.
 	BypassPermissionsDisabled bool `json:"bypassPermissionsDisabled"`
-	// Whether the device (MDM/plist/registry/file) managed-settings layer was present
+	// Whether a session-local permissions layer injected by the SDK host was present
+	ClientManaged *bool `json:"clientManaged,omitempty"`
+	// Whether an actual device MDM/plist/registry/file managed-settings layer was present
 	DeviceManaged bool `json:"deviceManaged"`
 	// Whether managed policy could not be determined (e.g. a failed server fetch) and the session fell back to the fail-closed restriction. When true, restrictions such as disabling bypass-permissions are enforced even though `settings` may be absent.
 	FailClosed bool `json:"failClosed"`
 	// The setting keys under enterprise management in the effective managed settings (e.g. `model`, `enabledPlugins`, `permissions`). Empty when no managed settings are in force.
 	ManagedKeys []string `json:"managedKeys"`
-	// Whether server and device each supplied a permission allowlist, so enforcement intersects them and the flattened settings payload omits `permissions.allow`.
+	// Whether at least two managed sources supplied permission allowlists, so enforcement intersects them and the flattened settings payload omits `permissions.allow`.
 	PermissionsAllowIntersected *bool `json:"permissionsAllowIntersected,omitempty"`
 	// Whether the server (account/org) managed-settings layer was present
 	ServerManaged bool `json:"serverManaged"`
 	// The effective (resolved) managed settings values, so clients can render exactly what is enforced. Absent when no managed policy is in force.
 	Settings any `json:"settings,omitempty"`
-	// Which channel supplied the effective managed settings (the winning layer), or `none` when no policy is in force
+	// Channel summary: `server`, `device`, or `client` when exactly one channel contributed; `mixed` when multiple channels contributed; otherwise `none`. Consult the per-channel booleans for exact provenance.
 	Source ManagedSettingsResolvedSource `json:"source"`
 }
 
@@ -1004,7 +1020,7 @@ func (*ModelCallStartData) Type() SessionEventType { return SessionEventTypeMode
 
 // Model change details including previous and new model identifiers
 type SessionModelChangeData struct {
-	// Reason the change happened, when not user-initiated. Currently `"rate_limit_auto_switch"` for changes triggered by the auto-mode-switch rate-limit recovery path. UI clients can use this to render contextual copy.
+	// Reason the change happened, when not user-initiated. `"rate_limit_auto_switch"` for changes triggered by the auto-mode-switch rate-limit recovery path, or `"refusal_fallback"` when the active model declined a request (content refusal) and the runtime switched to the configured refusal-fallback model. UI clients can use this to render contextual copy.
 	Cause *string `json:"cause,omitempty"`
 	// Context tier after the model change; null explicitly clears a previously selected tier
 	ContextTier *ContextTier `json:"contextTier,omitempty"`
@@ -1866,6 +1882,8 @@ type SubagentCompletedData struct {
 	AgentDisplayName string `json:"agentDisplayName"`
 	// Internal name of the sub-agent
 	AgentName string `json:"agentName"`
+	// Whether the sub-agent was torn down by cancellation - its own abort, or an ancestor being killed - instead of finishing its work. Cancellation is not a failure, so the run still reports completion; this distinguishes a torn-down sub-agent from one that ran to the end.
+	Cancelled *bool `json:"cancelled,omitempty"`
 	// Wall-clock duration of the sub-agent execution in milliseconds
 	DurationMs *int64 `json:"durationMs,omitempty"`
 	// Model used by the sub-agent
@@ -3557,6 +3575,8 @@ type ShutdownTokenDetail struct {
 type SkillsLoadedSkill struct {
 	// Optional freeform hint describing the skill's expected arguments, from the `argument-hint` frontmatter field
 	ArgumentHint *string `json:"argumentHint,omitempty"`
+	// Canonical slash command name used to invoke the skill, without the leading '/'
+	CommandName *string `json:"commandName,omitempty"`
 	// Description of what the skill does
 	Description string `json:"description"`
 	// Whether the skill is currently enabled
@@ -4340,15 +4360,19 @@ const (
 	ManagedSettingsEnforcedEscalationUnrestrictedURLs ManagedSettingsEnforcedEscalation = "unrestricted_urls"
 )
 
-// Which channel supplied the effective enterprise managed settings (highest-authority present layer wins wholesale)
+// Summary of which managed-settings channels contributed to the effective session policy. Use the per-channel booleans for exact provenance.
 type ManagedSettingsResolvedSource string
 
 const (
-	// Device-level MDM policy discovered from plist/registry/file (lower authority).
+	// Only session-local SDK-host injection contributed.
+	ManagedSettingsResolvedSourceClient ManagedSettingsResolvedSource = "client"
+	// Only the device MDM/plist/registry/file channel contributed.
 	ManagedSettingsResolvedSourceDevice ManagedSettingsResolvedSource = "device"
-	// No managed policy is in force (no layer contributed).
+	// More than one channel contributed. Ordinary keys resolve device over server per key, while permissions compose restrictively across all present layers.
+	ManagedSettingsResolvedSourceMixed ManagedSettingsResolvedSource = "mixed"
+	// No managed policy is in force (no channel contributed).
 	ManagedSettingsResolvedSourceNone ManagedSettingsResolvedSource = "none"
-	// Account/org policy self-fetched from the GitHub managed-settings endpoint (higher authority).
+	// Only the server/account channel contributed.
 	ManagedSettingsResolvedSourceServer ManagedSettingsResolvedSource = "server"
 )
 

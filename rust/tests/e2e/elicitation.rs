@@ -10,11 +10,12 @@ use github_copilot_sdk::{
 use serde_json::json;
 use tokio::sync::Mutex;
 
-use super::support::{DEFAULT_TEST_TOKEN, assert_uuid_like, with_e2e_context};
+use super::support::{DEFAULT_TEST_TOKEN, assert_uuid_like};
 
 #[tokio::test]
 async fn defaults_capabilities_when_not_provided() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "elicitation",
         "defaults_capabilities_when_not_provided",
         |ctx| {
@@ -39,7 +40,8 @@ async fn defaults_capabilities_when_not_provided() {
 
 #[tokio::test]
 async fn elicitation_throws_when_capability_is_missing() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "elicitation",
         "elicitation_throws_when_capability_is_missing",
         |ctx| {
@@ -83,7 +85,8 @@ async fn elicitation_throws_when_capability_is_missing() {
 
 #[tokio::test]
 async fn sends_requestelicitation_when_handler_provided() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "elicitation",
         "sends_requestelicitation_when_handler_provided",
         |ctx| {
@@ -115,7 +118,8 @@ async fn sends_requestelicitation_when_handler_provided() {
 
 #[tokio::test]
 async fn should_report_elicitation_capability_based_on_handler_presence() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "elicitation",
         "should_report_elicitation_capability_based_on_handler_presence",
         |ctx| {
@@ -161,7 +165,8 @@ async fn should_report_elicitation_capability_based_on_handler_presence() {
 
 #[tokio::test]
 async fn session_without_elicitationhandler_creates_successfully() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "elicitation",
         "session_without_elicitationhandler_creates_successfully",
         |ctx| {
@@ -185,7 +190,8 @@ async fn session_without_elicitationhandler_creates_successfully() {
 
 #[tokio::test]
 async fn confirm_returns_true_when_handler_accepts() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "elicitation",
         "confirm_returns_true_when_handler_accepts",
         |ctx| {
@@ -215,7 +221,8 @@ async fn confirm_returns_true_when_handler_accepts() {
 
 #[tokio::test]
 async fn confirm_returns_false_when_handler_declines() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "elicitation",
         "confirm_returns_false_when_handler_declines",
         |ctx| {
@@ -243,83 +250,94 @@ async fn confirm_returns_false_when_handler_declines() {
 
 #[tokio::test]
 async fn select_returns_selected_option() {
-    with_e2e_context("elicitation", "select_returns_selected_option", |ctx| {
-        Box::pin(async move {
-            ctx.set_default_copilot_user();
-            let client = ctx.start_client().await;
-            let session = client
-                .create_session(
-                    SessionConfig::default()
-                        .with_github_token(DEFAULT_TEST_TOKEN)
-                        .pipe_handler(QueuedElicitationHandler::new([accept(
-                            json!({ "selection": "beta" }),
-                        )])),
-                )
-                .await
-                .expect("create session");
-
-            assert_eq!(
-                session
-                    .ui()
-                    .select("Choose", &["alpha", "beta"])
+    super::support::with_shared_e2e_context(
+        &E2E,
+        "elicitation",
+        "select_returns_selected_option",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let client = ctx.start_client().await;
+                let session = client
+                    .create_session(
+                        SessionConfig::default()
+                            .with_github_token(DEFAULT_TEST_TOKEN)
+                            .pipe_handler(QueuedElicitationHandler::new([accept(
+                                json!({ "selection": "beta" }),
+                            )])),
+                    )
                     .await
-                    .expect("select")
-                    .as_deref(),
-                Some("beta")
-            );
+                    .expect("create session");
 
-            session.disconnect().await.expect("disconnect session");
-            client.stop().await.expect("stop client");
-        })
-    })
+                assert_eq!(
+                    session
+                        .ui()
+                        .select("Choose", &["alpha", "beta"])
+                        .await
+                        .expect("select")
+                        .as_deref(),
+                    Some("beta")
+                );
+
+                session.disconnect().await.expect("disconnect session");
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
     .await;
 }
 
 #[tokio::test]
 async fn input_returns_freeform_value() {
-    with_e2e_context("elicitation", "input_returns_freeform_value", |ctx| {
-        Box::pin(async move {
-            ctx.set_default_copilot_user();
-            let client = ctx.start_client().await;
-            let session = client
-                .create_session(
-                    SessionConfig::default()
-                        .with_github_token(DEFAULT_TEST_TOKEN)
-                        .pipe_handler(QueuedElicitationHandler::new([accept(
-                            json!({ "value": "typed value" }),
-                        )])),
-                )
-                .await
-                .expect("create session");
-            let options = UiInputOptions {
-                title: Some("Value"),
-                description: Some("A value to test"),
-                min_length: Some(1),
-                max_length: Some(20),
-                default: Some("default"),
-                ..UiInputOptions::default()
-            };
-
-            assert_eq!(
-                session
-                    .ui()
-                    .input("Enter value", Some(&options))
+    super::support::with_shared_e2e_context(
+        &E2E,
+        "elicitation",
+        "input_returns_freeform_value",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let client = ctx.start_client().await;
+                let session = client
+                    .create_session(
+                        SessionConfig::default()
+                            .with_github_token(DEFAULT_TEST_TOKEN)
+                            .pipe_handler(QueuedElicitationHandler::new([accept(
+                                json!({ "value": "typed value" }),
+                            )])),
+                    )
                     .await
-                    .expect("input")
-                    .as_deref(),
-                Some("typed value")
-            );
+                    .expect("create session");
+                let options = UiInputOptions {
+                    title: Some("Value"),
+                    description: Some("A value to test"),
+                    min_length: Some(1),
+                    max_length: Some(20),
+                    default: Some("default"),
+                    ..UiInputOptions::default()
+                };
 
-            session.disconnect().await.expect("disconnect session");
-            client.stop().await.expect("stop client");
-        })
-    })
+                assert_eq!(
+                    session
+                        .ui()
+                        .input("Enter value", Some(&options))
+                        .await
+                        .expect("input")
+                        .as_deref(),
+                    Some("typed value")
+                );
+
+                session.disconnect().await.expect("disconnect session");
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
     .await;
 }
 
 #[tokio::test]
 async fn elicitation_returns_all_action_shapes() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "elicitation",
         "elicitation_returns_all_action_shapes",
         |ctx| {
@@ -606,3 +624,5 @@ fn cancel() -> ElicitationResult {
         content: None,
     }
 }
+static E2E: super::support::SharedE2eGroup =
+    super::support::SharedE2eGroup::standard("elicitation", 10);

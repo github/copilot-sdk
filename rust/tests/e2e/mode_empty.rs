@@ -12,10 +12,22 @@ use std::sync::Arc;
 
 use github_copilot_sdk::handler::ApproveAllHandler;
 use github_copilot_sdk::types::SystemMessageConfig;
-use github_copilot_sdk::{BUILTIN_TOOLS_ISOLATED, Client, ClientMode, SessionConfig, ToolSet};
+use github_copilot_sdk::{BUILTIN_TOOLS_ISOLATED, ClientMode, SessionConfig, ToolSet};
 use serde_json::Value;
 
-use super::support::{assistant_message_content, with_e2e_context};
+use super::support::assistant_message_content;
+
+static E2E: super::support::SharedE2eGroup =
+    super::support::SharedE2eGroup::new("mode_empty", empty_shared_client_options, 6);
+
+fn empty_shared_client_options(
+    context: &super::support::E2eContext,
+) -> github_copilot_sdk::ClientOptions {
+    context
+        .client_options()
+        .with_mode(ClientMode::Empty)
+        .with_base_directory(context.work_dir().to_path_buf())
+}
 
 const SHELL_TOOL_NAME: &str = if cfg!(windows) { "powershell" } else { "bash" };
 
@@ -85,17 +97,14 @@ fn system_message_from_request(exchange: &Value) -> String {
 
 #[tokio::test]
 async fn empty_mode_isolated_set_shell_tool_is_not_exposed() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "mode_empty",
         "empty_mode_isolated_set_shell_tool_is_not_exposed",
         |ctx| {
             Box::pin(async move {
                 ctx.set_default_copilot_user();
-                let options = ctx
-                    .client_options()
-                    .with_mode(ClientMode::Empty)
-                    .with_base_directory(ctx.work_dir().to_path_buf());
-                let client = Client::start(options).await.expect("start client");
+                let client = ctx.start_client().await;
                 let session = client
                     .create_session(
                         SessionConfig::default()
@@ -135,17 +144,14 @@ async fn empty_mode_isolated_set_shell_tool_is_not_exposed() {
 
 #[tokio::test]
 async fn empty_mode_builtin_star_exposes_all_built_in_tools() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "mode_empty",
         "empty_mode_builtin_star_exposes_all_built_in_tools",
         |ctx| {
             Box::pin(async move {
                 ctx.set_default_copilot_user();
-                let options = ctx
-                    .client_options()
-                    .with_mode(ClientMode::Empty)
-                    .with_base_directory(ctx.work_dir().to_path_buf());
-                let client = Client::start(options).await.expect("start client");
+                let client = ctx.start_client().await;
                 let session = client
                     .create_session(
                         SessionConfig::default()
@@ -175,17 +181,14 @@ async fn empty_mode_builtin_star_exposes_all_built_in_tools() {
 
 #[tokio::test]
 async fn empty_mode_excluded_tools_subtracts_from_available_tools() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "mode_empty",
         "empty_mode_excluded_tools_subtracts_from_available_tools",
         |ctx| {
             Box::pin(async move {
                 ctx.set_default_copilot_user();
-                let options = ctx
-                    .client_options()
-                    .with_mode(ClientMode::Empty)
-                    .with_base_directory(ctx.work_dir().to_path_buf());
-                let client = Client::start(options).await.expect("start client");
+                let client = ctx.start_client().await;
                 let session = client
                     .create_session(
                         SessionConfig::default()
@@ -217,17 +220,14 @@ async fn empty_mode_excluded_tools_subtracts_from_available_tools() {
 
 #[tokio::test]
 async fn empty_mode_strips_environment_context_from_the_system_message_by_default() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "mode_empty",
         "empty_mode_strips_environment_context_from_the_system_message_by_default",
         |ctx| {
             Box::pin(async move {
                 ctx.set_default_copilot_user();
-                let options = ctx
-                    .client_options()
-                    .with_mode(ClientMode::Empty)
-                    .with_base_directory(ctx.work_dir().to_path_buf());
-                let client = Client::start(options).await.expect("start client");
+                let client = ctx.start_client().await;
                 let session = client
                     .create_session(
                         SessionConfig::default()
@@ -274,17 +274,14 @@ async fn empty_mode_strips_environment_context_from_the_system_message_by_defaul
 
 #[tokio::test]
 async fn empty_mode_system_message_replace_llm_follows_caller_content_verbatim() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "mode_empty",
         "empty_mode_system_message_replace_llm_follows_caller_content_verbatim",
         |ctx| {
             Box::pin(async move {
                 ctx.set_default_copilot_user();
-                let options = ctx
-                    .client_options()
-                    .with_mode(ClientMode::Empty)
-                    .with_base_directory(ctx.work_dir().to_path_buf());
-                let client = Client::start(options).await.expect("start client");
+                let client = ctx.start_client().await;
                 let session = client
                     .create_session(
                         SessionConfig::default()
@@ -320,17 +317,14 @@ async fn empty_mode_system_message_replace_llm_follows_caller_content_verbatim()
 
 #[tokio::test]
 async fn empty_mode_append_caller_instruction_takes_effect_and_env_context_stripped() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "mode_empty",
         "empty_mode_append_caller_instruction_takes_effect_and_env_context_stripped",
         |ctx| {
             Box::pin(async move {
                 ctx.set_default_copilot_user();
-                let options = ctx
-                    .client_options()
-                    .with_mode(ClientMode::Empty)
-                    .with_base_directory(ctx.work_dir().to_path_buf());
-                let client = Client::start(options).await.expect("start client");
+                let client = ctx.start_client().await;
                 let session = client
                     .create_session(
                         SessionConfig::default()

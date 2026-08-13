@@ -131,10 +131,11 @@ Create a new conversation session.
 
 - `sessionId?: string` - Custom session ID.
 - `model?: string` - Model to use ("gpt-5", "claude-sonnet-4.5", etc.). **Required when using custom provider.**
-- `reasoningEffort?: "low" | "medium" | "high" | "xhigh"` - Reasoning effort level for models that support it. Use `listModels()` to check which models support this option.
+- `reasoningEffort?: "low" | "medium" | "high" | "xhigh" | "max"` - Reasoning effort level for models that support it. Use `listModels()` to check which models support this option.
 - `tools?: Tool[]` - Custom tools exposed to the CLI. Tools without `handler` are declaration-only and must be resolved via pending tool-call RPCs.
 - `systemMessage?: SystemMessageConfig` - System message customization (see below)
 - `infiniteSessions?: InfiniteSessionConfig` - Configure automatic context compaction (see below)
+- `workingDirectory?: string` - Working directory for the session (default: runtime process cwd).
 - `enableSessionStore?: boolean` - Enables the cross-session store for search and retrieval across sessions. When unset in `"copilot-cli"` mode, the runtime default applies (enabled). In `"empty"` mode, defaults to disabled.
 - `provider?: ProviderConfig` - Custom API provider configuration (BYOK - Bring Your Own Key). See [Custom Providers](#custom-providers) section.
 - `onPermissionRequest?: PermissionHandler` - Optional handler called before each tool execution to approve or deny it. When omitted, permission requests are emitted as events and left pending for manual resolution. `approveAll` approves requests when managed settings are disabled and throws when `enableManagedSettings` is true. Custom handlers can inspect `managedApprovalRequired` for human-facing confirmation logic. See [Permission Handling](#permission-handling) section.
@@ -1106,6 +1107,21 @@ try {
 } catch (error) {
     console.error("Error:", error.message);
 }
+```
+
+## Development
+
+From the repository root:
+
+```bash
+cd test/harness
+npm ci
+```
+
+```bash
+cd nodejs
+npm ci
+npm test
 ```
 
 ## License

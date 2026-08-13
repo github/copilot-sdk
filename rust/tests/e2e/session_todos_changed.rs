@@ -1,6 +1,6 @@
 use github_copilot_sdk::session_events::SessionEventType;
 
-use super::support::{wait_for_event, with_e2e_context};
+use super::support::wait_for_event;
 
 const PROMPT: &str = concat!(
     "Use the sql tool exactly once to execute all three of the following statements ",
@@ -14,7 +14,8 @@ const PROMPT: &str = concat!(
 
 #[tokio::test]
 async fn fires_session_todos_changed_and_exposes_rows_and_dependencies() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "session_todos_changed",
         "fires_session_todos_changed_and_exposes_rows_and_dependencies",
         |ctx| {
@@ -59,3 +60,5 @@ async fn fires_session_todos_changed_and_exposes_rows_and_dependencies() {
     )
     .await;
 }
+static E2E: super::support::SharedE2eGroup =
+    super::support::SharedE2eGroup::standard("session_todos_changed", 1);

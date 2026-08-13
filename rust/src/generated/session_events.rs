@@ -63,6 +63,8 @@ pub enum SessionEventType {
     SessionContextChanged,
     #[serde(rename = "session.usage_info")]
     SessionUsageInfo,
+    #[serde(rename = "session.context_cleared")]
+    SessionContextCleared,
     #[serde(rename = "session.compaction_start")]
     SessionCompactionStart,
     #[serde(rename = "session.compaction_complete")]
@@ -380,6 +382,8 @@ pub enum SessionEventData {
     SessionContextChanged(SessionContextChangedData),
     #[serde(rename = "session.usage_info")]
     SessionUsageInfo(SessionUsageInfoData),
+    #[serde(rename = "session.context_cleared")]
+    SessionContextCleared(SessionContextClearedData),
     #[serde(rename = "session.compaction_start")]
     SessionCompactionStart(SessionCompactionStartData),
     #[serde(rename = "session.compaction_complete")]
@@ -964,7 +968,7 @@ pub struct SessionWarningData {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionModelChangeData {
-    /// Reason the change happened, when not user-initiated. Currently `"rate_limit_auto_switch"` for changes triggered by the auto-mode-switch rate-limit recovery path. UI clients can use this to render contextual copy.
+    /// Reason the change happened, when not user-initiated. `"rate_limit_auto_switch"` for changes triggered by the auto-mode-switch rate-limit recovery path, or `"refusal_fallback"` when the active model declined a request (content refusal) and the runtime switched to the configured refusal-fallback model. UI clients can use this to render contextual copy.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cause: Option<String>,
     /// Context tier after the model change; null explicitly clears a previously selected tier
@@ -1367,6 +1371,17 @@ pub struct SessionUsageInfoData {
     /// Token count from tool definitions
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_definitions_tokens: Option<i64>,
+}
+
+/// Session event "session.context_cleared". Context-cleared details emitted when the host clears the conversation (the session.history.clearContext RPC / Session.clearContextMessages)
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionContextClearedData {
+    /// Optional initial message set after clearing
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub initial_message: Option<String>,
+    /// Number of conversation messages that were cleared
+    pub messages_cleared: i64,
 }
 
 /// Session event "session.compaction_start". Context window breakdown at the start of LLM-powered conversation compaction
@@ -2845,6 +2860,9 @@ pub struct SubagentCompletedData {
     pub agent_display_name: String,
     /// Internal name of the sub-agent
     pub agent_name: String,
+    /// Whether the sub-agent was torn down by cancellation - its own abort, or an ancestor being killed - instead of finishing its work. Cancellation is not a failure, so the run still reports completion; this distinguishes a torn-down sub-agent from one that ran to the end.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cancelled: Option<bool>,
     /// Wall-clock duration of the sub-agent execution in milliseconds
     #[serde(skip_serializing_if = "Option::is_none")]
     pub duration_ms: Option<i64>,
@@ -4432,7 +4450,7 @@ pub struct SessionAutoModeResolvedData {
     pub sticky_override: Option<bool>,
 }
 
-/// Session event "session.managed_settings_resolved". Enterprise managed-settings resolution: the effective managed settings the session applied and where they came from, so SDK clients can show users what is enterprise-managed and by which authority. Fires whenever managed policy is (re)applied — at session start, on resume, and on account switch. This is an ephemeral live snapshot (delivered to subscribers but not persisted to the session event log), because at session start it resolves before `session.start` is emitted; for a session-independent pull, use the SDK `getManagedSettings()` API, which returns the identical payload. Managed settings have a single authoritative source, so the highest-authority present layer (server > device) wins wholesale; `bypassPermissionsDisabled` is deny-wins across layers. Marked experimental while the managed-settings surface stabilizes.
+/// Session event "session.managed_settings_resolved". Enterprise managed-settings resolution: the effective managed settings the session applied and which channels contributed, so SDK clients can show users what is enterprise-managed. Fires whenever managed policy is (re)applied — at session start, on resume, and on account switch. This is an ephemeral live snapshot (delivered to subscribers but not persisted to the session event log), because at session start it resolves before `session.start` is emitted. Device values take precedence over server values per ordinary key, while permissions compose restrictively across device, server, and SDK-client layers. The account-scoped `getManagedSettings()` API does not include session-local client injection. Marked experimental while the managed-settings surface stabilizes.
 ///
 /// <div class="warning">
 ///
@@ -4445,13 +4463,16 @@ pub struct SessionAutoModeResolvedData {
 pub struct SessionManagedSettingsResolvedData {
     /// Whether enterprise policy disables bypass-permissions ("yolo") mode for this session. Deny-wins across layers, and forced on when `failClosed` is true.
     pub bypass_permissions_disabled: bool,
-    /// Whether the device (MDM/plist/registry/file) managed-settings layer was present
+    /// Whether a session-local permissions layer injected by the SDK host was present
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_managed: Option<bool>,
+    /// Whether an actual device MDM/plist/registry/file managed-settings layer was present
     pub device_managed: bool,
     /// Whether managed policy could not be determined (e.g. a failed server fetch) and the session fell back to the fail-closed restriction. When true, restrictions such as disabling bypass-permissions are enforced even though `settings` may be absent.
     pub fail_closed: bool,
     /// The setting keys under enterprise management in the effective managed settings (e.g. `model`, `enabledPlugins`, `permissions`). Empty when no managed settings are in force.
     pub managed_keys: Vec<String>,
-    /// Whether server and device each supplied a permission allowlist, so enforcement intersects them and the flattened settings payload omits `permissions.allow`.
+    /// Whether at least two managed sources supplied permission allowlists, so enforcement intersects them and the flattened settings payload omits `permissions.allow`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub permissions_allow_intersected: Option<bool>,
     /// Whether the server (account/org) managed-settings layer was present
@@ -4459,7 +4480,7 @@ pub struct SessionManagedSettingsResolvedData {
     /// The effective (resolved) managed settings values, so clients can render exactly what is enforced. Absent when no managed policy is in force.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub settings: Option<serde_json::Value>,
-    /// Which channel supplied the effective managed settings (the winning layer), or `none` when no policy is in force
+    /// Channel summary: `server`, `device`, or `client` when exactly one channel contributed; `mixed` when multiple channels contributed; otherwise `none`. Consult the per-channel booleans for exact provenance.
     pub source: ManagedSettingsResolvedSource,
 }
 
@@ -4602,6 +4623,9 @@ pub struct SkillsLoadedSkill {
     /// Optional freeform hint describing the skill's expected arguments, from the `argument-hint` frontmatter field
     #[serde(skip_serializing_if = "Option::is_none")]
     pub argument_hint: Option<String>,
+    /// Canonical slash command name used to invoke the skill, without the leading '/'
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub command_name: Option<String>,
     /// Description of what the skill does
     pub description: String,
     /// Whether the skill is currently enabled
@@ -6320,16 +6344,22 @@ pub enum AutoModeResolvedReasoningBucket {
     Unknown,
 }
 
-/// Which channel supplied the effective enterprise managed settings (highest-authority present layer wins wholesale)
+/// Summary of which managed-settings channels contributed to the effective session policy. Use the per-channel booleans for exact provenance.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ManagedSettingsResolvedSource {
-    /// Account/org policy self-fetched from the GitHub managed-settings endpoint (higher authority).
+    /// Only the server/account channel contributed.
     #[serde(rename = "server")]
     Server,
-    /// Device-level MDM policy discovered from plist/registry/file (lower authority).
+    /// Only the device MDM/plist/registry/file channel contributed.
     #[serde(rename = "device")]
     Device,
-    /// No managed policy is in force (no layer contributed).
+    /// Only session-local SDK-host injection contributed.
+    #[serde(rename = "client")]
+    Client,
+    /// More than one channel contributed. Ordinary keys resolve device over server per key, while permissions compose restrictively across all present layers.
+    #[serde(rename = "mixed")]
+    Mixed,
+    /// No managed policy is in force (no channel contributed).
     #[serde(rename = "none")]
     None,
     /// Unknown variant for forward compatibility.
