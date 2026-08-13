@@ -21,7 +21,9 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionFsSqliteTransactionError(
+    /** Machine-readable classification of the transaction failure. */
     @JsonProperty("errorClass") SessionFsSqliteTransactionErrorClass errorClass,
+    /** Human-readable transaction failure message. */
     @JsonProperty("message") String message
 ) {
 }

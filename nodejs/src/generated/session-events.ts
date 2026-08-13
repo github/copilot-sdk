@@ -190,6 +190,32 @@ export type AutopilotObjectiveChangedStatus =
   /** Objective was completed by the agent. */
   | "completed";
 /**
+ * Origin of an effective session model change.
+ */
+export type ModelChangeSource =
+  /** The user selected a model directly with `/model <id>`. */
+  | "model_command"
+  /** The user selected the model with `/settings`. */
+  | "settings_command"
+  /** The user selected the model with the `/config` alias. */
+  | "config_command"
+  /** The user selected the model in the model picker, including the picker opened by bare `/model`. */
+  | "model_picker"
+  /** Organization-managed settings selected the model. */
+  | "managed_settings"
+  /** Repository settings selected the model. */
+  | "repo_settings"
+  /** Startup model resolution selected the model. */
+  | "startup"
+  /** Selecting an agent selected its configured model. */
+  | "agent"
+  /** Entering, leaving, or reconfiguring plan mode selected the model. */
+  | "plan_mode"
+  /** The runtime selected the model automatically, such as rate-limit recovery or refusal fallback. */
+  | "automatic"
+  /** An SDK or RPC caller selected the model. */
+  | "sdk";
+/**
  * The session mode the agent is operating in
  */
 export type SessionMode =
@@ -363,6 +389,14 @@ export type AssistantUsageApiEndpoint =
   | "/responses"
   /** WebSocket Responses API endpoint. */
   | "ws:/responses";
+/**
+ * Transport used for a successful model call
+ */
+export type AssistantUsageTransport =
+  /** HTTP transport, including SSE streams. */
+  | "http"
+  /** WebSocket transport. */
+  | "websocket";
 /**
  * For HTTP 400 failures only: whether the response carried a structured CAPI error envelope (structured_error, a deterministic validation failure) or no error body (bodyless, the transient gateway/proxy signature). Absent for non-400 failures.
  */
@@ -549,7 +583,15 @@ export type PermissionRequest =
   | PermissionRequestHook
   | PermissionRequestExtensionManagement
   | PermissionRequestFactory
-  | PermissionRequestExtensionPermissionAccess;
+  | PermissionRequestExtensionPermissionAccess
+  | PermissionRequestExtensionEnvAccess;
+/**
+ * Advisory recommendation the runtime attaches to a permission request whose origin it can vouch for by construction. Unlike the auto-approval judge this does not depend on auto mode and does not evaluate what the tool call does; its absence simply means the runtime has no opinion and the request follows the host's normal approval flow.
+ */
+/** @experimental */
+export type PermissionRecommendation =
+  /** The runtime vouches for the request's origin and recommends approving it without prompting. The host still owns the decision and may deny it; deny rules, managed policy, and the auto-approval safety judge all outrank this recommendation. */
+  "approve";
 /**
  * Whether this is a store or vote memory operation
  */
@@ -589,7 +631,8 @@ export type PermissionPromptRequest =
   | PermissionPromptRequestHook
   | PermissionPromptRequestExtensionManagement
   | PermissionPromptRequestFactory
-  | PermissionPromptRequestExtensionPermissionAccess;
+  | PermissionPromptRequestExtensionPermissionAccess
+  | PermissionPromptRequestExtensionEnvAccess;
 /**
  * Why the auto-approval judge produced no usable recommendation. Present only alongside an `error` recommendation, where the human-readable reason is a fixed string and therefore cannot distinguish these cases. Intended to make a judge failure reportable by a consumer that has no access to the host's logs.
  */
@@ -653,7 +696,8 @@ export type UserToolSessionApproval =
   | UserToolSessionApprovalCustomTool
   | UserToolSessionApprovalExtensionManagement
   | UserToolSessionApprovalFactory
-  | UserToolSessionApprovalExtensionPermissionAccess;
+  | UserToolSessionApprovalExtensionPermissionAccess
+  | UserToolSessionApprovalExtensionEnvAccess;
 /**
  * Elicitation mode; "form" for structured input, "url" for browser-based. Defaults to "form" when absent.
  */
@@ -1659,6 +1703,7 @@ export interface ModelChangeData {
    */
   reasoningEffort?: string | null;
   reasoningSummary?: ReasoningSummary;
+  source?: ModelChangeSource;
   verbosity?: Verbosity;
 }
 /**
@@ -3499,6 +3544,9 @@ export interface AssistantReasoningData {
    * Unique identifier for this reasoning block
    */
   reasoningId: string;
+  /**
+   * Per-request treatment/eligibility signal returned by the Copilot API in the `X-GitHub-Copilot-Request-TE` response header for the associated model call; `false` when the header was absent or unparseable.
+   */
   rte?: boolean;
 }
 /**
@@ -3736,6 +3784,9 @@ export interface AssistantMessageData {
    * GitHub request tracing ID (x-github-request-id header) for correlating with server-side logs
    */
   requestId?: string;
+  /**
+   * Per-request treatment/eligibility signal returned by the Copilot API in the `X-GitHub-Copilot-Request-TE` response header for the associated model call; `false` when the header was absent or unparseable.
+   */
   rte?: boolean;
   serverTools?: AssistantMessageServerTools;
   /**
@@ -3884,12 +3935,27 @@ export interface CitationLocationBlock {
  */
 /** @experimental */
 export interface AssistantMessageServerTools {
+  /**
+   * Advisor model identifier associated with the server-tool payload.
+   */
   advisorModel?: string;
+  /**
+   * Provider function-call namespaces keyed by function-call identifier.
+   */
   functionCallNamespaces?: {
     [k: string]: string | undefined;
   };
+  /**
+   * Provider-native server-tool call and output items preserved verbatim for replay.
+   */
   items?: JsonValue[];
+  /**
+   * Model provider that produced this server-tool payload.
+   */
   provider: string;
+  /**
+   * Raw provider content blocks retained for verbatim round-tripping.
+   */
   rawContentBlocks?: JsonValue[];
 }
 /**
@@ -4134,6 +4200,10 @@ export interface AssistantUsageEvent {
  */
 export interface AssistantUsageData {
   /**
+   * Number of accepted speculative prediction tokens
+   */
+  acceptedPredictionTokens?: number;
+  /**
    * Completion ID from the model provider (e.g., chatcmpl-abc123)
    */
   apiCallId?: string;
@@ -4192,6 +4262,22 @@ export interface AssistantUsageData {
    */
   interTokenLatencyMs?: number;
   /**
+   * Whether Auto mode was selected for this model call
+   */
+  isAuto?: boolean;
+  /**
+   * Whether this model call used a bring-your-own-key provider
+   */
+  isByok?: boolean;
+  /**
+   * Requested maximum output tokens used for this model call
+   */
+  maxOutputTokens?: number;
+  /**
+   * Effective maximum prompt-token limit used for this model call
+   */
+  maxPromptTokens?: number;
+  /**
    * Model identifier used for this API call
    */
   model: string;
@@ -4226,10 +4312,18 @@ export interface AssistantUsageData {
    * Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max")
    */
   reasoningEffort?: string;
+  reasoningSummary?: ReasoningSummary;
   /**
    * Number of output tokens used for reasoning (e.g., chain-of-thought)
    */
   reasoningTokens?: number;
+  /**
+   * Number of rejected speculative prediction tokens
+   */
+  rejectedPredictionTokens?: number;
+  /**
+   * Per-request treatment/eligibility signal returned by the Copilot API in the `X-GitHub-Copilot-Request-TE` response header for the associated model call; `false` when the header was absent or unparseable.
+   */
   rte?: boolean;
   /**
    * Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation
@@ -4253,6 +4347,7 @@ export interface AssistantUsageData {
    * @internal
    */
   toolTokenCount?: number;
+  transport?: AssistantUsageTransport;
 }
 /**
  * Per-request cost and usage data from the CAPI copilot_usage response field
@@ -4460,6 +4555,9 @@ export interface ModelCallFailureData {
    */
   reasoningEffort?: string;
   requestFingerprint?: ModelCallFailureRequestFingerprint;
+  /**
+   * Per-request treatment/eligibility signal returned by the Copilot API in the `X-GitHub-Copilot-Request-TE` response header for the associated model call; `false` when the header was absent or unparseable.
+   */
   rte?: boolean;
   /**
    * Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation
@@ -4647,6 +4745,9 @@ export interface ToolExecutionStartData {
    * Tool call ID of the parent tool invocation when this event originates from a sub-agent
    */
   parentToolCallId?: string;
+  /**
+   * Per-request treatment/eligibility signal returned by the Copilot API in the `X-GitHub-Copilot-Request-TE` response header for the associated model call; `false` when the header was absent or unparseable.
+   */
   rte?: boolean;
   shellToolInfo?: ToolExecutionStartShellToolInfo;
   /**
@@ -4860,6 +4961,9 @@ export interface ToolExecutionCompleteData {
    */
   parentToolCallId?: string;
   result?: ToolExecutionCompleteResult;
+  /**
+   * Per-request treatment/eligibility signal returned by the Copilot API in the `X-GitHub-Copilot-Request-TE` response header for the associated model call; `false` when the header was absent or unparseable.
+   */
   rte?: boolean;
   /**
    * Whether this tool execution ran inside a sandbox container
@@ -5273,17 +5377,35 @@ export interface ToolExecutionCompleteUIResourceMeta {
  */
 export interface ToolExecutionCompleteUIResourceMetaUI {
   csp?: ToolExecutionCompleteUIResourceMetaUICsp;
+  /**
+   * Optional dedicated origin for the rendered MCP Apps UI resource.
+   */
   domain?: string;
   permissions?: ToolExecutionCompleteUIResourceMetaUIPermissions;
+  /**
+   * Whether the host should render a border around the MCP Apps UI resource.
+   */
   prefersBorder?: boolean;
 }
 /**
  * CSP domain allowlists for an MCP Apps UI resource, including connect, resource, frame, and base URI domains.
  */
 export interface ToolExecutionCompleteUIResourceMetaUICsp {
+  /**
+   * Domains the UI resource may use as document base URIs.
+   */
   baseUriDomains?: string[];
+  /**
+   * Domains the UI resource may connect to.
+   */
   connectDomains?: string[];
+  /**
+   * Domains the UI resource may embed as nested frames.
+   */
   frameDomains?: string[];
+  /**
+   * Domains from which the UI resource may load scripts, styles, images, and other resources.
+   */
   resourceDomains?: string[];
 }
 /**
@@ -6060,7 +6182,7 @@ export interface SystemNotificationData {
  */
 export interface SystemNotificationAgentCompleted {
   /**
-   * Unique identifier of the background agent
+   * Unique task identifier
    */
   agentId: string;
   /**
@@ -6071,6 +6193,10 @@ export interface SystemNotificationAgentCompleted {
    * Human-readable description of the agent task
    */
   description?: string;
+  /**
+   * Friendly, non-unique name intended for display
+   */
+  displayName?: string;
   /**
    * The full prompt given to the background agent
    */
@@ -6086,7 +6212,7 @@ export interface SystemNotificationAgentCompleted {
  */
 export interface SystemNotificationAgentIdle {
   /**
-   * Unique identifier of the background agent
+   * Unique task identifier
    */
   agentId: string;
   /**
@@ -6097,6 +6223,10 @@ export interface SystemNotificationAgentIdle {
    * Human-readable description of the agent task
    */
   description?: string;
+  /**
+   * Friendly, non-unique name intended for display
+   */
+  displayName?: string;
   /**
    * Type discriminator. Always "agent_idle".
    */
@@ -6485,6 +6615,12 @@ export interface PermissionRequestMcp {
    */
   kind: "mcp";
   /**
+   * Advisory runtime permission recommendation. The SDK host remains responsible for deciding the request and may reject it.
+   *
+   * @experimental
+   */
+  permissionRecommendation?: PermissionRecommendation;
+  /**
    * Whether this MCP tool is read-only (no side effects)
    */
   readOnly: boolean;
@@ -6656,9 +6792,21 @@ export interface PermissionRequestFactory {
    * Whether this factory is eligible for persistent approval
    */
   canPersistApproval: boolean;
+  /**
+   * Factory-declared AI-credit limit before any run/resume caller override is applied.
+   */
   declaredMaxAiCredits?: number;
+  /**
+   * Factory-declared concurrent-subagent limit before any run/resume caller override is applied.
+   */
   declaredMaxConcurrentSubagents?: number;
+  /**
+   * Factory-declared total-subagent limit before any run/resume caller override is applied.
+   */
   declaredMaxTotalSubagents?: number;
+  /**
+   * Factory-declared active-time limit in seconds before any run/resume caller override is applied.
+   */
   declaredTimeoutSeconds?: number;
   /**
    * Factory description
@@ -6727,6 +6875,29 @@ export interface PermissionRequestExtensionPermissionAccess {
    * Permission kind discriminator
    */
   kind: "extension-permission-access";
+  /**
+   * Tool call ID that triggered this permission request
+   */
+  toolCallId?: string;
+}
+/**
+ * Extension sensitive environment variable access request
+ */
+export interface PermissionRequestExtensionEnvAccess {
+  /**
+   * Names of the sensitive environment variables the extension is requesting. Values never appear here.
+   *
+   * @minItems 1
+   */
+  environmentVariables: [string, ...string[]];
+  /**
+   * Name of the extension requesting environment variable access
+   */
+  extensionName: string;
+  /**
+   * Permission kind discriminator
+   */
+  kind: "extension-env-access";
   /**
    * Tool call ID that triggered this permission request
    */
@@ -6883,6 +7054,12 @@ export interface PermissionPromptRequestMcp {
    * Prompt kind discriminator
    */
   kind: "mcp";
+  /**
+   * Advisory runtime permission recommendation. The host remains responsible for deciding the request and may reject it.
+   *
+   * @experimental
+   */
+  permissionRecommendation?: PermissionRecommendation;
   /**
    * Name of the MCP server providing the tool
    */
@@ -7111,9 +7288,21 @@ export interface PermissionPromptRequestFactory {
    * Whether this factory is eligible for persistent approval
    */
   canPersistApproval: boolean;
+  /**
+   * Factory-declared AI-credit limit before any run/resume caller override is applied.
+   */
   declaredMaxAiCredits?: number;
+  /**
+   * Factory-declared concurrent-subagent limit before any run/resume caller override is applied.
+   */
   declaredMaxConcurrentSubagents?: number;
+  /**
+   * Factory-declared total-subagent limit before any run/resume caller override is applied.
+   */
   declaredMaxTotalSubagents?: number;
+  /**
+   * Factory-declared active-time limit in seconds before any run/resume caller override is applied.
+   */
   declaredTimeoutSeconds?: number;
   /**
    * Factory description
@@ -7179,6 +7368,35 @@ export interface PermissionPromptRequestExtensionPermissionAccess {
    * Prompt kind discriminator
    */
   kind: "extension-permission-access";
+  /**
+   * Tool call ID that triggered this permission request
+   */
+  toolCallId?: string;
+}
+/**
+ * Extension sensitive environment variable access prompt
+ */
+export interface PermissionPromptRequestExtensionEnvAccess {
+  /**
+   * Auto-approval judge information for this request; present only when auto mode is enabled.
+   *
+   * @experimental
+   */
+  autoApproval?: PermissionAutoApproval;
+  /**
+   * Names of the sensitive environment variables the extension is requesting. Values never appear here.
+   *
+   * @minItems 1
+   */
+  environmentVariables: [string, ...string[]];
+  /**
+   * Name of the extension requesting environment variable access
+   */
+  extensionName: string;
+  /**
+   * Prompt kind discriminator
+   */
+  kind: "extension-env-access";
   /**
    * Tool call ID that triggered this permission request
    */
@@ -7355,6 +7573,25 @@ export interface UserToolSessionApprovalExtensionPermissionAccess {
    * Extension permission access approval kind
    */
   kind: "extension-permission-access";
+}
+/**
+ * Session-scoped tool-approval rule for an extension's access to sensitive environment variables, keyed by extension name and the exact set of variable names.
+ */
+export interface UserToolSessionApprovalExtensionEnvAccess {
+  /**
+   * Names of the sensitive environment variables this approval covers. Values are never persisted.
+   *
+   * @minItems 1
+   */
+  environmentVariables: [string, ...string[]];
+  /**
+   * Extension name
+   */
+  extensionName: string;
+  /**
+   * Extension environment access approval kind
+   */
+  kind: "extension-env-access";
 }
 /**
  * Permission response variant that approves a request and persists the provided approval to a project location key.
@@ -8873,6 +9110,10 @@ export interface ExitPlanModeRequestedData {
    */
   actions: ExitPlanModeAction[];
   /**
+   * Model the session had selected when the plan was authored, when one is known
+   */
+  model?: string;
+  /**
    * Full content of the plan file
    */
   planContent: string;
@@ -9051,6 +9292,9 @@ export interface FactoryRunUpdatedData {
    * Monotonic revision now available for the run.
    */
   revision: number;
+  /**
+   * Factory run identifier.
+   */
   runId: string;
 }
 /**

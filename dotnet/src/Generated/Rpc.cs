@@ -299,6 +299,10 @@ public sealed class Model
     [JsonPropertyName("capabilities")]
     public ModelCapabilities Capabilities { get => field ??= new(); set; }
 
+    /// <summary>Default reasoning effort level (only present if model supports reasoning effort).</summary>
+    [JsonPropertyName("defaultReasoningEffort")]
+    public string? DefaultReasoningEffort { get; set; }
+
     /// <summary>Model identifier (e.g., "claude-sonnet-4.5").</summary>
     [JsonPropertyName("id")]
     public string Id { get; set; } = string.Empty;
@@ -318,6 +322,10 @@ public sealed class Model
     /// <summary>Policy state (if applicable).</summary>
     [JsonPropertyName("policy")]
     public ModelPolicy? Policy { get; set; }
+
+    /// <summary>Context-window tiers this model offers, when the provider advertises them independently of tiered token pricing. Copilot models carry their tiers in `billing.tokenPrices`; a provider that has no pricing to publish (an agent host reached over AHP, for example) declares them here instead, so the model picker can still offer the tier toggle.</summary>
+    [JsonPropertyName("supportedContextTiers")]
+    public IList<string>? SupportedContextTiers { get; set; }
 
     /// <summary>Supported reasoning effort levels (only present if model supports reasoning effort).</summary>
     [JsonPropertyName("supportedReasoningEfforts")]
@@ -483,23 +491,23 @@ public partial class AuthInfo
 [Experimental(Diagnostics.Experimental)]
 public sealed class CopilotUserResponseEndpoints
 {
-    /// <summary>Gets or sets the <c>api</c> value.</summary>
+    /// <summary>Copilot API endpoint URL.</summary>
     [JsonPropertyName("api")]
     public string? Api { get; set; }
 
-    /// <summary>Gets or sets the <c>exp</c> value.</summary>
+    /// <summary>Experimental-service endpoint URL.</summary>
     [JsonPropertyName("exp")]
     public string? Exp { get; set; }
 
-    /// <summary>Gets or sets the <c>origin-tracker</c> value.</summary>
+    /// <summary>Origin-tracker endpoint URL.</summary>
     [JsonPropertyName("origin-tracker")]
     public string? OriginTracker { get; set; }
 
-    /// <summary>Gets or sets the <c>proxy</c> value.</summary>
+    /// <summary>Copilot proxy endpoint URL.</summary>
     [JsonPropertyName("proxy")]
     public string? Proxy { get; set; }
 
-    /// <summary>Gets or sets the <c>telemetry</c> value.</summary>
+    /// <summary>Copilot telemetry endpoint URL.</summary>
     [JsonPropertyName("telemetry")]
     public string? Telemetry { get; set; }
 }
@@ -507,11 +515,11 @@ public sealed class CopilotUserResponseEndpoints
 /// <summary>RPC data type for CopilotUserResponseOrganizationListItem operations.</summary>
 public sealed class CopilotUserResponseOrganizationListItem
 {
-    /// <summary>Gets or sets the <c>login</c> value.</summary>
+    /// <summary>GitHub login of the organization.</summary>
     [JsonPropertyName("login")]
     public string? Login { get; set; }
 
-    /// <summary>Gets or sets the <c>name</c> value.</summary>
+    /// <summary>Display name of the organization.</summary>
     [JsonPropertyName("name")]
     public string? Name { get; set; }
 }
@@ -1416,6 +1424,15 @@ internal sealed class PluginsDisableRequest
     public IList<string> Names { get => field ??= []; set; }
 }
 
+/// <summary>Trusted built-in plugin directories to use for this runtime process.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class PluginsBuiltinSetRequest
+{
+    /// <summary>Complete replacement set of trusted built-in plugin directories. Every entry must be an absolute local filesystem path no longer than 4096 characters.</summary>
+    [JsonPropertyName("paths")]
+    public IList<string> Paths { get => field ??= []; set; }
+}
+
 /// <summary>Registered marketplace summary.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class MarketplaceInfo
@@ -2114,7 +2131,7 @@ public sealed class LlmInferenceHttpResponseStartResult
 [Experimental(Diagnostics.Experimental)]
 internal sealed class LlmInferenceHttpResponseStartRequest
 {
-    /// <summary>Gets or sets the <c>headers</c> value.</summary>
+    /// <summary>HTTP response headers, preserving multiple values per name.</summary>
     [JsonPropertyName("headers")]
     public IDictionary<string, IList<string>> Headers { get => field ??= new Dictionary<string, IList<string>>(); set; }
 
@@ -2227,6 +2244,14 @@ public sealed class RemoteSessionMetadataValue
     /// <summary>Most recent working directory context.</summary>
     [JsonPropertyName("context")]
     public SessionContext? Context { get; set; }
+
+    /// <summary>Host-supplied human description of what the session is doing right now ("running tests", "waiting for approval"). Optional in the protocol and absent on hosts that do not publish it, so never rely on it -- it enriches `hostStatus`, it does not replace it.</summary>
+    [JsonPropertyName("hostActivity")]
+    public string? HostActivity { get; set; }
+
+    /// <summary>Live status as the owning host reports it in its session listing, so a row for a session running elsewhere can show that it is running. Absent for hosts that publish no such status (the cloud task managers), which read as idle.</summary>
+    [JsonPropertyName("hostStatus")]
+    public RemoteSessionHostStatus? HostStatus { get; set; }
 
     /// <summary>Always true for remote sessions.</summary>
     [JsonPropertyName("isRemote")]
@@ -2463,6 +2488,16 @@ public partial class SessionListEntry
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("context")]
     public SessionContext? Context { get; set; }
+
+    /// <summary>Host-supplied human description of what the session is doing right now ("running tests", "waiting for approval"). Optional in the protocol and absent on hosts that do not publish it, so never rely on it -- it enriches `hostStatus`, it does not replace it.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("hostActivity")]
+    public string? HostActivity { get; set; }
+
+    /// <summary>Live status as the owning host reports it in its session listing, so a row for a session running elsewhere can show that it is running. Absent for hosts that publish no such status (the cloud task managers), which read as idle.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("hostStatus")]
+    public RemoteSessionHostStatus? HostStatus { get; set; }
 
     /// <summary>True for detached maintenance sessions that should be hidden from normal resume lists.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -3889,6 +3924,119 @@ internal sealed class SessionSetCredentialsParams
     public string SessionId { get; set; } = string.Empty;
 }
 
+/// <summary>Identifies the target session.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class SessionGitHubAuthGetCurrentAuthInfoRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Identifies the target session.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class SessionGitHubAuthGetAllAuthAvailableRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Identifies the target session.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class SessionGitHubAuthRefreshCopilotUserRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Internal GitHub login parameters.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class SessionAuthLoginRequest
+{
+    /// <summary>GitHub host URL.</summary>
+    [JsonPropertyName("host")]
+    public string Host { get; set; } = string.Empty;
+
+    /// <summary>GitHub login.</summary>
+    [JsonPropertyName("login")]
+    public string Login { get; set; } = string.Empty;
+
+    /// <summary>Whether to persist the token after login.</summary>
+    [JsonPropertyName("persist")]
+    public bool? Persist { get; set; }
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>GitHub authentication token.</summary>
+    [JsonPropertyName("token")]
+    public string Token { get; set; } = string.Empty;
+}
+
+/// <summary>Parameters for switching the session's active authentication.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class SessionAuthSwitchRequest
+{
+    /// <summary>Authentication information to activate.</summary>
+    [JsonPropertyName("authInfo")]
+    public AuthInfo AuthInfo { get => field ??= new(); set; }
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>Optional token paired with the authentication information.</summary>
+    [JsonPropertyName("token")]
+    public string? Token { get; set; }
+}
+
+/// <summary>Identifies the target session.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class SessionGitHubAuthLogoutRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Parameters identifying a GitHub authentication to log out.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class SessionAuthLogoutUserRequest
+{
+    /// <summary>Authentication information to log out.</summary>
+    [JsonPropertyName("authInfo")]
+    public AuthInfo AuthInfo { get => field ??= new(); set; }
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Validation error from an authentication attempt.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class AuthValidationError
+{
+    /// <summary>Optional message returned by GitHub.</summary>
+    [JsonPropertyName("githubMessage")]
+    public string? GitHubMessage { get; set; }
+
+    /// <summary>Authentication validation error message.</summary>
+    [JsonPropertyName("message")]
+    public string Message { get; set; } = string.Empty;
+}
+
+/// <summary>Identifies the target session.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class SessionGitHubAuthLastAuthErrorsRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
 /// <summary>A file included in the redacted debug bundle.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class DebugCollectLogsCollectedEntry
@@ -4271,6 +4419,40 @@ internal sealed class CanvasActionInvokeRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
+/// <summary>Internal canvas provider registration parameters.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class CanvasProviderRegisterRequest
+{
+    /// <summary>Canvas contributions supplied by the provider.</summary>
+    [JsonPropertyName("canvases")]
+    public IList<JsonElement> Canvases { get => field ??= []; set; }
+
+    /// <summary>Connection identifier for callback routing.</summary>
+    [JsonPropertyName("connectionId")]
+    public string ConnectionId { get; set; } = string.Empty;
+
+    /// <summary>Provider metadata supplied by the host.</summary>
+    [JsonPropertyName("info")]
+    public JsonElement Info { get; set; }
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Internal canvas provider unregistration parameters.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class CanvasProviderUnregisterRequest
+{
+    /// <summary>Connection identifier to unregister.</summary>
+    [JsonPropertyName("connectionId")]
+    public string ConnectionId { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
 /// <summary>Machine-readable factory run failure.</summary>
 /// <remarks>Polymorphic base type discriminated by <c>type</c>.</remarks>
 [Experimental(Diagnostics.Experimental)]
@@ -4501,19 +4683,19 @@ internal sealed class FactoryGetRunRequest
 [Experimental(Diagnostics.Experimental)]
 public sealed class FactoryDeclaredLimits
 {
-    /// <summary>Gets or sets the <c>maxAiCredits</c> value.</summary>
+    /// <summary>Maximum AI credits consumed by subagents and descendants.</summary>
     [JsonPropertyName("maxAiCredits")]
     public double? MaxAiCredits { get; set; }
 
-    /// <summary>Gets or sets the <c>maxConcurrentSubagents</c> value.</summary>
+    /// <summary>Maximum concurrently active subagents.</summary>
     [JsonPropertyName("maxConcurrentSubagents")]
     public long? MaxConcurrentSubagents { get; set; }
 
-    /// <summary>Gets or sets the <c>maxTotalSubagents</c> value.</summary>
+    /// <summary>Maximum total subagents spawned by the run.</summary>
     [JsonPropertyName("maxTotalSubagents")]
     public long? MaxTotalSubagents { get; set; }
 
-    /// <summary>Gets or sets the <c>timeoutSeconds</c> value.</summary>
+    /// <summary>Maximum accumulated active execution time in seconds.</summary>
     [JsonPropertyName("timeoutSeconds")]
     public double? TimeoutSeconds { get; set; }
 }
@@ -4522,15 +4704,15 @@ public sealed class FactoryDeclaredLimits
 [Experimental(Diagnostics.Experimental)]
 public sealed class FactoryRunConsumed
 {
-    /// <summary>Gets or sets the <c>activeMs</c> value.</summary>
+    /// <summary>Accumulated active execution time in milliseconds.</summary>
     [JsonPropertyName("activeMs")]
     public long ActiveMs { get; set; }
 
-    /// <summary>Gets or sets the <c>nanoAiu</c> value.</summary>
+    /// <summary>AI usage consumed by the run in nano-AIU.</summary>
     [JsonPropertyName("nanoAiu")]
     public long NanoAiu { get; set; }
 
-    /// <summary>Gets or sets the <c>subagents</c> value.</summary>
+    /// <summary>Total subagents spawned by the run.</summary>
     [JsonPropertyName("subagents")]
     public long Subagents { get; set; }
 }
@@ -4539,11 +4721,11 @@ public sealed class FactoryRunConsumed
 [Experimental(Diagnostics.Experimental)]
 public sealed class FactoryCurrentPhase
 {
-    /// <summary>Gets or sets the <c>id</c> value.</summary>
+    /// <summary>Current phase identifier.</summary>
     [JsonPropertyName("id")]
     public string Id { get; set; } = string.Empty;
 
-    /// <summary>Gets or sets the <c>ordinal</c> value.</summary>
+    /// <summary>Zero-based declared phase ordinal, or null for an undeclared phase.</summary>
     [JsonPropertyName("ordinal")]
     public long? Ordinal { get; set; }
 }
@@ -4552,19 +4734,19 @@ public sealed class FactoryCurrentPhase
 [Experimental(Diagnostics.Experimental)]
 public sealed class FactoryRunTerminal
 {
-    /// <summary>Gets or sets the <c>error</c> value.</summary>
+    /// <summary>Human-readable terminal error.</summary>
     [JsonPropertyName("error")]
     public string? Error { get; set; }
 
-    /// <summary>Gets or sets the <c>failure</c> value.</summary>
+    /// <summary>Machine-readable terminal failure.</summary>
     [JsonPropertyName("failure")]
     public FactoryRunFailure? Failure { get; set; }
 
-    /// <summary>Gets or sets the <c>reason</c> value.</summary>
+    /// <summary>Human-readable terminal reason.</summary>
     [JsonPropertyName("reason")]
     public string? Reason { get; set; }
 
-    /// <summary>Gets or sets the <c>resultPreview</c> value.</summary>
+    /// <summary>Prompt-safe preview of the completed result.</summary>
     [JsonPropertyName("resultPreview")]
     public string? ResultPreview { get; set; }
 }
@@ -4573,79 +4755,79 @@ public sealed class FactoryRunTerminal
 [Experimental(Diagnostics.Experimental)]
 public sealed class FactoryRunSummary
 {
-    /// <summary>Gets or sets the <c>activeSegmentStartedAt</c> value.</summary>
+    /// <summary>Epoch milliseconds when the current active segment started, or null while inactive.</summary>
     [JsonPropertyName("activeSegmentStartedAt")]
     public long? ActiveSegmentStartedAt { get; set; }
 
-    /// <summary>Gets or sets the <c>approved</c> value.</summary>
+    /// <summary>Approved effective resource ceilings, or null until approved.</summary>
     [JsonPropertyName("approved")]
     public FactoryDeclaredLimits? Approved { get; set; }
 
-    /// <summary>Gets or sets the <c>completedAt</c> value.</summary>
+    /// <summary>Epoch milliseconds when the run completed, or null while nonterminal.</summary>
     [JsonPropertyName("completedAt")]
     public long? CompletedAt { get; set; }
 
-    /// <summary>Gets or sets the <c>consumed</c> value.</summary>
+    /// <summary>Durable resource consumption.</summary>
     [JsonPropertyName("consumed")]
     public FactoryRunConsumed Consumed { get => field ??= new(); set; }
 
-    /// <summary>Gets or sets the <c>createdAt</c> value.</summary>
+    /// <summary>Epoch milliseconds when the run was created.</summary>
     [JsonPropertyName("createdAt")]
     public long CreatedAt { get; set; }
 
-    /// <summary>Gets or sets the <c>currentPhase</c> value.</summary>
+    /// <summary>Current phase identity, or null before any phase is entered.</summary>
     [JsonPropertyName("currentPhase")]
     public FactoryCurrentPhase? CurrentPhase { get; set; }
 
-    /// <summary>Gets or sets the <c>declaredLimits</c> value.</summary>
+    /// <summary>Resource ceilings declared by the factory.</summary>
     [JsonPropertyName("declaredLimits")]
     public FactoryDeclaredLimits DeclaredLimits { get => field ??= new(); set; }
 
-    /// <summary>Gets or sets the <c>declaredPhaseCount</c> value.</summary>
+    /// <summary>Number of phases declared by the factory.</summary>
     [JsonPropertyName("declaredPhaseCount")]
     public long DeclaredPhaseCount { get; set; }
 
-    /// <summary>Gets or sets the <c>description</c> value.</summary>
+    /// <summary>Human-readable factory description.</summary>
     [JsonPropertyName("description")]
     public string Description { get; set; } = string.Empty;
 
-    /// <summary>Gets or sets the <c>factoryName</c> value.</summary>
+    /// <summary>Registered factory name.</summary>
     [JsonPropertyName("factoryName")]
     public string FactoryName { get; set; } = string.Empty;
 
-    /// <summary>Gets or sets the <c>liveAgentCount</c> value.</summary>
+    /// <summary>Number of direct factory agents currently live.</summary>
     [JsonPropertyName("liveAgentCount")]
     public long LiveAgentCount { get; set; }
 
-    /// <summary>Gets or sets the <c>observedAt</c> value.</summary>
+    /// <summary>Epoch milliseconds when this live-overlay snapshot was observed.</summary>
     [JsonPropertyName("observedAt")]
     public long ObservedAt { get; set; }
 
-    /// <summary>Gets or sets the <c>revision</c> value.</summary>
+    /// <summary>Monotonic durable run revision.</summary>
     [JsonPropertyName("revision")]
     public long Revision { get; set; }
 
-    /// <summary>Gets or sets the <c>runId</c> value.</summary>
+    /// <summary>Factory run identifier.</summary>
     [JsonPropertyName("runId")]
     public string RunId { get; set; } = string.Empty;
 
-    /// <summary>Gets or sets the <c>startedAt</c> value.</summary>
+    /// <summary>Epoch milliseconds when execution first started, or null before start.</summary>
     [JsonPropertyName("startedAt")]
     public long? StartedAt { get; set; }
 
-    /// <summary>Gets or sets the <c>status</c> value.</summary>
+    /// <summary>Current factory run status.</summary>
     [JsonPropertyName("status")]
     public FactoryRunStatus Status { get; set; }
 
-    /// <summary>Gets or sets the <c>terminal</c> value.</summary>
+    /// <summary>Terminal run outcome, or null while nonterminal.</summary>
     [JsonPropertyName("terminal")]
     public FactoryRunTerminal? Terminal { get; set; }
 
-    /// <summary>Gets or sets the <c>totalSpawnedAgentCount</c> value.</summary>
+    /// <summary>Total direct factory agents spawned across all attempts.</summary>
     [JsonPropertyName("totalSpawnedAgentCount")]
     public long TotalSpawnedAgentCount { get; set; }
 
-    /// <summary>Gets or sets the <c>updatedAt</c> value.</summary>
+    /// <summary>Epoch milliseconds when the durable run was last updated.</summary>
     [JsonPropertyName("updatedAt")]
     public long UpdatedAt { get; set; }
 }
@@ -4670,7 +4852,7 @@ public sealed class FactoryListRunsResult
     [JsonPropertyName("omittedOlder")]
     public long? OmittedOlder { get; set; }
 
-    /// <summary>Gets or sets the <c>runs</c> value.</summary>
+    /// <summary>Factory run summaries in durable creation order.</summary>
     [JsonPropertyName("runs")]
     public IList<FactoryRunSummary> Runs { get => field ??= []; set; }
 }
@@ -4700,55 +4882,59 @@ internal sealed class FactoryListRunsRequest
 [Experimental(Diagnostics.Experimental)]
 public sealed class FactoryAgentSummary
 {
-    /// <summary>Gets or sets the <c>activeMs</c> value.</summary>
+    /// <summary>Accumulated active agent time in milliseconds.</summary>
     [JsonPropertyName("activeMs")]
     public long ActiveMs { get; set; }
 
-    /// <summary>Gets or sets the <c>activity</c> value.</summary>
+    /// <summary>Prompt-safe live activity text.</summary>
     [JsonPropertyName("activity")]
     public string? Activity { get; set; }
 
-    /// <summary>Gets or sets the <c>agentId</c> value.</summary>
+    /// <summary>Stable direct-agent identifier.</summary>
     [JsonPropertyName("agentId")]
     public string AgentId { get; set; } = string.Empty;
 
-    /// <summary>Gets or sets the <c>agentType</c> value.</summary>
+    /// <summary>Registered agent type.</summary>
     [JsonPropertyName("agentType")]
     public string AgentType { get; set; } = string.Empty;
 
-    /// <summary>Gets or sets the <c>completedAt</c> value.</summary>
+    /// <summary>Epoch milliseconds when the agent completed.</summary>
     [JsonPropertyName("completedAt")]
     public long? CompletedAt { get; set; }
 
-    /// <summary>Gets or sets the <c>label</c> value.</summary>
+    /// <summary>Friendly, non-unique name intended for display.</summary>
+    [JsonPropertyName("displayName")]
+    public string? DisplayName { get; set; }
+
+    /// <summary>Friendly, non-unique name intended for display.</summary>
     [JsonPropertyName("label")]
     public string Label { get; set; } = string.Empty;
 
-    /// <summary>Gets or sets the <c>phaseId</c> value.</summary>
+    /// <summary>Phase identifier active when the agent was launched, or null.</summary>
     [JsonPropertyName("phaseId")]
     public string? PhaseId { get; set; }
 
-    /// <summary>Gets or sets the <c>requestedModel</c> value.</summary>
+    /// <summary>Model requested when the agent was launched.</summary>
     [JsonPropertyName("requestedModel")]
     public string? RequestedModel { get; set; }
 
-    /// <summary>Gets or sets the <c>resolvedModel</c> value.</summary>
+    /// <summary>Concrete model resolved for the agent.</summary>
     [JsonPropertyName("resolvedModel")]
     public string? ResolvedModel { get; set; }
 
-    /// <summary>Gets or sets the <c>runId</c> value.</summary>
+    /// <summary>Owning factory run identifier.</summary>
     [JsonPropertyName("runId")]
     public string RunId { get; set; } = string.Empty;
 
-    /// <summary>Gets or sets the <c>startedAt</c> value.</summary>
+    /// <summary>Epoch milliseconds when the agent started.</summary>
     [JsonPropertyName("startedAt")]
     public long? StartedAt { get; set; }
 
-    /// <summary>Gets or sets the <c>status</c> value.</summary>
+    /// <summary>Current durable or live agent status.</summary>
     [JsonPropertyName("status")]
     public string Status { get; set; } = string.Empty;
 
-    /// <summary>Gets or sets the <c>toolCallId</c> value.</summary>
+    /// <summary>Tool-call identifier that launched the agent.</summary>
     [JsonPropertyName("toolCallId")]
     public string ToolCallId { get; set; } = string.Empty;
 }
@@ -4757,55 +4943,55 @@ public sealed class FactoryAgentSummary
 [Experimental(Diagnostics.Experimental)]
 public sealed class FactoryPhaseObservation
 {
-    /// <summary>Gets or sets the <c>accumulatedActiveMs</c> value.</summary>
+    /// <summary>Completed active time accumulated by this phase in milliseconds.</summary>
     [JsonPropertyName("accumulatedActiveMs")]
     public long AccumulatedActiveMs { get; set; }
 
-    /// <summary>Gets or sets the <c>completedAt</c> value.</summary>
+    /// <summary>Epoch milliseconds when this phase completed; for a skipped phase, the synthetic skip timestamp (equal to `startedAt`).</summary>
     [JsonPropertyName("completedAt")]
     public long? CompletedAt { get; set; }
 
-    /// <summary>Gets or sets the <c>currentActiveMs</c> value.</summary>
+    /// <summary>Current live active time for this phase in milliseconds.</summary>
     [JsonPropertyName("currentActiveMs")]
     public long CurrentActiveMs { get; set; }
 
-    /// <summary>Gets or sets the <c>detail</c> value.</summary>
+    /// <summary>Optional human-readable phase detail.</summary>
     [JsonPropertyName("detail")]
     public string? Detail { get; set; }
 
-    /// <summary>Gets or sets the <c>entryCount</c> value.</summary>
+    /// <summary>Number of times execution entered this phase.</summary>
     [JsonPropertyName("entryCount")]
     public long EntryCount { get; set; }
 
-    /// <summary>Gets or sets the <c>id</c> value.</summary>
+    /// <summary>Phase identifier.</summary>
     [JsonPropertyName("id")]
     public string Id { get; set; } = string.Empty;
 
-    /// <summary>Gets or sets the <c>lastEnteredRunAttempt</c> value.</summary>
+    /// <summary>Most recent run attempt that entered this phase, or `0` if the phase has never been entered.</summary>
     [JsonPropertyName("lastEnteredRunAttempt")]
     public long LastEnteredRunAttempt { get; set; }
 
-    /// <summary>Gets or sets the <c>liveAgentCount</c> value.</summary>
+    /// <summary>Direct agents in this phase that are currently live.</summary>
     [JsonPropertyName("liveAgentCount")]
     public long LiveAgentCount { get; set; }
 
-    /// <summary>Gets or sets the <c>ordinal</c> value.</summary>
+    /// <summary>Zero-based declared phase ordinal, or null for an undeclared phase.</summary>
     [JsonPropertyName("ordinal")]
     public long? Ordinal { get; set; }
 
-    /// <summary>Gets or sets the <c>startedAt</c> value.</summary>
+    /// <summary>Epoch milliseconds when this phase first started; for a skipped phase, the synthetic skip timestamp (equal to `completedAt`).</summary>
     [JsonPropertyName("startedAt")]
     public long? StartedAt { get; set; }
 
-    /// <summary>Gets or sets the <c>status</c> value.</summary>
+    /// <summary>Derived lifecycle state of the phase.</summary>
     [JsonPropertyName("status")]
     public FactoryPhaseStatus Status { get; set; }
 
-    /// <summary>Gets or sets the <c>title</c> value.</summary>
+    /// <summary>Human-readable phase title.</summary>
     [JsonPropertyName("title")]
     public string Title { get; set; } = string.Empty;
 
-    /// <summary>Gets or sets the <c>totalAgentCount</c> value.</summary>
+    /// <summary>Total direct agents associated with this phase.</summary>
     [JsonPropertyName("totalAgentCount")]
     public long TotalAgentCount { get; set; }
 }
@@ -4843,23 +5029,23 @@ public sealed class FactoryProgressLine
 [Experimental(Diagnostics.Experimental)]
 public sealed class FactoryProgressPage
 {
-    /// <summary>Gets or sets the <c>hasMoreNewer</c> value.</summary>
+    /// <summary>Whether progress records newer than this page exist.</summary>
     [JsonPropertyName("hasMoreNewer")]
     public bool HasMoreNewer { get; set; }
 
-    /// <summary>Gets or sets the <c>hasMoreOlder</c> value.</summary>
+    /// <summary>Whether progress records older than this page exist.</summary>
     [JsonPropertyName("hasMoreOlder")]
     public bool HasMoreOlder { get; set; }
 
-    /// <summary>Gets or sets the <c>newestSeq</c> value.</summary>
+    /// <summary>Newest sequence number in this page, or null when empty.</summary>
     [JsonPropertyName("newestSeq")]
     public long? NewestSeq { get; set; }
 
-    /// <summary>Gets or sets the <c>oldestSeq</c> value.</summary>
+    /// <summary>Oldest sequence number in this page, or null when empty.</summary>
     [JsonPropertyName("oldestSeq")]
     public long? OldestSeq { get; set; }
 
-    /// <summary>Gets or sets the <c>records</c> value.</summary>
+    /// <summary>Progress records in sequence order.</summary>
     [JsonPropertyName("records")]
     public IList<FactoryProgressLine> Records { get => field ??= []; set; }
 
@@ -4872,91 +5058,91 @@ public sealed class FactoryProgressPage
 [Experimental(Diagnostics.Experimental)]
 public sealed class FactoryRunDetail
 {
-    /// <summary>Gets or sets the <c>activeSegmentStartedAt</c> value.</summary>
+    /// <summary>Epoch milliseconds when the current active segment started, or null while inactive.</summary>
     [JsonPropertyName("activeSegmentStartedAt")]
     public long? ActiveSegmentStartedAt { get; set; }
 
-    /// <summary>Gets or sets the <c>agents</c> value.</summary>
+    /// <summary>Durable identities and live statuses for direct factory agents.</summary>
     [JsonPropertyName("agents")]
     public IList<FactoryAgentSummary> Agents { get => field ??= []; set; }
 
-    /// <summary>Gets or sets the <c>approved</c> value.</summary>
+    /// <summary>Approved effective resource ceilings, or null until approved.</summary>
     [JsonPropertyName("approved")]
     public FactoryDeclaredLimits? Approved { get; set; }
 
-    /// <summary>Gets or sets the <c>completedAt</c> value.</summary>
+    /// <summary>Epoch milliseconds when the run completed, or null while nonterminal.</summary>
     [JsonPropertyName("completedAt")]
     public long? CompletedAt { get; set; }
 
-    /// <summary>Gets or sets the <c>consumed</c> value.</summary>
+    /// <summary>Durable resource consumption.</summary>
     [JsonPropertyName("consumed")]
     public FactoryRunConsumed Consumed { get => field ??= new(); set; }
 
-    /// <summary>Gets or sets the <c>createdAt</c> value.</summary>
+    /// <summary>Epoch milliseconds when the run was created.</summary>
     [JsonPropertyName("createdAt")]
     public long CreatedAt { get; set; }
 
-    /// <summary>Gets or sets the <c>currentPhase</c> value.</summary>
+    /// <summary>Current phase identity, or null before any phase is entered.</summary>
     [JsonPropertyName("currentPhase")]
     public FactoryCurrentPhase? CurrentPhase { get; set; }
 
-    /// <summary>Gets or sets the <c>declaredLimits</c> value.</summary>
+    /// <summary>Resource ceilings declared by the factory.</summary>
     [JsonPropertyName("declaredLimits")]
     public FactoryDeclaredLimits DeclaredLimits { get => field ??= new(); set; }
 
-    /// <summary>Gets or sets the <c>declaredPhaseCount</c> value.</summary>
+    /// <summary>Number of phases declared by the factory.</summary>
     [JsonPropertyName("declaredPhaseCount")]
     public long DeclaredPhaseCount { get; set; }
 
-    /// <summary>Gets or sets the <c>description</c> value.</summary>
+    /// <summary>Human-readable factory description.</summary>
     [JsonPropertyName("description")]
     public string Description { get; set; } = string.Empty;
 
-    /// <summary>Gets or sets the <c>factoryName</c> value.</summary>
+    /// <summary>Registered factory name.</summary>
     [JsonPropertyName("factoryName")]
     public string FactoryName { get; set; } = string.Empty;
 
-    /// <summary>Gets or sets the <c>liveAgentCount</c> value.</summary>
+    /// <summary>Number of direct factory agents currently live.</summary>
     [JsonPropertyName("liveAgentCount")]
     public long LiveAgentCount { get; set; }
 
-    /// <summary>Gets or sets the <c>observedAt</c> value.</summary>
+    /// <summary>Epoch milliseconds when this live-overlay snapshot was observed.</summary>
     [JsonPropertyName("observedAt")]
     public long ObservedAt { get; set; }
 
-    /// <summary>Gets or sets the <c>phases</c> value.</summary>
+    /// <summary>Lifecycle and timing observations for each factory phase.</summary>
     [JsonPropertyName("phases")]
     public IList<FactoryPhaseObservation> Phases { get => field ??= []; set; }
 
-    /// <summary>Gets or sets the <c>progress</c> value.</summary>
+    /// <summary>Bidirectional page of durable factory progress.</summary>
     [JsonPropertyName("progress")]
     public FactoryProgressPage Progress { get => field ??= new(); set; }
 
-    /// <summary>Gets or sets the <c>revision</c> value.</summary>
+    /// <summary>Monotonic durable run revision.</summary>
     [JsonPropertyName("revision")]
     public long Revision { get; set; }
 
-    /// <summary>Gets or sets the <c>runId</c> value.</summary>
+    /// <summary>Factory run identifier.</summary>
     [JsonPropertyName("runId")]
     public string RunId { get; set; } = string.Empty;
 
-    /// <summary>Gets or sets the <c>startedAt</c> value.</summary>
+    /// <summary>Epoch milliseconds when execution first started, or null before start.</summary>
     [JsonPropertyName("startedAt")]
     public long? StartedAt { get; set; }
 
-    /// <summary>Gets or sets the <c>status</c> value.</summary>
+    /// <summary>Current factory run status.</summary>
     [JsonPropertyName("status")]
     public FactoryRunStatus Status { get; set; }
 
-    /// <summary>Gets or sets the <c>terminal</c> value.</summary>
+    /// <summary>Terminal run outcome, or null while nonterminal.</summary>
     [JsonPropertyName("terminal")]
     public FactoryRunTerminal? Terminal { get; set; }
 
-    /// <summary>Gets or sets the <c>totalSpawnedAgentCount</c> value.</summary>
+    /// <summary>Total direct factory agents spawned across all attempts.</summary>
     [JsonPropertyName("totalSpawnedAgentCount")]
     public long TotalSpawnedAgentCount { get; set; }
 
-    /// <summary>Gets or sets the <c>updatedAt</c> value.</summary>
+    /// <summary>Epoch milliseconds when the durable run was last updated.</summary>
     [JsonPropertyName("updatedAt")]
     public long UpdatedAt { get; set; }
 }
@@ -5308,6 +5494,10 @@ internal sealed class ModelSwitchToRequest
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
 
+    /// <summary>Origin to record on the effective `session.model_change` event. Defaults to `sdk` when omitted.</summary>
+    [JsonPropertyName("source")]
+    public ModelChangeSource? Source { get; set; }
+
     /// <summary>Output verbosity level to request for supported models.</summary>
     [JsonPropertyName("verbosity")]
     public Verbosity? Verbosity { get; set; }
@@ -5339,11 +5529,11 @@ internal sealed class ModelSetReasoningEffortRequest
 [Experimental(Diagnostics.Experimental)]
 public sealed class SessionModelPriceCategory
 {
-    /// <summary>Gets or sets the <c>id</c> value.</summary>
+    /// <summary>CAPI model identifier.</summary>
     [JsonPropertyName("id")]
     public string Id { get; set; } = string.Empty;
 
-    /// <summary>Gets or sets the <c>priceCategory</c> value.</summary>
+    /// <summary>Cost category assigned to the model.</summary>
     [JsonPropertyName("priceCategory")]
     public ModelPickerPriceCategory PriceCategory { get; set; }
 }
@@ -5590,27 +5780,27 @@ internal sealed class SessionPlanReadSqlTodosWithDependenciesRequest
 /// <summary>RPC data type for WorkspacesGetWorkspaceResultWorkspace operations.</summary>
 public sealed class WorkspacesGetWorkspaceResultWorkspace
 {
-    /// <summary>Gets or sets the <c>branch</c> value.</summary>
+    /// <summary>Current Git branch.</summary>
     [JsonPropertyName("branch")]
     public string? Branch { get; set; }
 
-    /// <summary>Gets or sets the <c>chronicle_sync_dismissed</c> value.</summary>
+    /// <summary>Whether the per-session Chronicle upgrade prompt was dismissed for the workspace.</summary>
     [JsonPropertyName("chronicle_sync_dismissed")]
     public bool? ChronicleSyncDismissed { get; set; }
 
-    /// <summary>Gets or sets the <c>client_name</c> value.</summary>
+    /// <summary>Name of the client that created the workspace.</summary>
     [JsonPropertyName("client_name")]
     public string? ClientName { get; set; }
 
-    /// <summary>Gets or sets the <c>created_at</c> value.</summary>
+    /// <summary>Timestamp when the workspace was created.</summary>
     [JsonPropertyName("created_at")]
     public DateTimeOffset? CreatedAt { get; set; }
 
-    /// <summary>Gets or sets the <c>cwd</c> value.</summary>
+    /// <summary>Current working directory associated with the workspace.</summary>
     [JsonPropertyName("cwd")]
     public string? Cwd { get; set; }
 
-    /// <summary>Gets or sets the <c>git_root</c> value.</summary>
+    /// <summary>Git repository root associated with the workspace.</summary>
     [JsonPropertyName("git_root")]
     public string? GitRoot { get; set; }
 
@@ -5618,45 +5808,45 @@ public sealed class WorkspacesGetWorkspaceResultWorkspace
     [JsonPropertyName("host_type")]
     public WorkspacesWorkspaceDetailsHostType? HostType { get; set; }
 
-    /// <summary>Gets or sets the <c>id</c> value.</summary>
+    /// <summary>Stable workspace identifier.</summary>
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
     [MinLength(1)]
     [JsonPropertyName("id")]
     public string Id { get; set; } = string.Empty;
 
-    /// <summary>Gets or sets the <c>mc_last_event_id</c> value.</summary>
+    /// <summary>Most recent Mission Control event identifier observed for the workspace.</summary>
     [JsonPropertyName("mc_last_event_id")]
     public string? McLastEventId { get; set; }
 
-    /// <summary>Gets or sets the <c>mc_session_id</c> value.</summary>
+    /// <summary>Mission Control session identifier associated with the workspace.</summary>
     [JsonPropertyName("mc_session_id")]
     public string? McSessionId { get; set; }
 
-    /// <summary>Gets or sets the <c>mc_task_id</c> value.</summary>
+    /// <summary>Mission Control task identifier associated with the workspace.</summary>
     [JsonPropertyName("mc_task_id")]
     public string? McTaskId { get; set; }
 
-    /// <summary>Gets or sets the <c>name</c> value.</summary>
+    /// <summary>Workspace display name.</summary>
     [JsonPropertyName("name")]
     public string? Name { get; set; }
 
-    /// <summary>Gets or sets the <c>remote_steerable</c> value.</summary>
+    /// <summary>Whether the workspace session can be steered remotely.</summary>
     [JsonPropertyName("remote_steerable")]
     public bool? RemoteSteerable { get; set; }
 
-    /// <summary>Gets or sets the <c>repository</c> value.</summary>
+    /// <summary>Repository identifier associated with the workspace.</summary>
     [JsonPropertyName("repository")]
     public string? Repository { get; set; }
 
-    /// <summary>Gets or sets the <c>summary_count</c> value.</summary>
+    /// <summary>Number of persisted summaries in the workspace.</summary>
     [JsonPropertyName("summary_count")]
     public long? SummaryCount { get; set; }
 
-    /// <summary>Gets or sets the <c>updated_at</c> value.</summary>
+    /// <summary>Timestamp when the workspace was last updated.</summary>
     [JsonPropertyName("updated_at")]
     public DateTimeOffset? UpdatedAt { get; set; }
 
-    /// <summary>Gets or sets the <c>user_named</c> value.</summary>
+    /// <summary>Whether the workspace name was explicitly chosen by the user.</summary>
     [JsonPropertyName("user_named")]
     public bool? UserNamed { get; set; }
 }
@@ -5827,12 +6017,12 @@ internal sealed class WorkspacesReadCheckpointRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for WorkspacesAddSummaryResultSummary operations.</summary>
+/// <summary>Metadata for the persisted summary.</summary>
 public sealed class WorkspacesAddSummaryResultSummary
 {
 }
 
-/// <summary>RPC data type for WorkspacesAddSummaryResultWorkspace operations.</summary>
+/// <summary>Refreshed metadata for the containing workspace.</summary>
 public sealed class WorkspacesAddSummaryResultWorkspace
 {
 }
@@ -5841,11 +6031,11 @@ public sealed class WorkspacesAddSummaryResultWorkspace
 [Experimental(Diagnostics.Experimental)]
 public sealed class WorkspacesAddSummaryResult
 {
-    /// <summary>Gets or sets the <c>summary</c> value.</summary>
+    /// <summary>Metadata for the persisted summary.</summary>
     [JsonPropertyName("summary")]
     public WorkspacesAddSummaryResultSummary? Summary { get; set; }
 
-    /// <summary>Gets or sets the <c>workspace</c> value.</summary>
+    /// <summary>Refreshed metadata for the containing workspace.</summary>
     [JsonPropertyName("workspace")]
     public WorkspacesAddSummaryResultWorkspace? Workspace { get; set; }
 }
@@ -6322,7 +6512,7 @@ internal sealed class TasksStartAgentRequest
     [JsonPropertyName("model")]
     public string? Model { get; set; }
 
-    /// <summary>Short name for the agent, used to generate a human-readable ID.</summary>
+    /// <summary>Friendly, non-unique name used when displaying the agent.</summary>
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
 
@@ -6388,6 +6578,11 @@ public partial class TaskInfoAgent : TaskInfo
     /// <summary>Short description of the task.</summary>
     [JsonPropertyName("description")]
     public required string Description { get; set; }
+
+    /// <summary>Friendly, non-unique name intended for display.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("displayName")]
+    public string? DisplayName { get; set; }
 
     /// <summary>Error message when the task failed.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -7150,6 +7345,19 @@ public sealed class McpAllowedServer
     public string? RedactedNote { get; set; }
 }
 
+/// <summary>MCP server whose connection attempt failed.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class McpFailedServer
+{
+    /// <summary>The captured connection failure detail.</summary>
+    [JsonPropertyName("error")]
+    public string? Error { get; set; }
+
+    /// <summary>The config key of the server that failed to connect.</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+}
+
 /// <summary>MCP server filtered by policy, with name, reason, and optional redacted reason.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class McpFilteredServer
@@ -7182,6 +7390,10 @@ internal sealed class McpStartServersResult
     /// <summary>Non-default servers allowed by policy.</summary>
     [JsonPropertyName("allowedServers")]
     public IList<McpAllowedServer>? AllowedServers { get; set; }
+
+    /// <summary>Servers whose connection attempt failed.</summary>
+    [JsonPropertyName("failedServers")]
+    public IList<McpFailedServer>? FailedServers { get; set; }
 
     /// <summary>Servers filtered out before startup.</summary>
     [JsonPropertyName("filteredServers")]
@@ -7561,6 +7773,106 @@ internal sealed class McpOauthLoginRequest
     public bool? PublicClient { get; set; }
 
     /// <summary>Name of the remote MCP server to authenticate.</summary>
+    [RegularExpression("^[^\\x00-\\x1f/\\x7f-\\x9f}]+(?:\\/[^\\x00-\\x1f/\\x7f-\\x9f}]+)*$")]
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("serverName")]
+    public string ServerName { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Passive MCP OAuth probe result. `authenticated` means the server accepted the probe request while an OAuth-origin access token was attached; it does not prove the server required or independently validated that token. The probe does not make a second unauthenticated request. Failed is an expected probe-domain outcome; JSON-RPC errors are reserved for API-call failures.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>status</c>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "status",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(McpOauthProbeResultNoAuthRequired), "no-auth-required")]
+[JsonDerivedType(typeof(McpOauthProbeResultAuthenticated), "authenticated")]
+[JsonDerivedType(typeof(McpOauthProbeResultNeedsAuth), "needs-auth")]
+[JsonDerivedType(typeof(McpOauthProbeResultFailed), "failed")]
+public partial class McpOauthProbeResult
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("status")]
+    public virtual string Status { get; set; } = string.Empty;
+}
+
+
+/// <summary>The <c>no-auth-required</c> variant of <see cref="McpOauthProbeResult"/>.</summary>
+[Experimental(Diagnostics.Experimental)]
+public partial class McpOauthProbeResultNoAuthRequired : McpOauthProbeResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Status => "no-auth-required";
+
+    /// <summary>HTTP response returned by the server.</summary>
+    [JsonPropertyName("httpResponse")]
+    public required McpOauthHttpResponse HttpResponse { get; set; }
+}
+
+/// <summary>The <c>authenticated</c> variant of <see cref="McpOauthProbeResult"/>.</summary>
+[Experimental(Diagnostics.Experimental)]
+public partial class McpOauthProbeResultAuthenticated : McpOauthProbeResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Status => "authenticated";
+
+    /// <summary>HTTP response returned by the server.</summary>
+    [JsonPropertyName("httpResponse")]
+    public required McpOauthHttpResponse HttpResponse { get; set; }
+}
+
+/// <summary>The <c>needs-auth</c> variant of <see cref="McpOauthProbeResult"/>.</summary>
+[Experimental(Diagnostics.Experimental)]
+public partial class McpOauthProbeResultNeedsAuth : McpOauthProbeResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Status => "needs-auth";
+
+    /// <summary>HTTP 401 or 403 response returned by the server.</summary>
+    [JsonPropertyName("httpResponse")]
+    public required McpOauthHttpResponse HttpResponse { get; set; }
+
+    /// <summary>Why authentication is needed.</summary>
+    [JsonPropertyName("reason")]
+    public required McpOauthProbeNeedsAuthReason Reason { get; set; }
+
+    /// <summary>Parsed WWW-Authenticate challenge parameters, when present and parseable.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("wwwAuthenticateParams")]
+    public McpOauthWWWAuthenticateParams? WwwAuthenticateParams { get; set; }
+}
+
+/// <summary>The <c>failed</c> variant of <see cref="McpOauthProbeResult"/>.</summary>
+[Experimental(Diagnostics.Experimental)]
+public partial class McpOauthProbeResultFailed : McpOauthProbeResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Status => "failed";
+
+    /// <summary>Human-readable probe failure detail.</summary>
+    [JsonPropertyName("error")]
+    public required string Error { get; set; }
+
+    /// <summary>HTTP response returned by the server, when the probe reached the server and captured the complete response.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("httpResponse")]
+    public McpOauthHttpResponse? HttpResponse { get; set; }
+}
+
+/// <summary>Remote MCP server name for a passive OAuth status probe.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class McpOauthProbeRequest
+{
+    /// <summary>Name of the configured remote MCP server to probe.</summary>
     [RegularExpression("^[^\\x00-\\x1f/\\x7f-\\x9f}]+(?:\\/[^\\x00-\\x1f/\\x7f-\\x9f}]+)*$")]
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
     [MinLength(1)]
@@ -8500,11 +8812,11 @@ public sealed class SessionUpdateOptionsResult
 [Experimental(Diagnostics.Experimental)]
 public sealed class OptionsUpdateAdditionalContentExclusionPolicyRuleSource
 {
-    /// <summary>Gets or sets the <c>name</c> value.</summary>
+    /// <summary>Name of the policy source.</summary>
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
 
-    /// <summary>Gets or sets the <c>type</c> value.</summary>
+    /// <summary>Type of the policy source.</summary>
     [JsonPropertyName("type")]
     public string Type { get; set; } = string.Empty;
 }
@@ -8513,15 +8825,15 @@ public sealed class OptionsUpdateAdditionalContentExclusionPolicyRuleSource
 [Experimental(Diagnostics.Experimental)]
 public sealed class OptionsUpdateAdditionalContentExclusionPolicyRule
 {
-    /// <summary>Gets or sets the <c>ifAnyMatch</c> value.</summary>
+    /// <summary>Conditions of which at least one must match.</summary>
     [JsonPropertyName("ifAnyMatch")]
     public IList<string>? IfAnyMatch { get; set; }
 
-    /// <summary>Gets or sets the <c>ifNoneMatch</c> value.</summary>
+    /// <summary>Conditions none of which may match.</summary>
     [JsonPropertyName("ifNoneMatch")]
     public IList<string>? IfNoneMatch { get; set; }
 
-    /// <summary>Gets or sets the <c>paths</c> value.</summary>
+    /// <summary>Path patterns covered by this rule.</summary>
     [JsonPropertyName("paths")]
     public IList<string> Paths { get => field ??= []; set; }
 
@@ -8534,11 +8846,11 @@ public sealed class OptionsUpdateAdditionalContentExclusionPolicyRule
 [Experimental(Diagnostics.Experimental)]
 public sealed class OptionsUpdateAdditionalContentExclusionPolicy
 {
-    /// <summary>Gets or sets the <c>last_updated_at</c> value.</summary>
+    /// <summary>Opaque policy update timestamp supplied by the host.</summary>
     [JsonPropertyName("last_updated_at")]
     public JsonElement LastUpdatedAt { get; set; }
 
-    /// <summary>Gets or sets the <c>rules</c> value.</summary>
+    /// <summary>Content-exclusion rules to apply.</summary>
     [JsonPropertyName("rules")]
     public IList<OptionsUpdateAdditionalContentExclusionPolicyRule> Rules { get => field ??= []; set; }
 
@@ -8778,7 +9090,7 @@ public sealed class SandboxConfig
     [JsonPropertyName("addCurrentWorkingDirectory")]
     public bool? AddCurrentWorkingDirectory { get; set; }
 
-    /// <summary>Whether to auto-grant read access to common developer-tool caches, registries, and toolchains in their default home locations (cargo, go, npm, Maven, and more), plus read-write access to (and, on Unix, up-front creation of) the scratch caches builds write on every run (go-build, ccache, sccache, Gradle caches, Cargo lock/tracker files), so builds work without extra configuration; a relocated CARGO_HOME additionally gets its Cargo lock files granted read-write. Default: true (enabled by default; set to false to opt out).</summary>
+    /// <summary>Whether to auto-grant read access to the tool directories discovered on PATH and in toolchain environment variables (GOROOT, CARGO_HOME, JAVA_HOME, VIRTUAL_ENV, and similar), and to common developer-tool caches, registries, and toolchains in their default home locations (cargo, go, npm, Maven, and more), plus read-write access to (and, on Unix, up-front creation of) the scratch caches builds write on every run (go-build, ccache, sccache, Gradle caches, Cargo lock/tracker files), so builds work without extra configuration; a relocated CARGO_HOME additionally gets its Cargo lock files granted read-write. Set to false to disable every grant listed above: user-installed toolchains (rustup, nvm, pyenv, conda, pipx) then need explicit userPolicy.filesystem entries — readonlyPaths to read them, plus readwriteFiles for a relocated CARGO_HOME's .package-cache and .global-cache, which Cargo locks on every build. Only these developer-tool grants are affected: the working directory (see addCurrentWorkingDirectory), temporary storage, session log paths, and system locations follow their own rules and stay granted, so commands still run. Default: true (enabled by default; set to false to opt out).</summary>
     [JsonPropertyName("allowDevToolAccess")]
     public bool? AllowDevToolAccess { get; set; }
 
@@ -10216,10 +10528,19 @@ internal sealed class UIEphemeralQueryRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
+/// <summary>MCP response metadata.</summary>
+public sealed class UIElicitationResponseMeta
+{
+}
+
 /// <summary>The elicitation response (accept with form values, decline, or cancel).</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class UIElicitationResponse
 {
+    /// <summary>MCP response metadata.</summary>
+    [JsonPropertyName("_meta")]
+    public UIElicitationResponseMeta? Meta { get; set; }
+
     /// <summary>The user's response: accept (submitted), decline (rejected), or cancel (dismissed).</summary>
     [JsonPropertyName("action")]
     public UIElicitationResponseAction Action { get; set; }
@@ -10227,6 +10548,11 @@ public sealed class UIElicitationResponse
     /// <summary>The form values submitted by the user (present when action is 'accept').</summary>
     [JsonPropertyName("content")]
     public IDictionary<string, JsonElement>? Content { get; set; }
+}
+
+/// <summary>MCP request metadata.</summary>
+public sealed class UIElicitationRequestMeta
+{
 }
 
 /// <summary>JSON Schema describing the form fields to present to the user.</summary>
@@ -10246,13 +10572,30 @@ public sealed class UIElicitationSchema
     public string Type { get; set; } = string.Empty;
 }
 
+/// <summary>Metadata controlling an MCP task's lifetime.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class McpTaskMetadata
+{
+    /// <summary>Task time-to-live.</summary>
+    [JsonPropertyName("ttl")]
+    public long? Ttl { get; set; }
+}
+
 /// <summary>Prompt message and JSON schema describing the form fields to elicit from the user.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class UIElicitationRequest
 {
+    /// <summary>MCP request metadata.</summary>
+    [JsonPropertyName("_meta")]
+    public UIElicitationRequestMeta? Meta { get; set; }
+
     /// <summary>Message describing what information is needed from the user.</summary>
     [JsonPropertyName("message")]
     public string Message { get; set; } = string.Empty;
+
+    /// <summary>Elicitation mode. Omitted and form are equivalent for structured elicitation.</summary>
+    [JsonPropertyName("mode")]
+    public McpElicitationFormMode? Mode { get; set; }
 
     /// <summary>JSON Schema describing the form fields to present to the user.</summary>
     [JsonPropertyName("requestedSchema")]
@@ -10261,6 +10604,10 @@ internal sealed class UIElicitationRequest
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>MCP task metadata.</summary>
+    [JsonPropertyName("task")]
+    public McpTaskMetadata? Task { get; set; }
 }
 
 /// <summary>Indicates whether the elicitation response was accepted; false if it was already resolved by another client.</summary>
@@ -10497,11 +10844,11 @@ public sealed class PermissionsConfigureResult
 [Experimental(Diagnostics.Experimental)]
 public sealed class PermissionsConfigureAdditionalContentExclusionPolicyRuleSource
 {
-    /// <summary>Gets or sets the <c>name</c> value.</summary>
+    /// <summary>Name of the policy source.</summary>
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
 
-    /// <summary>Gets or sets the <c>type</c> value.</summary>
+    /// <summary>Type of the policy source.</summary>
     [JsonPropertyName("type")]
     public string Type { get; set; } = string.Empty;
 }
@@ -10510,15 +10857,15 @@ public sealed class PermissionsConfigureAdditionalContentExclusionPolicyRuleSour
 [Experimental(Diagnostics.Experimental)]
 public sealed class PermissionsConfigureAdditionalContentExclusionPolicyRule
 {
-    /// <summary>Gets or sets the <c>ifAnyMatch</c> value.</summary>
+    /// <summary>Conditions of which at least one must match.</summary>
     [JsonPropertyName("ifAnyMatch")]
     public IList<string>? IfAnyMatch { get; set; }
 
-    /// <summary>Gets or sets the <c>ifNoneMatch</c> value.</summary>
+    /// <summary>Conditions none of which may match.</summary>
     [JsonPropertyName("ifNoneMatch")]
     public IList<string>? IfNoneMatch { get; set; }
 
-    /// <summary>Gets or sets the <c>paths</c> value.</summary>
+    /// <summary>Path patterns covered by this rule.</summary>
     [JsonPropertyName("paths")]
     public IList<string> Paths { get => field ??= []; set; }
 
@@ -10531,11 +10878,11 @@ public sealed class PermissionsConfigureAdditionalContentExclusionPolicyRule
 [Experimental(Diagnostics.Experimental)]
 public sealed class PermissionsConfigureAdditionalContentExclusionPolicy
 {
-    /// <summary>Gets or sets the <c>last_updated_at</c> value.</summary>
+    /// <summary>Opaque policy update timestamp supplied by the host.</summary>
     [JsonPropertyName("last_updated_at")]
     public JsonElement LastUpdatedAt { get; set; }
 
-    /// <summary>Gets or sets the <c>rules</c> value.</summary>
+    /// <summary>Content-exclusion rules to apply.</summary>
     [JsonPropertyName("rules")]
     public IList<PermissionsConfigureAdditionalContentExclusionPolicyRule> Rules { get => field ??= []; set; }
 
@@ -10710,6 +11057,7 @@ public partial class PermissionDecisionApproveOnce : PermissionDecision
 [JsonDerivedType(typeof(PermissionDecisionApproveForSessionApprovalExtensionManagement), "extension-management")]
 [JsonDerivedType(typeof(PermissionDecisionApproveForSessionApprovalFactory), "factory")]
 [JsonDerivedType(typeof(PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess), "extension-permission-access")]
+[JsonDerivedType(typeof(PermissionDecisionApproveForSessionApprovalExtensionEnvAccess), "extension-env-access")]
 public partial class PermissionDecisionApproveForSessionApproval
 {
     /// <summary>The type discriminator.</summary>
@@ -10852,6 +11200,24 @@ public partial class PermissionDecisionApproveForSessionApprovalExtensionPermiss
     public required string ExtensionName { get; set; }
 }
 
+/// <summary>Session-scoped approval details for an extension's access to sensitive environment variables, keyed by extension name and the exact set of variable names.</summary>
+/// <remarks>The <c>extension-env-access</c> variant of <see cref="PermissionDecisionApproveForSessionApproval"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class PermissionDecisionApproveForSessionApprovalExtensionEnvAccess : PermissionDecisionApproveForSessionApproval
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "extension-env-access";
+
+    /// <summary>Names of the sensitive environment variables this approval covers. Values are never persisted.</summary>
+    [JsonPropertyName("environmentVariables")]
+    public required IList<string> EnvironmentVariables { get; set; }
+
+    /// <summary>Extension name.</summary>
+    [JsonPropertyName("extensionName")]
+    public required string ExtensionName { get; set; }
+}
+
 /// <summary>Permission-decision request variant to approve for the rest of the session, with optional tool approval or URL domain.</summary>
 /// <remarks>The <c>approve-for-session</c> variant of <see cref="PermissionDecision"/>.</remarks>
 [Experimental(Diagnostics.Experimental)]
@@ -10888,6 +11254,7 @@ public partial class PermissionDecisionApproveForSession : PermissionDecision
 [JsonDerivedType(typeof(PermissionDecisionApproveForLocationApprovalExtensionManagement), "extension-management")]
 [JsonDerivedType(typeof(PermissionDecisionApproveForLocationApprovalFactory), "factory")]
 [JsonDerivedType(typeof(PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess), "extension-permission-access")]
+[JsonDerivedType(typeof(PermissionDecisionApproveForLocationApprovalExtensionEnvAccess), "extension-env-access")]
 public partial class PermissionDecisionApproveForLocationApproval
 {
     /// <summary>The type discriminator.</summary>
@@ -11024,6 +11391,24 @@ public partial class PermissionDecisionApproveForLocationApprovalExtensionPermis
     /// <inheritdoc />
     [JsonIgnore]
     public override string Kind => "extension-permission-access";
+
+    /// <summary>Extension name.</summary>
+    [JsonPropertyName("extensionName")]
+    public required string ExtensionName { get; set; }
+}
+
+/// <summary>Location-scoped approval details for an extension's access to sensitive environment variables, keyed by extension name and the exact set of variable names.</summary>
+/// <remarks>The <c>extension-env-access</c> variant of <see cref="PermissionDecisionApproveForLocationApproval"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class PermissionDecisionApproveForLocationApprovalExtensionEnvAccess : PermissionDecisionApproveForLocationApproval
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "extension-env-access";
+
+    /// <summary>Names of the sensitive environment variables this approval covers. Values are never persisted.</summary>
+    [JsonPropertyName("environmentVariables")]
+    public required IList<string> EnvironmentVariables { get; set; }
 
     /// <summary>Extension name.</summary>
     [JsonPropertyName("extensionName")]
@@ -11671,6 +12056,7 @@ public sealed class PermissionsLocationsAddToolApprovalResult
 [JsonDerivedType(typeof(PermissionsLocationsAddToolApprovalDetailsExtensionManagement), "extension-management")]
 [JsonDerivedType(typeof(PermissionsLocationsAddToolApprovalDetailsFactory), "factory")]
 [JsonDerivedType(typeof(PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess), "extension-permission-access")]
+[JsonDerivedType(typeof(PermissionsLocationsAddToolApprovalDetailsExtensionEnvAccess), "extension-env-access")]
 public partial class PermissionsLocationsAddToolApprovalDetails
 {
     /// <summary>The type discriminator.</summary>
@@ -11807,6 +12193,24 @@ public partial class PermissionsLocationsAddToolApprovalDetailsExtensionPermissi
     /// <inheritdoc />
     [JsonIgnore]
     public override string Kind => "extension-permission-access";
+
+    /// <summary>Extension name.</summary>
+    [JsonPropertyName("extensionName")]
+    public required string ExtensionName { get; set; }
+}
+
+/// <summary>Location-persisted tool approval details for an extension's access to sensitive environment variables, keyed by extension name and the exact set of variable names.</summary>
+/// <remarks>The <c>extension-env-access</c> variant of <see cref="PermissionsLocationsAddToolApprovalDetails"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class PermissionsLocationsAddToolApprovalDetailsExtensionEnvAccess : PermissionsLocationsAddToolApprovalDetails
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "extension-env-access";
+
+    /// <summary>Names of the sensitive environment variables this approval covers. Values are never persisted.</summary>
+    [JsonPropertyName("environmentVariables")]
+    public required IList<string> EnvironmentVariables { get; set; }
 
     /// <summary>Extension name.</summary>
     [JsonPropertyName("extensionName")]
@@ -12457,11 +12861,11 @@ internal sealed class MetadataRecomputeContextTokensRequest
 [Experimental(Diagnostics.Experimental)]
 public sealed class SessionSettingsBuiltInToolAvailabilitySnapshot
 {
-    /// <summary>Gets or sets the <c>createPullRequest</c> value.</summary>
+    /// <summary>Whether the create-pull-request tool is available.</summary>
     [JsonPropertyName("createPullRequest")]
     public bool? CreatePullRequest { get; set; }
 
-    /// <summary>Gets or sets the <c>reportProgress</c> value.</summary>
+    /// <summary>Whether the report-progress tool is available.</summary>
     [JsonPropertyName("reportProgress")]
     public bool? ReportProgress { get; set; }
 }
@@ -12470,15 +12874,15 @@ public sealed class SessionSettingsBuiltInToolAvailabilitySnapshot
 [Experimental(Diagnostics.Experimental)]
 public sealed class SessionSettingsJobSnapshot
 {
-    /// <summary>Gets or sets the <c>builtInToolAvailability</c> value.</summary>
+    /// <summary>Availability of job-specific built-in tools.</summary>
     [JsonPropertyName("builtInToolAvailability")]
     public SessionSettingsBuiltInToolAvailabilitySnapshot? BuiltInToolAvailability { get; set; }
 
-    /// <summary>Gets or sets the <c>eventType</c> value.</summary>
+    /// <summary>GitHub Actions event type for the job.</summary>
     [JsonPropertyName("eventType")]
     public string? EventType { get; set; }
 
-    /// <summary>Gets or sets the <c>isTriggerJob</c> value.</summary>
+    /// <summary>Whether this is the workflow's trigger job.</summary>
     [JsonPropertyName("isTriggerJob")]
     public bool? IsTriggerJob { get; set; }
 }
@@ -12487,19 +12891,19 @@ public sealed class SessionSettingsJobSnapshot
 [Experimental(Diagnostics.Experimental)]
 public sealed class SessionSettingsModelSnapshot
 {
-    /// <summary>Gets or sets the <c>callbackUrl</c> value.</summary>
+    /// <summary>Agent service callback URL for job and progress updates.</summary>
     [JsonPropertyName("callbackUrl")]
     public string? CallbackUrl { get; set; }
 
-    /// <summary>Gets or sets the <c>defaultReasoningEffort</c> value.</summary>
+    /// <summary>Default reasoning effort for the selected model.</summary>
     [JsonPropertyName("defaultReasoningEffort")]
     public string? DefaultReasoningEffort { get; set; }
 
-    /// <summary>Gets or sets the <c>instanceId</c> value.</summary>
+    /// <summary>Agent job identifier for the session.</summary>
     [JsonPropertyName("instanceId")]
     public string? InstanceId { get; set; }
 
-    /// <summary>Gets or sets the <c>model</c> value.</summary>
+    /// <summary>Selected model identifier.</summary>
     [JsonPropertyName("model")]
     public string? Model { get; set; }
 }
@@ -12508,11 +12912,11 @@ public sealed class SessionSettingsModelSnapshot
 [Experimental(Diagnostics.Experimental)]
 public sealed class SessionSettingsOnlineEvaluationSnapshot
 {
-    /// <summary>Gets or sets the <c>disableOnlineEvaluation</c> value.</summary>
+    /// <summary>Whether online evaluation is disabled.</summary>
     [JsonPropertyName("disableOnlineEvaluation")]
     public bool? DisableOnlineEvaluation { get; set; }
 
-    /// <summary>Gets or sets the <c>enableOnlineEvaluationOutputFile</c> value.</summary>
+    /// <summary>Whether online-evaluation output-file generation is enabled.</summary>
     [JsonPropertyName("enableOnlineEvaluationOutputFile")]
     public bool? EnableOnlineEvaluationOutputFile { get; set; }
 }
@@ -12521,51 +12925,51 @@ public sealed class SessionSettingsOnlineEvaluationSnapshot
 [Experimental(Diagnostics.Experimental)]
 public sealed class SessionSettingsRepoSnapshot
 {
-    /// <summary>Gets or sets the <c>branch</c> value.</summary>
+    /// <summary>Checked-out repository branch.</summary>
     [JsonPropertyName("branch")]
     public string? Branch { get; set; }
 
-    /// <summary>Gets or sets the <c>commit</c> value.</summary>
+    /// <summary>Checked-out commit SHA.</summary>
     [JsonPropertyName("commit")]
     public string? Commit { get; set; }
 
-    /// <summary>Gets or sets the <c>host</c> value.</summary>
+    /// <summary>GitHub server host name.</summary>
     [JsonPropertyName("host")]
     public string? Host { get; set; }
 
-    /// <summary>Gets or sets the <c>hostProtocol</c> value.</summary>
+    /// <summary>Protocol used to access the GitHub host.</summary>
     [JsonPropertyName("hostProtocol")]
     public string? HostProtocol { get; set; }
 
-    /// <summary>Gets or sets the <c>id</c> value.</summary>
+    /// <summary>GitHub repository database ID.</summary>
     [JsonPropertyName("id")]
     public double? Id { get; set; }
 
-    /// <summary>Gets or sets the <c>name</c> value.</summary>
+    /// <summary>Repository name.</summary>
     [JsonPropertyName("name")]
     public string? Name { get; set; }
 
-    /// <summary>Gets or sets the <c>ownerId</c> value.</summary>
+    /// <summary>GitHub repository owner database ID.</summary>
     [JsonPropertyName("ownerId")]
     public double? OwnerId { get; set; }
 
-    /// <summary>Gets or sets the <c>ownerName</c> value.</summary>
+    /// <summary>Repository owner login.</summary>
     [JsonPropertyName("ownerName")]
     public string? OwnerName { get; set; }
 
-    /// <summary>Gets or sets the <c>prCommitCount</c> value.</summary>
+    /// <summary>Number of commits in the pull request.</summary>
     [JsonPropertyName("prCommitCount")]
     public double? PrCommitCount { get; set; }
 
-    /// <summary>Gets or sets the <c>readWrite</c> value.</summary>
+    /// <summary>Whether the repository is writable.</summary>
     [JsonPropertyName("readWrite")]
     public bool? ReadWrite { get; set; }
 
-    /// <summary>Gets or sets the <c>secretScanningUrl</c> value.</summary>
+    /// <summary>GitHub secret-scanning service URL.</summary>
     [JsonPropertyName("secretScanningUrl")]
     public string? SecretScanningUrl { get; set; }
 
-    /// <summary>Gets or sets the <c>serverUrl</c> value.</summary>
+    /// <summary>GitHub server base URL.</summary>
     [JsonPropertyName("serverUrl")]
     public string? ServerUrl { get; set; }
 }
@@ -12574,39 +12978,39 @@ public sealed class SessionSettingsRepoSnapshot
 [Experimental(Diagnostics.Experimental)]
 public sealed class SessionSettingsValidationSnapshot
 {
-    /// <summary>Gets or sets the <c>advisoryEnabled</c> value.</summary>
+    /// <summary>Whether advisory validation is enabled.</summary>
     [JsonPropertyName("advisoryEnabled")]
     public bool? AdvisoryEnabled { get; set; }
 
-    /// <summary>Gets or sets the <c>codeqlEnabled</c> value.</summary>
+    /// <summary>Whether CodeQL validation is enabled.</summary>
     [JsonPropertyName("codeqlEnabled")]
     public bool? CodeqlEnabled { get; set; }
 
-    /// <summary>Gets or sets the <c>codeReviewEnabled</c> value.</summary>
+    /// <summary>Whether code-review validation is enabled.</summary>
     [JsonPropertyName("codeReviewEnabled")]
     public bool? CodeReviewEnabled { get; set; }
 
-    /// <summary>Gets or sets the <c>codeReviewModel</c> value.</summary>
+    /// <summary>Model used for code-review validation.</summary>
     [JsonPropertyName("codeReviewModel")]
     public string? CodeReviewModel { get; set; }
 
-    /// <summary>Gets or sets the <c>dependabotTimeout</c> value.</summary>
+    /// <summary>Dependabot validation timeout budget in seconds.</summary>
     [JsonPropertyName("dependabotTimeout")]
     public double? DependabotTimeout { get; set; }
 
-    /// <summary>Gets or sets the <c>memoryStoreEnabled</c> value.</summary>
+    /// <summary>Whether the memory-store tool is enabled.</summary>
     [JsonPropertyName("memoryStoreEnabled")]
     public bool? MemoryStoreEnabled { get; set; }
 
-    /// <summary>Gets or sets the <c>memoryVoteEnabled</c> value.</summary>
+    /// <summary>Whether the memory-vote tool is enabled.</summary>
     [JsonPropertyName("memoryVoteEnabled")]
     public bool? MemoryVoteEnabled { get; set; }
 
-    /// <summary>Gets or sets the <c>secretScanningEnabled</c> value.</summary>
+    /// <summary>Whether secret-scanning validation is enabled.</summary>
     [JsonPropertyName("secretScanningEnabled")]
     public bool? SecretScanningEnabled { get; set; }
 
-    /// <summary>Gets or sets the <c>timeout</c> value.</summary>
+    /// <summary>General validation timeout budget in seconds.</summary>
     [JsonPropertyName("timeout")]
     public double? Timeout { get; set; }
 }
@@ -12615,39 +13019,39 @@ public sealed class SessionSettingsValidationSnapshot
 [Experimental(Diagnostics.Experimental)]
 internal sealed class SessionSettingsSnapshot
 {
-    /// <summary>Gets or sets the <c>clientName</c> value.</summary>
+    /// <summary>Name of the SDK client that created the session.</summary>
     [JsonPropertyName("clientName")]
     public string? ClientName { get; set; }
 
-    /// <summary>Gets or sets the <c>job</c> value.</summary>
+    /// <summary>Redacted job settings.</summary>
     [JsonPropertyName("job")]
     public SessionSettingsJobSnapshot Job { get => field ??= new(); set; }
 
-    /// <summary>Gets or sets the <c>model</c> value.</summary>
+    /// <summary>Redacted model routing settings.</summary>
     [JsonPropertyName("model")]
     public SessionSettingsModelSnapshot Model { get => field ??= new(); set; }
 
-    /// <summary>Gets or sets the <c>onlineEvaluation</c> value.</summary>
+    /// <summary>Online-evaluation settings safe for SDK consumers.</summary>
     [JsonPropertyName("onlineEvaluation")]
     public SessionSettingsOnlineEvaluationSnapshot OnlineEvaluation { get => field ??= new(); set; }
 
-    /// <summary>Gets or sets the <c>repo</c> value.</summary>
+    /// <summary>Redacted repository and host settings.</summary>
     [JsonPropertyName("repo")]
     public SessionSettingsRepoSnapshot Repo { get => field ??= new(); set; }
 
-    /// <summary>Gets or sets the <c>startTimeMs</c> value.</summary>
+    /// <summary>Session start time as Unix epoch milliseconds.</summary>
     [JsonPropertyName("startTimeMs")]
     public double? StartTimeMs { get; set; }
 
-    /// <summary>Gets or sets the <c>timeoutMs</c> value.</summary>
+    /// <summary>Session timeout in milliseconds.</summary>
     [JsonPropertyName("timeoutMs")]
     public double? TimeoutMs { get; set; }
 
-    /// <summary>Gets or sets the <c>validation</c> value.</summary>
+    /// <summary>Redacted validation and memory-tool settings.</summary>
     [JsonPropertyName("validation")]
     public SessionSettingsValidationSnapshot Validation { get => field ??= new(); set; }
 
-    /// <summary>Gets or sets the <c>version</c> value.</summary>
+    /// <summary>Agent runtime version selector copied from the session settings, such as `latest` or a runtime release identifier.</summary>
     [JsonPropertyName("version")]
     public string? Version { get; set; }
 }
@@ -12665,7 +13069,7 @@ internal sealed class SessionSettingsSnapshotRequest
 [Experimental(Diagnostics.Experimental)]
 internal sealed class SessionSettingsEvaluatePredicateResult
 {
-    /// <summary>Gets or sets the <c>enabled</c> value.</summary>
+    /// <summary>Whether the named settings predicate evaluated to enabled.</summary>
     [JsonPropertyName("enabled")]
     public bool Enabled { get; set; }
 }
@@ -13391,7 +13795,7 @@ public sealed class QueueInsertMessage
 [Experimental(Diagnostics.Experimental)]
 internal sealed class QueueInsertAtRequest
 {
-    /// <summary>Gets or sets the <c>message</c> value.</summary>
+    /// <summary>Queued message contents and delivery metadata.</summary>
     [JsonPropertyName("message")]
     public QueueInsertMessage Message { get => field ??= new(); set; }
 
@@ -13417,7 +13821,7 @@ public sealed class QueueRemoveAtResult
 [Experimental(Diagnostics.Experimental)]
 internal sealed class QueueRemoveAtRequest
 {
-    /// <summary>Gets or sets the <c>id</c> value.</summary>
+    /// <summary>Stable opaque ID of the queued item to remove.</summary>
     [JsonPropertyName("id")]
     public string Id { get; set; } = string.Empty;
 
@@ -13439,15 +13843,15 @@ public sealed class QueueUpdateTextResult
 [Experimental(Diagnostics.Experimental)]
 internal sealed class QueueUpdateTextRequest
 {
-    /// <summary>Gets or sets the <c>displayPrompt</c> value.</summary>
+    /// <summary>Optional replacement prompt displayed to the user.</summary>
     [JsonPropertyName("displayPrompt")]
     public string? DisplayPrompt { get; set; }
 
-    /// <summary>Gets or sets the <c>id</c> value.</summary>
+    /// <summary>Stable opaque ID of the queued item to edit.</summary>
     [JsonPropertyName("id")]
     public string Id { get; set; } = string.Empty;
 
-    /// <summary>Gets or sets the <c>prompt</c> value.</summary>
+    /// <summary>Replacement prompt sent to the model.</summary>
     [JsonPropertyName("prompt")]
     public string Prompt { get; set; } = string.Empty;
 
@@ -13469,7 +13873,7 @@ public sealed class QueueDuplicateAtResult
 [Experimental(Diagnostics.Experimental)]
 internal sealed class QueueDuplicateAtRequest
 {
-    /// <summary>Gets or sets the <c>id</c> value.</summary>
+    /// <summary>Stable opaque ID of the queued item to duplicate.</summary>
     [JsonPropertyName("id")]
     public string Id { get; set; } = string.Empty;
 
@@ -13482,7 +13886,7 @@ internal sealed class QueueDuplicateAtRequest
 [Experimental(Diagnostics.Experimental)]
 internal sealed class QueueSetDrainPausedRequest
 {
-    /// <summary>Gets or sets the <c>paused</c> value.</summary>
+    /// <summary>Whether queued-lane draining should be paused.</summary>
     [JsonPropertyName("paused")]
     public bool Paused { get; set; }
 
@@ -13504,7 +13908,7 @@ public sealed class QueueSendNowResult
 [Experimental(Diagnostics.Experimental)]
 internal sealed class QueueSendNowRequest
 {
-    /// <summary>Gets or sets the <c>id</c> value.</summary>
+    /// <summary>Stable opaque ID of the queued item to steer into the live turn.</summary>
     [JsonPropertyName("id")]
     public string Id { get; set; } = string.Empty;
 
@@ -13986,7 +14390,7 @@ public sealed class SessionLimitPredictionTierOption
     [JsonPropertyName("cap")]
     public double Cap { get; set; }
 
-    /// <summary>Gets or sets the <c>tier</c> value.</summary>
+    /// <summary>Semantic usage tier.</summary>
     [JsonPropertyName("tier")]
     public SessionLimitPredictionTier Tier { get; set; }
 }
@@ -14831,11 +15235,11 @@ public sealed class SessionFsSqliteQueryRequest
 [Experimental(Diagnostics.Experimental)]
 public sealed class SessionFsSqliteTransactionError
 {
-    /// <summary>Gets or sets the <c>errorClass</c> value.</summary>
+    /// <summary>Machine-readable classification of the transaction failure.</summary>
     [JsonPropertyName("errorClass")]
     public SessionFsSqliteTransactionErrorClass ErrorClass { get; set; }
 
-    /// <summary>Gets or sets the <c>message</c> value.</summary>
+    /// <summary>Human-readable transaction failure message.</summary>
     [JsonPropertyName("message")]
     public string Message { get; set; } = string.Empty;
 }
@@ -14844,11 +15248,11 @@ public sealed class SessionFsSqliteTransactionError
 [Experimental(Diagnostics.Experimental)]
 public sealed class SessionFsSqliteTransactionResult
 {
-    /// <summary>Gets or sets the <c>error</c> value.</summary>
+    /// <summary>Classified transaction failure, when execution did not succeed.</summary>
     [JsonPropertyName("error")]
     public SessionFsSqliteTransactionError? Error { get; set; }
 
-    /// <summary>Gets or sets the <c>results</c> value.</summary>
+    /// <summary>Per-statement query results in input order.</summary>
     [JsonPropertyName("results")]
     public IList<SessionFsSqliteQueryResult> Results { get => field ??= []; set; }
 }
@@ -14878,7 +15282,7 @@ public sealed class SessionFsSqliteTransactionRequest
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
 
-    /// <summary>Gets or sets the <c>statements</c> value.</summary>
+    /// <summary>Ordered SQL statements to execute in one transaction.</summary>
     [JsonPropertyName("statements")]
     public IList<SessionFsSqliteTransactionStatement> Statements { get => field ??= []; set; }
 }
@@ -15110,7 +15514,7 @@ public sealed class LlmInferenceHttpRequestStartRequest
     [JsonPropertyName("agentInvocationId")]
     public string? AgentInvocationId { get; set; }
 
-    /// <summary>Gets or sets the <c>headers</c> value.</summary>
+    /// <summary>HTTP request headers, preserving multiple values per name.</summary>
     [JsonPropertyName("headers")]
     public IDictionary<string, IList<string>> Headers { get => field ??= new Dictionary<string, IList<string>>(); set; }
 
@@ -16487,6 +16891,75 @@ public readonly struct SessionContextHostType : IEquatable<SessionContextHostTyp
         public override void Write(Utf8JsonWriter writer, SessionContextHostType value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionContextHostType));
+        }
+    }
+}
+
+
+/// <summary>What a remote host says one of its sessions is doing right now. Deliberately coarse: this is what a host can report for EVERY session in a catalogue listing, without a client subscribing to each one. AHP's `SessionSummary.status` is the source today; `input-needed` covers both a permission prompt and an `ask_user` question, since the summary does not say which.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct RemoteSessionHostStatus : IEquatable<RemoteSessionHostStatus>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="RemoteSessionHostStatus"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="RemoteSessionHostStatus"/>.</param>
+    [JsonConstructor]
+    public RemoteSessionHostStatus(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="RemoteSessionHostStatus"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>No turn is running.</summary>
+    public static RemoteSessionHostStatus Idle { get; } = new("idle");
+
+    /// <summary>A turn is running.</summary>
+    public static RemoteSessionHostStatus Working { get; } = new("working");
+
+    /// <summary>The session is blocked on the user: a permission prompt or an `ask_user` question.</summary>
+    public static RemoteSessionHostStatus InputNeeded { get; } = new("input-needed");
+
+    /// <summary>The session ended its last turn in an error.</summary>
+    public static RemoteSessionHostStatus Error { get; } = new("error");
+
+    /// <summary>Returns a value indicating whether two <see cref="RemoteSessionHostStatus"/> instances are equivalent.</summary>
+    public static bool operator ==(RemoteSessionHostStatus left, RemoteSessionHostStatus right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="RemoteSessionHostStatus"/> instances are not equivalent.</summary>
+    public static bool operator !=(RemoteSessionHostStatus left, RemoteSessionHostStatus right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is RemoteSessionHostStatus other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(RemoteSessionHostStatus other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{RemoteSessionHostStatus}"/> for serializing <see cref="RemoteSessionHostStatus"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<RemoteSessionHostStatus>
+    {
+        /// <inheritdoc />
+        public override RemoteSessionHostStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, RemoteSessionHostStatus value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(RemoteSessionHostStatus));
         }
     }
 }
@@ -19048,6 +19521,72 @@ public readonly struct McpOauthLoginGrantType : IEquatable<McpOauthLoginGrantTyp
 }
 
 
+/// <summary>Why a passive MCP OAuth probe determined authentication is needed.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct McpOauthProbeNeedsAuthReason : IEquatable<McpOauthProbeNeedsAuthReason>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="McpOauthProbeNeedsAuthReason"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="McpOauthProbeNeedsAuthReason"/>.</param>
+    [JsonConstructor]
+    public McpOauthProbeNeedsAuthReason(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="McpOauthProbeNeedsAuthReason"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>No token was sent and the server requires authentication.</summary>
+    public static McpOauthProbeNeedsAuthReason Initial { get; } = new("initial");
+
+    /// <summary>A cached token was sent and rejected.</summary>
+    public static McpOauthProbeNeedsAuthReason Refresh { get; } = new("refresh");
+
+    /// <summary>The server returned a 403 insufficient_scope challenge, indicating additional scopes or audience are needed.</summary>
+    public static McpOauthProbeNeedsAuthReason Upscope { get; } = new("upscope");
+
+    /// <summary>Returns a value indicating whether two <see cref="McpOauthProbeNeedsAuthReason"/> instances are equivalent.</summary>
+    public static bool operator ==(McpOauthProbeNeedsAuthReason left, McpOauthProbeNeedsAuthReason right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="McpOauthProbeNeedsAuthReason"/> instances are not equivalent.</summary>
+    public static bool operator !=(McpOauthProbeNeedsAuthReason left, McpOauthProbeNeedsAuthReason right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is McpOauthProbeNeedsAuthReason other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(McpOauthProbeNeedsAuthReason other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{McpOauthProbeNeedsAuthReason}"/> for serializing <see cref="McpOauthProbeNeedsAuthReason"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<McpOauthProbeNeedsAuthReason>
+    {
+        /// <inheritdoc />
+        public override McpOauthProbeNeedsAuthReason Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, McpOauthProbeNeedsAuthReason value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpOauthProbeNeedsAuthReason));
+        }
+    }
+}
+
+
 /// <summary>Allowed values for the `McpAppsSetHostContextDetailsAvailableDisplayMode` enumeration.</summary>
 [Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -20819,6 +21358,66 @@ public readonly struct UIElicitationResponseAction : IEquatable<UIElicitationRes
         public override void Write(Utf8JsonWriter writer, UIElicitationResponseAction value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(UIElicitationResponseAction));
+        }
+    }
+}
+
+
+/// <summary>Structured MCP elicitation mode.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct McpElicitationFormMode : IEquatable<McpElicitationFormMode>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="McpElicitationFormMode"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="McpElicitationFormMode"/>.</param>
+    [JsonConstructor]
+    public McpElicitationFormMode(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="McpElicitationFormMode"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Gets the <c>form</c> value.</summary>
+    public static McpElicitationFormMode Form { get; } = new("form");
+
+    /// <summary>Returns a value indicating whether two <see cref="McpElicitationFormMode"/> instances are equivalent.</summary>
+    public static bool operator ==(McpElicitationFormMode left, McpElicitationFormMode right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="McpElicitationFormMode"/> instances are not equivalent.</summary>
+    public static bool operator !=(McpElicitationFormMode left, McpElicitationFormMode right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is McpElicitationFormMode other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(McpElicitationFormMode other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{McpElicitationFormMode}"/> for serializing <see cref="McpElicitationFormMode"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<McpElicitationFormMode>
+    {
+        /// <inheritdoc />
+        public override McpElicitationFormMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, McpElicitationFormMode value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpElicitationFormMode));
         }
     }
 }
@@ -23895,11 +24494,40 @@ public sealed class ServerPluginsApi
         await CopilotClient.InvokeRpcAsync(_rpc, "plugins.disable", [request], cancellationToken);
     }
 
+    /// <summary>Builtin APIs.</summary>
+    public ServerPluginsBuiltinApi Builtin =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_rpc), null) ??
+        field;
+
     /// <summary>Marketplaces APIs.</summary>
     public ServerPluginsMarketplacesApi Marketplaces =>
         field ??
         Interlocked.CompareExchange(ref field, new(_rpc), null) ??
         field;
+}
+
+/// <summary>Provides server-scoped PluginsBuiltin APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ServerPluginsBuiltinApi
+{
+    private readonly JsonRpc _rpc;
+
+    internal ServerPluginsBuiltinApi(JsonRpc rpc)
+    {
+        _rpc = rpc;
+    }
+
+    /// <summary>Replaces this server's trusted built-in plugin directories while no sessions are active.</summary>
+    /// <param name="paths">Complete replacement set of trusted built-in plugin directories. Every entry must be an absolute local filesystem path no longer than 4096 characters.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    public async Task SetAsync(IList<string> paths, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(paths);
+
+        var request = new PluginsBuiltinSetRequest { Paths = paths };
+        await CopilotClient.InvokeRpcAsync(_rpc, "plugins.builtin.set", [request], cancellationToken);
+    }
 }
 
 /// <summary>Provides server-scoped PluginsMarketplaces APIs.</summary>
@@ -24268,7 +24896,7 @@ public sealed class ServerLlmInferenceApi
     /// <summary>Delivers the response head (status + headers) for an in-flight request, correlated by the requestId the runtime supplied in httpRequestStart. Must be called exactly once per request before any httpResponseChunk frames.</summary>
     /// <param name="requestId">Matches the requestId from the originating httpRequestStart frame.</param>
     /// <param name="status">HTTP status code.</param>
-    /// <param name="headers">The headers parameter.</param>
+    /// <param name="headers">HTTP response headers, preserving multiple values per name.</param>
     /// <param name="statusText">Optional HTTP status reason phrase.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Whether the start frame was accepted.</returns>
@@ -25119,6 +25747,105 @@ public sealed class GitHubAuthApi
         var request = new SessionSetCredentialsParams { SessionId = _session.SessionId, Credentials = credentials };
         return await CopilotClient.InvokeRpcAsync<SessionSetCredentialsResult>(_session.Rpc, "session.gitHubAuth.setCredentials", [request], cancellationToken);
     }
+
+    /// <summary>Gets the current authentication information for internal session hosts.</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Current authentication information, or null when no authentication is active.</returns>
+    internal async Task<AuthInfo?> GetCurrentAuthInfoAsync(CancellationToken cancellationToken = default)
+    {
+        _session.ThrowIfDisposed();
+
+        var request = new SessionGitHubAuthGetCurrentAuthInfoRequest { SessionId = _session.SessionId };
+        return await CopilotClient.InvokeRpcAsync<AuthInfo?>(_session.Rpc, "session.gitHubAuth.getCurrentAuthInfo", [request], cancellationToken);
+    }
+
+    /// <summary>Gets all authentication accounts available to the internal session host.</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Authentication accounts available to the internal session host.</returns>
+    internal async Task<IList<SessionAuthStatus>> GetAllAuthAvailableAsync(CancellationToken cancellationToken = default)
+    {
+        _session.ThrowIfDisposed();
+
+        var request = new SessionGitHubAuthGetAllAuthAvailableRequest { SessionId = _session.SessionId };
+        return await CopilotClient.InvokeRpcAsync<IList<SessionAuthStatus>>(_session.Rpc, "session.gitHubAuth.getAllAuthAvailable", [request], cancellationToken);
+    }
+
+    /// <summary>Refreshes Copilot account metadata for the current authentication.</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Current authentication information, or null when no authentication is active.</returns>
+    internal async Task<AuthInfo?> RefreshCopilotUserAsync(CancellationToken cancellationToken = default)
+    {
+        _session.ThrowIfDisposed();
+
+        var request = new SessionGitHubAuthRefreshCopilotUserRequest { SessionId = _session.SessionId };
+        return await CopilotClient.InvokeRpcAsync<AuthInfo?>(_session.Rpc, "session.gitHubAuth.refreshCopilotUser", [request], cancellationToken);
+    }
+
+    /// <summary>Logs in a GitHub user through the internal session host.</summary>
+    /// <param name="host">GitHub host URL.</param>
+    /// <param name="login">GitHub login.</param>
+    /// <param name="token">GitHub authentication token.</param>
+    /// <param name="persist">Whether to persist the token after login.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Initial authentication info for the session.</returns>
+    internal async Task<AuthInfo> LoginAsync(string host, string login, string token, bool? persist = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(host);
+        ArgumentNullException.ThrowIfNull(login);
+        ArgumentNullException.ThrowIfNull(token);
+        _session.ThrowIfDisposed();
+
+        var request = new SessionAuthLoginRequest { SessionId = _session.SessionId, Host = host, Login = login, Token = token, Persist = persist };
+        return await CopilotClient.InvokeRpcAsync<AuthInfo>(_session.Rpc, "session.gitHubAuth.login", [request], cancellationToken);
+    }
+
+    /// <summary>Switches the session to another available authentication.</summary>
+    /// <param name="authInfo">Authentication information to activate.</param>
+    /// <param name="token">Optional token paired with the authentication information.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    internal async Task SwitchToAuthAsync(AuthInfo authInfo, string? token = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(authInfo);
+        _session.ThrowIfDisposed();
+
+        var request = new SessionAuthSwitchRequest { SessionId = _session.SessionId, AuthInfo = authInfo, Token = token };
+        await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.gitHubAuth.switchToAuth", [request], cancellationToken);
+    }
+
+    /// <summary>Logs out the session's current GitHub authentication.</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Whether the current authentication was logged out.</returns>
+    internal async Task<bool> LogoutAsync(CancellationToken cancellationToken = default)
+    {
+        _session.ThrowIfDisposed();
+
+        var request = new SessionGitHubAuthLogoutRequest { SessionId = _session.SessionId };
+        return await CopilotClient.InvokeRpcAsync<bool>(_session.Rpc, "session.gitHubAuth.logout", [request], cancellationToken);
+    }
+
+    /// <summary>Logs out a specific GitHub authentication.</summary>
+    /// <param name="authInfo">Authentication information to log out.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Whether the requested authentication was logged out.</returns>
+    internal async Task<bool> LogoutUserAsync(AuthInfo authInfo, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(authInfo);
+        _session.ThrowIfDisposed();
+
+        var request = new SessionAuthLogoutUserRequest { SessionId = _session.SessionId, AuthInfo = authInfo };
+        return await CopilotClient.InvokeRpcAsync<bool>(_session.Rpc, "session.gitHubAuth.logoutUser", [request], cancellationToken);
+    }
+
+    /// <summary>Gets validation errors from the most recent authentication attempt.</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Validation errors from the most recent authentication attempt.</returns>
+    internal async Task<IList<AuthValidationError>> LastAuthErrorsAsync(CancellationToken cancellationToken = default)
+    {
+        _session.ThrowIfDisposed();
+
+        var request = new SessionGitHubAuthLastAuthErrorsRequest { SessionId = _session.SessionId };
+        return await CopilotClient.InvokeRpcAsync<IList<AuthValidationError>>(_session.Rpc, "session.gitHubAuth.lastAuthErrors", [request], cancellationToken);
+    }
 }
 
 /// <summary>Provides session-scoped Debug APIs.</summary>
@@ -25215,6 +25942,12 @@ public sealed class CanvasApi
         field ??
         Interlocked.CompareExchange(ref field, new(_session), null) ??
         field;
+
+    /// <summary>Provider APIs.</summary>
+    public CanvasProviderApi Provider =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_session), null) ??
+        field;
 }
 
 /// <summary>Provides session-scoped CanvasAction APIs.</summary>
@@ -25242,6 +25975,46 @@ public sealed class CanvasActionApi
 
         var request = new CanvasActionInvokeRequest { SessionId = _session.SessionId, InstanceId = instanceId, ActionName = actionName, Input = CopilotClient.ToJsonElementForWire(input) };
         return await CopilotClient.InvokeRpcAsync<CanvasActionInvokeResult>(_session.Rpc, "session.canvas.action.invoke", [request], cancellationToken);
+    }
+}
+
+/// <summary>Provides session-scoped CanvasProvider APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class CanvasProviderApi
+{
+    private readonly CopilotSession _session;
+
+    internal CanvasProviderApi(CopilotSession session)
+    {
+        _session = session;
+    }
+
+    /// <summary>Registers an internal canvas provider connection and its contributions.</summary>
+    /// <param name="connectionId">Connection identifier for callback routing.</param>
+    /// <param name="info">Provider metadata supplied by the host.</param>
+    /// <param name="canvases">Canvas contributions supplied by the provider.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    internal async Task RegisterAsync(string connectionId, object info, IList<object?> canvases, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(connectionId);
+        ArgumentNullException.ThrowIfNull(info);
+        ArgumentNullException.ThrowIfNull(canvases);
+        _session.ThrowIfDisposed();
+
+        var request = new CanvasProviderRegisterRequest { SessionId = _session.SessionId, ConnectionId = connectionId, Info = CopilotClient.ToJsonElementForWire(info)!.Value, Canvases = canvases.Select(static v => CopilotClient.ToJsonElementForWire(v)!.Value).ToList() };
+        await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.canvas.provider.register", [request], cancellationToken);
+    }
+
+    /// <summary>Unregisters an internal canvas provider connection.</summary>
+    /// <param name="connectionId">Connection identifier to unregister.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    internal async Task UnregisterAsync(string connectionId, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(connectionId);
+        _session.ThrowIfDisposed();
+
+        var request = new CanvasProviderUnregisterRequest { SessionId = _session.SessionId, ConnectionId = connectionId };
+        await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.canvas.provider.unregister", [request], cancellationToken);
     }
 }
 
@@ -25476,15 +26249,16 @@ public sealed class ModelApi
     /// <param name="verbosity">Output verbosity level to request for supported models.</param>
     /// <param name="modelCapabilities">Override individual model capabilities resolved by the runtime.</param>
     /// <param name="contextTier">Explicit context tier for the selected model. `"default"` / `"long_context"` apply the requested tier; omit this field to use normal model behavior with no explicit tier.</param>
+    /// <param name="source">Origin to record on the effective `session.model_change` event. Defaults to `sdk` when omitted.</param>
     /// <param name="deferIfModelChangeQueued">When true, defer this switch (enqueue it) if another model change is already queued, even when no turn is active — so it drains last (FIFO) and wins over the already-queued change. Intended for genuine user-initiated model selections; internal restore/reapply switches omit it and apply immediately when no turn is active. When no other model change is queued this has no effect (a switch still applies immediately unless a turn is active).</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>The model identifier active on the session after the switch.</returns>
-    public async Task<ModelSwitchToResult> SwitchToAsync(string modelId, string? reasoningEffort = null, ReasoningSummary? reasoningSummary = null, Verbosity? verbosity = null, ModelCapabilitiesOverride? modelCapabilities = null, ContextTier? contextTier = null, bool? deferIfModelChangeQueued = null, CancellationToken cancellationToken = default)
+    public async Task<ModelSwitchToResult> SwitchToAsync(string modelId, string? reasoningEffort = null, ReasoningSummary? reasoningSummary = null, Verbosity? verbosity = null, ModelCapabilitiesOverride? modelCapabilities = null, ContextTier? contextTier = null, ModelChangeSource? source = null, bool? deferIfModelChangeQueued = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(modelId);
         _session.ThrowIfDisposed();
 
-        var request = new ModelSwitchToRequest { SessionId = _session.SessionId, ModelId = modelId, ReasoningEffort = reasoningEffort, ReasoningSummary = reasoningSummary, Verbosity = verbosity, ModelCapabilities = modelCapabilities, ContextTier = contextTier, DeferIfModelChangeQueued = deferIfModelChangeQueued };
+        var request = new ModelSwitchToRequest { SessionId = _session.SessionId, ModelId = modelId, ReasoningEffort = reasoningEffort, ReasoningSummary = reasoningSummary, Verbosity = verbosity, ModelCapabilities = modelCapabilities, ContextTier = contextTier, Source = source, DeferIfModelChangeQueued = deferIfModelChangeQueued };
         return await CopilotClient.InvokeRpcAsync<ModelSwitchToResult>(_session.Rpc, "session.model.switchTo", [request], cancellationToken);
     }
 
@@ -26052,7 +26826,7 @@ public sealed class TasksApi
     /// <summary>Starts a background agent task in the session.</summary>
     /// <param name="agentType">Type of agent to start (e.g., 'explore', 'task', 'general-purpose').</param>
     /// <param name="prompt">Task prompt for the agent.</param>
-    /// <param name="name">Short name for the agent, used to generate a human-readable ID.</param>
+    /// <param name="name">Friendly, non-unique name used when displaying the agent.</param>
     /// <param name="description">Short description of the task.</param>
     /// <param name="model">Optional model override.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
@@ -26573,6 +27347,19 @@ public sealed class McpOauthApi
 
         var request = new McpOauthLoginRequest { SessionId = _session.SessionId, ServerName = serverName, ForceReauth = forceReauth, ClientName = clientName, CallbackSuccessMessage = callbackSuccessMessage, ClientId = clientId, ClientSecret = clientSecret, PublicClient = publicClient, GrantType = grantType };
         return await CopilotClient.InvokeRpcAsync<McpOauthLoginResult>(_session.Rpc, "session.mcp.oauth.login", [request], cancellationToken);
+    }
+
+    /// <summary>Passively probes a configured remote MCP server to classify whether OAuth is required or a cached/override token is accepted. Does not start OAuth, emit pending OAuth requests, or mutate MCP connection state.</summary>
+    /// <param name="serverName">Name of the configured remote MCP server to probe.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Passive MCP OAuth probe result. `authenticated` means the server accepted the probe request while an OAuth-origin access token was attached; it does not prove the server required or independently validated that token. The probe does not make a second unauthenticated request. Failed is an expected probe-domain outcome; JSON-RPC errors are reserved for API-call failures.</returns>
+    public async Task<McpOauthProbeResult> ProbeAsync(string serverName, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(serverName);
+        _session.ThrowIfDisposed();
+
+        var request = new McpOauthProbeRequest { SessionId = _session.SessionId, ServerName = serverName };
+        return await CopilotClient.InvokeRpcAsync<McpOauthProbeResult>(_session.Rpc, "session.mcp.oauth.probe", [request], cancellationToken);
     }
 
     /// <summary>Responds to a pending MCP OAuth authorization request by its request id.</summary>
@@ -27231,15 +28018,18 @@ public sealed class UiApi
     /// <summary>Requests structured input from a UI-capable client.</summary>
     /// <param name="message">Message describing what information is needed from the user.</param>
     /// <param name="requestedSchema">JSON Schema describing the form fields to present to the user.</param>
+    /// <param name="mode">Elicitation mode. Omitted and form are equivalent for structured elicitation.</param>
+    /// <param name="_meta">MCP request metadata.</param>
+    /// <param name="task">MCP task metadata.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>The elicitation response (accept with form values, decline, or cancel).</returns>
-    public async Task<UIElicitationResponse> ElicitationAsync(string message, UIElicitationSchema requestedSchema, CancellationToken cancellationToken = default)
+    public async Task<UIElicitationResponse> ElicitationAsync(string message, UIElicitationSchema requestedSchema, McpElicitationFormMode? mode = null, UIElicitationRequestMeta? _meta = null, McpTaskMetadata? task = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(message);
         ArgumentNullException.ThrowIfNull(requestedSchema);
         _session.ThrowIfDisposed();
 
-        var request = new UIElicitationRequest { SessionId = _session.SessionId, Message = message, RequestedSchema = requestedSchema };
+        var request = new UIElicitationRequest { SessionId = _session.SessionId, Message = message, RequestedSchema = requestedSchema, Mode = mode, Meta = _meta, Task = task };
         return await CopilotClient.InvokeRpcAsync<UIElicitationResponse>(_session.Rpc, "session.ui.elicitation", [request], cancellationToken);
     }
 
@@ -28138,7 +28928,7 @@ public sealed class QueueApi
 
     /// <summary>Inserts a new queued message at a public visible position.</summary>
     /// <param name="position">Zero-based position in the public visible queue. Values outside the queue clamp to an end.</param>
-    /// <param name="message">The message parameter.</param>
+    /// <param name="message">Queued message contents and delivery metadata.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Result of inserting a queued message.</returns>
     public async Task<QueueInsertAtResult> InsertAtAsync(long position, QueueInsertMessage message, CancellationToken cancellationToken = default)
@@ -28151,7 +28941,7 @@ public sealed class QueueApi
     }
 
     /// <summary>Removes an addressable queued item by its stable id.</summary>
-    /// <param name="id">The id parameter.</param>
+    /// <param name="id">Stable opaque ID of the queued item to remove.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Result of removing a queued item.</returns>
     public async Task<QueueRemoveAtResult> RemoveAtAsync(string id, CancellationToken cancellationToken = default)
@@ -28164,9 +28954,9 @@ public sealed class QueueApi
     }
 
     /// <summary>Updates the text of an addressable single-message queue item.</summary>
-    /// <param name="id">The id parameter.</param>
-    /// <param name="prompt">The prompt parameter.</param>
-    /// <param name="displayPrompt">The displayPrompt parameter.</param>
+    /// <param name="id">Stable opaque ID of the queued item to edit.</param>
+    /// <param name="prompt">Replacement prompt sent to the model.</param>
+    /// <param name="displayPrompt">Optional replacement prompt displayed to the user.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Result of editing a queued message.</returns>
     public async Task<QueueUpdateTextResult> UpdateTextAsync(string id, string prompt, string? displayPrompt = null, CancellationToken cancellationToken = default)
@@ -28180,7 +28970,7 @@ public sealed class QueueApi
     }
 
     /// <summary>Duplicates an addressable queued item immediately after its source.</summary>
-    /// <param name="id">The id parameter.</param>
+    /// <param name="id">Stable opaque ID of the queued item to duplicate.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Result of duplicating a queued item.</returns>
     public async Task<QueueDuplicateAtResult> DuplicateAtAsync(string id, CancellationToken cancellationToken = default)
@@ -28193,7 +28983,7 @@ public sealed class QueueApi
     }
 
     /// <summary>Acquires or releases the queued-lane drain pause.</summary>
-    /// <param name="paused">The paused parameter.</param>
+    /// <param name="paused">Whether queued-lane draining should be paused.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task SetDrainPausedAsync(bool paused, CancellationToken cancellationToken = default)
     {
@@ -28204,7 +28994,7 @@ public sealed class QueueApi
     }
 
     /// <summary>Moves an addressable queued message into the live turn's steering lane.</summary>
-    /// <param name="id">The id parameter.</param>
+    /// <param name="id">Stable opaque ID of the queued item to steer into the live turn.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Result of trying to steer a queued message into a live turn.</returns>
     public async Task<QueueSendNowResult> SendNowAsync(string id, CancellationToken cancellationToken = default)
@@ -29006,6 +29796,10 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.AbortData), TypeInfoPropertyName = "SessionEventsAbortData")]
 [JsonSerializable(typeof(GitHub.Copilot.AbortEvent), TypeInfoPropertyName = "SessionEventsAbortEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.AbortReason), TypeInfoPropertyName = "SessionEventsAbortReason")]
+[JsonSerializable(typeof(GitHub.Copilot.AgentInterruptedActivity), TypeInfoPropertyName = "SessionEventsAgentInterruptedActivity")]
+[JsonSerializable(typeof(GitHub.Copilot.AgentInterruptedCancelPhase), TypeInfoPropertyName = "SessionEventsAgentInterruptedCancelPhase")]
+[JsonSerializable(typeof(GitHub.Copilot.AgentInterruptedData), TypeInfoPropertyName = "SessionEventsAgentInterruptedData")]
+[JsonSerializable(typeof(GitHub.Copilot.AgentInterruptedEvent), TypeInfoPropertyName = "SessionEventsAgentInterruptedEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.AssistantIdleData), TypeInfoPropertyName = "SessionEventsAssistantIdleData")]
 [JsonSerializable(typeof(GitHub.Copilot.AssistantIdleEvent), TypeInfoPropertyName = "SessionEventsAssistantIdleEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.AssistantIntentData), TypeInfoPropertyName = "SessionEventsAssistantIntentData")]
@@ -29040,6 +29834,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.AssistantUsageCopilotUsageTokenDetail), TypeInfoPropertyName = "SessionEventsAssistantUsageCopilotUsageTokenDetail")]
 [JsonSerializable(typeof(GitHub.Copilot.AssistantUsageData), TypeInfoPropertyName = "SessionEventsAssistantUsageData")]
 [JsonSerializable(typeof(GitHub.Copilot.AssistantUsageEvent), TypeInfoPropertyName = "SessionEventsAssistantUsageEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantUsageTransport), TypeInfoPropertyName = "SessionEventsAssistantUsageTransport")]
 [JsonSerializable(typeof(GitHub.Copilot.Attachment), TypeInfoPropertyName = "SessionEventsAttachment")]
 [JsonSerializable(typeof(GitHub.Copilot.AttachmentBlob), TypeInfoPropertyName = "SessionEventsAttachmentBlob")]
 [JsonSerializable(typeof(GitHub.Copilot.AttachmentDirectory), TypeInfoPropertyName = "SessionEventsAttachmentDirectory")]
@@ -29181,6 +29976,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.ModelCallFailureTransport), TypeInfoPropertyName = "SessionEventsModelCallFailureTransport")]
 [JsonSerializable(typeof(GitHub.Copilot.ModelCallStartData), TypeInfoPropertyName = "SessionEventsModelCallStartData")]
 [JsonSerializable(typeof(GitHub.Copilot.ModelCallStartEvent), TypeInfoPropertyName = "SessionEventsModelCallStartEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.ModelChangeSource), TypeInfoPropertyName = "SessionEventsModelChangeSource")]
 [JsonSerializable(typeof(GitHub.Copilot.OmittedBinaryOmittedReason), TypeInfoPropertyName = "SessionEventsOmittedBinaryOmittedReason")]
 [JsonSerializable(typeof(GitHub.Copilot.OmittedBinaryResult), TypeInfoPropertyName = "SessionEventsOmittedBinaryResult")]
 [JsonSerializable(typeof(GitHub.Copilot.OmittedBinaryType), TypeInfoPropertyName = "SessionEventsOmittedBinaryType")]
@@ -29193,6 +29989,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequest), TypeInfoPropertyName = "SessionEventsPermissionPromptRequest")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestCommands), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestCommands")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestCustomTool), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestCustomTool")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestExtensionEnvAccess), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestExtensionEnvAccess")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestExtensionManagement), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestExtensionManagement")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestExtensionPermissionAccess), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestExtensionPermissionAccess")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestFactory), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestFactory")]
@@ -29204,8 +30001,10 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestRead), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestRead")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestUrl), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestUrl")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestWrite), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestWrite")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionRecommendation), TypeInfoPropertyName = "SessionEventsPermissionRecommendation")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionRequest), TypeInfoPropertyName = "SessionEventsPermissionRequest")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionRequestCustomTool), TypeInfoPropertyName = "SessionEventsPermissionRequestCustomTool")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionRequestExtensionEnvAccess), TypeInfoPropertyName = "SessionEventsPermissionRequestExtensionEnvAccess")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionRequestExtensionManagement), TypeInfoPropertyName = "SessionEventsPermissionRequestExtensionManagement")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionRequestExtensionPermissionAccess), TypeInfoPropertyName = "SessionEventsPermissionRequestExtensionPermissionAccess")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionRequestFactory), TypeInfoPropertyName = "SessionEventsPermissionRequestFactory")]
@@ -29234,6 +30033,8 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.SamplingCompletedEvent), TypeInfoPropertyName = "SessionEventsSamplingCompletedEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.SamplingRequestedData), TypeInfoPropertyName = "SessionEventsSamplingRequestedData")]
 [JsonSerializable(typeof(GitHub.Copilot.SamplingRequestedEvent), TypeInfoPropertyName = "SessionEventsSamplingRequestedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.SandboxDecisionData), TypeInfoPropertyName = "SessionEventsSandboxDecisionData")]
+[JsonSerializable(typeof(GitHub.Copilot.SandboxDecisionEvent), TypeInfoPropertyName = "SessionEventsSandboxDecisionEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.ScheduleOrigin), TypeInfoPropertyName = "SessionEventsScheduleOrigin")]
 [JsonSerializable(typeof(GitHub.Copilot.SessionEvent), TypeInfoPropertyName = "SessionEventsSessionEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.SessionLimitsConfig), TypeInfoPropertyName = "SessionEventsSessionLimitsConfig")]
@@ -29337,6 +30138,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.UserToolSessionApproval), TypeInfoPropertyName = "SessionEventsUserToolSessionApproval")]
 [JsonSerializable(typeof(GitHub.Copilot.UserToolSessionApprovalCommands), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalCommands")]
 [JsonSerializable(typeof(GitHub.Copilot.UserToolSessionApprovalCustomTool), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalCustomTool")]
+[JsonSerializable(typeof(GitHub.Copilot.UserToolSessionApprovalExtensionEnvAccess), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalExtensionEnvAccess")]
 [JsonSerializable(typeof(GitHub.Copilot.UserToolSessionApprovalExtensionManagement), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalExtensionManagement")]
 [JsonSerializable(typeof(GitHub.Copilot.UserToolSessionApprovalExtensionPermissionAccess), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalExtensionPermissionAccess")]
 [JsonSerializable(typeof(GitHub.Copilot.UserToolSessionApprovalFactory), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalFactory")]
@@ -29377,6 +30179,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(AllowAllPermissionSetResult))]
 [JsonSerializable(typeof(AllowAllPermissionState))]
 [JsonSerializable(typeof(AuthInfo))]
+[JsonSerializable(typeof(AuthValidationError))]
 [JsonSerializable(typeof(BuiltInModelCatalog))]
 [JsonSerializable(typeof(BuiltInModelCatalogEntry))]
 [JsonSerializable(typeof(CancelUserRequestedShellCommandResult))]
@@ -29393,6 +30196,8 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(CanvasProviderInvokeActionRequest))]
 [JsonSerializable(typeof(CanvasProviderOpenRequest))]
 [JsonSerializable(typeof(CanvasProviderOpenResult))]
+[JsonSerializable(typeof(CanvasProviderRegisterRequest))]
+[JsonSerializable(typeof(CanvasProviderUnregisterRequest))]
 [JsonSerializable(typeof(CanvasSessionContext))]
 [JsonSerializable(typeof(CapiSessionOptions))]
 [JsonSerializable(typeof(CommandList))]
@@ -29514,6 +30319,8 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(HistoryTruncateResult))]
 [JsonSerializable(typeof(IDictionary<string, JsonElement>))]
 [JsonSerializable(typeof(IList<AccountAllUsers>))]
+[JsonSerializable(typeof(IList<AuthValidationError>))]
+[JsonSerializable(typeof(IList<SessionAuthStatus>))]
 [JsonSerializable(typeof(InstalledPlugin))]
 [JsonSerializable(typeof(InstalledPluginInfo))]
 [JsonSerializable(typeof(InstructionDiscoveryPath))]
@@ -29579,6 +30386,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(McpExecuteSamplingParams))]
 [JsonSerializable(typeof(McpExecuteSamplingRequest))]
 [JsonSerializable(typeof(McpExecuteSamplingResult))]
+[JsonSerializable(typeof(McpFailedServer))]
 [JsonSerializable(typeof(McpFilteredServer))]
 [JsonSerializable(typeof(McpHeadersHandlePendingHeadersRefreshRequest))]
 [JsonSerializable(typeof(McpHeadersHandlePendingHeadersRefreshRequestRequest))]
@@ -29594,6 +30402,8 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(McpOauthLoginRequest))]
 [JsonSerializable(typeof(McpOauthLoginResult))]
 [JsonSerializable(typeof(McpOauthPendingRequestResponse))]
+[JsonSerializable(typeof(McpOauthProbeRequest))]
+[JsonSerializable(typeof(McpOauthProbeResult))]
 [JsonSerializable(typeof(McpOauthRespondRequest))]
 [JsonSerializable(typeof(McpOauthRespondResult))]
 [JsonSerializable(typeof(McpRegisterExternalClientRequest))]
@@ -29621,6 +30431,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(McpStartServerRequest))]
 [JsonSerializable(typeof(McpStartServersResult))]
 [JsonSerializable(typeof(McpStopServerRequest))]
+[JsonSerializable(typeof(McpTaskMetadata))]
 [JsonSerializable(typeof(McpToolUi))]
 [JsonSerializable(typeof(McpTools))]
 [JsonSerializable(typeof(McpUnregisterExternalClientRequest))]
@@ -29737,6 +30548,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(PluginUpdateAllEntry))]
 [JsonSerializable(typeof(PluginUpdateAllResult))]
 [JsonSerializable(typeof(PluginUpdateResult))]
+[JsonSerializable(typeof(PluginsBuiltinSetRequest))]
 [JsonSerializable(typeof(PluginsDisableRequest))]
 [JsonSerializable(typeof(PluginsEnableRequest))]
 [JsonSerializable(typeof(PluginsInstallRequest))]
@@ -29848,7 +30660,10 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SessionAgentListRequest))]
 [JsonSerializable(typeof(SessionAgentListRequestWithSession))]
 [JsonSerializable(typeof(SessionAgentReloadRequest))]
+[JsonSerializable(typeof(SessionAuthLoginRequest))]
+[JsonSerializable(typeof(SessionAuthLogoutUserRequest))]
 [JsonSerializable(typeof(SessionAuthStatus))]
+[JsonSerializable(typeof(SessionAuthSwitchRequest))]
 [JsonSerializable(typeof(SessionBulkDeleteResult))]
 [JsonSerializable(typeof(SessionCancelAllBackgroundAgentsRequest))]
 [JsonSerializable(typeof(SessionCanvasListOpenRequest))]
@@ -29890,7 +30705,12 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SessionFsStatRequest))]
 [JsonSerializable(typeof(SessionFsStatResult))]
 [JsonSerializable(typeof(SessionFsWriteFileRequest))]
+[JsonSerializable(typeof(SessionGitHubAuthGetAllAuthAvailableRequest))]
+[JsonSerializable(typeof(SessionGitHubAuthGetCurrentAuthInfoRequest))]
 [JsonSerializable(typeof(SessionGitHubAuthGetStatusRequest))]
+[JsonSerializable(typeof(SessionGitHubAuthLastAuthErrorsRequest))]
+[JsonSerializable(typeof(SessionGitHubAuthLogoutRequest))]
+[JsonSerializable(typeof(SessionGitHubAuthRefreshCopilotUserRequest))]
 [JsonSerializable(typeof(SessionHistoryAbortManualCompactionRequest))]
 [JsonSerializable(typeof(SessionHistoryCancelBackgroundCompactionRequest))]
 [JsonSerializable(typeof(SessionHistoryCompactRequest))]
@@ -30084,7 +30904,9 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(ToolsListRequest))]
 [JsonSerializable(typeof(ToolsUpdateSubagentSettingsResult))]
 [JsonSerializable(typeof(UIElicitationRequest))]
+[JsonSerializable(typeof(UIElicitationRequestMeta))]
 [JsonSerializable(typeof(UIElicitationResponse))]
+[JsonSerializable(typeof(UIElicitationResponseMeta))]
 [JsonSerializable(typeof(UIElicitationResult))]
 [JsonSerializable(typeof(UIElicitationSchema))]
 [JsonSerializable(typeof(UIEphemeralQueryRequest))]

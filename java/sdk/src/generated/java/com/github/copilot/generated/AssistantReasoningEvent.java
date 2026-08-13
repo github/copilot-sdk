@@ -38,6 +38,7 @@ public final class AssistantReasoningEvent extends SessionEvent {
         @JsonProperty("reasoningId") String reasoningId,
         /** The complete extended thinking text from the model */
         @JsonProperty("content") String content,
+        /** Per-request treatment/eligibility signal returned by the Copilot API in the `X-GitHub-Copilot-Request-TE` response header for the associated model call; `false` when the header was absent or unparseable. */
         @JsonProperty("rte") Boolean rte
     ) {
     }

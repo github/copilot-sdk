@@ -26,6 +26,7 @@ import javax.annotation.processing.Generated;
 public record SessionQueueRemoveAtParams(
     /** Target session identifier */
     @JsonProperty("sessionId") String sessionId,
+    /** Stable opaque ID of the queued item to remove. */
     @JsonProperty("id") String id
 ) {
 }

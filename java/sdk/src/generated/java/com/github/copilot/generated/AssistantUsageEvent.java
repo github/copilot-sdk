@@ -62,12 +62,27 @@ public final class AssistantUsageEvent extends SessionEvent {
         @JsonProperty("initiator") String initiator,
         /** Coarse classification of the interaction that produced this call, mirroring the session's per-request agent context (e.g. `conversation-agent`, `conversation-subagent`, `conversation-sampling`, `conversation-background`, `conversation-compaction`, `conversation-user`). Non-billing; lets consumers attribute a model call to a call class (e.g. sub-agent/sidekick) independently of the billing initiator. Absent when the runtime did not classify the request. */
         @JsonProperty("interactionType") String interactionType,
+        /** Whether this model call used a bring-your-own-key provider */
+        @JsonProperty("isByok") Boolean isByok,
+        /** Whether Auto mode was selected for this model call */
+        @JsonProperty("isAuto") Boolean isAuto,
+        /** Effective maximum prompt-token limit used for this model call */
+        @JsonProperty("maxPromptTokens") Long maxPromptTokens,
+        /** Requested maximum output tokens used for this model call */
+        @JsonProperty("maxOutputTokens") Long maxOutputTokens,
+        /** Number of accepted speculative prediction tokens */
+        @JsonProperty("acceptedPredictionTokens") Long acceptedPredictionTokens,
+        /** Number of rejected speculative prediction tokens */
+        @JsonProperty("rejectedPredictionTokens") Long rejectedPredictionTokens,
+        /** Transport used for this model call (http or websocket) */
+        @JsonProperty("transport") AssistantUsageTransport transport,
         /** Completion ID from the model provider (e.g., chatcmpl-abc123) */
         @JsonProperty("apiCallId") String apiCallId,
         /** GitHub request tracing ID (x-github-request-id header) for server-side log correlation */
         @JsonProperty("providerCallId") String providerCallId,
         /** Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation */
         @JsonProperty("serviceRequestId") String serviceRequestId,
+        /** Per-request treatment/eligibility signal returned by the Copilot API in the `X-GitHub-Copilot-Request-TE` response header for the associated model call; `false` when the header was absent or unparseable. */
         @JsonProperty("rte") Boolean rte,
         /** API endpoint used for this model call, matching CAPI supported_endpoints vocabulary */
         @JsonProperty("apiEndpoint") AssistantUsageApiEndpoint apiEndpoint,
@@ -79,6 +94,8 @@ public final class AssistantUsageEvent extends SessionEvent {
         @JsonProperty("copilotUsage") AssistantUsageCopilotUsage copilotUsage,
         /** Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max") */
         @JsonProperty("reasoningEffort") String reasoningEffort,
+        /** Reasoning summary mode used for this model call, if applicable */
+        @JsonProperty("reasoningSummary") ReasoningSummary reasoningSummary,
         /** Number of tools available to the model for this call */
         @JsonProperty("availableToolCount") Long availableToolCount,
         /** Number of tokens used by tool definitions for this call */

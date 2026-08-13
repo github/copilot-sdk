@@ -27,6 +27,7 @@ import javax.annotation.processing.Generated;
 public record SessionFsSqliteTransactionParams(
     /** Target session identifier */
     @JsonProperty("sessionId") String sessionId,
+    /** Ordered SQL statements to execute in one transaction. */
     @JsonProperty("statements") List<SessionFsSqliteTransactionStatement> statements
 ) {
 }

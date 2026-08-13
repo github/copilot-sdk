@@ -9,6 +9,9 @@ import "github.com/github/copilot-sdk/go/rpc"
 type (
 	AbortData                                                      = rpc.AbortData
 	AbortReason                                                    = rpc.AbortReason
+	AgentInterruptedActivity                                       = rpc.AgentInterruptedActivity
+	AgentInterruptedCancelPhase                                    = rpc.AgentInterruptedCancelPhase
+	AgentInterruptedData                                           = rpc.AgentInterruptedData
 	AssistantIdleData                                              = rpc.AssistantIdleData
 	AssistantIntentData                                            = rpc.AssistantIntentData
 	AssistantMessageData                                           = rpc.AssistantMessageData
@@ -29,6 +32,7 @@ type (
 	AssistantUsageCopilotUsage                                     = rpc.AssistantUsageCopilotUsage
 	AssistantUsageCopilotUsageTokenDetail                          = rpc.AssistantUsageCopilotUsageTokenDetail
 	AssistantUsageData                                             = rpc.AssistantUsageData
+	AssistantUsageTransport                                        = rpc.AssistantUsageTransport
 	Attachment                                                     = rpc.Attachment
 	AttachmentBlob                                                 = rpc.AttachmentBlob
 	AttachmentDirectory                                            = rpc.AttachmentDirectory
@@ -149,6 +153,7 @@ type (
 	ModelCallFailureSource                                         = rpc.ModelCallFailureSource
 	ModelCallFailureTransport                                      = rpc.ModelCallFailureTransport
 	ModelCallStartData                                             = rpc.ModelCallStartData
+	ModelChangeSource                                              = rpc.ModelChangeSource
 	OmittedBinaryOmittedReason                                     = rpc.OmittedBinaryOmittedReason
 	OmittedBinaryResult                                            = rpc.OmittedBinaryResult
 	OmittedBinaryType                                              = rpc.OmittedBinaryType
@@ -168,6 +173,7 @@ type (
 	PermissionPromptRequest                                        = rpc.PermissionPromptRequest
 	PermissionPromptRequestCommands                                = rpc.PermissionPromptRequestCommands
 	PermissionPromptRequestCustomTool                              = rpc.PermissionPromptRequestCustomTool
+	PermissionPromptRequestExtensionEnvAccess                      = rpc.PermissionPromptRequestExtensionEnvAccess
 	PermissionPromptRequestExtensionManagement                     = rpc.PermissionPromptRequestExtensionManagement
 	PermissionPromptRequestExtensionPermissionAccess               = rpc.PermissionPromptRequestExtensionPermissionAccess
 	PermissionPromptRequestFactory                                 = rpc.PermissionPromptRequestFactory
@@ -180,10 +186,12 @@ type (
 	PermissionPromptRequestRead                                    = rpc.PermissionPromptRequestRead
 	PermissionPromptRequestURL                                     = rpc.PermissionPromptRequestURL
 	PermissionPromptRequestWrite                                   = rpc.PermissionPromptRequestWrite
+	PermissionRecommendation                                       = rpc.PermissionRecommendation
 	PermissionRequest                                              = rpc.PermissionRequest
 	PermissionRequestCommand                                       = rpc.PermissionRequestCommand
 	PermissionRequestCustomTool                                    = rpc.PermissionRequestCustomTool
 	PermissionRequestedData                                        = rpc.PermissionRequestedData
+	PermissionRequestExtensionEnvAccess                            = rpc.PermissionRequestExtensionEnvAccess
 	PermissionRequestExtensionManagement                           = rpc.PermissionRequestExtensionManagement
 	PermissionRequestExtensionPermissionAccess                     = rpc.PermissionRequestExtensionPermissionAccess
 	PermissionRequestFactory                                       = rpc.PermissionRequestFactory
@@ -220,6 +228,7 @@ type (
 	ReasoningSummary                                               = rpc.ReasoningSummary
 	SamplingCompletedData                                          = rpc.SamplingCompletedData
 	SamplingRequestedData                                          = rpc.SamplingRequestedData
+	SandboxDecisionData                                            = rpc.SandboxDecisionData
 	ScheduleOrigin                                                 = rpc.ScheduleOrigin
 	SessionAutoModeResolvedData                                    = rpc.SessionAutoModeResolvedData
 	SessionAutopilotObjectiveChangedData                           = rpc.SessionAutopilotObjectiveChangedData
@@ -358,6 +367,7 @@ type (
 	UserToolSessionApproval                                        = rpc.UserToolSessionApproval
 	UserToolSessionApprovalCommands                                = rpc.UserToolSessionApprovalCommands
 	UserToolSessionApprovalCustomTool                              = rpc.UserToolSessionApprovalCustomTool
+	UserToolSessionApprovalExtensionEnvAccess                      = rpc.UserToolSessionApprovalExtensionEnvAccess
 	UserToolSessionApprovalExtensionManagement                     = rpc.UserToolSessionApprovalExtensionManagement
 	UserToolSessionApprovalExtensionPermissionAccess               = rpc.UserToolSessionApprovalExtensionPermissionAccess
 	UserToolSessionApprovalFactory                                 = rpc.UserToolSessionApprovalFactory
@@ -378,12 +388,20 @@ const (
 	AbortReasonRemoteCommand                                           = rpc.AbortReasonRemoteCommand
 	AbortReasonUserAbort                                               = rpc.AbortReasonUserAbort
 	AbortReasonUserInitiated                                           = rpc.AbortReasonUserInitiated
+	AgentInterruptedActivityBackgroundAgent                            = rpc.AgentInterruptedActivityBackgroundAgent
+	AgentInterruptedActivityModelCall                                  = rpc.AgentInterruptedActivityModelCall
+	AgentInterruptedActivityRetryBackoff                               = rpc.AgentInterruptedActivityRetryBackoff
+	AgentInterruptedActivityToolCall                                   = rpc.AgentInterruptedActivityToolCall
+	AgentInterruptedCancelPhaseMidStream                               = rpc.AgentInterruptedCancelPhaseMidStream
+	AgentInterruptedCancelPhasePreFirstToken                           = rpc.AgentInterruptedCancelPhasePreFirstToken
 	AssistantMessageToolRequestTypeCustom                              = rpc.AssistantMessageToolRequestTypeCustom
 	AssistantMessageToolRequestTypeFunction                            = rpc.AssistantMessageToolRequestTypeFunction
 	AssistantUsageAPIEndpointChatCompletions                           = rpc.AssistantUsageAPIEndpointChatCompletions
 	AssistantUsageAPIEndpointResponses                                 = rpc.AssistantUsageAPIEndpointResponses
 	AssistantUsageAPIEndpointV1Messages                                = rpc.AssistantUsageAPIEndpointV1Messages
 	AssistantUsageAPIEndpointWsResponses                               = rpc.AssistantUsageAPIEndpointWsResponses
+	AssistantUsageTransportHTTP                                        = rpc.AssistantUsageTransportHTTP
+	AssistantUsageTransportWebsocket                                   = rpc.AssistantUsageTransportWebsocket
 	AttachmentGitHubReferenceTypeDiscussion                            = rpc.AttachmentGitHubReferenceTypeDiscussion
 	AttachmentGitHubReferenceTypeIssue                                 = rpc.AttachmentGitHubReferenceTypeIssue
 	AttachmentGitHubReferenceTypePr                                    = rpc.AttachmentGitHubReferenceTypePr
@@ -511,6 +529,17 @@ const (
 	ModelCallFailureSourceTopLevel                                     = rpc.ModelCallFailureSourceTopLevel
 	ModelCallFailureTransportHTTP                                      = rpc.ModelCallFailureTransportHTTP
 	ModelCallFailureTransportWebsocket                                 = rpc.ModelCallFailureTransportWebsocket
+	ModelChangeSourceAgent                                             = rpc.ModelChangeSourceAgent
+	ModelChangeSourceAutomatic                                         = rpc.ModelChangeSourceAutomatic
+	ModelChangeSourceConfigCommand                                     = rpc.ModelChangeSourceConfigCommand
+	ModelChangeSourceManagedSettings                                   = rpc.ModelChangeSourceManagedSettings
+	ModelChangeSourceModelCommand                                      = rpc.ModelChangeSourceModelCommand
+	ModelChangeSourceModelPicker                                       = rpc.ModelChangeSourceModelPicker
+	ModelChangeSourcePlanMode                                          = rpc.ModelChangeSourcePlanMode
+	ModelChangeSourceRepoSettings                                      = rpc.ModelChangeSourceRepoSettings
+	ModelChangeSourceSDK                                               = rpc.ModelChangeSourceSDK
+	ModelChangeSourceSettingsCommand                                   = rpc.ModelChangeSourceSettingsCommand
+	ModelChangeSourceStartup                                           = rpc.ModelChangeSourceStartup
 	OmittedBinaryOmittedReasonAssetUnavailable                         = rpc.OmittedBinaryOmittedReasonAssetUnavailable
 	OmittedBinaryOmittedReasonTooLarge                                 = rpc.OmittedBinaryOmittedReasonTooLarge
 	OmittedBinaryTypeImage                                             = rpc.OmittedBinaryTypeImage
@@ -520,6 +549,7 @@ const (
 	PermissionAllowAllModeOn                                           = rpc.PermissionAllowAllModeOn
 	PermissionPromptRequestKindCommands                                = rpc.PermissionPromptRequestKindCommands
 	PermissionPromptRequestKindCustomTool                              = rpc.PermissionPromptRequestKindCustomTool
+	PermissionPromptRequestKindExtensionEnvAccess                      = rpc.PermissionPromptRequestKindExtensionEnvAccess
 	PermissionPromptRequestKindExtensionManagement                     = rpc.PermissionPromptRequestKindExtensionManagement
 	PermissionPromptRequestKindExtensionPermissionAccess               = rpc.PermissionPromptRequestKindExtensionPermissionAccess
 	PermissionPromptRequestKindFactory                                 = rpc.PermissionPromptRequestKindFactory
@@ -533,7 +563,9 @@ const (
 	PermissionPromptRequestPathAccessKindRead                          = rpc.PermissionPromptRequestPathAccessKindRead
 	PermissionPromptRequestPathAccessKindShell                         = rpc.PermissionPromptRequestPathAccessKindShell
 	PermissionPromptRequestPathAccessKindWrite                         = rpc.PermissionPromptRequestPathAccessKindWrite
+	PermissionRecommendationApprove                                    = rpc.PermissionRecommendationApprove
 	PermissionRequestKindCustomTool                                    = rpc.PermissionRequestKindCustomTool
+	PermissionRequestKindExtensionEnvAccess                            = rpc.PermissionRequestKindExtensionEnvAccess
 	PermissionRequestKindExtensionManagement                           = rpc.PermissionRequestKindExtensionManagement
 	PermissionRequestKindExtensionPermissionAccess                     = rpc.PermissionRequestKindExtensionPermissionAccess
 	PermissionRequestKindFactory                                       = rpc.PermissionRequestKindFactory
@@ -570,6 +602,7 @@ const (
 	ScheduleOriginModel                                                = rpc.ScheduleOriginModel
 	ScheduleOriginUser                                                 = rpc.ScheduleOriginUser
 	SessionEventTypeAbort                                              = rpc.SessionEventTypeAbort
+	SessionEventTypeAgentInterrupted                                   = rpc.SessionEventTypeAgentInterrupted
 	SessionEventTypeAssistantIdle                                      = rpc.SessionEventTypeAssistantIdle
 	SessionEventTypeAssistantIntent                                    = rpc.SessionEventTypeAssistantIntent
 	SessionEventTypeAssistantMessage                                   = rpc.SessionEventTypeAssistantMessage
@@ -616,6 +649,7 @@ const (
 	SessionEventTypePermissionRequested                                = rpc.SessionEventTypePermissionRequested
 	SessionEventTypeSamplingCompleted                                  = rpc.SessionEventTypeSamplingCompleted
 	SessionEventTypeSamplingRequested                                  = rpc.SessionEventTypeSamplingRequested
+	SessionEventTypeSandboxDecision                                    = rpc.SessionEventTypeSandboxDecision
 	SessionEventTypeSessionAutoModeResolved                            = rpc.SessionEventTypeSessionAutoModeResolved
 	SessionEventTypeSessionAutopilotObjectiveChanged                   = rpc.SessionEventTypeSessionAutopilotObjectiveChanged
 	SessionEventTypeSessionBackgroundTasksChanged                      = rpc.SessionEventTypeSessionBackgroundTasksChanged
@@ -744,6 +778,7 @@ const (
 	UserMessageDeliverySteering                                        = rpc.UserMessageDeliverySteering
 	UserToolSessionApprovalKindCommands                                = rpc.UserToolSessionApprovalKindCommands
 	UserToolSessionApprovalKindCustomTool                              = rpc.UserToolSessionApprovalKindCustomTool
+	UserToolSessionApprovalKindExtensionEnvAccess                      = rpc.UserToolSessionApprovalKindExtensionEnvAccess
 	UserToolSessionApprovalKindExtensionManagement                     = rpc.UserToolSessionApprovalKindExtensionManagement
 	UserToolSessionApprovalKindExtensionPermissionAccess               = rpc.UserToolSessionApprovalKindExtensionPermissionAccess
 	UserToolSessionApprovalKindFactory                                 = rpc.UserToolSessionApprovalKindFactory

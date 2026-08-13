@@ -54,6 +54,7 @@ type SessionEventType string
 
 const (
 	SessionEventTypeAbort                       SessionEventType = "abort"
+	SessionEventTypeAgentInterrupted            SessionEventType = "agent.interrupted"
 	SessionEventTypeAssistantIdle               SessionEventType = "assistant.idle"
 	SessionEventTypeAssistantIntent             SessionEventType = "assistant.intent"
 	SessionEventTypeAssistantMessage            SessionEventType = "assistant.message"
@@ -102,6 +103,7 @@ const (
 	SessionEventTypePermissionRequested        SessionEventType = "permission.requested"
 	SessionEventTypeSamplingCompleted          SessionEventType = "sampling.completed"
 	SessionEventTypeSamplingRequested          SessionEventType = "sampling.requested"
+	SessionEventTypeSandboxDecision            SessionEventType = "sandbox.decision"
 	// Experimental: SessionEventTypeSessionAutoModeResolved identifies an experimental event
 	// that may change or be removed.
 	SessionEventTypeSessionAutoModeResolved          SessionEventType = "session.auto_mode_resolved"
@@ -218,7 +220,8 @@ type AssistantReasoningData struct {
 	Content string `json:"content"`
 	// Unique identifier for this reasoning block
 	ReasoningID string `json:"reasoningId"`
-	Rte         *bool  `json:"rte,omitempty"`
+	// Per-request treatment/eligibility signal returned by the Copilot API in the `X-GitHub-Copilot-Request-TE` response header for the associated model call; `false` when the header was absent or unparseable.
+	Rte *bool `json:"rte,omitempty"`
 }
 
 func (*AssistantReasoningData) sessionEventData()      {}
@@ -262,7 +265,8 @@ type AssistantMessageData struct {
 	ReasoningWireField *string `json:"reasoningWireField,omitempty"`
 	// GitHub request tracing ID (x-github-request-id header) for correlating with server-side logs
 	RequestID *string `json:"requestId,omitempty"`
-	Rte       *bool   `json:"rte,omitempty"`
+	// Per-request treatment/eligibility signal returned by the Copilot API in the `X-GitHub-Copilot-Request-TE` response header for the associated model call; `false` when the header was absent or unparseable.
+	Rte *bool `json:"rte,omitempty"`
 	// Neutral provider-tagged server-side tool-use payload (tool search, advisor) for verbatim round-tripping
 	ServerTools *AssistantMessageServerTools `json:"serverTools,omitempty"`
 	// Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation
@@ -681,8 +685,9 @@ func (*SessionManagedSettingsResolvedData) Type() SessionEventType {
 // Experimental: FactoryRunUpdatedData is part of an experimental API and may change or be removed.
 type FactoryRunUpdatedData struct {
 	// Monotonic revision now available for the run.
-	Revision int64  `json:"revision"`
-	RunID    string `json:"runId"`
+	Revision int64 `json:"revision"`
+	// Factory run identifier.
+	RunID string `json:"runId"`
 }
 
 func (*FactoryRunUpdatedData) sessionEventData()      {}
@@ -799,7 +804,8 @@ type ModelCallFailureData struct {
 	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
 	// Content-free structural summary of the failing request. Contains only counts and shape flags (no prompt content), so it is safe for unrestricted telemetry. Populated only for client-error (4xx) failures.
 	RequestFingerprint *ModelCallFailureRequestFingerprint `json:"requestFingerprint,omitempty"`
-	Rte                *bool                               `json:"rte,omitempty"`
+	// Per-request treatment/eligibility signal returned by the Copilot API in the `X-GitHub-Copilot-Request-TE` response header for the associated model call; `false` when the header was absent or unparseable.
+	Rte *bool `json:"rte,omitempty"`
 	// Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation
 	ServiceRequestID *string `json:"serviceRequestId,omitempty"`
 	// Where the failed model call originated
@@ -860,6 +866,8 @@ func (*SessionInfoData) Type() SessionEventType { return SessionEventTypeSession
 
 // LLM API call usage metrics including tokens, costs, quotas, and billing information
 type AssistantUsageData struct {
+	// Number of accepted speculative prediction tokens
+	AcceptedPredictionTokens *int64 `json:"acceptedPredictionTokens,omitempty"`
 	// Completion ID from the model provider (e.g., chatcmpl-abc123)
 	APICallID *string `json:"apiCallId,omitempty"`
 	// API endpoint used for this model call, matching CAPI supported_endpoints vocabulary
@@ -892,6 +900,14 @@ type AssistantUsageData struct {
 	InteractionType *string `json:"interactionType,omitempty"`
 	// Average inter-token latency in milliseconds. Only available for streaming requests
 	InterTokenLatencyMs *float64 `json:"interTokenLatencyMs,omitempty"`
+	// Whether Auto mode was selected for this model call
+	IsAuto *bool `json:"isAuto,omitempty"`
+	// Whether this model call used a bring-your-own-key provider
+	IsByok *bool `json:"isByok,omitempty"`
+	// Requested maximum output tokens used for this model call
+	MaxOutputTokens *int64 `json:"maxOutputTokens,omitempty"`
+	// Effective maximum prompt-token limit used for this model call
+	MaxPromptTokens *int64 `json:"maxPromptTokens,omitempty"`
 	// Model identifier used for this API call
 	Model string `json:"model"`
 	// Number of tool calls returned by the model
@@ -909,9 +925,14 @@ type AssistantUsageData struct {
 	QuotaSnapshots map[string]AssistantUsageQuotaSnapshot `json:"quotaSnapshots,omitzero"`
 	// Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max")
 	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
+	// Reasoning summary mode used for this model call, if applicable
+	ReasoningSummary *ReasoningSummary `json:"reasoningSummary,omitempty"`
 	// Number of output tokens used for reasoning (e.g., chain-of-thought)
 	ReasoningTokens *int64 `json:"reasoningTokens,omitempty"`
-	Rte             *bool  `json:"rte,omitempty"`
+	// Number of rejected speculative prediction tokens
+	RejectedPredictionTokens *int64 `json:"rejectedPredictionTokens,omitempty"`
+	// Per-request treatment/eligibility signal returned by the Copilot API in the `X-GitHub-Copilot-Request-TE` response header for the associated model call; `false` when the header was absent or unparseable.
+	Rte *bool `json:"rte,omitempty"`
 	// Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation
 	ServiceRequestID *string `json:"serviceRequestId,omitempty"`
 	// Time to first token in milliseconds. Only available for streaming requests
@@ -922,6 +943,8 @@ type AssistantUsageData struct {
 	// Number of tokens used by tool definitions for this call
 	// Internal: ToolTokenCount is part of the SDK's internal API surface and is not intended for external use.
 	ToolTokenCount *int64 `json:"toolTokenCount,omitempty"`
+	// Transport used for this model call (http or websocket)
+	Transport *AssistantUsageTransport `json:"transport,omitempty"`
 }
 
 func (*AssistantUsageData) sessionEventData()      {}
@@ -1004,6 +1027,39 @@ type AssistantTurnRetryData struct {
 func (*AssistantTurnRetryData) sessionEventData()      {}
 func (*AssistantTurnRetryData) Type() SessionEventType { return SessionEventTypeAssistantTurnRetry }
 
+// Metadata for work the user interrupted while the agent was running
+type AgentInterruptedData struct {
+	// What the agent was doing when the user interrupted it
+	Activity AgentInterruptedActivity `json:"activity"`
+	// For an interrupted model call: the provider endpoint the request targeted
+	APIEndpoint *string `json:"apiEndpoint,omitempty"`
+	// For an interrupted model call: whether the user interrupted before any token arrived or while the response was streaming
+	CancelPhase *AgentInterruptedCancelPhase `json:"cancelPhase,omitempty"`
+	// How long the interrupted work had been running, in milliseconds
+	ElapsedMs float64 `json:"elapsedMs"`
+	// For an interrupted background-agent batch: how many background sub-agents the stop swept. Counts accepted cancellations, so an agent cancelled as a cascade of its interrupted parent is covered by that parent rather than counted again.
+	InterruptedAgentCount *int64 `json:"interruptedAgentCount,omitempty"`
+	// For an interrupted model call: the model the request targeted
+	Model *string `json:"model,omitempty"`
+	// For a mid-stream interrupt: the observed time to first observable output, in milliseconds. Deliberately distinct from the `ttftMs` reported on a successful model call, which measures time to first stream event.
+	OutputTtftMs *float64 `json:"outputTtftMs,omitempty"`
+	// For an interrupted model call: the reasoning effort the request asked for
+	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
+	// Subset of `toolNames` whose tool metadata marks the tool name as safe to record unhashed in telemetry.
+	SafeToolNames []string `json:"safeToolNames,omitzero"`
+	// Tool call identifiers that were still running
+	ToolCallIDs []string `json:"toolCallIds,omitzero"`
+	// Names of the tools that were still running. More than one when the model requested a parallel fan-out.
+	ToolNames []string `json:"toolNames,omitzero"`
+	// For an interrupted model call: the transport the request used
+	Transport *ModelCallFailureTransport `json:"transport,omitempty"`
+	// Zero-based agentic-loop iteration the interrupt landed in
+	Turn int64 `json:"turn"`
+}
+
+func (*AgentInterruptedData) sessionEventData()      {}
+func (*AgentInterruptedData) Type() SessionEventType { return SessionEventTypeAgentInterrupted }
+
 // Model API dispatch metadata for internal telemetry
 type ModelCallStartData struct {
 	// Model identifier used for this API call, when known
@@ -1038,6 +1094,8 @@ type SessionModelChangeData struct {
 	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
 	// Reasoning summary mode after the model change, if applicable
 	ReasoningSummary *ReasoningSummary `json:"reasoningSummary,omitempty"`
+	// Origin of the effective model change, when known.
+	Source *ModelChangeSource `json:"source,omitempty"`
 	// Output verbosity level after the model change, if applicable
 	Verbosity *Verbosity `json:"verbosity,omitempty"`
 }
@@ -1146,6 +1204,13 @@ type SessionIdleData struct {
 
 func (*SessionIdleData) sessionEventData()      {}
 func (*SessionIdleData) Type() SessionEventType { return SessionEventTypeSessionIdle }
+
+// Payload of `sandbox.decision`, a bounded governance record of what the process sandbox was configured to do and whether it took effect. Discriminated by `kind`.
+type SandboxDecisionData struct {
+}
+
+func (*SandboxDecisionData) sessionEventData()      {}
+func (*SandboxDecisionData) Type() SessionEventType { return SessionEventTypeSandboxDecision }
 
 // Payload of `session.canvas.closed` with the closed canvas instance ID, provider ID, and canvas ID.
 // Experimental: SessionCanvasClosedData is part of an experimental API and may change or be removed.
@@ -1373,6 +1438,8 @@ func (*ToolSearchActivatedData) Type() SessionEventType { return SessionEventTyp
 type ExitPlanModeRequestedData struct {
 	// Available actions the user can take
 	Actions []ExitPlanModeAction `json:"actions"`
+	// Model the session had selected when the plan was authored, when one is known
+	Model *string `json:"model,omitempty"`
 	// Full content of the plan file
 	PlanContent string `json:"planContent"`
 	// Recommended action to preselect for the user
@@ -2002,7 +2069,8 @@ type ToolExecutionCompleteData struct {
 	ParentToolCallID *string `json:"parentToolCallId,omitempty"`
 	// Tool execution result on success
 	Result *ToolExecutionCompleteResult `json:"result,omitempty"`
-	Rte    *bool                        `json:"rte,omitempty"`
+	// Per-request treatment/eligibility signal returned by the Copilot API in the `X-GitHub-Copilot-Request-TE` response header for the associated model call; `false` when the header was absent or unparseable.
+	Rte *bool `json:"rte,omitempty"`
 	// Whether this tool execution ran inside a sandbox container
 	Sandboxed *bool `json:"sandboxed,omitempty"`
 	// Whether the tool execution completed successfully
@@ -2050,7 +2118,8 @@ type ToolExecutionStartData struct {
 	// Tool call ID of the parent tool invocation when this event originates from a sub-agent
 	// Deprecated: ParentToolCallID is deprecated.
 	ParentToolCallID *string `json:"parentToolCallId,omitempty"`
-	Rte              *bool   `json:"rte,omitempty"`
+	// Per-request treatment/eligibility signal returned by the Copilot API in the `X-GitHub-Copilot-Request-TE` response header for the associated model call; `false` when the header was absent or unparseable.
+	Rte *bool `json:"rte,omitempty"`
 	// Shell-tool path hints derived from the command at start time for shell tools (bash/powershell/local_shell). Produced by the same shell-aware extractor as PermissionRequestShell.possiblePaths, so it is present even when the command is auto-approved and no permission request fires. Absent for non-shell tools.
 	ShellToolInfo *ToolExecutionStartShellToolInfo `json:"shellToolInfo,omitempty"`
 	// Unique identifier for this tool call
@@ -2214,11 +2283,16 @@ func (*SessionWorkspaceFileChangedData) Type() SessionEventType {
 // Neutral provider-tagged server-side tool-use payload (tool search, advisor) for verbatim round-tripping
 // Experimental: AssistantMessageServerTools is part of an experimental API and may change or be removed.
 type AssistantMessageServerTools struct {
-	AdvisorModel           *string           `json:"advisorModel,omitempty"`
+	// Advisor model identifier associated with the server-tool payload.
+	AdvisorModel *string `json:"advisorModel,omitempty"`
+	// Provider function-call namespaces keyed by function-call identifier.
 	FunctionCallNamespaces map[string]string `json:"functionCallNamespaces,omitzero"`
-	Items                  []any             `json:"items,omitzero"`
-	Provider               string            `json:"provider"`
-	RawContentBlocks       []any             `json:"rawContentBlocks,omitzero"`
+	// Provider-native server-tool call and output items preserved verbatim for replay.
+	Items []any `json:"items,omitzero"`
+	// Model provider that produced this server-tool payload.
+	Provider string `json:"provider"`
+	// Raw provider content blocks retained for verbatim round-tripping.
+	RawContentBlocks []any `json:"rawContentBlocks,omitzero"`
 }
 
 // A tool invocation request from the assistant
@@ -2763,6 +2837,24 @@ func (PermissionPromptRequestCustomTool) Kind() PermissionPromptRequestKind {
 	return PermissionPromptRequestKindCustomTool
 }
 
+// Extension sensitive environment variable access prompt
+type PermissionPromptRequestExtensionEnvAccess struct {
+	// Auto-approval judge information for this request; present only when auto mode is enabled.
+	// Experimental: AutoApproval is part of an experimental API and may change or be removed.
+	AutoApproval *PermissionAutoApproval `json:"autoApproval,omitempty"`
+	// Names of the sensitive environment variables the extension is requesting. Values never appear here.
+	EnvironmentVariables []string `json:"environmentVariables"`
+	// Name of the extension requesting environment variable access
+	ExtensionName string `json:"extensionName"`
+	// Tool call ID that triggered this permission request
+	ToolCallID *string `json:"toolCallId,omitempty"`
+}
+
+func (PermissionPromptRequestExtensionEnvAccess) permissionPromptRequest() {}
+func (PermissionPromptRequestExtensionEnvAccess) Kind() PermissionPromptRequestKind {
+	return PermissionPromptRequestKindExtensionEnvAccess
+}
+
 // Extension management permission prompt
 type PermissionPromptRequestExtensionManagement struct {
 	// Auto-approval judge information for this request; present only when auto mode is enabled.
@@ -2807,11 +2899,15 @@ type PermissionPromptRequestFactory struct {
 	// Experimental: AutoApproval is part of an experimental API and may change or be removed.
 	AutoApproval *PermissionAutoApproval `json:"autoApproval,omitempty"`
 	// Whether this factory is eligible for persistent approval
-	CanPersistApproval             bool     `json:"canPersistApproval"`
-	DeclaredMaxAiCredits           *float64 `json:"declaredMaxAiCredits,omitempty"`
-	DeclaredMaxConcurrentSubagents *int64   `json:"declaredMaxConcurrentSubagents,omitempty"`
-	DeclaredMaxTotalSubagents      *int64   `json:"declaredMaxTotalSubagents,omitempty"`
-	DeclaredTimeoutSeconds         *float64 `json:"declaredTimeoutSeconds,omitempty"`
+	CanPersistApproval bool `json:"canPersistApproval"`
+	// Factory-declared AI-credit limit before any run/resume caller override is applied.
+	DeclaredMaxAiCredits *float64 `json:"declaredMaxAiCredits,omitempty"`
+	// Factory-declared concurrent-subagent limit before any run/resume caller override is applied.
+	DeclaredMaxConcurrentSubagents *int64 `json:"declaredMaxConcurrentSubagents,omitempty"`
+	// Factory-declared total-subagent limit before any run/resume caller override is applied.
+	DeclaredMaxTotalSubagents *int64 `json:"declaredMaxTotalSubagents,omitempty"`
+	// Factory-declared active-time limit in seconds before any run/resume caller override is applied.
+	DeclaredTimeoutSeconds *float64 `json:"declaredTimeoutSeconds,omitempty"`
 	// Factory description
 	Description string `json:"description"`
 	// Whether managed policy requires a human response and forbids host auto-approval
@@ -2866,6 +2962,9 @@ type PermissionPromptRequestMCP struct {
 	// Auto-approval judge information for this request; present only when auto mode is enabled.
 	// Experimental: AutoApproval is part of an experimental API and may change or be removed.
 	AutoApproval *PermissionAutoApproval `json:"autoApproval,omitempty"`
+	// Advisory runtime permission recommendation. The host remains responsible for deciding the request and may reject it.
+	// Experimental: PermissionRecommendation is part of an experimental API and may change or be removed.
+	PermissionRecommendation *PermissionRecommendation `json:"permissionRecommendation,omitempty"`
 	// Name of the MCP server providing the tool
 	ServerName string `json:"serverName"`
 	// Tool call ID that triggered this permission request
@@ -3033,6 +3132,21 @@ func (PermissionRequestCustomTool) Kind() PermissionRequestKind {
 	return PermissionRequestKindCustomTool
 }
 
+// Extension sensitive environment variable access request
+type PermissionRequestExtensionEnvAccess struct {
+	// Names of the sensitive environment variables the extension is requesting. Values never appear here.
+	EnvironmentVariables []string `json:"environmentVariables"`
+	// Name of the extension requesting environment variable access
+	ExtensionName string `json:"extensionName"`
+	// Tool call ID that triggered this permission request
+	ToolCallID *string `json:"toolCallId,omitempty"`
+}
+
+func (PermissionRequestExtensionEnvAccess) permissionRequest() {}
+func (PermissionRequestExtensionEnvAccess) Kind() PermissionRequestKind {
+	return PermissionRequestKindExtensionEnvAccess
+}
+
 // Extension management permission request
 type PermissionRequestExtensionManagement struct {
 	// Name of the extension being managed
@@ -3072,11 +3186,15 @@ type PermissionRequestFactory struct {
 	// Canonical key used for scoped factory approvals
 	ApprovalKey string `json:"approvalKey"`
 	// Whether this factory is eligible for persistent approval
-	CanPersistApproval             bool     `json:"canPersistApproval"`
-	DeclaredMaxAiCredits           *float64 `json:"declaredMaxAiCredits,omitempty"`
-	DeclaredMaxConcurrentSubagents *int64   `json:"declaredMaxConcurrentSubagents,omitempty"`
-	DeclaredMaxTotalSubagents      *int64   `json:"declaredMaxTotalSubagents,omitempty"`
-	DeclaredTimeoutSeconds         *float64 `json:"declaredTimeoutSeconds,omitempty"`
+	CanPersistApproval bool `json:"canPersistApproval"`
+	// Factory-declared AI-credit limit before any run/resume caller override is applied.
+	DeclaredMaxAiCredits *float64 `json:"declaredMaxAiCredits,omitempty"`
+	// Factory-declared concurrent-subagent limit before any run/resume caller override is applied.
+	DeclaredMaxConcurrentSubagents *int64 `json:"declaredMaxConcurrentSubagents,omitempty"`
+	// Factory-declared total-subagent limit before any run/resume caller override is applied.
+	DeclaredMaxTotalSubagents *int64 `json:"declaredMaxTotalSubagents,omitempty"`
+	// Factory-declared active-time limit in seconds before any run/resume caller override is applied.
+	DeclaredTimeoutSeconds *float64 `json:"declaredTimeoutSeconds,omitempty"`
 	// Factory description
 	Description string `json:"description"`
 	// When true, managed policy requires an explicit user decision and automatic approval must be bypassed.
@@ -3129,6 +3247,9 @@ type PermissionRequestMCP struct {
 	Args any `json:"args,omitempty"`
 	// When true, managed policy requires an explicit user decision and automatic approval must be bypassed.
 	ManagedApprovalRequired *bool `json:"managedApprovalRequired,omitempty"`
+	// Advisory runtime permission recommendation. The SDK host remains responsible for deciding the request and may reject it.
+	// Experimental: PermissionRecommendation is part of an experimental API and may change or be removed.
+	PermissionRecommendation *PermissionRecommendation `json:"permissionRecommendation,omitempty"`
 	// Whether this MCP tool is read-only (no side effects)
 	ReadOnly bool `json:"readOnly"`
 	// Name of the MCP server providing the tool
@@ -3617,12 +3738,14 @@ func (r RawSystemNotification) Type() SystemNotificationType {
 
 // System notification metadata for a background agent that completed or failed, including agent ID, type, status, description, and prompt.
 type SystemNotificationAgentCompleted struct {
-	// Unique identifier of the background agent
+	// Unique task identifier
 	AgentID string `json:"agentId"`
 	// Type of the agent (e.g., explore, task, general-purpose)
 	AgentType string `json:"agentType"`
 	// Human-readable description of the agent task
 	Description *string `json:"description,omitempty"`
+	// Friendly, non-unique name intended for display
+	DisplayName *string `json:"displayName,omitempty"`
 	// The full prompt given to the background agent
 	Prompt *string `json:"prompt,omitempty"`
 	// Whether the agent completed successfully or failed
@@ -3636,12 +3759,14 @@ func (SystemNotificationAgentCompleted) Type() SystemNotificationType {
 
 // System notification metadata for a background agent that became idle, including agent ID, type, and description.
 type SystemNotificationAgentIdle struct {
-	// Unique identifier of the background agent
+	// Unique task identifier
 	AgentID string `json:"agentId"`
 	// Type of the agent (e.g., explore, task, general-purpose)
 	AgentType string `json:"agentType"`
 	// Human-readable description of the agent task
 	Description *string `json:"description,omitempty"`
+	// Friendly, non-unique name intended for display
+	DisplayName *string `json:"displayName,omitempty"`
 }
 
 func (SystemNotificationAgentIdle) systemNotification() {}
@@ -3968,18 +4093,24 @@ type ToolExecutionCompleteUIResourceMeta struct {
 // MCP Apps UI resource metadata for a completed tool result, including CSP, permissions, domain, and border preference.
 type ToolExecutionCompleteUIResourceMetaUI struct {
 	// CSP domain allowlists for an MCP Apps UI resource, including connect, resource, frame, and base URI domains.
-	Csp    *ToolExecutionCompleteUIResourceMetaUICsp `json:"csp,omitempty"`
-	Domain *string                                   `json:"domain,omitempty"`
+	Csp *ToolExecutionCompleteUIResourceMetaUICsp `json:"csp,omitempty"`
+	// Optional dedicated origin for the rendered MCP Apps UI resource.
+	Domain *string `json:"domain,omitempty"`
 	// Browser permission metadata for an MCP Apps UI resource, including camera, microphone, geolocation, and clipboard-write.
-	Permissions   *ToolExecutionCompleteUIResourceMetaUIPermissions `json:"permissions,omitempty"`
-	PrefersBorder *bool                                             `json:"prefersBorder,omitempty"`
+	Permissions *ToolExecutionCompleteUIResourceMetaUIPermissions `json:"permissions,omitempty"`
+	// Whether the host should render a border around the MCP Apps UI resource.
+	PrefersBorder *bool `json:"prefersBorder,omitempty"`
 }
 
 // CSP domain allowlists for an MCP Apps UI resource, including connect, resource, frame, and base URI domains.
 type ToolExecutionCompleteUIResourceMetaUICsp struct {
-	BaseURIDomains  []string `json:"baseUriDomains,omitzero"`
-	ConnectDomains  []string `json:"connectDomains,omitzero"`
-	FrameDomains    []string `json:"frameDomains,omitzero"`
+	// Domains the UI resource may use as document base URIs.
+	BaseURIDomains []string `json:"baseUriDomains,omitzero"`
+	// Domains the UI resource may connect to.
+	ConnectDomains []string `json:"connectDomains,omitzero"`
+	// Domains the UI resource may embed as nested frames.
+	FrameDomains []string `json:"frameDomains,omitzero"`
+	// Domains from which the UI resource may load scripts, styles, images, and other resources.
 	ResourceDomains []string `json:"resourceDomains,omitzero"`
 }
 
@@ -4080,6 +4211,30 @@ type WorkingDirectoryContext struct {
 	RepositoryHost *string `json:"repositoryHost,omitempty"`
 }
 
+// What the agent was doing when the user interrupted it.
+type AgentInterruptedActivity string
+
+const (
+	// Background sub-agents were running while the main loop was idle.
+	AgentInterruptedActivityBackgroundAgent AgentInterruptedActivity = "background_agent"
+	// A request to the model was open.
+	AgentInterruptedActivityModelCall AgentInterruptedActivity = "model_call"
+	// The turn was sleeping between retry attempts.
+	AgentInterruptedActivityRetryBackoff AgentInterruptedActivity = "retry_backoff"
+	// One or more tools were executing.
+	AgentInterruptedActivityToolCall AgentInterruptedActivity = "tool_call"
+)
+
+// Where the interruption landed relative to the first streamed token.
+type AgentInterruptedCancelPhase string
+
+const (
+	// The response was already streaming when the request was cancelled.
+	AgentInterruptedCancelPhaseMidStream AgentInterruptedCancelPhase = "mid_stream"
+	// No output had been produced when the request was cancelled.
+	AgentInterruptedCancelPhasePreFirstToken AgentInterruptedCancelPhase = "pre_first_token"
+)
+
 // Tool call type: "function" for standard tool calls, "custom" for grammar-based tool calls. Defaults to "function" when absent.
 type AssistantMessageToolRequestType string
 
@@ -4102,6 +4257,16 @@ const (
 	AssistantUsageAPIEndpointV1Messages AssistantUsageAPIEndpoint = "/v1/messages"
 	// WebSocket Responses API endpoint.
 	AssistantUsageAPIEndpointWsResponses AssistantUsageAPIEndpoint = "ws:/responses"
+)
+
+// Transport used for a successful model call
+type AssistantUsageTransport string
+
+const (
+	// HTTP transport, including SSE streams.
+	AssistantUsageTransportHTTP AssistantUsageTransport = "http"
+	// WebSocket transport.
+	AssistantUsageTransportWebsocket AssistantUsageTransport = "websocket"
 )
 
 // Why the auto-approval judge produced no usable recommendation. Present only alongside an `error` recommendation, where the human-readable reason is a fixed string and therefore cannot distinguish these cases. Intended to make a judge failure reportable by a consumer that has no access to the host's logs.
@@ -4516,6 +4681,7 @@ type PermissionPromptRequestKind string
 const (
 	PermissionPromptRequestKindCommands                  PermissionPromptRequestKind = "commands"
 	PermissionPromptRequestKindCustomTool                PermissionPromptRequestKind = "custom-tool"
+	PermissionPromptRequestKindExtensionEnvAccess        PermissionPromptRequestKind = "extension-env-access"
 	PermissionPromptRequestKindExtensionManagement       PermissionPromptRequestKind = "extension-management"
 	PermissionPromptRequestKindExtensionPermissionAccess PermissionPromptRequestKind = "extension-permission-access"
 	PermissionPromptRequestKindFactory                   PermissionPromptRequestKind = "factory"
@@ -4540,11 +4706,21 @@ const (
 	PermissionPromptRequestPathAccessKindWrite PermissionPromptRequestPathAccessKind = "write"
 )
 
+// Advisory recommendation the runtime attaches to a permission request whose origin it can vouch for by construction. Unlike the auto-approval judge this does not depend on auto mode and does not evaluate what the tool call does; its absence simply means the runtime has no opinion and the request follows the host's normal approval flow.
+// Experimental: PermissionRecommendation is part of an experimental API and may change or be removed.
+type PermissionRecommendation string
+
+const (
+	// The runtime vouches for the request's origin and recommends approving it without prompting. The host still owns the decision and may deny it; deny rules, managed policy, and the auto-approval safety judge all outrank this recommendation.
+	PermissionRecommendationApprove PermissionRecommendation = "approve"
+)
+
 // Kind discriminator for PermissionRequest.
 type PermissionRequestKind string
 
 const (
 	PermissionRequestKindCustomTool                PermissionRequestKind = "custom-tool"
+	PermissionRequestKindExtensionEnvAccess        PermissionRequestKind = "extension-env-access"
 	PermissionRequestKindExtensionManagement       PermissionRequestKind = "extension-management"
 	PermissionRequestKindExtensionPermissionAccess PermissionRequestKind = "extension-permission-access"
 	PermissionRequestKindFactory                   PermissionRequestKind = "factory"
