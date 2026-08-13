@@ -254,6 +254,11 @@ pub struct ClientOptions {
     pub env_remove: Vec<OsString>,
     /// Extra flags for child-process transports.
     pub extra_args: Vec<String>,
+    /// Absolute paths to trusted plugin directories bundled by the host.
+    ///
+    /// When non-empty, [`Client::start`] replaces the runtime's complete
+    /// trusted built-in plugin directory set before sessions can be created.
+    pub builtin_plugin_directories: Vec<PathBuf>,
     /// Transport mode used to communicate with the CLI server.
     pub transport: Transport,
     /// GitHub token for authentication. When set, the SDK passes the token
@@ -368,6 +373,10 @@ impl std::fmt::Debug for ClientOptions {
             .field("env", &self.env)
             .field("env_remove", &self.env_remove)
             .field("extra_args", &self.extra_args)
+            .field(
+                "builtin_plugin_directories",
+                &self.builtin_plugin_directories,
+            )
             .field("transport", &self.transport)
             .field(
                 "github_token",
@@ -632,6 +641,7 @@ impl Default for ClientOptions {
             env: Vec::new(),
             env_remove: Vec::new(),
             extra_args: Vec::new(),
+            builtin_plugin_directories: Vec::new(),
             transport: Transport::default(),
             github_token: None,
             use_logged_in_user: None,
@@ -721,6 +731,19 @@ impl ClientOptions {
         S: Into<String>,
     {
         self.extra_args = args.into_iter().map(Into::into).collect();
+        self
+    }
+
+    /// Set trusted plugin directories bundled by the host.
+    ///
+    /// Every path must be absolute; invalid paths are rejected by
+    /// [`Client::start`].
+    pub fn with_builtin_plugin_directories<I, P>(mut self, paths: I) -> Self
+    where
+        I: IntoIterator<Item = P>,
+        P: Into<PathBuf>,
+    {
+        self.builtin_plugin_directories = paths.into_iter().map(Into::into).collect();
         self
     }
 
@@ -1071,6 +1094,30 @@ impl Client {
         if let Some(cfg) = &options.session_fs {
             validate_session_fs_config(cfg)?;
         }
+        let builtin_plugin_directories = options
+            .builtin_plugin_directories
+            .iter()
+            .map(|path| {
+                if !path.is_absolute() {
+                    return Err(Error::with_message(
+                        ErrorKind::InvalidConfig,
+                        format!(
+                            "builtin_plugin_directories must contain only absolute paths: {}",
+                            path.display()
+                        ),
+                    ));
+                }
+                path.to_str().map(str::to_owned).ok_or_else(|| {
+                    Error::with_message(
+                        ErrorKind::InvalidConfig,
+                        format!(
+                            "builtin_plugin_directories must contain valid UTF-8 paths: {}",
+                            path.display()
+                        ),
+                    )
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
         // Auth options only make sense when the SDK spawns the CLI; with an
         // external server, the server manages its own auth.
         if matches!(options.transport, Transport::External { .. }) {
@@ -1333,6 +1380,14 @@ impl Client {
             elapsed_ms = start_time.elapsed().as_millis(),
             "Client::start protocol verification complete"
         );
+        if !builtin_plugin_directories.is_empty() {
+            client
+                .call(
+                    "plugins.builtin.set",
+                    Some(serde_json::json!({ "paths": builtin_plugin_directories })),
+                )
+                .await?;
+        }
         if let Some(cfg) = session_fs_config {
             let session_fs_start = Instant::now();
             let capabilities = cfg.capabilities.as_ref().map(|c| {

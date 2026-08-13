@@ -3,7 +3,7 @@ import { EventEmitter } from "node:events";
 import { PassThrough } from "stream";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import {
     approveAll,
@@ -57,6 +57,51 @@ describe("approveAll", () => {
 });
 
 describe("CopilotClient", () => {
+    async function startWithMockConnection(
+        builtinPluginDirectories?: readonly string[]
+    ): Promise<ReturnType<typeof vi.fn>> {
+        const client = new CopilotClient({
+            connection: RuntimeConnection.forUri("localhost:1234"),
+            builtinPluginDirectories,
+        });
+        const sendRequest = vi.fn(async () => ({}));
+        vi.spyOn(client as any, "connectToServer").mockImplementation(async () => {
+            (client as any).connection = { sendRequest };
+        });
+        vi.spyOn(client as any, "verifyProtocolVersion").mockResolvedValue(undefined);
+
+        await client.start();
+        return sendRequest;
+    }
+
+    it.each([undefined, []])(
+        "does not configure built-in plugin directories when unset or empty",
+        async (builtinPluginDirectories) => {
+            const sendRequest = await startWithMockConnection(builtinPluginDirectories);
+
+            expect(sendRequest).not.toHaveBeenCalledWith("plugins.builtin.set", expect.anything());
+        }
+    );
+
+    it("configures built-in plugin directories before start completes", async () => {
+        const paths = [resolve("plugins/core"), resolve("plugins/github")];
+
+        const sendRequest = await startWithMockConnection(paths);
+
+        expect(sendRequest).toHaveBeenCalledTimes(1);
+        expect(sendRequest).toHaveBeenCalledWith("plugins.builtin.set", { paths });
+    });
+
+    it("rejects relative built-in plugin directories", () => {
+        expect(
+            () =>
+                new CopilotClient({
+                    connection: RuntimeConnection.forUri("localhost:1234"),
+                    builtinPluginDirectories: ["plugins/core"],
+                })
+        ).toThrow(/builtinPluginDirectories.*absolute paths.*plugins\/core/);
+    });
+
     it("disposes the stdio connection when child stdin emits an error", async () => {
         const client = new CopilotClient();
         onTestFinished(() => client.forceStop());

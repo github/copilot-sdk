@@ -20,6 +20,7 @@ public class CloneTests
             GitHubToken = "ghp_test",
             UseLoggedInUser = false,
             BaseDirectory = "/custom/copilot/home",
+            BuiltinPluginDirectories = ["/plugins/core", "/plugins/github"],
             EnableRemoteSessions = true,
             SessionIdleTimeoutSeconds = 600,
         };
@@ -33,6 +34,8 @@ public class CloneTests
         Assert.Equal(original.GitHubToken, clone.GitHubToken);
         Assert.Equal(original.UseLoggedInUser, clone.UseLoggedInUser);
         Assert.Equal(original.BaseDirectory, clone.BaseDirectory);
+        Assert.Equal(original.BuiltinPluginDirectories, clone.BuiltinPluginDirectories);
+        Assert.NotSame(original.BuiltinPluginDirectories, clone.BuiltinPluginDirectories);
         Assert.Equal(original.EnableRemoteSessions, clone.EnableRemoteSessions);
         Assert.Equal(original.SessionIdleTimeoutSeconds, clone.SessionIdleTimeoutSeconds);
     }

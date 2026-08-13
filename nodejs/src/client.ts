@@ -16,7 +16,7 @@ import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { Socket } from "node:net";
-import { dirname, join } from "node:path";
+import { dirname, isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
     createMessageConnection,
@@ -522,6 +522,7 @@ export class CopilotClient {
     /** Connection-level session filesystem config, set via constructor option. */
     private sessionFsConfig: SessionFsConfig | null = null;
     private requestHandler: CopilotRequestHandler | null = null;
+    private builtinPluginDirectories: string[] = [];
     private onGitHubTelemetry?: (notification: GitHubTelemetryNotification) => void | Promise<void>;
     private clientGlobalHandlers: import("./generated/rpc.js").ClientGlobalApiHandlers = {};
 
@@ -681,6 +682,16 @@ export class CopilotClient {
 
         if (options.sessionFs) {
             this.validateSessionFsConfig(options.sessionFs);
+        }
+        if (options.builtinPluginDirectories) {
+            for (const path of options.builtinPluginDirectories) {
+                if (!isAbsolute(path)) {
+                    throw new Error(
+                        `builtinPluginDirectories must contain only absolute paths: ${path}`
+                    );
+                }
+            }
+            this.builtinPluginDirectories = [...options.builtinPluginDirectories];
         }
 
         // Pre-parse the URI host/port and mark as external if applicable.
@@ -893,6 +904,17 @@ export class CopilotClient {
 
             // Verify protocol version compatibility
             await this.verifyProtocolVersion();
+
+            if (this.builtinPluginDirectories.length > 0) {
+                try {
+                    await this.connection!.sendRequest("plugins.builtin.set", {
+                        paths: this.builtinPluginDirectories,
+                    });
+                } catch (error) {
+                    await this.forceStop();
+                    throw error;
+                }
+            }
 
             // If a session filesystem provider was configured, register it
             if (this.sessionFsConfig) {

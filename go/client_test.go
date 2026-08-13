@@ -139,6 +139,147 @@ func TestClient_URLParsing(t *testing.T) {
 	})
 }
 
+func TestClient_BuiltinPluginDirectories(t *testing.T) {
+	t.Run("default and empty do not call RPC", func(t *testing.T) {
+		for _, paths := range [][]string{nil, []string{}} {
+			t.Run(fmt.Sprintf("len=%d", len(paths)), func(t *testing.T) {
+				url, requests, cleanup := newStartupRPCServer(t)
+				defer cleanup()
+
+				client := NewClient(&ClientOptions{
+					Connection:               URIConnection{URL: url},
+					BuiltinPluginDirectories: paths,
+				})
+				if err := client.Start(t.Context()); err != nil {
+					t.Fatalf("Start failed: %v", err)
+				}
+				defer client.ForceStop()
+
+				if got := countMethod(requests(), "plugins.builtin.set"); got != 0 {
+					t.Fatalf("plugins.builtin.set call count = %d, want 0", got)
+				}
+			})
+		}
+	})
+
+	t.Run("configured paths call RPC once", func(t *testing.T) {
+		url, requests, cleanup := newStartupRPCServer(t)
+		defer cleanup()
+		cwd, err := os.Getwd()
+		if err != nil {
+			t.Fatalf("Getwd failed: %v", err)
+		}
+		paths := []string{
+			filepath.Join(cwd, "plugins", "core"),
+			filepath.Join(cwd, "plugins", "github"),
+		}
+
+		client := NewClient(&ClientOptions{
+			Connection:               URIConnection{URL: url},
+			BuiltinPluginDirectories: paths,
+		})
+		if err := client.Start(t.Context()); err != nil {
+			t.Fatalf("Start failed: %v", err)
+		}
+		defer client.ForceStop()
+
+		var calls []startupRPCRequest
+		for _, request := range requests() {
+			if request.Method == "plugins.builtin.set" {
+				calls = append(calls, request)
+			}
+		}
+		if len(calls) != 1 {
+			t.Fatalf("plugins.builtin.set call count = %d, want 1", len(calls))
+		}
+		var payload struct {
+			Paths []string `json:"paths"`
+		}
+		if err := json.Unmarshal(calls[0].Params, &payload); err != nil {
+			t.Fatalf("decode plugins.builtin.set params: %v", err)
+		}
+		if !reflect.DeepEqual(payload.Paths, paths) {
+			t.Fatalf("paths = %v, want %v", payload.Paths, paths)
+		}
+	})
+
+	t.Run("relative path panics", func(t *testing.T) {
+		defer func() {
+			if recovered := recover(); recovered == nil {
+				t.Fatal("expected NewClient to panic")
+			}
+		}()
+		NewClient(&ClientOptions{BuiltinPluginDirectories: []string{"plugins/core"}})
+	})
+}
+
+type startupRPCRequest struct {
+	Method string
+	Params json.RawMessage
+}
+
+func newStartupRPCServer(t *testing.T) (string, func() []startupRPCRequest, func()) {
+	t.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+
+	var mux sync.Mutex
+	var requests []startupRPCRequest
+	serverReady := make(chan *jsonrpc2.Client, 1)
+	go func() {
+		conn, acceptErr := listener.Accept()
+		if acceptErr != nil {
+			return
+		}
+		server := jsonrpc2.NewClient(conn, conn)
+		record := func(method string, params json.RawMessage) {
+			mux.Lock()
+			requests = append(requests, startupRPCRequest{
+				Method: method,
+				Params: append(json.RawMessage(nil), params...),
+			})
+			mux.Unlock()
+		}
+		server.SetRequestHandler("connect", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+			record("connect", params)
+			return []byte(`{"ok":true,"protocolVersion":3,"version":"test"}`), nil
+		})
+		server.SetRequestHandler("plugins.builtin.set", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+			record("plugins.builtin.set", params)
+			return []byte(`{}`), nil
+		})
+		server.Start()
+		serverReady <- server
+	}()
+
+	snapshot := func() []startupRPCRequest {
+		mux.Lock()
+		defer mux.Unlock()
+		return append([]startupRPCRequest(nil), requests...)
+	}
+	cleanup := func() {
+		listener.Close()
+		select {
+		case server := <-serverReady:
+			server.Stop()
+		case <-time.After(time.Second):
+		}
+	}
+	return listener.Addr().String(), snapshot, cleanup
+}
+
+func countMethod(requests []startupRPCRequest, method string) int {
+	count := 0
+	for _, request := range requests {
+		if request.Method == method {
+			count++
+		}
+	}
+	return count
+}
+
 func TestClient_StopRequestsRuntimeShutdownForOwnedProcess(t *testing.T) {
 	rpcClient, server, shutdownCalled := newRuntimeShutdownRpcPair(t)
 	client := &Client{

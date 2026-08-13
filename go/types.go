@@ -129,6 +129,11 @@ type ClientOptions struct {
 	// location.
 	// Ignored when connecting to an existing runtime via [URIConnection].
 	BaseDirectory string
+	// BuiltinPluginDirectories contains absolute paths to trusted plugin
+	// directories bundled by the host. When non-empty, Start replaces the
+	// runtime's complete trusted built-in plugin directory set before sessions
+	// can be created.
+	BuiltinPluginDirectories []string
 	// LogLevel for the runtime. When empty (the default), the runtime
 	// uses its own default level; the SDK does not pass --log-level.
 	// Recognized values: "none", "error", "warning", "info", "debug", "all".

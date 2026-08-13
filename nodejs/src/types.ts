@@ -305,6 +305,13 @@ export interface CopilotClientOptions {
     baseDirectory?: string;
 
     /**
+     * Absolute paths to trusted plugin directories bundled by the host.
+     * When non-empty, the complete set is registered with the runtime during
+     * startup before any sessions can be created.
+     */
+    builtinPluginDirectories?: readonly string[];
+
+    /**
      * Log level for the Copilot runtime. When omitted, the runtime uses its
      * own default (currently `"info"`).
      */

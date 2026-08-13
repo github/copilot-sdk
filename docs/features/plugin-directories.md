@@ -240,6 +240,46 @@ let client = Client::start(
 
 > The example above uses an stdio runtime connection — the default when the SDK bundles the CLI. If you connect to an external runtime via a URL (`forUri` / `ForUri`), pass `--plugin-dir` to the long-running CLI server when you start it; the SDK does not forward `--plugin-dir` to runtimes it didn't spawn.
 
+## Trusted host-bundled plugin directories
+
+Applications that ship their own trusted plugins can register them as a client startup option. The SDK sends the complete ordered set after connecting and verifying the protocol, before `start` returns or any session can be created. Paths must be absolute; leaving the option unset or empty makes no RPC call.
+
+<details open>
+<summary><strong>Node.js / TypeScript</strong></summary>
+
+<!-- docs-validate: hidden -->
+```typescript
+import { CopilotClient } from "@github/copilot-sdk";
+
+async function main() {
+  const client = new CopilotClient({
+    builtinPluginDirectories: [
+      "/opt/my-app/copilot-plugins/core",
+      "/opt/my-app/copilot-plugins/github",
+    ],
+  });
+  await client.start();
+}
+
+main();
+```
+<!-- /docs-validate: hidden -->
+
+</details>
+
+The equivalent option in each SDK is:
+
+| SDK | Startup option |
+|---|---|
+| Node.js / TypeScript | `builtinPluginDirectories: string[]` |
+| Python | `builtin_plugin_directories=[...]` |
+| Go | `BuiltinPluginDirectories: []string{...}` |
+| .NET | `BuiltinPluginDirectories = [...]` |
+| Java | `.setBuiltinPluginDirectories(List.of(Path.of(...)))` |
+| Rust | `.with_builtin_plugin_directories([...])` |
+
+This is a trust boundary for plugins bundled and controlled by the host application. It is distinct from `--plugin-dir`, which is a CLI process launch argument for explicitly loading ordinary plugin directories. The startup option also works when connecting to an existing runtime because it is sent over JSON-RPC rather than forwarded as a process argument.
+
 ## What a plugin can contribute
 
 Loading a plugin directory makes its extensions visible to every session created by the client. The runtime merges plugin-provided extensions with anything you register inline:
