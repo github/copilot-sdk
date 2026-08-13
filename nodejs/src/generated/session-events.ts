@@ -3,6 +3,9 @@
  * Generated from: session-events.schema.json
  */
 
+/** A value that can be represented losslessly on the SDK JSON wire. */
+export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
+
 /**
  * Union of all session event variants emitted by the Copilot CLI runtime.
  */
@@ -670,6 +673,10 @@ export type ElicitationCompletedAction =
   /** The user dismissed the request. */
   | "cancel";
 /**
+ * Opaque JSON value submitted for one field in accepted `elicitation.completed` form content.
+ */
+export type ElicitationCompletedContent = JsonValue | undefined;
+/**
  * Reason the runtime is requesting host-provided MCP OAuth credentials
  */
 export type McpOauthRequestReason =
@@ -709,6 +716,10 @@ export type McpHeadersRefreshCompletedOutcome =
   | "none"
   /** No response arrived within the bounded window. */
   | "timeout";
+/**
+ * Source-defined JSON payload for the custom notification
+ */
+export type CustomNotificationPayload = JsonValue;
 /**
  * The user's auto-mode-switch choice
  */
@@ -3269,9 +3280,7 @@ export interface AttachmentExtensionContext {
   /**
    * Caller-supplied JSON payload
    */
-  payload?: {
-    [k: string]: unknown | undefined;
-  };
+  payload?: JsonValue;
   /**
    * Human-readable composer pill label
    */
@@ -3810,9 +3819,7 @@ export interface CitationReference {
   /**
    * Provider-native citation correlation data (e.g. Anthropic search_result_index / document_index), passed through opaquely for debugging and forward compatibility.
    */
-  providerMetadata?: {
-    [k: string]: unknown | undefined;
-  };
+  providerMetadata?: JsonValue;
   /**
    * Identifier of the CitationSource this reference points to (CitationSource.id).
    */
@@ -3881,9 +3888,9 @@ export interface AssistantMessageServerTools {
   functionCallNamespaces?: {
     [k: string]: string | undefined;
   };
-  items?: unknown[];
+  items?: JsonValue[];
   provider: string;
-  rawContentBlocks?: unknown[];
+  rawContentBlocks?: JsonValue[];
 }
 /**
  * A tool invocation request from the assistant
@@ -3892,9 +3899,7 @@ export interface AssistantMessageToolRequest {
   /**
    * Arguments to pass to the tool, format depends on the tool
    */
-  arguments?: {
-    [k: string]: unknown | undefined;
-  };
+  arguments?: JsonValue;
   /**
    * Resolved intention summary describing what this specific call does
    */
@@ -4573,9 +4578,7 @@ export interface ToolUserRequestedData {
   /**
    * Arguments for the tool invocation
    */
-  arguments?: {
-    [k: string]: unknown | undefined;
-  };
+  arguments?: JsonValue;
   /**
    * Unique identifier for this tool call
    */
@@ -4622,9 +4625,7 @@ export interface ToolExecutionStartData {
   /**
    * Arguments passed to the tool
    */
-  arguments?: {
-    [k: string]: unknown | undefined;
-  };
+  arguments?: JsonValue;
   /**
    * When true, the tool output should be displayed expanded (verbatim) in the CLI timeline
    */
@@ -4848,9 +4849,7 @@ export interface ToolExecutionCompleteData {
    *
    * @experimental
    */
-  mcpMeta?: {
-    [k: string]: unknown | undefined;
-  };
+  mcpMeta?: JsonValue;
   /**
    * Model identifier that generated this tool call
    */
@@ -4879,7 +4878,7 @@ export interface ToolExecutionCompleteData {
    * Tool-specific telemetry data (e.g., CodeQL check counts, grep match counts)
    */
   toolTelemetry?: {
-    [k: string]: unknown | undefined;
+    [k: string]: JsonValue | undefined;
   };
   /**
    * Identifier for the agent loop turn this tool was invoked in, matching the corresponding assistant.turn_start event
@@ -4932,15 +4931,11 @@ export interface ToolExecutionCompleteResult {
    *
    * @experimental
    */
-  mcpMeta?: {
-    [k: string]: unknown | undefined;
-  };
+  mcpMeta?: JsonValue;
   /**
    * Structured content (arbitrary JSON) returned verbatim by the MCP tool
    */
-  structuredContent?: {
-    [k: string]: unknown | undefined;
-  };
+  structuredContent?: JsonValue;
   uiResource?: ToolExecutionCompleteUIResource;
 }
 /**
@@ -4959,7 +4954,7 @@ export interface PersistedBinaryImage {
    * Optional metadata from the producing tool.
    */
   metadata?: {
-    [k: string]: unknown | undefined;
+    [k: string]: JsonValue | undefined;
   };
   /**
    * MIME type of the binary data
@@ -4984,7 +4979,7 @@ export interface OmittedBinaryResult {
    * Optional metadata from the producing tool.
    */
   metadata?: {
-    [k: string]: unknown | undefined;
+    [k: string]: JsonValue | undefined;
   };
   /**
    * MIME type of the omitted binary data
@@ -5014,7 +5009,7 @@ export interface BinaryAssetReference {
    * Optional metadata from the producing tool.
    */
   metadata?: {
-    [k: string]: unknown | undefined;
+    [k: string]: JsonValue | undefined;
   };
   /**
    * MIME type of the referenced binary data
@@ -5779,9 +5774,7 @@ export interface HookStartData {
   /**
    * Input data passed to the hook
    */
-  input?: {
-    [k: string]: unknown | undefined;
-  };
+  input?: JsonValue;
 }
 /**
  * Session event "hook.end". Hook invocation completion details including output, success status, and error information
@@ -5829,9 +5822,7 @@ export interface HookEndData {
   /**
    * Output data produced by the hook
    */
-  output?: {
-    [k: string]: unknown | undefined;
-  };
+  output?: JsonValue;
   /**
    * Whether the hook completed successfully
    */
@@ -5952,7 +5943,7 @@ export interface BinaryAssetData {
    * Optional metadata from the producing tool.
    */
   metadata?: {
-    [k: string]: unknown | undefined;
+    [k: string]: JsonValue | undefined;
   };
   /**
    * MIME type of the binary asset
@@ -6021,7 +6012,7 @@ export interface SystemMessageMetadata {
    * Template variables used when constructing the prompt
    */
   variables?: {
-    [k: string]: unknown | undefined;
+    [k: string]: JsonValue | undefined;
   };
 }
 /**
@@ -6226,9 +6217,7 @@ export interface SystemNotificationFactoryCompleted {
   /**
    * Machine-readable terminal failure details, when present.
    */
-  failure?: {
-    [k: string]: unknown | undefined;
-  };
+  failure?: JsonValue;
   /**
    * Bounded prompt-safe preview of the completed result.
    */
@@ -6254,9 +6243,7 @@ export interface SystemNotificationUnclassified {
   /**
    * Opaque metadata supplied by the external host, when present.
    */
-  metadata?: {
-    [k: string]: unknown | undefined;
-  };
+  metadata?: JsonValue;
   /**
    * Type discriminator. Always "unclassified".
    */
@@ -6309,9 +6296,7 @@ export interface PermissionRequestedData {
   /**
    * Neutral risk metadata supplied by the tool host. Consumers may display this value but must not use it to bypass the permission decision.
    */
-  riskAssessment?: {
-    [k: string]: unknown | undefined;
-  };
+  riskAssessment?: JsonValue;
 }
 /**
  * Shell command permission request
@@ -6494,9 +6479,7 @@ export interface PermissionRequestMcp {
   /**
    * Arguments to pass to the MCP tool
    */
-  args?: {
-    [k: string]: unknown | undefined;
-  };
+  args?: JsonValue;
   /**
    * Permission kind discriminator
    */
@@ -6597,9 +6580,7 @@ export interface PermissionRequestCustomTool {
   /**
    * Arguments to pass to the custom tool
    */
-  args?: {
-    [k: string]: unknown | undefined;
-  };
+  args?: JsonValue;
   /**
    * Permission kind discriminator
    */
@@ -6632,9 +6613,7 @@ export interface PermissionRequestHook {
   /**
    * Arguments of the tool call being gated
    */
-  toolArgs?: {
-    [k: string]: unknown | undefined;
-  };
+  toolArgs?: JsonValue;
   /**
    * Tool call ID that triggered this permission request
    */
@@ -6893,9 +6872,7 @@ export interface PermissionPromptRequestMcp {
   /**
    * Arguments to pass to the MCP tool
    */
-  args?: {
-    [k: string]: unknown | undefined;
-  };
+  args?: JsonValue;
   /**
    * Auto-approval judge information for this request; present only when auto mode is enabled.
    *
@@ -7010,9 +6987,7 @@ export interface PermissionPromptRequestCustomTool {
   /**
    * Arguments to pass to the custom tool
    */
-  args?: {
-    [k: string]: unknown | undefined;
-  };
+  args?: JsonValue;
   /**
    * Auto-approval judge information for this request; present only when auto mode is enabled.
    *
@@ -7081,9 +7056,7 @@ export interface PermissionPromptRequestHook {
   /**
    * Arguments of the tool call being gated
    */
-  toolArgs?: {
-    [k: string]: unknown | undefined;
-  };
+  toolArgs?: JsonValue;
   /**
    * Tool call ID that triggered this permission request
    */
@@ -7663,7 +7636,7 @@ export interface ElicitationRequestedSchema {
    * Form field definitions, keyed by field name
    */
   properties: {
-    [k: string]: unknown | undefined;
+    [k: string]: JsonValue | undefined;
   };
   /**
    * List of required field names
@@ -7721,12 +7694,6 @@ export interface ElicitationCompletedData {
   requestId: string;
 }
 /**
- * Opaque JSON value submitted for one field in accepted `elicitation.completed` form content.
- */
-export interface ElicitationCompletedContent {
-  [k: string]: unknown | undefined;
-}
-/**
  * Session event "sampling.requested". Sampling request from an MCP server; contains the server name and a requestId for correlation
  */
 export interface SamplingRequestedEvent {
@@ -7763,9 +7730,7 @@ export interface SamplingRequestedData {
   /**
    * The JSON-RPC request ID from the MCP protocol
    */
-  mcpRequestId: {
-    [k: string]: unknown | undefined;
-  };
+  mcpRequestId: JsonValue;
   /**
    * Unique identifier for this sampling request; used to respond via session.respondToSampling()
    */
@@ -8115,12 +8080,6 @@ export interface CustomNotificationData {
   version?: number;
 }
 /**
- * Source-defined JSON payload for the custom notification
- */
-export interface CustomNotificationPayload {
-  [k: string]: unknown | undefined;
-}
-/**
  * Optional source-defined string identifiers describing the payload subject
  */
 export interface CustomNotificationSubject {
@@ -8163,9 +8122,7 @@ export interface ExternalToolRequestedData {
   /**
    * Arguments to pass to the external tool
    */
-  arguments?: {
-    [k: string]: unknown | undefined;
-  };
+  arguments?: JsonValue;
   /**
    * Unique identifier for this request; used to respond via session.respondToExternalTool()
    */
@@ -8718,9 +8675,7 @@ export interface ManagedSettingsResolvedData {
   /**
    * The effective (resolved) managed settings values, so clients can render exactly what is enforced. Absent when no managed policy is in force.
    */
-  settings?: {
-    [k: string]: unknown | undefined;
-  };
+  settings?: JsonValue;
   source: ManagedSettingsResolvedSource;
 }
 /**
@@ -9570,9 +9525,7 @@ export interface CanvasOpenedData {
   /**
    * Input supplied when the instance was opened
    */
-  input?: {
-    [k: string]: unknown | undefined;
-  };
+  input?: JsonValue;
   /**
    * Stable caller-supplied canvas instance identifier
    */
@@ -9667,9 +9620,7 @@ export interface CanvasRegistryChangedCanvas {
   /**
    * JSON Schema for canvas open input
    */
-  inputSchema?: {
-    [k: string]: unknown | undefined;
-  };
+  inputSchema?: JsonValue;
 }
 /**
  * A single action within a canvas declaration, with its name, optional description, and optional input schema.
@@ -9683,9 +9634,7 @@ export interface CanvasRegistryChangedCanvasAction {
   /**
    * JSON Schema for action input
    */
-  inputSchema?: {
-    [k: string]: unknown | undefined;
-  };
+  inputSchema?: JsonValue;
   /**
    * Action name
    */
@@ -9836,9 +9785,7 @@ export interface CanvasRecordedData {
   /**
    * Input supplied when the instance was opened
    */
-  input?: {
-    [k: string]: unknown | undefined;
-  };
+  input?: JsonValue;
   /**
    * Stable caller-supplied canvas instance identifier
    */
@@ -9974,7 +9921,7 @@ export interface McpAppToolCallCompleteData {
    * Arguments passed to the tool by the app view, if any
    */
   arguments?: {
-    [k: string]: unknown | undefined;
+    [k: string]: JsonValue | undefined;
   };
   /**
    * Wall-clock duration of the underlying tools/call in milliseconds
@@ -9985,7 +9932,7 @@ export interface McpAppToolCallCompleteData {
    * Standard MCP CallToolResult returned by the server. Present whether or not the call set isError.
    */
   result?: {
-    [k: string]: unknown | undefined;
+    [k: string]: JsonValue | undefined;
   };
   /**
    * Name of the MCP server hosting the tool

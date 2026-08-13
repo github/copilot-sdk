@@ -2093,6 +2093,9 @@ pub struct SessionConfig {
     pub enable_session_telemetry: Option<bool>,
     /// **Experimental.** Enables native model citations for supported providers.
     pub enable_citations: Option<bool>,
+    /// Opts in to capturing file changes from the first turn for session rewind
+    /// and cumulative session diff.
+    pub enable_file_change_tracking: Option<bool>,
     /// **Experimental.** Limits applied to this session's current accounting window.
     pub session_limits: Option<SessionLimitsConfig>,
     /// Per-property overrides for model capabilities, deep-merged over
@@ -2283,6 +2286,10 @@ impl std::fmt::Debug for SessionConfig {
             .field("capi", &self.capi)
             .field("enable_session_telemetry", &self.enable_session_telemetry)
             .field("enable_citations", &self.enable_citations)
+            .field(
+                "enable_file_change_tracking",
+                &self.enable_file_change_tracking,
+            )
             .field("session_limits", &self.session_limits)
             .field("model_capabilities", &self.model_capabilities)
             .field("memory", &self.memory)
@@ -2402,6 +2409,7 @@ impl Default for SessionConfig {
             models: None,
             enable_session_telemetry: None,
             enable_citations: None,
+            enable_file_change_tracking: None,
             session_limits: None,
             model_capabilities: None,
             memory: None,
@@ -2566,6 +2574,7 @@ impl SessionConfig {
             models: self.models,
             enable_session_telemetry: self.enable_session_telemetry,
             enable_citations: self.enable_citations,
+            enable_file_change_tracking: self.enable_file_change_tracking,
             session_limits: self.session_limits,
             model_capabilities: self.model_capabilities,
             memory: self.memory,
@@ -3078,6 +3087,13 @@ impl SessionConfig {
         self
     }
 
+    /// Opt in to capturing file changes from the first turn for session rewind
+    /// and cumulative session diff.
+    pub fn with_enable_file_change_tracking(mut self, enable: bool) -> Self {
+        self.enable_file_change_tracking = Some(enable);
+        self
+    }
+
     /// **Experimental.** Set limits for this session's current accounting window.
     pub fn with_session_limits(mut self, limits: SessionLimitsConfig) -> Self {
         self.session_limits = Some(limits);
@@ -3369,6 +3385,10 @@ pub struct ResumeSessionConfig {
     pub enable_session_telemetry: Option<bool>,
     /// **Experimental.** Enables native model citations for supported providers.
     pub enable_citations: Option<bool>,
+    /// Opts in to capturing file changes for session rewind and cumulative
+    /// session diff when the resumed session has a valid baseline. Earlier
+    /// untracked changes cannot be reconstructed.
+    pub enable_file_change_tracking: Option<bool>,
     /// **Experimental.** Limits applied to this session's current accounting window.
     pub session_limits: Option<SessionLimitsConfig>,
     /// Per-property model capability overrides on resume.
@@ -3532,6 +3552,10 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("capi", &self.capi)
             .field("enable_session_telemetry", &self.enable_session_telemetry)
             .field("enable_citations", &self.enable_citations)
+            .field(
+                "enable_file_change_tracking",
+                &self.enable_file_change_tracking,
+            )
             .field("session_limits", &self.session_limits)
             .field("model_capabilities", &self.model_capabilities)
             .field("memory", &self.memory)
@@ -3695,6 +3719,7 @@ impl ResumeSessionConfig {
             models: self.models,
             enable_session_telemetry: self.enable_session_telemetry,
             enable_citations: self.enable_citations,
+            enable_file_change_tracking: self.enable_file_change_tracking,
             session_limits: self.session_limits,
             model_capabilities: self.model_capabilities,
             memory: self.memory,
@@ -3791,6 +3816,7 @@ impl ResumeSessionConfig {
             models: None,
             enable_session_telemetry: None,
             enable_citations: None,
+            enable_file_change_tracking: None,
             session_limits: None,
             model_capabilities: None,
             memory: None,
@@ -4277,6 +4303,13 @@ impl ResumeSessionConfig {
     /// **Experimental.** Enable native model citations for supported providers on resume.
     pub fn with_enable_citations(mut self, enable: bool) -> Self {
         self.enable_citations = Some(enable);
+        self
+    }
+
+    /// Opt in to capturing file changes for session rewind and cumulative
+    /// session diff when the resumed session has a valid baseline.
+    pub fn with_enable_file_change_tracking(mut self, enable: bool) -> Self {
+        self.enable_file_change_tracking = Some(enable);
         self
     }
 

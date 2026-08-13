@@ -78,6 +78,7 @@ public class CloneTests
             AdditionalDirectories = ["/shared", "/generated"],
             Streaming = true,
             EnableCitations = true,
+            EnableFileChangeTracking = true,
             EnableSessionTelemetry = false,
             EnableExperimentalMode = true,
             EnableOnDemandInstructionDiscovery = true,
@@ -125,6 +126,7 @@ public class CloneTests
         Assert.Equal(original.AdditionalDirectories, clone.AdditionalDirectories);
         Assert.Equal(original.Streaming, clone.Streaming);
         Assert.Equal(original.EnableCitations, clone.EnableCitations);
+        Assert.Equal(original.EnableFileChangeTracking, clone.EnableFileChangeTracking);
         Assert.Equal(original.EnableSessionTelemetry, clone.EnableSessionTelemetry);
         Assert.Equal(original.EnableExperimentalMode, clone.EnableExperimentalMode);
         Assert.Equal(original.EnableOnDemandInstructionDiscovery, clone.EnableOnDemandInstructionDiscovery);

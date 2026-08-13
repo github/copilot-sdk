@@ -3136,6 +3136,7 @@ public abstract class SessionConfigBase
         DisabledSkills = other.DisabledSkills is not null ? [.. other.DisabledSkills] : null;
         DisabledMcpServers = other.DisabledMcpServers is not null ? [.. other.DisabledMcpServers] : null;
         EnableCitations = other.EnableCitations;
+        EnableFileChangeTracking = other.EnableFileChangeTracking;
         EnableConfigDiscovery = other.EnableConfigDiscovery;
         SkipEmbeddingRetrieval = other.SkipEmbeddingRetrieval;
         EmbeddingCacheStorage = other.EmbeddingCacheStorage;
@@ -3262,6 +3263,17 @@ public abstract class SessionConfigBase
     /// </remarks>
     [Experimental(Diagnostics.Experimental)]
     public bool? EnableCitations { get; set; }
+
+    /// <summary>
+    /// Opts in to capturing file changes for session rewind and cumulative
+    /// session diff.
+    /// </summary>
+    /// <remarks>
+    /// On create, capture starts with the first turn. On resume, tracking can be
+    /// enabled only when the session still has a valid baseline; earlier untracked
+    /// changes cannot be reconstructed.
+    /// </remarks>
+    public bool? EnableFileChangeTracking { get; set; }
 
     /// <summary>
     /// Override the default configuration directory location.

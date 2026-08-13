@@ -1,0 +1,269 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ~ Copyright (c) Microsoft Corporation. All rights reserved.
+  -->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.github</groupId>
+        <artifactId>copilot-sdk-java-parent</artifactId>
+        <version>1.0.12-preview.2-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <groupId>com.github</groupId>
+    <artifactId>copilot-sdk-java-runtime</artifactId>
+    <packaging>jar</packaging>
+
+    <name>GitHub Copilot SDK :: Java :: Native Runtime</name>
+    <description>Native runtime binaries for the GitHub Copilot Java SDK, published as per-platform classifier JARs</description>
+    <url>https://github.com/github/copilot-sdk</url>
+
+    <scm>
+        <connection>scm:git:https://github.com/github/copilot-sdk.git</connection>
+        <developerConnection>scm:git:https://github.com/github/copilot-sdk.git</developerConnection>
+        <url>https://github.com/github/copilot-sdk</url>
+        <tag>HEAD</tag>
+    </scm>
+
+    <properties>
+        <!--
+            Root of the monorepo. This module lives at java/copilot-native/, so
+            two levels up reaches the monorepo root. Used to locate
+            nodejs/package-lock.json, which pins both the runtime version and
+            its SHA-512 integrity hash.
+        -->
+        <copilot.sdk.root>${project.basedir}/../..</copilot.sdk.root>
+        <!--
+            Phase 4 hard invariant: linux-x64 is the only supported platform.
+            Additional classifiers are added in a later phase, each with its own
+            fetch execution and maven-jar-plugin execution.
+        -->
+        <copilot.native.classifier>linux-x64</copilot.native.classifier>
+        <copilot.native.staging>${project.build.directory}/native-staging</copilot.native.staging>
+        <!--
+            The native runtime is downloaded from npm; this module is published
+            to Maven Central alongside the sdk module.
+        -->
+        <maven.deploy.skip>false</maven.deploy.skip>
+    </properties>
+
+    <build>
+        <resources>
+            <!--
+                Placeholder resource for the primary JAR. Filtered so that
+                ${project.version} is substituted. Deliberately contains no
+                native binaries: the primary JAR exists only to satisfy Maven
+                Central validation, which requires a main artifact.
+            -->
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+            </resource>
+        </resources>
+        <plugins>
+            <!--
+                Download and verify the native runtime binary. The helper script
+                reads the pinned version and SHA-512 integrity hash for
+                @github/copilot-<classifier> from nodejs/package-lock.json,
+                runs `npm pack`, verifies the tarball against that hash, and
+                extracts runtime.node into the staging directory. Requires
+                Node.js and npm — already required for the Java E2E tests.
+            -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>fetch-native-linux-x64</id>
+                        <phase>generate-resources</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <executable>node</executable>
+                            <arguments>
+                                <argument>${project.basedir}/scripts/fetch-native.mjs</argument>
+                                <argument>${copilot.sdk.root}</argument>
+                                <argument>${copilot.native.staging}</argument>
+                                <argument>${copilot.native.classifier}</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>test-fetch-native</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <executable>node</executable>
+                            <arguments>
+                                <argument>--test</argument>
+                                <argument>${project.basedir}/scripts/fetch-native.test.mjs</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <executions>
+                    <!--
+                        Additional classifier JAR containing
+                        native/<classifier>/runtime.node,
+                        native/<classifier>/copilot, and
+                        native/<classifier>/platform.properties.
+                    -->
+                    <execution>
+                        <id>jar-linux-x64</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                        <configuration>
+                            <classifier>${copilot.native.classifier}</classifier>
+                            <classesDirectory>${copilot.native.staging}/${copilot.native.classifier}</classesDirectory>
+                            <excludes>
+                                <exclude>.version</exclude>
+                            </excludes>
+                        </configuration>
+                    </execution>
+                    <!--
+                        Empty javadoc JAR required by Maven Central. This module
+                        has no Java sources so maven-javadoc-plugin produces nothing.
+                    -->
+                    <execution>
+                        <id>empty-javadoc-jar</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                        <configuration>
+                            <classifier>javadoc</classifier>
+                            <classesDirectory>${project.basedir}/src/main/javadoc</classesDirectory>
+                        </configuration>
+                    </execution>
+                    <!--
+                        Empty sources JAR required by Maven Central.
+                    -->
+                    <execution>
+                        <id>empty-sources-jar</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                        <configuration>
+                            <classifier>sources</classifier>
+                            <classesDirectory>${project.basedir}/src/main/java</classesDirectory>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <!--
+                Structural guards: assert that the classifier JAR carries the
+                complete native artifact set and that the placeholder JAR does
+                not carry the native binary.
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>verify-native-jars</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <condition property="native.binary.present">
+                                    <resourceexists>
+                                        <zipentry zipfile="${project.build.directory}/${project.build.finalName}-${copilot.native.classifier}.jar" name="native/${copilot.native.classifier}/runtime.node" />
+                                    </resourceexists>
+                                </condition>
+                                <fail unless="native.binary.present" message="Classifier JAR is missing native/${copilot.native.classifier}/runtime.node" />
+                                <condition property="native.properties.present">
+                                    <resourceexists>
+                                        <zipentry zipfile="${project.build.directory}/${project.build.finalName}-${copilot.native.classifier}.jar" name="native/${copilot.native.classifier}/platform.properties" />
+                                    </resourceexists>
+                                </condition>
+                                <fail unless="native.properties.present" message="Classifier JAR is missing native/${copilot.native.classifier}/platform.properties" />
+                                <condition property="native.cli.present">
+                                    <resourceexists>
+                                        <zipentry zipfile="${project.build.directory}/${project.build.finalName}-${copilot.native.classifier}.jar" name="native/${copilot.native.classifier}/copilot" />
+                                    </resourceexists>
+                                </condition>
+                                <fail unless="native.cli.present" message="Classifier JAR is missing native/${copilot.native.classifier}/copilot" />
+                                <condition property="placeholder.jar.polluted">
+                                    <resourceexists>
+                                        <zipentry zipfile="${project.build.directory}/${project.build.finalName}.jar" name="native/${copilot.native.classifier}/runtime.node" />
+                                    </resourceexists>
+                                </condition>
+                                <fail if="placeholder.jar.polluted" message="Placeholder primary JAR must not contain native binaries" />
+                            </target>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.sonatype.central</groupId>
+                <artifactId>central-publishing-maven-plugin</artifactId>
+                <extensions>true</extensions>
+                <configuration>
+                    <publishingServerId>central</publishingServerId>
+                    <autoPublish>true</autoPublish>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+    <profiles>
+        <!--
+            Skip the npm download when building offline or when only the
+            placeholder JAR is needed: mvn -Dcopilot.native.skip.download=true
+        -->
+        <profile>
+            <id>skip-native-download</id>
+            <activation>
+                <property>
+                    <name>copilot.native.skip.download</name>
+                    <value>true</value>
+                </property>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <configuration>
+                            <skip>true</skip>
+                        </configuration>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-jar-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>jar-linux-x64</id>
+                                <phase>none</phase>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-antrun-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>verify-native-jars</id>
+                                <phase>none</phase>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+</project>

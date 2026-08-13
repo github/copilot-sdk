@@ -1577,6 +1577,7 @@ export class CopilotClient {
                 models: config.models,
                 enableSessionTelemetry: config.enableSessionTelemetry,
                 enableCitations: config.enableCitations,
+                enableFileChangeTracking: config.enableFileChangeTracking,
                 sessionLimits: config.sessionLimits,
                 modelCapabilities: config.modelCapabilities,
                 largeOutput: toWireLargeOutput(config.largeOutput),
@@ -1797,6 +1798,7 @@ export class CopilotClient {
                 enableSessionTelemetry: config.enableSessionTelemetry,
                 excludedBuiltinAgents: config.excludedBuiltinAgents,
                 enableCitations: config.enableCitations,
+                enableFileChangeTracking: config.enableFileChangeTracking,
                 sessionLimits: config.sessionLimits,
                 tools: config.tools?.map((tool) => ({
                     name: tool.name,

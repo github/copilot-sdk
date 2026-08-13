@@ -39,9 +39,10 @@ close $input or die "Cannot close $path: $!\n";
 
 # Match accepted release versions plus numeric suffixes left by the former broken updater.
 my $version = qr/[0-9]+\.[0-9]+\.[0-9]+(?:-(?:preview|(?:beta-)?java(?:-preview)?)\.[0-9]+)?(?:-[0-9]+)*/;
-my $snapshot_xml = ($content =~ s{<version>$version-SNAPSHOT</version>}{<version>$ENV{DEV_VERSION}</version>}g);
+my $sdk_dependency_version = qr{(<artifactId>copilot-sdk-java</artifactId>(?:(?!</dependency>).)*?<version>)}s;
+my $snapshot_xml = ($content =~ s{$sdk_dependency_version$version-SNAPSHOT</version>}{$1$ENV{DEV_VERSION}</version>}g);
 my $snapshot_gradle = ($content =~ s{(copilot-sdk-java:)$version-SNAPSHOT(?![-A-Za-z0-9.])}{$1 . $ENV{DEV_VERSION}}ge);
-my $release_xml = ($content =~ s{<version>$version</version>}{<version>$ENV{VERSION}</version>}g);
+my $release_xml = ($content =~ s{$sdk_dependency_version$version</version>}{$1$ENV{VERSION}</version>}g);
 my $release_gradle = ($content =~ s{(copilot-sdk-java:)$version(?![-A-Za-z0-9.])}{$1 . $ENV{VERSION}}ge);
 
 die "Expected one release and one snapshot example for both Maven and Gradle in $path\n"
