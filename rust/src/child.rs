@@ -134,13 +134,13 @@ impl ChildLifecycle {
             match slot.take() {
                 Some(mut child) => {
                     let pid = child.id();
-                    if let Err(error) = child.start_kill() {
-                        // Usually just an already-exited child; the wait
-                        // below still reports its real status.
-                        warn!(pid = ?pid, error = %error, "kill signal not delivered to CLI process");
+                    let kill = child.start_kill();
+                    let refusal = signal_refusal(kill, || matches!(child.try_wait(), Ok(Some(_))));
+                    if let Some(error) = &refusal {
+                        warn!(pid = ?pid, error = %error, "kill signal refused by the OS");
                     }
                     self.state.send_replace(ReapState::Pending);
-                    (Some(child), self.handle())
+                    (Some((child, refusal)), self.handle())
                 }
                 // Either termination already started (the running reaper
                 // will publish) or there was never a child (already
@@ -148,11 +148,22 @@ impl ChildLifecycle {
                 None => (None, self.handle()),
             }
         };
-        let Some(child) = claimed else {
+        let Some((child, refusal)) = claimed else {
             return handle;
         };
 
         let pid = child.id();
+        // Publish the refusal *before* the reaper starts, so waiters see it
+        // rather than blocking on a process that was never signalled. The
+        // reaper still takes ownership and still overwrites this with the
+        // truth if the process does go away, so a refusal degrades to an
+        // observable error rather than to a silent success or a hang.
+        if let Some(error) = refusal {
+            self.state.send_replace(ReapState::Failed {
+                kind: error.kind(),
+                message: format!("the CLI child could not be signalled: {error}"),
+            });
+        }
         info!(pid = ?pid, "terminating CLI process");
         // Reap on a dedicated thread with its own runtime rather than on a
         // caller's. A `tokio::spawn`ed task is cancelled when its runtime
@@ -238,6 +249,24 @@ impl Drop for ReapGuard {
                     .to_string(),
             });
         }
+    }
+}
+
+/// Classify a `start_kill` result.
+///
+/// A failed kill is benign when the child is already gone — the reap
+/// reports its real status. Anything else means the signal was refused, so
+/// nothing will make the process exit and it must not be reported as a
+/// successful stop. `exited` is evaluated only when it matters, since it
+/// costs a `waitpid`.
+fn signal_refusal(
+    kill: std::io::Result<()>,
+    exited: impl FnOnce() -> bool,
+) -> Option<std::io::Error> {
+    match kill {
+        Ok(()) => None,
+        Err(_) if exited() => None,
+        Err(error) => Some(error),
     }
 }
 
@@ -723,6 +752,29 @@ mod tests {
             );
             std::thread::sleep(std::time::Duration::from_millis(50));
         }
+    }
+
+    /// A kill that fails because the child is already gone is benign —
+    /// the reap reports its real status. A kill the OS refuses is not:
+    /// nothing will make that process exit, so it must surface as an
+    /// error rather than as a successful stop or an endless wait.
+    #[test]
+    fn signal_refusal_distinguishes_a_dead_child_from_a_refused_kill() {
+        assert!(signal_refusal(Ok(()), || panic!("must not probe on success")).is_none());
+        assert!(
+            signal_refusal(
+                Err(std::io::Error::from(std::io::ErrorKind::InvalidInput)),
+                || true
+            )
+            .is_none(),
+            "an already-exited child is not a refusal"
+        );
+        let refusal = signal_refusal(
+            Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied)),
+            || false,
+        )
+        .expect("a refused kill on a live child must be reported");
+        assert_eq!(refusal.kind(), std::io::ErrorKind::PermissionDenied);
     }
 
     #[test]
