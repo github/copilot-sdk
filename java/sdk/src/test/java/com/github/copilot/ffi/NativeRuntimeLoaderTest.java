@@ -169,6 +169,7 @@ class NativeRuntimeLoaderTest {
 
     @Test
     void cliPathOverrideTakesPriorityOverClasspathExtraction(@TempDir Path tempDir) throws Exception {
+        assumeLinuxX64();
         // Create a valid runtime.node alongside the fake CLI path
         Path fakeCliDir = tempDir.resolve("cli-dir");
         Files.createDirectories(fakeCliDir);
@@ -193,6 +194,7 @@ class NativeRuntimeLoaderTest {
 
     @Test
     void extractToCacheCopiesResourceToVersionedCacheDirectory(@TempDir Path tempDir) throws Exception {
+        assumeLinuxX64();
         Path cacheBase = tempDir.resolve("cache");
         ClassLoader loader = classLoaderWithRuntimeResource(tempDir, TEST_CLASSIFIER);
 
@@ -207,6 +209,7 @@ class NativeRuntimeLoaderTest {
 
     @Test
     void extractToCacheReturnsCachedFileOnSecondCall(@TempDir Path tempDir) throws Exception {
+        assumeLinuxX64();
         Path cacheBase = tempDir.resolve("cache");
         ClassLoader loader = classLoaderWithRuntimeResource(tempDir, TEST_CLASSIFIER);
 
@@ -226,6 +229,7 @@ class NativeRuntimeLoaderTest {
 
     @Test
     void changedNativeVersionDoesNotReuseCachedArtifactsForSameSdkVersion(@TempDir Path tempDir) throws Exception {
+        assumeLinuxX64();
         Path cacheBase = tempDir.resolve("cache");
         ClassLoader firstLoader = classLoaderWithNativeArtifacts(tempDir.resolve("native-v1"), TEST_CLASSIFIER, "1.0.0",
                 FAKE_BINARY_CONTENT, FAKE_CLI_CONTENT);
@@ -246,6 +250,7 @@ class NativeRuntimeLoaderTest {
 
     @Test
     void extractToCacheThrowsWhenClasspathResourceMissing(@TempDir Path tempDir) {
+        assumeLinuxX64();
         Path cacheBase = tempDir.resolve("cache");
         ClassLoader emptyLoader = new URLClassLoader(new URL[0], null);
 
@@ -255,6 +260,7 @@ class NativeRuntimeLoaderTest {
 
     @Test
     void extractToCacheThrowsWhenNativeMetadataMissing(@TempDir Path tempDir) throws Exception {
+        assumeLinuxX64();
         Path resourceDir = tempDir.resolve("native").resolve(TEST_CLASSIFIER);
         Files.createDirectories(resourceDir);
         Files.write(resourceDir.resolve(NativeRuntimeLoader.RUNTIME_FILENAME), FAKE_BINARY_CONTENT);
@@ -268,6 +274,7 @@ class NativeRuntimeLoaderTest {
 
     @Test
     void extractedBinaryContentsMatchClasspathResource(@TempDir Path tempDir) throws Exception {
+        assumeLinuxX64();
         Path cacheBase = tempDir.resolve("cache");
         ClassLoader loader = classLoaderWithRuntimeResource(tempDir, TEST_CLASSIFIER);
 
@@ -279,6 +286,7 @@ class NativeRuntimeLoaderTest {
 
     @Test
     void extractToCacheFiltersClasspathByClassifier(@TempDir Path tempDir) throws Exception {
+        assumeLinuxX64();
         Path cacheBase = tempDir.resolve("cache");
         writeRuntimeResource(tempDir, TEST_CLASSIFIER, FAKE_BINARY_CONTENT);
         writeRuntimeResource(tempDir, OTHER_CLASSIFIER, OTHER_BINARY_CONTENT);
@@ -292,6 +300,7 @@ class NativeRuntimeLoaderTest {
 
     @Test
     void extractToCacheRepairsInvalidCacheEntry(@TempDir Path tempDir) throws Exception {
+        assumeLinuxX64();
         Path cacheBase = tempDir.resolve("cache");
         Path cached = cacheBase.resolve(TEST_VERSION).resolve(TEST_NATIVE_VERSION).resolve(TEST_CLASSIFIER)
                 .resolve(NativeRuntimeLoader.RUNTIME_FILENAME);
@@ -307,6 +316,7 @@ class NativeRuntimeLoaderTest {
 
     @Test
     void nonExecutableCachedCliIsNotAcceptedAsValid(@TempDir Path tempDir) throws Exception {
+        assumeLinuxX64();
         assumeTrue(Files.getFileStore(tempDir).supportsFileAttributeView("posix"));
         Path cacheBase = tempDir.resolve("cache");
         Path cacheDir = cacheBase.resolve(TEST_VERSION).resolve(TEST_NATIVE_VERSION).resolve(TEST_CLASSIFIER);
@@ -327,6 +337,7 @@ class NativeRuntimeLoaderTest {
 
     @Test
     void bundledCliSiblingIsUsedWhenClasspathResourceAbsent(@TempDir Path tempDir) throws Exception {
+        assumeLinuxX64();
         Path bundledCliDir = tempDir.resolve("bundled-cli");
         Files.createDirectories(bundledCliDir);
         Path runtimeNode = bundledCliDir.resolve(NativeRuntimeLoader.RUNTIME_FILENAME);
@@ -344,6 +355,7 @@ class NativeRuntimeLoaderTest {
 
     @Test
     void classpathResourceWinsOverBundledCliSibling(@TempDir Path tempDir) throws Exception {
+        assumeLinuxX64();
         // Source 3: bundled CLI dir with runtime.node (should NOT win)
         Path bundledCliDir = tempDir.resolve("bundled-cli");
         Files.createDirectories(bundledCliDir);
@@ -365,6 +377,7 @@ class NativeRuntimeLoaderTest {
 
     @Test
     void bundledCliSiblingIsIgnoredWhenRuntimeNodeMissing(@TempDir Path tempDir) {
+        assumeLinuxX64();
         Path bundledCliDir = tempDir.resolve("bundled-cli-no-runtime");
         // bundledCliDir doesn't even exist — no runtime.node present
 
@@ -396,6 +409,7 @@ class NativeRuntimeLoaderTest {
 
     @Test
     void cliIsExecutableBeforeAtomicPublication(@TempDir Path tempDir) throws Exception {
+        assumeLinuxX64();
         assumeTrue(Files.getFileStore(tempDir).supportsFileAttributeView("posix"));
         Path cacheBase = tempDir.resolve("cache");
         ClassLoader loader = classLoaderWithRuntimeAndCliResources(tempDir, TEST_CLASSIFIER);
@@ -411,6 +425,7 @@ class NativeRuntimeLoaderTest {
 
     @Test
     void extractionCleansUpTempFileWhenPublicationFails(@TempDir Path tempDir) throws Exception {
+        assumeLinuxX64();
         Path cacheBase = tempDir.resolve("cache");
         ClassLoader loader = classLoaderWithRuntimeResource(tempDir, TEST_CLASSIFIER);
 
@@ -431,6 +446,7 @@ class NativeRuntimeLoaderTest {
 
     @Test
     void extractionCleansUpTempFileWhenPublisherThrowsIllegalStateException(@TempDir Path tempDir) throws Exception {
+        assumeLinuxX64();
         Path cacheBase = tempDir.resolve("cache");
         ClassLoader loader = classLoaderWithRuntimeResource(tempDir, TEST_CLASSIFIER);
 
@@ -458,6 +474,7 @@ class NativeRuntimeLoaderTest {
 
     @Test
     void concurrentExtractionByMultipleThreadsBothSucceed(@TempDir Path tempDir) throws Exception {
+        assumeLinuxX64();
         Path cacheBase = tempDir.resolve("cache");
         ClassLoader loader = classLoaderWithRuntimeResource(tempDir, TEST_CLASSIFIER);
         int threadCount = 8;
@@ -495,6 +512,7 @@ class NativeRuntimeLoaderTest {
 
     @Test
     void resolveWithNullCliEnvExtractsFromClasspath(@TempDir Path tempDir) throws Exception {
+        assumeLinuxX64();
         Path cacheBase = tempDir.resolve("cache");
         ClassLoader loader = classLoaderWithRuntimeResource(tempDir, TEST_CLASSIFIER);
 
@@ -507,6 +525,7 @@ class NativeRuntimeLoaderTest {
 
     @Test
     void resolveThrowsWhenNoSourceIsAvailable(@TempDir Path tempDir) {
+        assumeLinuxX64();
         Path cacheBase = tempDir.resolve("cache");
         ClassLoader emptyLoader = new URLClassLoader(new URL[0], null);
 
@@ -517,6 +536,7 @@ class NativeRuntimeLoaderTest {
 
     @Test
     void resolveFallsBackToRuntimeAlongsideBundledCli(@TempDir Path tempDir) throws Exception {
+        assumeLinuxX64();
         Path cacheBase = tempDir.resolve("cache");
         ClassLoader emptyLoader = new URLClassLoader(new URL[0], null);
         Path bundledCli = tempDir.resolve("copilot");
@@ -533,6 +553,17 @@ class NativeRuntimeLoaderTest {
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
+
+    private static void assumeLinuxX64() {
+        String actualClassifier;
+        try {
+            actualClassifier = PlatformDetector.detectClassifier();
+        } catch (IllegalStateException ex) {
+            actualClassifier = "unsupported";
+        }
+        assumeTrue(TEST_CLASSIFIER.equals(actualClassifier),
+                "Requires linux-x64; detected " + actualClassifier + "; see #2323");
+    }
 
     private static ClassLoader classLoaderWithVersionResource(Path tempDir, String version) throws IOException {
         Path propsFile = tempDir.resolve(NativeRuntimeLoader.VERSION_RESOURCE);
