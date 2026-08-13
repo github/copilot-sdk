@@ -7,6 +7,27 @@ See [GitHub Releases](https://github.com/github/copilot-sdk/releases) for the fu
 
 ## [Unreleased]
 
+### Feature: confirmed CLI process termination (Rust)
+
+`Client::force_stop` sends a kill signal and returns without waiting for the OS to release the process. That is fine for a short-lived CLI consumer, but an embedded host that shuts sessions down under a timeout keeps running, and on Unix every unreaped child stays a zombie for as long as its parent lives.
+
+The Rust SDK now exposes termination you can await:
+
+```rust
+// Await the reap: resolves once the child is killed *and* released.
+let exit_status = client.force_stop_and_wait().await?;
+
+// Or take an owned handle and await it somewhere else.
+let shutdown = client.start_force_stop();
+tokio::spawn(async move { shutdown.wait().await });
+```
+
+`force_stop_and_wait` resolves to the child's `ExitStatus`, or `None` for clients that never spawned one (stream-backed and in-process transports) — `None` means "nothing to terminate", never "termination failed", which is always an `Err`. `start_force_stop` returns a `ForcedShutdown` that borrows nothing from the client and is not bound to the runtime that started termination, so it can be awaited from another task or another runtime.
+
+Termination is now owned by the SDK rather than by the future that requests it. Previously `stop()` took the child out of its slot and then awaited the kill inline: if an outer timeout cancelled it in that window, the handle went with the cancelled future — the child was neither reaped nor recoverable, and a following `force_stop` found nothing to do. The child is now claimed synchronously and handed to a detached reaper, so cancelling `stop()`, cancelling `force_stop_and_wait()`, or dropping a `ForcedShutdown` cannot strand a signalled-but-unreaped process. Repeat and concurrent callers observe the same terminal outcome instead of racing for the handle.
+
+`force_stop` keeps its existing synchronous, infallible signature and semantics — the kill signal is still delivered synchronously, before anything is scheduled, so it works with no tokio runtime in context at all. Reaping runs on a dedicated thread with its own runtime rather than on a caller's, because a `tokio::spawn`ed reaper is cancelled when its runtime drops, which for an embedded host is exactly the moment termination matters. If the reaper cannot run to completion anyway — its thread fails to start, or it panics — waiters get a definitive `ErrorKind::Io` rather than sitting pending.
+
 ### Feature: early session-event subscription (Rust)
 
 The Rust SDK can now observe every event routed to a session, starting with that session's very first routed event. `Client::prepare_session` and `Client::prepare_resume_session` return an inert `PreparedSession` that owns the session's event channel, so a subscription can be installed *before* any protocol activity begins:

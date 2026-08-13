@@ -74,6 +74,48 @@ let pong = client.ping("hello").await?;
 
 // Shutdown
 client.stop().await?;
+
+// Forced shutdown that confirms the OS reaped the CLI process, for hosts
+// that must not leak a zombie when graceful shutdown times out.
+if tokio::time::timeout(Duration::from_secs(5), client.stop()).await.is_err() {
+    let exit_status = client.force_stop_and_wait().await?;
+}
+```
+
+### Terminating the CLI process
+
+`stop()` is the cooperative path. When it is unsuitable — a wedged
+process, or an outer timeout that has already elapsed — three forced
+variants differ only in how much of the teardown you wait for:
+
+| Method | Shape | Resolves when |
+| ------ | ----- | ------------- |
+| `force_stop()` | sync, infallible | the kill signal has been sent |
+| `start_force_stop()` | sync, returns `ForcedShutdown` | immediately; await the handle for the reap |
+| `force_stop_and_wait()` | async | the child is killed **and** reaped |
+
+Use `force_stop_and_wait()` (or await a `ForcedShutdown`) when the caller
+must know the process is really gone. Sending a kill only starts
+termination; until someone waits on the child, a Unix process stays a
+zombie for as long as its parent lives — which for a long-lived embedded
+host means they accumulate.
+
+Termination is owned by the SDK, not by the future that asks for it. The
+kill is delivered synchronously — it never depends on a task being
+polled — and the claimed child is then reaped on a dedicated thread with
+its own runtime. So cancelling `stop()` or `force_stop_and_wait()`,
+dropping a `ForcedShutdown`, or tearing down the runtime that started
+termination cannot strand a signalled-but-unreaped process. Repeat and
+concurrent callers all observe the same terminal outcome instead of
+racing for the handle, and because the reaper is not bound to a caller's
+runtime, a handle can be awaited on a different one:
+
+```rust,ignore
+let shutdown = client.start_force_stop();   // teardown starts now
+tokio::spawn(async move {
+    let exit_status = shutdown.wait().await?;   // observed elsewhere
+    Ok::<_, github_copilot_sdk::Error>(exit_status)
+});
 ```
 
 After `Client::start` succeeds, inspect its startup cost without parsing logs:
