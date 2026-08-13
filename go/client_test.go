@@ -49,6 +49,15 @@ func TestClient_URLParsing(t *testing.T) {
 		}
 	})
 
+	t.Run("should parse bracketed IPv6 host:port URL format", func(t *testing.T) {
+		client := NewClient(&ClientOptions{
+			Connection: URIConnection{URL: "[::1]:9000"},
+		})
+		if client.actualPort != 9000 || client.actualHost != "::1" {
+			t.Errorf("Expected [::1]:9000, got %s:%d", client.actualHost, client.actualPort)
+		}
+	})
+
 	t.Run("should parse http://host:port URL format", func(t *testing.T) {
 		client := NewClient(&ClientOptions{
 			Connection: URIConnection{URL: "http://localhost:7000"},
@@ -56,6 +65,24 @@ func TestClient_URLParsing(t *testing.T) {
 		if client.actualPort != 7000 || client.actualHost != "localhost" {
 			t.Errorf("Expected localhost:7000, got %s:%d", client.actualHost, client.actualPort)
 		}
+	})
+
+	t.Run("should parse http://[ipv6]:port URL format", func(t *testing.T) {
+		client := NewClient(&ClientOptions{
+			Connection: URIConnection{URL: "http://[::1]:7000"},
+		})
+		if client.actualPort != 7000 || client.actualHost != "::1" {
+			t.Errorf("Expected [::1]:7000, got %s:%d", client.actualHost, client.actualPort)
+		}
+	})
+
+	t.Run("should panic for bracketed non-IPv6 host", func(t *testing.T) {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Error("Expected panic for invalid bracketed host")
+			}
+		}()
+		NewClient(&ClientOptions{Connection: URIConnection{URL: "[not-ipv6]:1234"}})
 	})
 
 	t.Run("should parse https://host:port URL format", func(t *testing.T) {

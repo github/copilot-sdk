@@ -36,6 +36,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"net/netip"
 	"os"
 	"os/exec"
 	"regexp"
@@ -372,12 +373,30 @@ func setEnvValue(env []string, key string, value string) []string {
 
 // parseCLIURL parses a CLI URL into host and port components.
 //
-// Supports formats: "host:port", "http://host:port", "https://host:port", or just "port".
+// Supports formats: "host:port", "[ipv6]:port", "http://host:port", "https://host:port", or just "port".
 // Panics if the URL format is invalid or the port is out of range.
 func parseCLIURL(url string) (string, int) {
 	// Remove protocol if present
 	cleanURL, _ := strings.CutPrefix(url, "https://")
 	cleanURL, _ = strings.CutPrefix(cleanURL, "http://")
+
+	// Use the standard parser only for the bracketed IPv6 form. Keep the
+	// existing host:port parsing behavior for all other inputs.
+	if strings.HasPrefix(cleanURL, "[") {
+		host, portStr, err := net.SplitHostPort(cleanURL)
+		if err != nil {
+			panic(fmt.Sprintf("Invalid port in URIConnection: %s", url))
+		}
+		addr, err := netip.ParseAddr(host)
+		if err != nil || !addr.Is6() {
+			panic(fmt.Sprintf("Invalid URIConnection format: %s", url))
+		}
+		port, err := strconv.Atoi(portStr)
+		if err != nil || port <= 0 || port > 65535 {
+			panic(fmt.Sprintf("Invalid port in URIConnection: %s", url))
+		}
+		return host, port
+	}
 
 	// Parse host:port or port format
 	var host string
@@ -386,15 +405,13 @@ func parseCLIURL(url string) (string, int) {
 		host = before
 		portStr = after
 	} else {
-		// Only port provided
-		portStr = before
+		portStr = cleanURL
 	}
 
 	if host == "" {
 		host = "localhost"
 	}
 
-	// Validate port
 	port, err := strconv.Atoi(portStr)
 	if err != nil || port <= 0 || port > 65535 {
 		panic(fmt.Sprintf("Invalid port in URIConnection: %s", url))
