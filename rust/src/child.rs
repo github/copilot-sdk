@@ -20,6 +20,7 @@
 
 use std::process::ExitStatus;
 use std::sync::Arc;
+use std::time::Duration;
 
 use parking_lot::Mutex;
 use tokio::process::Child;
@@ -171,10 +172,9 @@ impl ChildLifecycle {
                 // Moved in, so it drops with the thread even if the body
                 // panics before publishing.
                 let mut guard = guard;
-                // `enable_all` is load-bearing on Unix, not boilerplate:
-                // once `try_wait` misses, readiness for `Child::wait`
-                // comes from the signal driver. Without it, a child that
-                // outlives the reaper's first poll — a process wedged in
+                // `enable_all` is load-bearing, not boilerplate: `reap`
+                // sleeps between polls, so without the timer a child that
+                // outlives the first check — a process wedged in
                 // uninterruptible I/O, exactly what `force_stop` exists
                 // for — would never be reaped.
                 match tokio::runtime::Builder::new_current_thread()
@@ -242,11 +242,36 @@ impl Drop for ReapGuard {
 }
 
 /// Wait for the OS to release a child that has already been signalled.
+///
+/// Polls rather than awaiting `Child::wait`. The child is usually a zombie
+/// by the first check, but not always, and once `try_wait` misses,
+/// `wait` depends on the SIGCHLD driver waking *this* runtime — which is
+/// not guaranteed when the child was spawned under a different one, as it
+/// always is here. Polling keeps the reap independent of which runtime
+/// owns the signal registration. It runs once per client teardown, so the
+/// wakeups are immaterial.
 async fn reap(mut child: Child) -> ReapState {
+    const FIRST_INTERVAL: Duration = Duration::from_millis(2);
+    const MAX_INTERVAL: Duration = Duration::from_millis(50);
+
     let pid = child.id();
-    let state = ReapState::from_wait(child.wait().await);
-    info!(pid = ?pid, outcome = ?state, "CLI process reaped");
-    state
+    let mut interval = FIRST_INTERVAL;
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => {
+                info!(pid = ?pid, ?status, "CLI process reaped");
+                return ReapState::Reaped(Some(status));
+            }
+            Ok(None) => {
+                tokio::time::sleep(interval).await;
+                interval = (interval * 2).min(MAX_INTERVAL);
+            }
+            Err(error) => {
+                warn!(pid = ?pid, error = %error, "could not reap the CLI process");
+                return ReapState::from_wait(Err(error));
+            }
+        }
+    }
 }
 /// Owned handle to a CLI process being terminated.
 ///
@@ -635,10 +660,10 @@ mod tests {
     /// load-bearing rather than boilerplate.
     ///
     /// Every other test kills its child before the reaper runs, so the
-    /// child is already a zombie and the first `try_wait` succeeds — the
-    /// signal path is never touched, and the suite would pass even without
-    /// a signal driver. This case waits on a child that is still running
-    /// at the first poll, on a runtime other than the one that spawned it:
+    /// child is already a zombie and the very first `try_wait` succeeds —
+    /// the retry loop is never entered, and the suite would pass even
+    /// without a timer. This case reaps a child that is still running at
+    /// the first check, on a runtime other than the one that spawned it:
     /// the shape of the wedged process `force_stop` exists for.
     #[test]
     fn reap_completes_for_a_child_still_running_at_the_first_poll() {
