@@ -15,9 +15,7 @@ use github_copilot_sdk::session_events::{
 use github_copilot_sdk::{ExitPlanModeData, SessionConfig, SessionId};
 use tokio::sync::mpsc;
 
-use super::support::{
-    recv_with_timeout, wait_for_event, wait_for_event_allowing_rate_limit, with_e2e_context,
-};
+use super::support::{recv_with_timeout, wait_for_event, wait_for_event_allowing_rate_limit};
 
 const MODE_HANDLER_TOKEN: &str = "mode-handler-token";
 const PLAN_SUMMARY: &str = "Greeting file implementation plan";
@@ -64,7 +62,8 @@ impl AutoModeSwitchHandler for AutoModeHandler {
 
 #[tokio::test]
 async fn should_invoke_exit_plan_mode_handler_when_model_uses_tool() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "mode_handlers",
         "should_invoke_exit_plan_mode_handler_when_model_uses_tool",
         |ctx| {
@@ -181,7 +180,8 @@ async fn should_invoke_exit_plan_mode_handler_when_model_uses_tool() {
 
 #[tokio::test]
 async fn should_invoke_auto_mode_switch_handler_when_rate_limited() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "mode_handlers",
         "should_invoke_auto_mode_switch_handler_when_rate_limited",
         |ctx| {
@@ -288,3 +288,5 @@ async fn should_invoke_auto_mode_switch_handler_when_rate_limited() {
     )
     .await;
 }
+static E2E: super::support::SharedE2eGroup =
+    super::support::SharedE2eGroup::standard("mode_handlers", 2);

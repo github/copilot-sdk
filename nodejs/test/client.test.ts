@@ -1,6 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { EventEmitter } from "node:events";
 import { PassThrough } from "stream";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import {
     approveAll,
@@ -267,6 +270,42 @@ describe("CopilotClient", () => {
         );
     });
 
+    it("forwards additional directories when creating and resuming sessions", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => stopClient(client));
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create" || method === "session.resume") {
+                    return { sessionId: params.sessionId, workspacePath: "/workspace" };
+                }
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        await client.createSession({
+            sessionId: "create-with-additional-directories",
+            additionalDirectories: ["/repo/shared", "/repo/generated"],
+            onPermissionRequest: approveAll,
+        });
+        await client.resumeSession("resume-with-additional-directories", {
+            additionalDirectories: ["/repo/resumed"],
+            onPermissionRequest: approveAll,
+        });
+
+        expect(spy).toHaveBeenCalledWith(
+            "session.create",
+            expect.objectContaining({
+                additionalDirectories: ["/repo/shared", "/repo/generated"],
+            })
+        );
+        expect(spy).toHaveBeenCalledWith(
+            "session.resume",
+            expect.objectContaining({ additionalDirectories: ["/repo/resumed"] })
+        );
+    });
+
     it("registers MCP OAuth interest after cloud create only when an auth handler is configured", async () => {
         const client = new CopilotClient();
         await client.start();
@@ -484,6 +523,100 @@ describe("CopilotClient", () => {
         expect(resumePayload.reasoningSummary).toBe("none");
     });
 
+    it("forwards enableExperimentalMode in session.create and session.resume", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId };
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            enableExperimentalMode: false,
+        });
+        await client.resumeSession(session.sessionId, {
+            onPermissionRequest: approveAll,
+            enableExperimentalMode: true,
+        });
+
+        const createPayload = spy.mock.calls.find(
+            ([method]) => method === "session.create"
+        )![1] as any;
+        const resumePayload = spy.mock.calls.find(
+            ([method]) => method === "session.resume"
+        )![1] as any;
+        expect(createPayload.isExperimentalMode).toBe(false);
+        expect(resumePayload.isExperimentalMode).toBe(true);
+    });
+
+    it("defaults enableExperimentalMode by client mode", async () => {
+        const baseDirectory = mkdtempSync(join(tmpdir(), "copilot-sdk-node-empty-"));
+        const emptyClient = new CopilotClient({ mode: "empty", baseDirectory });
+        await emptyClient.start();
+        onTestFinished(() => emptyClient.forceStop());
+
+        const emptySpy = vi
+            .spyOn((emptyClient as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId };
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                if (method === "session.options.update") return {};
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        const emptySession = await emptyClient.createSession({
+            onPermissionRequest: approveAll,
+            availableTools: [],
+        });
+        await emptyClient.resumeSession(emptySession.sessionId, {
+            onPermissionRequest: approveAll,
+            availableTools: [],
+        });
+
+        const emptyCreatePayload = emptySpy.mock.calls.find(
+            ([method]) => method === "session.create"
+        )![1] as any;
+        const emptyResumePayload = emptySpy.mock.calls.find(
+            ([method]) => method === "session.resume"
+        )![1] as any;
+        expect(emptyCreatePayload.isExperimentalMode).toBe(false);
+        expect(emptyResumePayload.isExperimentalMode).toBe(false);
+
+        const cliClient = new CopilotClient();
+        await cliClient.start();
+        onTestFinished(() => cliClient.forceStop());
+
+        const cliSpy = vi
+            .spyOn((cliClient as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId };
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        const cliSession = await cliClient.createSession({
+            onPermissionRequest: approveAll,
+        });
+        await cliClient.resumeSession(cliSession.sessionId, {
+            onPermissionRequest: approveAll,
+        });
+
+        const cliCreatePayload = cliSpy.mock.calls.find(
+            ([method]) => method === "session.create"
+        )![1] as any;
+        const cliResumePayload = cliSpy.mock.calls.find(
+            ([method]) => method === "session.resume"
+        )![1] as any;
+        expect(cliCreatePayload.isExperimentalMode).toBeUndefined();
+        expect(cliResumePayload.isExperimentalMode).toBeUndefined();
+    });
+
     it("forwards contextTier in session.create and session.resume", async () => {
         const client = new CopilotClient();
         await client.start();
@@ -581,6 +714,68 @@ describe("CopilotClient", () => {
         expect(createPayload.tools[0].metadata).toBeUndefined();
     });
 
+    it("forwards tool isTerminal in session.create and session.resume", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId };
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        const tool = {
+            name: "clear_context",
+            description: "Clears the conversation",
+            parameters: { type: "object", properties: {} },
+            isTerminal: true,
+        };
+
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            tools: [tool],
+        });
+        await client.resumeSession(session.sessionId, {
+            onPermissionRequest: approveAll,
+            tools: [tool],
+        });
+
+        const createPayload = spy.mock.calls.find(
+            ([method]) => method === "session.create"
+        )![1] as any;
+        const resumePayload = spy.mock.calls.find(
+            ([method]) => method === "session.resume"
+        )![1] as any;
+        expect(createPayload.tools[0].isTerminal).toBe(true);
+        expect(resumePayload.tools[0].isTerminal).toBe(true);
+    });
+
+    it("omits tool isTerminal from session.create when unset", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        await client.createSession({
+            onPermissionRequest: approveAll,
+            tools: [{ name: "my_tool", description: "a tool" }],
+        });
+
+        const createPayload = spy.mock.calls.find(
+            ([method]) => method === "session.create"
+        )![1] as any;
+        expect(createPayload.tools[0].isTerminal).toBeUndefined();
+    });
+
     it("forwards new session options in session.create and session.resume", async () => {
         const client = new CopilotClient();
         await client.start();
@@ -597,12 +792,14 @@ describe("CopilotClient", () => {
         const session = await client.createSession({
             onPermissionRequest: approveAll,
             enableCitations: true,
+            enableFileChangeTracking: true,
             excludedBuiltinAgents: ["explore"],
             sessionLimits: { maxAiCredits: 30 },
         });
         await client.resumeSession(session.sessionId, {
             onPermissionRequest: approveAll,
             enableCitations: false,
+            enableFileChangeTracking: false,
             excludedBuiltinAgents: ["task"],
             sessionLimits: { maxAiCredits: 15 },
         });
@@ -614,9 +811,11 @@ describe("CopilotClient", () => {
             ([method]) => method === "session.resume"
         )![1] as any;
         expect(createPayload.enableCitations).toBe(true);
+        expect(createPayload.enableFileChangeTracking).toBe(true);
         expect(createPayload.excludedBuiltinAgents).toEqual(["explore"]);
         expect(createPayload.sessionLimits).toEqual({ maxAiCredits: 30 });
         expect(resumePayload.enableCitations).toBe(false);
+        expect(resumePayload.enableFileChangeTracking).toBe(false);
         expect(resumePayload.excludedBuiltinAgents).toEqual(["task"]);
         expect(resumePayload.sessionLimits).toEqual({ maxAiCredits: 15 });
     });
@@ -897,6 +1096,7 @@ describe("CopilotClient", () => {
             });
 
         const pluginDirs = ["/tmp/plugins/a", "/tmp/plugins/b"];
+        const disabledMcpServers = ["local-files", "remote-github"];
         const largeOutput = {
             enabled: true,
             maxSizeBytes: 1024,
@@ -911,11 +1111,13 @@ describe("CopilotClient", () => {
         const session = await client.createSession({
             onPermissionRequest: approveAll,
             pluginDirectories: pluginDirs,
+            disabledMcpServers,
             largeOutput,
         });
         await client.resumeSession(session.sessionId, {
             onPermissionRequest: approveAll,
             pluginDirectories: pluginDirs,
+            disabledMcpServers,
             largeOutput,
         });
 
@@ -926,8 +1128,10 @@ describe("CopilotClient", () => {
             ([method]) => method === "session.resume"
         )![1] as any;
         expect(createPayload.pluginDirectories).toEqual(pluginDirs);
+        expect(createPayload.disabledMcpServers).toEqual(disabledMcpServers);
         expect(createPayload.largeOutput).toEqual(expectedWireLargeOutput);
         expect(resumePayload.pluginDirectories).toEqual(pluginDirs);
+        expect(resumePayload.disabledMcpServers).toEqual(disabledMcpServers);
         expect(resumePayload.largeOutput).toEqual(expectedWireLargeOutput);
     });
 
@@ -3456,6 +3660,104 @@ describe("CopilotClient", () => {
 
             await expect(externalClient.stop()).resolves.toEqual([]);
             expect(externalSendRequest).not.toHaveBeenCalled();
+        });
+    });
+});
+
+describe("managedSettings serialization", () => {
+    async function captureCreateParams(config: Record<string, unknown>): Promise<any> {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => stopClient(client));
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+        await client.createSession({ onPermissionRequest: approveAll, ...config });
+        const call = spy.mock.calls.find(([method]) => method === "session.create");
+        return call![1];
+    }
+
+    it("forwards the full permissions object on session.create", async () => {
+        const params = await captureCreateParams({
+            managedSettings: {
+                permissions: {
+                    disableBypassPermissionsMode: "disable",
+                    deny: ["Shell(git push)"],
+                    ask: ["Domain(publish.example)"],
+                    allow: ["Read(**)"],
+                },
+            },
+        });
+        expect(params.managedSettings).toEqual({
+            permissions: {
+                disableBypassPermissionsMode: "disable",
+                deny: ["Shell(git push)"],
+                ask: ["Domain(publish.example)"],
+                allow: ["Read(**)"],
+            },
+        });
+    });
+
+    it("marks directly injected sessions as managed", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => stopClient(client));
+        vi.spyOn((client as any).connection!, "sendRequest").mockImplementation(
+            async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            }
+        );
+
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            managedSettings: { permissions: { deny: ["Edit(/secrets/**)"] } },
+        });
+
+        expect((session as any).managedSettingsEnabled).toBe(true);
+    });
+
+    it("omits managedSettings when not supplied", async () => {
+        const params = await captureCreateParams({});
+        expect(params.managedSettings).toBeUndefined();
+    });
+
+    it("coexists with enableManagedSettings", async () => {
+        const params = await captureCreateParams({
+            enableManagedSettings: true,
+            managedSettings: { permissions: { deny: ["Edit(/secrets/**)"] } },
+        });
+        expect(params.enableManagedSettings).toBe(true);
+        expect(params.managedSettings).toEqual({ permissions: { deny: ["Edit(/secrets/**)"] } });
+    });
+
+    it("preserves empty arrays in the permissions object", async () => {
+        const params = await captureCreateParams({
+            managedSettings: { permissions: { deny: [], ask: [], allow: [] } },
+        });
+        expect(params.managedSettings).toEqual({ permissions: { deny: [], ask: [], allow: [] } });
+    });
+
+    it("forwards managedSettings on session.resume", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => stopClient(client));
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+        await client.resumeSession("session-1", {
+            onPermissionRequest: approveAll,
+            managedSettings: { permissions: { ask: ["Domain(publish.example)"] } },
+        });
+        const call = spy.mock.calls.find(([method]) => method === "session.resume");
+        expect(call![1].managedSettings).toEqual({
+            permissions: { ask: ["Domain(publish.example)"] },
         });
     });
 });

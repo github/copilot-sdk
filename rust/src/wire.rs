@@ -132,6 +132,8 @@ pub(crate) struct SessionCreateWire {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub disabled_skills: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub disabled_mcp_servers: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub custom_agents: Option<Vec<CustomAgentConfig>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub custom_agents_local_only: Option<bool>,
@@ -154,6 +156,8 @@ pub(crate) struct SessionCreateWire {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_citations: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_file_change_tracking: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub session_limits: Option<SessionLimitsConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model_capabilities: Option<ModelCapabilitiesOverride>,
@@ -163,6 +167,8 @@ pub(crate) struct SessionCreateWire {
     pub config_dir: Option<PathBuf>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub working_directory: Option<PathBuf>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub additional_directories: Option<Vec<PathBuf>>,
     #[serde(rename = "gitHubToken", skip_serializing_if = "Option::is_none")]
     pub github_token: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -182,6 +188,10 @@ pub(crate) struct SessionCreateWire {
     pub exp_assignments: Option<crate::types::CopilotExpAssignmentResponse>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_managed_settings: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_experimental_mode: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub managed_settings: Option<crate::types::ManagedSettings>,
 }
 
 /// The exact JSON shape sent on the `session.resume` JSON-RPC request.
@@ -274,6 +284,8 @@ pub(crate) struct SessionResumeWire {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub disabled_skills: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub disabled_mcp_servers: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub custom_agents: Option<Vec<CustomAgentConfig>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub custom_agents_local_only: Option<bool>,
@@ -296,6 +308,8 @@ pub(crate) struct SessionResumeWire {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_citations: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_file_change_tracking: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub session_limits: Option<SessionLimitsConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model_capabilities: Option<ModelCapabilitiesOverride>,
@@ -305,6 +319,8 @@ pub(crate) struct SessionResumeWire {
     pub config_dir: Option<PathBuf>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub working_directory: Option<PathBuf>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub additional_directories: Option<Vec<PathBuf>>,
     #[serde(rename = "gitHubToken", skip_serializing_if = "Option::is_none")]
     pub github_token: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -327,4 +343,8 @@ pub(crate) struct SessionResumeWire {
     pub exp_assignments: Option<crate::types::CopilotExpAssignmentResponse>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_managed_settings: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_experimental_mode: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub managed_settings: Option<crate::types::ManagedSettings>,
 }

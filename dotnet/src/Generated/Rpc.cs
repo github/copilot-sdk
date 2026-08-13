@@ -1564,6 +1564,10 @@ public sealed class ServerSkill
     [JsonPropertyName("argumentHint")]
     public string? ArgumentHint { get; set; }
 
+    /// <summary>Canonical slash command name used to invoke the skill, without the leading '/'.</summary>
+    [JsonPropertyName("commandName")]
+    public string? CommandName { get; set; }
+
     /// <summary>Description of what the skill does.</summary>
     [JsonPropertyName("description")]
     public string Description { get; set; } = string.Empty;
@@ -2036,6 +2040,19 @@ internal sealed class UserSettingsSetRequest
     public JsonElement Settings { get; set; }
 }
 
+/// <summary>Validated device-managed settings discovered before a session exists.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ManagedSettingsReadResult
+{
+    /// <summary>Discovery or validation error text when managed settings could not be read safely.</summary>
+    [JsonPropertyName("errorMessage")]
+    public string? ErrorMessage { get; set; }
+
+    /// <summary>Validated, canonical managed-settings JSON. Omitted when no managed settings were discovered or when discovered settings failed validation.</summary>
+    [JsonPropertyName("settingsJson")]
+    public JsonElement? SettingsJson { get; set; }
+}
+
 /// <summary>Indicates whether the calling client was registered as the session filesystem provider.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class SessionFsSetProviderResult
@@ -2296,11 +2313,6 @@ public sealed class SessionOpenResult
     /// <summary>Remote session ID, present when status is `connected`.</summary>
     [JsonPropertyName("remoteSessionId")]
     public string? RemoteSessionId { get; set; }
-
-    /// <summary>In-process SessionClientApi handle for the opened session, returned to CLI callers as a transitional shortcut. Marked internal so the public SDK surface does not expose it; SDK consumers should construct per-session clients from `sessionId` instead.</summary>
-    [JsonInclude]
-    [JsonPropertyName("sessionApi")]
-    internal JsonElement? SessionApi { get; set; }
 
     /// <summary>Opened session ID. Omitted when status is `not_found`.</summary>
     [JsonPropertyName("sessionId")]
@@ -2988,6 +3000,10 @@ public sealed class InstalledPlugin
     [JsonPropertyName("source")]
     public JsonElement? Source { get; set; }
 
+    /// <summary>Per-plugin source fingerprint (a SHA-256 hash of the plugin's catalog source spec plus its resolved source subtree — NOT a Git commit SHA) captured at marketplace install/update time. Auto-update compares it against the freshly recomputed fingerprint to detect a content change that does not bump the version. Absent for pre-existing installs and for direct (non-marketplace) installs.</summary>
+    [JsonPropertyName("source_sha")]
+    public string? SourceSha { get; set; }
+
     /// <summary>Version installed (if available).</summary>
     [JsonPropertyName("version")]
     public string? Version { get; set; }
@@ -3089,12 +3105,6 @@ public partial class RemoteControlStatusActive : RemoteControlStatus
     /// <summary>Whether the MC session may steer this session.</summary>
     [JsonPropertyName("isSteerable")]
     public required bool IsSteerable { get; set; }
-
-    /// <summary>In-process prompt-manager handle (CLI-only optimization). Marked internal: this field is excluded from the public SDK surface. When the CLI migrates to a process-separated SDK, the same bidirectional prompt-routing handshake is expressed via dedicated remote-control RPCs (register/resolve) rather than a shared in-process object.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonInclude]
-    [JsonPropertyName("promptManager")]
-    internal JsonElement? PromptManager { get; set; }
 }
 
 /// <summary>The last setup attempt failed. The singleton is otherwise off.</summary>
@@ -3245,31 +3255,18 @@ internal sealed class SessionsStopRemoteControlRequest
 [Experimental(Diagnostics.Experimental)]
 internal sealed class RegisterExtensionToolsResult
 {
-    /// <summary>In-process unsubscribe function (CLI-only optimization). Marked internal: replaced by an explicit `extensions.unregister` RPC in the SDK migration.</summary>
-    [JsonInclude]
-    [JsonPropertyName("unsubscribe")]
-    internal JsonElement Unsubscribe { get; set; }
 }
 
 /// <summary>Optional registration options.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class SessionsRegisterExtensionToolsOnSessionOptions
 {
-    /// <summary>In-process `() =&gt; boolean` gating callback (CLI-only optimization). Marked internal: replaced by runtime-side enable/disable RPCs in the SDK migration.</summary>
-    [JsonInclude]
-    [JsonPropertyName("enabled")]
-    internal JsonElement? Enabled { get; set; }
 }
 
 /// <summary>Params to attach an extension loader's tools to a session.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class RegisterExtensionToolsParams
 {
-    /// <summary>In-process ExtensionLoader handle (CLI-only optimization). Marked internal: this field is excluded from the public SDK surface. When the CLI migrates to a process-separated SDK, extension discovery/launch moves entirely into the runtime — the CLI passes pure config (search paths, disabled ids) via SessionOptions instead.</summary>
-    [JsonInclude]
-    [JsonPropertyName("loader")]
-    internal JsonElement Loader { get; set; }
-
     /// <summary>Optional registration options.</summary>
     [JsonPropertyName("options")]
     public SessionsRegisterExtensionToolsOnSessionOptions? Options { get; set; }
@@ -3283,11 +3280,6 @@ internal sealed class RegisterExtensionToolsParams
 [Experimental(Diagnostics.Experimental)]
 internal sealed class ConfigureSessionExtensionsParams
 {
-    /// <summary>In-process ExtensionController delegate (CLI-only optimization). Marked internal: this field is excluded from the public SDK surface. The post-SDK extension surface exposes list/enable/disable/reload via dedicated RPCs served by the runtime.</summary>
-    [JsonInclude]
-    [JsonPropertyName("controller")]
-    internal JsonElement? Controller { get; set; }
-
     /// <summary>Session to attach the extension controller delegate to.</summary>
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
@@ -4288,6 +4280,7 @@ internal sealed class CanvasActionInvokeRequest
 [JsonDerivedType(typeof(FactoryRunFailureFactoryLimitReached), "factory_limit_reached")]
 [JsonDerivedType(typeof(FactoryRunFailureFactoryResumeDeclined), "factory_resume_declined")]
 [JsonDerivedType(typeof(FactoryRunFailureFactoryDurableFailure), "factory_durable_failure")]
+[JsonDerivedType(typeof(FactoryRunFailureFactoryAccountingIncomplete), "factory_accounting_incomplete")]
 public partial class FactoryRunFailure
 {
     /// <summary>The type discriminator.</summary>
@@ -4349,6 +4342,24 @@ public partial class FactoryRunFailureFactoryDurableFailure : FactoryRunFailure
     /// <summary>Execution-critical durable operation that failed.</summary>
     [JsonPropertyName("operation")]
     public required FactoryDurableOperation Operation { get; set; }
+
+    /// <summary>Factory run identifier.</summary>
+    [JsonPropertyName("runId")]
+    public required string RunId { get; set; }
+}
+
+/// <summary>The run stopped because its usage accounting could not be completed.</summary>
+/// <remarks>The <c>factory_accounting_incomplete</c> variant of <see cref="FactoryRunFailure"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class FactoryRunFailureFactoryAccountingIncomplete : FactoryRunFailure
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "factory_accounting_incomplete";
+
+    /// <summary>Confirmed usage in nano-AIU, representing the floor of what the run spent.</summary>
+    [JsonPropertyName("drainedNanoAiu")]
+    public required long DrainedNanoAiu { get; set; }
 
     /// <summary>Factory run identifier.</summary>
     [JsonPropertyName("runId")]
@@ -4639,19 +4650,47 @@ public sealed class FactoryRunSummary
     public long UpdatedAt { get; set; }
 }
 
-/// <summary>Factory runs in durable creation order.</summary>
+/// <summary>A page of factory runs in durable creation order.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class FactoryListRunsResult
 {
+    /// <summary>Whether terminal runs newer than this page exist.</summary>
+    [JsonPropertyName("hasMoreNewer")]
+    public bool? HasMoreNewer { get; set; }
+
+    /// <summary>Newest terminal-run cursor in this page, or null when the terminal window is empty.</summary>
+    [JsonPropertyName("newestSeq")]
+    public long? NewestSeq { get; set; }
+
+    /// <summary>Oldest terminal-run cursor in this page, or null when the terminal window is empty.</summary>
+    [JsonPropertyName("oldestSeq")]
+    public long? OldestSeq { get; set; }
+
+    /// <summary>Number of terminal runs older than this page.</summary>
+    [JsonPropertyName("omittedOlder")]
+    public long? OmittedOlder { get; set; }
+
     /// <summary>Gets or sets the <c>runs</c> value.</summary>
     [JsonPropertyName("runs")]
     public IList<FactoryRunSummary> Runs { get => field ??= []; set; }
 }
 
-/// <summary>Empty parameters for listing factory runs.</summary>
+/// <summary>Parameters for paging factory runs.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class FactoryListRunsRequest
 {
+    /// <summary>Exclusive forward cursor.</summary>
+    [JsonPropertyName("afterSeq")]
+    public long? AfterSeq { get; set; }
+
+    /// <summary>Exclusive backward cursor.</summary>
+    [JsonPropertyName("beforeSeq")]
+    public long? BeforeSeq { get; set; }
+
+    /// <summary>Maximum terminal runs to return. Defaults to 200 and is capped at 500.</summary>
+    [JsonPropertyName("limit")]
+    public int? Limit { get; set; }
+
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
@@ -5021,6 +5060,14 @@ public sealed class FactoryAgentResult
 [Experimental(Diagnostics.Experimental)]
 public sealed class FactoryAgentOptions
 {
+    /// <summary>Optional custom agent name for the subagent. This field is accepted but not yet honored.</summary>
+    [JsonPropertyName("agent")]
+    public string? Agent { get; set; }
+
+    /// <summary>Optional context tier for the subagent. This field is accepted but not yet honored.</summary>
+    [JsonPropertyName("contextTier")]
+    public ContextTier? ContextTier { get; set; }
+
     /// <summary>Optional label distinguishing otherwise identical memoized agent calls.</summary>
     [JsonPropertyName("label")]
     public string? Label { get; set; }
@@ -5028,6 +5075,10 @@ public sealed class FactoryAgentOptions
     /// <summary>Optional model identifier for the subagent.</summary>
     [JsonPropertyName("model")]
     public string? Model { get; set; }
+
+    /// <summary>Optional reasoning effort for the subagent. This field is accepted but not yet honored.</summary>
+    [JsonPropertyName("reasoningEffort")]
+    public string? ReasoningEffort { get; set; }
 
     /// <summary>Optional JSON Schema for structured agent output.</summary>
     [JsonPropertyName("schema")]
@@ -6730,6 +6781,10 @@ public sealed class Skill
     [JsonPropertyName("argumentHint")]
     public string? ArgumentHint { get; set; }
 
+    /// <summary>Canonical slash command name used to invoke the skill, without the leading '/'.</summary>
+    [JsonPropertyName("commandName")]
+    public string? CommandName { get; set; }
+
     /// <summary>Description of what the skill does.</summary>
     [JsonPropertyName("description")]
     public string Description { get; set; } = string.Empty;
@@ -7137,11 +7192,6 @@ internal sealed class McpStartServersResult
 [Experimental(Diagnostics.Experimental)]
 internal sealed class McpReloadWithConfigRequest
 {
-    /// <summary>Opaque runtime MCP reload configuration. Marked internal: an in-process runtime shape (reloadMcpServers throws over the wire).</summary>
-    [JsonInclude]
-    [JsonPropertyName("config")]
-    internal JsonElement Config { get; set; }
-
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
@@ -7276,11 +7326,6 @@ internal sealed class McpConfigureGitHubResult
 [Experimental(Diagnostics.Experimental)]
 internal sealed class McpConfigureGitHubRequest
 {
-    /// <summary>Opaque runtime auth info for GitHub MCP configuration. Marked internal: an in-process runtime shape (configureGitHubMcp is a no-op over the wire).</summary>
-    [JsonInclude]
-    [JsonPropertyName("authInfo")]
-    internal JsonElement AuthInfo { get; set; }
-
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
@@ -7337,16 +7382,6 @@ internal sealed class McpStopServerRequest
 [Experimental(Diagnostics.Experimental)]
 internal sealed class McpRegisterExternalClientRequest
 {
-    /// <summary>In-process MCP Client instance. Marked internal: cannot be serialized across the JSON-RPC boundary.</summary>
-    [JsonInclude]
-    [JsonPropertyName("client")]
-    internal JsonElement Client { get; set; }
-
-    /// <summary>In-process server config (MCPServerConfig) paired with the in-process client/transport. Marked internal alongside its companions.</summary>
-    [JsonInclude]
-    [JsonPropertyName("config")]
-    internal JsonElement Config { get; set; }
-
     /// <summary>Logical server name for the external client.</summary>
     [JsonPropertyName("serverName")]
     public string ServerName { get; set; } = string.Empty;
@@ -7354,11 +7389,6 @@ internal sealed class McpRegisterExternalClientRequest
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
-
-    /// <summary>In-process MCP Transport instance. Marked internal: cannot be serialized across the JSON-RPC boundary.</summary>
-    [JsonInclude]
-    [JsonPropertyName("transport")]
-    internal JsonElement Transport { get; set; }
 }
 
 /// <summary>Server name identifying the external client to remove.</summary>
@@ -8554,6 +8584,10 @@ public sealed class SessionInstalledPlugin
     [JsonPropertyName("source")]
     public JsonElement? Source { get; set; }
 
+    /// <summary>Per-plugin source fingerprint (a SHA-256 hash of the plugin's catalog source spec plus its resolved source subtree — NOT a Git commit SHA) captured at marketplace install/update time. Auto-update compares it against the freshly recomputed fingerprint to detect a content change that does not bump the version. Absent for pre-existing installs and for direct (non-marketplace) installs.</summary>
+    [JsonPropertyName("source_sha")]
+    public string? SourceSha { get; set; }
+
     /// <summary>Installed version, if known.</summary>
     [JsonPropertyName("version")]
     public string? Version { get; set; }
@@ -8618,6 +8652,19 @@ public sealed class ProviderConfig
     /// <summary>The model identifier sent to the provider API for inference (the "wire" model), as opposed to modelId which is the well-known base.</summary>
     [JsonPropertyName("wireModel")]
     public string? WireModel { get; set; }
+}
+
+/// <summary>Credential-injection capability flags applied while the sandbox is enabled.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class SandboxConfigAuth
+{
+    /// <summary>Whether to export `GH_TOKEN` so the `gh` CLI authenticates inside the sandbox without the OS keyring the sandbox blocks. Default: false (opt-in).</summary>
+    [JsonPropertyName("gh")]
+    public bool? Gh { get; set; }
+
+    /// <summary>Whether to inject git credentials as an `http.&lt;url&gt;.extraheader` so authenticated HTTPS git works inside the sandbox without the shell-based credential helper the sandbox blocks. github.com is served by the Copilot token; every other forge (Azure DevOps, GitHub Enterprise Server, GitLab, ...) by a credential the host resolves from the user's own helper before the sandbox is applied. Default: false (opt-in).</summary>
+    [JsonPropertyName("git")]
+    public bool? Git { get; set; }
 }
 
 /// <summary>macOS seatbelt experimental options.</summary>
@@ -8731,21 +8778,17 @@ public sealed class SandboxConfig
     [JsonPropertyName("addCurrentWorkingDirectory")]
     public bool? AddCurrentWorkingDirectory { get; set; }
 
-    /// <summary>Whether to auto-grant read access to common developer-tool caches, registries, and toolchains in their default home locations (cargo, go, npm, Maven, and more), plus read-write access to (and, on Unix, up-front creation of) the scratch caches builds write on every run (go-build, ccache, sccache, Gradle caches, Cargo lock/tracker files), so builds work without exporting CARGO_HOME/GOPATH/etc. Default: true (enabled by default; set to false to opt out).</summary>
-    [JsonPropertyName("allowDevToolCaches")]
-    public bool? AllowDevToolCaches { get; set; }
+    /// <summary>Whether to auto-grant read access to common developer-tool caches, registries, and toolchains in their default home locations (cargo, go, npm, Maven, and more), plus read-write access to (and, on Unix, up-front creation of) the scratch caches builds write on every run (go-build, ccache, sccache, Gradle caches, Cargo lock/tracker files), so builds work without extra configuration; a relocated CARGO_HOME additionally gets its Cargo lock files granted read-write. Default: true (enabled by default; set to false to opt out).</summary>
+    [JsonPropertyName("allowDevToolAccess")]
+    public bool? AllowDevToolAccess { get; set; }
+
+    /// <summary>Credential-injection capability flags.</summary>
+    [JsonPropertyName("auth")]
+    public SandboxConfigAuth? Auth { get; set; }
 
     /// <summary>Whether sandboxing is enabled for the session.</summary>
     [JsonPropertyName("enabled")]
     public bool Enabled { get; set; }
-
-    /// <summary>Whether to export `GH_TOKEN` so the `gh` CLI authenticates inside the sandbox without the OS keyring the sandbox blocks. Default: false (opt-in).</summary>
-    [JsonPropertyName("ghAuth")]
-    public bool? GhAuth { get; set; }
-
-    /// <summary>Whether to inject the Copilot GitHub token as an `http.&lt;host&gt;.extraheader` so authenticated HTTPS git works inside the sandbox without the shell-based credential helper the sandbox blocks. Default: false (opt-in).</summary>
-    [JsonPropertyName("gitAuth")]
-    public bool? GitAuth { get; set; }
 
     /// <summary>User-managed sandbox policy fragment merged into the auto-discovered base policy.</summary>
     [JsonPropertyName("userPolicy")]
@@ -10164,16 +10207,6 @@ public sealed class UIEphemeralQueryResult
 [Experimental(Diagnostics.Experimental)]
 internal sealed class UIEphemeralQueryRequest
 {
-    /// <summary>In-process `AbortSignal` forwarded to the model client to cancel an in-flight request. Marked internal: excluded from the public SDK surface. Replaced by an explicit cancellation token + cancel RPC in the SDK migration.</summary>
-    [JsonInclude]
-    [JsonPropertyName("abortSignal")]
-    internal JsonElement? AbortSignal { get; set; }
-
-    /// <summary>In-process streaming callback `(text) =&gt; void` invoked with each token as the model emits it. Marked internal: excluded from the public SDK surface. In a process-separated SDK this is replaced by a streaming RPC that yields chunks and a final answer.</summary>
-    [JsonInclude]
-    [JsonPropertyName("onChunk")]
-    internal JsonElement? OnChunk { get; set; }
-
     /// <summary>Question to answer from the current conversation context.</summary>
     [JsonPropertyName("question")]
     public string Question { get; set; } = string.Empty;
@@ -10598,6 +10631,23 @@ public sealed class PermissionRequestResult
     /// <summary>Whether the permission request was handled successfully.</summary>
     [JsonPropertyName("success")]
     public bool Success { get; set; }
+}
+
+/// <summary>Optional informational context describing how and where the permission decision was made. This does not affect permission behavior.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class PermissionDecisionContext
+{
+    /// <summary>Disposition of the permission request as observed by the responding client.</summary>
+    [JsonPropertyName("outcome")]
+    public PermissionDecisionOutcome Outcome { get; set; }
+
+    /// <summary>Controlled reason or actor responsible for the response.</summary>
+    [JsonPropertyName("source")]
+    public PermissionDecisionSource Source { get; set; }
+
+    /// <summary>Client surface that submitted the response.</summary>
+    [JsonPropertyName("surface")]
+    public PermissionDecisionSurface Surface { get; set; }
 }
 
 /// <summary>The client's response to the pending permission prompt.</summary>
@@ -11180,6 +11230,10 @@ public partial class PermissionDecisionDeniedByPermissionRequestHook : Permissio
 [Experimental(Diagnostics.Experimental)]
 internal sealed class PermissionDecisionRequest
 {
+    /// <summary>Optional informational context describing how and where this response was made. Omit it to preserve legacy behavior without attributing an origin.</summary>
+    [JsonPropertyName("decisionContext")]
+    public PermissionDecisionContext? DecisionContext { get; set; }
+
     /// <summary>Request ID of the pending permission request.</summary>
     [JsonPropertyName("requestId")]
     public string RequestId { get; set; } = string.Empty;
@@ -12114,6 +12168,38 @@ internal sealed class MetadataContextInfoRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
+/// <summary>The six normalized `/context` header buckets, computed from the same tokenization as `entries` so the two never disagree. Convenience rollups: `freeSpace` and `buffer` describe window capacity rather than occupied context, so the values do not sum to `totalTokens`.</summary>
+public sealed class MetadataContextAttributionResultContextAttributionCategories
+{
+    /// <summary>Output reserve plus post-blocking-threshold buffer.</summary>
+    [JsonPropertyName("buffer")]
+    public long Buffer { get; set; }
+
+    /// <summary>Custom-instructions tokens (0 when none are configured).</summary>
+    [JsonPropertyName("customInstructions")]
+    public long CustomInstructions { get; set; }
+
+    /// <summary>Remaining unused window capacity (clamped at 0).</summary>
+    [JsonPropertyName("freeSpace")]
+    public long FreeSpace { get; set; }
+
+    /// <summary>MCP tool-definition tokens.</summary>
+    [JsonPropertyName("mcpTools")]
+    public long McpTools { get; set; }
+
+    /// <summary>Conversation (user/assistant/tool) message tokens.</summary>
+    [JsonPropertyName("messages")]
+    public long Messages { get; set; }
+
+    /// <summary>System prompt tokens, excluding custom instructions.</summary>
+    [JsonPropertyName("systemPrompt")]
+    public long SystemPrompt { get; set; }
+
+    /// <summary>Non-MCP tool-definition tokens.</summary>
+    [JsonPropertyName("systemTools")]
+    public long SystemTools { get; set; }
+}
+
 /// <summary>Successful compaction history for the session.</summary>
 public sealed class MetadataContextAttributionResultContextAttributionCompactions
 {
@@ -12153,13 +12239,41 @@ public sealed class MetadataContextAttributionResultContextAttributionEntry
 /// <summary>Per-source token attribution snapshot for the current context window. The heaviest individual messages are available separately via `metadata.getContextHeaviestMessages`.</summary>
 public sealed class MetadataContextAttributionResultContextAttribution
 {
+    /// <summary>Output reserve plus the tokens past the buffer-exhaustion blocking threshold. Mirrors `SessionContextInfo.bufferTokens`.</summary>
+    [JsonPropertyName("bufferTokens")]
+    public long BufferTokens { get; set; }
+
+    /// <summary>The six normalized `/context` header buckets, computed from the same tokenization as `entries` so the two never disagree. Convenience rollups: `freeSpace` and `buffer` describe window capacity rather than occupied context, so the values do not sum to `totalTokens`.</summary>
+    [JsonPropertyName("categories")]
+    public MetadataContextAttributionResultContextAttributionCategories Categories { get => field ??= new(); set; }
+
     /// <summary>Successful compaction history for the session.</summary>
     [JsonPropertyName("compactions")]
     public MetadataContextAttributionResultContextAttributionCompactions Compactions { get => field ??= new(); set; }
 
+    /// <summary>Token count at which background compaction starts. Mirrors `SessionContextInfo.compactionThreshold`.</summary>
+    [JsonPropertyName("compactionThreshold")]
+    public long CompactionThreshold { get; set; }
+
     /// <summary>Flat list of per-source attribution entries. Group by `kind` and render unrecognized kinds generically. Nesting and rollups are expressed via `parentId`.</summary>
     [JsonPropertyName("entries")]
     public IList<MetadataContextAttributionResultContextAttributionEntry> Entries { get => field ??= []; set; }
+
+    /// <summary>Prompt limit plus the model's output reserve: the full context window `categories.freeSpace` and `categories.buffer` are measured against. Mirrors `SessionContextInfo.limit`.</summary>
+    [JsonPropertyName("limit")]
+    public long Limit { get; set; }
+
+    /// <summary>The concrete model id the entire breakdown was tokenized against (feeds the per-model token multiplier). Under `Auto` (Free/Student) this is the resolved model, not the literal `auto` sentinel, so totals are not undercounted. A single-model approximation of a potentially multi-model Auto session.</summary>
+    [JsonPropertyName("modelId")]
+    public string ModelId { get; set; } = string.Empty;
+
+    /// <summary>How `modelId` was chosen. Not a closed set — tolerate unknown values. Known values today: `autoResolved` (the model Auto resolved to), `selected` (the user's explicitly selected model), `default` (a fallback before any model is known).</summary>
+    [JsonPropertyName("modelSource")]
+    public string ModelSource { get; set; } = string.Empty;
+
+    /// <summary>Maximum prompt tokens the resolved model accepts — the denominator for a `##k/###k` context-usage display. Mirrors `SessionContextInfo.promptTokenLimit`.</summary>
+    [JsonPropertyName("promptTokenLimit")]
+    public long PromptTokenLimit { get; set; }
 
     /// <summary>Total token count of the current context window the entries are measured against (system message + conversation messages + tool definitions — the same total reported by /context). Divide an entry's `tokens` by this to derive its share.</summary>
     [JsonPropertyName("totalTokens")]
@@ -13085,6 +13199,28 @@ public sealed class HistorySummarizeForHandoffResult
 [Experimental(Diagnostics.Experimental)]
 internal sealed class SessionHistorySummarizeForHandoffRequest
 {
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>What a successful clear removed. A clear that could not be applied rejects instead of reporting a count.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class HistoryClearContextResult
+{
+    /// <summary>Number of non-system, non-developer messages that were removed from the conversation. Zero only when the window already held no conversation.</summary>
+    [JsonPropertyName("messagesCleared")]
+    public long MessagesCleared { get; set; }
+}
+
+/// <summary>Parameters for clearing the conversation and seeding the window that replaces it.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class HistoryClearContextRequest
+{
+    /// <summary>First user message of the fresh context window. Required: a cleared window holding only system and developer messages is not a conversation a model can answer, so every clear seeds the window it creates. Delivered by the enclosing turn driver once the agentic loop exits, which is why the call must be made from inside a tool handler.</summary>
+    [JsonPropertyName("prompt")]
+    public string Prompt { get; set; } = string.Empty;
+
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
@@ -14905,6 +15041,55 @@ public sealed class CanvasProviderInvokeActionRequest
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Opaque integrator-owned process launch profile for one extension entrypoint.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ExtensionLaunchProfile
+{
+    /// <summary>Opaque integrator-defined arguments passed to the executable. The runtime does not append the extension entrypoint.</summary>
+    [JsonPropertyName("args")]
+    public IList<string> Args { get => field ??= []; set; }
+
+    /// <summary>Opaque integrator-defined environment variables. Runtime-owned COPILOT_SDK_PATH, SESSION_ID, and COPILOT_EXTENSION_PARENT_PID values take precedence.</summary>
+    [JsonPropertyName("env")]
+    public IDictionary<string, string> Env { get => field ??= new Dictionary<string, string>(); set; }
+
+    /// <summary>Executable used to launch the extension entrypoint.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("executable")]
+    public string Executable { get; set; } = string.Empty;
+}
+
+/// <summary>The launch profile for a supported entrypoint. Omit launch when the provider does not support the entrypoint.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ExtensionLaunchProviderResolveResult
+{
+    /// <summary>Opaque launch profile, omitted when this provider does not support the entrypoint.</summary>
+    [JsonPropertyName("launch")]
+    public ExtensionLaunchProfile? Launch { get; set; }
+}
+
+/// <summary>A discovered extension entrypoint that the registered integrator may classify and resolve to an opaque launch profile.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ExtensionLaunchProviderResolveRequest
+{
+    /// <summary>Source-qualified extension identifier.</summary>
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+
+    /// <summary>Absolute path to the discovered extension entrypoint.</summary>
+    [JsonPropertyName("modulePath")]
+    public string ModulePath { get; set; } = string.Empty;
+
+    /// <summary>Human-readable extension name.</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Discovery source for the extension entrypoint.</summary>
+    [JsonPropertyName("source")]
+    public ExtensionSource Source { get; set; }
 }
 
 /// <summary>Acknowledgement. Returning successfully simply means the SDK accepted the start frame; it does not imply the request will succeed.</summary>
@@ -20906,6 +21091,210 @@ public readonly struct PermissionsConfigureAdditionalContentExclusionPolicyScope
 }
 
 
+/// <summary>Disposition of a permission request as observed by the responding client.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct PermissionDecisionOutcome : IEquatable<PermissionDecisionOutcome>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="PermissionDecisionOutcome"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="PermissionDecisionOutcome"/>.</param>
+    [JsonConstructor]
+    public PermissionDecisionOutcome(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="PermissionDecisionOutcome"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The request was approved automatically without a new human decision.</summary>
+    public static PermissionDecisionOutcome AutoApproved { get; } = new("auto_approved");
+
+    /// <summary>The request was denied without an interactive user decision; source records why.</summary>
+    public static PermissionDecisionOutcome AutopilotDenied { get; } = new("autopilot_denied");
+
+    /// <summary>The response came from an interactive user prompt.</summary>
+    public static PermissionDecisionOutcome PromptedUser { get; } = new("prompted_user");
+
+    /// <summary>Returns a value indicating whether two <see cref="PermissionDecisionOutcome"/> instances are equivalent.</summary>
+    public static bool operator ==(PermissionDecisionOutcome left, PermissionDecisionOutcome right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="PermissionDecisionOutcome"/> instances are not equivalent.</summary>
+    public static bool operator !=(PermissionDecisionOutcome left, PermissionDecisionOutcome right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is PermissionDecisionOutcome other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(PermissionDecisionOutcome other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{PermissionDecisionOutcome}"/> for serializing <see cref="PermissionDecisionOutcome"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<PermissionDecisionOutcome>
+    {
+        /// <inheritdoc />
+        public override PermissionDecisionOutcome Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, PermissionDecisionOutcome value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PermissionDecisionOutcome));
+        }
+    }
+}
+
+
+/// <summary>Controlled reason or actor responsible for a permission response.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct PermissionDecisionSource : IEquatable<PermissionDecisionSource>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="PermissionDecisionSource"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="PermissionDecisionSource"/>.</param>
+    [JsonConstructor]
+    public PermissionDecisionSource(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="PermissionDecisionSource"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The response followed the auto-approval judge recommendation.</summary>
+    public static PermissionDecisionSource JudgeRecommendation { get; } = new("judge_recommendation");
+
+    /// <summary>A human supplied the response through an interactive prompt.</summary>
+    public static PermissionDecisionSource HumanResponse { get; } = new("human_response");
+
+    /// <summary>The host applied a standing policy or override rather than a judge recommendation or human decision.</summary>
+    public static PermissionDecisionSource HostPolicy { get; } = new("host_policy");
+
+    /// <summary>The host denied the request because no interactive user response was available.</summary>
+    public static PermissionDecisionSource UnattendedFallback { get; } = new("unattended_fallback");
+
+    /// <summary>Returns a value indicating whether two <see cref="PermissionDecisionSource"/> instances are equivalent.</summary>
+    public static bool operator ==(PermissionDecisionSource left, PermissionDecisionSource right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="PermissionDecisionSource"/> instances are not equivalent.</summary>
+    public static bool operator !=(PermissionDecisionSource left, PermissionDecisionSource right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is PermissionDecisionSource other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(PermissionDecisionSource other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{PermissionDecisionSource}"/> for serializing <see cref="PermissionDecisionSource"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<PermissionDecisionSource>
+    {
+        /// <inheritdoc />
+        public override PermissionDecisionSource Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, PermissionDecisionSource value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PermissionDecisionSource));
+        }
+    }
+}
+
+
+/// <summary>Client surface that submitted a permission response.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct PermissionDecisionSurface : IEquatable<PermissionDecisionSurface>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="PermissionDecisionSurface"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="PermissionDecisionSurface"/>.</param>
+    [JsonConstructor]
+    public PermissionDecisionSurface(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="PermissionDecisionSurface"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The interactive Copilot CLI terminal UI.</summary>
+    public static PermissionDecisionSurface Tui { get; } = new("tui");
+
+    /// <summary>The non-interactive Copilot CLI prompt mode.</summary>
+    public static PermissionDecisionSurface PromptMode { get; } = new("prompt_mode");
+
+    /// <summary>The Copilot App client.</summary>
+    public static PermissionDecisionSurface CopilotApp { get; } = new("copilot_app");
+
+    /// <summary>A generic Copilot SDK client.</summary>
+    public static PermissionDecisionSurface Sdk { get; } = new("sdk");
+
+    /// <summary>Returns a value indicating whether two <see cref="PermissionDecisionSurface"/> instances are equivalent.</summary>
+    public static bool operator ==(PermissionDecisionSurface left, PermissionDecisionSurface right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="PermissionDecisionSurface"/> instances are not equivalent.</summary>
+    public static bool operator !=(PermissionDecisionSurface left, PermissionDecisionSurface right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is PermissionDecisionSurface other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(PermissionDecisionSurface other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{PermissionDecisionSurface}"/> for serializing <see cref="PermissionDecisionSurface"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<PermissionDecisionSurface>
+    {
+        /// <inheritdoc />
+        public override PermissionDecisionSurface Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, PermissionDecisionSurface value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PermissionDecisionSurface));
+        }
+    }
+}
+
+
 /// <summary>Optional source for allow-all telemetry. Defaults to `rpc` when omitted for SDK callers.</summary>
 [Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -23005,6 +23394,14 @@ public sealed class ServerRpc
         return await CopilotClient.InvokeRpcAsync<ConnectResult>(_rpc, "connect", [request], cancellationToken);
     }
 
+    /// <summary>Registers the calling SDK client as the per-entrypoint extension launch provider. Call before creating any sessions. When omitted, the runtime temporarily falls back to its built-in Node launcher for backward compatibility.</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    [Experimental(Diagnostics.Experimental)]
+    public async Task RegisterExtensionLaunchProviderAsync(CancellationToken cancellationToken = default)
+    {
+        await CopilotClient.InvokeRpcAsync(_rpc, "registerExtensionLaunchProvider", [], cancellationToken);
+    }
+
     /// <summary>Models APIs.</summary>
     public ServerModelsApi Models =>
         field ??
@@ -23073,6 +23470,12 @@ public sealed class ServerRpc
 
     /// <summary>User APIs.</summary>
     public ServerUserApi User =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_rpc), null) ??
+        field;
+
+    /// <summary>ManagedSettings APIs.</summary>
+    public ServerManagedSettingsApi ManagedSettings =>
         field ??
         Interlocked.CompareExchange(ref field, new(_rpc), null) ??
         field;
@@ -23776,6 +24179,26 @@ public sealed class ServerUserSettingsApi
     }
 }
 
+/// <summary>Provides server-scoped ManagedSettings APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ServerManagedSettingsApi
+{
+    private readonly JsonRpc _rpc;
+
+    internal ServerManagedSettingsApi(JsonRpc rpc)
+    {
+        _rpc = rpc;
+    }
+
+    /// <summary>Discovers device-managed settings from production MDM and managed-file sources, validates them against the runtime-owned managed-settings schema, and returns the canonical JSON without requiring a session.</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Validated device-managed settings discovered before a session exists.</returns>
+    public async Task<ManagedSettingsReadResult> ReadAsync(CancellationToken cancellationToken = default)
+    {
+        return await CopilotClient.InvokeRpcAsync<ManagedSettingsReadResult>(_rpc, "managedSettings.read", [], cancellationToken);
+    }
+}
+
 /// <summary>Provides server-scoped Runtime APIs.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class ServerRuntimeApi
@@ -24227,28 +24650,25 @@ public sealed class ServerSessionsApi
 
     /// <summary>Registers extension-provided tools on the given session, gated by an optional `enabled` callback. Returns an opaque unsubscribe function the caller must invoke to deregister the tools when the extension is torn down. Marked internal because `loader`, `enabled`, and the returned `unsubscribe` are in-process handles that cannot cross the JSON-RPC boundary. Disappears once extension discovery / launch / tool registration are owned by the runtime: SDK consumers will pass pure config (search paths, disabled ids) via `SessionOptions` and the runtime will resolve, launch, register, and tear down extensions itself.</summary>
     /// <param name="sessionId">Session to register extension tools on.</param>
-    /// <param name="loader">In-process ExtensionLoader handle (CLI-only optimization). Marked internal: this field is excluded from the public SDK surface. When the CLI migrates to a process-separated SDK, extension discovery/launch moves entirely into the runtime — the CLI passes pure config (search paths, disabled ids) via SessionOptions instead.</param>
     /// <param name="options">Optional registration options.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Handle for releasing the extension tool registration.</returns>
-    internal async Task<RegisterExtensionToolsResult> RegisterExtensionToolsOnSessionAsync(string sessionId, object loader, SessionsRegisterExtensionToolsOnSessionOptions? options = null, CancellationToken cancellationToken = default)
+    internal async Task<RegisterExtensionToolsResult> RegisterExtensionToolsOnSessionAsync(string sessionId, SessionsRegisterExtensionToolsOnSessionOptions? options = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(sessionId);
-        ArgumentNullException.ThrowIfNull(loader);
 
-        var request = new RegisterExtensionToolsParams { SessionId = sessionId, Loader = CopilotClient.ToJsonElementForWire(loader)!.Value, Options = options };
+        var request = new RegisterExtensionToolsParams { SessionId = sessionId, Options = options };
         return await CopilotClient.InvokeRpcAsync<RegisterExtensionToolsResult>(_rpc, "sessions.registerExtensionToolsOnSession", [request], cancellationToken);
     }
 
     /// <summary>Attaches (or detaches) an in-process ExtensionController delegate for the given session, used by shared-API surfaces that need to query or modify the session's extension state. Pass `controller: undefined` to detach. Marked internal because the controller is an in-process object that cannot cross the JSON-RPC boundary. Disappears alongside `registerExtensionToolsOnSession`: once the runtime owns extension management, the public surface exposes list/enable/disable/reload as dedicated RPCs served by the runtime.</summary>
     /// <param name="sessionId">Session to attach the extension controller delegate to.</param>
-    /// <param name="controller">In-process ExtensionController delegate (CLI-only optimization). Marked internal: this field is excluded from the public SDK surface. The post-SDK extension surface exposes list/enable/disable/reload via dedicated RPCs served by the runtime.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    internal async Task ConfigureSessionExtensionsAsync(string sessionId, object? controller = null, CancellationToken cancellationToken = default)
+    internal async Task ConfigureSessionExtensionsAsync(string sessionId, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(sessionId);
 
-        var request = new ConfigureSessionExtensionsParams { SessionId = sessionId, Controller = CopilotClient.ToJsonElementForWire(controller) };
+        var request = new ConfigureSessionExtensionsParams { SessionId = sessionId };
         await CopilotClient.InvokeRpcAsync(_rpc, "sessions.configureSessionExtensions", [request], cancellationToken);
     }
 }
@@ -24880,13 +25300,16 @@ public sealed class FactoryApi
     }
 
     /// <summary>Lists durable factory runs for this session in creation order.</summary>
+    /// <param name="afterSeq">Exclusive forward cursor.</param>
+    /// <param name="beforeSeq">Exclusive backward cursor.</param>
+    /// <param name="limit">Maximum terminal runs to return. Defaults to 200 and is capped at 500.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>Factory runs in durable creation order.</returns>
-    public async Task<FactoryListRunsResult> ListRunsAsync(CancellationToken cancellationToken = default)
+    /// <returns>A page of factory runs in durable creation order.</returns>
+    public async Task<FactoryListRunsResult> ListRunsAsync(long? afterSeq = null, long? beforeSeq = null, int? limit = null, CancellationToken cancellationToken = default)
     {
         _session.ThrowIfDisposed();
 
-        var request = new FactoryListRunsRequest { SessionId = _session.SessionId };
+        var request = new FactoryListRunsRequest { SessionId = _session.SessionId, AfterSeq = afterSeq, BeforeSeq = beforeSeq, Limit = limit };
         return await CopilotClient.InvokeRpcAsync<FactoryListRunsResult>(_session.Rpc, "session.factory.listRuns", [request], cancellationToken);
     }
 
@@ -25918,15 +26341,13 @@ public sealed class McpApi
     }
 
     /// <summary>Reloads MCP server connections for the session with an explicit host-provided configuration.</summary>
-    /// <param name="config">Opaque runtime MCP reload configuration. Marked internal: an in-process runtime shape (reloadMcpServers throws over the wire).</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>MCP server startup filtering result.</returns>
-    internal async Task<McpStartServersResult> ReloadWithConfigAsync(object config, CancellationToken cancellationToken = default)
+    internal async Task<McpStartServersResult> ReloadWithConfigAsync(CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(config);
         _session.ThrowIfDisposed();
 
-        var request = new McpReloadWithConfigRequest { SessionId = _session.SessionId, Config = CopilotClient.ToJsonElementForWire(config)!.Value };
+        var request = new McpReloadWithConfigRequest { SessionId = _session.SessionId };
         return await CopilotClient.InvokeRpcAsync<McpStartServersResult>(_session.Rpc, "session.mcp.reloadWithConfig", [request], cancellationToken);
     }
 
@@ -25986,15 +26407,13 @@ public sealed class McpApi
     }
 
     /// <summary>Configures the built-in GitHub MCP server for the session's current auth context.</summary>
-    /// <param name="authInfo">Opaque runtime auth info for GitHub MCP configuration. Marked internal: an in-process runtime shape (configureGitHubMcp is a no-op over the wire).</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Result of configuring GitHub MCP.</returns>
-    internal async Task<McpConfigureGitHubResult> ConfigureGitHubAsync(object authInfo, CancellationToken cancellationToken = default)
+    internal async Task<McpConfigureGitHubResult> ConfigureGitHubAsync(CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(authInfo);
         _session.ThrowIfDisposed();
 
-        var request = new McpConfigureGitHubRequest { SessionId = _session.SessionId, AuthInfo = CopilotClient.ToJsonElementForWire(authInfo)!.Value };
+        var request = new McpConfigureGitHubRequest { SessionId = _session.SessionId };
         return await CopilotClient.InvokeRpcAsync<McpConfigureGitHubResult>(_session.Rpc, "session.mcp.configureGitHub", [request], cancellationToken);
     }
 
@@ -26038,19 +26457,13 @@ public sealed class McpApi
 
     /// <summary>Registers a pre-connected external MCP client (e.g. IDE) on the session's host. The caller retains lifecycle ownership of the client and transport. Marked internal because the `client` and `transport` arguments are in-process MCP SDK instances that cannot be serialized across the JSON-RPC boundary; once the CLI moves on top of the SDK, external clients will be expressed as transport configs the runtime can construct itself.</summary>
     /// <param name="serverName">Logical server name for the external client.</param>
-    /// <param name="client">In-process MCP Client instance. Marked internal: cannot be serialized across the JSON-RPC boundary.</param>
-    /// <param name="transport">In-process MCP Transport instance. Marked internal: cannot be serialized across the JSON-RPC boundary.</param>
-    /// <param name="config">In-process server config (MCPServerConfig) paired with the in-process client/transport. Marked internal alongside its companions.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    internal async Task RegisterExternalClientAsync(string serverName, object client, object transport, object config, CancellationToken cancellationToken = default)
+    internal async Task RegisterExternalClientAsync(string serverName, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(serverName);
-        ArgumentNullException.ThrowIfNull(client);
-        ArgumentNullException.ThrowIfNull(transport);
-        ArgumentNullException.ThrowIfNull(config);
         _session.ThrowIfDisposed();
 
-        var request = new McpRegisterExternalClientRequest { SessionId = _session.SessionId, ServerName = serverName, Client = CopilotClient.ToJsonElementForWire(client)!.Value, Transport = CopilotClient.ToJsonElementForWire(transport)!.Value, Config = CopilotClient.ToJsonElementForWire(config)!.Value };
+        var request = new McpRegisterExternalClientRequest { SessionId = _session.SessionId, ServerName = serverName };
         await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.mcp.registerExternalClient", [request], cancellationToken);
     }
 
@@ -26804,16 +27217,14 @@ public sealed class UiApi
 
     /// <summary>Runs a transient no-tools model query against the current conversation context.</summary>
     /// <param name="question">Question to answer from the current conversation context.</param>
-    /// <param name="onChunk">In-process streaming callback `(text) =&gt; void` invoked with each token as the model emits it. Marked internal: excluded from the public SDK surface. In a process-separated SDK this is replaced by a streaming RPC that yields chunks and a final answer.</param>
-    /// <param name="abortSignal">In-process `AbortSignal` forwarded to the model client to cancel an in-flight request. Marked internal: excluded from the public SDK surface. Replaced by an explicit cancellation token + cancel RPC in the SDK migration.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Transient answer generated from current conversation context.</returns>
-    public async Task<UIEphemeralQueryResult> EphemeralQueryAsync(string question, object? onChunk = null, object? abortSignal = null, CancellationToken cancellationToken = default)
+    public async Task<UIEphemeralQueryResult> EphemeralQueryAsync(string question, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(question);
         _session.ThrowIfDisposed();
 
-        var request = new UIEphemeralQueryRequest { SessionId = _session.SessionId, Question = question, OnChunk = CopilotClient.ToJsonElementForWire(onChunk), AbortSignal = CopilotClient.ToJsonElementForWire(abortSignal) };
+        var request = new UIEphemeralQueryRequest { SessionId = _session.SessionId, Question = question };
         return await CopilotClient.InvokeRpcAsync<UIEphemeralQueryResult>(_session.Rpc, "session.ui.ephemeralQuery", [request], cancellationToken);
     }
 
@@ -26976,15 +27387,16 @@ public sealed class PermissionsApi
     /// <summary>Provides a decision for a pending tool permission request.</summary>
     /// <param name="requestId">Request ID of the pending permission request.</param>
     /// <param name="result">The client's response to the pending permission prompt.</param>
+    /// <param name="decisionContext">Optional informational context describing how and where this response was made. Omit it to preserve legacy behavior without attributing an origin.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Indicates whether the permission decision was applied; false when the request was already resolved.</returns>
-    public async Task<PermissionRequestResult> HandlePendingPermissionRequestAsync(string requestId, PermissionDecision result, CancellationToken cancellationToken = default)
+    public async Task<PermissionRequestResult> HandlePendingPermissionRequestAsync(string requestId, PermissionDecision result, PermissionDecisionContext? decisionContext = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(requestId);
         ArgumentNullException.ThrowIfNull(result);
         _session.ThrowIfDisposed();
 
-        var request = new PermissionDecisionRequest { SessionId = _session.SessionId, RequestId = requestId, Result = result };
+        var request = new PermissionDecisionRequest { SessionId = _session.SessionId, RequestId = requestId, Result = result, DecisionContext = decisionContext };
         return await CopilotClient.InvokeRpcAsync<PermissionRequestResult>(_session.Rpc, "session.permissions.handlePendingPermissionRequest", [request], cancellationToken);
     }
 
@@ -27661,6 +28073,19 @@ public sealed class HistoryApi
 
         var request = new SessionHistorySummarizeForHandoffRequest { SessionId = _session.SessionId };
         return await CopilotClient.InvokeRpcAsync<HistorySummarizeForHandoffResult>(_session.Rpc, "session.history.summarizeForHandoff", [request], cancellationToken);
+    }
+
+    /// <summary>Clears the session's conversation history, keeping only system and developer messages, and seeds the fresh context window with a first user message. Must be called from inside a tool handler: the clear has to drop the results of the tool calls its wipe orphans, and it rejects when no tool call is in flight.</summary>
+    /// <param name="prompt">First user message of the fresh context window. Required: a cleared window holding only system and developer messages is not a conversation a model can answer, so every clear seeds the window it creates. Delivered by the enclosing turn driver once the agentic loop exits, which is why the call must be made from inside a tool handler.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>What a successful clear removed. A clear that could not be applied rejects instead of reporting a count.</returns>
+    public async Task<HistoryClearContextResult> ClearContextAsync(string prompt, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(prompt);
+        _session.ThrowIfDisposed();
+
+        var request = new HistoryClearContextRequest { SessionId = _session.SessionId, Prompt = prompt };
+        return await CopilotClient.InvokeRpcAsync<HistoryClearContextResult>(_session.Rpc, "session.history.clearContext", [request], cancellationToken);
     }
 }
 
@@ -28485,6 +28910,17 @@ internal static class ClientSessionApiRegistration
     }
 }
 
+/// <summary>Handles `extensionLaunchProvider` client global API methods.</summary>
+[Experimental(Diagnostics.Experimental)]
+public interface IExtensionLaunchProviderHandler
+{
+    /// <summary>Asks the registered SDK client to resolve an opaque process launch profile for one discovered extension entrypoint immediately before launch or reload. The provider must respond within 15 seconds.</summary>
+    /// <param name="request">A discovered extension entrypoint that the registered integrator may classify and resolve to an opaque launch profile.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>The launch profile for a supported entrypoint. Omit launch when the provider does not support the entrypoint.</returns>
+    Task<ExtensionLaunchProviderResolveResult> ResolveAsync(ExtensionLaunchProviderResolveRequest request, CancellationToken cancellationToken = default);
+}
+
 /// <summary>Handles `llmInference` client global API methods.</summary>
 [Experimental(Diagnostics.Experimental)]
 public interface ILlmInferenceHandler
@@ -28514,6 +28950,9 @@ public interface IGitHubTelemetryHandler
 /// <summary>Provides all client global API handler groups for a connection.</summary>
 public sealed class ClientGlobalApiHandlers
 {
+    /// <summary>Optional handler for ExtensionLaunchProvider client global API methods.</summary>
+    public IExtensionLaunchProviderHandler? ExtensionLaunchProvider { get; set; }
+
     /// <summary>Optional handler for LlmInference client global API methods.</summary>
     public ILlmInferenceHandler? LlmInference { get; set; }
 
@@ -28532,6 +28971,11 @@ internal static class ClientGlobalApiRegistration
     /// </summary>
     public static void RegisterClientGlobalApiHandlers(JsonRpc rpc, ClientGlobalApiHandlers handlers)
     {
+        rpc.SetLocalRpcMethod("extensionLaunchProvider.resolve", (Func<ExtensionLaunchProviderResolveRequest, CancellationToken, ValueTask<ExtensionLaunchProviderResolveResult>>)(async (request, cancellationToken) =>
+        {
+            var handler = handlers.ExtensionLaunchProvider ?? throw new InvalidOperationException("No extensionLaunchProvider client-global handler registered");
+            return await handler.ResolveAsync(request, cancellationToken);
+        }), singleObjectParam: true);
         rpc.SetLocalRpcMethod("llmInference.httpRequestStart", (Func<LlmInferenceHttpRequestStartRequest, CancellationToken, ValueTask<LlmInferenceHttpRequestStartResult>>)(async (request, cancellationToken) =>
         {
             var handler = handlers.LlmInference ?? throw new InvalidOperationException("No llmInference client-global handler registered");
@@ -29002,6 +29446,9 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(ExecuteCommandParams))]
 [JsonSerializable(typeof(ExecuteCommandResult))]
 [JsonSerializable(typeof(Extension))]
+[JsonSerializable(typeof(ExtensionLaunchProfile))]
+[JsonSerializable(typeof(ExtensionLaunchProviderResolveRequest))]
+[JsonSerializable(typeof(ExtensionLaunchProviderResolveResult))]
 [JsonSerializable(typeof(ExtensionList))]
 [JsonSerializable(typeof(ExtensionsDisableRequest))]
 [JsonSerializable(typeof(ExtensionsEnableRequest))]
@@ -29050,6 +29497,8 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(HandlePendingToolCallResult))]
 [JsonSerializable(typeof(HistoryAbortManualCompactionResult))]
 [JsonSerializable(typeof(HistoryCancelBackgroundCompactionResult))]
+[JsonSerializable(typeof(HistoryClearContextRequest))]
+[JsonSerializable(typeof(HistoryClearContextResult))]
 [JsonSerializable(typeof(HistoryCompactContextWindow))]
 [JsonSerializable(typeof(HistoryCompactResult))]
 [JsonSerializable(typeof(HistoryListRewindPointsResult))]
@@ -29089,6 +29538,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(LogRequest))]
 [JsonSerializable(typeof(LogResult))]
 [JsonSerializable(typeof(LspInitializeRequest))]
+[JsonSerializable(typeof(ManagedSettingsReadResult))]
 [JsonSerializable(typeof(MarketplaceAddResult))]
 [JsonSerializable(typeof(MarketplaceBrowseResult))]
 [JsonSerializable(typeof(MarketplaceInfo))]
@@ -29176,6 +29626,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(McpUnregisterExternalClientRequest))]
 [JsonSerializable(typeof(MetadataContextAttributionResult))]
 [JsonSerializable(typeof(MetadataContextAttributionResultContextAttribution))]
+[JsonSerializable(typeof(MetadataContextAttributionResultContextAttributionCategories))]
 [JsonSerializable(typeof(MetadataContextAttributionResultContextAttributionCompactions))]
 [JsonSerializable(typeof(MetadataContextAttributionResultContextAttributionEntry))]
 [JsonSerializable(typeof(MetadataContextHeaviestMessagesRequest))]
@@ -29227,6 +29678,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(PermissionDecision))]
 [JsonSerializable(typeof(PermissionDecisionApproveForLocationApproval))]
 [JsonSerializable(typeof(PermissionDecisionApproveForSessionApproval))]
+[JsonSerializable(typeof(PermissionDecisionContext))]
 [JsonSerializable(typeof(PermissionDecisionRequest))]
 [JsonSerializable(typeof(PermissionLocationAddToolApprovalParams))]
 [JsonSerializable(typeof(PermissionLocationApplyParams))]
@@ -29358,6 +29810,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(RemoteSessionMetadataValue))]
 [JsonSerializable(typeof(RunOptions))]
 [JsonSerializable(typeof(SandboxConfig))]
+[JsonSerializable(typeof(SandboxConfigAuth))]
 [JsonSerializable(typeof(SandboxConfigUserPolicy))]
 [JsonSerializable(typeof(SandboxConfigUserPolicyExperimental))]
 [JsonSerializable(typeof(SandboxConfigUserPolicyExperimentalSeatbelt))]

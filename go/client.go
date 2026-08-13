@@ -750,6 +750,10 @@ func extractTransformCallbacks(config *SystemMessageConfig) (*SystemMessageConfi
 	return wireConfig, callbacks
 }
 
+func hasManagedSettings(enableManagedSettings *bool, managedSettings *ManagedSettings) bool {
+	return (enableManagedSettings != nil && *enableManagedSettings) || managedSettings != nil
+}
+
 func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Session, error) {
 	if config == nil {
 		config = &SessionConfig{}
@@ -795,13 +799,16 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.Models = config.Models
 	req.EnableSessionTelemetry = config.EnableSessionTelemetry
 	req.EnableCitations = config.EnableCitations
+	req.EnableFileChangeTracking = config.EnableFileChangeTracking
 	req.SessionLimits = config.SessionLimits
+	req.IsExperimentalMode = config.EnableExperimentalMode
 	req.SkipCustomInstructions = config.SkipCustomInstructions
 	req.CustomAgentsLocalOnly = config.CustomAgentsLocalOnly
 	req.CoauthorEnabled = config.CoauthorEnabled
 	req.ManageScheduleEnabled = config.ManageScheduleEnabled
 	req.ModelCapabilities = config.ModelCapabilities
 	req.WorkingDirectory = config.WorkingDirectory
+	req.AdditionalDirectories = config.AdditionalDirectories
 	req.MCPServers = config.MCPServers
 	req.MCPOAuthTokenStorage = config.MCPOAuthTokenStorage
 	req.EnvValueMode = "direct"
@@ -812,6 +819,9 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.PluginDirectories = config.PluginDirectories
 	req.InstructionDirectories = config.InstructionDirectories
 	req.DisabledSkills = config.DisabledSkills
+	if config.DisabledMCPServers != nil {
+		req.DisabledMCPServers = &config.DisabledMCPServers
+	}
 	req.InfiniteSessions = config.InfiniteSessions
 	req.LargeOutput = config.LargeOutput
 	req.ToolSearch = config.ToolSearch
@@ -828,6 +838,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.ExtensionInfo = config.ExtensionInfo
 	req.ExpAssignments = config.ExpAssignments
 	req.EnableManagedSettings = config.EnableManagedSettings
+	req.ManagedSettings = config.ManagedSettings
 
 	if len(config.Commands) > 0 {
 		cmds := make([]wireCommand, 0, len(config.Commands))
@@ -869,6 +880,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 		config.Hooks.OnPostToolUse != nil ||
 		config.Hooks.OnPostToolUseFailure != nil ||
 		config.Hooks.OnUserPromptSubmitted != nil ||
+		config.Hooks.OnUserPromptTransformed != nil ||
 		config.Hooks.OnSessionStart != nil ||
 		config.Hooks.OnSessionEnd != nil ||
 		config.Hooks.OnErrorOccurred != nil ||
@@ -911,7 +923,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 			sessionID,
 			c.client,
 			"",
-			config.EnableManagedSettings != nil && *config.EnableManagedSettings,
+			hasManagedSettings(config.EnableManagedSettings, config.ManagedSettings),
 		)
 
 		s.registerTools(config.Tools)
@@ -1122,6 +1134,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	req.Providers = config.Providers
 	req.Models = config.Models
 	req.EnableSessionTelemetry = config.EnableSessionTelemetry
+	req.IsExperimentalMode = config.EnableExperimentalMode
 	req.SkipCustomInstructions = config.SkipCustomInstructions
 	req.CustomAgentsLocalOnly = config.CustomAgentsLocalOnly
 	req.CoauthorEnabled = config.CoauthorEnabled
@@ -1136,6 +1149,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	req.ToolFilterPrecedence = precedence
 	req.ExcludedBuiltInAgents = config.ExcludedBuiltInAgents
 	req.EnableCitations = config.EnableCitations
+	req.EnableFileChangeTracking = config.EnableFileChangeTracking
 	req.SessionLimits = config.SessionLimits
 	if config.Streaming != nil {
 		req.Streaming = config.Streaming
@@ -1156,6 +1170,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 		config.Hooks.OnPostToolUse != nil ||
 		config.Hooks.OnPostToolUseFailure != nil ||
 		config.Hooks.OnUserPromptSubmitted != nil ||
+		config.Hooks.OnUserPromptTransformed != nil ||
 		config.Hooks.OnSessionStart != nil ||
 		config.Hooks.OnSessionEnd != nil ||
 		config.Hooks.OnErrorOccurred != nil ||
@@ -1163,6 +1178,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 		req.Hooks = Bool(true)
 	}
 	req.WorkingDirectory = config.WorkingDirectory
+	req.AdditionalDirectories = config.AdditionalDirectories
 	req.ConfigDir = config.ConfigDirectory
 	req.EnableConfigDiscovery = config.EnableConfigDiscovery
 	req.SkipEmbeddingRetrieval = config.SkipEmbeddingRetrieval
@@ -1187,6 +1203,9 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	req.PluginDirectories = config.PluginDirectories
 	req.InstructionDirectories = config.InstructionDirectories
 	req.DisabledSkills = config.DisabledSkills
+	if config.DisabledMCPServers != nil {
+		req.DisabledMCPServers = &config.DisabledMCPServers
+	}
 	req.InfiniteSessions = config.InfiniteSessions
 	req.LargeOutput = config.LargeOutput
 	req.ToolSearch = config.ToolSearch
@@ -1203,6 +1222,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	req.ExtensionInfo = config.ExtensionInfo
 	req.ExpAssignments = config.ExpAssignments
 	req.EnableManagedSettings = config.EnableManagedSettings
+	req.ManagedSettings = config.ManagedSettings
 	if config.OnPermissionRequest != nil {
 		req.RequestPermission = Bool(true)
 	}
@@ -1238,7 +1258,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 		sessionID,
 		c.client,
 		"",
-		config.EnableManagedSettings != nil && *config.EnableManagedSettings,
+		hasManagedSettings(config.EnableManagedSettings, config.ManagedSettings),
 	)
 
 	session.registerTools(config.Tools)

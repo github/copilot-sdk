@@ -7,6 +7,7 @@ This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.py
 import asyncio
 import inspect
 from datetime import UTC, datetime
+from tempfile import TemporaryDirectory
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -27,6 +28,8 @@ from copilot.client import (
     CloudSessionRepository,
     CopilotExpAssignmentResponse,
     ExpConfigEntry,
+    ManagedSettings,
+    ManagedSettingsPermissions,
     ModelBilling,
     ModelCapabilities,
     ModelInfo,
@@ -162,6 +165,46 @@ class TestPermissionHandlerOptional:
 
 
 class TestCreateSessionConfig:
+    @pytest.mark.asyncio
+    async def test_additional_directories_forwarded_on_create_and_resume(self):
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        await client.start()
+        try:
+            captured: list[tuple[str, dict]] = []
+
+            async def mock_request(method, params, **kwargs):
+                captured.append((method, params))
+                if method == "session.create":
+                    result = {"sessionId": params["sessionId"], "workspacePath": None}
+                    callback = kwargs.get("on_response_inline")
+                    if callback is not None:
+                        callback(result)
+                    return result
+                if method == "session.resume":
+                    return {"sessionId": params["sessionId"], "workspacePath": None}
+                return {}
+
+            client._client.request = mock_request
+            await client.create_session(
+                session_id="create-with-additional-directories",
+                additional_directories=["/repo/shared", "/repo/generated"],
+            )
+            await client.resume_session(
+                "resume-with-additional-directories",
+                additional_directories=["/repo/resumed"],
+            )
+
+            create_payload = next(
+                params for method, params in captured if method == "session.create"
+            )
+            resume_payload = next(
+                params for method, params in captured if method == "session.resume"
+            )
+            assert create_payload["additionalDirectories"] == ["/repo/shared", "/repo/generated"]
+            assert resume_payload["additionalDirectories"] == ["/repo/resumed"]
+        finally:
+            await client.force_stop()
+
     @pytest.mark.asyncio
     async def test_mcp_auth_handler_registers_interest_in_create_session(self):
         client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
@@ -578,6 +621,190 @@ class TestCreateSessionConfig:
             await client.force_stop()
 
     @pytest.mark.asyncio
+    async def test_create_and_resume_session_forward_enable_experimental_mode(self):
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        await client.start()
+        try:
+            captured = {}
+
+            async def mock_request(method, params, **kwargs):
+                captured[method] = params
+                if method in ("session.create", "session.resume"):
+                    result = {"sessionId": params.get("sessionId") or "session-1"}
+                    callback = kwargs.get("on_response_inline")
+                    if callback is not None:
+                        callback(result)
+                    return result
+                return {}
+
+            client._client.request = mock_request
+            session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                enable_experimental_mode=False,
+            )
+            await client.resume_session(
+                session.session_id,
+                on_permission_request=PermissionHandler.approve_all,
+                enable_experimental_mode=True,
+            )
+
+            assert captured["session.create"]["isExperimentalMode"] is False
+            assert captured["session.resume"]["isExperimentalMode"] is True
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_create_and_resume_session_forward_managed_settings(self):
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        await client.start()
+        try:
+            captured = {}
+
+            async def mock_request(method, params, **kwargs):
+                captured[method] = params
+                if method in ("session.create", "session.resume"):
+                    result = {"sessionId": params.get("sessionId") or "session-1"}
+                    callback = kwargs.get("on_response_inline")
+                    if callback is not None:
+                        callback(result)
+                    return result
+                return {}
+
+            client._client.request = mock_request
+            session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                enable_managed_settings=True,
+                managed_settings=ManagedSettings(
+                    permissions=ManagedSettingsPermissions(
+                        disable_bypass_permissions_mode="disable",
+                        deny=["Shell(git push)"],
+                        ask=["Domain(publish.example)"],
+                        allow=["Read(**)"],
+                    )
+                ),
+            )
+            resumed_session = await client.resume_session(
+                session.session_id,
+                on_permission_request=PermissionHandler.approve_all,
+                managed_settings=ManagedSettings(
+                    permissions=ManagedSettingsPermissions(ask=["Domain(publish.example)"])
+                ),
+            )
+
+            assert session._managed_settings_enabled is True
+            assert resumed_session._managed_settings_enabled is True
+            assert captured["session.create"]["enableManagedSettings"] is True
+            assert captured["session.create"]["managedSettings"] == {
+                "permissions": {
+                    "disableBypassPermissionsMode": "disable",
+                    "deny": ["Shell(git push)"],
+                    "ask": ["Domain(publish.example)"],
+                    "allow": ["Read(**)"],
+                }
+            }
+            assert captured["session.resume"]["managedSettings"] == {
+                "permissions": {"ask": ["Domain(publish.example)"]}
+            }
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_create_and_resume_session_default_enable_experimental_mode_by_mode(self):
+        with TemporaryDirectory() as base_directory:
+            client = CopilotClient(
+                connection=RuntimeConnection.for_stdio(path=CLI_PATH),
+                mode="empty",
+                base_directory=base_directory,
+            )
+            await client.start()
+            try:
+                captured = {}
+
+                async def mock_request(method, params, **kwargs):
+                    captured[method] = params
+                    if method in ("session.create", "session.resume"):
+                        result = {"sessionId": params.get("sessionId") or "session-1"}
+                        callback = kwargs.get("on_response_inline")
+                        if callback is not None:
+                            callback(result)
+                        return result
+                    if method == "session.options.update":
+                        return {"success": True}
+                    return {}
+
+                client._client.request = mock_request
+                session = await client.create_session(
+                    on_permission_request=PermissionHandler.approve_all,
+                    available_tools=[],
+                )
+                await client.resume_session(
+                    session.session_id,
+                    on_permission_request=PermissionHandler.approve_all,
+                    available_tools=[],
+                )
+
+                assert captured["session.create"]["isExperimentalMode"] is False
+                assert captured["session.resume"]["isExperimentalMode"] is False
+            finally:
+                await client.force_stop()
+
+    async def test_managed_settings_omitted_when_not_supplied(self):
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        await client.start()
+        try:
+            captured = {}
+
+            async def mock_request(method, params, **kwargs):
+                captured[method] = params
+                if method == "session.create":
+                    result = {"sessionId": params.get("sessionId") or "session-1"}
+                    callback = kwargs.get("on_response_inline")
+                    if callback is not None:
+                        callback(result)
+                    return result
+                return {}
+
+            client._client.request = mock_request
+            await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+            )
+
+            assert "managedSettings" not in captured["session.create"]
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_managed_settings_preserves_empty_arrays(self):
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        await client.start()
+        try:
+            captured = {}
+
+            async def mock_request(method, params, **kwargs):
+                captured[method] = params
+                if method == "session.create":
+                    result = {"sessionId": params.get("sessionId") or "session-1"}
+                    callback = kwargs.get("on_response_inline")
+                    if callback is not None:
+                        callback(result)
+                    return result
+                return {}
+
+            client._client.request = mock_request
+            await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                managed_settings=ManagedSettings(
+                    permissions=ManagedSettingsPermissions(deny=[], ask=[], allow=[])
+                ),
+            )
+
+            assert captured["session.create"]["managedSettings"] == {
+                "permissions": {"deny": [], "ask": [], "allow": []}
+            }
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
     async def test_create_and_resume_session_forward_context_tier(self):
         client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()
@@ -651,6 +878,45 @@ class TestCreateSessionConfig:
             await client.force_stop()
 
     @pytest.mark.asyncio
+    async def test_create_and_resume_session_forward_tool_is_terminal(self):
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        await client.start()
+        try:
+            captured = {}
+
+            async def mock_request(method, params, **kwargs):
+                captured[method] = params
+                if method in ("session.create", "session.resume"):
+                    result = {"sessionId": params.get("sessionId") or "session-1"}
+                    callback = kwargs.get("on_response_inline")
+                    if callback is not None:
+                        callback(result)
+                    return result
+                return {}
+
+            client._client.request = mock_request
+            tool = Tool(name="my_tool", description="a tool", is_terminal=True)
+            plain_tool = Tool(name="plain_tool", description="a tool")
+
+            session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                tools=[tool, plain_tool],
+            )
+            await client.resume_session(
+                session.session_id,
+                on_permission_request=PermissionHandler.approve_all,
+                tools=[tool],
+            )
+
+            create_tools = captured["session.create"]["tools"]
+            assert create_tools[0]["isTerminal"] is True
+            # Omitted when left at its default.
+            assert "isTerminal" not in create_tools[1]
+            assert captured["session.resume"]["tools"][0]["isTerminal"] is True
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
     async def test_create_and_resume_session_forward_canvas_provider(self):
         client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()
@@ -714,6 +980,7 @@ class TestCreateSessionConfig:
             session = await client.create_session(
                 on_permission_request=PermissionHandler.approve_all,
                 enable_citations=True,
+                enable_file_change_tracking=True,
                 excluded_builtin_agents=["explore"],
                 session_limits={"max_ai_credits": 30},
             )
@@ -721,14 +988,17 @@ class TestCreateSessionConfig:
                 session.session_id,
                 on_permission_request=PermissionHandler.approve_all,
                 enable_citations=False,
+                enable_file_change_tracking=False,
                 excluded_builtin_agents=["task"],
                 session_limits={"max_ai_credits": 15},
             )
 
             assert captured["session.create"]["enableCitations"] is True
+            assert captured["session.create"]["enableFileChangeTracking"] is True
             assert captured["session.create"]["excludedBuiltinAgents"] == ["explore"]
             assert captured["session.create"]["sessionLimits"] == {"maxAiCredits": 30}
             assert captured["session.resume"]["enableCitations"] is False
+            assert captured["session.resume"]["enableFileChangeTracking"] is False
             assert captured["session.resume"]["excludedBuiltinAgents"] == ["task"]
             assert captured["session.resume"]["sessionLimits"] == {"maxAiCredits": 15}
         finally:
@@ -794,6 +1064,7 @@ class TestCreateSessionConfig:
             client._client.request = mock_request
 
             plugin_dirs = ["/tmp/plugins/a", "/tmp/plugins/b"]
+            disabled_mcp_servers = ["local-files", "remote-github"]
             large_output = {
                 "enabled": True,
                 "max_size_bytes": 1024,
@@ -808,19 +1079,45 @@ class TestCreateSessionConfig:
             session = await client.create_session(
                 on_permission_request=PermissionHandler.approve_all,
                 plugin_directories=plugin_dirs,
+                disabled_mcp_servers=disabled_mcp_servers,
                 large_output=large_output,
             )
             await client.resume_session(
                 session.session_id,
                 on_permission_request=PermissionHandler.approve_all,
                 plugin_directories=plugin_dirs,
+                disabled_mcp_servers=disabled_mcp_servers,
                 large_output=large_output,
             )
 
             assert captured["session.create"]["pluginDirectories"] == plugin_dirs
+            assert captured["session.create"]["disabledMcpServers"] == disabled_mcp_servers
             assert captured["session.create"]["largeOutput"] == expected_large_output_wire
             assert captured["session.resume"]["pluginDirectories"] == plugin_dirs
+            assert captured["session.resume"]["disabledMcpServers"] == disabled_mcp_servers
             assert captured["session.resume"]["largeOutput"] == expected_large_output_wire
+
+            empty_session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                disabled_mcp_servers=[],
+            )
+            await client.resume_session(
+                empty_session.session_id,
+                on_permission_request=PermissionHandler.approve_all,
+                disabled_mcp_servers=[],
+            )
+            assert captured["session.create"]["disabledMcpServers"] == []
+            assert captured["session.resume"]["disabledMcpServers"] == []
+
+            omitted_session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+            )
+            await client.resume_session(
+                omitted_session.session_id,
+                on_permission_request=PermissionHandler.approve_all,
+            )
+            assert "disabledMcpServers" not in captured["session.create"]
+            assert "disabledMcpServers" not in captured["session.resume"]
         finally:
             await client.force_stop()
 

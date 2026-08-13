@@ -11,11 +11,12 @@ use github_copilot_sdk::{CommandContext, CommandDefinition, CommandHandler, Requ
 use serde_json::json;
 use tokio::sync::mpsc;
 
-use super::support::{recv_with_timeout, wait_for_event, with_e2e_context};
+use super::support::{recv_with_timeout, wait_for_event};
 
 #[tokio::test]
 async fn session_commands_list_returns_builtins_and_respects_client_command_filter() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "commands",
         "session_with_commands_creates_successfully",
         |ctx| {
@@ -85,7 +86,8 @@ async fn session_commands_list_returns_builtins_and_respects_client_command_filt
 
 #[tokio::test]
 async fn session_commands_invoke_known_builtin_returns_expected_result() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "commands",
         "session_with_no_commands_creates_successfully",
         |ctx| {
@@ -129,7 +131,8 @@ async fn session_commands_invoke_known_builtin_returns_expected_result() {
 
 #[tokio::test]
 async fn session_commands_execute_runs_registered_command_handler() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "commands",
         "session_with_commands_creates_successfully",
         |ctx| {
@@ -175,7 +178,8 @@ async fn session_commands_execute_runs_registered_command_handler() {
 
 #[tokio::test]
 async fn session_commands_enqueue_and_respond_to_queued_command() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "commands",
         "session_with_no_commands_creates_successfully",
         |ctx| {
@@ -289,3 +293,5 @@ fn assert_command(
     assert_eq!(command.kind, kind);
     assert!(!command.description.trim().is_empty());
 }
+static E2E: super::support::SharedE2eGroup =
+    super::support::SharedE2eGroup::standard("commands", 4);

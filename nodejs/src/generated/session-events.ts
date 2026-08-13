@@ -3,6 +3,9 @@
  * Generated from: session-events.schema.json
  */
 
+/** A value that can be represented losslessly on the SDK JSON wire. */
+export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
+
 /**
  * Union of all session event variants emitted by the Copilot CLI runtime.
  */
@@ -33,6 +36,7 @@ export type SessionEvent =
   | UsageCheckpointEvent
   | ContextChangedEvent
   | UsageInfoEvent
+  | ContextClearedEvent
   | CompactionStartEvent
   | CompactionCompleteEvent
   | TaskCompleteEvent
@@ -669,6 +673,10 @@ export type ElicitationCompletedAction =
   /** The user dismissed the request. */
   | "cancel";
 /**
+ * Opaque JSON value submitted for one field in accepted `elicitation.completed` form content.
+ */
+export type ElicitationCompletedContent = JsonValue | undefined;
+/**
  * Reason the runtime is requesting host-provided MCP OAuth credentials
  */
 export type McpOauthRequestReason =
@@ -709,6 +717,10 @@ export type McpHeadersRefreshCompletedOutcome =
   /** No response arrived within the bounded window. */
   | "timeout";
 /**
+ * Source-defined JSON payload for the custom notification
+ */
+export type CustomNotificationPayload = JsonValue;
+/**
  * The user's auto-mode-switch choice
  */
 export type AutoModeSwitchResponse =
@@ -741,14 +753,18 @@ export type AutoModeResolvedReasoningBucket =
   /** The request looks high-reasoning; a stronger model is appropriate. */
   | "high";
 /**
- * Which channel supplied the effective enterprise managed settings (highest-authority present layer wins wholesale)
+ * Summary of which managed-settings channels contributed to the effective session policy. Use the per-channel booleans for exact provenance.
  */
 export type ManagedSettingsResolvedSource =
-  /** Account/org policy self-fetched from the GitHub managed-settings endpoint (higher authority). */
+  /** Only the server/account channel contributed. */
   | "server"
-  /** Device-level MDM policy discovered from plist/registry/file (lower authority). */
+  /** Only the device MDM/plist/registry/file channel contributed. */
   | "device"
-  /** No managed policy is in force (no layer contributed). */
+  /** Only session-local SDK-host injection contributed. */
+  | "client"
+  /** More than one channel contributed. Ordinary keys resolve device over server per key, while permissions compose restrictively across all present layers. */
+  | "mixed"
+  /** No managed policy is in force (no channel contributed). */
   | "none";
 /**
  * The category of runtime action that enterprise managed settings governed (blocked or capped)
@@ -1617,7 +1633,7 @@ export interface ModelChangeEvent {
  */
 export interface ModelChangeData {
   /**
-   * Reason the change happened, when not user-initiated. Currently `"rate_limit_auto_switch"` for changes triggered by the auto-mode-switch rate-limit recovery path. UI clients can use this to render contextual copy.
+   * Reason the change happened, when not user-initiated. `"rate_limit_auto_switch"` for changes triggered by the auto-mode-switch rate-limit recovery path, or `"refusal_fallback"` when the active model declined a request (content refusal) and the runtime switched to the configured refusal-fallback model. UI clients can use this to render contextual copy.
    */
   cause?: string;
   /**
@@ -2428,6 +2444,49 @@ export interface UsageInfoData {
   toolDefinitionsTokens?: number;
 }
 /**
+ * Session event "session.context_cleared". Context-cleared details emitted when the host clears the conversation (the session.history.clearContext RPC / Session.clearContextMessages)
+ */
+export interface ContextClearedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: ContextClearedData;
+  /**
+   * When true, the event is transient and not persisted to the session event log on disk
+   */
+  ephemeral?: boolean;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "session.context_cleared".
+   */
+  type: "session.context_cleared";
+}
+/**
+ * Context-cleared details emitted when the host clears the conversation (the session.history.clearContext RPC / Session.clearContextMessages)
+ */
+export interface ContextClearedData {
+  /**
+   * Optional initial message set after clearing
+   */
+  initialMessage?: string;
+  /**
+   * Number of conversation messages that were cleared
+   */
+  messagesCleared: number;
+}
+/**
  * Session event "session.compaction_start". Context window breakdown at the start of LLM-powered conversation compaction
  */
 export interface CompactionStartEvent {
@@ -3221,9 +3280,7 @@ export interface AttachmentExtensionContext {
   /**
    * Caller-supplied JSON payload
    */
-  payload?: {
-    [k: string]: unknown | undefined;
-  };
+  payload?: JsonValue;
   /**
    * Human-readable composer pill label
    */
@@ -3762,9 +3819,7 @@ export interface CitationReference {
   /**
    * Provider-native citation correlation data (e.g. Anthropic search_result_index / document_index), passed through opaquely for debugging and forward compatibility.
    */
-  providerMetadata?: {
-    [k: string]: unknown | undefined;
-  };
+  providerMetadata?: JsonValue;
   /**
    * Identifier of the CitationSource this reference points to (CitationSource.id).
    */
@@ -3833,9 +3888,9 @@ export interface AssistantMessageServerTools {
   functionCallNamespaces?: {
     [k: string]: string | undefined;
   };
-  items?: unknown[];
+  items?: JsonValue[];
   provider: string;
-  rawContentBlocks?: unknown[];
+  rawContentBlocks?: JsonValue[];
 }
 /**
  * A tool invocation request from the assistant
@@ -3844,9 +3899,7 @@ export interface AssistantMessageToolRequest {
   /**
    * Arguments to pass to the tool, format depends on the tool
    */
-  arguments?: {
-    [k: string]: unknown | undefined;
-  };
+  arguments?: JsonValue;
   /**
    * Resolved intention summary describing what this specific call does
    */
@@ -4525,9 +4578,7 @@ export interface ToolUserRequestedData {
   /**
    * Arguments for the tool invocation
    */
-  arguments?: {
-    [k: string]: unknown | undefined;
-  };
+  arguments?: JsonValue;
   /**
    * Unique identifier for this tool call
    */
@@ -4574,9 +4625,7 @@ export interface ToolExecutionStartData {
   /**
    * Arguments passed to the tool
    */
-  arguments?: {
-    [k: string]: unknown | undefined;
-  };
+  arguments?: JsonValue;
   /**
    * When true, the tool output should be displayed expanded (verbatim) in the CLI timeline
    */
@@ -4800,9 +4849,7 @@ export interface ToolExecutionCompleteData {
    *
    * @experimental
    */
-  mcpMeta?: {
-    [k: string]: unknown | undefined;
-  };
+  mcpMeta?: JsonValue;
   /**
    * Model identifier that generated this tool call
    */
@@ -4831,7 +4878,7 @@ export interface ToolExecutionCompleteData {
    * Tool-specific telemetry data (e.g., CodeQL check counts, grep match counts)
    */
   toolTelemetry?: {
-    [k: string]: unknown | undefined;
+    [k: string]: JsonValue | undefined;
   };
   /**
    * Identifier for the agent loop turn this tool was invoked in, matching the corresponding assistant.turn_start event
@@ -4884,15 +4931,11 @@ export interface ToolExecutionCompleteResult {
    *
    * @experimental
    */
-  mcpMeta?: {
-    [k: string]: unknown | undefined;
-  };
+  mcpMeta?: JsonValue;
   /**
    * Structured content (arbitrary JSON) returned verbatim by the MCP tool
    */
-  structuredContent?: {
-    [k: string]: unknown | undefined;
-  };
+  structuredContent?: JsonValue;
   uiResource?: ToolExecutionCompleteUIResource;
 }
 /**
@@ -4911,7 +4954,7 @@ export interface PersistedBinaryImage {
    * Optional metadata from the producing tool.
    */
   metadata?: {
-    [k: string]: unknown | undefined;
+    [k: string]: JsonValue | undefined;
   };
   /**
    * MIME type of the binary data
@@ -4936,7 +4979,7 @@ export interface OmittedBinaryResult {
    * Optional metadata from the producing tool.
    */
   metadata?: {
-    [k: string]: unknown | undefined;
+    [k: string]: JsonValue | undefined;
   };
   /**
    * MIME type of the omitted binary data
@@ -4966,7 +5009,7 @@ export interface BinaryAssetReference {
    * Optional metadata from the producing tool.
    */
   metadata?: {
-    [k: string]: unknown | undefined;
+    [k: string]: JsonValue | undefined;
   };
   /**
    * MIME type of the referenced binary data
@@ -5514,6 +5557,10 @@ export interface SubagentCompletedData {
    */
   agentName: string;
   /**
+   * Whether the sub-agent was torn down by cancellation - its own abort, or an ancestor being killed - instead of finishing its work. Cancellation is not a failure, so the run still reports completion; this distinguishes a torn-down sub-agent from one that ran to the end.
+   */
+  cancelled?: boolean;
+  /**
    * Wall-clock duration of the sub-agent execution in milliseconds
    */
   durationMs?: number;
@@ -5727,9 +5774,7 @@ export interface HookStartData {
   /**
    * Input data passed to the hook
    */
-  input?: {
-    [k: string]: unknown | undefined;
-  };
+  input?: JsonValue;
 }
 /**
  * Session event "hook.end". Hook invocation completion details including output, success status, and error information
@@ -5777,9 +5822,7 @@ export interface HookEndData {
   /**
    * Output data produced by the hook
    */
-  output?: {
-    [k: string]: unknown | undefined;
-  };
+  output?: JsonValue;
   /**
    * Whether the hook completed successfully
    */
@@ -5900,7 +5943,7 @@ export interface BinaryAssetData {
    * Optional metadata from the producing tool.
    */
   metadata?: {
-    [k: string]: unknown | undefined;
+    [k: string]: JsonValue | undefined;
   };
   /**
    * MIME type of the binary asset
@@ -5969,7 +6012,7 @@ export interface SystemMessageMetadata {
    * Template variables used when constructing the prompt
    */
   variables?: {
-    [k: string]: unknown | undefined;
+    [k: string]: JsonValue | undefined;
   };
 }
 /**
@@ -6174,9 +6217,7 @@ export interface SystemNotificationFactoryCompleted {
   /**
    * Machine-readable terminal failure details, when present.
    */
-  failure?: {
-    [k: string]: unknown | undefined;
-  };
+  failure?: JsonValue;
   /**
    * Bounded prompt-safe preview of the completed result.
    */
@@ -6202,9 +6243,7 @@ export interface SystemNotificationUnclassified {
   /**
    * Opaque metadata supplied by the external host, when present.
    */
-  metadata?: {
-    [k: string]: unknown | undefined;
-  };
+  metadata?: JsonValue;
   /**
    * Type discriminator. Always "unclassified".
    */
@@ -6257,9 +6296,7 @@ export interface PermissionRequestedData {
   /**
    * Neutral risk metadata supplied by the tool host. Consumers may display this value but must not use it to bypass the permission decision.
    */
-  riskAssessment?: {
-    [k: string]: unknown | undefined;
-  };
+  riskAssessment?: JsonValue;
 }
 /**
  * Shell command permission request
@@ -6442,9 +6479,7 @@ export interface PermissionRequestMcp {
   /**
    * Arguments to pass to the MCP tool
    */
-  args?: {
-    [k: string]: unknown | undefined;
-  };
+  args?: JsonValue;
   /**
    * Permission kind discriminator
    */
@@ -6545,9 +6580,7 @@ export interface PermissionRequestCustomTool {
   /**
    * Arguments to pass to the custom tool
    */
-  args?: {
-    [k: string]: unknown | undefined;
-  };
+  args?: JsonValue;
   /**
    * Permission kind discriminator
    */
@@ -6580,9 +6613,7 @@ export interface PermissionRequestHook {
   /**
    * Arguments of the tool call being gated
    */
-  toolArgs?: {
-    [k: string]: unknown | undefined;
-  };
+  toolArgs?: JsonValue;
   /**
    * Tool call ID that triggered this permission request
    */
@@ -6841,9 +6872,7 @@ export interface PermissionPromptRequestMcp {
   /**
    * Arguments to pass to the MCP tool
    */
-  args?: {
-    [k: string]: unknown | undefined;
-  };
+  args?: JsonValue;
   /**
    * Auto-approval judge information for this request; present only when auto mode is enabled.
    *
@@ -6958,9 +6987,7 @@ export interface PermissionPromptRequestCustomTool {
   /**
    * Arguments to pass to the custom tool
    */
-  args?: {
-    [k: string]: unknown | undefined;
-  };
+  args?: JsonValue;
   /**
    * Auto-approval judge information for this request; present only when auto mode is enabled.
    *
@@ -7029,9 +7056,7 @@ export interface PermissionPromptRequestHook {
   /**
    * Arguments of the tool call being gated
    */
-  toolArgs?: {
-    [k: string]: unknown | undefined;
-  };
+  toolArgs?: JsonValue;
   /**
    * Tool call ID that triggered this permission request
    */
@@ -7611,7 +7636,7 @@ export interface ElicitationRequestedSchema {
    * Form field definitions, keyed by field name
    */
   properties: {
-    [k: string]: unknown | undefined;
+    [k: string]: JsonValue | undefined;
   };
   /**
    * List of required field names
@@ -7669,12 +7694,6 @@ export interface ElicitationCompletedData {
   requestId: string;
 }
 /**
- * Opaque JSON value submitted for one field in accepted `elicitation.completed` form content.
- */
-export interface ElicitationCompletedContent {
-  [k: string]: unknown | undefined;
-}
-/**
  * Session event "sampling.requested". Sampling request from an MCP server; contains the server name and a requestId for correlation
  */
 export interface SamplingRequestedEvent {
@@ -7711,9 +7730,7 @@ export interface SamplingRequestedData {
   /**
    * The JSON-RPC request ID from the MCP protocol
    */
-  mcpRequestId: {
-    [k: string]: unknown | undefined;
-  };
+  mcpRequestId: JsonValue;
   /**
    * Unique identifier for this sampling request; used to respond via session.respondToSampling()
    */
@@ -8063,12 +8080,6 @@ export interface CustomNotificationData {
   version?: number;
 }
 /**
- * Source-defined JSON payload for the custom notification
- */
-export interface CustomNotificationPayload {
-  [k: string]: unknown | undefined;
-}
-/**
  * Optional source-defined string identifiers describing the payload subject
  */
 export interface CustomNotificationSubject {
@@ -8111,9 +8122,7 @@ export interface ExternalToolRequestedData {
   /**
    * Arguments to pass to the external tool
    */
-  arguments?: {
-    [k: string]: unknown | undefined;
-  };
+  arguments?: JsonValue;
   /**
    * Unique identifier for this request; used to respond via session.respondToExternalTool()
    */
@@ -8600,7 +8609,7 @@ export interface AutoModeResolvedData {
   stickyOverride?: boolean;
 }
 /**
- * Session event "session.managed_settings_resolved". Enterprise managed-settings resolution: the effective managed settings the session applied and where they came from, so SDK clients can show users what is enterprise-managed and by which authority. Fires whenever managed policy is (re)applied — at session start, on resume, and on account switch. This is an ephemeral live snapshot (delivered to subscribers but not persisted to the session event log), because at session start it resolves before `session.start` is emitted; for a session-independent pull, use the SDK `getManagedSettings()` API, which returns the identical payload. Managed settings have a single authoritative source, so the highest-authority present layer (server > device) wins wholesale; `bypassPermissionsDisabled` is deny-wins across layers. Marked experimental while the managed-settings surface stabilizes.
+ * Session event "session.managed_settings_resolved". Enterprise managed-settings resolution: the effective managed settings the session applied and which channels contributed, so SDK clients can show users what is enterprise-managed. Fires whenever managed policy is (re)applied — at session start, on resume, and on account switch. This is an ephemeral live snapshot (delivered to subscribers but not persisted to the session event log), because at session start it resolves before `session.start` is emitted. Device values take precedence over server values per ordinary key, while permissions compose restrictively across device, server, and SDK-client layers. The account-scoped `getManagedSettings()` API does not include session-local client injection. Marked experimental while the managed-settings surface stabilizes.
  */
 /** @experimental */
 export interface ManagedSettingsResolvedEvent {
@@ -8631,7 +8640,7 @@ export interface ManagedSettingsResolvedEvent {
   type: "session.managed_settings_resolved";
 }
 /**
- * Enterprise managed-settings resolution: the effective managed settings the session applied and where they came from, so SDK clients can show users what is enterprise-managed and by which authority. Fires whenever managed policy is (re)applied — at session start, on resume, and on account switch. This is an ephemeral live snapshot (delivered to subscribers but not persisted to the session event log), because at session start it resolves before `session.start` is emitted; for a session-independent pull, use the SDK `getManagedSettings()` API, which returns the identical payload. Managed settings have a single authoritative source, so the highest-authority present layer (server > device) wins wholesale; `bypassPermissionsDisabled` is deny-wins across layers. Marked experimental while the managed-settings surface stabilizes.
+ * Enterprise managed-settings resolution: the effective managed settings the session applied and which channels contributed, so SDK clients can show users what is enterprise-managed. Fires whenever managed policy is (re)applied — at session start, on resume, and on account switch. This is an ephemeral live snapshot (delivered to subscribers but not persisted to the session event log), because at session start it resolves before `session.start` is emitted. Device values take precedence over server values per ordinary key, while permissions compose restrictively across device, server, and SDK-client layers. The account-scoped `getManagedSettings()` API does not include session-local client injection. Marked experimental while the managed-settings surface stabilizes.
  */
 /** @experimental */
 export interface ManagedSettingsResolvedData {
@@ -8640,7 +8649,11 @@ export interface ManagedSettingsResolvedData {
    */
   bypassPermissionsDisabled: boolean;
   /**
-   * Whether the device (MDM/plist/registry/file) managed-settings layer was present
+   * Whether a session-local permissions layer injected by the SDK host was present
+   */
+  clientManaged?: boolean;
+  /**
+   * Whether an actual device MDM/plist/registry/file managed-settings layer was present
    */
   deviceManaged: boolean;
   /**
@@ -8652,7 +8665,7 @@ export interface ManagedSettingsResolvedData {
    */
   managedKeys: string[];
   /**
-   * Whether server and device each supplied a permission allowlist, so enforcement intersects them and the flattened settings payload omits `permissions.allow`.
+   * Whether at least two managed sources supplied permission allowlists, so enforcement intersects them and the flattened settings payload omits `permissions.allow`.
    */
   permissionsAllowIntersected?: boolean;
   /**
@@ -8662,9 +8675,7 @@ export interface ManagedSettingsResolvedData {
   /**
    * The effective (resolved) managed settings values, so clients can render exactly what is enforced. Absent when no managed policy is in force.
    */
-  settings?: {
-    [k: string]: unknown | undefined;
-  };
+  settings?: JsonValue;
   source: ManagedSettingsResolvedSource;
 }
 /**
@@ -9090,6 +9101,10 @@ export interface SkillsLoadedSkill {
    */
   argumentHint?: string;
   /**
+   * Canonical slash command name used to invoke the skill, without the leading '/'
+   */
+  commandName?: string;
+  /**
    * Description of what the skill does
    */
   description: string;
@@ -9510,9 +9525,7 @@ export interface CanvasOpenedData {
   /**
    * Input supplied when the instance was opened
    */
-  input?: {
-    [k: string]: unknown | undefined;
-  };
+  input?: JsonValue;
   /**
    * Stable caller-supplied canvas instance identifier
    */
@@ -9607,9 +9620,7 @@ export interface CanvasRegistryChangedCanvas {
   /**
    * JSON Schema for canvas open input
    */
-  inputSchema?: {
-    [k: string]: unknown | undefined;
-  };
+  inputSchema?: JsonValue;
 }
 /**
  * A single action within a canvas declaration, with its name, optional description, and optional input schema.
@@ -9623,9 +9634,7 @@ export interface CanvasRegistryChangedCanvasAction {
   /**
    * JSON Schema for action input
    */
-  inputSchema?: {
-    [k: string]: unknown | undefined;
-  };
+  inputSchema?: JsonValue;
   /**
    * Action name
    */
@@ -9776,9 +9785,7 @@ export interface CanvasRecordedData {
   /**
    * Input supplied when the instance was opened
    */
-  input?: {
-    [k: string]: unknown | undefined;
-  };
+  input?: JsonValue;
   /**
    * Stable caller-supplied canvas instance identifier
    */
@@ -9914,7 +9921,7 @@ export interface McpAppToolCallCompleteData {
    * Arguments passed to the tool by the app view, if any
    */
   arguments?: {
-    [k: string]: unknown | undefined;
+    [k: string]: JsonValue | undefined;
   };
   /**
    * Wall-clock duration of the underlying tools/call in milliseconds
@@ -9925,7 +9932,7 @@ export interface McpAppToolCallCompleteData {
    * Standard MCP CallToolResult returned by the server. Present whether or not the call set isError.
    */
   result?: {
-    [k: string]: unknown | undefined;
+    [k: string]: JsonValue | undefined;
   };
   /**
    * Name of the MCP server hosting the tool

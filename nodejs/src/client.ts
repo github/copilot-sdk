@@ -1325,6 +1325,11 @@ export class CopilotClient {
         return {};
     }
 
+    /** Mode-specific default for enableExperimentalMode. */
+    private experimentalModeForMode(supplied: boolean | undefined): boolean | undefined {
+        return this.options.mode === "empty" ? (supplied ?? false) : supplied;
+    }
+
     /**
      * Returns the systemMessage config to use, adjusted for the current mode.
      * In empty mode we ensure the environment_context section is removed
@@ -1462,7 +1467,9 @@ export class CopilotClient {
                 this.onGetTraceContext,
                 {
                     mcpAuthHandler: config.onMcpAuthRequest,
-                    managedSettingsEnabled: config.enableManagedSettings,
+                    managedSettingsEnabled:
+                        config.enableManagedSettings === true ||
+                        config.managedSettings !== undefined,
                 }
             );
             s.registerTools(config.tools);
@@ -1520,6 +1527,7 @@ export class CopilotClient {
                 clientName: config.clientName,
                 reasoningEffort: config.reasoningEffort,
                 reasoningSummary: config.reasoningSummary,
+                isExperimentalMode: this.experimentalModeForMode(config.enableExperimentalMode),
                 contextTier: config.contextTier,
                 tools: config.tools?.map((tool) => ({
                     name: tool.name,
@@ -1529,6 +1537,7 @@ export class CopilotClient {
                     skipPermission: tool.skipPermission,
                     defer: tool.defer,
                     metadata: tool.metadata,
+                    isTerminal: tool.isTerminal,
                 })),
                 toolSearch: config.toolSearch,
                 canvases: config.canvases?.map((canvas) => canvas.declaration),
@@ -1552,6 +1561,7 @@ export class CopilotClient {
                 models: config.models,
                 enableSessionTelemetry: config.enableSessionTelemetry,
                 enableCitations: config.enableCitations,
+                enableFileChangeTracking: config.enableFileChangeTracking,
                 sessionLimits: config.sessionLimits,
                 modelCapabilities: config.modelCapabilities,
                 largeOutput: toWireLargeOutput(config.largeOutput),
@@ -1566,6 +1576,7 @@ export class CopilotClient {
                 requestAutoModeSwitch: !!config.onAutoModeSwitchRequest,
                 hooks: !!(config.hooks && Object.values(config.hooks).some(Boolean)),
                 workingDirectory: config.workingDirectory,
+                additionalDirectories: config.additionalDirectories,
                 streaming: config.streaming,
                 includeSubAgentStreamingEvents: config.includeSubAgentStreamingEvents ?? true,
                 ...(this.onGitHubTelemetry != null
@@ -1592,6 +1603,7 @@ export class CopilotClient {
                 pluginDirectories: config.pluginDirectories,
                 instructionDirectories: config.instructionDirectories,
                 disabledSkills: config.disabledSkills,
+                disabledMcpServers: config.disabledMcpServers,
                 infiniteSessions: config.infiniteSessions,
                 memory: config.memory,
                 gitHubToken: config.gitHubToken,
@@ -1599,6 +1611,7 @@ export class CopilotClient {
                 cloud: config.cloud,
                 expAssignments: config.expAssignments,
                 enableManagedSettings: config.enableManagedSettings,
+                managedSettings: config.managedSettings,
             });
 
             const {
@@ -1699,7 +1712,8 @@ export class CopilotClient {
             this.onGetTraceContext,
             {
                 mcpAuthHandler: config.onMcpAuthRequest,
-                managedSettingsEnabled: config.enableManagedSettings,
+                managedSettingsEnabled:
+                    config.enableManagedSettings === true || config.managedSettings !== undefined,
             }
         );
         session.registerTools(config.tools);
@@ -1759,6 +1773,7 @@ export class CopilotClient {
                 model: config.model,
                 reasoningEffort: config.reasoningEffort,
                 reasoningSummary: config.reasoningSummary,
+                isExperimentalMode: this.experimentalModeForMode(config.enableExperimentalMode),
                 contextTier: config.contextTier,
                 systemMessage: wireSystemMessage,
                 availableTools: toolFilterOptions.availableTools,
@@ -1767,6 +1782,7 @@ export class CopilotClient {
                 enableSessionTelemetry: config.enableSessionTelemetry,
                 excludedBuiltinAgents: config.excludedBuiltinAgents,
                 enableCitations: config.enableCitations,
+                enableFileChangeTracking: config.enableFileChangeTracking,
                 sessionLimits: config.sessionLimits,
                 tools: config.tools?.map((tool) => ({
                     name: tool.name,
@@ -1776,6 +1792,7 @@ export class CopilotClient {
                     skipPermission: tool.skipPermission,
                     defer: tool.defer,
                     metadata: tool.metadata,
+                    isTerminal: tool.isTerminal,
                 })),
                 toolSearch: config.toolSearch,
                 canvases: config.canvases?.map((canvas) => canvas.declaration),
@@ -1807,6 +1824,7 @@ export class CopilotClient {
                 requestAutoModeSwitch: !!config.onAutoModeSwitchRequest,
                 hooks: !!(config.hooks && Object.values(config.hooks).some(Boolean)),
                 workingDirectory: config.workingDirectory,
+                additionalDirectories: config.additionalDirectories,
                 configDir: config.configDirectory,
                 enableConfigDiscovery: config.enableConfigDiscovery,
                 skipEmbeddingRetrieval: config.skipEmbeddingRetrieval,
@@ -1833,6 +1851,7 @@ export class CopilotClient {
                 pluginDirectories: config.pluginDirectories,
                 instructionDirectories: config.instructionDirectories,
                 disabledSkills: config.disabledSkills,
+                disabledMcpServers: config.disabledMcpServers,
                 infiniteSessions: config.infiniteSessions,
                 memory: config.memory,
                 disableResume: config.suppressResumeEvent,
@@ -1842,6 +1861,7 @@ export class CopilotClient {
                 openCanvases: config.openCanvases,
                 expAssignments: config.expAssignments,
                 enableManagedSettings: config.enableManagedSettings,
+                managedSettings: config.managedSettings,
             });
 
             const { workspacePath, capabilities, openCanvases } = response as {

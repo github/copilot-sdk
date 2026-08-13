@@ -7,6 +7,16 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
 
 import type { AbortReason, Attachment, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, McpServerSource, McpServerStatus, PermissionPromptRequest, PermissionRule, ReasoningSummary, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, UserToolSessionApproval, Verbosity } from "./session-events.js";
 
+/** A value that can be represented losslessly on the SDK JSON wire. */
+export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
+
+/**
+ * A value that lives only in this process and never crosses the JSON-RPC
+ * boundary, such as a callback or a host object handle.
+ * @internal
+ */
+export type OpaqueInProcessValue = unknown;
+
 /**
  * Initial authentication info for the session.
  *
@@ -260,6 +270,22 @@ export type AuthInfoType =
   /** Authentication from a Copilot API token. */
   | "copilot-api-token";
 /**
+ * JSON Schema for canvas open input
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CanvasJsonSchema".
+ */
+/** @experimental */
+export type CanvasJsonSchema = JsonValue;
+/**
+ * Provider-supplied action result.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CanvasActionInvokeResult".
+ */
+/** @experimental */
+export type CanvasActionInvokeResult = JsonValue;
+/**
  * Coarse command category for grouping and behavior: runtime built-in, skill-backed command, or SDK/client-owned command
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -418,6 +444,9 @@ export type DebugCollectLogsResultKind =
   | "archive"
   /** A directory containing redacted files was written. */
   | "directory";
+
+/** @experimental */
+export type DisableBypassPermissionsMode = "disable";
 /**
  * Persisted extension discovery source
  *
@@ -683,6 +712,17 @@ export type FactoryRunFailure =
        */
       runId: string;
       type: "factory_durable_failure";
+    }
+  | {
+      /**
+       * Factory run identifier.
+       */
+      runId: string;
+      /**
+       * Confirmed usage in nano-AIU, representing the floor of what the run spent.
+       */
+      drainedNanoAiu: number;
+      type: "factory_accounting_incomplete";
     };
 /**
  * Cumulative resource ceiling that stopped a factory run.
@@ -1272,6 +1312,63 @@ export type SessionContextAttribution = {
    */
   totalTokens: number;
   /**
+   * The concrete model id the entire breakdown was tokenized against (feeds the per-model token multiplier). Under `Auto` (Free/Student) this is the resolved model, not the literal `auto` sentinel, so totals are not undercounted. A single-model approximation of a potentially multi-model Auto session.
+   */
+  modelId: string;
+  /**
+   * How `modelId` was chosen. Not a closed set — tolerate unknown values. Known values today: `autoResolved` (the model Auto resolved to), `selected` (the user's explicitly selected model), `default` (a fallback before any model is known).
+   */
+  modelSource: string;
+  /**
+   * Maximum prompt tokens the resolved model accepts — the denominator for a `##k/###k` context-usage display. Mirrors `SessionContextInfo.promptTokenLimit`.
+   */
+  promptTokenLimit: number;
+  /**
+   * Prompt limit plus the model's output reserve: the full context window `categories.freeSpace` and `categories.buffer` are measured against. Mirrors `SessionContextInfo.limit`.
+   */
+  limit: number;
+  /**
+   * Output reserve plus the tokens past the buffer-exhaustion blocking threshold. Mirrors `SessionContextInfo.bufferTokens`.
+   */
+  bufferTokens: number;
+  /**
+   * Token count at which background compaction starts. Mirrors `SessionContextInfo.compactionThreshold`.
+   */
+  compactionThreshold: number;
+  /**
+   * The six normalized `/context` header buckets, computed from the same tokenization as `entries` so the two never disagree. Convenience rollups: `freeSpace` and `buffer` describe window capacity rather than occupied context, so the values do not sum to `totalTokens`.
+   */
+  categories: {
+    /**
+     * System prompt tokens, excluding custom instructions.
+     */
+    systemPrompt: number;
+    /**
+     * Custom-instructions tokens (0 when none are configured).
+     */
+    customInstructions: number;
+    /**
+     * Non-MCP tool-definition tokens.
+     */
+    systemTools: number;
+    /**
+     * MCP tool-definition tokens.
+     */
+    mcpTools: number;
+    /**
+     * Conversation (user/assistant/tool) message tokens.
+     */
+    messages: number;
+    /**
+     * Remaining unused window capacity (clamped at 0).
+     */
+    freeSpace: number;
+    /**
+     * Output reserve plus post-blocking-threshold buffer.
+     */
+    buffer: number;
+  };
+  /**
    * Flat list of per-source attribution entries. Group by `kind` and render unrecognized kinds generically. Nesting and rollups are expressed via `parentId`.
    */
   entries: {
@@ -1619,6 +1716,52 @@ export type PermissionDecisionApproveForLocationApproval =
   | PermissionDecisionApproveForLocationApprovalExtensionManagement
   | PermissionDecisionApproveForLocationApprovalFactory
   | PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess;
+/**
+ * Disposition of a permission request as observed by the responding client.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "PermissionDecisionOutcome".
+ */
+/** @experimental */
+export type PermissionDecisionOutcome =
+  /** The request was approved automatically without a new human decision. */
+  | "auto_approved"
+  /** The request was denied without an interactive user decision; source records why. */
+  | "autopilot_denied"
+  /** The response came from an interactive user prompt. */
+  | "prompted_user";
+/**
+ * Controlled reason or actor responsible for a permission response.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "PermissionDecisionSource".
+ */
+/** @experimental */
+export type PermissionDecisionSource =
+  /** The response followed the auto-approval judge recommendation. */
+  | "judge_recommendation"
+  /** A human supplied the response through an interactive prompt. */
+  | "human_response"
+  /** The host applied a standing policy or override rather than a judge recommendation or human decision. */
+  | "host_policy"
+  /** The host denied the request because no interactive user response was available. */
+  | "unattended_fallback";
+/**
+ * Client surface that submitted a permission response.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "PermissionDecisionSurface".
+ */
+/** @experimental */
+export type PermissionDecisionSurface =
+  /** The interactive Copilot CLI terminal UI. */
+  | "tui"
+  /** The non-interactive Copilot CLI prompt mode. */
+  | "prompt_mode"
+  /** The Copilot App client. */
+  | "copilot_app"
+  /** A generic Copilot SDK client. */
+  | "sdk";
 /**
  * Tool approval to persist and apply
  *
@@ -3488,7 +3631,7 @@ export interface AgentInfo {
    * @experimental
    */
   mcpServers?: {
-    [k: string]: unknown | undefined;
+    [k: string]: JsonValue | undefined;
   };
   /**
    * Skill names preloaded into this agent's context. Omitted means none.
@@ -3893,16 +4036,6 @@ export interface CanvasAction {
   inputSchema?: CanvasJsonSchema;
 }
 /**
- * JSON Schema for canvas open input
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "CanvasJsonSchema".
- */
-/** @experimental */
-export interface CanvasJsonSchema {
-  [k: string]: unknown | undefined;
-}
-/**
  * Canvas action invocation parameters.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -3921,19 +4054,7 @@ export interface CanvasActionInvokeRequest {
   /**
    * Action input
    */
-  input?: {
-    [k: string]: unknown | undefined;
-  };
-}
-/**
- * Provider-supplied action result.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "CanvasActionInvokeResult".
- */
-/** @experimental */
-export interface CanvasActionInvokeResult {
-  [k: string]: unknown | undefined;
+  input?: JsonValue;
 }
 /**
  * Canvas close parameters.
@@ -4078,9 +4199,7 @@ export interface OpenCanvasInstance {
   /**
    * Input supplied when the instance was opened
    */
-  input?: {
-    [k: string]: unknown | undefined;
-  };
+  input?: JsonValue;
 }
 /**
  * Canvas open parameters.
@@ -4105,9 +4224,7 @@ export interface CanvasOpenRequest {
   /**
    * Canvas open input
    */
-  input?: {
-    [k: string]: unknown | undefined;
-  };
+  input?: JsonValue;
 }
 /**
  * Canvas close parameters sent to the provider.
@@ -4180,9 +4297,7 @@ export interface CanvasProviderInvokeActionRequest {
   /**
    * Action input
    */
-  input?: {
-    [k: string]: unknown | undefined;
-  };
+  input?: JsonValue;
   host?: CanvasHostContext;
   session?: CanvasSessionContext;
 }
@@ -4213,9 +4328,7 @@ export interface CanvasProviderOpenRequest {
   /**
    * Canvas open input
    */
-  input?: {
-    [k: string]: unknown | undefined;
-  };
+  input?: JsonValue;
   host?: CanvasHostContext;
   session?: CanvasSessionContext;
 }
@@ -4540,9 +4653,7 @@ export interface ConfigureSessionExtensionsParams {
    *
    * @internal
    */
-  controller?: {
-    [k: string]: unknown | undefined;
-  };
+  controller?: OpaqueInProcessValue;
 }
 /**
  * Metadata for a connected remote session.
@@ -4787,7 +4898,7 @@ export interface CurrentToolMetadata {
    * JSON Schema for tool input
    */
   input_schema?: {
-    [k: string]: unknown | undefined;
+    [k: string]: JsonValue | undefined;
   };
   /**
    * Whether the tool is loaded on demand via tool search
@@ -5217,9 +5328,62 @@ export interface ExtensionContextPushInput {
   /**
    * Caller-supplied JSON payload (required, may be null but not undefined)
    */
-  payload: {
-    [k: string]: unknown | undefined;
+  payload: JsonValue;
+}
+/**
+ * Opaque integrator-owned process launch profile for one extension entrypoint.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ExtensionLaunchProfile".
+ */
+/** @experimental */
+export interface ExtensionLaunchProfile {
+  /**
+   * Executable used to launch the extension entrypoint.
+   */
+  executable: string;
+  /**
+   * Opaque integrator-defined arguments passed to the executable. The runtime does not append the extension entrypoint.
+   */
+  args: string[];
+  /**
+   * Opaque integrator-defined environment variables. Runtime-owned COPILOT_SDK_PATH, SESSION_ID, and COPILOT_EXTENSION_PARENT_PID values take precedence.
+   */
+  env: {
+    [k: string]: string | undefined;
   };
+}
+/**
+ * A discovered extension entrypoint that the registered integrator may classify and resolve to an opaque launch profile.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ExtensionLaunchProviderResolveRequest".
+ */
+/** @experimental */
+export interface ExtensionLaunchProviderResolveRequest {
+  /**
+   * Source-qualified extension identifier.
+   */
+  id: string;
+  /**
+   * Human-readable extension name.
+   */
+  name: string;
+  /**
+   * Absolute path to the discovered extension entrypoint.
+   */
+  modulePath: string;
+  source: ExtensionSource;
+}
+/**
+ * The launch profile for a supported entrypoint. Omit launch when the provider does not support the entrypoint.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ExtensionLaunchProviderResolveResult".
+ */
+/** @experimental */
+export interface ExtensionLaunchProviderResolveResult {
+  launch?: ExtensionLaunchProfile;
 }
 /**
  * Extensions discovered for the session, with their current status.
@@ -5288,7 +5452,7 @@ export interface ExternalToolTextResultForLlm {
    * Optional tool-specific telemetry
    */
   toolTelemetry?: {
-    [k: string]: unknown | undefined;
+    [k: string]: JsonValue | undefined;
   };
   /**
    * Base64-encoded binary results returned to the model
@@ -5328,7 +5492,7 @@ export interface ExternalToolTextResultForLlmBinaryResultsForLlm {
    * Optional metadata from the producing tool.
    */
   metadata?: {
-    [k: string]: unknown | undefined;
+    [k: string]: JsonValue | undefined;
   };
 }
 /**
@@ -5565,13 +5729,20 @@ export interface FactoryAgentOptions {
   /**
    * Optional JSON Schema for structured agent output.
    */
-  schema?: {
-    [k: string]: unknown | undefined;
-  };
+  schema?: JsonValue;
   /**
    * Optional model identifier for the subagent.
    */
   model?: string;
+  /**
+   * Optional reasoning effort for the subagent. This field is accepted but not yet honored.
+   */
+  reasoningEffort?: string;
+  contextTier?: ContextTier;
+  /**
+   * Optional custom agent name for the subagent. This field is accepted but not yet honored.
+   */
+  agent?: string;
 }
 /**
  * Parameters for one factory-scoped subagent call.
@@ -5606,9 +5777,7 @@ export interface FactoryAgentResult {
   /**
    * Agent result, omitted when the agent produced no result.
    */
-  result?: {
-    [k: string]: unknown | undefined;
-  };
+  result?: JsonValue;
 }
 /**
  * Prompt-safe durable identity and live status for a direct factory agent.
@@ -5696,9 +5865,7 @@ export interface FactoryExecuteRequest {
   /**
    * Factory input value.
    */
-  args: {
-    [k: string]: unknown | undefined;
-  };
+  args: JsonValue;
 }
 /**
  * Result returned by an extension factory closure.
@@ -5711,9 +5878,7 @@ export interface FactoryExecuteResult {
   /**
    * Factory result value.
    */
-  result?: {
-    [k: string]: unknown | undefined;
-  };
+  result?: JsonValue;
 }
 /**
  * Parameters for paging factory progress.
@@ -5793,9 +5958,7 @@ export interface FactoryJournalGetResult {
   /**
    * Cached JSON result. The hit field distinguishes a cached JSON null from a miss.
    */
-  resultJson?: {
-    [k: string]: unknown | undefined;
-  };
+  resultJson?: JsonValue;
 }
 /**
  * Parameters for storing a factory journal entry.
@@ -5820,20 +5983,31 @@ export interface FactoryJournalPutRequest {
   /**
    * JSON result to memoize.
    */
-  resultJson: {
-    [k: string]: unknown | undefined;
-  };
+  resultJson: JsonValue;
 }
 /**
- * Empty parameters for listing factory runs.
+ * Parameters for paging factory runs.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "FactoryListRunsRequest".
  */
 /** @experimental */
-export interface FactoryListRunsRequest {}
+export interface FactoryListRunsRequest {
+  /**
+   * Exclusive forward cursor.
+   */
+  afterSeq?: number;
+  /**
+   * Exclusive backward cursor.
+   */
+  beforeSeq?: number;
+  /**
+   * Maximum terminal runs to return. Defaults to 200 and is capped at 500.
+   */
+  limit?: number;
+}
 /**
- * Factory runs in durable creation order.
+ * A page of factory runs in durable creation order.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "FactoryListRunsResult".
@@ -5841,6 +6015,22 @@ export interface FactoryListRunsRequest {}
 /** @experimental */
 export interface FactoryListRunsResult {
   runs: FactoryRunSummary[];
+  /**
+   * Oldest terminal-run cursor in this page, or null when the terminal window is empty.
+   */
+  oldestSeq?: number | null;
+  /**
+   * Newest terminal-run cursor in this page, or null when the terminal window is empty.
+   */
+  newestSeq?: number | null;
+  /**
+   * Whether terminal runs newer than this page exist.
+   */
+  hasMoreNewer?: boolean;
+  /**
+   * Number of terminal runs older than this page.
+   */
+  omittedOlder?: number;
 }
 /**
  * Durable factory run summary with read-time live overlays.
@@ -6073,9 +6263,7 @@ export interface FactoryRunResult {
   /**
    * Completed factory result.
    */
-  result?: {
-    [k: string]: unknown | undefined;
-  };
+  result?: JsonValue;
   /**
    * Error message for an errored run.
    */
@@ -6088,9 +6276,7 @@ export interface FactoryRunResult {
   /**
    * Partial journal and progress snapshot for a halted, cancelled, or errored run.
    */
-  snapshot?: {
-    [k: string]: unknown | undefined;
-  };
+  snapshot?: JsonValue;
 }
 /**
  * Full factory run observability detail.
@@ -6138,9 +6324,7 @@ export interface FactoryRunRequest {
   /**
    * Factory input value.
    */
-  args: {
-    [k: string]: unknown | undefined;
-  };
+  args: JsonValue;
   options?: RunOptions;
 }
 /**
@@ -6397,6 +6581,32 @@ export interface HistoryCancelBackgroundCompactionResult {
    * Whether an in-progress background compaction was cancelled. False when no compaction was running, when the session is remote, or when the underlying processor was unavailable.
    */
   cancelled: boolean;
+}
+/**
+ * Parameters for clearing the conversation and seeding the window that replaces it.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "HistoryClearContextRequest".
+ */
+/** @experimental */
+export interface HistoryClearContextRequest {
+  /**
+   * First user message of the fresh context window. Required: a cleared window holding only system and developer messages is not a conversation a model can answer, so every clear seeds the window it creates. Delivered by the enclosing turn driver once the agentic loop exits, which is why the call must be made from inside a tool handler.
+   */
+  prompt: string;
+}
+/**
+ * What a successful clear removed. A clear that could not be applied rejects instead of reporting a count.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "HistoryClearContextResult".
+ */
+/** @experimental */
+export interface HistoryClearContextResult {
+  /**
+   * Number of non-system, non-developer messages that were removed from the conversation. Zero only when the window already held no conversation.
+   */
+  messagesCleared: number;
 }
 /**
  * Post-compaction context window usage breakdown
@@ -6689,7 +6899,7 @@ export interface HistoryTruncateResult {
 export interface HookInvokeRequest {
   sessionId: string;
   hookType: HookType;
-  input: unknown;
+  input: JsonValue;
 }
 /**
  * Optional output returned by an SDK callback hook.
@@ -6700,7 +6910,7 @@ export interface HookInvokeRequest {
 /** @experimental */
 /** @internal */
 export interface HookInvokeResponse {
-  output?: unknown;
+  output?: JsonValue;
 }
 /**
  * Installed plugin record from global state, with marketplace, version, install time, enabled state, cache path, and source.
@@ -6735,6 +6945,10 @@ export interface InstalledPlugin {
    */
   cache_path?: string;
   source?: InstalledPluginSource;
+  /**
+   * Per-plugin source fingerprint (a SHA-256 hash of the plugin's catalog source spec plus its resolved source subtree — NOT a Git commit SHA) captured at marketplace install/update time. Auto-update compares it against the freshly recomputed fingerprint to detect a content change that does not bump the version. Absent for pre-existing installs and for direct (non-marketplace) installs.
+   */
+  source_sha?: string;
 }
 /**
  * Source descriptor for a direct GitHub plugin install, with `owner/repo`, optional ref or full commit SHA, and optional subpath.
@@ -7318,6 +7532,23 @@ export interface LspInitializeRequest {
   force?: boolean;
 }
 /**
+ * Validated device-managed settings discovered before a session exists.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ManagedSettingsReadResult".
+ */
+/** @experimental */
+export interface ManagedSettingsReadResult {
+  /**
+   * Validated, canonical managed-settings JSON. Omitted when no managed settings were discovered or when discovered settings failed validation.
+   */
+  settingsJson?: JsonValue;
+  /**
+   * Discovery or validation error text when managed settings could not be read safely.
+   */
+  errorMessage?: string;
+}
+/**
  * Result of registering a new marketplace.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -7482,7 +7713,7 @@ export interface McpAppsCallToolRequest {
    * Tool arguments
    */
   arguments?: {
-    [k: string]: unknown | undefined;
+    [k: string]: JsonValue | undefined;
   };
   /**
    * **Required.** Server whose ui:// view issued the request. Per SEP-1865 ('callable by the app from this server only'), the call is rejected when this differs from `serverName`, and rejected outright when missing.
@@ -7627,7 +7858,7 @@ export interface McpAppsListToolsResult {
    * App-callable tools from the server
    */
   tools: {
-    [k: string]: unknown | undefined;
+    [k: string]: JsonValue | undefined;
   }[];
 }
 /**
@@ -7688,7 +7919,7 @@ export interface McpAppsResourceContent {
    * Resource-level metadata (CSP, permissions, etc.)
    */
   _meta?: {
-    [k: string]: unknown | undefined;
+    [k: string]: JsonValue | undefined;
   };
 }
 /**
@@ -7961,9 +8192,7 @@ export interface McpConfigureGitHubRequest {
    *
    * @internal
    */
-  authInfo: {
-    [k: string]: unknown | undefined;
-  };
+  authInfo: OpaqueInProcessValue;
 }
 /**
  * Result of configuring GitHub MCP.
@@ -8049,9 +8278,7 @@ export interface McpExecuteSamplingParams {
   /**
    * The original MCP JSON-RPC request ID (string or number). Used by the runtime to correlate the inference with the originating MCP request for telemetry; this is distinct from `requestId` (which is the schema-level cancellation handle).
    */
-  mcpRequestId: {
-    [k: string]: unknown | undefined;
-  };
+  mcpRequestId: JsonValue;
   request: McpExecuteSamplingRequest;
 }
 /**
@@ -8424,25 +8651,19 @@ export interface McpRegisterExternalClientRequest {
    *
    * @internal
    */
-  client: {
-    [k: string]: unknown | undefined;
-  };
+  client: OpaqueInProcessValue;
   /**
    * In-process MCP Transport instance. Marked internal: cannot be serialized across the JSON-RPC boundary.
    *
    * @internal
    */
-  transport: {
-    [k: string]: unknown | undefined;
-  };
+  transport: OpaqueInProcessValue;
   /**
    * In-process server config (MCPServerConfig) paired with the in-process client/transport. Marked internal alongside its companions.
    *
    * @internal
    */
-  config: {
-    [k: string]: unknown | undefined;
-  };
+  config: OpaqueInProcessValue;
 }
 /**
  * Opaque MCP reload configuration.
@@ -8458,9 +8679,7 @@ export interface McpReloadWithConfigRequest {
    *
    * @internal
    */
-  config: {
-    [k: string]: unknown | undefined;
-  };
+  config: OpaqueInProcessValue;
 }
 /**
  * Indicates whether the auto-managed `github` MCP server was removed (false when nothing to remove).
@@ -8516,13 +8735,13 @@ export interface McpResource {
    * Resource-level metadata
    */
   _meta?: {
-    [k: string]: unknown | undefined;
+    [k: string]: JsonValue | undefined;
   };
   /**
    * Server-provided non-standard descriptor fields preserved from the MCP response
    */
   additionalProperties?: {
-    [k: string]: unknown | undefined;
+    [k: string]: JsonValue | undefined;
   };
 }
 /**
@@ -8553,7 +8772,7 @@ export interface McpResourceIcon {
    * Server-provided non-standard icon fields preserved from the MCP response
    */
   additionalProperties?: {
-    [k: string]: unknown | undefined;
+    [k: string]: JsonValue | undefined;
   };
 }
 /**
@@ -8580,7 +8799,7 @@ export interface McpResourceAnnotations {
    * Server-provided non-standard annotation fields preserved from the MCP response
    */
   additionalProperties?: {
-    [k: string]: unknown | undefined;
+    [k: string]: JsonValue | undefined;
   };
 }
 /**
@@ -8611,7 +8830,7 @@ export interface McpResourceContent {
    * Resource-level metadata (CSP, permissions, etc.)
    */
   _meta?: {
-    [k: string]: unknown | undefined;
+    [k: string]: JsonValue | undefined;
   };
 }
 /**
@@ -8719,13 +8938,13 @@ export interface McpResourceTemplate {
    * Resource-template-level metadata
    */
   _meta?: {
-    [k: string]: unknown | undefined;
+    [k: string]: JsonValue | undefined;
   };
   /**
    * Server-provided non-standard descriptor fields preserved from the MCP response
    */
   additionalProperties?: {
-    [k: string]: unknown | undefined;
+    [k: string]: JsonValue | undefined;
   };
 }
 /**
@@ -9688,7 +9907,7 @@ export interface NameSetRequest {
 /** @experimental */
 export interface OptionsUpdateAdditionalContentExclusionPolicy {
   rules: OptionsUpdateAdditionalContentExclusionPolicyRule[];
-  last_updated_at: unknown;
+  last_updated_at: JsonValue;
   scope: OptionsUpdateAdditionalContentExclusionPolicyScope;
 }
 /**
@@ -10322,6 +10541,18 @@ export interface PermissionDecisionDeniedByPermissionRequestHook {
   interrupt?: boolean;
 }
 /**
+ * Optional informational context describing how and where the permission decision was made. This does not affect permission behavior.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "PermissionDecisionContext".
+ */
+/** @experimental */
+export interface PermissionDecisionContext {
+  outcome: PermissionDecisionOutcome;
+  source: PermissionDecisionSource;
+  surface: PermissionDecisionSurface;
+}
+/**
  * Pending permission request ID and the decision to apply (approve/reject and scope).
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -10334,6 +10565,7 @@ export interface PermissionDecisionRequest {
    */
   requestId: string;
   result: PermissionDecision;
+  decisionContext?: PermissionDecisionContext;
 }
 /**
  * Location-scoped tool approval to persist.
@@ -10753,7 +10985,7 @@ export interface PermissionRulesSet {
 /** @experimental */
 export interface PermissionsConfigureAdditionalContentExclusionPolicy {
   rules: PermissionsConfigureAdditionalContentExclusionPolicyRule[];
-  last_updated_at: unknown;
+  last_updated_at: JsonValue;
   scope: PermissionsConfigureAdditionalContentExclusionPolicyScope;
 }
 /**
@@ -11564,7 +11796,7 @@ export interface ProviderAddResult {
   /**
    * Synthesized selectable model entries for the newly added BYOK models, each under its provider-qualified selection id (`provider/id`). Empty when only providers were added.
    */
-  models: unknown[];
+  models: JsonValue[];
 }
 /**
  * Custom model-provider configuration (BYOK).
@@ -12199,9 +12431,7 @@ export interface QueueConsumeSystemNotificationsRequest {
   /**
    * Opaque runtime-owned filter object.
    */
-  filter: {
-    [k: string]: unknown | undefined;
-  };
+  filter: JsonValue;
 }
 /**
  * Inputs for marking session.idle deferred in native state.
@@ -12610,9 +12840,7 @@ export interface RegisterExtensionToolsParams {
    *
    * @internal
    */
-  loader: {
-    [k: string]: unknown | undefined;
-  };
+  loader: OpaqueInProcessValue;
   options?: SessionsRegisterExtensionToolsOnSessionOptions;
 }
 /**
@@ -12628,9 +12856,7 @@ export interface SessionsRegisterExtensionToolsOnSessionOptions {
    *
    * @internal
    */
-  enabled?: {
-    [k: string]: unknown | undefined;
-  };
+  enabled?: OpaqueInProcessValue;
 }
 /**
  * Handle for releasing the extension tool registration.
@@ -12648,9 +12874,7 @@ export interface RegisterExtensionToolsResult {
    *
    * @internal
    */
-  unsubscribe: {
-    [k: string]: unknown | undefined;
-  };
+  unsubscribe: OpaqueInProcessValue;
 }
 /**
  * Opaque handle previously returned by `registerInterest` to release.
@@ -12771,9 +12995,7 @@ export interface RemoteControlStatusActive {
    *
    * @internal
    */
-  promptManager?: {
-    [k: string]: unknown | undefined;
-  };
+  promptManager?: OpaqueInProcessValue;
   /**
    * True while a read-only/session-sync export is deferred, awaiting the first `user.message` before its MC session exists. Marked internal: this field is excluded from the public SDK surface and is populated only on the CLI in-process path.
    *
@@ -13017,18 +13239,11 @@ export interface SandboxConfig {
    * Whether to auto-add the current working directory to readwritePaths. Default: true.
    */
   addCurrentWorkingDirectory?: boolean;
+  auth?: SandboxConfigAuth;
   /**
-   * Whether to inject the Copilot GitHub token as an `http.<host>.extraheader` so authenticated HTTPS git works inside the sandbox without the shell-based credential helper the sandbox blocks. Default: false (opt-in).
+   * Whether to auto-grant read access to common developer-tool caches, registries, and toolchains in their default home locations (cargo, go, npm, Maven, and more), plus read-write access to (and, on Unix, up-front creation of) the scratch caches builds write on every run (go-build, ccache, sccache, Gradle caches, Cargo lock/tracker files), so builds work without extra configuration; a relocated CARGO_HOME additionally gets its Cargo lock files granted read-write. Default: true (enabled by default; set to false to opt out).
    */
-  gitAuth?: boolean;
-  /**
-   * Whether to export `GH_TOKEN` so the `gh` CLI authenticates inside the sandbox without the OS keyring the sandbox blocks. Default: false (opt-in).
-   */
-  ghAuth?: boolean;
-  /**
-   * Whether to auto-grant read access to common developer-tool caches, registries, and toolchains in their default home locations (cargo, go, npm, Maven, and more), plus read-write access to (and, on Unix, up-front creation of) the scratch caches builds write on every run (go-build, ccache, sccache, Gradle caches, Cargo lock/tracker files), so builds work without exporting CARGO_HOME/GOPATH/etc. Default: true (enabled by default; set to false to opt out).
-   */
-  allowDevToolCaches?: boolean;
+  allowDevToolAccess?: boolean;
 }
 /**
  * User-managed sandbox policy fragment merged into the auto-discovered base policy.
@@ -13142,6 +13357,23 @@ export interface SandboxConfigUserPolicyExperimentalSeatbelt {
    * Whether the macOS seatbelt profile may access the keychain.
    */
   keychainAccess?: boolean;
+}
+/**
+ * Credential-injection capability flags applied while the sandbox is enabled.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SandboxConfigAuth".
+ */
+/** @experimental */
+export interface SandboxConfigAuth {
+  /**
+   * Whether to inject git credentials as an `http.<url>.extraheader` so authenticated HTTPS git works inside the sandbox without the shell-based credential helper the sandbox blocks. github.com is served by the Copilot token; every other forge (Azure DevOps, GitHub Enterprise Server, GitLab, ...) by a credential the host resolves from the user's own helper before the sandbox is applied. Default: false (opt-in).
+   */
+  git?: boolean;
+  /**
+   * Whether to export `GH_TOKEN` so the `gh` CLI authenticates inside the sandbox without the OS keyring the sandbox blocks. Default: false (opt-in).
+   */
+  gh?: boolean;
 }
 /**
  * Register an absolute-time scheduled prompt.
@@ -13585,15 +13817,11 @@ export interface SendSystemNotificationRequest {
   /**
    * Optional structured notification kind.
    */
-  kind?: {
-    [k: string]: unknown | undefined;
-  };
+  kind?: JsonValue;
   /**
    * Internal delivery options, including passive policy.
    */
-  options?: {
-    [k: string]: unknown | undefined;
-  };
+  options?: JsonValue;
 }
 /**
  * Agents discovered across user, project, plugin, and remote sources.
@@ -13633,6 +13861,10 @@ export interface ServerSkill {
    * Unique identifier for the skill
    */
   name: string;
+  /**
+   * Canonical slash command name used to invoke the skill, without the leading '/'
+   */
+  commandName?: string;
   /**
    * Description of what the skill does
    */
@@ -14077,7 +14309,7 @@ export interface SessionFsSqliteQueryRequest {
    * Optional named bind parameters
    */
   params?: {
-    [k: string]: unknown | undefined;
+    [k: string]: JsonValue | undefined;
   };
 }
 /**
@@ -14092,7 +14324,7 @@ export interface SessionFsSqliteQueryResult {
    * For SELECT: array of row objects. For others: empty array.
    */
   rows: {
-    [k: string]: unknown | undefined;
+    [k: string]: JsonValue | undefined;
   }[];
   /**
    * Column names from the result set
@@ -14150,7 +14382,7 @@ export interface SessionFsSqliteTransactionStatement {
    * Optional named bind parameters.
    */
   params?: {
-    [k: string]: unknown | undefined;
+    [k: string]: JsonValue | undefined;
   };
 }
 /**
@@ -14269,6 +14501,10 @@ export interface SessionInstalledPlugin {
    */
   cache_path?: string;
   source?: SessionInstalledPluginSource;
+  /**
+   * Per-plugin source fingerprint (a SHA-256 hash of the plugin's catalog source spec plus its resolved source subtree — NOT a Git commit SHA) captured at marketplace install/update time. Auto-update compares it against the freshly recomputed fingerprint to detect a content change that does not bump the version. Absent for pre-existing installs and for direct (non-marketplace) installs.
+   */
+  source_sha?: string;
 }
 /**
  * Source descriptor for a direct GitHub plugin install, with `owner/repo`, optional ref or full commit SHA, and optional subpath.
@@ -14444,6 +14680,38 @@ export interface SessionLoadDeferredRepoHooksResult {
   hookCount: number;
 }
 /**
+ * Enterprise permission policy expressed with the runtime's managed permission-rule syntax.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionManagedPermissions".
+ */
+/** @experimental */
+export interface SessionManagedPermissions {
+  disableBypassPermissionsMode?: DisableBypassPermissionsMode;
+  /**
+   * Permission rules that block matching operations. Deny has highest precedence.
+   */
+  deny?: string[];
+  /**
+   * Permission rules that require explicit human approval.
+   */
+  ask?: string[];
+  /**
+   * Permission rules that allow matching operations unless another managed source, deny, or ask rule restricts them.
+   */
+  allow?: string[];
+}
+/**
+ * Managed settings an SDK host may inject at session startup. Only permissions are accepted in this initial contract.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionManagedSettings".
+ */
+/** @experimental */
+export interface SessionManagedSettings {
+  permissions?: SessionManagedPermissions;
+}
+/**
  * Point-in-time snapshot of slow-changing session identifier and state fields
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -14517,7 +14785,7 @@ export interface SessionModelList {
   /**
    * Available models, ordered with the most preferred default first. Includes both Copilot (CAPI) models and any registry BYOK models; a BYOK model appears under its provider-qualified selection id (`provider/id`).
    */
-  list: unknown[];
+  list: JsonValue[];
   /**
    * Cost categories for the full CAPI catalog, including picker-disabled models that Auto may select. Metadata only; entries absent from `list` are not manually selectable.
    */
@@ -14526,7 +14794,7 @@ export interface SessionModelList {
    * Per-quota snapshots returned alongside the model list, keyed by quota type.
    */
   quotaSnapshots?: {
-    [k: string]: unknown | undefined;
+    [k: string]: JsonValue | undefined;
   };
 }
 /**
@@ -14587,13 +14855,12 @@ export interface SessionOpenOptions {
    *
    * @internal
    */
-  expAssignments?: {
-    [k: string]: unknown | undefined;
-  };
+  expAssignments?: JsonValue;
   /**
    * Opt-in: self-fetch and enforce enterprise managed settings at session bootstrap.
    */
   enableManagedSettings?: boolean;
+  managedSettings?: SessionManagedSettings;
   /**
    * Opt in to capturing file changes for session rewind and session diff. Capture cannot reconstruct changes made before it was enabled. On create it starts capture from the first turn. It is also honored on resume: for a session that already has tracked prior turns, tracking continues automatically even if this is omitted; passing it on resume additionally enables tracking for an eligible session that has no prior root turn yet. Resuming a session whose prior root turns were never tracked has no restorable baseline, so tracking stays disabled for it and rewind reports file change tracking as unavailable; the resume itself still succeeds, so sessions that predate tracking remain loadable. The opt-in is only rejected when the session can never track (a subagent session, or one without local session storage). It is intentionally absent from the mutable options update because enabling it after edits have occurred would create an incomplete, misleading baseline. Subagents share the parent session's capture store and are not tracked as separate rewind points: a file a subagent writes is attributed to whichever root user turn was open when the capture was staged, just before the tool body ran. A turn cannot open while a staged capture is still in flight, so a subagent tool that staged under the spawning turn stays attributed to it however late the write lands, while a capture it stages after the user's next message belongs to that later turn. Attribution decides which turn's rewind point counts and file preview include that write; it does not narrow which rewinds revert it, because a rewind restores every capture from the selected turn onward, so the earlier spawning turn reverts it as well.
    */
@@ -14688,6 +14955,10 @@ export interface SessionOpenOptions {
    */
   logInteractiveShells?: boolean;
   envValueMode?: SessionOpenOptionsEnvValueMode;
+  /**
+   * MCP server names disabled for this session. Disabled servers are not started or authenticated on create or cold resume.
+   */
+  disabledMcpServers?: string[];
   /**
    * Whether to include instructions from every MCP server in the system prompt instead of only allowlisted servers.
    */
@@ -14839,7 +15110,7 @@ export interface ShellInitScript {
 /** @experimental */
 export interface SessionOpenOptionsAdditionalContentExclusionPolicy {
   rules: SessionOpenOptionsAdditionalContentExclusionPolicyRule[];
-  last_updated_at: unknown;
+  last_updated_at: JsonValue;
   scope: SessionOpenOptionsAdditionalContentExclusionPolicyScope;
 }
 /**
@@ -14988,9 +15259,7 @@ export interface SessionsOpenCloud {
    *
    * @internal
    */
-  onTaskCreated?: {
-    [k: string]: unknown | undefined;
-  };
+  onTaskCreated?: OpaqueInProcessValue;
 }
 /**
  * Parameters for fetching a remote session and handing it off to a new local session.
@@ -15012,17 +15281,13 @@ export interface SessionsOpenHandoff {
    *
    * @internal
    */
-  onProgress?: {
-    [k: string]: unknown | undefined;
-  };
+  onProgress?: OpaqueInProcessValue;
   /**
    * In-process confirmation callback `(request) => boolean | Promise<boolean>` invoked when the handoff needs the caller to confirm a non-fatal blocker (e.g. a repository mismatch between the current working directory and the remote session). Returning `true` proceeds with the handoff; returning `false` (or omitting the callback) aborts it. Marked internal because a function reference cannot cross the JSON-RPC boundary, for the same reasons as `onProgress`.
    *
    * @internal
    */
-  onConfirm?: {
-    [k: string]: unknown | undefined;
-  };
+  onConfirm?: OpaqueInProcessValue;
 }
 /**
  * Result of opening a session.
@@ -15044,9 +15309,7 @@ export interface SessionOpenResult {
    *
    * @internal
    */
-  sessionApi?: {
-    [k: string]: unknown | undefined;
-  };
+  sessionApi?: OpaqueInProcessValue;
   /**
    * Startup prompts queued by user-level hook configs at session creation. Only populated when status is `created`; resumed sessions return an empty array.
    */
@@ -16170,6 +16433,10 @@ export interface Skill {
    */
   name: string;
   /**
+   * Canonical slash command name used to invoke the skill, without the leading '/'
+   */
+  commandName?: string;
+  /**
    * Description of what the skill does
    */
   description: string;
@@ -16985,7 +17252,7 @@ export interface Tool {
    * JSON Schema for the tool's input parameters
    */
   parameters?: {
-    [k: string]: unknown | undefined;
+    [k: string]: JsonValue | undefined;
   };
   /**
    * Optional instructions for how to use this tool effectively
@@ -17418,17 +17685,13 @@ export interface UIEphemeralQueryRequest {
    *
    * @internal
    */
-  onChunk?: {
-    [k: string]: unknown | undefined;
-  };
+  onChunk?: OpaqueInProcessValue;
   /**
    * In-process `AbortSignal` forwarded to the model client to cancel an in-flight request. Marked internal: excluded from the public SDK surface. Replaced by an explicit cancellation token + cancel RPC in the SDK migration.
    *
    * @internal
    */
-  abortSignal?: {
-    [k: string]: unknown | undefined;
-  };
+  abortSignal?: OpaqueInProcessValue;
 }
 /**
  * Transient answer generated from current conversation context.
@@ -17879,15 +18142,11 @@ export interface UserSettingMetadata {
   /**
    * The effective value: the user's value if set, otherwise the default.
    */
-  value: {
-    [k: string]: unknown | undefined;
-  };
+  value: JsonValue;
   /**
    * The centrally-known default for this setting (null when no default is registered).
    */
-  default: {
-    [k: string]: unknown | undefined;
-  };
+  default: JsonValue;
   /**
    * True when the user has not set an explicit value for this setting (i.e. it is left at its default). Reflects whether the user has overridden the key, not whether the effective value happens to equal the default — a key explicitly set to a value identical to the default still reports false.
    */
@@ -17919,9 +18178,7 @@ export interface UserSettingsSetRequest {
   /**
    * Partial user settings to write, as a free-form object keyed by setting name
    */
-  settings: {
-    [k: string]: unknown | undefined;
-  };
+  settings: JsonValue;
 }
 /**
  * Outcome of writing user settings.
@@ -18150,9 +18407,7 @@ export interface WorkspacesEnsureRequest {
   /**
    * Opaque workspace context supplied by the session host.
    */
-  context?: {
-    [k: string]: unknown | undefined;
-  };
+  context?: JsonValue;
 }
 /**
  * Current workspace metadata for the session, including its absolute filesystem path when available.
@@ -18343,9 +18598,7 @@ export interface WorkspacesUpdateMetadataRequest {
   /**
    * Opaque workspace context supplied by the session host.
    */
-  context?: {
-    [k: string]: unknown | undefined;
-  };
+  context?: JsonValue;
   /**
    * Optional workspace display name override.
    */
@@ -18405,7 +18658,7 @@ export interface SessionAgentListRequest {
  */
 /** @experimental */
 export interface SessionMcpAppsCallToolResult {
-  [k: string]: unknown | undefined;
+  [k: string]: JsonValue | undefined;
 }
 
 /** @experimental */
@@ -18684,6 +18937,13 @@ export function createServerRpc(connection: MessageConnection) {
             disable: async (params: DiscoveredExtensionsDisableRequest): Promise<void> =>
                 connection.sendRequest("extensions.disable", params),
         },
+        /**
+         * Registers the calling SDK client as the per-entrypoint extension launch provider. Call before creating any sessions. When omitted, the runtime temporarily falls back to its built-in Node launcher for backward compatibility.
+         *
+         * @experimental
+         */
+        registerExtensionLaunchProvider: async (): Promise<void> =>
+            connection.sendRequest("registerExtensionLaunchProvider", {}),
         /** @experimental */
         plugins: {
             /**
@@ -18895,6 +19155,16 @@ export function createServerRpc(connection: MessageConnection) {
                 set: async (params: UserSettingsSetRequest): Promise<UserSettingsSetResult> =>
                     connection.sendRequest("user.settings.set", params),
             },
+        },
+        /** @experimental */
+        managedSettings: {
+            /**
+             * Discovers device-managed settings from production MDM and managed-file sources, validates them against the runtime-owned managed-settings schema, and returns the canonical JSON without requiring a session.
+             *
+             * @returns Validated device-managed settings discovered before a session exists.
+             */
+            read: async (): Promise<ManagedSettingsReadResult> =>
+                connection.sendRequest("managedSettings.read", {}),
         },
         /** @experimental */
         runtime: {
@@ -19437,10 +19707,12 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             /**
              * Lists durable factory runs for this session in creation order.
              *
-             * @returns Factory runs in durable creation order.
+             * @param params Parameters for paging factory runs.
+             *
+             * @returns A page of factory runs in durable creation order.
              */
-            listRuns: async (): Promise<FactoryListRunsResult> =>
-                connection.sendRequest("session.factory.listRuns", { sessionId }),
+            listRuns: async (params: FactoryListRunsRequest): Promise<FactoryListRunsResult> =>
+                connection.sendRequest("session.factory.listRuns", { sessionId, ...params }),
             /**
              * Gets durable and live observability detail for one factory run.
              *
@@ -20912,6 +21184,15 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              */
             summarizeForHandoff: async (): Promise<HistorySummarizeForHandoffResult> =>
                 connection.sendRequest("session.history.summarizeForHandoff", { sessionId }),
+            /**
+             * Clears the session's conversation history, keeping only system and developer messages, and seeds the fresh context window with a first user message. Must be called from inside a tool handler: the clear has to drop the results of the tool calls its wipe orphans, and it rejects when no tool call is in flight.
+             *
+             * @param params Parameters for clearing the conversation and seeding the window that replaces it.
+             *
+             * @returns What a successful clear removed. A clear that could not be applied rejects instead of reporting a count.
+             */
+            clearContext: async (params: HistoryClearContextRequest): Promise<HistoryClearContextResult> =>
+                connection.sendRequest("session.history.clearContext", { sessionId, ...params }),
         },
         /** @experimental */
         queue: {
@@ -21603,6 +21884,19 @@ export function registerClientSessionApiHandlers(
     });
 }
 
+/** Handler for `extensionLaunchProvider` client global API methods. */
+/** @experimental */
+export interface ExtensionLaunchProviderHandler {
+    /**
+     * Asks the registered SDK client to resolve an opaque process launch profile for one discovered extension entrypoint immediately before launch or reload. The provider must respond within 15 seconds.
+     *
+     * @param params A discovered extension entrypoint that the registered integrator may classify and resolve to an opaque launch profile.
+     *
+     * @returns The launch profile for a supported entrypoint. Omit launch when the provider does not support the entrypoint.
+     */
+    resolve(params: ExtensionLaunchProviderResolveRequest): Promise<ExtensionLaunchProviderResolveResult>;
+}
+
 /** Handler for `llmInference` client global API methods. */
 /** @experimental */
 export interface LlmInferenceHandler {
@@ -21637,6 +21931,7 @@ export interface GitHubTelemetryHandler {
 
 /** All client global API handler groups. */
 export interface ClientGlobalApiHandlers {
+    extensionLaunchProvider?: ExtensionLaunchProviderHandler;
     llmInference?: LlmInferenceHandler;
     gitHubTelemetry?: GitHubTelemetryHandler;
 }
@@ -21652,6 +21947,11 @@ export function registerClientGlobalApiHandlers(
     connection: MessageConnection,
     handlers: ClientGlobalApiHandlers,
 ): void {
+    connection.onRequest("extensionLaunchProvider.resolve", async (params: ExtensionLaunchProviderResolveRequest) => {
+        const handler = handlers.extensionLaunchProvider;
+        if (!handler) throw new Error("No extensionLaunchProvider client-global handler registered");
+        return handler.resolve(params);
+    });
     connection.onRequest("llmInference.httpRequestStart", async (params: LlmInferenceHttpRequestStartRequest) => {
         const handler = handlers.llmInference;
         if (!handler) throw new Error("No llmInference client-global handler registered");

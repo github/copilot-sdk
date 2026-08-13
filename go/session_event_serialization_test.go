@@ -189,3 +189,69 @@ func TestRawSessionEventDataWithNilRawMarshalsAsNull(t *testing.T) {
 		t.Fatalf("expected missing raw data to marshal as null, got %v", serialized["data"])
 	}
 }
+
+func TestManagedSettingsResolvedProvenanceRoundTrips(t *testing.T) {
+	sources := []ManagedSettingsResolvedSource{
+		ManagedSettingsResolvedSourceServer,
+		ManagedSettingsResolvedSourceDevice,
+		ManagedSettingsResolvedSourceClient,
+		ManagedSettingsResolvedSourceMixed,
+		ManagedSettingsResolvedSourceNone,
+	}
+	expectedSources := []string{"server", "device", "client", "mixed", "none"}
+	for i, source := range sources {
+		if string(source) != expectedSources[i] {
+			t.Fatalf("expected source %q, got %q", expectedSources[i], source)
+		}
+	}
+
+	clientManaged := true
+	resolved := SessionManagedSettingsResolvedData{
+		BypassPermissionsDisabled: true,
+		ClientManaged:             &clientManaged,
+		DeviceManaged:             false,
+		FailClosed:                false,
+		ManagedKeys:               []string{"permissions"},
+		ServerManaged:             false,
+		Source:                    ManagedSettingsResolvedSourceClient,
+	}
+	data, err := json.Marshal(resolved)
+	if err != nil {
+		t.Fatalf("failed to marshal managed settings resolution: %v", err)
+	}
+
+	var serialized map[string]any
+	if err := json.Unmarshal(data, &serialized); err != nil {
+		t.Fatalf("failed to inspect managed settings resolution: %v", err)
+	}
+	if serialized["source"] != "client" || serialized["clientManaged"] != true {
+		t.Fatalf("expected client provenance, got %v", serialized)
+	}
+
+	var roundTripped SessionManagedSettingsResolvedData
+	if err := json.Unmarshal(data, &roundTripped); err != nil {
+		t.Fatalf("failed to round-trip managed settings resolution: %v", err)
+	}
+	if roundTripped.Source != ManagedSettingsResolvedSourceClient ||
+		roundTripped.ClientManaged == nil ||
+		!*roundTripped.ClientManaged {
+		t.Fatalf("expected client provenance to round-trip, got %#v", roundTripped)
+	}
+
+	resolved.Source = ManagedSettingsResolvedSourceMixed
+	resolved.ClientManaged = nil
+	data, err = json.Marshal(resolved)
+	if err != nil {
+		t.Fatalf("failed to marshal mixed managed settings resolution: %v", err)
+	}
+	serialized = nil
+	if err := json.Unmarshal(data, &serialized); err != nil {
+		t.Fatalf("failed to inspect mixed managed settings resolution: %v", err)
+	}
+	if serialized["source"] != "mixed" {
+		t.Fatalf("expected mixed provenance, got %v", serialized["source"])
+	}
+	if _, ok := serialized["clientManaged"]; ok {
+		t.Fatalf("expected absent clientManaged to be omitted, got %v", serialized)
+	}
+}

@@ -4,7 +4,7 @@ A Rust SDK for programmatic access to the GitHub Copilot CLI.
 
 See [github/copilot-sdk](https://github.com/github/copilot-sdk) for the equivalent SDKs in TypeScript, Python, Go, .NET, and Java. The Rust SDK seeks parity with those SDKs; see [Differences From Other SDKs](#differences-from-other-sdks) below for the small set of intentional divergences.
 
-**Releases:** [github.com/github/copilot-sdk/releases?q=rust%2F](https://github.com/github/copilot-sdk/releases?q=rust%2F) — per-version release notes for the Rust crate.
+**Releases:** [github.com/github/copilot-sdk/releases](https://github.com/github/copilot-sdk/releases) — combined release notes for all SDK languages.
 
 ## Prerequisites
 
@@ -107,6 +107,8 @@ With the default `CliProgram::Resolve`, `Client::start()` resolves the CLI in th
 ### Session
 
 Created via `Client::create_session` or `Client::resume_session`. Owns an internal event loop that dispatches CLI callbacks to the focused handler traits you install on `SessionConfig`, and broadcasts session events through `subscribe()`.
+
+`SessionConfig::working_directory` sets the session working directory. When unset, the runtime uses its process working directory.
 
 ```rust,ignore
 use github_copilot_sdk::MessageOptions;
@@ -318,7 +320,7 @@ let session = client
     .await?;
 ```
 
-**Hook events:** `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `UserPromptSubmitted`, `SessionStart`, `SessionEnd`, `ErrorOccurred`. Each carries typed input/output structs. `PostToolUse` only fires on success; override `on_post_tool_use_failure` to observe failed tool calls. Return `HookOutput::None` for events you don't handle.
+**Hook events:** `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `UserPromptSubmitted`, `UserPromptTransformed`, `SessionStart`, `SessionEnd`, `ErrorOccurred`. Each carries typed input/output structs. `PostToolUse` only fires on success; override `on_post_tool_use_failure` to observe failed tool calls. Return `HookOutput::None` for events you don't handle.
 
 ### System Message Transforms
 
@@ -962,4 +964,23 @@ github-copilot-sdk = { version = "0.1", default-features = false }
 
 # Derive JSON Schema for tool parameters (adds to default bundled-cli).
 github-copilot-sdk = { version = "0.1", features = ["derive"] }
+```
+
+## Development
+
+Tests require a supported [Node.js version](../nodejs/README.md#prerequisites). From the repository root:
+
+```bash
+cd nodejs
+npm ci
+```
+
+```bash
+cd test/harness
+npm ci
+```
+
+```bash
+cd rust
+cargo test --features test-support
 ```

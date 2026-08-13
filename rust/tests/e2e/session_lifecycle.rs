@@ -2,12 +2,12 @@ use github_copilot_sdk::session_events::SessionEventType;
 
 use super::support::{
     assistant_message_content, collect_until_idle, event_types, wait_for_condition,
-    with_e2e_context,
 };
 
 #[tokio::test]
 async fn should_list_created_sessions_after_sending_a_message() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "session_lifecycle",
         "should_list_created_sessions_after_sending_a_message",
         |ctx| {
@@ -59,7 +59,8 @@ async fn should_list_created_sessions_after_sending_a_message() {
 
 #[tokio::test]
 async fn should_delete_session_permanently() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "session_lifecycle",
         "should_delete_session_permanently",
         |ctx| {
@@ -103,7 +104,8 @@ async fn should_delete_session_permanently() {
 
 #[tokio::test]
 async fn should_return_events_via_getmessages_after_conversation() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "session_lifecycle",
         "should_return_events_via_getmessages_after_conversation",
         |ctx| {
@@ -136,7 +138,8 @@ async fn should_return_events_via_getmessages_after_conversation() {
 
 #[tokio::test]
 async fn should_support_multiple_concurrent_sessions() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "session_lifecycle",
         "should_support_multiple_concurrent_sessions",
         |ctx| {
@@ -180,7 +183,8 @@ async fn should_support_multiple_concurrent_sessions() {
 
 #[tokio::test]
 async fn should_isolate_events_between_concurrent_sessions() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "session_lifecycle",
         "should_isolate_events_between_concurrent_sessions",
         |ctx| {
@@ -255,3 +259,5 @@ async fn should_isolate_events_between_concurrent_sessions() {
     )
     .await;
 }
+static E2E: super::support::SharedE2eGroup =
+    super::support::SharedE2eGroup::standard("session_lifecycle", 5);

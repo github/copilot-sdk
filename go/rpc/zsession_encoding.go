@@ -395,6 +395,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
+	case SessionEventTypeSessionContextCleared:
+		var d SessionContextClearedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
 	case SessionEventTypeSessionCustomAgentsUpdated:
 		var d SessionCustomAgentsUpdatedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {

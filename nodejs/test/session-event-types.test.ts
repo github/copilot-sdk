@@ -16,12 +16,17 @@
 
 import { describe, expect, it } from "vitest";
 import { approveAll } from "../src/index.js";
+import { FACTORY_AGENT_OPTION_KEYS } from "../src/factory.js";
+import type { FactoryAgentOptions as WireFactoryAgentOptions } from "../src/generated/rpc.js";
 import type {
     // The aggregate union; must still resolve via the package root.
     SessionEvent,
     PermissionRequest,
     PermissionRequestedData,
     PermissionRequestedEvent,
+    ManagedSettingsResolvedData,
+    ManagedSettingsResolvedEvent,
+    ManagedSettingsResolvedSource,
 
     // *Data payload types from the v0.3.0 generated session-event schema.
     AssistantMessageData,
@@ -56,6 +61,8 @@ import type {
     WorkingDirectoryContextHostType,
     FactoryContext,
     FactoryDefinition,
+    FactoryAgentOptions,
+    FactoryRunResult,
     JsonValue,
 } from "../src/index.js";
 
@@ -94,6 +101,21 @@ type _DefaultFactoryResultIsJsonValueOrVoid = _AssertEqual<
     JsonValue | void
 >;
 const _defaultFactoryResultCheck: _DefaultFactoryResultIsJsonValueOrVoid = true;
+type _FactoryRunResultIsJsonValueOrUndefined = _AssertEqual<
+    FactoryRunResult["result"],
+    JsonValue | undefined
+>;
+const _factoryRunResultCheck: _FactoryRunResultIsJsonValueOrUndefined = true;
+type _FactoryAgentOptionKeysMatchPublicInterface = _AssertEqual<
+    (typeof FACTORY_AGENT_OPTION_KEYS)[number],
+    keyof FactoryAgentOptions
+>;
+const _factoryAgentOptionKeysCheck: _FactoryAgentOptionKeysMatchPublicInterface = true;
+type _PublicFactoryAgentOptionsMatchWire = _AssertEqual<
+    keyof FactoryAgentOptions,
+    keyof WireFactoryAgentOptions
+>;
+const _publicFactoryAgentOptionsCheck: _PublicFactoryAgentOptionsMatchWire = true;
 // @ts-expect-error Factory arguments must be representable on the JSON wire.
 type _FactoryArgsRejectUndefined = FactoryContext<undefined>;
 // @ts-expect-error Factory results must be JSON values or top-level void.
@@ -161,6 +183,45 @@ describe("Session event type exports (#1156)", () => {
 
         const permissionEvent: PermissionRequestedEvent = event;
         expect(permissionEvent.data.permissionRequest.managedApprovalRequired).toBe(true);
+    });
+
+    it("exposes managed settings client and mixed provenance", () => {
+        const sources: ManagedSettingsResolvedSource[] = [
+            "server",
+            "device",
+            "client",
+            "mixed",
+            "none",
+        ];
+        expect(sources).toEqual(["server", "device", "client", "mixed", "none"]);
+
+        const clientData: ManagedSettingsResolvedData = {
+            bypassPermissionsDisabled: true,
+            clientManaged: true,
+            deviceManaged: false,
+            failClosed: false,
+            managedKeys: ["permissions"],
+            serverManaged: false,
+            source: "client",
+        };
+        const clientEvent: ManagedSettingsResolvedEvent = {
+            ephemeral: true,
+            id: "evt-managed-1",
+            parentId: null,
+            timestamp: "2026-01-01T00:00:00.000Z",
+            type: "session.managed_settings_resolved",
+            data: clientData,
+        };
+        expect(clientEvent.data.source).toBe("client");
+        expect(clientEvent.data.clientManaged).toBe(true);
+
+        const { clientManaged: _, ...withoutClientManaged } = clientData;
+        const mixedData: ManagedSettingsResolvedData = {
+            ...withoutClientManaged,
+            source: "mixed",
+        };
+        expect(mixedData.source).toBe("mixed");
+        expect("clientManaged" in mixedData).toBe(false);
     });
 
     it("rejects approveAll in managed settings sessions", () => {
@@ -260,6 +321,7 @@ describe("Session event type exports (#1156)", () => {
         assertImportable<ToolExecutionStartData>();
         assertImportable<UserMessageData>();
         assertImportable<PermissionRequestedData>();
+        assertImportable<ManagedSettingsResolvedData>();
 
         assertImportable<AssistantMessageEvent>();
         assertImportable<ErrorEvent>();
@@ -270,6 +332,8 @@ describe("Session event type exports (#1156)", () => {
         assertImportable<ToolExecutionStartEvent>();
         assertImportable<UserMessageEvent>();
         assertImportable<PermissionRequestedEvent>();
+        assertImportable<ManagedSettingsResolvedEvent>();
+        assertImportable<ManagedSettingsResolvedSource>();
 
         // Supporting auxiliary types referenced by the *Data shapes — these
         // must round-trip through the package root too, otherwise consumers

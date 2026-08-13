@@ -11,6 +11,9 @@ namespace GitHub.Copilot.Test.E2E;
 // Other test classes should instead inherit from E2ETestBase
 public class ClientE2ETests(E2ETestFixture fixture) : IClassFixture<E2ETestFixture>
 {
+    private const string FailingCliScript =
+        "process.stderr.write('nonexistent test flag on stderr\\n'); process.exit(1);";
+
     private E2ETestContext Ctx => fixture.Ctx;
 
     [Theory]
@@ -177,11 +180,14 @@ public class ClientE2ETests(E2ETestFixture fixture) : IClassFixture<E2ETestFixtu
     [InlineData(false)]  // TCP transport
     public async Task Should_Report_Error_With_Stderr_When_CLI_Fails_To_Start(bool useStdio)
     {
+        var cliPath = Path.Join(Ctx.WorkDir, $"failing-cli-{Guid.NewGuid():N}.js");
+        await File.WriteAllTextAsync(cliPath, FailingCliScript);
+
         var client = new CopilotClient(new CopilotClientOptions
         {
             Connection = useStdio
-                ? RuntimeConnection.ForStdio(args: ["--nonexistent-flag-for-testing"])
-                : RuntimeConnection.ForTcp(args: ["--nonexistent-flag-for-testing"])
+                ? RuntimeConnection.ForStdio(path: cliPath)
+                : RuntimeConnection.ForTcp(path: cliPath)
         });
 
         var ex = await Assert.ThrowsAsync<IOException>(() => client.StartAsync());

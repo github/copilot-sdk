@@ -1657,6 +1657,55 @@ public sealed class UserPromptSubmittedHookOutput
 }
 
 /// <summary>
+/// Input for a user-prompt-transformed hook.
+/// </summary>
+public sealed class UserPromptTransformedHookInput
+{
+    /// <summary>
+    /// The runtime session ID of the session that triggered the hook.
+    /// </summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Unix timestamp in milliseconds when the prompt was transformed.
+    /// </summary>
+    [JsonPropertyName("timestamp")]
+    [JsonConverter(typeof(UnixMillisecondsDateTimeOffsetConverter))]
+    public DateTimeOffset Timestamp { get; set; }
+
+    /// <summary>
+    /// Current working directory of the session.
+    /// </summary>
+    [JsonPropertyName("cwd")]
+    public string WorkingDirectory { get; set; } = string.Empty;
+
+    /// <summary>
+    /// The user prompt after any user-prompt-submitted hooks have run.
+    /// </summary>
+    [JsonPropertyName("prompt")]
+    public string Prompt { get; set; } = string.Empty;
+
+    /// <summary>
+    /// The model-facing prompt after runtime transformations.
+    /// </summary>
+    [JsonPropertyName("transformedPrompt")]
+    public string TransformedPrompt { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Output for a user-prompt-transformed hook.
+/// </summary>
+public sealed class UserPromptTransformedHookOutput
+{
+    /// <summary>
+    /// Replacement model-facing prompt to persist and send to the model.
+    /// </summary>
+    [JsonPropertyName("modifiedTransformedPrompt")]
+    public string? ModifiedTransformedPrompt { get; set; }
+}
+
+/// <summary>
 /// Input for a session-start hook.
 /// </summary>
 public sealed class SessionStartHookInput
@@ -1966,6 +2015,11 @@ public sealed class SessionHooks
     /// Handler called when the user submits a prompt.
     /// </summary>
     public Func<UserPromptSubmittedHookInput, HookInvocation, Task<UserPromptSubmittedHookOutput?>>? OnUserPromptSubmitted { get; set; }
+
+    /// <summary>
+    /// Handler called after the runtime transforms a submitted prompt and before it is stored.
+    /// </summary>
+    public Func<UserPromptTransformedHookInput, HookInvocation, Task<UserPromptTransformedHookOutput?>>? OnUserPromptTransformed { get; set; }
 
     /// <summary>
     /// Handler called when a session starts.
@@ -2991,6 +3045,70 @@ public sealed class GitHubMcpToolConfig
 }
 
 /// <summary>
+/// Controls whether bypass-permissions mode is available in a managed session.
+/// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter<DisableBypassPermissionsMode>))]
+public enum DisableBypassPermissionsMode
+{
+    /// <summary>Turn off bypass-permissions mode.</summary>
+    [JsonStringEnumMemberName("disable")]
+    Disable
+}
+
+/// <summary>
+/// Permission rules injected as a managed-settings layer at session bootstrap.
+/// All fields are optional; omitted fields impose no constraint from this layer.
+/// </summary>
+/// <remarks>
+/// This layer composes restrictively with any server- or device-level managed
+/// settings: <see cref="Deny"/> and <see cref="Ask"/> rules are unioned across
+/// layers, every present <see cref="Allow"/> list must admit a tool for it to be
+/// allowed, and <see cref="DisableBypassPermissionsMode"/> is honored if any
+/// layer sets it (deny-wins).
+/// </remarks>
+public sealed class ManagedSettingsPermissions
+{
+    /// <summary>
+    /// When set to <c>"disable"</c>, bypass-permissions mode is turned off for the
+    /// session regardless of other layers. Serialized as
+    /// <c>disableBypassPermissionsMode</c>.
+    /// </summary>
+    [JsonPropertyName("disableBypassPermissionsMode")]
+    public DisableBypassPermissionsMode? DisableBypassPermissionsMode { get; set; }
+
+    /// <summary>Tool-permission patterns that are always denied.</summary>
+    [JsonPropertyName("deny")]
+    public IList<string>? Deny { get; set; }
+
+    /// <summary>Tool-permission patterns that require an explicit ask.</summary>
+    [JsonPropertyName("ask")]
+    public IList<string>? Ask { get; set; }
+
+    /// <summary>Tool-permission patterns that are allowed without prompting.</summary>
+    [JsonPropertyName("allow")]
+    public IList<string>? Allow { get; set; }
+}
+
+/// <summary>
+/// Managed-settings layer injected at session startup. Currently carries only a
+/// <see cref="Permissions"/> object.
+/// </summary>
+/// <remarks>
+/// This layer is startup-only and is not persisted with the session. It must be
+/// re-supplied on <see cref="CopilotClient.ResumeSessionAsync"/> to remain in
+/// effect; omitting it on resume clears the previously injected layer. It can be
+/// combined with <see cref="SessionConfigBase.EnableManagedSettings"/>. Older
+/// runtimes may ignore this additive field, so hosts must not rely on injected
+/// policy until they ship a compatible runtime.
+/// </remarks>
+public sealed class ManagedSettings
+{
+    /// <summary>Permission rules for this managed-settings layer.</summary>
+    [JsonPropertyName("permissions")]
+    public ManagedSettingsPermissions? Permissions { get; set; }
+}
+
+/// <summary>
 /// Shared configuration properties for creating or resuming a Copilot session.
 /// Use <see cref="SessionConfig"/> when creating a new session, or
 /// <see cref="ResumeSessionConfig"/> when resuming an existing one.
@@ -3016,7 +3134,9 @@ public abstract class SessionConfigBase
         DefaultAgent = other.DefaultAgent;
         Agent = other.Agent;
         DisabledSkills = other.DisabledSkills is not null ? [.. other.DisabledSkills] : null;
+        DisabledMcpServers = other.DisabledMcpServers is not null ? [.. other.DisabledMcpServers] : null;
         EnableCitations = other.EnableCitations;
+        EnableFileChangeTracking = other.EnableFileChangeTracking;
         EnableConfigDiscovery = other.EnableConfigDiscovery;
         SkipEmbeddingRetrieval = other.SkipEmbeddingRetrieval;
         EmbeddingCacheStorage = other.EmbeddingCacheStorage;
@@ -3068,6 +3188,7 @@ public abstract class SessionConfigBase
         Providers = other.Providers is not null ? [.. other.Providers] : null;
         Models = other.Models is not null ? [.. other.Models] : null;
         EnableSessionTelemetry = other.EnableSessionTelemetry;
+        EnableExperimentalMode = other.EnableExperimentalMode;
         SkipCustomInstructions = other.SkipCustomInstructions;
         CustomAgentsLocalOnly = other.CustomAgentsLocalOnly;
         CoauthorEnabled = other.CoauthorEnabled;
@@ -3080,6 +3201,7 @@ public abstract class SessionConfigBase
         RemoteSession = other.RemoteSession;
         ExpAssignments = other.ExpAssignments;
         EnableManagedSettings = other.EnableManagedSettings;
+        ManagedSettings = other.ManagedSettings;
 #pragma warning disable GHCP001
         Canvases = other.Canvases is not null ? [.. other.Canvases] : null;
         RequestCanvasRenderer = other.RequestCanvasRenderer;
@@ -3098,6 +3220,7 @@ public abstract class SessionConfigBase
         SystemMessage = other.SystemMessage;
         Tools = other.Tools is not null ? [.. other.Tools] : null;
         WorkingDirectory = other.WorkingDirectory;
+        AdditionalDirectories = other.AdditionalDirectories is not null ? [.. other.AdditionalDirectories] : null;
     }
 
     /// <summary>Client name to identify the application using the SDK.</summary>
@@ -3108,7 +3231,7 @@ public abstract class SessionConfigBase
 
     /// <summary>
     /// Reasoning effort level for models that support it.
-    /// Valid values: "low", "medium", "high", "xhigh".
+    /// Valid values: "low", "medium", "high", "xhigh", "max".
     /// Only applies to models where capabilities.supports.reasoningEffort is true.
     /// </summary>
     public string? ReasoningEffort { get; set; }
@@ -3140,6 +3263,17 @@ public abstract class SessionConfigBase
     /// </remarks>
     [Experimental(Diagnostics.Experimental)]
     public bool? EnableCitations { get; set; }
+
+    /// <summary>
+    /// Opts in to capturing file changes for session rewind and cumulative
+    /// session diff.
+    /// </summary>
+    /// <remarks>
+    /// On create, capture starts with the first turn. On resume, tracking can be
+    /// enabled only when the session still has a valid baseline; earlier untracked
+    /// changes cannot be reconstructed.
+    /// </remarks>
+    public bool? EnableFileChangeTracking { get; set; }
 
     /// <summary>
     /// Override the default configuration directory location.
@@ -3271,6 +3405,15 @@ public abstract class SessionConfigBase
     public bool? EnableSessionTelemetry { get; set; }
 
     /// <summary>
+    /// Controls whether the session enables experimental features.
+    /// </summary>
+    /// <remarks>
+    /// Defaults to <see langword="false"/> in <see cref="CopilotClientMode.Empty"/>.
+    /// Otherwise, the runtime decides when left <see langword="null"/>.
+    /// </remarks>
+    public bool? EnableExperimentalMode { get; set; }
+
+    /// <summary>
     /// When <see langword="true"/>, suppresses loading of custom instruction files
     /// (e.g. <c>.github/copilot-instructions.md</c>, <c>AGENTS.md</c>) from the working directory.
     /// When <see langword="null"/>, the SDK chooses based on
@@ -3363,6 +3506,12 @@ public abstract class SessionConfigBase
     public string? WorkingDirectory { get; set; }
 
     /// <summary>
+    /// Additional directories the agent may access beyond <see cref="WorkingDirectory"/>.
+    /// Relative paths resolve against the session working directory. Re-supply them when resuming.
+    /// </summary>
+    public IList<string>? AdditionalDirectories { get; set; }
+
+    /// <summary>
     /// Enable streaming of assistant message and reasoning chunks.
     /// When true, assistant.message_delta and assistant.reasoning_delta events
     /// with deltaContent are sent as the response is generated.
@@ -3428,6 +3577,13 @@ public abstract class SessionConfigBase
 
     /// <summary>List of skill names to disable.</summary>
     public IList<string>? DisabledSkills { get; set; }
+
+    /// <summary>
+    /// Exact MCP server names to disable for this session. Disabled servers are not
+    /// started or authenticated on create or cold resume; a resident resume cannot
+    /// stop servers that are already running.
+    /// </summary>
+    public IList<string>? DisabledMcpServers { get; set; }
 
     /// <summary>
     /// Infinite session configuration for persistent workspaces and automatic compaction.
@@ -3521,6 +3677,17 @@ public abstract class SessionConfigBase
     /// wire as <c>enableManagedSettings</c>.
     /// </summary>
     public bool? EnableManagedSettings { get; set; }
+
+    /// <summary>
+    /// Optional managed-settings layer injected at session bootstrap. Currently
+    /// carries a permissions object that composes restrictively with any
+    /// server- or device-level managed settings. This layer is startup-only and
+    /// is not persisted: it must be re-supplied on resume to remain in effect,
+    /// and omitting it on resume clears the previously injected layer. Can be
+    /// combined with <see cref="EnableManagedSettings"/>. Serialized on the wire
+    /// as <c>managedSettings</c>.
+    /// </summary>
+    public ManagedSettings? ManagedSettings { get; set; }
 
 #pragma warning disable GHCP001
     /// <summary>

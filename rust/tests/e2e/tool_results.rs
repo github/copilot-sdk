@@ -10,11 +10,12 @@ use github_copilot_sdk::{
 use serde_json::json;
 use tokio::sync::mpsc;
 
-use super::support::{assistant_message_content, collect_until_idle, with_e2e_context};
+use super::support::{assistant_message_content, collect_until_idle};
 
 #[tokio::test]
 async fn should_handle_structured_toolresultobject_from_custom_tool() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "tool_results",
         "should_handle_structured_toolresultobject_from_custom_tool",
         |ctx| {
@@ -41,7 +42,7 @@ async fn should_handle_structured_toolresultobject_from_custom_tool() {
 
 #[tokio::test]
 async fn should_handle_tool_result_with_failure_resulttype() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(&E2E,
         "tool_results",
         "should_handle_tool_result_with_failure_resulttype",
         |ctx| {
@@ -69,7 +70,8 @@ async fn should_handle_tool_result_with_failure_resulttype() {
 
 #[tokio::test]
 async fn should_preserve_tooltelemetry_and_not_stringify_structured_results_for_llm() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "tool_results",
         "should_preserve_tooltelemetry_and_not_stringify_structured_results_for_llm",
         |ctx| {
@@ -116,7 +118,7 @@ async fn should_preserve_tooltelemetry_and_not_stringify_structured_results_for_
 
 #[tokio::test]
 async fn should_handle_tool_result_with_rejected_resulttype() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(&E2E,
         "tool_results",
         "should_handle_tool_result_with_rejected_resulttype",
         |ctx| {
@@ -153,7 +155,7 @@ async fn should_handle_tool_result_with_rejected_resulttype() {
 
 #[tokio::test]
 async fn should_handle_tool_result_with_denied_resulttype() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(&E2E,
         "tool_results",
         "should_handle_tool_result_with_denied_resulttype",
         |ctx| {
@@ -356,3 +358,5 @@ fn string_tool(
             "required": [parameter],
         }))
 }
+static E2E: super::support::SharedE2eGroup =
+    super::support::SharedE2eGroup::standard("tool_results", 5);

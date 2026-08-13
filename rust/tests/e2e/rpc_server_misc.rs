@@ -9,27 +9,33 @@ use super::support::{wait_for_condition, with_e2e_context};
 
 #[tokio::test]
 async fn should_reload_user_settings() {
-    with_e2e_context("rpc_server_misc", "should_reload_user_settings", |ctx| {
-        Box::pin(async move {
-            let client = ctx.start_client().await;
+    super::support::with_shared_e2e_context(
+        &E2E,
+        "rpc_server_misc",
+        "should_reload_user_settings",
+        |ctx| {
+            Box::pin(async move {
+                let client = ctx.start_client().await;
 
-            client
-                .rpc()
-                .user()
-                .settings()
-                .reload()
-                .await
-                .expect("reload user settings");
+                client
+                    .rpc()
+                    .user()
+                    .settings()
+                    .reload()
+                    .await
+                    .expect("reload user settings");
 
-            client.stop().await.expect("stop client");
-        })
-    })
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
     .await;
 }
 
 #[tokio::test]
 async fn should_get_set_and_clear_user_settings() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_server_misc",
         "should_get_set_and_clear_user_settings",
         |ctx| {
@@ -206,7 +212,8 @@ async fn should_login_list_getcurrentauth_and_logout_account() {
 
 #[tokio::test]
 async fn should_report_agent_registry_spawn_gate_closed() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_server_misc",
         "should_report_agent_registry_spawn_gate_closed",
         |ctx| {
@@ -279,7 +286,8 @@ async fn should_shut_down_owned_runtime() {
 
 #[tokio::test]
 async fn should_report_not_found_when_opening_session_without_context() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_server_misc",
         "should_report_not_found_when_opening_session_without_context",
         |ctx| {
@@ -305,7 +313,8 @@ async fn should_report_not_found_when_opening_session_without_context() {
 
 #[tokio::test]
 async fn should_reject_send_attachments_from_non_extension_connection() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_server_misc",
         "should_reject_send_attachments_from_non_extension_connection",
         |ctx| {
@@ -353,3 +362,5 @@ fn setting_patch(key: &str, value: Value) -> Value {
     settings.insert(key.to_string(), value);
     Value::Object(settings)
 }
+static E2E: super::support::SharedE2eGroup =
+    super::support::SharedE2eGroup::standard("rpc_server_misc", 5);

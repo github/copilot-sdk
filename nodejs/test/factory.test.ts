@@ -402,6 +402,65 @@ describe("factories", () => {
         expect(generatedRpc).toContain("timeoutSeconds?: number;");
     });
 
+    it("documents factory invocation and list paging behavior accurately", () => {
+        const guide = readFileSync(new URL("../docs/factories.md", import.meta.url), "utf8");
+        const publicApi = readFileSync(new URL("../src/factory.ts", import.meta.url), "utf8");
+        const listRunsPagingWording = "newest default page of this session's durable factory runs";
+        const resumeCodes = [
+            "not_found",
+            "non_resumable",
+            "already_active",
+            "factory_already_running",
+            "factory_limits_invalid",
+            "factory_session_disposed",
+            "factory_storage_unavailable",
+            "factory_storage_corrupt",
+        ];
+        const normalizeJSDoc = (document: string) =>
+            document.replace(/\r?\n\s*\* ?/g, " ").replace(/\s+/g, " ");
+        const normalizedGuide = normalizeJSDoc(guide);
+        const normalizedPublicApi = normalizeJSDoc(publicApi);
+
+        for (const document of [guide, publicApi]) {
+            expect(document).not.toContain("reapproval_declined");
+            expect(document).not.toContain("no_approval_provider");
+            expect(document).not.toMatch(/declined fresh run[\s\S]*terminal `cancelled` envelope/i);
+        }
+
+        for (const document of [normalizedGuide, normalizedPublicApi]) {
+            expect(document).toContain(listRunsPagingWording);
+        }
+
+        expect(normalizedGuide).toContain(
+            "SDK-initiated `run` and `resume` do not request permission"
+        );
+        expect(normalizedGuide).toContain(
+            "`run_factory` tool requests permission before the durable row exists"
+        );
+        expect(normalizedGuide).toContain("declining it creates no run row");
+        expect(normalizedGuide).toContain("its maximum number of active top-level runs");
+        for (const code of resumeCodes) {
+            expect(guide).toContain(`\`${code}\``);
+        }
+        expect(guide).toContain(
+            "Options are exactly `label`, `schema`, `model`, `agent`, `reasoningEffort`, and `contextTier`"
+        );
+        expect(normalizedGuide).toContain(
+            "session returned by `joinSession`. It refuses calls that start or resume a factory run"
+        );
+
+        expect(normalizedPublicApi).toContain("SDK-initiated runs do not request permission");
+        expect(normalizedPublicApi).toContain("declining it creates no run row");
+        expect(normalizedPublicApi).toContain(
+            "while the session is at its active top-level run limit"
+        );
+        expect(normalizedPublicApi).toContain("SDK-initiated resumes do not request permission");
+        expect(normalizedPublicApi).toContain("with a documented resume code rejects with");
+        expect(normalizedPublicApi).toContain(
+            "session instance returned by `joinSession`. It refuses calls that start or resume a factory run"
+        );
+    });
+
     it("serializes only factory metadata in the extension resume payload", async () => {
         const client = new CopilotClient();
         await client.start();
@@ -569,6 +628,133 @@ describe("factories", () => {
         expect(sendRequest).not.toHaveBeenCalled();
     });
 
+    it("keeps factory reads and cancellation available inside a factory body", async () => {
+        const sendRequest = vi.fn(async (method: string) => {
+            switch (method) {
+                case "session.factory.getRun":
+                    return { runId: "other-run", status: "completed" };
+                case "session.factory.listRuns":
+                    return { runs: [] };
+                case "session.factory.cancel":
+                    return {};
+                default:
+                    throw new Error(`Unexpected method: ${method}`);
+            }
+        });
+        const session = new CopilotSession("session-factory-reads", { sendRequest } as never);
+        const factory = defineFactory({
+            meta: {
+                name: "factory-reads",
+                description: "Read factory state from a factory body",
+                phases: [],
+            },
+            run: async ({ session: contextSession }) => {
+                const [run, runs] = await Promise.all([
+                    contextSession.factory.getRun("other-run"),
+                    contextSession.factory.listRuns(),
+                    contextSession.factory.cancel("other-run"),
+                ]);
+                return { runId: run.runId, runCount: runs.length };
+            },
+        });
+        session.registerFactories([factory]);
+
+        await expect(
+            session.clientSessionApis.factory!.execute({
+                sessionId: session.sessionId,
+                name: "factory-reads",
+                runId: "run-factory-reads",
+                executionToken: "execution-token",
+                args: {},
+            })
+        ).resolves.toEqual({ result: { runId: "other-run", runCount: 0 } });
+        expect(sendRequest).toHaveBeenCalledWith("session.factory.getRun", {
+            sessionId: session.sessionId,
+            runId: "other-run",
+        });
+        expect(sendRequest).toHaveBeenCalledWith("session.factory.listRuns", {
+            sessionId: session.sessionId,
+        });
+        expect(sendRequest).toHaveBeenCalledWith("session.factory.cancel", {
+            sessionId: session.sessionId,
+            runId: "other-run",
+        });
+    });
+
+    it("allows factory.run after a factory body returns", async () => {
+        const sendRequest = vi.fn(async (method: string) => {
+            if (method === "session.factory.run") {
+                return { runId: "run-after-body", status: "completed", result: "started" };
+            }
+            throw new Error(`Unexpected method: ${method}`);
+        });
+        const session = new CopilotSession("session-after-body", { sendRequest } as never);
+        const factory = defineFactory({
+            meta: {
+                name: "returns",
+                description: "Return before a separate factory run",
+                phases: [],
+            },
+            run: async () => "finished",
+        });
+        session.registerFactories([factory]);
+
+        await expect(
+            session.clientSessionApis.factory!.execute({
+                sessionId: session.sessionId,
+                name: "returns",
+                runId: "run-returns",
+                executionToken: "execution-token",
+                args: {},
+            })
+        ).resolves.toEqual({ result: "finished" });
+        await expect(session.factory.run("after-body")).resolves.toMatchObject({
+            status: "completed",
+            result: "started",
+        });
+    });
+
+    it("allows a factory-body timer to start a factory after the body settles", async () => {
+        const delayedRun = Promise.withResolvers<unknown>();
+        const sendRequest = vi.fn(async (method: string) => {
+            if (method === "session.factory.run") {
+                return { runId: "run-from-timer", status: "completed", result: "started" };
+            }
+            throw new Error(`Unexpected method: ${method}`);
+        });
+        const session = new CopilotSession("session-timer", { sendRequest } as never);
+        const factory = defineFactory({
+            meta: {
+                name: "timer",
+                description: "Start a factory from an unawaited timer",
+                phases: [],
+            },
+            run: async () => {
+                setTimeout(() => {
+                    void session.factory
+                        .run("from-timer")
+                        .then(delayedRun.resolve, delayedRun.reject);
+                }, 0);
+                return "finished";
+            },
+        });
+        session.registerFactories([factory]);
+
+        await expect(
+            session.clientSessionApis.factory!.execute({
+                sessionId: session.sessionId,
+                name: "timer",
+                runId: "run-timer",
+                executionToken: "execution-token",
+                args: {},
+            })
+        ).resolves.toEqual({ result: "finished" });
+        await expect(delayedRun.promise).resolves.toMatchObject({
+            status: "completed",
+            result: "started",
+        });
+    });
+
     it("flushes progress incrementally while a factory body is awaiting", async () => {
         const sendRequest = vi.fn(async () => ({}));
         const session = new CopilotSession("session-live-progress", { sendRequest } as never);
@@ -650,6 +836,95 @@ describe("factories", () => {
                 model: "gpt-test",
                 schema: { type: "string" },
             },
+        });
+    });
+
+    it("forwards every declared factory.agent option", async () => {
+        const sendRequest = vi.fn(async (method: string) => {
+            if (method === "session.factory.agent") {
+                return { result: "pong" };
+            }
+            throw new Error(`Unexpected method: ${method}`);
+        });
+        const session = new CopilotSession("session-agent-options", { sendRequest } as never);
+        const factory = defineFactory({
+            meta: {
+                name: "agent-options",
+                description: "Agent option forwarding test",
+                phases: [],
+            },
+            run: async ({ agent }) =>
+                agent("Reply with pong", {
+                    label: "Pong helper",
+                    model: "gpt-test",
+                    schema: { type: "string" },
+                    agent: "reviewer",
+                    reasoningEffort: "high",
+                    contextTier: "long_context",
+                }),
+        });
+        session.registerFactories([factory]);
+
+        await expect(
+            session.clientSessionApis.factory!.execute({
+                sessionId: session.sessionId,
+                name: "agent-options",
+                runId: "run-agent-options",
+                executionToken: "execution-token",
+                args: {},
+            })
+        ).resolves.toEqual({ result: "pong" });
+        expect(sendRequest).toHaveBeenCalledWith("session.factory.agent", {
+            sessionId: session.sessionId,
+            factoryRunId: "run-agent-options",
+            executionToken: "execution-token",
+            prompt: "Reply with pong",
+            opts: {
+                label: "Pong helper",
+                model: "gpt-test",
+                schema: { type: "string" },
+                agent: "reviewer",
+                reasoningEffort: "high",
+                contextTier: "long_context",
+            },
+        });
+    });
+
+    it("sends empty factory.agent options when none are supplied", async () => {
+        const sendRequest = vi.fn(async (method: string) => {
+            if (method === "session.factory.agent") {
+                return { result: "pong" };
+            }
+            throw new Error(`Unexpected method: ${method}`);
+        });
+        const session = new CopilotSession("session-empty-agent-options", {
+            sendRequest,
+        } as never);
+        const factory = defineFactory({
+            meta: {
+                name: "empty-agent-options",
+                description: "Empty agent option forwarding test",
+                phases: [],
+            },
+            run: async ({ agent }) => agent("Reply with pong"),
+        });
+        session.registerFactories([factory]);
+
+        await expect(
+            session.clientSessionApis.factory!.execute({
+                sessionId: session.sessionId,
+                name: "empty-agent-options",
+                runId: "run-empty-agent-options",
+                executionToken: "execution-token",
+                args: {},
+            })
+        ).resolves.toEqual({ result: "pong" });
+        expect(sendRequest).toHaveBeenCalledWith("session.factory.agent", {
+            sessionId: session.sessionId,
+            factoryRunId: "run-empty-agent-options",
+            executionToken: "execution-token",
+            prompt: "Reply with pong",
+            opts: {},
         });
     });
 
@@ -1431,6 +1706,56 @@ describe("factories", () => {
         );
     });
 
+    it("keeps a completed execution successful when a background progress flush fails", async () => {
+        vi.useFakeTimers();
+        const release = Promise.withResolvers<void>();
+        const sendRequest = vi.fn(async (method: string) => {
+            if (method === "session.factory.log") {
+                throw new Error("background transport failure");
+            }
+            return {};
+        });
+        const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
+        const session = new CopilotSession("session-background-flush-failure", {
+            sendRequest,
+        } as never);
+        const factory = defineFactory({
+            meta: {
+                name: "background-flush-failure",
+                description: "Background flush failure regression test",
+                phases: [],
+            },
+            run: async ({ log }) => {
+                log("background line");
+                await release.promise;
+                return "done";
+            },
+        });
+        session.registerFactories([factory]);
+
+        try {
+            const execution = session.clientSessionApis.factory!.execute({
+                sessionId: session.sessionId,
+                name: "background-flush-failure",
+                runId: "run-background-flush-failure",
+                executionToken: "execution-token",
+                args: {},
+            });
+            await vi.advanceTimersByTimeAsync(10_000);
+            await Promise.resolve();
+
+            release.resolve();
+
+            await expect(execution).resolves.toEqual({ result: "done" });
+            expect(warning).toHaveBeenCalledWith(
+                "Ignoring a background factory progress flush failure after the factory body settled",
+                expect.objectContaining({ message: "background transport failure" })
+            );
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
     it("keeps a mid-run progress flush failure fatal", async () => {
         const sendRequest = vi.fn(async (method: string) => {
             if (method === "session.factory.log") {
@@ -1736,8 +2061,11 @@ describe("factories", () => {
         "not_found",
         "non_resumable",
         "already_active",
-        "reapproval_declined",
-        "no_approval_provider",
+        "factory_already_running",
+        "factory_limits_invalid",
+        "factory_session_disposed",
+        "factory_storage_unavailable",
+        "factory_storage_corrupt",
     ] as const)(
         "throws FactoryResumeError with code %s for pre-execution failures",
         async (code) => {
@@ -1754,6 +2082,21 @@ describe("factories", () => {
             expect((error as FactoryResumeError).code).toBe(code);
         }
     );
+
+    it("leaves an unreachable permission_denied response as a raw ResponseError", async () => {
+        const session = new CopilotSession("session-resume-permission-denied", {
+            sendRequest: vi.fn(async () => {
+                throw new ResponseError(-32602, "resume failed: permission_denied", {
+                    code: "permission_denied",
+                });
+            }),
+        } as never);
+
+        const error = await session.factory.resume("run-error").catch((caught: unknown) => caught);
+        expect(error).toBeInstanceOf(ResponseError);
+        expect(error).not.toBeInstanceOf(FactoryResumeError);
+        expect((error as ResponseError<{ code: string }>).data.code).toBe("permission_denied");
+    });
 
     it("returns resumed execution failures as envelopes", async () => {
         const envelope = {

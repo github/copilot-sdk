@@ -13,6 +13,7 @@ namespace GitHub.Copilot.Test.Harness;
 public sealed class E2ETestContext : IAsyncDisposable
 {
     private const string DefaultGitHubToken = "fake-token-for-e2e-tests";
+    private static readonly TimeSpan s_gracefulClientStopTimeout = TimeSpan.FromSeconds(30);
 
     public string HomeDir { get; }
     public string WorkDir { get; }
@@ -549,7 +550,6 @@ public sealed class E2ETestContext : IAsyncDisposable
         return false;
     }
 
-    // Inproc holds the session-store SQLite handle in-process; graceful StopAsync releases it so the temp-dir delete succeeds on Windows.
     private static async Task StopClientForCleanupAsync(CopilotClient client)
     {
         var isInProcess = string.Equals(
@@ -558,7 +558,21 @@ public sealed class E2ETestContext : IAsyncDisposable
             StringComparison.OrdinalIgnoreCase);
         if (isInProcess)
         {
-            await client.StopAsync();
+            var gracefulStop = client.StopAsync();
+            try
+            {
+                await gracefulStop.WaitAsync(s_gracefulClientStopTimeout);
+            }
+            catch (TimeoutException)
+            {
+                Console.Error.WriteLine(
+                    $"Graceful in-process client cleanup exceeded {s_gracefulClientStopTimeout}; forcing shutdown.");
+                await client.ForceStopAsync();
+
+                // Disposing the connection completes any session.destroy RPC that
+                // blocked graceful cleanup. Observe that task before continuing.
+                await gracefulStop.WaitAsync(s_gracefulClientStopTimeout);
+            }
         }
         else
         {

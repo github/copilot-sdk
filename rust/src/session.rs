@@ -66,6 +66,13 @@ pub(crate) struct SessionHandlers {
     pub tools: Arc<HashMap<String, Arc<dyn crate::tool::ToolHandler>>>,
 }
 
+fn has_managed_settings(
+    enable_managed_settings: Option<bool>,
+    managed_settings: Option<&crate::types::ManagedSettings>,
+) -> bool {
+    enable_managed_settings == Some(true) || managed_settings.is_some()
+}
+
 /// Shared state between a [`Session`] and its event loop, used by [`Session::send_and_wait`].
 struct IdleWaiter {
     tx: oneshot::Sender<Result<Option<SessionEvent>, Error>>,
@@ -852,6 +859,8 @@ impl Client {
         config.system_message =
             crate::mode::system_message_for_mode(mode, config.system_message.take());
         config.memory = crate::mode::memory_for_mode(mode, config.memory.take());
+        config.enable_experimental_mode =
+            crate::mode::experimental_mode_for_mode(mode, config.enable_experimental_mode);
         if mode == crate::ClientMode::Empty {
             if config.enable_session_telemetry.is_none() {
                 config.enable_session_telemetry = Some(false);
@@ -897,7 +906,10 @@ impl Client {
         );
         let handlers = SessionHandlers {
             permission: permission_handler,
-            managed_settings_enabled: wire.enable_managed_settings == Some(true),
+            managed_settings_enabled: has_managed_settings(
+                wire.enable_managed_settings,
+                wire.managed_settings.as_ref(),
+            ),
             elicitation: runtime.elicitation_handler.take(),
             mcp_auth: runtime.mcp_auth_handler.take(),
             user_input: runtime.user_input_handler.take(),
@@ -1120,6 +1132,8 @@ impl Client {
         config.system_message =
             crate::mode::system_message_for_mode(mode, config.system_message.take());
         config.memory = crate::mode::memory_for_mode(mode, config.memory.take());
+        config.enable_experimental_mode =
+            crate::mode::experimental_mode_for_mode(mode, config.enable_experimental_mode);
         if mode == crate::ClientMode::Empty {
             if config.enable_session_telemetry.is_none() {
                 config.enable_session_telemetry = Some(false);
@@ -1165,7 +1179,10 @@ impl Client {
         );
         let handlers = SessionHandlers {
             permission: permission_handler,
-            managed_settings_enabled: wire.enable_managed_settings == Some(true),
+            managed_settings_enabled: has_managed_settings(
+                wire.enable_managed_settings,
+                wire.managed_settings.as_ref(),
+            ),
             elicitation: runtime.elicitation_handler.take(),
             mcp_auth: runtime.mcp_auth_handler.take(),
             user_input: runtime.user_input_handler.take(),
@@ -2546,8 +2563,15 @@ fn inject_transform_sections_resume(
 mod tests {
     use serde_json::json;
 
-    use super::{notification_permission_payload, permission_request_data};
+    use super::{has_managed_settings, notification_permission_payload, permission_request_data};
     use crate::handler::PermissionResult;
+
+    #[test]
+    fn direct_injection_enables_managed_safeguards() {
+        let settings = crate::types::ManagedSettings::default();
+        assert!(has_managed_settings(None, Some(&settings)));
+        assert!(!has_managed_settings(None, None));
+    }
 
     #[test]
     fn notification_payload_suppresses_no_result() {

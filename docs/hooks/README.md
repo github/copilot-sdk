@@ -6,5 +6,6 @@ Detailed API reference for each session hook in the GitHub Copilot SDK.
 * [Pre-tool use](./pre-tool-use.md): approve, deny, or modify tool calls
 * [Post-tool use](./post-tool-use.md): transform tool results
 * [User prompt submitted](./user-prompt-submitted.md): modify or filter user messages
+* [User prompt transformed](./user-prompt-transformed.md): inspect or replace model-facing prompts
 * [Session lifecycle](./session-lifecycle.md): session start and end
 * [Error handling](./error-handling.md): custom error handling

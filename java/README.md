@@ -32,14 +32,14 @@ Replace `${copilot.sdk.version}` with the latest release from Maven Central.
 <dependency>
     <groupId>com.github</groupId>
     <artifactId>copilot-sdk-java</artifactId>
-    <version>1.0.5-01</version>
+    <version>1.0.11-preview.2</version>
 </dependency>
 ```
 
 ### Gradle
 
 ```groovy
-implementation 'com.github:copilot-sdk-java:1.0.9-preview.2-01'
+implementation 'com.github:copilot-sdk-java:1.0.11-preview.2'
 ```
 
 #### Snapshot Builds
@@ -58,7 +58,7 @@ Snapshot builds of the next development version are published to Maven Central S
 <dependency>
     <groupId>com.github</groupId>
     <artifactId>copilot-sdk-java</artifactId>
-    <version>1.0.10-preview.2-SNAPSHOT</version>
+    <version>1.0.12-preview.2-SNAPSHOT</version>
 </dependency>
 ```
 
@@ -67,7 +67,53 @@ Snapshot builds of the next development version are published to Maven Central S
 Replace `${copilot.sdk.version}` with the latest release from Maven Central.
 
 ```groovy
-implementation 'com.github:copilot-sdk-java:1.0.10-preview.2-SNAPSHOT'
+implementation 'com.github:copilot-sdk-java:1.0.12-preview.2-SNAPSHOT'
+```
+
+## In-process mode (experimental)
+
+The SDK supports running the Copilot runtime **in-process** as a native library instead of spawning a separate CLI process. This eliminates process management overhead and simplifies deployment. In-process mode is currently experimental and only supported on **linux-x64**.
+
+Because in-process mode is experimental, see the [Using experimental APIs](#using-experimental-apis) section for how to opt in.
+
+### Additional dependency
+
+Add both the SDK and the platform-specific native runtime to your project:
+
+```xml
+<dependencies>
+    <!-- Pure-Java SDK (~1.5 MB) -->
+    <dependency>
+        <groupId>com.github</groupId>
+        <artifactId>copilot-sdk-java</artifactId>
+        <version>${copilot.version}</version>
+    </dependency>
+    <!-- Native runtime for linux-x64 (~20-26 MB) -->
+    <dependency>
+        <groupId>com.github</groupId>
+        <artifactId>copilot-sdk-java-runtime</artifactId>
+        <version>${copilot.version}</version>
+        <classifier>linux-x64</classifier>
+    </dependency>
+    <!-- JNA (required for in-process mode) -->
+    <dependency>
+        <groupId>net.java.dev.jna</groupId>
+        <artifactId>jna</artifactId>
+        <version>5.19.1</version>
+    </dependency>
+</dependencies>
+```
+
+### Usage
+
+Configure the client to use the in-process connection:
+
+```java
+CopilotClientOptions options = new CopilotClientOptions()
+    .setConnection(RuntimeConnection.forInProcess());
+
+CopilotClient client = new CopilotClient(options);
+client.start().get();
 ```
 
 ## Quick Start
@@ -127,6 +173,8 @@ and `setExcludedTools(...)`, prefer the source-qualified filter form
 `DefaultAgentConfig.setExcludedTools(...)`, use `<server-key>-<tool-name>`
 directly.
 
+`CopilotClientOptions.setCwd(...)` sets the runtime process working directory, which otherwise inherits the current process working directory. `SessionConfig.setWorkingDirectory(...)` sets the session working directory, which otherwise defaults to the runtime process working directory.
+
 ## Permission Handling
 
 `PermissionHandler.APPROVE_ALL` approves requests when managed settings are disabled. When `enableManagedSettings` is true, it completes exceptionally. Custom handlers can inspect `request.getManagedApprovalRequired()` for human-facing confirmation logic.
@@ -154,12 +202,12 @@ PermissionHandler handler = (request, invocation) -> {
 
 You can run the SDK without setting up a full Java project, by using [JBang](https://www.jbang.dev/).
 
-See the full source of [`jbang-example.java`](jbang-example.java) for a complete example with more features like session idle handling and usage info events.
+See the full source of [`jbang-example.java`](sdk/jbang-example.java) for a complete example with more features like session idle handling and usage info events.
 
 Or run it directly from the repository:
 
 ```bash
-jbang https://github.com/github/copilot-sdk/blob/main/java/jbang-example.java
+jbang https://github.com/github/copilot-sdk/blob/main/java/sdk/jbang-example.java
 ```
 
 ## Annotation-based tools and `ToolInvocation` context
@@ -420,7 +468,7 @@ The gate also applies to individual methods annotated with `@CopilotExperimental
 
 ### Development Setup
 
-Requires JDK 25 or later for development. The following steps validate the artifact built with JDK 25 runs on both 25 and 17, preserving the MR-JAR behavior.
+Requires JDK 25 or later and a supported [Node.js version](../nodejs/README.md#prerequisites) for development. The following steps validate the artifact built with JDK 25 runs on both 25 and 17, preserving the MR-JAR behavior.
 
 ```bash
 # Clone the repository
@@ -441,4 +489,4 @@ mvn jacoco:prepare-agent@wire-up-coverage-instrumentation antrun:run@print-test-
 
 ## License
 
-MIT — see [LICENSE](LICENSE) for details.
+MIT — see [LICENSE](sdk/LICENSE) for details.

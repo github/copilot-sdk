@@ -785,7 +785,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         session.RegisterTools(config.Tools ?? []);
         session.RegisterPermissionHandler(
             config.OnPermissionRequest,
-            config.EnableManagedSettings is true);
+            config.EnableManagedSettings is true || config.ManagedSettings is not null);
         session.RegisterMcpAuthHandler(config.OnMcpAuthRequest);
         session.RegisterCommands(config.Commands);
         session.RegisterElicitationHandler(config.OnElicitationRequest);
@@ -908,6 +908,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     {
         if (_options.Mode == CopilotClientMode.Empty)
         {
+            config.EnableExperimentalMode ??= false;
             config.EnableSessionTelemetry ??= false;
             config.SkipEmbeddingRetrieval ??= true;
             config.EmbeddingCacheStorage ??= EmbeddingCacheStorageMode.InMemory;
@@ -1096,6 +1097,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             config.Hooks.OnPostToolUse != null ||
             config.Hooks.OnPostToolUseFailure != null ||
             config.Hooks.OnUserPromptSubmitted != null ||
+            config.Hooks.OnUserPromptTransformed != null ||
             config.Hooks.OnSessionStart != null ||
             config.Hooks.OnSessionEnd != null ||
             config.Hooks.OnErrorOccurred != null ||
@@ -1139,6 +1141,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.ContextTier,
                 config.Tools?.Select(ToolDefinition.FromAIFunction).ToList(),
                 config.EnableCitations,
+                config.EnableFileChangeTracking,
                 wireSystemMessage,
                 toolFilter.AvailableTools,
                 toolFilter.ExcludedTools,
@@ -1146,6 +1149,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.Provider,
                 config.Capi,
                 config.EnableSessionTelemetry,
+                config.EnableExperimentalMode,
                 config.OnPermissionRequest != null ? true : null,
                 config.OnUserInputRequest != null ? true : null,
                 config.OnExitPlanModeRequest != null ? true : null,
@@ -1186,6 +1190,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 Cloud: config.Cloud,
                 InstructionDirectories: config.InstructionDirectories,
                 PluginDirectories: config.PluginDirectories,
+                DisabledMcpServers: config.DisabledMcpServers,
                 LargeOutput: config.LargeOutput,
                 ToolSearch: config.ToolSearch,
                 Memory: config.Memory,
@@ -1201,7 +1206,9 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 ExpAssignments: config.ExpAssignments,
                 EnableManagedSettings: config.EnableManagedSettings,
                 GitHubMcpToolConfig: config.GitHubMcpToolConfig,
-                EnableGitHubTelemetryForwarding: _options.OnGitHubTelemetry != null ? true : null);
+                ManagedSettings: config.ManagedSettings,
+                EnableGitHubTelemetryForwarding: _options.OnGitHubTelemetry != null ? true : null,
+                AdditionalDirectories: config.AdditionalDirectories);
 
             var rpcTimestamp = Stopwatch.GetTimestamp();
 
@@ -1324,6 +1331,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             config.Hooks.OnPostToolUse != null ||
             config.Hooks.OnPostToolUseFailure != null ||
             config.Hooks.OnUserPromptSubmitted != null ||
+            config.Hooks.OnUserPromptTransformed != null ||
             config.Hooks.OnSessionStart != null ||
             config.Hooks.OnSessionEnd != null ||
             config.Hooks.OnErrorOccurred != null ||
@@ -1353,6 +1361,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.ContextTier,
                 config.Tools?.Select(ToolDefinition.FromAIFunction).ToList(),
                 config.EnableCitations,
+                config.EnableFileChangeTracking,
                 wireSystemMessage,
                 toolFilter.AvailableTools,
                 toolFilter.ExcludedTools,
@@ -1360,6 +1369,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.Provider,
                 config.Capi,
                 config.EnableSessionTelemetry,
+                config.EnableExperimentalMode,
                 config.OnPermissionRequest != null ? true : null,
                 config.OnUserInputRequest != null ? true : null,
                 config.OnExitPlanModeRequest != null ? true : null,
@@ -1401,6 +1411,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 ContinuePendingWork: config.ContinuePendingWork,
                 InstructionDirectories: config.InstructionDirectories,
                 PluginDirectories: config.PluginDirectories,
+                DisabledMcpServers: config.DisabledMcpServers,
                 LargeOutput: config.LargeOutput,
                 ToolSearch: config.ToolSearch,
                 Memory: config.Memory,
@@ -1417,7 +1428,9 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 ExpAssignments: config.ExpAssignments,
                 EnableManagedSettings: config.EnableManagedSettings,
                 GitHubMcpToolConfig: config.GitHubMcpToolConfig,
-                EnableGitHubTelemetryForwarding: _options.OnGitHubTelemetry != null ? true : null);
+                ManagedSettings: config.ManagedSettings,
+                EnableGitHubTelemetryForwarding: _options.OnGitHubTelemetry != null ? true : null,
+                AdditionalDirectories: config.AdditionalDirectories);
 
             var rpcTimestamp = Stopwatch.GetTimestamp();
             var response = await InvokeRpcAsync<ResumeSessionResponse>(
@@ -2708,6 +2721,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         ContextTier? ContextTier,
         IList<ToolDefinition>? Tools,
         bool? EnableCitations,
+        bool? EnableFileChangeTracking,
         SystemMessageConfig? SystemMessage,
         IList<string>? AvailableTools,
         IList<string>? ExcludedTools,
@@ -2715,6 +2729,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         ProviderConfig? Provider,
         CapiSessionOptions? Capi,
         bool? EnableSessionTelemetry,
+        bool? IsExperimentalMode,
         bool? RequestPermission,
         bool? RequestUserInput,
         bool? RequestExitPlanMode,
@@ -2755,6 +2770,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         CloudSessionOptions? Cloud = null,
         IList<string>? InstructionDirectories = null,
         IList<string>? PluginDirectories = null,
+        [property: JsonPropertyName("disabledMcpServers")] IList<string>? DisabledMcpServers = null,
         LargeToolOutputConfig? LargeOutput = null,
         ToolSearchConfig? ToolSearch = null,
         MemoryConfiguration? Memory = null,
@@ -2770,8 +2786,10 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         OptionsUpdateToolFilterPrecedence? ToolFilterPrecedence = null,
         [property: JsonPropertyName("expAssignments")] CopilotExpAssignmentResponse? ExpAssignments = null,
         [property: JsonPropertyName("enableManagedSettings")] bool? EnableManagedSettings = null,
+        [property: JsonPropertyName("managedSettings")] ManagedSettings? ManagedSettings = null,
         bool? EnableGitHubTelemetryForwarding = null,
-        [property: JsonPropertyName("githubMcpToolConfig")] GitHubMcpToolConfig? GitHubMcpToolConfig = null);
+        [property: JsonPropertyName("githubMcpToolConfig")] GitHubMcpToolConfig? GitHubMcpToolConfig = null,
+        IList<string>? AdditionalDirectories = null);
 #pragma warning restore GHCP001
 
     internal record ToolDefinition(
@@ -2781,7 +2799,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         bool? OverridesBuiltInTool = null,
         bool? SkipPermission = null,
         CopilotToolDefer? Defer = null,
-        IDictionary<string, JsonNode?>? Metadata = null)
+        IDictionary<string, JsonNode?>? Metadata = null,
+        bool? IsTerminal = null)
     {
         public static ToolDefinition FromAIFunction(AIFunctionDeclaration function)
         {
@@ -2789,11 +2808,13 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             var skipPerm = function.AdditionalProperties.TryGetValue(CopilotTool.SkipPermissionKey, out var skipVal) && skipVal is true;
             var defer = function.AdditionalProperties.TryGetValue(CopilotTool.DeferKey, out var deferVal) && deferVal is CopilotToolDefer d ? d : (CopilotToolDefer?)null;
             var metadata = function.AdditionalProperties.TryGetValue(CopilotTool.MetadataKey, out var metaVal) && metaVal is IDictionary<string, JsonNode?> m ? m : null;
+            var isTerminal = function.AdditionalProperties.TryGetValue(CopilotTool.IsTerminalKey, out var terminalVal) && terminalVal is true;
             return new ToolDefinition(function.Name, function.Description, function.JsonSchema,
                 overrides ? true : null,
                 skipPerm ? true : null,
                 defer,
-                metadata);
+                metadata,
+                isTerminal ? true : null);
         }
     }
 
@@ -2814,6 +2835,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         ContextTier? ContextTier,
         IList<ToolDefinition>? Tools,
         bool? EnableCitations,
+        bool? EnableFileChangeTracking,
         SystemMessageConfig? SystemMessage,
         IList<string>? AvailableTools,
         IList<string>? ExcludedTools,
@@ -2821,6 +2843,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         ProviderConfig? Provider,
         CapiSessionOptions? Capi,
         bool? EnableSessionTelemetry,
+        bool? IsExperimentalMode,
         bool? RequestPermission,
         bool? RequestUserInput,
         bool? RequestExitPlanMode,
@@ -2862,6 +2885,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         bool? ContinuePendingWork = null,
         IList<string>? InstructionDirectories = null,
         IList<string>? PluginDirectories = null,
+        [property: JsonPropertyName("disabledMcpServers")] IList<string>? DisabledMcpServers = null,
         LargeToolOutputConfig? LargeOutput = null,
         ToolSearchConfig? ToolSearch = null,
         MemoryConfiguration? Memory = null,
@@ -2878,8 +2902,10 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         OptionsUpdateToolFilterPrecedence? ToolFilterPrecedence = null,
         [property: JsonPropertyName("expAssignments")] CopilotExpAssignmentResponse? ExpAssignments = null,
         [property: JsonPropertyName("enableManagedSettings")] bool? EnableManagedSettings = null,
+        [property: JsonPropertyName("managedSettings")] ManagedSettings? ManagedSettings = null,
         bool? EnableGitHubTelemetryForwarding = null,
-        [property: JsonPropertyName("githubMcpToolConfig")] GitHubMcpToolConfig? GitHubMcpToolConfig = null);
+        [property: JsonPropertyName("githubMcpToolConfig")] GitHubMcpToolConfig? GitHubMcpToolConfig = null,
+        IList<string>? AdditionalDirectories = null);
 #pragma warning restore GHCP001
 
     internal record ResumeSessionResponse(

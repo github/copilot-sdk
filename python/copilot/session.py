@@ -169,7 +169,7 @@ def _capabilities_to_dict(caps: ModelCapabilitiesOverride) -> dict:
     return result
 
 
-ReasoningEffort = Literal["low", "medium", "high", "xhigh"]
+ReasoningEffort = Literal["low", "medium", "high", "xhigh", "max"]
 ReasoningSummary = Literal["none", "concise", "detailed"]
 ContextTier = Literal["default", "long_context"]
 SessionFsConventions = Literal["posix", "windows"]
@@ -957,6 +957,28 @@ UserPromptSubmittedHandler = Callable[
 ]
 
 
+class UserPromptTransformedHookInput(TypedDict):
+    """Input for the user-prompt-transformed hook."""
+
+    sessionId: str
+    timestamp: datetime
+    workingDirectory: str
+    prompt: str
+    transformedPrompt: str
+
+
+class UserPromptTransformedHookOutput(TypedDict, total=False):
+    """Output for the user-prompt-transformed hook."""
+
+    modifiedTransformedPrompt: str
+
+
+UserPromptTransformedHandler = Callable[
+    [UserPromptTransformedHookInput, dict[str, str]],
+    UserPromptTransformedHookOutput | None | Awaitable[UserPromptTransformedHookOutput | None],
+]
+
+
 class SessionStartHookInput(TypedDict):
     """Input for session-start hook"""
 
@@ -1063,6 +1085,7 @@ class SessionHooks(TypedDict, total=False):
     on_post_tool_use: PostToolUseHandler
     on_post_tool_use_failure: PostToolUseFailureHandler
     on_user_prompt_submitted: UserPromptSubmittedHandler
+    on_user_prompt_transformed: UserPromptTransformedHandler
     on_session_start: SessionStartHandler
     on_session_end: SessionEndHandler
     on_error_occurred: ErrorOccurredHandler
@@ -2794,6 +2817,7 @@ class CopilotSession:
             "postToolUse": hooks.get("on_post_tool_use"),
             "postToolUseFailure": hooks.get("on_post_tool_use_failure"),
             "userPromptSubmitted": hooks.get("on_user_prompt_submitted"),
+            "userPromptTransformed": hooks.get("on_user_prompt_transformed"),
             "sessionStart": hooks.get("on_session_start"),
             "sessionEnd": hooks.get("on_session_end"),
             "errorOccurred": hooks.get("on_error_occurred"),
@@ -2976,7 +3000,7 @@ class CopilotSession:
         Args:
             model: Model ID to switch to (e.g., "gpt-5.4", "claude-sonnet-4").
             reasoning_effort: Optional reasoning effort level for the new model
-                (e.g., "low", "medium", "high", "xhigh").
+                (e.g., "low", "medium", "high", "xhigh", "max").
             reasoning_summary: Optional reasoning summary mode for supported
                 models. Use "none" to suppress summary output regardless of
                 whether reasoning is enabled.

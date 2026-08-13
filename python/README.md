@@ -272,13 +272,14 @@ finally:
 These are passed as keyword arguments to `create_session()`:
 
 - `model` (str): Model to use ("gpt-5", "claude-sonnet-4.5", etc.). **Required when using custom provider.**
-- `reasoning_effort` (str): Reasoning effort level for models that support it ("low", "medium", "high", "xhigh"). Use `list_models()` to check which models support this option.
+- `reasoning_effort` (str): Reasoning effort level for models that support it ("low", "medium", "high", "xhigh", "max"). Use `list_models()` to check which models support this option.
 - `session_id` (str): Custom session ID
 - `tools` (list): Custom tools exposed to the CLI. Tools with `handler=None` are declaration-only and must be resolved via pending tool-call RPCs.
 - `system_message` (SystemMessageConfig): System message configuration
 - `streaming` (bool): Enable streaming delta events
 - `provider` (ProviderConfig): Custom API provider configuration (BYOK). See [Custom Providers](#custom-providers) section.
 - `infinite_sessions` (InfiniteSessionConfig): Automatic context compaction configuration
+- `working_directory` (str | None): Working directory for the session (default: runtime process working directory).
 - `enable_session_store` (bool): Enables the cross-session store for search and retrieval across sessions. When unset in `"copilot-cli"` mode, the runtime default applies (enabled). In `"empty"` mode, defaults to disabled.
 - `on_permission_request` (callable): Optional handler called before each tool execution to approve or deny it. When omitted, permission requests are emitted as events and left pending for manual resolution. `PermissionHandler.approve_all` approves requests when managed settings are disabled and raises an error when `enable_managed_settings` is true. Custom handlers can inspect `managed_approval_required` for human-facing confirmation logic. See [Permission Handling](#permission-handling) section.
 - `on_user_input_request` (callable): Handler for user input requests from the agent (enables ask_user tool). See [User Input Requests](#user-input-requests) section.
@@ -709,9 +710,9 @@ async with await client.create_session(
     ...
 ```
 
-Available section IDs: `"identity"`, `"tone"`, `"tool_efficiency"`, `"environment_context"`, `"code_change_rules"`, `"guidelines"`, `"safety"`, `"tool_instructions"`, `"custom_instructions"`, `"last_instructions"`.
+Available section IDs: `"preamble"`, `"identity"`, `"tone"`, `"tool_efficiency"`, `"environment_context"`, `"code_change_rules"`, `"guidelines"`, `"safety"`, `"tool_instructions"`, `"custom_instructions"`, `"runtime_instructions"`, `"last_instructions"`. `"identity"` and `"tool_instructions"` are section groups that target a collection of related sub-sections as a unit; use `"preamble"` to target just the identity preamble.
 
-Each section override supports four string actions: `"replace"`, `"remove"`, `"append"`, and `"prepend"`. Unknown section IDs are handled gracefully: content is appended to additional instructions, and `"remove"` overrides are silently ignored.
+Each section override supports five string actions: `"replace"`, `"remove"`, `"append"`, `"prepend"`, and `"preserve"` (a no-op that opts an individually-addressable section out of a group-level `"remove"`). Unknown section IDs are handled gracefully: content from `"replace"`/`"append"`/`"prepend"` overrides is appended to additional instructions, and `"remove"` overrides are silently ignored.
 
 You can also pass a transform callback as the `action` instead of a string. The callback receives the current section content and returns the new content (sync or async):
 
@@ -1141,3 +1142,23 @@ When `on_elicitation_request` is provided, the SDK automatically:
 - Reports the `elicitation` capability on the session
 - Dispatches `elicitation.requested` events to your handler
 - Auto-cancels if your handler throws an error (so the server doesn't hang)
+
+## Development
+
+Install [uv](https://docs.astral.sh/uv/) and a supported [Node.js version](../nodejs/README.md#prerequisites), then from the repository root:
+
+```bash
+cd nodejs
+npm ci
+```
+
+```bash
+cd test/harness
+npm ci
+```
+
+```bash
+cd python
+uv sync
+uv run pytest
+```
