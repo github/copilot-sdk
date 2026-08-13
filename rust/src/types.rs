@@ -6717,6 +6717,18 @@ mod tests {
             .expect("default resume has no duplicate handlers");
         let resume_json = serde_json::to_value(&resume_wire).unwrap();
         assert_eq!(resume_json["authClientIdMetadataUrl"], url);
+
+        let (empty_create_wire, _) = SessionConfig::default()
+            .into_wire(None)
+            .expect("default create has no duplicate handlers");
+        let empty_create_json = serde_json::to_value(&empty_create_wire).unwrap();
+        assert!(empty_create_json.get("authClientIdMetadataUrl").is_none());
+
+        let (empty_resume_wire, _) = ResumeSessionConfig::new(SessionId::from("sess-2"))
+            .into_wire()
+            .expect("default resume has no duplicate handlers");
+        let empty_resume_json = serde_json::to_value(&empty_resume_wire).unwrap();
+        assert!(empty_resume_json.get("authClientIdMetadataUrl").is_none());
     }
 
     #[test]
