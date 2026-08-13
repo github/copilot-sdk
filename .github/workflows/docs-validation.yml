@@ -9,8 +9,9 @@ on:
       - 'python/copilot/**'
       - 'go/**/*.go'
       - 'dotnet/src/**'
-      - 'java/src/**'
+      - 'java/sdk/src/**'
       - 'java/pom.xml'
+      - 'java/sdk/pom.xml'
       - 'scripts/docs-validation/**'
       - '.github/workflows/docs-validation.yml'
   workflow_dispatch:

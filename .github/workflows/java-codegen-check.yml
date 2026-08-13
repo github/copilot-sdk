@@ -6,12 +6,12 @@ on:
       - main
     paths:
       - 'java/scripts/codegen/**'
-      - 'java/src/generated/**'
+      - 'java/sdk/src/generated/**'
       - '.github/workflows/java-codegen-check.yml'
   pull_request:
     paths:
       - 'java/scripts/codegen/**'
-      - 'java/src/generated/**'
+      - 'java/sdk/src/generated/**'
       - '.github/workflows/java-codegen-check.yml'
   workflow_dispatch:
 

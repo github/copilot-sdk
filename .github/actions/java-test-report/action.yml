@@ -4,15 +4,15 @@ inputs:
   report-path:
     description: "Path to the test report XML files (glob pattern)"
     required: false
-    default: "java/target/{surefire-reports*,failsafe-reports}/TEST-*.xml"
+    default: "java/sdk/target/{surefire-reports*,failsafe-reports}/TEST-*.xml"
   jacoco-path:
     description: "Path to the JaCoCo XML report"
     required: false
-    default: "java/target/site/jacoco-coverage/jacoco.xml"
+    default: "java/sdk/target/site/jacoco-coverage/jacoco.xml"
   jacoco-csv-path:
     description: "Path to the JaCoCo CSV report"
     required: false
-    default: "java/target/site/jacoco-coverage/jacoco.csv"
+    default: "java/sdk/target/site/jacoco-coverage/jacoco.csv"
   check-name:
     description: "Name for the check run"
     required: false
