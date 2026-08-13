@@ -12,16 +12,16 @@ use tracing::{Instrument, warn};
 
 use crate::canvas::CanvasHandler;
 use crate::generated::api_types::{
-    LogRequest, ModelSwitchToRequest, OpenCanvasInstance, RegisterEventInterestParams,
-    ToolsGetCurrentMetadataResult, rpc_methods,
+    LogRequest, ModelSwitchToRequest, OpenCanvasInstance, PermissionDecisionRequest,
+    RegisterEventInterestParams, ToolsGetCurrentMetadataResult, rpc_methods,
 };
 use crate::generated::session_events::{
     CommandExecuteData, ElicitationRequestedData, ExternalToolRequestedData, McpOauthRequiredData,
     SessionCanvasClosedData, SessionErrorData, SessionEventType,
 };
 use crate::handler::{
-    AttributedPermissionHandler, AutoModeSwitchHandler, AutoModeSwitchResponse, ElicitationHandler,
-    ExitPlanModeHandler, McpAuthHandler, McpAuthRequest, McpAuthResult, PermissionResult,
+    AutoModeSwitchHandler, AutoModeSwitchResponse, ElicitationHandler, ExitPlanModeHandler,
+    McpAuthHandler, McpAuthRequest, McpAuthResult, PermissionHandler, PermissionResult,
     UserInputHandler, UserInputResponse,
 };
 use crate::hooks::SessionHooks;
@@ -56,7 +56,7 @@ const TOOL_SEARCH_TOOL_NAME: &str = "tool_search_tool";
 /// are derived from these fields.
 #[derive(Clone)]
 pub(crate) struct SessionHandlers {
-    pub permission: Option<Arc<dyn AttributedPermissionHandler>>,
+    pub permission: Option<Arc<dyn PermissionHandler>>,
     pub managed_settings_enabled: bool,
     pub elicitation: Option<Arc<dyn ElicitationHandler>>,
     pub mcp_auth: Option<Arc<dyn McpAuthHandler>>,
@@ -902,7 +902,6 @@ impl Client {
 
         let permission_handler = crate::permission::resolve_handler(
             runtime.permission_handler.take(),
-            runtime.attributed_permission_handler.take(),
             runtime.permission_policy.take(),
         );
         let handlers = SessionHandlers {
@@ -1176,7 +1175,6 @@ impl Client {
 
         let permission_handler = crate::permission::resolve_handler(
             runtime.permission_handler.take(),
-            runtime.attributed_permission_handler.take(),
             runtime.permission_policy.take(),
         );
         let handlers = SessionHandlers {
@@ -1575,21 +1573,8 @@ fn permission_request_data(
     }
 }
 
-/// Map a [`PermissionResult`] to the `result` payload sent back to the
-/// server via `session.permissions.handlePendingPermissionRequest`.
-///
-/// Returns `None` when the SDK must not send a response.
-fn notification_permission_payload(result: &PermissionResult) -> Option<Value> {
-    match result {
-        PermissionResult::NoResult => None,
-        PermissionResult::Decision(decision) => Some(
-            serde_json::to_value(decision).expect("serializing permission decision should succeed"),
-        ),
-    }
-}
-
 /// Build the full `session.permissions.handlePendingPermissionRequest`
-/// params for an attributed permission result.
+/// params for a permission result.
 ///
 /// `decisionContext` is a sibling of `result` and is only present when the
 /// handler attributed the decision — omitting it preserves legacy behavior.
@@ -1598,18 +1583,23 @@ fn notification_permission_payload(result: &PermissionResult) -> Option<Value> {
 fn permission_response_params(
     session_id: &SessionId,
     request_id: &RequestId,
-    result: &crate::handler::AttributedPermissionResult,
+    result: &PermissionResult,
 ) -> Option<Value> {
-    let result_value = notification_permission_payload(&result.result)?;
-    let mut params = serde_json::json!({
-        "sessionId": session_id,
-        "requestId": request_id,
-        "result": result_value,
-    });
-    if let Some(context) = &result.context {
-        params["decisionContext"] =
-            serde_json::to_value(context).expect("serializing decision context should succeed");
-    }
+    let (decision, decision_context) = match result {
+        PermissionResult::Decision(decision) => (decision, None),
+        PermissionResult::AttributedDecision { decision, context } => {
+            (decision, Some(context.clone()))
+        }
+        PermissionResult::NoResult => return None,
+    };
+    let mut params = serde_json::to_value(PermissionDecisionRequest {
+        decision_context,
+        request_id: request_id.clone(),
+        result: decision.clone(),
+    })
+    .expect("serializing permission response should succeed");
+    params["sessionId"] =
+        serde_json::to_value(session_id).expect("serializing session ID should succeed");
     Some(params)
 }
 
@@ -1816,7 +1806,7 @@ async fn handle_notification(
                     let rpc_start = Instant::now();
                     let _ = client
                         .call(
-                            "session.permissions.handlePendingPermissionRequest",
+                            rpc_methods::SESSION_PERMISSIONS_HANDLEPENDINGPERMISSIONREQUEST,
                             Some(params),
                         )
                         .await;
@@ -2587,10 +2577,7 @@ fn inject_transform_sections_resume(
 mod tests {
     use serde_json::json;
 
-    use super::{
-        has_managed_settings, notification_permission_payload, permission_request_data,
-        permission_response_params,
-    };
+    use super::{has_managed_settings, permission_request_data, permission_response_params};
     use crate::handler::PermissionResult;
     use crate::types::{
         PermissionDecisionContext, PermissionDecisionOutcome, PermissionDecisionSource,
@@ -2604,31 +2591,6 @@ mod tests {
         assert!(!has_managed_settings(None, None));
     }
 
-    #[test]
-    fn notification_payload_suppresses_no_result() {
-        assert!(notification_permission_payload(&PermissionResult::NoResult).is_none());
-    }
-
-    #[test]
-    fn notification_payload_serializes_decisions() {
-        assert_eq!(
-            notification_permission_payload(&PermissionResult::approve_once()),
-            Some(json!({ "kind": "approve-once" }))
-        );
-        assert_eq!(
-            notification_permission_payload(&PermissionResult::reject(None)),
-            Some(json!({ "kind": "reject" }))
-        );
-        assert_eq!(
-            notification_permission_payload(&PermissionResult::reject(Some("bad".to_string()))),
-            Some(json!({ "kind": "reject", "feedback": "bad" }))
-        );
-        assert_eq!(
-            notification_permission_payload(&PermissionResult::user_not_available()),
-            Some(json!({ "kind": "user-not-available" }))
-        );
-    }
-
     fn attribution_context() -> PermissionDecisionContext {
         PermissionDecisionContext {
             outcome: PermissionDecisionOutcome::AutoApproved,
@@ -2639,21 +2601,36 @@ mod tests {
 
     #[test]
     fn response_params_omit_decision_context_without_attribution() {
-        let params = permission_response_params(
-            &SessionId::from("session-1"),
-            &RequestId::from("permission-1"),
-            &PermissionResult::approve_once().into(),
-        )
-        .unwrap();
-        assert_eq!(
-            params,
-            json!({
-                "sessionId": "session-1",
-                "requestId": "permission-1",
-                "result": { "kind": "approve-once" },
-            })
-        );
-        assert!(params.get("decisionContext").is_none());
+        for (result, expected) in [
+            (
+                PermissionResult::approve_once(),
+                json!({ "kind": "approve-once" }),
+            ),
+            (PermissionResult::reject(None), json!({ "kind": "reject" })),
+            (
+                PermissionResult::reject(Some("bad".to_string())),
+                json!({ "kind": "reject", "feedback": "bad" }),
+            ),
+            (
+                PermissionResult::user_not_available(),
+                json!({ "kind": "user-not-available" }),
+            ),
+        ] {
+            let params = permission_response_params(
+                &SessionId::from("session-1"),
+                &RequestId::from("permission-1"),
+                &result,
+            )
+            .unwrap();
+            assert_eq!(
+                params,
+                json!({
+                    "sessionId": "session-1",
+                    "requestId": "permission-1",
+                    "result": expected,
+                })
+            );
+        }
     }
 
     #[test]
@@ -2687,7 +2664,7 @@ mod tests {
             permission_response_params(
                 &SessionId::from("session-1"),
                 &RequestId::from("permission-1"),
-                &PermissionResult::NoResult.into(),
+                &PermissionResult::NoResult,
             )
             .is_none()
         );
@@ -2696,8 +2673,7 @@ mod tests {
     #[test]
     fn with_context_is_a_no_op_on_no_result() {
         let result = PermissionResult::no_result().with_context(attribution_context());
-        assert!(matches!(result.result, PermissionResult::NoResult));
-        assert!(result.context.is_none());
+        assert!(matches!(result, PermissionResult::NoResult));
     }
 
     #[test]

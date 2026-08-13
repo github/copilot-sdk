@@ -16,9 +16,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 
-use crate::handler::{
-    AttributedPermissionHandler, PermissionHandler, PermissionResult, permission_handler_failure,
-};
+use crate::handler::{PermissionHandler, PermissionResult, permission_handler_failure};
 use crate::types::{PermissionRequestData, RequestId, SessionId};
 
 /// Return a [`PermissionHandler`] that approves requests when managed settings
@@ -95,16 +93,11 @@ impl std::fmt::Debug for Policy {
 ///   `requestPermission: false`).
 pub(crate) fn resolve_handler(
     handler: Option<Arc<dyn PermissionHandler>>,
-    attributed_handler: Option<Arc<dyn AttributedPermissionHandler>>,
     policy: Option<Policy>,
-) -> Option<Arc<dyn AttributedPermissionHandler>> {
-    match (handler, attributed_handler, policy) {
-        (_, _, Some(policy)) => Some(crate::handler::attributed(Arc::new(PolicyHandler {
-            policy,
-        }))),
-        (_, Some(h), None) => Some(h),
-        (Some(h), None, None) => Some(crate::handler::attributed(h)),
-        (None, None, None) => None,
+) -> Option<Arc<dyn PermissionHandler>> {
+    match (handler, policy) {
+        (_, Some(policy)) => Some(Arc::new(PolicyHandler { policy })),
+        (handler, None) => handler,
     }
 }
 
@@ -233,13 +226,12 @@ mod tests {
             }
         }
         let resolved =
-            resolve_handler(Some(Arc::new(AlwaysApprove)), None, Some(Policy::DenyAll)).unwrap();
+            resolve_handler(Some(Arc::new(AlwaysApprove)), Some(Policy::DenyAll)).unwrap();
         // Policy wins -- the AlwaysApprove handler is discarded.
         assert!(matches!(
             resolved
                 .handle(SessionId::from("s"), RequestId::new("1"), data())
-                .await
-                .result,
+                .await,
             PermissionResult::Decision(crate::types::PermissionDecision::Reject(_))
         ));
     }
@@ -258,18 +250,17 @@ mod tests {
                 PermissionResult::approve_once()
             }
         }
-        let resolved = resolve_handler(Some(Arc::new(H)), None, None).unwrap();
+        let resolved = resolve_handler(Some(Arc::new(H)), None).unwrap();
         assert!(matches!(
             resolved
                 .handle(SessionId::from("s"), RequestId::new("1"), data())
-                .await
-                .result,
+                .await,
             PermissionResult::Decision(crate::types::PermissionDecision::ApproveOnce(_))
         ));
     }
 
     #[test]
     fn resolve_handler_with_neither_returns_none() {
-        assert!(resolve_handler(None, None, None).is_none());
+        assert!(resolve_handler(None, None).is_none());
     }
 }

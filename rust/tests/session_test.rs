@@ -10,7 +10,7 @@ use github_copilot_sdk::canvas::{CanvasDeclaration, CanvasHandler, CanvasResult}
 use github_copilot_sdk::handler::{
     ApproveAllHandler, AutoModeSwitchHandler, AutoModeSwitchResponse, ElicitationHandler,
     ExitPlanModeHandler, ExitPlanModeResult, McpAuthHandler, McpAuthRequest, McpAuthResult,
-    UserInputHandler, UserInputResponse,
+    PermissionHandler, PermissionResult, UserInputHandler, UserInputResponse,
 };
 use github_copilot_sdk::rpc::{
     CanvasProviderInvokeActionRequest, CanvasProviderOpenRequest, CanvasProviderOpenResult,
@@ -24,8 +24,9 @@ use github_copilot_sdk::types::{
     CanvasProviderIdentity, CloudSessionOptions, CloudSessionRepository, CommandContext,
     CommandDefinition, CommandHandler, DeliveryMode, DisableBypassPermissionsMode,
     ElicitationRequest, ElicitationResult, ExitPlanModeData, ExtensionInfo, ManagedSettings,
-    ManagedSettingsPermissions, MessageOptions, RequestId, SessionConfig, SessionId,
-    SetModelOptions, Tool, ToolInvocation, ToolResult,
+    ManagedSettingsPermissions, MessageOptions, PermissionDecisionContext,
+    PermissionDecisionOutcome, PermissionDecisionSource, PermissionDecisionSurface, RequestId,
+    SessionConfig, SessionId, SetModelOptions, Tool, ToolInvocation, ToolResult,
 };
 use github_copilot_sdk::{Client, ContextTier, ErrorKind, ProtocolErrorKind, tool};
 use serde_json::Value;
@@ -37,6 +38,24 @@ const TIMEOUT: Duration = Duration::from_secs(2);
 struct TestCanvasHandler;
 
 struct CancelMcpAuthHandler;
+
+struct AttributedApproveHandler;
+
+#[async_trait]
+impl PermissionHandler for AttributedApproveHandler {
+    async fn handle(
+        &self,
+        _session_id: SessionId,
+        _request_id: RequestId,
+        _data: github_copilot_sdk::PermissionRequestData,
+    ) -> PermissionResult {
+        PermissionResult::approve_once().with_context(PermissionDecisionContext {
+            outcome: PermissionDecisionOutcome::PromptedUser,
+            source: PermissionDecisionSource::HumanResponse,
+            surface: PermissionDecisionSurface::CopilotApp,
+        })
+    }
+}
 
 #[async_trait]
 impl McpAuthHandler for CancelMcpAuthHandler {
@@ -2489,6 +2508,45 @@ async fn approve_all_handler_approves_permission() {
     );
     assert_eq!(request["params"]["requestId"], "perm-auto");
     assert_eq!(request["params"]["result"]["kind"], "approve-once");
+}
+
+#[tokio::test]
+async fn attributed_permission_result_forwards_context_beside_result() {
+    let (_session, mut server) = create_session_pair_with_config(|cfg| {
+        cfg.with_permission_handler(Arc::new(AttributedApproveHandler))
+    })
+    .await;
+
+    server
+        .send_event(
+            "permission.requested",
+            serde_json::json!({
+                "requestId": "perm-attributed",
+                "sessionId": server.session_id,
+                "permissionRequest": { "kind": "shell" },
+            }),
+        )
+        .await;
+
+    let request = timeout(TIMEOUT, server.read_request()).await.unwrap();
+    assert_eq!(
+        request["method"],
+        "session.permissions.handlePendingPermissionRequest"
+    );
+    assert_eq!(
+        request["params"],
+        serde_json::json!({
+            "sessionId": server.session_id,
+            "requestId": "perm-attributed",
+            "result": { "kind": "approve-once" },
+            "decisionContext": {
+                "outcome": "prompted_user",
+                "source": "human_response",
+                "surface": "copilot_app",
+            },
+        })
+    );
+    assert!(request["params"]["result"].get("decisionContext").is_none());
 }
 
 #[tokio::test]
