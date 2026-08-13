@@ -269,6 +269,31 @@ export type InternalRuntimeConnection = RuntimeConnection | ParentProcessRuntime
  */
 export type CopilotClientMode = "empty" | "copilot-cli";
 
+/**
+ * Identity of the surface embedding Copilot, declared through
+ * {@link CopilotClientOptions.clientInfo}.
+ *
+ * The SDK serializes this for the runtime, so an application supplies these
+ * strings and never the wire format. Every field is optional while integrators
+ * are still onboarding, but a partial identity attributes less: `extensionName`
+ * is the anchor, and without a recognized one the runtime keeps its own default
+ * attribution.
+ *
+ * Names must match a surface the runtime recognizes. An unrecognized one is
+ * ignored rather than emitted, so no application-chosen string reaches
+ * telemetry verbatim.
+ */
+export interface CopilotClientInfo {
+    /** Host editor product name, e.g. `"vscode"`. */
+    readonly editorName?: string;
+    /** Host editor version, e.g. `"1.124.2"`. */
+    readonly editorVersion?: string;
+    /** Copilot surface within the host, e.g. `"vscode-agent-host"`. */
+    readonly extensionName?: string;
+    /** Version of that surface, e.g. `"1.124.2"`. */
+    readonly extensionVersion?: string;
+}
+
 export interface CopilotClientOptions {
     /**
      * How to connect to the Copilot runtime. When omitted, defaults to
@@ -312,8 +337,38 @@ export interface CopilotClientOptions {
 
     /**
      * Environment variables to pass to the runtime process. If not set, inherits process.env.
+     *
+     * `COPILOT_CLIENT_INFO` is reserved: it is derived from
+     * {@link CopilotClientOptions.clientInfo} and any value supplied here is
+     * dropped, so the typed option stays the only way to declare an identity.
      */
     env?: Record<string, string | undefined>;
+
+    /**
+     * Identity of the surface embedding Copilot, used to attribute the
+     * telemetry the runtime emits for this client.
+     *
+     * Without it the runtime describes itself, so sessions your application
+     * drove are indistinguishable from someone running the CLI in a terminal.
+     * Declaring it makes every client-identifier field describe one surface
+     * instead of pairing your name with the runtime's own versions.
+     *
+     * ```ts
+     * const client = new CopilotClient({
+     *     clientInfo: {
+     *         editorName: "vscode",
+     *         editorVersion: "1.124.2",
+     *         extensionName: "vscode-agent-host",
+     *         extensionVersion: "1.124.2",
+     *     },
+     * });
+     * ```
+     *
+     * Client-level rather than per-session because runtime attribution is
+     * process-wide: every session on a client belongs to the surface that
+     * started it.
+     */
+    clientInfo?: CopilotClientInfo;
 
     /**
      * GitHub token to use for authentication.

@@ -38,8 +38,8 @@ import type {
     OpenCanvasInstance,
     SessionUpdateOptionsParams,
 } from "./generated/rpc.js";
-import { getSdkProtocolVersion } from "./sdkProtocolVersion.js";
-import { CopilotSession } from "./session.js";
+import { COPILOT_CLIENT_INFO_ENV_VAR, applyClientInfoEnv } from "./clientInfo.js";
+import { getSdkProtocolVersion } from "./sdkProtocolVersion.js";import { CopilotSession } from "./session.js";
 import type { FfiRuntimeHost } from "./ffiRuntimeHost.js";
 import { createSessionFsAdapter, type SessionFsProvider } from "./sessionFsProvider.js";
 import { createCopilotRequestAdapter } from "./copilotRequestHandler.js";
@@ -50,6 +50,7 @@ import type {
     AutoModeSwitchRequest,
     AutoModeSwitchResponse,
     CopilotClientMode,
+    CopilotClientInfo,
     CopilotClientOptions,
     CustomAgentConfig,
     ExitPlanModeRequest,
@@ -501,6 +502,7 @@ export class CopilotClient {
         sessionIdleTimeoutSeconds: number;
         enableRemoteSessions: boolean;
         mode: CopilotClientMode;
+        clientInfo?: CopilotClientInfo;
     };
     private isExternalServer: boolean = false;
     private forceStopping: boolean = false;
@@ -737,6 +739,7 @@ export class CopilotClient {
             sessionIdleTimeoutSeconds: options.sessionIdleTimeoutSeconds ?? 0,
             enableRemoteSessions: options.enableRemoteSessions ?? false,
             mode: options.mode ?? "copilot-cli",
+            clientInfo: options.clientInfo,
         };
 
         // Empty mode: validate at construction time that the app supplied a
@@ -2376,14 +2379,15 @@ export class CopilotClient {
 
     /**
      * Builds the environment for the spawned runtime child process (stdio/TCP): applies
-     * the auth token, connection token, `COPILOT_HOME`, keychain setting, and telemetry
-     * variables on top of the effective env. Not used by the in-process (FFI) transport,
-     * whose worker inherits the host process's ambient environment
+     * the auth token, connection token, `COPILOT_HOME`, keychain setting, client
+     * identity, and telemetry variables on top of the effective env. Not used by the
+     * in-process (FFI) transport, which applies the same client identity separately
      * (see {@link CopilotClient.startInProcessFfi}).
      */
     private buildRuntimeEnv(): Record<string, string | undefined> {
         const env: Record<string, string | undefined> = { ...this.resolvedEnv };
         delete env.NODE_DEBUG;
+        applyClientInfoEnv(env, this.options.clientInfo);
 
         if (this.options.gitHubToken) {
             env.COPILOT_SDK_AUTH_TOKEN = this.options.gitHubToken;
@@ -2638,6 +2642,13 @@ export class CopilotClient {
         if (this.options.mode === "empty") {
             environment.COPILOT_DISABLE_KEYTAR = "1";
         }
+        // The FFI worker inherits this process's ambient environment, so an
+        // inherited `COPILOT_CLIENT_INFO` would describe whatever launched the
+        // host. Always assign the key, so declaring no identity clears a stale
+        // one rather than letting it through.
+        const clientInfoEnv: Record<string, string | undefined> = {};
+        applyClientInfoEnv(clientInfoEnv, this.options.clientInfo);
+        environment[COPILOT_CLIENT_INFO_ENV_VAR] = clientInfoEnv[COPILOT_CLIENT_INFO_ENV_VAR] ?? "";
 
         const args: string[] = [];
         if (this.options.logLevel) {

@@ -68,6 +68,7 @@ export type {
     UserPromptTransformedHookInput,
     UserPromptTransformedHookOutput,
     CopilotClientMode,
+    CopilotClientInfo,
     CopilotClientOptions,
     CopilotExpAssignmentResponse,
     StdioRuntimeConnection,
