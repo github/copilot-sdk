@@ -2646,6 +2646,40 @@ describe("CopilotClient", () => {
             ]);
         });
 
+        it("forwards custom agent large output in session.create request", async () => {
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => stopClient(client));
+
+            const spy = vi.spyOn((client as any).connection!, "sendRequest");
+            await client.createSession({
+                onPermissionRequest: approveAll,
+                customAgents: [
+                    {
+                        name: "large-output-agent",
+                        prompt: "You are a large output agent.",
+                        largeOutput: {
+                            enabled: false,
+                            maxSizeBytes: 2048,
+                            outputDirectory: "/tmp/agent-large-output",
+                        },
+                    },
+                ],
+            });
+
+            const payload = spy.mock.calls.find((c) => c[0] === "session.create")![1] as any;
+            expect(payload.customAgents).toEqual([
+                expect.objectContaining({
+                    name: "large-output-agent",
+                    largeOutput: {
+                        enabled: false,
+                        maxSizeBytes: 2048,
+                        outputDir: "/tmp/agent-large-output",
+                    },
+                }),
+            ]);
+        });
+
         it("forwards agent in session.resume request", async () => {
             const client = new CopilotClient();
             await client.start();

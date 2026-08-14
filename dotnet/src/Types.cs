@@ -2796,6 +2796,13 @@ public sealed class CustomAgentConfig
     /// </summary>
     [JsonPropertyName("reasoningEffort")]
     public string? ReasoningEffort { get; set; }
+
+    /// <summary>
+    /// Large tool output handling for this agent.
+    /// </summary>
+    /// <remarks>When omitted, no agent-specific large output override is sent.</remarks>
+    [JsonPropertyName("largeOutput")]
+    public LargeToolOutputConfig? LargeOutput { get; set; }
 }
 
 /// <summary>

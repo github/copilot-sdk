@@ -668,6 +668,11 @@ pub struct CustomAgentConfig {
     /// parent effort only for the same model.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reasoning_effort: Option<String>,
+    /// Large tool output handling for this agent.
+    ///
+    /// When unset, no agent-specific large output override is sent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub large_output: Option<LargeToolOutputConfig>,
 }
 
 impl CustomAgentConfig {
@@ -739,6 +744,12 @@ impl CustomAgentConfig {
     /// Set the reasoning effort level for this agent's model.
     pub fn with_reasoning_effort(mut self, reasoning_effort: impl Into<String>) -> Self {
         self.reasoning_effort = Some(reasoning_effort.into());
+        self
+    }
+
+    /// Set the large tool output handling policy for this agent.
+    pub fn with_large_output(mut self, config: LargeToolOutputConfig) -> Self {
+        self.large_output = Some(config);
         self
     }
 }
@@ -5995,6 +6006,20 @@ mod tests {
         let agent = CustomAgentConfig::new("default-agent", "prompt");
         let wire = serde_json::to_value(&agent).unwrap();
         assert!(wire.get("reasoningEffort").is_none());
+    }
+
+    #[test]
+    fn custom_agent_config_serializes_large_output() {
+        let agent = CustomAgentConfig::new("large-output-agent", "prompt").with_large_output(
+            LargeToolOutputConfig::new()
+                .with_enabled(false)
+                .with_max_size_bytes(2048)
+                .with_output_directory("/tmp/agent-large-output"),
+        );
+        let wire = serde_json::to_value(&agent).unwrap();
+        assert_eq!(wire["largeOutput"]["enabled"], false);
+        assert_eq!(wire["largeOutput"]["maxSizeBytes"], 2048);
+        assert_eq!(wire["largeOutput"]["outputDir"], "/tmp/agent-large-output");
     }
 
     #[test]

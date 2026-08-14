@@ -278,6 +278,24 @@ class DataObjectCoverageTest {
         assertFalse(json.contains("\"reasoningEffort\""));
     }
 
+    @Test
+    void customAgentConfigLargeOutputSerializationRoundTrip() throws Exception {
+        var mapper = JsonRpcClient.getObjectMapper();
+        var cfg = new CustomAgentConfig().setName("large-output-agent")
+                .setLargeOutput(new LargeToolOutputConfig().setEnabled(false).setMaxSizeBytes(2048L)
+                        .setOutputDirectory("/tmp/agent-large-output"));
+
+        var json = mapper.writeValueAsString(cfg);
+        assertTrue(json.contains("\"largeOutput\""));
+        assertTrue(json.contains("\"outputDir\":\"/tmp/agent-large-output\""));
+
+        var deserialized = mapper.readValue(json, CustomAgentConfig.class);
+        assertNotNull(deserialized.getLargeOutput());
+        assertEquals(false, deserialized.getLargeOutput().getEnabled());
+        assertEquals(2048L, deserialized.getLargeOutput().getMaxSizeBytes());
+        assertEquals("/tmp/agent-large-output", deserialized.getLargeOutput().getOutputDirectory());
+    }
+
     // ===== PermissionRequestResult setRules =====
 
     @Test

@@ -9,6 +9,7 @@ import inspect
 import os
 from datetime import UTC, datetime
 from tempfile import TemporaryDirectory
+from typing import Any
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -1163,6 +1164,48 @@ class TestCreateSessionConfig:
             )
             assert "disabledMcpServers" not in captured["session.create"]
             assert "disabledMcpServers" not in captured["session.resume"]
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_custom_agent_large_output_uses_wire_output_dir(self) -> None:
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        await client.start()
+        try:
+            captured: dict[str, Any] = {}
+
+            async def mock_request(method: str, params: dict[str, Any], **kwargs: Any) -> Any:
+                captured[method] = params
+                if method == "session.create":
+                    result = {"sessionId": params.get("sessionId") or "session-1"}
+                    callback = kwargs.get("on_response_inline")
+                    if callback is not None:
+                        callback(result)
+                    return result
+                return {}
+
+            client._client.request = mock_request
+
+            await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                custom_agents=[
+                    {
+                        "name": "large-output-agent",
+                        "prompt": "You are a large output agent.",
+                        "large_output": {
+                            "enabled": False,
+                            "max_size_bytes": 2048,
+                            "output_directory": "/tmp/agent-large-output",
+                        },
+                    }
+                ],
+            )
+
+            assert captured["session.create"]["customAgents"][0]["largeOutput"] == {
+                "enabled": False,
+                "maxSizeBytes": 2048,
+                "outputDir": "/tmp/agent-large-output",
+            }
         finally:
             await client.force_stop()
 

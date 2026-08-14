@@ -4035,6 +4035,8 @@ class CopilotClient:
             wire_agent["model"] = agent["model"]
         if "reasoning_effort" in agent:
             wire_agent["reasoningEffort"] = agent["reasoning_effort"]
+        if "large_output" in agent:
+            wire_agent["largeOutput"] = _large_output_to_wire(agent["large_output"])
         return wire_agent
 
     def _convert_default_agent_to_wire_format(

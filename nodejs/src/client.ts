@@ -248,9 +248,12 @@ function toWireMcpServers(
 function toWireCustomAgents(agents: CustomAgentConfig[] | undefined): unknown[] | undefined {
     if (!agents) return undefined;
     return agents.map((agent) => {
-        if (!agent.mcpServers) return agent;
-        const { mcpServers, ...rest } = agent;
-        return { ...rest, mcpServers: toWireMcpServers(mcpServers) };
+        const { mcpServers, largeOutput, ...rest } = agent;
+        return {
+            ...rest,
+            ...(mcpServers ? { mcpServers: toWireMcpServers(mcpServers) } : {}),
+            ...(largeOutput ? { largeOutput: toWireLargeOutput(largeOutput) } : {}),
+        };
     });
 }
 
