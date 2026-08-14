@@ -201,6 +201,7 @@
                             <workingDirectory>${copilot.sdk.root}/test/harness</workingDirectory>
                             <arguments>
                                 <argument>ci</argument>
+                                <argument>--omit-lockfile-registry-resolved=true</argument>
                                 <argument>--loglevel</argument>
                                 <argument>${npm.loglevel}</argument>
                             </arguments>
@@ -225,6 +226,7 @@
                             <arguments>
                                 <argument>ci</argument>
                                 <argument>--ignore-scripts</argument>
+                                <argument>--omit-lockfile-registry-resolved=true</argument>
                                 <argument>--loglevel</argument>
                                 <argument>${npm.loglevel}</argument>
                             </arguments>

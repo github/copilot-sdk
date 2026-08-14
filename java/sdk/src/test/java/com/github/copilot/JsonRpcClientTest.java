@@ -135,9 +135,8 @@ class JsonRpcClientTest {
 
     private static Process startBlockingProcess() throws IOException {
         boolean isWindows = System.getProperty("os.name").toLowerCase().contains("windows");
-        return (isWindows
-                ? new ProcessBuilder(System.getenv("COMSPEC"), "/c", "more")
-                : new ProcessBuilder("/usr/bin/cat")).start();
+        return (isWindows ? new ProcessBuilder(System.getenv("COMSPEC"), "/c", "more") : new ProcessBuilder("cat"))
+                .start();
     }
 
     @Test
