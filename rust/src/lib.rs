@@ -3216,16 +3216,36 @@ mod tests {
         client.force_stop();
     }
 
+    #[cfg(any(unix, windows))]
     #[tokio::test]
-    async fn lifecycle_dispatcher_does_not_keep_client_alive() {
+    async fn dropping_last_client_kills_spawned_cli() {
+        let temp = tempfile::tempdir().unwrap();
+        let ready = temp.path().join("ready");
+        let survived = temp.path().join("survived");
+        let child = test_child_command(temp.path(), &ready, &survived)
+            .spawn()
+            .unwrap();
         let (client_write, _server_read) = tokio::io::duplex(64);
         let (_server_write, client_read) = tokio::io::duplex(64);
-        let client = Client::from_streams(client_read, client_write, std::env::temp_dir()).unwrap();
-        let inner = Arc::downgrade(&client.inner);
+        let client = Client::from_transport(
+            client_read,
+            client_write,
+            Some(child),
+            temp.path().to_path_buf(),
+            None,
+            false,
+            false,
+            None,
+            None,
+            None,
+            ClientMode::default(),
+        )
+        .unwrap();
 
+        wait_for_test_child(&ready).await;
         drop(client);
 
-        assert!(inner.upgrade().is_none());
+        assert_test_child_killed(&survived).await;
     }
 
     #[cfg(any(unix, windows))]
@@ -3234,11 +3254,22 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         let ready = temp.path().join("ready");
         let survived = temp.path().join("survived");
+        let child = test_child_command(temp.path(), &ready, &survived)
+            .spawn()
+            .unwrap();
 
+        wait_for_test_child(&ready).await;
+        drop(child);
+
+        assert_test_child_killed(&survived).await;
+    }
+
+    #[cfg(any(unix, windows))]
+    fn test_child_command(temp: &Path, ready: &Path, survived: &Path) -> Command {
         #[cfg(unix)]
         let mut command = {
             let mut command =
-                Client::build_command(Path::new("sh"), &ClientOptions::default(), temp.path());
+                Client::build_command(Path::new("sh"), &ClientOptions::default(), temp);
             command.args([
                 "-c",
                 "printf ready > \"$READY\"; sleep 1; printf survived > \"$SURVIVED\"",
@@ -3247,11 +3278,8 @@ mod tests {
         };
         #[cfg(windows)]
         let mut command = {
-            let mut command = Client::build_command(
-                Path::new("powershell.exe"),
-                &ClientOptions::default(),
-                temp.path(),
-            );
+            let mut command =
+                Client::build_command(Path::new("powershell.exe"), &ClientOptions::default(), temp);
             command.args([
                 "-NoLogo",
                 "-NoProfile",
@@ -3261,9 +3289,12 @@ mod tests {
             ]);
             command
         };
-        command.env("READY", &ready).env("SURVIVED", &survived);
-        let child = command.spawn().unwrap();
+        command.env("READY", ready).env("SURVIVED", survived);
+        command
+    }
 
+    #[cfg(any(unix, windows))]
+    async fn wait_for_test_child(ready: &Path) {
         let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
         while !ready.exists() {
             assert!(
@@ -3272,7 +3303,10 @@ mod tests {
             );
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
-        drop(child);
+    }
+
+    #[cfg(any(unix, windows))]
+    async fn assert_test_child_killed(survived: &Path) {
         tokio::time::sleep(Duration::from_millis(1500)).await;
 
         assert!(
