@@ -29,6 +29,23 @@ function errorEvent(message: string): SessionEvent {
     } as SessionEvent;
 }
 
+function shutdownEvent(errorReason?: string): SessionEvent {
+    return {
+        type: "session.shutdown",
+        id: "00000000-0000-4000-8000-000000000002",
+        parentId: null,
+        timestamp: new Date().toISOString(),
+        data: {
+            codeChanges: { filesModified: [], linesAdded: 0, linesRemoved: 0 },
+            errorReason,
+            modelMetrics: {},
+            sessionStartTime: Date.now(),
+            shutdownType: errorReason ? "error" : "routine",
+            totalApiDurationMs: 0,
+        },
+    } as SessionEvent;
+}
+
 function controlledSession(): {
     session: CopilotSession;
     sendStarted: Promise<void>;
@@ -133,5 +150,17 @@ describe("sendAndWait", () => {
         errorFirst.session._dispatchEvent(sessionEvent("session.idle"));
         errorFirst.resolveSend();
         await expect(errorFirstPending).rejects.toThrow("first error");
+    });
+
+    it("rejects when the session shuts down before becoming idle", async () => {
+        const { session, sendStarted } = controlledSession();
+        const pending = session.sendAndWait({ prompt: "hi" });
+        await sendStarted;
+
+        session._dispatchEvent(shutdownEvent("runtime session was lost"));
+
+        await expect(pending).rejects.toThrow(
+            "Session session-1 shut down before becoming idle: runtime session was lost"
+        );
     });
 });

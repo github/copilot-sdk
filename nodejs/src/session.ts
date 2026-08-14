@@ -750,6 +750,10 @@ export class CopilotSession {
         const outcomePromise = new Promise<SessionOutcome>((resolve) => {
             resolveOutcome = resolve;
         });
+        let resolveShutdown: (error: Error) => void;
+        const shutdownPromise = new Promise<Error>((resolve) => {
+            resolveShutdown = resolve;
+        });
 
         let lastAssistantMessage: AssistantMessageEvent | undefined;
 
@@ -764,12 +768,24 @@ export class CopilotSession {
                 const error = new Error(event.data.message);
                 error.stack = event.data.stack;
                 resolveOutcome({ kind: "error", error });
+            } else if (event.type === "session.shutdown") {
+                const reason = event.data.errorReason ? `: ${event.data.errorReason}` : "";
+                const error = new Error(
+                    `Session ${this.sessionId} shut down before becoming idle${reason}`
+                );
+                resolveOutcome({ kind: "error", error });
+                resolveShutdown(error);
             }
         });
 
         let timeoutId: ReturnType<typeof setTimeout> | undefined;
         try {
-            await this.send(options);
+            await Promise.race([
+                this.send(options),
+                shutdownPromise.then((error) => {
+                    throw error;
+                }),
+            ]);
 
             const timeoutPromise = new Promise<never>((_, reject) => {
                 timeoutId = setTimeout(
