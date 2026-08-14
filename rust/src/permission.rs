@@ -151,7 +151,10 @@ mod tests {
         assert!(matches!(
             h.handle(SessionId::from("s"), RequestId::new("1"), data())
                 .await,
-            PermissionResult::Decision(crate::types::PermissionDecision::ApproveOnce(_))
+            PermissionResult::Decision {
+                decision: crate::types::PermissionDecision::ApproveOnce(_),
+                ..
+            }
         ));
     }
 
@@ -163,7 +166,10 @@ mod tests {
         assert!(matches!(
             h.handle(SessionId::from("s"), RequestId::new("1"), request)
                 .await,
-            PermissionResult::Decision(crate::types::PermissionDecision::UserNotAvailable(_))
+            PermissionResult::Decision {
+                decision: crate::types::PermissionDecision::UserNotAvailable(_),
+                ..
+            }
         ));
     }
 
@@ -173,7 +179,10 @@ mod tests {
         assert!(matches!(
             h.handle(SessionId::from("s"), RequestId::new("1"), data())
                 .await,
-            PermissionResult::Decision(crate::types::PermissionDecision::Reject(_))
+            PermissionResult::Decision {
+                decision: crate::types::PermissionDecision::Reject(_),
+                ..
+            }
         ));
     }
 
@@ -183,7 +192,10 @@ mod tests {
         assert!(matches!(
             h.handle(SessionId::from("s"), RequestId::new("1"), data())
                 .await,
-            PermissionResult::Decision(crate::types::PermissionDecision::Reject(_))
+            PermissionResult::Decision {
+                decision: crate::types::PermissionDecision::Reject(_),
+                ..
+            }
         ));
     }
 
@@ -207,7 +219,10 @@ mod tests {
         assert!(matches!(
             h.handle(SessionId::from("s"), RequestId::new("1"), request)
                 .await,
-            PermissionResult::Decision(crate::types::PermissionDecision::Reject(_))
+            PermissionResult::Decision {
+                decision: crate::types::PermissionDecision::Reject(_),
+                ..
+            }
         ));
     }
 
@@ -232,7 +247,10 @@ mod tests {
             resolved
                 .handle(SessionId::from("s"), RequestId::new("1"), data())
                 .await,
-            PermissionResult::Decision(crate::types::PermissionDecision::Reject(_))
+            PermissionResult::Decision {
+                decision: crate::types::PermissionDecision::Reject(_),
+                ..
+            }
         ));
     }
 
@@ -255,7 +273,10 @@ mod tests {
             resolved
                 .handle(SessionId::from("s"), RequestId::new("1"), data())
                 .await,
-            PermissionResult::Decision(crate::types::PermissionDecision::ApproveOnce(_))
+            PermissionResult::Decision {
+                decision: crate::types::PermissionDecision::ApproveOnce(_),
+                ..
+            }
         ));
     }
 

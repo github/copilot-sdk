@@ -1586,10 +1586,7 @@ fn permission_response_params(
     result: &PermissionResult,
 ) -> Option<Value> {
     let (decision, decision_context) = match result {
-        PermissionResult::Decision(decision) => (decision, None),
-        PermissionResult::AttributedDecision { decision, context } => {
-            (decision, Some(context.clone()))
-        }
+        PermissionResult::Decision { decision, context } => (decision, context.clone()),
         PermissionResult::NoResult => return None,
     };
     let mut params = serde_json::to_value(PermissionDecisionRequest {

@@ -39,10 +39,10 @@ struct TestCanvasHandler;
 
 struct CancelMcpAuthHandler;
 
-struct AttributedApproveHandler;
+struct ContextualApproveHandler;
 
 #[async_trait]
-impl PermissionHandler for AttributedApproveHandler {
+impl PermissionHandler for ContextualApproveHandler {
     async fn handle(
         &self,
         _session_id: SessionId,
@@ -2511,9 +2511,9 @@ async fn approve_all_handler_approves_permission() {
 }
 
 #[tokio::test]
-async fn attributed_permission_result_forwards_context_beside_result() {
+async fn permission_result_forwards_context_beside_result() {
     let (_session, mut server) = create_session_pair_with_config(|cfg| {
-        cfg.with_permission_handler(Arc::new(AttributedApproveHandler))
+        cfg.with_permission_handler(Arc::new(ContextualApproveHandler))
     })
     .await;
 

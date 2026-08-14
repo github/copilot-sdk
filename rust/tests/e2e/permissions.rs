@@ -50,9 +50,10 @@ async fn should_handle_permission_handler_errors_gracefully() {
 
     assert!(matches!(
         result,
-        PermissionResult::Decision(
-            github_copilot_sdk::types::PermissionDecision::UserNotAvailable(_)
-        )
+        PermissionResult::Decision {
+            decision: github_copilot_sdk::types::PermissionDecision::UserNotAvailable(_),
+            ..
+        }
     ));
 }
 
