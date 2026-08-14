@@ -112,6 +112,7 @@ describe("sendAndWait", () => {
         await sendStarted;
 
         session._dispatchEvent(sessionEvent("session.idle"));
+        session._dispatchEvent(shutdownEvent("later shutdown"));
 
         const stateBeforeSend = await Promise.race([
             pending.then(() => "settled"),
