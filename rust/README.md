@@ -74,6 +74,48 @@ let pong = client.ping("hello").await?;
 
 // Shutdown
 client.stop().await?;
+
+// Forced shutdown that confirms the OS reaped the CLI process, for hosts
+// that must not leak a zombie when graceful shutdown times out.
+if tokio::time::timeout(Duration::from_secs(5), client.stop()).await.is_err() {
+    let exit_status = client.force_stop_and_wait().await?;
+}
+```
+
+### Terminating the CLI process
+
+`stop()` is the cooperative path. When it is unsuitable — a wedged
+process, or an outer timeout that has already elapsed — three forced
+variants differ only in how much of the teardown you wait for:
+
+| Method | Shape | Resolves when |
+| ------ | ----- | ------------- |
+| `force_stop()` | sync, infallible | the kill signal has been sent |
+| `start_force_stop()` | sync, returns `ForcedShutdown` | immediately; await the handle for the reap |
+| `force_stop_and_wait()` | async | the child is killed **and** reaped |
+
+Use `force_stop_and_wait()` (or await a `ForcedShutdown`) when the caller
+must know the process is really gone. Sending a kill only starts
+termination; until someone waits on the child, a Unix process stays a
+zombie for as long as its parent lives — which for a long-lived embedded
+host means they accumulate.
+
+Termination is owned by the SDK, not by the future that asks for it. The
+kill is delivered synchronously — it never depends on a task being
+polled — and the claimed child is then reaped on a dedicated thread with
+its own runtime. So cancelling `stop()` or `force_stop_and_wait()`,
+dropping a `ForcedShutdown`, or tearing down the runtime that started
+termination cannot strand a signalled-but-unreaped process. Repeat and
+concurrent callers all observe the same terminal outcome instead of
+racing for the handle, and because the reaper is not bound to a caller's
+runtime, a handle can be awaited on a different one:
+
+```rust,ignore
+let shutdown = client.start_force_stop();   // teardown starts now
+tokio::spawn(async move {
+    let exit_status = shutdown.wait().await?;   // observed elsewhere
+    Ok::<_, github_copilot_sdk::Error>(exit_status)
+});
 ```
 
 After `Client::start` succeeds, inspect its startup cost without parsing logs:
@@ -583,6 +625,36 @@ while let Ok(event) = events.recv().await {
 
 When streaming is off (the default), only the final `assistant.message` and `assistant.reasoning` events fire. Delta events arrive in order; concatenating their `delta` text payloads reproduces the final message.
 
+#### Subscribing before the session starts
+
+`session.subscribe()` can only be called once the session exists, so any event the runtime emits while `session.create` / `session.resume` is still in flight is broadcast with no receiver installed and is not delivered. Ephemeral events such as `session.idle` are not written to the session log either, so `get_messages` can't recover them afterwards.
+
+`Client::prepare_session` / `Client::prepare_resume_session` close that window. They return a `PreparedSession` that owns the session's broadcast channel up front:
+
+```rust,ignore
+let prepared = client.prepare_session(
+    SessionConfig::default().with_event_buffer_capacity(2048),
+)?;
+
+// Installed before any wire activity happens.
+let mut events = prepared.subscribe();
+tokio::spawn(async move {
+    while let Ok(event) = events.recv().await {
+        println!("{}", event.event_type);
+    }
+});
+
+let session = prepared.start().await?;
+```
+
+`prepare_*` is synchronous and inert — it validates the buffer capacity, allocates a local channel and cancellation token, and touches neither the router nor the transport until `start()` is first polled. `start(self)` consumes the handle and `PreparedSession` is deliberately not `Clone`, so a prepared session can never spawn two event loops. Dropping an unstarted handle leaves no state and closes its subscriptions; dropping the `start()` future cancels the startup, unregisters the session, and lets a same-ID retry succeed. Cleanup removes only the exact registration that startup owned, so a retry started while an abandoned attempt is still unwinding is never evicted by it.
+
+The buffer is finite — `session::DEFAULT_EVENT_BUFFER_CAPACITY` (512) unless `event_buffer_capacity` overrides it, and `Some(0)` is rejected as `ErrorKind::InvalidConfig` rather than clamped. Subscribers that fall behind observe `RecvErrorKind::Lagged` with the skipped count instead of applying backpressure, so a consumer that needs a lossless view of a large startup burst must configure enough capacity or drain concurrently with `start()`.
+
+For cloud sessions where the server assigns the session ID, notifications can't be routed until the create response arrives; the guarantee is that *routed* events are never dropped for lack of a receiver. Pin `session_id` for full pre-response coverage.
+
+`create_session` / `resume_session` are unchanged wrappers over `prepare_*(...)?.start()`, with identical RPC sequences and error kinds.
+
 ### Infinite Sessions
 
 Enable the SDK's session-store integration so conversations persist across CLI restarts and grow beyond the model's context window via automatic compaction:
@@ -786,13 +858,19 @@ none of them are scheduled for removal.
   arg vectors for "prepend before subcommand" vs "append after the
   built-in flags", giving precise control over CLI invocation order
   without string-splicing.
+- **`Client::prepare_session` / `prepare_resume_session`** — return an inert
+  `PreparedSession` whose `subscribe()` installs an event receiver before any
+  protocol activity, so startup events (including ephemeral `session.idle`)
+  aren't dropped. Other SDKs register callbacks on a config object instead,
+  which sidesteps the problem in a way Rust's broadcast-based `subscribe()`
+  cannot.
 
 ## Layout
 
 | File              | Description                                                                                                                |
 | ----------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | `lib.rs`          | `Client`, `ClientOptions`, `CliProgram`, `Transport`, `Error`                                                              |
-| `session.rs`      | `Session` struct, event loop, `send`/`send_and_wait`, `Client::create_session`/`resume_session`                            |
+| `session.rs`      | `Session` struct, `PreparedSession`, event loop, `send`/`send_and_wait`, `Client::create_session`/`resume_session`/`prepare_session`/`prepare_resume_session` |
 | `subscription.rs` | `EventSubscription` / `LifecycleSubscription` (`Stream`-able observer handles for `subscribe()` / `subscribe_lifecycle()`) |
 | `handler.rs`      | `PermissionHandler`, `ElicitationHandler`, `UserInputHandler`, `ExitPlanModeHandler`, `AutoModeSwitchHandler` traits; `ApproveAllHandler`, `DenyAllHandler`           |
 | `hooks.rs`        | `SessionHooks` trait, `HookEvent`/`HookOutput` enums, typed hook inputs/outputs                                            |

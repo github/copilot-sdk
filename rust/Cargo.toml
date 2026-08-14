@@ -90,6 +90,10 @@ required-features = ["test-support"]
 name = "protocol_version_test"
 required-features = ["test-support"]
 
+[[test]]
+name = "prepared_session_test"
+required-features = ["test-support"]
+
 [build-dependencies]
 base64 = "0.22"
 dirs = "5"

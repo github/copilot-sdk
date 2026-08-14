@@ -6,6 +6,7 @@
 /// Canvas declarations, provider callbacks, and host-side canvas RPC types.
 pub mod canvas;
 mod canvas_dispatch;
+mod child;
 /// Bundled CLI binary extraction and caching.
 #[cfg(feature = "bundled-cli")]
 pub(crate) mod embeddedcli;
@@ -13,6 +14,7 @@ mod errors;
 /// In-process FFI transport hosting the runtime cdylib (`Transport::InProcess`).
 #[cfg(feature = "bundled-in-process")]
 pub(crate) mod ffi;
+pub use child::ForcedShutdown;
 pub use errors::*;
 /// Connection-level Copilot request handler — intercept and replace the
 /// model-layer HTTP and WebSocket traffic the runtime issues for both CAPI and
@@ -103,7 +105,7 @@ use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, BufReader};
 use tokio::net::TcpStream;
 use tokio::process::{Child, Command};
 use tokio::sync::{broadcast, mpsc, oneshot};
-use tracing::{Instrument, debug, error, info, warn};
+use tracing::{Instrument, debug, info, warn};
 pub use types::*;
 
 mod sdk_protocol_version;
@@ -1010,7 +1012,7 @@ impl std::fmt::Debug for Client {
 }
 
 struct ClientInner {
-    child: parking_lot::Mutex<Option<Child>>,
+    child: child::ChildLifecycle,
     #[cfg(feature = "bundled-in-process")]
     /// In-process FFI runtime host, set only for [`Transport::InProcess`].
     /// Closing it tears down the native runtime connection.
@@ -1605,7 +1607,7 @@ impl Client {
 
         let client = Self {
             inner: Arc::new(ClientInner {
-                child: parking_lot::Mutex::new(child),
+                child: child::ChildLifecycle::new(child),
                 #[cfg(feature = "bundled-in-process")]
                 ffi_host: parking_lot::Mutex::new(None),
                 rpc,
@@ -2031,15 +2033,18 @@ impl Client {
 
     /// Register a session to receive filtered events and requests.
     ///
-    /// Returns per-session channels for notifications and requests, routed
-    /// by `sessionId`. Starts the internal router on first call.
+    /// Returns the per-session channels plus a
+    /// [`RegistrationToken`](crate::router::RegistrationToken) identifying
+    /// *this* registration. Registering an ID that is already registered
+    /// replaces the previous registration.
     ///
-    /// When done, call [`unregister_session`](Self::unregister_session) to
-    /// clean up (typically on session destroy).
+    /// When done, call
+    /// [`unregister_session_owned`](Self::unregister_session_owned) with
+    /// that token to clean up (typically on session destroy).
     pub(crate) fn register_session(
         &self,
         session_id: &SessionId,
-    ) -> crate::router::SessionChannels {
+    ) -> crate::router::SessionRegistration {
         self.inner.router.ensure_started(
             &self.inner.notification_tx,
             &self.inner.request_rx,
@@ -2049,9 +2054,30 @@ impl Client {
         self.inner.router.register(session_id)
     }
 
-    /// Unregister a session, dropping its per-session channels.
-    pub(crate) fn unregister_session(&self, session_id: &SessionId) {
-        self.inner.router.unregister(session_id);
+    /// Unregister a session only if `token` still identifies the live
+    /// registration.
+    ///
+    /// Session IDs can be reused: a caller may retry a cancelled startup
+    /// with the same pinned ID while the previous owner is still being torn
+    /// down. Compare-and-remove keeps a stale owner from unregistering the
+    /// live session that replaced it.
+    pub(crate) fn unregister_session_owned(
+        &self,
+        session_id: &SessionId,
+        token: crate::router::RegistrationToken,
+    ) {
+        self.inner.router.unregister_owned(session_id, token);
+    }
+
+    /// Snapshot the session IDs currently registered on the router.
+    ///
+    /// Crate-internal so in-crate unit tests can assert registration
+    /// lifecycle without depending on the `test-support` feature, which
+    /// only gates the equivalent *public* test helper. Compiled only for
+    /// those two configurations — a default-feature build has no caller.
+    #[cfg(any(test, feature = "test-support"))]
+    pub(crate) fn registered_session_ids(&self) -> Vec<SessionId> {
+        self.inner.router.session_ids()
     }
 
     /// Returns the protocol version negotiated with the CLI server, if any.
@@ -2266,6 +2292,15 @@ impl Client {
 
     #[cfg(feature = "test-support")]
     #[doc(hidden)]
+    /// Snapshot the session IDs currently registered on this client's
+    /// notification router. This is test-harness plumbing, not part of the
+    /// supported SDK API.
+    pub fn registered_session_ids_for_test(&self) -> Vec<SessionId> {
+        self.registered_session_ids()
+    }
+
+    #[cfg(feature = "test-support")]
+    #[doc(hidden)]
     /// Disconnect and delete every session owned by this test client's isolated
     /// runtime. This is test-harness plumbing, not part of the supported SDK API.
     pub async fn cleanup_sessions_for_test(&self) -> Result<()> {
@@ -2396,8 +2431,11 @@ impl Client {
     }
 
     /// Return the OS process ID of the CLI child process, if one was spawned.
+    ///
+    /// Returns `None` once termination has begun — the child is owned by
+    /// the SDK's reaper from that point on.
     pub fn pid(&self) -> Option<u32> {
-        self.inner.child.lock().as_ref().and_then(|c| c.id())
+        self.inner.child.pid()
     }
 
     /// Cooperatively shut down the client and the CLI child process.
@@ -2417,15 +2455,20 @@ impl Client {
     ///
     /// # Cancel safety
     ///
-    /// **Cancel-unsafe but recoverable.** The body sequentially destroys
-    /// every registered session (each via [`Client::call`](Self::call),
-    /// individually cancel-safe) before killing the child. Cancelling
-    /// `stop()` mid-loop leaves some sessions still in the router map
-    /// and the child still running. Recovery: call [`force_stop`](Self::force_stop)
-    /// (sync, kills the child unconditionally and clears router state)
-    /// or call `stop()` again with a fresh future. The documented
-    /// `tokio::time::timeout(..., client.stop())` pattern in the example
-    /// below uses `force_stop` as the fallback for exactly this case.
+    /// **Cancel-unsafe but recoverable, and the child is never stranded.**
+    /// The body sequentially destroys every registered session (each via
+    /// [`Client::call`](Self::call), individually cancel-safe) before
+    /// terminating the child. Cancelling `stop()` mid-loop leaves some
+    /// sessions still in the router map and, if the cancellation lands
+    /// before termination begins, the child still running.
+    ///
+    /// Termination itself is not lost either way: the child is claimed
+    /// synchronously and handed to a reaper the SDK owns, so cancelling
+    /// this future cannot leave a signalled-but-unreaped process behind.
+    /// Recovery: call [`force_stop_and_wait`](Self::force_stop_and_wait)
+    /// to drive teardown to completion and observe the same terminal
+    /// outcome, [`force_stop`](Self::force_stop) for the synchronous
+    /// fallback, or `stop()` again with a fresh future.
     pub async fn stop(&self) -> std::result::Result<(), StopErrors> {
         let pid = self.pid();
         info!(pid = ?pid, "stopping CLI process");
@@ -2454,7 +2497,7 @@ impl Client {
             self.inner.router.unregister(&session_id);
         }
 
-        let should_shutdown_runtime = self.inner.child.lock().is_some();
+        let should_shutdown_runtime = self.inner.child.has_child();
         #[cfg(feature = "bundled-in-process")]
         let should_shutdown_runtime =
             should_shutdown_runtime || self.inner.ffi_host.lock().is_some();
@@ -2493,25 +2536,20 @@ impl Client {
             }
         }
 
-        let child = self.inner.child.lock().take();
+        // Claim the child *before* awaiting anything else. The claim is
+        // synchronous and hands ownership to the SDK's reaper, so if this
+        // future is cancelled from here on, termination still runs to
+        // completion and a later caller can await the same outcome.
+        let termination = self.inner.child.begin_termination();
         *self.inner.state.lock() = ConnectionState::Disconnected;
         *self.inner.models_cache.lock() = Arc::new(tokio::sync::OnceCell::new());
-        if let Some(mut child) = child {
-            match child.try_wait() {
-                Ok(Some(_status)) => {}
-                Ok(None) => {
-                    // The runtime completes all cleanup before responding to
-                    // runtime.shutdown and then leaves termination to us; it
-                    // deliberately keeps its JSON-RPC server alive to send the
-                    // response and never self-exits. Waiting for a self-exit
-                    // that will never come just wastes time, so terminate the
-                    // child immediately.
-                    if let Err(e) = child.kill().await {
-                        errors.push(e.into());
-                    }
-                }
-                Err(e) => errors.push(e.into()),
-            }
+        // The runtime completes all cleanup before responding to
+        // runtime.shutdown and then leaves termination to us; it
+        // deliberately keeps its JSON-RPC server alive to send the
+        // response and never self-exits. Waiting for a self-exit that will
+        // never come just wastes time, so terminate the child immediately.
+        if let Err(e) = termination.wait().await {
+            errors.push(e);
         }
 
         // The runtime.shutdown RPC above already asked the runtime to clean up;
@@ -2536,10 +2574,17 @@ impl Client {
     ///
     /// Synchronous fallback when [`stop`](Self::stop) is unsuitable — for
     /// example when the awaiting tokio runtime is shutting down or the
-    /// process is wedged on I/O. Sends a kill signal without awaiting
-    /// reaper completion and immediately drops all per-session router
-    /// state so dependent tasks observe a closed channel rather than a
-    /// hang.
+    /// process is wedged on I/O. Sends a kill signal and immediately drops
+    /// all per-session router state so dependent tasks observe a closed
+    /// channel rather than a hang.
+    ///
+    /// This returns before the child has been reaped. Termination itself
+    /// is owned by the SDK and continues in the background, but a caller
+    /// that must *know* the process is gone — an embedded host tearing
+    /// down under a timeout, where a surviving zombie accumulates for the
+    /// lifetime of the host — should use
+    /// [`force_stop_and_wait`](Self::force_stop_and_wait) or
+    /// [`start_force_stop`](Self::start_force_stop) instead.
     ///
     /// # Cancel safety
     ///
@@ -2562,13 +2607,34 @@ impl Client {
     /// # }
     /// ```
     pub fn force_stop(&self) {
+        drop(self.start_force_stop());
+    }
+
+    /// Forcibly stop the CLI process and return a handle to its
+    /// termination.
+    ///
+    /// Performs the same synchronous teardown as
+    /// [`force_stop`](Self::force_stop) — kill signal, transport close,
+    /// router cleanup — and additionally hands back an owned
+    /// [`ForcedShutdown`] that resolves when the child has been killed
+    /// *and* reaped.
+    ///
+    /// Use this when the awaiting code lives somewhere else: the handle
+    /// borrows nothing from the client, so it can be moved into another
+    /// task or onto a runtime that will outlive this one. Dropping it does
+    /// not cancel termination, and any number of handles may await the
+    /// same child.
+    ///
+    /// # Cancel safety
+    ///
+    /// **Synchronous.** Termination is owned by the SDK from the moment
+    /// this returns, so neither dropping the handle nor cancelling a
+    /// future awaiting it can strand the process.
+    #[must_use = "the child is terminating either way; await the handle to observe it finishing"]
+    pub fn start_force_stop(&self) -> ForcedShutdown {
         let pid = self.pid();
         info!(pid = ?pid, "force-stopping CLI process");
-        if let Some(mut child) = self.inner.child.lock().take()
-            && let Err(e) = child.start_kill()
-        {
-            error!(pid = ?pid, error = %e, "failed to send kill signal");
-        }
+        let termination = self.inner.child.begin_termination();
         self.inner.rpc.force_close();
         #[cfg(feature = "bundled-in-process")]
         {
@@ -2581,6 +2647,55 @@ impl Client {
         self.inner.router.clear();
         *self.inner.state.lock() = ConnectionState::Disconnected;
         *self.inner.models_cache.lock() = Arc::new(tokio::sync::OnceCell::new());
+        termination
+    }
+
+    /// Forcibly stop the CLI process and wait until the OS has reaped it.
+    ///
+    /// The awaited counterpart of [`force_stop`](Self::force_stop): it
+    /// tears down the client identically, then waits for the child to be
+    /// killed *and* released by the OS, so no zombie survives the call.
+    /// Resolves to the child's exit status, or `None` when this client
+    /// never spawned one (stream-backed and in-process transports).
+    ///
+    /// Repeat and concurrent calls are safe: the first begins
+    /// termination, and every caller observes the same terminal outcome
+    /// rather than racing for the process handle.
+    ///
+    /// # Cancel safety
+    ///
+    /// **Cancel-safe, and cancelling costs nothing.** Termination is owned
+    /// by the SDK rather than by this future, so a timeout that elapses
+    /// here leaves the reap running; call this again — or await a
+    /// [`start_force_stop`](Self::start_force_stop) handle — to observe
+    /// the same completion.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ErrorKind::Io`] if waiting on the child failed, or if the
+    /// reaper could not run to completion. The child is signalled in every
+    /// case; only confirmation of the reap is lost. No outcome is ever
+    /// lost either — a failure resolves to an `Err` rather than a pending
+    /// wait — but the wait itself is unbounded, so wrap this in
+    /// [`tokio::time::timeout`] if the caller needs a bounded shutdown.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # async fn example(client: github_copilot_sdk::Client) {
+    /// // Graceful first; on timeout, force-stop and confirm the process
+    /// // is really gone before the host finishes shutting down.
+    /// if tokio::time::timeout(
+    ///     std::time::Duration::from_secs(5),
+    ///     client.stop(),
+    /// ).await.is_err()
+    /// {
+    ///     let _ = client.force_stop_and_wait().await;
+    /// }
+    /// # }
+    /// ```
+    pub async fn force_stop_and_wait(&self) -> Result<Option<std::process::ExitStatus>> {
+        self.start_force_stop().wait().await
     }
 
     /// Subscribe to lifecycle events.
@@ -2624,14 +2739,8 @@ impl Client {
 
 impl Drop for ClientInner {
     fn drop(&mut self) {
-        if let Some(ref mut child) = *self.child.lock() {
-            let pid = child.id();
-            if let Err(e) = child.start_kill() {
-                error!(pid = ?pid, error = %e, "failed to kill CLI process on drop");
-            } else {
-                info!(pid = ?pid, "kill signal sent for CLI process on drop");
-            }
-        }
+        // The CLI child is terminated and reaped by `ChildLifecycle`'s own
+        // `Drop`, which runs when this struct's fields drop.
         #[cfg(feature = "bundled-in-process")]
         {
             if let Some(host) = self.ffi_host.lock().take() {
@@ -3270,10 +3379,164 @@ mod tests {
         client.force_stop();
     }
 
+    /// A child that stays alive until it is killed, for client-level
+    /// lifecycle tests that must not depend on a CLI being installed.
+    fn spawn_test_child() -> tokio::process::Child {
+        let mut command = if cfg!(windows) {
+            let mut command = tokio::process::Command::new("cmd");
+            command.args(["/C", "ping -n 120 127.0.0.1 > nul"]);
+            command
+        } else {
+            let mut command = tokio::process::Command::new("sleep");
+            command.arg("120");
+            command
+        };
+        command
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .expect("spawn test child")
+    }
+
+    const LIFECYCLE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+
+    /// The host-facing guarantee: after `force_stop_and_wait` resolves,
+    /// the child has been killed *and* reaped — no zombie is left for a
+    /// long-lived embedded host to accumulate.
+    #[tokio::test]
+    async fn force_stop_and_wait_reaps_the_child() {
+        let client = client_with_child_and_handler(Some(spawn_test_child()), None);
+        assert!(client.pid().is_some());
+
+        let status = tokio::time::timeout(LIFECYCLE_TIMEOUT, client.force_stop_and_wait())
+            .await
+            .expect("force_stop_and_wait hung")
+            .expect("force_stop_and_wait failed")
+            .expect("a spawned child must report an exit status");
+        assert!(!status.success(), "a killed child must not report success");
+        assert!(client.pid().is_none());
+        assert!(matches!(
+            *client.inner.state.lock(),
+            ConnectionState::Disconnected
+        ));
+    }
+
+    /// Repeat and concurrent callers converge on the same terminal
+    /// outcome instead of racing for the process handle, and none of them
+    /// hangs.
+    #[tokio::test]
+    async fn force_stop_and_wait_is_idempotent_and_concurrent_safe() {
+        let client = client_with_child_and_handler(Some(spawn_test_child()), None);
+
+        let concurrent: Vec<_> = (0..6)
+            .map(|_| {
+                let client = client.clone();
+                tokio::spawn(async move { client.force_stop_and_wait().await })
+            })
+            .collect();
+        let mut outcomes = Vec::new();
+        for task in concurrent {
+            outcomes.push(
+                tokio::time::timeout(LIFECYCLE_TIMEOUT, task)
+                    .await
+                    .expect("concurrent waiter hung")
+                    .expect("concurrent waiter panicked")
+                    .expect("concurrent waiter failed"),
+            );
+        }
+        let first = outcomes[0];
+        assert!(first.is_some());
+        assert!(
+            outcomes.iter().all(|outcome| *outcome == first),
+            "concurrent callers disagreed: {outcomes:?}"
+        );
+
+        // And again, long after termination completed.
+        let repeat = tokio::time::timeout(LIFECYCLE_TIMEOUT, client.force_stop_and_wait())
+            .await
+            .expect("repeat call hung")
+            .expect("repeat call failed");
+        assert_eq!(repeat, first);
+    }
+
+    /// A `stop()` whose future goes away must never strand the child.
+    ///
+    /// On the default current-thread runtime the abort lands before the
+    /// spawned `stop()` is ever polled, so this covers the
+    /// cancelled-*before*-the-claim branch: the child is still held, and
+    /// the recovery call terminates it and reports its status. The
+    /// cancelled-*after*-the-claim branch — the one the old ownership
+    /// model lost outright — is covered deterministically by
+    /// `child::tests::handle_dropped_before_polling_still_reaps_and_stays_observable`.
+    #[tokio::test]
+    async fn cancelled_stop_leaves_the_child_recoverable() {
+        let client = client_with_child_and_handler(Some(spawn_test_child()), None);
+
+        let stopping = tokio::spawn({
+            let client = client.clone();
+            async move { client.stop().await }
+        });
+        stopping.abort();
+        let _ = stopping.await;
+
+        let status = tokio::time::timeout(LIFECYCLE_TIMEOUT, client.force_stop_and_wait())
+            .await
+            .expect("recovery hung")
+            .expect("recovery failed")
+            .expect("the child must still be accounted for after a cancelled stop");
+        assert!(!status.success());
+        assert!(client.pid().is_none());
+    }
+
+    /// A handle taken before the client is torn down can be awaited
+    /// afterwards, and on another task — the shape an embedded host uses
+    /// when its own shutdown outlives the client.
+    #[tokio::test]
+    async fn start_force_stop_handle_is_awaitable_elsewhere() {
+        let client = client_with_child_and_handler(Some(spawn_test_child()), None);
+        let handle = client.start_force_stop();
+        assert!(handle.pid().is_some());
+
+        let awaited = tokio::spawn(async move { handle.wait().await });
+        let status = tokio::time::timeout(LIFECYCLE_TIMEOUT, awaited)
+            .await
+            .expect("detached waiter hung")
+            .expect("detached waiter panicked")
+            .expect("detached waiter failed");
+        assert!(status.is_some());
+    }
+
+    /// Clients with no child of their own resolve immediately rather than
+    /// waiting on a process that does not exist.
+    #[tokio::test]
+    async fn force_stop_and_wait_without_a_child_resolves_immediately() {
+        let (client_write, _server_read) = tokio::io::duplex(8192);
+        let (_server_write, client_read) = tokio::io::duplex(8192);
+        let client = Client::from_streams(client_read, client_write, std::env::temp_dir()).unwrap();
+
+        for _ in 0..3 {
+            let outcome = tokio::time::timeout(LIFECYCLE_TIMEOUT, client.force_stop_and_wait())
+                .await
+                .expect("childless force_stop_and_wait hung")
+                .expect("childless force_stop_and_wait failed");
+            assert_eq!(outcome, None);
+        }
+    }
+
     fn client_with_list_models_handler(handler: Arc<dyn ListModelsHandler>) -> Client {
+        client_with_child_and_handler(None, Some(handler))
+    }
+
+    /// Build a client around an arbitrary child process, so lifecycle
+    /// behaviour can be exercised without a real CLI on the machine.
+    fn client_with_child_and_handler(
+        child: Option<tokio::process::Child>,
+        handler: Option<Arc<dyn ListModelsHandler>>,
+    ) -> Client {
         Client {
             inner: Arc::new(ClientInner {
-                child: parking_lot::Mutex::new(None),
+                child: child::ChildLifecycle::new(child),
                 #[cfg(feature = "bundled-in-process")]
                 ffi_host: parking_lot::Mutex::new(None),
                 rpc: {
@@ -3290,7 +3553,7 @@ mod tests {
                 negotiated_protocol_version: OnceLock::new(),
                 state: parking_lot::Mutex::new(ConnectionState::Connected),
                 lifecycle_tx: broadcast::channel(16).0,
-                on_list_models: Some(handler),
+                on_list_models: handler,
                 models_cache: parking_lot::Mutex::new(Arc::new(tokio::sync::OnceCell::new())),
                 session_fs_configured: false,
                 session_fs_sqlite_declared: false,

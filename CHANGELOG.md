@@ -7,6 +7,49 @@ See [GitHub Releases](https://github.com/github/copilot-sdk/releases) for the fu
 
 ## [Unreleased]
 
+### Feature: confirmed CLI process termination (Rust)
+
+`Client::force_stop` sends a kill signal and returns without waiting for the OS to release the process. That is fine for a short-lived CLI consumer, but an embedded host that shuts sessions down under a timeout keeps running, and on Unix every unreaped child stays a zombie for as long as its parent lives.
+
+The Rust SDK now exposes termination you can await:
+
+```rust
+// Await the reap: resolves once the child is killed *and* released.
+let exit_status = client.force_stop_and_wait().await?;
+
+// Or take an owned handle and await it somewhere else.
+let shutdown = client.start_force_stop();
+tokio::spawn(async move { shutdown.wait().await });
+```
+
+`force_stop_and_wait` resolves to the child's `ExitStatus`, or `None` for clients that never spawned one (stream-backed and in-process transports) — `None` means "nothing to terminate", never "termination failed", which is always an `Err`. `start_force_stop` returns a `ForcedShutdown` that borrows nothing from the client and is not bound to the runtime that started termination, so it can be awaited from another task or another runtime.
+
+Termination is now owned by the SDK rather than by the future that requests it. Previously `stop()` took the child out of its slot and then awaited the kill inline: if an outer timeout cancelled it in that window, the handle went with the cancelled future — the child was neither reaped nor recoverable, and a following `force_stop` found nothing to do. The child is now claimed synchronously and handed to a detached reaper, so cancelling `stop()`, cancelling `force_stop_and_wait()`, or dropping a `ForcedShutdown` cannot strand a signalled-but-unreaped process. Repeat and concurrent callers observe the same terminal outcome instead of racing for the handle.
+
+`force_stop` keeps its existing synchronous, infallible signature and semantics — the kill signal is still delivered synchronously, before anything is scheduled, so it works with no tokio runtime in context at all. Reaping runs on a dedicated thread with its own runtime rather than on a caller's, because a `tokio::spawn`ed reaper is cancelled when its runtime drops, which for an embedded host is exactly the moment termination matters. If the reaper cannot run to completion anyway — its thread fails to start, or it panics — waiters get a definitive `ErrorKind::Io` rather than sitting pending.
+
+### Feature: early session-event subscription (Rust)
+
+The Rust SDK can now observe every event routed to a session, starting with that session's very first routed event. `Client::prepare_session` and `Client::prepare_resume_session` return an inert `PreparedSession` that owns the session's event channel, so a subscription can be installed *before* any protocol activity begins:
+
+```rust
+let prepared = client.prepare_session(
+    SessionConfig::default().with_event_buffer_capacity(2048),
+)?;
+let mut events = prepared.subscribe();
+let session = prepared.start().await?;
+```
+
+Previously, `Session::subscribe` could only be called on the returned session, so events the runtime emitted while `session.create` / `session.resume` was still in flight were broadcast with no receiver installed and dropped. Ephemeral events such as `session.idle` are not persisted, so they could not be recovered with `getMessages` either.
+
+The guarantee is scoped to *routed* events. For cloud sessions where the server assigns the session ID, the SDK cannot route notifications until the `session.create` response arrives and the ID is known, so events emitted before that point are not routable to any session. Pin `session_id` on the config to get router registration before the RPC, and with it complete pre-response coverage.
+
+`prepare_*` is synchronous and inert: it validates the buffer capacity and allocates a local channel, and performs no router registration, task spawn, or wire activity until `start()` is first polled. `start(self)` consumes the handle and `PreparedSession` is not `Clone`, so a prepared session can never produce two event loops. Dropping an unstarted handle leaves no state behind; dropping a polled `start()` future cancels the startup and unregisters the session, so a retry with the same session ID succeeds. Session registrations now carry an ownership identity, so cleanup removes only the exact registration it owns and an abandoned startup can never evict a same-ID retry (or a session that replaced it).
+
+Both `SessionConfig` and `ResumeSessionConfig` gained a runtime-only `event_buffer_capacity` option (default 512, `Some(0)` rejected as an invalid config). The buffer is finite, so slow subscribers observe `Lagged` rather than applying backpressure; consumers that need a lossless view of a large startup burst must size the buffer accordingly or drain concurrently with `start()`.
+
+`create_session` and `resume_session` are unchanged wrappers over `prepare_*(...)?.start()` with identical RPC sequences and error kinds.
+
 ### Feature: host-injected managed settings permissions
 
 Session create and resume accept a new optional `managedSettings` option that injects an enterprise permissions policy at session startup, alongside the existing `enableManagedSettings` self-fetch flag. The current contract is permissions-only: `disableBypassPermissionsMode` (the literal `"disable"`), plus `deny`, `ask`, and `allow` rule lists. The layer composes restrictively with any server- or device-level managed settings (deny/ask are unioned, every present allow list must admit a tool, and `disableBypassPermissionsMode` is deny-wins).
