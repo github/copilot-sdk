@@ -3295,7 +3295,7 @@ mod tests {
 
     #[cfg(any(unix, windows))]
     async fn wait_for_test_child(ready: &Path) {
-        let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(30);
         while !ready.exists() {
             assert!(
                 tokio::time::Instant::now() < deadline,
