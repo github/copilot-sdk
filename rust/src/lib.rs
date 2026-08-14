@@ -1641,8 +1641,8 @@ impl Client {
     /// notifications via [`ClientInner::lifecycle_tx`] to subscribers
     /// returned by [`Self::subscribe_lifecycle`].
     fn spawn_lifecycle_dispatcher(&self) {
-        let inner = Arc::clone(&self.inner);
-        let mut notif_rx = inner.notification_tx.subscribe();
+        let mut notif_rx = self.inner.notification_tx.subscribe();
+        let lifecycle_tx = self.inner.lifecycle_tx.clone();
         tokio::spawn(async move {
             loop {
                 match notif_rx.recv().await {
@@ -1666,7 +1666,7 @@ impl Client {
                             };
                         // `send` only errors when there are no subscribers — that's
                         // the normal case before any consumer calls subscribe_lifecycle.
-                        let _ = inner.lifecycle_tx.send(event);
+                        let _ = lifecycle_tx.send(event);
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
                         warn!(missed = n, "lifecycle dispatcher lagged");
@@ -1679,6 +1679,7 @@ impl Client {
 
     fn build_command(program: &Path, options: &ClientOptions, working_directory: &Path) -> Command {
         let mut command = Command::new(program);
+        command.kill_on_drop(true);
         for arg in &options.prefix_args {
             command.arg(arg);
         }
@@ -3268,6 +3269,105 @@ mod tests {
 
         assert!(client.inner.router.session_ids().is_empty());
         client.force_stop();
+    }
+
+    #[cfg(any(unix, windows))]
+    #[tokio::test]
+    async fn dropping_last_client_kills_spawned_cli() {
+        let temp = tempfile::tempdir().unwrap();
+        let ready = temp.path().join("ready");
+        let survived = temp.path().join("survived");
+        let child = test_child_command(temp.path(), &ready, &survived)
+            .spawn()
+            .unwrap();
+        let (client_write, _server_read) = tokio::io::duplex(64);
+        let (_server_write, client_read) = tokio::io::duplex(64);
+        let client = Client::from_transport(
+            client_read,
+            client_write,
+            Some(child),
+            temp.path().to_path_buf(),
+            None,
+            false,
+            false,
+            None,
+            None,
+            None,
+            ClientMode::default(),
+        )
+        .unwrap();
+
+        wait_for_test_child(&ready).await;
+        drop(client);
+
+        assert_test_child_killed(&survived).await;
+    }
+
+    #[cfg(any(unix, windows))]
+    #[tokio::test]
+    async fn spawned_child_is_killed_when_dropped() {
+        let temp = tempfile::tempdir().unwrap();
+        let ready = temp.path().join("ready");
+        let survived = temp.path().join("survived");
+        let child = test_child_command(temp.path(), &ready, &survived)
+            .spawn()
+            .unwrap();
+
+        wait_for_test_child(&ready).await;
+        drop(child);
+
+        assert_test_child_killed(&survived).await;
+    }
+
+    #[cfg(any(unix, windows))]
+    fn test_child_command(temp: &Path, ready: &Path, survived: &Path) -> Command {
+        #[cfg(unix)]
+        let mut command = {
+            let mut command =
+                Client::build_command(Path::new("sh"), &ClientOptions::default(), temp);
+            command.args([
+                "-c",
+                "printf ready > \"$READY\"; sleep 1; printf survived > \"$SURVIVED\"",
+            ]);
+            command
+        };
+        #[cfg(windows)]
+        let mut command = {
+            let mut command =
+                Client::build_command(Path::new("powershell.exe"), &ClientOptions::default(), temp);
+            command.args([
+                "-NoLogo",
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                "Set-Content -LiteralPath $env:READY ready; Start-Sleep -Seconds 1; Set-Content -LiteralPath $env:SURVIVED survived",
+            ]);
+            command
+        };
+        command.env("READY", ready).env("SURVIVED", survived);
+        command
+    }
+
+    #[cfg(any(unix, windows))]
+    async fn wait_for_test_child(ready: &Path) {
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(30);
+        while !ready.exists() {
+            assert!(
+                tokio::time::Instant::now() < deadline,
+                "child did not report readiness"
+            );
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    }
+
+    #[cfg(any(unix, windows))]
+    async fn assert_test_child_killed(survived: &Path) {
+        tokio::time::sleep(Duration::from_millis(1500)).await;
+
+        assert!(
+            !survived.exists(),
+            "child survived after its owner was dropped"
+        );
     }
 
     fn client_with_list_models_handler(handler: Arc<dyn ListModelsHandler>) -> Client {
