@@ -133,15 +133,9 @@ class JsonRpcClientTest {
         pair.serverSocket.close();
     }
 
-    private static Process startBlockingProcess() throws IOException {
-        boolean isWindows = System.getProperty("os.name").toLowerCase().contains("windows");
-        return (isWindows ? new ProcessBuilder(System.getenv("COMSPEC"), "/c", "more") : new ProcessBuilder("cat"))
-                .start();
-    }
-
     @Test
     void testIsConnectedWithProcess() throws Exception {
-        Process proc = startBlockingProcess();
+        Process proc = new TestProcess();
         try (var client = JsonRpcClient.fromProcess(proc)) {
             assertTrue(client.isConnected());
         }
@@ -149,7 +143,7 @@ class JsonRpcClientTest {
 
     @Test
     void testIsConnectedWithProcessDead() throws Exception {
-        Process proc = startBlockingProcess();
+        Process proc = new TestProcess();
         var client = JsonRpcClient.fromProcess(proc);
         proc.destroy();
         proc.waitFor(5, TimeUnit.SECONDS);
@@ -161,7 +155,7 @@ class JsonRpcClientTest {
 
     @Test
     void testGetProcessReturnsProcess() throws Exception {
-        Process proc = startBlockingProcess();
+        Process proc = new TestProcess();
         try (var client = JsonRpcClient.fromProcess(proc)) {
             assertSame(proc, client.getProcess());
         }
