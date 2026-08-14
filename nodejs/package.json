@@ -32,6 +32,7 @@
     },
     "type": "module",
     "scripts": {
+        "auth:refresh": "node ../scripts/npm-auth-refresh.mjs --run",
         "clean": "rimraf --glob dist *.tgz",
         "build": "tsx esbuild-copilotsdk-nodejs.ts",
         "test": "vitest run",
