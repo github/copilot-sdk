@@ -154,6 +154,8 @@ pub(crate) struct SessionCreateWire {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_citations: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_file_change_tracking: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub session_limits: Option<SessionLimitsConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model_capabilities: Option<ModelCapabilitiesOverride>,
@@ -301,6 +303,8 @@ pub(crate) struct SessionResumeWire {
     pub enable_session_telemetry: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_citations: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_file_change_tracking: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_limits: Option<SessionLimitsConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]

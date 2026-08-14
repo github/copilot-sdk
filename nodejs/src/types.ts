@@ -19,6 +19,7 @@ import type {
     SessionEvent as GeneratedSessionEvent,
 } from "./generated/session-events.js";
 import type { CopilotSession } from "./session.js";
+import type { FactoryJsonSchema, JsonValue } from "./factory.js";
 import type {
     GitHubTelemetryNotification,
     ModelBillingTokenPrices,
@@ -310,6 +311,13 @@ export interface CopilotClientOptions {
     baseDirectory?: string;
 
     /**
+     * Absolute paths to trusted plugin directories bundled by the host.
+     * When non-empty, the complete set is registered with the runtime during
+     * startup before any sessions can be created.
+     */
+    builtinPluginDirectories?: readonly string[];
+
+    /**
      * Log level for the Copilot runtime. When omitted, the runtime uses its
      * own default (currently `"info"`).
      */
@@ -457,7 +465,7 @@ export type ToolBinaryResult = {
     description?: string;
 };
 
-export type ToolTelemetry = Record<string, Record<string, unknown> | undefined>;
+export type ToolTelemetry = Record<string, Record<string, JsonValue> | undefined>;
 
 export type ToolResultObject = {
     textResultForLlm: string;
@@ -2053,6 +2061,30 @@ export interface FactoryMeta {
     description: string;
     /** Display metadata for the progress phases the factory may report. */
     phases: Array<{ title: string; detail?: string }>;
+    /**
+     * Optional declared shape of the arguments this factory expects as `ctx.args`.
+     *
+     * Declaring one is strongly recommended for any factory that reads `ctx.args`.
+     * When the model invokes the factory through the `run_factory` tool, the CLI
+     * validates `args` against this declaration **before** the run starts, so a
+     * malformed call is rejected with a correction hint and retried without ever
+     * creating a run row, prompting the user for permission, or spending credits. A
+     * factory that declares nothing is never validated: a malformed call starts,
+     * takes an approval, spends credits, and then fails inside the factory body.
+     * `factories_manage` with `operation: "inspect"` reports the declared shape so an
+     * agent can read it before invoking.
+     *
+     * This covers the model's `run_factory` path only. `session.factory.run(...)` is
+     * not validated against the declaration, so a factory should still check
+     * `ctx.args` rather than assume the declared shape held.
+     *
+     * Enforcement covers structure — types, required properties, and enum/const
+     * values. Finer constraints such as `minLength`, `pattern`, and
+     * `additionalProperties` are recorded in the declaration but not enforced. See
+     * {@link FactoryJsonSchema} for the accepted subset. A declaration outside that
+     * subset is rejected at registration.
+     */
+    argsSchema?: FactoryJsonSchema;
     /** Optional resource ceilings presented to the user before execution. */
     limits?: FactoryLimits;
 }
@@ -2409,6 +2441,14 @@ export interface SessionConfigBase {
      * @experimental
      */
     enableCitations?: boolean;
+
+    /**
+     * Opt in to capturing file changes for session rewind and cumulative session
+     * diff. On create, capture starts with the first turn. On resume, this can
+     * enable tracking only when the session still has a valid baseline; it cannot
+     * reconstruct changes from earlier untracked turns.
+     */
+    enableFileChangeTracking?: boolean;
 
     /**
      * Limits applied to this session's current accounting window.

@@ -943,6 +943,34 @@ export function isOpaqueJson(schema: JSONSchema7 | null | undefined): boolean {
     return typeof schema === "object" && schema !== null && (schema as Record<string, unknown>)["x-opaque-json"] === true;
 }
 
+/** Returns true when a JSON Schema node is marked `x-opaque-in-process: true`. */
+export function isOpaqueInProcess(schema: JSONSchema7 | null | undefined): boolean {
+    return typeof schema === "object" && schema !== null && (schema as Record<string, unknown>)["x-opaque-in-process"] === true;
+}
+
+/**
+ * Returns true when a schema node has no structural constraints that describe a
+ * more precise TypeScript type than an opaque marker.
+ */
+export function isBareSchemaNode(schema: JSONSchema7 | null | undefined): boolean {
+    if (typeof schema !== "object" || schema === null) return false;
+    const node = schema as Record<string, unknown>;
+    return ![
+        "type",
+        "anyOf",
+        "oneOf",
+        "allOf",
+        "$ref",
+        "properties",
+        "items",
+        "enum",
+        "const",
+        "additionalProperties",
+        "not",
+        "patternProperties",
+    ].some((key) => key in node);
+}
+
 /**
  * Removes the `x-opaque-json` marker from a schema node in place. Useful for
  * codegens (e.g. TypeScript) that don't distinguish opaque JSON from any other

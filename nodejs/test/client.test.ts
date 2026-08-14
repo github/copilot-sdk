@@ -3,7 +3,7 @@ import { EventEmitter } from "node:events";
 import { PassThrough } from "stream";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import {
     approveAll,
@@ -58,6 +58,51 @@ describe("approveAll", () => {
 });
 
 describe("CopilotClient", () => {
+    async function startWithMockConnection(
+        builtinPluginDirectories?: readonly string[]
+    ): Promise<ReturnType<typeof vi.fn>> {
+        const client = new CopilotClient({
+            connection: RuntimeConnection.forUri("localhost:1234"),
+            builtinPluginDirectories,
+        });
+        const sendRequest = vi.fn(async () => ({}));
+        vi.spyOn(client as any, "connectToServer").mockImplementation(async () => {
+            (client as any).connection = { sendRequest };
+        });
+        vi.spyOn(client as any, "verifyProtocolVersion").mockResolvedValue(undefined);
+
+        await client.start();
+        return sendRequest;
+    }
+
+    it.each([undefined, []])(
+        "does not configure built-in plugin directories when unset or empty",
+        async (builtinPluginDirectories) => {
+            const sendRequest = await startWithMockConnection(builtinPluginDirectories);
+
+            expect(sendRequest).not.toHaveBeenCalledWith("plugins.builtin.set", expect.anything());
+        }
+    );
+
+    it("configures built-in plugin directories before start completes", async () => {
+        const paths = [resolve("plugins/core"), resolve("plugins/github")];
+
+        const sendRequest = await startWithMockConnection(paths);
+
+        expect(sendRequest).toHaveBeenCalledTimes(1);
+        expect(sendRequest).toHaveBeenCalledWith("plugins.builtin.set", { paths });
+    });
+
+    it("rejects relative built-in plugin directories", () => {
+        expect(
+            () =>
+                new CopilotClient({
+                    connection: RuntimeConnection.forUri("localhost:1234"),
+                    builtinPluginDirectories: ["plugins/core"],
+                })
+        ).toThrow(/builtinPluginDirectories.*absolute paths.*plugins\/core/);
+    });
+
     it("disposes the stdio connection when child stdin emits an error", async () => {
         const client = new CopilotClient();
         onTestFinished(() => client.forceStop());
@@ -878,12 +923,14 @@ describe("CopilotClient", () => {
         const session = await client.createSession({
             onPermissionRequest: approveAll,
             enableCitations: true,
+            enableFileChangeTracking: true,
             excludedBuiltinAgents: ["explore"],
             sessionLimits: { maxAiCredits: 30 },
         });
         await client.resumeSession(session.sessionId, {
             onPermissionRequest: approveAll,
             enableCitations: false,
+            enableFileChangeTracking: false,
             excludedBuiltinAgents: ["task"],
             sessionLimits: { maxAiCredits: 15 },
         });
@@ -895,9 +942,11 @@ describe("CopilotClient", () => {
             ([method]) => method === "session.resume"
         )![1] as any;
         expect(createPayload.enableCitations).toBe(true);
+        expect(createPayload.enableFileChangeTracking).toBe(true);
         expect(createPayload.excludedBuiltinAgents).toEqual(["explore"]);
         expect(createPayload.sessionLimits).toEqual({ maxAiCredits: 30 });
         expect(resumePayload.enableCitations).toBe(false);
+        expect(resumePayload.enableFileChangeTracking).toBe(false);
         expect(resumePayload.excludedBuiltinAgents).toEqual(["task"]);
         expect(resumePayload.sessionLimits).toEqual({ maxAiCredits: 15 });
     });

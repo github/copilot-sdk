@@ -184,6 +184,27 @@ public sealed class ClientSessionLifetimeTests
     }
 
     [Fact]
+    public async Task ForceStopAsync_Unblocks_StopAsync_When_Session_Destroy_Hangs()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        server.DelayDestroy();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+
+        _ = await client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        var stopTask = client.StopAsync();
+        await server.DestroyStarted;
+
+        await client.ForceStopAsync();
+        await stopTask.WaitAsync(TimeSpan.FromSeconds(5));
+
+        AssertSessionCount(client, sessions: 0);
+    }
+
+    [Fact]
     public async Task ResumeSessionAsync_Throws_When_Same_Client_Already_Tracks_Session()
     {
         await using var server = await FakeCopilotServer.StartAsync();

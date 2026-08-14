@@ -660,6 +660,7 @@ async fn create_session_sends_new_session_options() {
                     SessionConfig::default()
                         .with_excluded_builtin_agents(["explore"])
                         .with_enable_citations(true)
+                        .with_enable_file_change_tracking(true)
                         .with_session_limits(SessionLimitsConfig {
                             max_ai_credits: Some(30.0),
                         }),
@@ -676,6 +677,7 @@ async fn create_session_sends_new_session_options() {
         serde_json::json!(["explore"])
     );
     assert_eq!(request["params"]["enableCitations"], true);
+    assert_eq!(request["params"]["enableFileChangeTracking"], true);
     assert_eq!(request["params"]["sessionLimits"]["maxAiCredits"], 30.0);
 
     let id = request["id"].as_u64().unwrap();
@@ -704,6 +706,7 @@ async fn resume_session_sends_new_session_options() {
                     ResumeSessionConfig::new(SessionId::from("session-options"))
                         .with_excluded_builtin_agents(["task"])
                         .with_enable_citations(false)
+                        .with_enable_file_change_tracking(false)
                         .with_session_limits(SessionLimitsConfig {
                             max_ai_credits: Some(15.0),
                         }),
@@ -721,6 +724,7 @@ async fn resume_session_sends_new_session_options() {
         serde_json::json!(["task"])
     );
     assert_eq!(request["params"]["enableCitations"], false);
+    assert_eq!(request["params"]["enableFileChangeTracking"], false);
     assert_eq!(request["params"]["sessionLimits"]["maxAiCredits"], 15.0);
 
     server_respond_create(&mut server_write, &request, "session-options").await;

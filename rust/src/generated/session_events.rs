@@ -2860,6 +2860,9 @@ pub struct SubagentCompletedData {
     pub agent_display_name: String,
     /// Internal name of the sub-agent
     pub agent_name: String,
+    /// Whether the sub-agent was torn down by cancellation - its own abort, or an ancestor being killed - instead of finishing its work. Cancellation is not a failure, so the run still reports completion; this distinguishes a torn-down sub-agent from one that ran to the end.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cancelled: Option<bool>,
     /// Wall-clock duration of the sub-agent execution in milliseconds
     #[serde(skip_serializing_if = "Option::is_none")]
     pub duration_ms: Option<i64>,

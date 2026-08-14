@@ -14,9 +14,10 @@ docs/.validation/
 *.csproj.lscache
 
 # Java
-java/target
+java/**/target/
 java/smoke-test
 java/.classpath
 java/.project
 java/.settings
 java/scripts/codegen/node_modules/
+.flattened-pom.xml

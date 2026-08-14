@@ -309,6 +309,7 @@ public sealed class CopilotClientOptions
         Connection = other.Connection;
         WorkingDirectory = other.WorkingDirectory;
         BaseDirectory = other.BaseDirectory;
+        BuiltinPluginDirectories = other.BuiltinPluginDirectories is null ? null : [.. other.BuiltinPluginDirectories];
         Environment = other.Environment;
         GitHubToken = other.GitHubToken;
         Logger = other.Logger;
@@ -357,6 +358,13 @@ public sealed class CopilotClientOptions
     /// <see cref="RuntimeConnection.ForUri(string, string?)"/>.
     /// </summary>
     public string? BaseDirectory { get; set; }
+
+    /// <summary>
+    /// Absolute paths to trusted plugin directories bundled by the host.
+    /// When non-empty, the complete set is registered with the runtime during
+    /// startup before sessions can be created.
+    /// </summary>
+    public IList<string>? BuiltinPluginDirectories { get; set; }
 
     /// <summary>
     /// Log level for the Copilot runtime. Use the well-known values on
@@ -3136,6 +3144,7 @@ public abstract class SessionConfigBase
         DisabledSkills = other.DisabledSkills is not null ? [.. other.DisabledSkills] : null;
         DisabledMcpServers = other.DisabledMcpServers is not null ? [.. other.DisabledMcpServers] : null;
         EnableCitations = other.EnableCitations;
+        EnableFileChangeTracking = other.EnableFileChangeTracking;
         EnableConfigDiscovery = other.EnableConfigDiscovery;
         SkipEmbeddingRetrieval = other.SkipEmbeddingRetrieval;
         EmbeddingCacheStorage = other.EmbeddingCacheStorage;
@@ -3262,6 +3271,17 @@ public abstract class SessionConfigBase
     /// </remarks>
     [Experimental(Diagnostics.Experimental)]
     public bool? EnableCitations { get; set; }
+
+    /// <summary>
+    /// Opts in to capturing file changes for session rewind and cumulative
+    /// session diff.
+    /// </summary>
+    /// <remarks>
+    /// On create, capture starts with the first turn. On resume, tracking can be
+    /// enabled only when the session still has a valid baseline; earlier untracked
+    /// changes cannot be reconstructed.
+    /// </remarks>
+    public bool? EnableFileChangeTracking { get; set; }
 
     /// <summary>
     /// Override the default configuration directory location.

@@ -40,7 +40,9 @@ import {
     isSchemaInternal,
     appendPropertyMarkerTagsToDescriptions,
     getEnumValueDescriptions,
-    stripOpaqueJsonMarker,
+    isBareSchemaNode,
+    isOpaqueInProcess,
+    isOpaqueJson,
     loadSchemaJson,
     fixBrandCasing,
     type ApiSchema,
@@ -52,6 +54,35 @@ const TS_EXPERIMENTAL_JSDOC = "/** @experimental */";
 const EXTERNAL_SCHEMA_TS_IMPORT: Record<string, string> = {
     "session-events.schema.json": "./session-events.js",
 };
+type OpaqueTypeAlias = "JsonValue" | "OpaqueInProcessValue";
+
+function opaqueTypeAliasBlock(aliases: ReadonlySet<OpaqueTypeAlias>): string {
+    const declarations: string[] = [];
+    if (aliases.has("JsonValue")) {
+        declarations.push(
+            `/** A value that can be represented losslessly on the SDK JSON wire. */
+export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };`
+        );
+    }
+    if (aliases.has("OpaqueInProcessValue")) {
+        declarations.push(
+            `/**
+ * A value that lives only in this process and never crosses the JSON-RPC
+ * boundary, such as a callback or a host object handle.
+ * @internal
+ */
+export type OpaqueInProcessValue = unknown;`
+        );
+    }
+    return declarations.join("\n\n");
+}
+
+function restoreOpaqueTypeAliasFormatting(code: string): string {
+    return code.replace(
+        "export type JsonValue = null | boolean | number | string | JsonValue[] | {[key: string]: JsonValue};",
+        "export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };"
+    );
+}
 
 function tsExperimentalJSDoc(indent = ""): string {
     return `${indent}${TS_EXPERIMENTAL_JSDOC}`;
@@ -327,7 +358,10 @@ function collectRpcMethods(node: Record<string, unknown>): RpcMethod[] {
     return results;
 }
 
-export function normalizeSchemaForTypeScript(schema: JSONSchema7): JSONSchema7 {
+export function normalizeSchemaForTypeScript(
+    schema: JSONSchema7,
+    opaqueTypeAliases?: Set<OpaqueTypeAlias>
+): JSONSchema7 {
     const root = structuredClone(schema) as JSONSchema7 & {
         definitions?: Record<string, unknown>;
         $defs?: Record<string, unknown>;
@@ -349,24 +383,52 @@ export function normalizeSchemaForTypeScript(schema: JSONSchema7): JSONSchema7 {
     root.definitions = definitions;
     delete root.$defs;
 
-    const rewrite = (value: unknown): unknown => {
+    const internalDefinitionNames = new Set(
+        Object.entries(definitions)
+            .filter(([, definition]) => typeof definition === "object" && definition !== null && isSchemaInternal(definition as JSONSchema7))
+            .map(([name]) => name)
+    );
+    const isInternalUnionVariant = (value: unknown): boolean => {
+        if (!value || typeof value !== "object") return false;
+        const variant = value as JSONSchema7;
+        if (isSchemaInternal(variant)) return true;
+        const match = variant.$ref?.match(/^#\/(?:definitions|\$defs)\/([^/]+)$/);
+        return match ? internalDefinitionNames.has(match[1]) : false;
+    };
+
+    const rewrite = (value: unknown, withinInternalDefinition = false): unknown => {
         if (Array.isArray(value)) {
-            return value.map(rewrite);
+            return value.map((item) => rewrite(item, withinInternalDefinition));
         }
         if (!value || typeof value !== "object") {
             return value;
         }
 
+        const source = value as Record<string, unknown>;
+        const isInternal = withinInternalDefinition || isSchemaInternal(source as JSONSchema7);
         const rewritten = Object.fromEntries(
-            Object.entries(value as Record<string, unknown>).map(([key, child]) => [key, rewrite(child)])
+            Object.entries(source).map(([key, child]) => {
+                const publicChild =
+                    !isInternal &&
+                    (key === "anyOf" || key === "oneOf") &&
+                    Array.isArray(child)
+                        ? child.filter((variant) => !isInternalUnionVariant(variant))
+                        : child;
+                return [key, rewrite(publicChild, isInternal)];
+            })
         ) as Record<string, unknown>;
 
-        // The TypeScript codegen doesn't distinguish opaque JSON from any
-        // other unconstrained value, so drop the marker before feeding the
-        // schema to json-schema-to-typescript. C# codegen reads the marker
-        // from its own (un-normalized) view of the schema and emits
-        // `JsonElement` instead.
-        stripOpaqueJsonMarker(rewritten);
+        if (isBareSchemaNode(rewritten as JSONSchema7)) {
+            if (isOpaqueJson(rewritten as JSONSchema7)) {
+                rewritten.tsType = "JsonValue";
+                opaqueTypeAliases?.add("JsonValue");
+            } else if (isOpaqueInProcess(rewritten as JSONSchema7)) {
+                rewritten.tsType = "OpaqueInProcessValue";
+                opaqueTypeAliases?.add("OpaqueInProcessValue");
+            }
+        }
+        delete rewritten["x-opaque-json"];
+        delete rewritten["x-opaque-in-process"];
 
         const enumValueDescriptions = getEnumValueDescriptions(rewritten as JSONSchema7);
         if (enumValueDescriptions && Array.isArray(rewritten.enum) && rewritten.enum.every((entry) => typeof entry === "string")) {
@@ -493,15 +555,23 @@ async function generateSessionEvents(schemaPath?: string): Promise<void> {
     );
     appendPropertyMarkerTagsToDescriptions(schemaForCompile);
 
-    const ts = await compile(normalizeSchemaForTypeScript(schemaForCompile), "SessionEvent", {
-        bannerComment: `/**
+    const opaqueTypeAliases = new Set<OpaqueTypeAlias>();
+    const ts = restoreOpaqueTypeAliasFormatting(
+        await compile(normalizeSchemaForTypeScript(schemaForCompile, opaqueTypeAliases), "SessionEvent", {
+            bannerComment: [
+                `/**
  * AUTO-GENERATED FILE - DO NOT EDIT
  * Generated from: session-events.schema.json
  */`,
-        style: { semi: true, singleQuote: false, trailingComma: "all" },
-        additionalProperties: false,
-        strictIndexSignatures: true,
-    });
+                opaqueTypeAliasBlock(opaqueTypeAliases),
+            ]
+                .filter(Boolean)
+                .join("\n\n"),
+            style: { semi: true, singleQuote: false, trailingComma: "all" },
+            additionalProperties: false,
+            strictIndexSignatures: true,
+        })
+    );
 
     let annotatedTs = annotateTypeScriptTypes(ts, experimentalDefinitionNames(definitionCollections), TS_EXPERIMENTAL_JSDOC);
     // Add @internal JSDoc annotations for session-event types marked
@@ -659,6 +729,7 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
     if (externalSchemaRefs.size > 0) {
         lines.push("");
     }
+    const aliasInsertIndex = lines.length;
 
     const allMethods = [...collectRpcMethods(schema.server || {}), ...collectRpcMethods(schema.session || {})];
     const clientSessionMethods = collectRpcMethods(schema.clientSession || {});
@@ -761,12 +832,17 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
     const schemaForCompile = combinedSchema;
     appendPropertyMarkerTagsToDescriptions(schemaForCompile);
 
-    const compiled = await compile(normalizeSchemaForTypeScript(schemaForCompile), "_RpcSchemaRoot", {
+    const opaqueTypeAliases = new Set<OpaqueTypeAlias>();
+    const compiled = await compile(normalizeSchemaForTypeScript(schemaForCompile, opaqueTypeAliases), "_RpcSchemaRoot", {
         bannerComment: "",
         additionalProperties: false,
         strictIndexSignatures: true,
         unreachableDefinitions: true,
     });
+    const aliases = opaqueTypeAliasBlock(opaqueTypeAliases);
+    if (aliases) {
+        lines.splice(aliasInsertIndex, 0, aliases, "");
+    }
 
     // Strip the placeholder root type and keep only the definition-generated types
     const strippedTs = compiled

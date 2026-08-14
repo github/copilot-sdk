@@ -40,6 +40,7 @@ import {
     isSchemaExperimental,
     isSchemaInternal,
     isOpaqueJson,
+    isOpaqueInProcess,
     isObjectSchema,
     isVoidSchema,
     getNullableInner,
@@ -353,6 +354,41 @@ function failUnmappable(context: string, schema: JSONSchema7): never {
             `mark it \`.asOpaqueJson()\` so the schema emits \`x-opaque-json: true\` and the codegen maps it to JsonElement. ` +
             `Offending schema (truncated): ${summary}`,
     );
+}
+
+function omitUnrepresentableInternalProperties(value: unknown): void {
+    if (!value || typeof value !== "object") return;
+    if (Array.isArray(value)) {
+        value.forEach(omitUnrepresentableInternalProperties);
+        return;
+    }
+
+    const node = value as Record<string, unknown>;
+    const properties = node.properties;
+    if (properties && typeof properties === "object" && !Array.isArray(properties)) {
+        for (const [name, property] of Object.entries(properties)) {
+            if (!property || typeof property !== "object" || Array.isArray(property)) continue;
+            const schema = property as JSONSchema7;
+            const hasType =
+                schema.type !== undefined ||
+                schema.$ref !== undefined ||
+                schema.anyOf !== undefined ||
+                schema.oneOf !== undefined ||
+                schema.allOf !== undefined ||
+                schema.enum !== undefined ||
+                schema.const !== undefined ||
+                isOpaqueJson(schema);
+            if (isSchemaInternal(schema) && (!hasType || isOpaqueInProcess(schema))) {
+                delete (properties as Record<string, unknown>)[name];
+            } else {
+                omitUnrepresentableInternalProperties(property);
+            }
+        }
+    }
+
+    for (const [name, child] of Object.entries(node)) {
+        if (name !== "properties") omitUnrepresentableInternalProperties(child);
+    }
 }
 
 function requiresArgumentNullCheck(typeName: string, isRequired: boolean): boolean {
@@ -2568,6 +2604,8 @@ function generateRpcCode(
     externalJsonSerializableRefs: Map<string, Set<string>> = new Map(),
     externalValueTypes: Set<string> = new Set()
 ): string {
+    schema = cloneSchemaForCodegen(schema);
+    omitUnrepresentableInternalProperties(schema);
     emittedRpcClassSchemas.clear();
     emittedRpcEnumResultTypes.clear();
     experimentalRpcTypes.clear();

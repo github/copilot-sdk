@@ -129,6 +129,11 @@ type ClientOptions struct {
 	// location.
 	// Ignored when connecting to an existing runtime via [URIConnection].
 	BaseDirectory string
+	// BuiltinPluginDirectories contains absolute paths to trusted plugin
+	// directories bundled by the host. When non-empty, Start replaces the
+	// runtime's complete trusted built-in plugin directory set before sessions
+	// can be created.
+	BuiltinPluginDirectories []string
 	// LogLevel for the runtime. When empty (the default), the runtime
 	// uses its own default level; the SDK does not pass --log-level.
 	// Recognized values: "none", "error", "warning", "info", "debug", "all".
@@ -1367,6 +1372,9 @@ type SessionConfig struct {
 	// Experimental: EnableCitations is part of an experimental model capability
 	// surface and may change or be removed in future SDK or CLI releases.
 	EnableCitations *bool
+	// EnableFileChangeTracking opts in to capturing file changes from the first
+	// turn for session rewind and cumulative session diff.
+	EnableFileChangeTracking *bool
 	// SessionLimits applies limits to this session's current accounting window.
 	//
 	// Experimental: SessionLimits is part of an experimental runtime accounting
@@ -1831,6 +1839,10 @@ type ResumeSessionConfig struct {
 	// Experimental: EnableCitations is part of an experimental model capability
 	// surface and may change or be removed in future SDK or CLI releases.
 	EnableCitations *bool
+	// EnableFileChangeTracking opts in to capturing file changes for session
+	// rewind and cumulative session diff when the resumed session has a valid
+	// baseline. Earlier untracked changes cannot be reconstructed.
+	EnableFileChangeTracking *bool
 	// SessionLimits applies limits to this session's current accounting window.
 	//
 	// Experimental: SessionLimits is part of an experimental runtime accounting
@@ -2457,6 +2469,7 @@ type createSessionRequest struct {
 	Models                             []ProviderModelConfig                  `json:"models,omitempty"`
 	EnableSessionTelemetry             *bool                                  `json:"enableSessionTelemetry,omitempty"`
 	EnableCitations                    *bool                                  `json:"enableCitations,omitempty"`
+	EnableFileChangeTracking           *bool                                  `json:"enableFileChangeTracking,omitempty"`
 	SessionLimits                      *rpc.SessionLimitsConfig               `json:"sessionLimits,omitempty"`
 	IsExperimentalMode                 *bool                                  `json:"isExperimentalMode,omitempty"`
 	SkipCustomInstructions             *bool                                  `json:"skipCustomInstructions,omitempty"`
@@ -2552,6 +2565,7 @@ type resumeSessionRequest struct {
 	Models                             []ProviderModelConfig                  `json:"models,omitempty"`
 	EnableSessionTelemetry             *bool                                  `json:"enableSessionTelemetry,omitempty"`
 	EnableCitations                    *bool                                  `json:"enableCitations,omitempty"`
+	EnableFileChangeTracking           *bool                                  `json:"enableFileChangeTracking,omitempty"`
 	SessionLimits                      *rpc.SessionLimitsConfig               `json:"sessionLimits,omitempty"`
 	IsExperimentalMode                 *bool                                  `json:"isExperimentalMode,omitempty"`
 	SkipCustomInstructions             *bool                                  `json:"skipCustomInstructions,omitempty"`

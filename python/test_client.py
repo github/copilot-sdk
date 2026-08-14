@@ -6,6 +6,7 @@ This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.py
 
 import asyncio
 import inspect
+import os
 from datetime import UTC, datetime
 from tempfile import TemporaryDirectory
 from unittest.mock import AsyncMock, Mock, patch
@@ -55,6 +56,50 @@ def test_inprocess_connection_has_no_child_process_options():
     assert list(inspect.signature(RuntimeConnection.for_inprocess).parameters) == []
     assert not hasattr(connection, "path")
     assert not hasattr(connection, "args")
+
+
+class TestBuiltinPluginDirectories:
+    @staticmethod
+    async def _start_client(paths=None):
+        client = CopilotClient(
+            connection=RuntimeConnection.for_uri("localhost:1234"),
+            builtin_plugin_directories=paths,
+        )
+        client._connect_to_server = AsyncMock()
+        client._verify_protocol_version = AsyncMock()
+        client._client = Mock()
+        client._client.request = AsyncMock(return_value={})
+
+        await client.start()
+        return client
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("paths", [None, []])
+    async def test_default_or_empty_does_not_call_rpc(self, paths):
+        client = await self._start_client(paths)
+
+        client._client.request.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_configured_paths_call_rpc_once_before_start_completes(self):
+        paths = [
+            os.path.abspath("plugins/core"),
+            os.path.abspath("plugins/github"),
+        ]
+
+        client = await self._start_client(paths)
+
+        client._client.request.assert_awaited_once_with(
+            "plugins.builtin.set",
+            {"paths": paths},
+        )
+
+    def test_relative_path_is_rejected(self):
+        with pytest.raises(ValueError, match="builtin_plugin_directories.*absolute paths"):
+            CopilotClient(
+                connection=RuntimeConnection.for_uri("localhost:1234"),
+                builtin_plugin_directories=["plugins/core"],
+            )
 
 
 class TestClientShutdown:
@@ -980,6 +1025,7 @@ class TestCreateSessionConfig:
             session = await client.create_session(
                 on_permission_request=PermissionHandler.approve_all,
                 enable_citations=True,
+                enable_file_change_tracking=True,
                 excluded_builtin_agents=["explore"],
                 session_limits={"max_ai_credits": 30},
             )
@@ -987,14 +1033,17 @@ class TestCreateSessionConfig:
                 session.session_id,
                 on_permission_request=PermissionHandler.approve_all,
                 enable_citations=False,
+                enable_file_change_tracking=False,
                 excluded_builtin_agents=["task"],
                 session_limits={"max_ai_credits": 15},
             )
 
             assert captured["session.create"]["enableCitations"] is True
+            assert captured["session.create"]["enableFileChangeTracking"] is True
             assert captured["session.create"]["excludedBuiltinAgents"] == ["explore"]
             assert captured["session.create"]["sessionLimits"] == {"maxAiCredits": 30}
             assert captured["session.resume"]["enableCitations"] is False
+            assert captured["session.resume"]["enableFileChangeTracking"] is False
             assert captured["session.resume"]["excludedBuiltinAgents"] == ["task"]
             assert captured["session.resume"]["sessionLimits"] == {"maxAiCredits": 15}
         finally:

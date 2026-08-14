@@ -483,6 +483,7 @@ public class SerializationTests
             createRequestType,
             ("SessionId", "session-id"),
             ("EnableCitations", true),
+            ("EnableFileChangeTracking", true),
             ("ExcludedBuiltInAgents", excludedAgents),
             ("SessionLimits", new SessionLimitsConfig { MaxAiCredits = 12.5 }));
 
@@ -490,6 +491,7 @@ public class SerializationTests
         using var createDocument = JsonDocument.Parse(createJson);
         var createRoot = createDocument.RootElement;
         Assert.True(createRoot.GetProperty("enableCitations").GetBoolean());
+        Assert.True(createRoot.GetProperty("enableFileChangeTracking").GetBoolean());
         Assert.Equal("explore", createRoot.GetProperty("excludedBuiltinAgents")[0].GetString());
         Assert.Equal(12.5, createRoot.GetProperty("sessionLimits").GetProperty("maxAiCredits").GetDouble());
 
@@ -498,6 +500,7 @@ public class SerializationTests
             resumeRequestType,
             ("SessionId", "session-id"),
             ("EnableCitations", true),
+            ("EnableFileChangeTracking", true),
             ("ExcludedBuiltInAgents", excludedAgents),
             ("SessionLimits", new SessionLimitsConfig { MaxAiCredits = 7.25 }));
 
@@ -505,6 +508,7 @@ public class SerializationTests
         using var resumeDocument = JsonDocument.Parse(resumeJson);
         var resumeRoot = resumeDocument.RootElement;
         Assert.True(resumeRoot.GetProperty("enableCitations").GetBoolean());
+        Assert.True(resumeRoot.GetProperty("enableFileChangeTracking").GetBoolean());
         Assert.Equal("task", resumeRoot.GetProperty("excludedBuiltinAgents")[1].GetString());
         Assert.Equal(7.25, resumeRoot.GetProperty("sessionLimits").GetProperty("maxAiCredits").GetDouble());
     }

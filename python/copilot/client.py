@@ -655,6 +655,7 @@ class _CopilotClientOptions:
     env: dict[str, str] | None = None
     github_token: str | None = None
     base_directory: str | None = None
+    builtin_plugin_directories: tuple[str, ...] = ()
     use_logged_in_user: bool | None = None
     telemetry: TelemetryConfig | None = None
     session_fs: SessionFsConfig | None = None
@@ -1427,6 +1428,7 @@ class CopilotClient:
         env: dict[str, str] | None = None,
         github_token: str | None = None,
         base_directory: str | None = None,
+        builtin_plugin_directories: Sequence[str] | None = None,
         use_logged_in_user: bool | None = None,
         telemetry: TelemetryConfig | None = None,
         session_fs: SessionFsConfig | None = None,
@@ -1462,6 +1464,9 @@ class CopilotClient:
                 config, etc.). Sets the ``COPILOT_HOME`` environment variable on
                 the spawned runtime. When ``None``, the runtime defaults to
                 ``~/.copilot``.
+            builtin_plugin_directories: Absolute paths to trusted plugin
+                directories bundled by the host. When non-empty, the complete
+                set is registered during startup before sessions can be created.
             use_logged_in_user: Use the logged-in user for authentication.
                 ``None`` (default) resolves to ``True`` unless ``github_token``
                 is set.
@@ -1509,6 +1514,7 @@ class CopilotClient:
             env=env,
             github_token=github_token,
             base_directory=base_directory,
+            builtin_plugin_directories=tuple(builtin_plugin_directories or ()),
             use_logged_in_user=use_logged_in_user,
             telemetry=telemetry,
             session_fs=session_fs,
@@ -1525,6 +1531,11 @@ class CopilotClient:
             else _resolve_default_connection(os.environ)
         )
         _validate_environment_options(options, connection)
+        for path in options.builtin_plugin_directories:
+            if not os.path.isabs(path):
+                raise ValueError(
+                    f"builtin_plugin_directories must contain only absolute paths: {path}"
+                )
         _require_storage_for_empty_mode(
             mode=options.mode,
             base_directory=options.base_directory,
@@ -1806,6 +1817,17 @@ class CopilotClient:
                 "CopilotClient.start protocol verification complete",
                 start_time,
             )
+
+            if self._options.builtin_plugin_directories:
+                assert self._client is not None
+                try:
+                    await self._client.request(
+                        "plugins.builtin.set",
+                        {"paths": list(self._options.builtin_plugin_directories)},
+                    )
+                except Exception:
+                    await self.force_stop()
+                    raise
 
             if self._session_fs_config:
                 session_fs_start = time.perf_counter()
@@ -2094,6 +2116,7 @@ class CopilotClient:
         models: list[ProviderModelConfig] | None = None,
         enable_session_telemetry: bool | None = None,
         enable_citations: bool | None = None,
+        enable_file_change_tracking: bool | None = None,
         excluded_builtin_agents: list[str] | None = None,
         session_limits: SessionLimitsConfig | None = None,
         skip_custom_instructions: bool | None = None,
@@ -2210,6 +2233,8 @@ class CopilotClient:
                 OpenTelemetry configuration.
             enable_citations: **Experimental.** Enables native model citations for
                 supported providers.
+            enable_file_change_tracking: Opts in to capturing file changes from the
+                first turn for session rewind and cumulative session diff.
             excluded_builtin_agents: Built-in agent names to exclude from the
                 session. Excluded built-in agents are hidden from discovery and
                 cannot be selected or invoked unless a custom agent with the same
@@ -2500,6 +2525,8 @@ class CopilotClient:
             payload["enableSessionTelemetry"] = enable_session_telemetry
         if enable_citations is not None:
             payload["enableCitations"] = enable_citations
+        if enable_file_change_tracking is not None:
+            payload["enableFileChangeTracking"] = enable_file_change_tracking
         if excluded_builtin_agents is not None:
             payload["excludedBuiltinAgents"] = excluded_builtin_agents
         if session_limits is not None:
@@ -2817,6 +2844,7 @@ class CopilotClient:
         models: list[ProviderModelConfig] | None = None,
         enable_session_telemetry: bool | None = None,
         enable_citations: bool | None = None,
+        enable_file_change_tracking: bool | None = None,
         excluded_builtin_agents: list[str] | None = None,
         session_limits: SessionLimitsConfig | None = None,
         skip_custom_instructions: bool | None = None,
@@ -2934,6 +2962,9 @@ class CopilotClient:
                 OpenTelemetry configuration.
             enable_citations: **Experimental.** Enables native model citations for
                 supported providers.
+            enable_file_change_tracking: Opts in to capturing file changes for
+                session rewind and cumulative session diff when the resumed session
+                has a valid baseline. Earlier untracked changes cannot be reconstructed.
             excluded_builtin_agents: Built-in agent names to exclude from the
                 resumed session. Excluded built-in agents are hidden from discovery
                 and cannot be selected or invoked unless a custom agent with the
@@ -3139,6 +3170,8 @@ class CopilotClient:
             payload["enableSessionTelemetry"] = enable_session_telemetry
         if enable_citations is not None:
             payload["enableCitations"] = enable_citations
+        if enable_file_change_tracking is not None:
+            payload["enableFileChangeTracking"] = enable_file_change_tracking
         if excluded_builtin_agents is not None:
             payload["excludedBuiltinAgents"] = excluded_builtin_agents
         if session_limits is not None:
