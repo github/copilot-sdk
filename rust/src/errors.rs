@@ -396,11 +396,11 @@ fn capture_backtrace() -> Option<Box<Backtrace>> {
 /// Aggregate of errors collected during [`crate::Client::stop`].
 ///
 /// `Client::stop` performs cooperative shutdown across every active
-/// session before terminating and reaping the SDK-owned CLI process tree.
-/// Errors from any per-session `session.destroy` RPC and from the terminal
-/// process-tree teardown are collected here rather than short-circuiting on
-/// the first failure, so callers see the full picture of what went wrong
-/// during teardown.
+/// session before killing the CLI child process. Errors from any
+/// per-session `session.destroy` RPC and from the terminal child-kill
+/// step are collected here rather than short-circuiting on the first
+/// failure, so callers see the full picture of what went wrong during
+/// teardown.
 ///
 /// Implements [`std::error::Error`] and forwards to `Display` for the
 /// first error, with a count suffix when there are more.
@@ -409,7 +409,7 @@ pub struct StopErrors(pub(crate) Vec<Error>);
 
 impl StopErrors {
     /// Borrow the collected errors as a slice, in the order they
-    /// occurred (per-session destroys first, then process-tree teardown).
+    /// occurred (per-session destroys first, then child-kill last).
     pub fn errors(&self) -> &[Error] {
         &self.0
     }

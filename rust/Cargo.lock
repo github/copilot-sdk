@@ -434,7 +434,6 @@ dependencies = [
  "getrandom 0.2.17",
  "http",
  "indexmap",
- "libc",
  "libloading",
  "native-tls",
  "parking_lot",
@@ -455,7 +454,6 @@ dependencies = [
  "tracing",
  "ureq",
  "uuid",
- "windows-sys 0.61.2",
  "zip",
 ]
 
