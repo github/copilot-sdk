@@ -60,13 +60,13 @@ jobs:
         env:
           VERSION: ${{ inputs.version }}
         working-directory: ./nodejs
-        run: npm install "@github/copilot@$VERSION" --omit-lockfile-registry-resolved=true
+        run: npm install "@github/copilot@$VERSION"
 
       - name: Update @github/copilot in test harness
         env:
           VERSION: ${{ inputs.version }}
         working-directory: ./test/harness
-        run: npm install "@github/copilot@$VERSION" --omit-lockfile-registry-resolved=true
+        run: npm install "@github/copilot@$VERSION"
 
       - name: Refresh nodejs/samples lockfile
         working-directory: ./nodejs/samples
