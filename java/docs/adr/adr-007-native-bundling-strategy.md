@@ -208,7 +208,7 @@ If none succeeds, startup fails. The PATH fallback does not claim to support eve
 
 ### Current platform scope
 
-The platform detector recognizes the 8 classifiers listed in this ADR. The current Maven packaging and documented experimental support publish only `linux-x64`. Additional classifier artifacts remain follow-up work.
+The platform detector recognizes the 8 classifiers listed in this ADR. The Maven build binds native packaging only when the build host matches an implemented classifier. Currently, only Linux x64 hosts fetch and package the `linux-x64` classifier. Unsupported hosts build only the OS-neutral placeholder, sources, and Javadoc artifacts. Additional classifier artifacts remain follow-up work.
 
 ## Binding technology: JNA over Panama FFM
 
@@ -359,8 +359,9 @@ The pattern follows DJL's `LibUtils.loadLibrary()` approach: detect the platform
   2. Locates the matching `runtime.node` binary on the classpath (via `getResourceAsStream` from the classifier JAR).
   3. Extracts `runtime.node` and the transitional CLI entrypoint into `~/.copilot/runtime-cache/` if valid cached files are not already present.
   4. Loads it via [JNA](#references) using the C ABI entry points, per the [binding technology decision](#binding-technology-jna-over-panama-ffm) above. The JNA-specific code is confined behind an internal binding interface to preserve a future FFM migration path.
-* The Java build fetches the pinned `@github/copilot-<classifier>` npm package, verifies its SHA-512 integrity from `nodejs/package-lock.json`, and packages the version-matched runtime and CLI files.
+* A supported host profile fetches the pinned matching `@github/copilot-<classifier>` npm package, verifies its SHA-512 integrity from `nodejs/package-lock.json`, and packages the version-matched runtime and CLI files.
 * The current release work publishes the `linux-x64` classifier. The planned classifier set expands to the other detected platforms.
+* Adding an implemented platform requires a host profile that supplies the classifier and platform CLI filename and binds the shared fetch, fetch-script test, package, and verification executions to the Maven lifecycle.
 * `cli-native.node` is not bundled. It provides terminal UI features that are irrelevant to the Java SDK's programmatic API surface.
 
 ## Related work items
