@@ -5,9 +5,10 @@
 //! 1. An explicit path supplied by the application via
 //!    [`CliProgram::Path`](crate::CliProgram::Path).
 //! 2. The `COPILOT_CLI_PATH` environment variable.
-//! 3. The bundled CLI embedded in this crate at build time (when the
+//! 3. The `COPILOT_RUNTIME_PATH` environment variable.
+//! 4. The bundled CLI embedded in this crate at build time (when the
 //!    `bundled-cli` cargo feature is on, the default).
-//! 4. The build-time-extracted CLI in the per-user cache (when
+//! 5. The build-time-extracted CLI in the per-user cache (when
 //!    `bundled-cli` is off).
 //!
 //! There is no PATH scanning and no walking of standard install locations.
@@ -25,6 +26,7 @@ use crate::{Error, ErrorKind};
 pub(crate) struct ResolvedProgram {
     pub(crate) executable: PathBuf,
     pub(crate) residual_cli: Option<PathBuf>,
+    pub(crate) is_runtime_wrapper: bool,
 }
 
 /// Resolve the CLI binary, optionally overriding the directory the bundled
@@ -47,6 +49,7 @@ pub(crate) fn copilot_binary_with_extract_dir(
             return Ok(ResolvedProgram {
                 executable: candidate,
                 residual_cli: None,
+                is_runtime_wrapper: false,
             });
         }
         warn!(
@@ -87,6 +90,7 @@ pub(crate) fn copilot_binary_with_extract_dir(
         return Ok(ResolvedProgram {
             executable: candidate,
             residual_cli,
+            is_runtime_wrapper: true,
         });
     }
 
@@ -101,6 +105,7 @@ pub(crate) fn copilot_binary_with_extract_dir(
             return Ok(ResolvedProgram {
                 executable: path,
                 residual_cli,
+                is_runtime_wrapper: true,
             });
         }
     }
@@ -157,6 +162,7 @@ fn extracted_program() -> Option<ResolvedProgram> {
         return Some(ResolvedProgram {
             executable: path,
             residual_cli: Some(residual_cli),
+            is_runtime_wrapper: true,
         });
     }
     warn!(

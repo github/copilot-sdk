@@ -533,6 +533,7 @@ class NativeRuntimeLoaderTest {
                 : NativeRuntimeLoader.RUNTIME_WRAPPER_FILENAME, wrapper.getFileName().toString());
         assertTrue(Files.isRegularFile(wrapper));
         assertTrue(Files.isRegularFile(wrapper.resolveSibling(NativeRuntimeLoader.RUNTIME_FILENAME)));
+        assertTrue(Files.isRegularFile(wrapper.resolveSibling(TEST_CLI_FILENAME)));
     }
 
     @Test

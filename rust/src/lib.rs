@@ -1221,7 +1221,7 @@ impl Client {
                         );
                     }
                 }
-                if let Some(residual_cli) = resolved.residual_cli {
+                if let Some(residual_cli) = &resolved.residual_cli {
                     options.env.insert(
                         0,
                         (
@@ -1229,19 +1229,21 @@ impl Client {
                             residual_cli.clone().into_os_string(),
                         ),
                     );
-                    if matches!(options.transport, Transport::InProcess) {
+                }
+                if matches!(options.transport, Transport::InProcess) {
+                    if let Some(residual_cli) = resolved.residual_cli {
                         residual_cli
+                    } else if resolved.is_runtime_wrapper {
+                        return Err(Error::with_message(
+                            ErrorKind::InvalidConfig,
+                            format!(
+                                "in-process transport requires a residual Copilot CLI next to '{}'",
+                                resolved.executable.display()
+                            ),
+                        ));
                     } else {
                         resolved.executable
                     }
-                } else if matches!(options.transport, Transport::InProcess) {
-                    return Err(Error::with_message(
-                        ErrorKind::InvalidConfig,
-                        format!(
-                            "in-process transport requires a residual Copilot CLI next to '{}'",
-                            resolved.executable.display()
-                        ),
-                    ));
                 } else {
                     resolved.executable
                 }

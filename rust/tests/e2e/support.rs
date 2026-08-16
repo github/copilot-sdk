@@ -1070,7 +1070,8 @@ impl InProcessEnvGuard {
         pairs.push(("COPILOT_SDK_AUTH_TOKEN".into(), "".into()));
         pairs.push((
             "COPILOT_CLI_PATH".into(),
-            ctx.cli_path.clone().into_os_string(),
+            std::env::var_os("COPILOT_CLI_PATH")
+                .unwrap_or_else(|| ctx.cli_path.clone().into_os_string()),
         ));
         // Some tests opt into gated runtime APIs via per-client `options.env`, which the
         // in-process transport does not pass to the shared native runtime (see issue #1934).
@@ -1170,6 +1171,15 @@ fn repo_root() -> PathBuf {
 }
 
 fn cli_path(repo_root: &Path) -> std::io::Result<PathBuf> {
+    if !is_inprocess_default()
+        && let Some(path) = std::env::var_os("COPILOT_RUNTIME_PATH")
+    {
+        let path = PathBuf::from(path);
+        if path.exists() {
+            return Ok(path);
+        }
+    }
+
     if let Some(path) = std::env::var_os("COPILOT_CLI_PATH") {
         let path = PathBuf::from(path);
         if path.exists() {

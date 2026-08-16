@@ -244,6 +244,19 @@ class CliServerManagerTest {
     }
 
     @Test
+    void bundledRuntimeResidualCliSurvivesCustomEnvironment() {
+        var options = new CopilotClientOptions().setEnvironment(Map.of("CUSTOM_ENV", "value"));
+        var manager = new CliServerManager(options);
+        var processBuilder = new ProcessBuilder();
+        var launch = new CliServerManager.RuntimeLaunch("/cache/copilot-runtime", "/cache/copilot");
+
+        manager.configureProcessEnvironment(processBuilder, launch);
+
+        assertEquals("value", processBuilder.environment().get("CUSTOM_ENV"));
+        assertEquals("/cache/copilot", processBuilder.environment().get("COPILOT_CLI_PATH"));
+    }
+
+    @Test
     void startCliServerWithTelemetryAllOptions() throws Exception {
         // The telemetry env vars are applied before ProcessBuilder.start()
         // so even with a nonexistent CLI path, the telemetry code path is exercised

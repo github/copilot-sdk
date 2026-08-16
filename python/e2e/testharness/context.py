@@ -66,8 +66,8 @@ def _installed_cli_package_names(github_modules: Path) -> list[str]:
     return sorted(path.name for path in github_modules.glob("copilot-*") if path.is_dir())
 
 
-def get_cli_path_for_tests() -> str:
-    """Get CLI path for E2E tests.
+def get_residual_cli_path_for_tests() -> str:
+    """Get the residual CLI path for E2E and in-process tests.
 
     Uses COPILOT_CLI_PATH env var if set, otherwise the platform-specific CLI
     package in the sibling nodejs directory's node_modules.
@@ -94,6 +94,18 @@ def get_cli_path_for_tests() -> str:
         f"present: {', '.join(installed) or 'none'}). "
         "Run 'npm install' in the nodejs directory, or set COPILOT_CLI_PATH."
     )
+
+
+def get_cli_path_for_tests() -> str:
+    """Get the out-of-process runtime path for E2E tests."""
+    runtime_path = os.environ.get("COPILOT_RUNTIME_PATH")
+    if runtime_path:
+        path = Path(runtime_path)
+        if not path.exists():
+            raise RuntimeError(f"COPILOT_RUNTIME_PATH does not exist: {runtime_path}")
+        return str(path.resolve())
+
+    return get_residual_cli_path_for_tests()
 
 
 CLI_PATH = get_cli_path_for_tests()
@@ -191,7 +203,7 @@ class E2ETestContext:
             {
                 "GH_TOKEN": DEFAULT_GITHUB_TOKEN,
                 "GITHUB_TOKEN": DEFAULT_GITHUB_TOKEN,
-                "COPILOT_CLI_PATH": self.cli_path,
+                "COPILOT_CLI_PATH": get_residual_cli_path_for_tests(),
                 "COPILOT_HMAC_KEY": "",
                 "CAPI_HMAC_KEY": "",
             }

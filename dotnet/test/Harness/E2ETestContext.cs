@@ -146,6 +146,9 @@ public sealed class E2ETestContext : IAsyncDisposable
 
     private static string GetCliPath(string repoRoot)
     {
+        var runtimePath = Environment.GetEnvironmentVariable("COPILOT_RUNTIME_PATH");
+        if (!string.IsNullOrEmpty(runtimePath)) return runtimePath;
+
         var envPath = Environment.GetEnvironmentVariable("COPILOT_CLI_PATH");
         if (!string.IsNullOrEmpty(envPath)) return envPath;
 

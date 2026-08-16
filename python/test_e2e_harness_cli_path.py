@@ -95,6 +95,20 @@ class TestInstalledCliPackageNames:
 
 
 class TestGetCliPathForTests:
+    @pytest.fixture(autouse=True)
+    def clear_runtime_path(self, monkeypatch):
+        monkeypatch.delenv("COPILOT_RUNTIME_PATH", raising=False)
+
+    def test_runtime_env_var_takes_precedence(self, tmp_path, monkeypatch):
+        runtime = tmp_path / "copilot-runtime"
+        runtime.write_bytes(b"runtime")
+        cli = tmp_path / "copilot"
+        cli.write_bytes(b"cli")
+        monkeypatch.setenv("COPILOT_RUNTIME_PATH", str(runtime))
+        monkeypatch.setenv("COPILOT_CLI_PATH", str(cli))
+
+        assert context.get_cli_path_for_tests() == str(runtime.resolve())
+
     def test_env_var_takes_precedence(self, tmp_path, monkeypatch):
         cli = tmp_path / "custom-cli.js"
         cli.write_text("// custom entrypoint\n")

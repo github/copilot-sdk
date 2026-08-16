@@ -16,16 +16,24 @@ import (
 const defaultGitHubToken = "fake-token-for-e2e-tests"
 
 var (
-	cliPath     string
-	cliPathOnce sync.Once
+	residualCLIPath     string
+	residualCLIPathOnce sync.Once
 )
 
-// CLIPath returns the path to the Copilot CLI, discovering it once and caching.
+// CLIPath returns the out-of-process runtime path used by E2E tests.
 func CLIPath() string {
-	cliPathOnce.Do(func() {
+	if path := os.Getenv("COPILOT_RUNTIME_PATH"); path != "" {
+		return path
+	}
+	return ResidualCLIPath()
+}
+
+// ResidualCLIPath returns the compatibility CLI path used by in-process tests.
+func ResidualCLIPath() string {
+	residualCLIPathOnce.Do(func() {
 		// Check environment variable first
 		if path := os.Getenv("COPILOT_CLI_PATH"); path != "" {
-			cliPath = path
+			residualCLIPath = path
 			return
 		}
 
@@ -36,11 +44,11 @@ func CLIPath() string {
 		base := RepoPath("nodejs", "node_modules", "@github")
 		matches, _ := filepath.Glob(filepath.Join(base, "copilot-*", "index.js"))
 		if len(matches) > 0 {
-			cliPath = matches[0]
+			residualCLIPath = matches[0]
 			return
 		}
 	})
-	return cliPath
+	return residualCLIPath
 }
 
 // TestContext holds shared resources for E2E tests.
@@ -281,7 +289,7 @@ func (c *TestContext) applyInProcessEnvironment(mergedEnv []string, workDir stri
 	// inherited values. The HMAC key is neutralized process-wide at package load.
 	inprocessEnv["GH_TOKEN"] = defaultGitHubToken
 	inprocessEnv["GITHUB_TOKEN"] = defaultGitHubToken
-	inprocessEnv["COPILOT_CLI_PATH"] = c.CLIPath
+	inprocessEnv["COPILOT_CLI_PATH"] = ResidualCLIPath()
 	delete(inprocessEnv, "COPILOT_HMAC_KEY")
 	delete(inprocessEnv, "CAPI_HMAC_KEY")
 
