@@ -23,10 +23,9 @@ import (
 // version-specific child directory so multiple versions can coexist. License,
 // when provided, is written next to the installed binary.
 //
-// RuntimeLib and RuntimeLibHash are optional: when set, the native in-process
-// runtime library (cdylib) is installed next to the CLI binary so the in-process
-// (FFI) transport can load it. They are omitted for CLI packages that do not
-// ship the native runtime.
+// RuntimeExecutable and RuntimeNode form the adjacent out-of-process runtime
+// pair. RuntimeLib is the same cdylib bytes installed under the natural platform
+// name for the optional in-process transport.
 type Config struct {
 	Cli     io.Reader
 	CliHash []byte
@@ -36,12 +35,21 @@ type Config struct {
 	RuntimeLib     io.Reader
 	RuntimeLibHash []byte
 
+	RuntimeExecutable     io.Reader
+	RuntimeExecutableHash []byte
+	RuntimeNode           io.Reader
+	RuntimeNodeHash       []byte
+
 	// LinuxMuslCli and LinuxMuslRuntimeLib are optional alternatives selected
 	// automatically when the application runs on a musl-based Linux system.
-	LinuxMuslCli            io.Reader
-	LinuxMuslCliHash        []byte
-	LinuxMuslRuntimeLib     io.Reader
-	LinuxMuslRuntimeLibHash []byte
+	LinuxMuslCli                   io.Reader
+	LinuxMuslCliHash               []byte
+	LinuxMuslRuntimeLib            io.Reader
+	LinuxMuslRuntimeLibHash        []byte
+	LinuxMuslRuntimeExecutable     io.Reader
+	LinuxMuslRuntimeExecutableHash []byte
+	LinuxMuslRuntimeNode           io.Reader
+	LinuxMuslRuntimeNodeHash       []byte
 
 	Dir     string
 	Version string
@@ -60,6 +68,8 @@ func Setup(cfg Config) {
 	if cfg.LinuxMuslRuntimeLib != nil && len(cfg.LinuxMuslRuntimeLibHash) != sha256.Size {
 		panic(fmt.Sprintf("LinuxMuslRuntimeLibHash must be a SHA-256 hash (%d bytes), got %d bytes", sha256.Size, len(cfg.LinuxMuslRuntimeLibHash)))
 	}
+	validateRuntimePairConfig(cfg.RuntimeExecutable, cfg.RuntimeExecutableHash, cfg.RuntimeNode, cfg.RuntimeNodeHash, "")
+	validateRuntimePairConfig(cfg.LinuxMuslRuntimeExecutable, cfg.LinuxMuslRuntimeExecutableHash, cfg.LinuxMuslRuntimeNode, cfg.LinuxMuslRuntimeNodeHash, "LinuxMusl")
 	setupMu.Lock()
 	defer setupMu.Unlock()
 	if setupDone {
@@ -93,12 +103,22 @@ func RuntimeLibPath() string {
 	return runtimeLibPath
 }
 
+// RuntimePath returns the installed copilot-runtime executable, or "" when the
+// application bundle predates the out-of-process runtime pair.
+func RuntimePath() string {
+	Path()
+	setupMu.Lock()
+	defer setupMu.Unlock()
+	return runtimePath
+}
+
 var (
 	config          Config
 	setupMu         sync.Mutex
 	setupDone       bool
 	pathInitialized bool
 	runtimeLibPath  string
+	runtimePath     string
 	linuxMuslBundle bool
 )
 
@@ -152,6 +172,10 @@ func linuxMuslConfig(cfg Config) Config {
 	cfg.CliHash = cfg.LinuxMuslCliHash
 	cfg.RuntimeLib = cfg.LinuxMuslRuntimeLib
 	cfg.RuntimeLibHash = cfg.LinuxMuslRuntimeLibHash
+	cfg.RuntimeExecutable = cfg.LinuxMuslRuntimeExecutable
+	cfg.RuntimeExecutableHash = cfg.LinuxMuslRuntimeExecutableHash
+	cfg.RuntimeNode = cfg.LinuxMuslRuntimeNode
+	cfg.RuntimeNodeHash = cfg.LinuxMuslRuntimeNodeHash
 	return cfg
 }
 
@@ -198,6 +222,13 @@ func installAt(installDir string) (string, error) {
 			}
 			runtimeLibPath = libPath
 		}
+		if config.RuntimeExecutable != nil {
+			wrapperPath, err := installRuntimePair(installDir)
+			if err != nil {
+				return "", err
+			}
+			runtimePath = wrapperPath
+		}
 		return finalPath, nil
 	}
 
@@ -231,8 +262,103 @@ func installAt(installDir string) (string, error) {
 		}
 		runtimeLibPath = libPath
 	}
+	if config.RuntimeExecutable != nil {
+		wrapperPath, err := installRuntimePair(installDir)
+		if err != nil {
+			return "", err
+		}
+		runtimePath = wrapperPath
+	}
 
 	return finalPath, nil
+}
+
+func validateRuntimePairConfig(wrapper io.Reader, wrapperHash []byte, node io.Reader, nodeHash []byte, prefix string) {
+	if (wrapper == nil) != (node == nil) {
+		panic(prefix + "RuntimeExecutable and " + prefix + "RuntimeNode must be provided together")
+	}
+	if wrapper == nil {
+		return
+	}
+	if len(wrapperHash) != sha256.Size {
+		panic(fmt.Sprintf("%sRuntimeExecutableHash must be a SHA-256 hash (%d bytes), got %d bytes", prefix, sha256.Size, len(wrapperHash)))
+	}
+	if len(nodeHash) != sha256.Size {
+		panic(fmt.Sprintf("%sRuntimeNodeHash must be a SHA-256 hash (%d bytes), got %d bytes", prefix, sha256.Size, len(nodeHash)))
+	}
+}
+
+func installRuntimePair(installDir string) (string, error) {
+	nodePath := filepath.Join(installDir, "runtime.node")
+	if err := installVerifiedFile(nodePath, config.RuntimeNode, config.RuntimeNodeHash, 0644, "runtime.node"); err != nil {
+		return "", err
+	}
+	wrapperPath := filepath.Join(installDir, runtimeExecutableName())
+	if err := installVerifiedFile(wrapperPath, config.RuntimeExecutable, config.RuntimeExecutableHash, 0755, "runtime wrapper"); err != nil {
+		return "", err
+	}
+	return wrapperPath, nil
+}
+
+func installVerifiedFile(path string, reader io.Reader, expectedHash []byte, mode os.FileMode, label string) error {
+	if _, err := os.Stat(path); err == nil {
+		existingHash, err := hashFile(path)
+		if err != nil {
+			return fmt.Errorf("hashing existing %s: %w", label, err)
+		}
+		if !bytes.Equal(existingHash, expectedHash) {
+			return fmt.Errorf("existing %s hash mismatch", label)
+		}
+		if runtime.GOOS != "windows" && mode.Perm()&0111 != 0 {
+			info, err := os.Stat(path)
+			if err != nil {
+				return fmt.Errorf("checking existing %s permissions: %w", label, err)
+			}
+			if info.Mode().Perm()&0111 == 0 {
+				if err := os.Chmod(path, info.Mode().Perm()|mode.Perm()&0111); err != nil {
+					return fmt.Errorf("restoring existing %s permissions: %w", label, err)
+				}
+			}
+		}
+		return nil
+	}
+
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".copilot-runtime-pair-*.tmp")
+	if err != nil {
+		return fmt.Errorf("creating temporary %s: %w", label, err)
+	}
+	tmpPath := tmp.Name()
+	h := sha256.New()
+	_, err = io.Copy(io.MultiWriter(tmp, h), reader)
+	if err1 := tmp.Chmod(mode); err1 != nil && err == nil {
+		err = err1
+	}
+	if err1 := tmp.Close(); err1 != nil && err == nil {
+		err = err1
+	}
+	if closer, ok := reader.(io.Closer); ok {
+		closer.Close()
+	}
+	if err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("writing %s: %w", label, err)
+	}
+	if !bytes.Equal(h.Sum(nil), expectedHash) {
+		os.Remove(tmpPath)
+		return fmt.Errorf("%s hash mismatch", label)
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("installing %s: %w", label, err)
+	}
+	return nil
+}
+
+func runtimeExecutableName() string {
+	if runtime.GOOS == "windows" {
+		return "copilot-runtime.exe"
+	}
+	return "copilot-runtime"
 }
 
 // installRuntimeLib writes the embedded runtime cdylib into installDir under its

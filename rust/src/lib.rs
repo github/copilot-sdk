@@ -1202,21 +1202,49 @@ impl Client {
                     elapsed_ms = resolve_elapsed.as_millis(),
                     "Client::start CLI program resolution complete"
                 );
-                info!(path = %resolved.display(), "resolved copilot CLI");
+                info!(path = %resolved.executable.display(), "resolved copilot runtime");
                 #[cfg(windows)]
                 {
-                    if let Some(ext) = resolved.extension().and_then(|e| e.to_str()).filter(|ext| {
-                        ext.eq_ignore_ascii_case("cmd") || ext.eq_ignore_ascii_case("bat")
-                    }) {
+                    if let Some(ext) = resolved
+                        .executable
+                        .extension()
+                        .and_then(|e| e.to_str())
+                        .filter(|ext| {
+                            ext.eq_ignore_ascii_case("cmd") || ext.eq_ignore_ascii_case("bat")
+                        })
+                    {
                         warn!(
-                            path = %resolved.display(),
+                            path = %resolved.executable.display(),
                             ext = %ext,
                             "resolved copilot CLI is a .cmd/.bat wrapper; \
                              this may cause console window flashes on Windows"
                         );
                     }
                 }
-                resolved
+                if let Some(residual_cli) = resolved.residual_cli {
+                    options.env.insert(
+                        0,
+                        (
+                            OsString::from("COPILOT_CLI_PATH"),
+                            residual_cli.clone().into_os_string(),
+                        ),
+                    );
+                    if matches!(options.transport, Transport::InProcess) {
+                        residual_cli
+                    } else {
+                        resolved.executable
+                    }
+                } else if matches!(options.transport, Transport::InProcess) {
+                    return Err(Error::with_message(
+                        ErrorKind::InvalidConfig,
+                        format!(
+                            "in-process transport requires a residual Copilot CLI next to '{}'",
+                            resolved.executable.display()
+                        ),
+                    ));
+                } else {
+                    resolved.executable
+                }
             }
         };
         let working_directory = {

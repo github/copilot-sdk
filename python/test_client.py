@@ -59,6 +59,17 @@ def test_inprocess_connection_has_no_child_process_options():
     assert not hasattr(connection, "args")
 
 
+def test_runtime_override_requires_adjacent_nonempty_runtime_node(tmp_path):
+    wrapper = tmp_path / ("copilot-runtime.exe" if os.name == "nt" else "copilot-runtime")
+    wrapper.write_bytes(b"wrapper")
+
+    with pytest.raises(RuntimeError, match="adjacent runtime.node"):
+        CopilotClient._validate_runtime_pair(str(wrapper))
+
+    (tmp_path / "runtime.node").write_bytes(b"runtime")
+    assert CopilotClient._validate_runtime_pair(str(wrapper)) == str(wrapper)
+
+
 class TestBuiltinPluginDirectories:
     @staticmethod
     async def _start_client(paths=None):

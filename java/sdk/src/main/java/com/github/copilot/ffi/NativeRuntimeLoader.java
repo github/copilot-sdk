@@ -42,6 +42,8 @@ public final class NativeRuntimeLoader {
     static final String RUNTIME_FILENAME = "runtime.node";
     static final String CLI_FILENAME = "copilot";
     static final String CLI_FILENAME_WINDOWS = "copilot.exe";
+    static final String RUNTIME_WRAPPER_FILENAME = "copilot-runtime";
+    static final String RUNTIME_WRAPPER_FILENAME_WINDOWS = "copilot-runtime.exe";
     static final String PLATFORM_PROPERTIES_FILENAME = "platform.properties";
     /** Environment variable that overrides where the runtime is loaded from. */
     public static final String COPILOT_CLI_PATH_ENV = "COPILOT_CLI_PATH";
@@ -142,6 +144,54 @@ public final class NativeRuntimeLoader {
     public static Path resolveEntrypoint() throws IOException {
         String configuredCli = System.getenv(COPILOT_CLI_PATH_ENV);
         return resolveEntrypoint(configuredCli, resolve());
+    }
+
+    /**
+     * Resolves the out-of-process runtime wrapper from the platform classifier JAR
+     * and extracts it beside {@code runtime.node}.
+     *
+     * @return absolute path to the runtime wrapper executable
+     * @throws IOException
+     *             if the classifier artifacts cannot be extracted
+     */
+    public static Path resolveRuntimeWrapper() throws IOException {
+        ClassLoader loader = NativeRuntimeLoader.class.getClassLoader();
+        String classifier = PlatformDetector.detectClassifier();
+        String version = readVersion(loader);
+        return resolveRuntimeWrapper(defaultCacheBase(), loader, classifier, version);
+    }
+
+    static Path resolveRuntimeWrapper(Path cacheBase, ClassLoader loader, String classifier, String version)
+            throws IOException {
+        Path runtimePath = extractToCache(cacheBase, loader, classifier, version);
+        Path cacheDir = runtimePath.getParent();
+        String wrapperName = classifier.startsWith("win32-")
+                ? RUNTIME_WRAPPER_FILENAME_WINDOWS
+                : RUNTIME_WRAPPER_FILENAME;
+        Path cachedWrapper = cacheDir.resolve(wrapperName);
+        if (isValidCachedCli(cachedWrapper)) {
+            return cachedWrapper;
+        }
+
+        String resourcePath = "native/" + classifier + "/" + wrapperName;
+        URL resource = loader.getResource(resourcePath);
+        if (resource == null) {
+            throw new FileNotFoundException("Runtime wrapper not found on classpath: " + resourcePath
+                    + " — add the matching classifier JAR to the classpath");
+        }
+
+        Path temp = Files.createTempFile(cacheDir, "runtime-wrapper-tmp-", "");
+        try {
+            copyResourceToTemp(resource, resourcePath, temp);
+            makeExecutable(temp);
+            DEFAULT_PUBLISHER.publish(temp, cachedWrapper);
+        } finally {
+            tryDelete(temp);
+        }
+        if (!isValidCachedCli(cachedWrapper)) {
+            throw new IOException("Published runtime wrapper is not a non-empty executable file: " + cachedWrapper);
+        }
+        return cachedWrapper;
     }
 
     static Path resolveEntrypoint(String configuredCli, Path runtimePath) throws IOException {

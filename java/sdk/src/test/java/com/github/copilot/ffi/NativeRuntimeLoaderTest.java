@@ -45,6 +45,7 @@ class NativeRuntimeLoaderTest {
     private static final String TEST_NATIVE_VERSION = "0.0.1-test";
     private static final byte[] FAKE_BINARY_CONTENT = "fake runtime.node binary content".getBytes();
     private static final byte[] FAKE_CLI_CONTENT = "fake copilot CLI content".getBytes();
+    private static final byte[] FAKE_WRAPPER_CONTENT = "fake copilot runtime wrapper content".getBytes();
     private static final byte[] OTHER_BINARY_CONTENT = "other runtime.node binary content".getBytes();
     private static final byte[] OTHER_CLI_CONTENT = "other copilot CLI content".getBytes();
 
@@ -520,6 +521,21 @@ class NativeRuntimeLoaderTest {
     }
 
     @Test
+    void resolveRuntimeWrapperExtractsAdjacentPair(@TempDir Path tempDir) throws Exception {
+        Path cacheBase = tempDir.resolve("cache");
+        ClassLoader loader = classLoaderWithNativeArtifacts(tempDir, TEST_CLASSIFIER, TEST_NATIVE_VERSION,
+                FAKE_BINARY_CONTENT, FAKE_CLI_CONTENT);
+
+        Path wrapper = NativeRuntimeLoader.resolveRuntimeWrapper(cacheBase, loader, TEST_CLASSIFIER, TEST_VERSION);
+
+        assertEquals(TEST_CLASSIFIER.startsWith("win32")
+                ? NativeRuntimeLoader.RUNTIME_WRAPPER_FILENAME_WINDOWS
+                : NativeRuntimeLoader.RUNTIME_WRAPPER_FILENAME, wrapper.getFileName().toString());
+        assertTrue(Files.isRegularFile(wrapper));
+        assertTrue(Files.isRegularFile(wrapper.resolveSibling(NativeRuntimeLoader.RUNTIME_FILENAME)));
+    }
+
+    @Test
     void resolveFallsBackToRuntimeAlongsideBundledCli(@TempDir Path tempDir) throws Exception {
         Path cacheBase = tempDir.resolve("cache");
         ClassLoader emptyLoader = new URLClassLoader(new URL[0], null);
@@ -562,6 +578,9 @@ class NativeRuntimeLoaderTest {
         writeRuntimeResource(tempDir, classifier, runtimeContent);
         Path resourceDir = tempDir.resolve("native").resolve(classifier);
         Files.write(resourceDir.resolve(TEST_CLI_FILENAME), cliContent);
+        Files.write(resourceDir.resolve(classifier.startsWith("win32")
+                ? NativeRuntimeLoader.RUNTIME_WRAPPER_FILENAME_WINDOWS
+                : NativeRuntimeLoader.RUNTIME_WRAPPER_FILENAME), FAKE_WRAPPER_CONTENT);
         Files.writeString(resourceDir.resolve("platform.properties"),
                 "classifier=" + classifier + "\nversion=" + nativeVersion + "\n");
         return new URLClassLoader(new URL[]{tempDir.toUri().toURL()}, null);

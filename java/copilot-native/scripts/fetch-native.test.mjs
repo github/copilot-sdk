@@ -15,6 +15,7 @@ const version = '1.0.79';
 const integrity = 'sha512-test-integrity';
 const runtimeContent = 'runtime content';
 const cliContent = 'cli content';
+const wrapperContent = 'wrapper content';
 const scriptPath = fileURLToPath(new URL('./fetch-native.mjs', import.meta.url));
 
 for (const classifier of ['linux-x64', 'linux-arm64', 'win32-x64', 'win32-arm64', 'darwin-arm64']) {
@@ -30,6 +31,15 @@ for (const classifier of ['linux-x64', 'linux-arm64', 'win32-x64', 'win32-arm64'
   test(`${classifier}: stale CLI does not use incremental fast path`, (t) => {
     const fixture = createFixture(t, classifier);
     fs.writeFileSync(fixture.cliPath, 'stale CLI content');
+
+    const result = runScript(fixture);
+
+    assertRestagingAttempted(fixture, result);
+  });
+
+  test(`${classifier}: missing runtime wrapper does not use incremental fast path`, (t) => {
+    const fixture = createFixture(t, classifier);
+    fs.rmSync(fixture.wrapperPath);
 
     const result = runScript(fixture);
 
@@ -80,13 +90,18 @@ function createFixture(t, classifier) {
 
   const runtimePath = path.join(resourceDir, 'runtime.node');
   const cliPath = path.join(resourceDir, classifier.startsWith('win32') ? 'copilot.exe' : 'copilot');
+  const wrapperPath = path.join(
+    resourceDir,
+    classifier.startsWith('win32') ? 'copilot-runtime.exe' : 'copilot-runtime',
+  );
   const platformPropertiesPath = path.join(resourceDir, 'platform.properties');
   fs.writeFileSync(runtimePath, runtimeContent);
   fs.writeFileSync(cliPath, cliContent);
+  fs.writeFileSync(wrapperPath, wrapperContent);
   fs.writeFileSync(platformPropertiesPath, `classifier=${classifier}\nversion=${version}\n`);
   fs.writeFileSync(
     path.join(stagingDir, classifier, '.version'),
-    `${version}\n${integrity}\n${digest(runtimeContent)}\n${digest(cliContent)}\n`,
+    `${version}\n${integrity}\n${digest(runtimeContent)}\n${digest(cliContent)}\n${digest(wrapperContent)}\n`,
   );
 
   const fakeNpmPath = path.join(fakeBinDir, process.platform === 'win32' ? 'npm.cmd' : 'npm');
@@ -105,6 +120,7 @@ function createFixture(t, classifier) {
     npmMarkerPath,
     runtimePath,
     cliPath,
+    wrapperPath,
     platformPropertiesPath,
   };
 }

@@ -28,7 +28,7 @@
 // off but still needs to exercise them.
 #[cfg(any(has_bundled_cli, test))]
 use std::fs;
-#[cfg(all(has_bundled_cli, any(feature = "bundled-in-process", not(windows))))]
+#[cfg(has_bundled_cli)]
 use std::io::Read;
 #[cfg(any(has_bundled_cli, test))]
 use std::io::Write;
@@ -65,6 +65,12 @@ const CLI_VERSION: &str = env!("COPILOT_SDK_CLI_VERSION");
 const CLI_BINARY_NAME: &str = "copilot.exe";
 #[cfg(all(has_bundled_cli, not(windows)))]
 const CLI_BINARY_NAME: &str = "copilot";
+#[cfg(all(has_bundled_cli, windows))]
+const RUNTIME_BINARY_NAME: &str = "copilot-runtime.exe";
+#[cfg(all(has_bundled_cli, not(windows)))]
+const RUNTIME_BINARY_NAME: &str = "copilot-runtime";
+#[cfg(has_bundled_cli)]
+const RUNTIME_NODE_NAME: &str = "runtime.node";
 
 #[cfg(feature = "bundled-cli")]
 static INSTALLED_PATH: OnceLock<Option<PathBuf>> = OnceLock::new();
@@ -169,25 +175,52 @@ const RUNTIME_LIBRARY_NAME: &str = "libcopilot_runtime.so";
 
 #[cfg(has_bundled_cli)]
 fn install(install_dir: &Path, archive: &[u8]) -> Result<PathBuf, EmbeddedCliError> {
-    let final_path = install_cli(install_dir, archive)?;
+    install_cli(install_dir, archive)?;
+    install_runtime_pair(install_dir, archive)?;
     #[cfg(feature = "bundled-in-process")]
     {
         install_runtime_library(install_dir, archive)?;
     }
-    Ok(final_path)
+    Ok(install_dir.join(RUNTIME_BINARY_NAME))
+}
+
+#[cfg(has_bundled_cli)]
+fn install_runtime_pair(install_dir: &Path, archive: &[u8]) -> Result<(), EmbeddedCliError> {
+    install_adjacent_file(install_dir, archive, RUNTIME_NODE_NAME, "runtime.node")?;
+    install_adjacent_file(
+        install_dir,
+        archive,
+        RUNTIME_BINARY_NAME,
+        "copilot runtime wrapper",
+    )
 }
 
 #[cfg(all(has_bundled_cli, feature = "bundled-in-process"))]
 fn install_runtime_library(install_dir: &Path, archive: &[u8]) -> Result<(), EmbeddedCliError> {
-    let target = install_dir.join(RUNTIME_LIBRARY_NAME);
+    install_adjacent_file(
+        install_dir,
+        archive,
+        RUNTIME_LIBRARY_NAME,
+        "in-process FFI runtime library",
+    )
+}
+
+#[cfg(has_bundled_cli)]
+fn install_adjacent_file(
+    install_dir: &Path,
+    archive: &[u8],
+    file_name: &str,
+    label: &str,
+) -> Result<(), EmbeddedCliError> {
+    let target = install_dir.join(file_name);
     if fs::metadata(&target).map(|m| m.len() > 0).unwrap_or(false) {
         return Ok(());
     }
-    let bytes = extract_binary(archive, RUNTIME_LIBRARY_NAME)?;
+    let bytes = extract_binary(archive, file_name)?;
     if bytes.is_empty() {
         return Err(EmbeddedCliError::with_message(
             EmbeddedCliErrorKind::Verification,
-            "embedded runtime library is empty",
+            format!("embedded {label} is empty"),
         ));
     }
     let tmp = write_temp_file(install_dir, &bytes)?;
@@ -195,7 +228,7 @@ fn install_runtime_library(install_dir: &Path, archive: &[u8]) -> Result<(), Emb
         let _ = fs::remove_file(&tmp);
         return Err(e);
     }
-    tracing::debug!(path = %target.display(), "in-process FFI runtime library installed");
+    tracing::debug!(path = %target.display(), %label, "embedded runtime artifact installed");
     Ok(())
 }
 
@@ -480,7 +513,7 @@ fn read_marker_len(marker_path: &Path) -> Option<u64> {
         .ok()
 }
 
-#[cfg(all(has_bundled_cli, any(feature = "bundled-in-process", not(windows))))]
+#[cfg(has_bundled_cli)]
 fn extract_binary(archive: &[u8], binary_name: &str) -> Result<Vec<u8>, EmbeddedCliError> {
     let gz = flate2::read::GzDecoder::new(archive);
     let mut tar = tar::Archive::new(gz);
@@ -505,26 +538,6 @@ fn extract_binary(archive: &[u8], binary_name: &str) -> Result<Vec<u8>, Embedded
     Err(EmbeddedCliErrorKind::BinaryNotFoundInArchive.into())
 }
 
-#[cfg(all(has_bundled_cli, not(feature = "bundled-in-process"), windows))]
-fn extract_binary(archive: &[u8], binary_name: &str) -> Result<Vec<u8>, EmbeddedCliError> {
-    let cursor = std::io::Cursor::new(archive);
-    let mut zip = zip::ZipArchive::new(cursor)
-        .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Zip, e))?;
-    for i in 0..zip.len() {
-        let mut entry = zip
-            .by_index(i)
-            .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Zip, e))?;
-        let name = entry.name().to_string();
-        if name == binary_name || name.ends_with(&format!("/{binary_name}")) {
-            let mut bytes = Vec::with_capacity(entry.size() as usize);
-            std::io::copy(&mut entry, &mut bytes)
-                .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Io, e))?;
-            return Ok(bytes);
-        }
-    }
-    Err(EmbeddedCliErrorKind::BinaryNotFoundInArchive.into())
-}
-
 #[cfg(has_bundled_cli)]
 fn sanitize_version(version: &str) -> String {
     version
@@ -541,10 +554,7 @@ fn sanitize_version(version: &str) -> String {
 #[allow(dead_code)]
 enum EmbeddedCliErrorKind {
     CreateDir,
-    #[cfg(any(feature = "bundled-in-process", not(windows)))]
     Archive,
-    #[cfg(all(not(feature = "bundled-in-process"), windows))]
-    Zip,
     BinaryNotFoundInArchive,
     Io,
     /// Atomically renaming the staged temp file onto the final path failed.
@@ -561,10 +571,7 @@ impl std::fmt::Display for EmbeddedCliErrorKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             EmbeddedCliErrorKind::CreateDir => f.write_str("failed to create install directory"),
-            #[cfg(any(feature = "bundled-in-process", not(windows)))]
             EmbeddedCliErrorKind::Archive => f.write_str("failed to read archive entry"),
-            #[cfg(all(not(feature = "bundled-in-process"), windows))]
-            EmbeddedCliErrorKind::Zip => f.write_str("failed to read zip archive"),
             EmbeddedCliErrorKind::BinaryNotFoundInArchive => {
                 f.write_str("CLI binary not found in embedded archive")
             }

@@ -9,8 +9,12 @@ import static org.junit.jupiter.api.Assertions.*;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Map;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import com.github.copilot.rpc.CopilotClientOptions;
 import com.github.copilot.rpc.TelemetryConfig;
@@ -21,6 +25,9 @@ import com.github.copilot.rpc.TelemetryConfig;
  * by JaCoCo.
  */
 class CliServerManagerTest {
+
+    @TempDir
+    Path tempDir;
 
     // ===== parseCliUrl tests =====
 
@@ -220,6 +227,20 @@ class CliServerManagerTest {
             // Expected if "copilot" is not on PATH
             assertNotNull(e);
         }
+    }
+
+    @Test
+    void runtimeOverrideRequiresAdjacentRuntimeNode() throws Exception {
+        Path wrapper = tempDir.resolve("copilot-runtime");
+        Files.writeString(wrapper, "wrapper");
+        var options = new CopilotClientOptions().setEnvironment(Map.of("COPILOT_RUNTIME_PATH", wrapper.toString()))
+                .setUseStdio(true);
+        var manager = new CliServerManager(options);
+
+        var ex = assertThrows(IOException.class, manager::startCliServer);
+
+        assertTrue(ex.getMessage().contains("adjacent"));
+        assertTrue(ex.getMessage().contains("runtime.node"));
     }
 
     @Test

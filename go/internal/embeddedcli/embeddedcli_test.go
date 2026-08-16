@@ -17,7 +17,65 @@ func resetGlobals() {
 	setupDone = false
 	pathInitialized = false
 	runtimeLibPath = ""
+	runtimePath = ""
 	linuxMuslBundle = false
+}
+
+func TestInstallAtWritesAdjacentRuntimePair(t *testing.T) {
+	resetGlobals()
+	tempDir := t.TempDir()
+	cli := []byte("cli")
+	wrapper := []byte("wrapper")
+	node := []byte("runtime")
+	cliHash := sha256.Sum256(cli)
+	wrapperHash := sha256.Sum256(wrapper)
+	nodeHash := sha256.Sum256(node)
+	Setup(Config{
+		Cli:                   bytes.NewReader(cli),
+		CliHash:               cliHash[:],
+		RuntimeExecutable:     bytes.NewReader(wrapper),
+		RuntimeExecutableHash: wrapperHash[:],
+		RuntimeNode:           bytes.NewReader(node),
+		RuntimeNodeHash:       nodeHash[:],
+		Version:               "1.2.3",
+		Dir:                   tempDir,
+	})
+
+	_, err := installAt(tempDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gotWrapper := runtimePath
+	if gotWrapper != filepath.Join(tempDir, "1.2.3", runtimeExecutableName()) {
+		t.Fatalf("RuntimePath() = %q", gotWrapper)
+	}
+	if got, err := os.ReadFile(filepath.Join(filepath.Dir(gotWrapper), "runtime.node")); err != nil || !bytes.Equal(got, node) {
+		t.Fatalf("runtime.node content=%q err=%v", got, err)
+	}
+}
+
+func TestInstallVerifiedFileRestoresExecutablePermission(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows does not use Unix execute bits")
+	}
+	path := filepath.Join(t.TempDir(), "copilot-runtime")
+	content := []byte("wrapper")
+	hash := sha256.Sum256(content)
+	if err := os.WriteFile(path, content, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := installVerifiedFile(path, bytes.NewReader(content), hash[:], 0755, "runtime wrapper"); err != nil {
+		t.Fatal(err)
+	}
+
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm()&0111 == 0 {
+		t.Fatal("existing runtime wrapper was not made executable")
+	}
 }
 
 func mustPanic(t *testing.T, fn func()) {

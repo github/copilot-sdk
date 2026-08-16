@@ -440,6 +440,8 @@ pub(crate) fn prebuilds_folder() -> Option<String> {
         "win32"
     } else if cfg!(target_os = "macos") {
         "darwin"
+    } else if cfg!(all(target_os = "linux", target_env = "musl")) {
+        "linuxmusl"
     } else if cfg!(target_os = "linux") {
         "linux"
     } else {
@@ -470,6 +472,11 @@ fn resolve_library_path(entrypoint: &Path) -> Result<PathBuf, Error> {
     let flat = dir.join(natural_library_name());
     if flat.is_file() {
         return Ok(flat);
+    }
+
+    let adjacent = dir.join("runtime.node");
+    if adjacent.is_file() {
+        return Ok(adjacent);
     }
 
     // Development package layout.

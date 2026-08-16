@@ -38,6 +38,8 @@
     <_CopilotPlatform Condition="'$(_CopilotRid)' == 'osx-arm64'">darwin-arm64</_CopilotPlatform>
     <_CopilotBinary Condition="$(_CopilotRid.StartsWith('win-'))">copilot.exe</_CopilotBinary>
     <_CopilotBinary Condition="'$(_CopilotBinary)' == ''">copilot</_CopilotBinary>
+    <_CopilotRuntimeWrapper Condition="$(_CopilotRid.StartsWith('win-'))">copilot-runtime.exe</_CopilotRuntimeWrapper>
+    <_CopilotRuntimeWrapper Condition="'$(_CopilotRuntimeWrapper)' == ''">copilot-runtime</_CopilotRuntimeWrapper>
     <!-- FFI in-process hosting cdylib, renamed from the tarball's napi-style
          prebuilds/<platform>/runtime.node to the natural platform shared-library
          name (what the Rust cdylib would be called if napi didn't rename it to
@@ -80,6 +82,7 @@
   -->
   <PropertyGroup>
     <_CopilotCliBinaryPath Condition="'$(CopilotCliBinaryPath)' != ''">$(CopilotCliBinaryPath)</_CopilotCliBinaryPath>
+    <_CopilotRuntimeWrapperPath Condition="'$(CopilotRuntimePath)' != ''">$(CopilotRuntimePath)</_CopilotRuntimeWrapperPath>
   </PropertyGroup>
 
   <!-- Download and extract CLI binary.
@@ -134,11 +137,19 @@
            tarball's prebuilds/<npm-platform>/runtime.node to a flat, natural
            shared-library name next to the CLI binary. -->
       <_CopilotRuntimeNodePath>$(_CopilotCacheDir)\prebuilds\$(_CopilotPlatform)\runtime.node</_CopilotRuntimeNodePath>
+      <_CopilotRuntimeWrapperPath Condition="'$(_CopilotRuntimeWrapperPath)' == ''">$(_CopilotCacheDir)\prebuilds\$(_CopilotPlatform)\$(_CopilotRuntimeWrapper)</_CopilotRuntimeWrapperPath>
+      <_CopilotRuntimeNodePath Condition="'$(CopilotRuntimePath)' != ''">$([System.IO.Path]::Combine($([System.IO.Path]::GetDirectoryName('$(CopilotRuntimePath)')), 'runtime.node'))</_CopilotRuntimeNodePath>
     </PropertyGroup>
     <Error Condition="!Exists('$(_CopilotCliBinaryPath)')" Text="Copilot CLI binary not found at '$(_CopilotCliBinaryPath)'. Set CopilotCliBinaryPath to an existing CLI binary for the current RID, or remove CopilotSkipCliDownload=true to let the SDK download it." />
+    <Error Condition="'$(CopilotRuntimePath)' != '' And !Exists('$(_CopilotRuntimeWrapperPath)')" Text="Copilot runtime wrapper not found at '$(_CopilotRuntimeWrapperPath)'." />
+    <Error Condition="'$(CopilotRuntimePath)' != '' And !Exists('$(_CopilotRuntimeNodePath)')" Text="Copilot runtime wrapper requires adjacent runtime.node at '$(_CopilotRuntimeNodePath)'." />
     <MakeDir Directories="$(_CopilotOutputDir)" />
     <Copy SourceFiles="$(_CopilotCliBinaryPath)" DestinationFiles="$(_CopilotOutputDir)\$(_CopilotBinary)" SkipUnchangedFiles="true" />
     <Copy SourceFiles="$(_CopilotRuntimeNodePath)" DestinationFiles="$(_CopilotOutputDir)\$(_CopilotRuntimeLib)" SkipUnchangedFiles="true" Condition="Exists('$(_CopilotRuntimeNodePath)')" />
+    <Delete Files="$(_CopilotOutputDir)\runtime.node;$(_CopilotOutputDir)\$(_CopilotRuntimeWrapper)"
+            Condition="!Exists('$(_CopilotRuntimeWrapperPath)') Or !Exists('$(_CopilotRuntimeNodePath)')" />
+    <Copy SourceFiles="$(_CopilotRuntimeNodePath)" DestinationFiles="$(_CopilotOutputDir)\runtime.node" SkipUnchangedFiles="true" Condition="Exists('$(_CopilotRuntimeWrapperPath)') And Exists('$(_CopilotRuntimeNodePath)')" />
+    <Copy SourceFiles="$(_CopilotRuntimeWrapperPath)" DestinationFiles="$(_CopilotOutputDir)\$(_CopilotRuntimeWrapper)" SkipUnchangedFiles="true" Condition="Exists('$(_CopilotRuntimeWrapperPath)') And Exists('$(_CopilotRuntimeNodePath)')" />
   </Target>
 
   <!-- Register CLI binary as content so it flows through project references.
@@ -148,6 +159,8 @@
       <_CopilotCacheDir Condition="'$(_CopilotCacheDir)' == ''">$(IntermediateOutputPath)copilot-cli\$(CopilotCliVersion)\$(_CopilotPlatform)</_CopilotCacheDir>
       <_CopilotCliBinaryPath Condition="'$(_CopilotCliBinaryPath)' == ''">$(_CopilotCacheDir)\$(_CopilotBinary)</_CopilotCliBinaryPath>
       <_CopilotRuntimeNodePath>$(_CopilotCacheDir)\prebuilds\$(_CopilotPlatform)\runtime.node</_CopilotRuntimeNodePath>
+      <_CopilotRuntimeWrapperPath Condition="'$(_CopilotRuntimeWrapperPath)' == ''">$(_CopilotCacheDir)\prebuilds\$(_CopilotPlatform)\$(_CopilotRuntimeWrapper)</_CopilotRuntimeWrapperPath>
+      <_CopilotRuntimeNodePath Condition="'$(CopilotRuntimePath)' != ''">$([System.IO.Path]::Combine($([System.IO.Path]::GetDirectoryName('$(CopilotRuntimePath)')), 'runtime.node'))</_CopilotRuntimeNodePath>
     </PropertyGroup>
     <Error Condition="!Exists('$(_CopilotCliBinaryPath)')" Text="Copilot CLI binary not found at '$(_CopilotCliBinaryPath)'. Set CopilotCliBinaryPath to an existing CLI binary for the current RID, or remove CopilotSkipCliDownload=true to let the SDK download it." />
     <ItemGroup>
@@ -159,6 +172,14 @@
                              TargetPath="runtimes\$(_CopilotRid)\native\$(_CopilotRuntimeLib)"
                              CopyToOutputDirectory="PreserveNewest"
                              Condition="Exists('$(_CopilotRuntimeNodePath)')" />
+      <ContentWithTargetPath Include="$(_CopilotRuntimeNodePath)"
+                             TargetPath="runtimes\$(_CopilotRid)\native\runtime.node"
+                             CopyToOutputDirectory="PreserveNewest"
+                             Condition="Exists('$(_CopilotRuntimeWrapperPath)') And Exists('$(_CopilotRuntimeNodePath)')" />
+      <ContentWithTargetPath Include="$(_CopilotRuntimeWrapperPath)"
+                             TargetPath="runtimes\$(_CopilotRid)\native\$(_CopilotRuntimeWrapper)"
+                             CopyToOutputDirectory="PreserveNewest"
+                             Condition="Exists('$(_CopilotRuntimeWrapperPath)') And Exists('$(_CopilotRuntimeNodePath)')" />
     </ItemGroup>
   </Target>
 </Project>

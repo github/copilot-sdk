@@ -373,6 +373,92 @@ def _extract_runtime_node(data: bytes, npm_platform: str) -> bytes:
         raise RuntimeError(f"'{target}' not found in runtime package for {npm_platform}.")
 
 
+def _extract_runtime_wrapper(data: bytes, npm_platform: str) -> bytes:
+    """Extract the SDK out-of-process wrapper from an npm platform tarball."""
+    wrapper_name = "copilot-runtime.exe" if sys.platform == "win32" else "copilot-runtime"
+    target = f"package/prebuilds/{npm_platform}/{wrapper_name}"
+    with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as tf:
+        for name in tf.getnames():
+            if name == target or name.endswith(f"/prebuilds/{npm_platform}/{wrapper_name}"):
+                member = tf.getmember(name)
+                extracted = tf.extractfile(member)
+                if extracted is not None:
+                    return extracted.read()
+        raise RuntimeError(f"'{target}' not found in runtime package for {npm_platform}.")
+
+
+def ensure_runtime_wrapper(cli_path: str, version: str | None = None) -> str:
+    """Provision the adjacent ``copilot-runtime`` and ``runtime.node`` pair."""
+    ver = version or CLI_VERSION
+    if not ver:
+        raise RuntimeError(
+            "No runtime version pinned. Set COPILOT_RUNTIME_PATH for a local development build."
+        )
+    npm_platform = get_npm_platform()
+    wrapper_name = "copilot-runtime.exe" if sys.platform == "win32" else "copilot-runtime"
+    pair_dir = Path(cli_path).resolve().parent / "prebuilds" / npm_platform
+    wrapper_path = pair_dir / wrapper_name
+    runtime_path = pair_dir / "runtime.node"
+
+    wrapper_exists = wrapper_path.is_file() and wrapper_path.stat().st_size > 0
+    runtime_exists = runtime_path.is_file() and runtime_path.stat().st_size > 0
+    if wrapper_exists and runtime_exists:
+        return str(wrapper_path)
+    if wrapper_path.exists() or runtime_path.exists():
+        raise RuntimeError(
+            f"Incomplete Copilot runtime pair in {pair_dir}: "
+            f"both {wrapper_name} and runtime.node are required."
+        )
+    if _should_skip_download():
+        raise RuntimeError(
+            f"Copilot runtime pair is not cached in {pair_dir} "
+            "and automatic downloads are disabled."
+        )
+
+    data = _fetch_url_bytes(get_runtime_lib_url(ver, npm_platform), timeout=600)
+    integrity = _fetch_runtime_integrity(npm_platform, ver)
+    if not integrity:
+        raise RuntimeError(
+            "No Subresource Integrity value available for the Copilot runtime "
+            f"package ({npm_platform}@{ver}); refusing to stage unverified native code."
+        )
+    _verify_integrity(data, integrity)
+    wrapper_bytes = _extract_runtime_wrapper(data, npm_platform)
+    runtime_bytes = _extract_runtime_node(data, npm_platform)
+    if not wrapper_bytes or not runtime_bytes:
+        raise RuntimeError("Copilot runtime wrapper and runtime.node must both be non-empty.")
+
+    pair_dir.parent.mkdir(parents=True, exist_ok=True)
+    staging_dir = Path(tempfile.mkdtemp(dir=pair_dir.parent, prefix=".runtime-pair-"))
+    try:
+        staged_wrapper = staging_dir / wrapper_name
+        staged_runtime = staging_dir / "runtime.node"
+        staged_wrapper.write_bytes(wrapper_bytes)
+        staged_runtime.write_bytes(runtime_bytes)
+        if sys.platform != "win32":
+            staged_wrapper.chmod(
+                staged_wrapper.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH
+            )
+        try:
+            staging_dir.replace(pair_dir)
+        except OSError:
+            if (
+                wrapper_path.is_file()
+                and wrapper_path.stat().st_size > 0
+                and runtime_path.is_file()
+                and runtime_path.stat().st_size > 0
+            ):
+                return str(wrapper_path)
+            raise
+    finally:
+        if staging_dir.exists():
+            import shutil
+
+            shutil.rmtree(staging_dir, ignore_errors=True)
+
+    return str(wrapper_path)
+
+
 def ensure_runtime_library(cli_path: str, version: str | None = None) -> str | None:
     """Ensure the native in-process (FFI) runtime library sits next to ``cli_path``.
 

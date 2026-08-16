@@ -22,6 +22,11 @@ use tracing::warn;
 
 use crate::{Error, ErrorKind};
 
+pub(crate) struct ResolvedProgram {
+    pub(crate) executable: PathBuf,
+    pub(crate) residual_cli: Option<PathBuf>,
+}
+
 /// Resolve the CLI binary, optionally overriding the directory the bundled
 /// CLI is extracted to. Called by `Client::start` to thread
 /// `ClientOptions::bundled_cli_extract_dir` through to
@@ -35,16 +40,54 @@ use crate::{Error, ErrorKind};
 /// under it.
 pub(crate) fn copilot_binary_with_extract_dir(
     extract_dir: Option<&Path>,
-) -> Result<PathBuf, Error> {
+) -> Result<ResolvedProgram, Error> {
     if let Ok(value) = env::var("COPILOT_CLI_PATH") {
         let candidate = PathBuf::from(&value);
         if candidate.is_file() {
-            return Ok(candidate);
+            return Ok(ResolvedProgram {
+                executable: candidate,
+                residual_cli: None,
+            });
         }
         warn!(
             path = %candidate.display(),
             "COPILOT_CLI_PATH is set but does not point to a file; falling back"
         );
+    }
+
+    if let Ok(value) = env::var("COPILOT_RUNTIME_PATH") {
+        let candidate = PathBuf::from(&value);
+        validate_runtime_pair(&candidate)?;
+        let residual_cli = match env::var("COPILOT_RUNTIME_RESIDUAL_CLI_PATH") {
+            Ok(value) => {
+                let path = PathBuf::from(value);
+                if !path.is_file() {
+                    return Err(Error::with_message(
+                        ErrorKind::BinaryNotFound {
+                            name: cli_binary_name().into(),
+                            hint: Some(
+                                "COPILOT_RUNTIME_RESIDUAL_CLI_PATH must point to the compatible \
+                                 residual CLI entrypoint for the local runtime"
+                                    .into(),
+                            ),
+                        },
+                        format!(
+                            "COPILOT_RUNTIME_RESIDUAL_CLI_PATH does not point to a file: '{}'",
+                            path.display()
+                        ),
+                    ));
+                }
+                Some(path)
+            }
+            Err(_) => candidate
+                .parent()
+                .map(|dir| dir.join(cli_binary_name()))
+                .filter(|path| path.is_file()),
+        };
+        return Ok(ResolvedProgram {
+            executable: candidate,
+            residual_cli,
+        });
     }
 
     #[cfg(feature = "bundled-cli")]
@@ -54,24 +97,28 @@ pub(crate) fn copilot_binary_with_extract_dir(
             None => crate::embeddedcli::path(),
         };
         if let Some(path) = bundled {
-            return Ok(path);
+            let residual_cli = path.parent().map(|dir| dir.join(cli_binary_name()));
+            return Ok(ResolvedProgram {
+                executable: path,
+                residual_cli,
+            });
         }
     }
 
     #[cfg(not(feature = "bundled-cli"))]
     {
         let _ = extract_dir;
-        if let Some(path) = extracted_cli_path() {
-            return Ok(path);
+        if let Some(program) = extracted_program() {
+            return Ok(program);
         }
     }
 
     Err(ErrorKind::BinaryNotFound {
-        name: "copilot".into(),
+        name: runtime_binary_name().into(),
         hint: Some(
             "the Copilot CLI is not bundled in this build of github-copilot-sdk and \
-             COPILOT_CLI_PATH is not set. Either keep the default `bundled-cli` cargo \
-             feature enabled, set COPILOT_CLI_PATH, or supply an explicit path via \
+             COPILOT_CLI_PATH and COPILOT_RUNTIME_PATH are not set. Either keep the default \
+             `bundled-cli` cargo feature enabled, set one of those variables, or supply an explicit path via \
              `CliProgram::Path(...)` on `ClientOptions::program`."
                 .into(),
         ),
@@ -93,14 +140,8 @@ pub(crate) fn copilot_binary_with_extract_dir(
 /// `$HOME` / `$LOCALAPPDATA` into the artifact, breaks sccache across
 /// machines, and prevents copying `target/` between hosts.
 #[cfg(all(not(feature = "bundled-cli"), has_extracted_cli))]
-fn extracted_cli_path() -> Option<PathBuf> {
+fn extracted_program() -> Option<ResolvedProgram> {
     let version = env!("COPILOT_SDK_CLI_VERSION");
-    let binary = if cfg!(windows) {
-        "copilot.exe"
-    } else {
-        "copilot"
-    };
-
     let dir = match env::var_os("COPILOT_CLI_EXTRACT_DIR") {
         Some(custom) => PathBuf::from(custom),
         None => dirs::cache_dir()
@@ -110,9 +151,13 @@ fn extracted_cli_path() -> Option<PathBuf> {
             .join(sanitize_version(version)),
     };
 
-    let path = dir.join(binary);
-    if path.is_file() {
-        return Some(path);
+    let path = dir.join(runtime_binary_name());
+    let residual_cli = dir.join(cli_binary_name());
+    if validate_runtime_pair(&path).is_ok() && residual_cli.is_file() {
+        return Some(ResolvedProgram {
+            executable: path,
+            residual_cli: Some(residual_cli),
+        });
     }
     warn!(
         path = %path.display(),
@@ -125,8 +170,81 @@ fn extracted_cli_path() -> Option<PathBuf> {
 /// build opted out via `COPILOT_SKIP_CLI_DOWNLOAD`. In both cases there's
 /// no binary to look up, so the resolver returns `None` immediately.
 #[cfg(all(not(feature = "bundled-cli"), not(has_extracted_cli)))]
-fn extracted_cli_path() -> Option<PathBuf> {
+fn extracted_program() -> Option<ResolvedProgram> {
     None
+}
+
+fn validate_runtime_pair(wrapper: &Path) -> Result<(), Error> {
+    let wrapper_valid = wrapper
+        .metadata()
+        .map(|metadata| metadata.is_file() && metadata.len() > 0)
+        .unwrap_or(false);
+    let runtime_node = wrapper
+        .parent()
+        .map(|parent| parent.join("runtime.node"))
+        .unwrap_or_else(|| PathBuf::from("runtime.node"));
+    let runtime_valid = runtime_node
+        .metadata()
+        .map(|metadata| metadata.is_file() && metadata.len() > 0)
+        .unwrap_or(false);
+    if wrapper_valid && runtime_valid {
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+
+            let metadata = wrapper.metadata().map_err(|e| {
+                Error::with_message(
+                    ErrorKind::InvalidConfig,
+                    format!(
+                        "failed to inspect Copilot runtime wrapper permissions at '{}': {e}",
+                        wrapper.display()
+                    ),
+                )
+            })?;
+            if metadata.permissions().mode() & 0o111 == 0 {
+                let mut permissions = metadata.permissions();
+                permissions.set_mode(permissions.mode() | 0o111);
+                std::fs::set_permissions(wrapper, permissions).map_err(|e| {
+                    Error::with_message(
+                        ErrorKind::InvalidConfig,
+                        format!(
+                            "failed to make Copilot runtime wrapper executable at '{}': {e}",
+                            wrapper.display()
+                        ),
+                    )
+                })?;
+            }
+        }
+        return Ok(());
+    }
+    let detail = format!(
+        "COPILOT_RUNTIME_PATH must point to a non-empty wrapper with an adjacent non-empty runtime.node; checked '{}' and '{}'",
+        wrapper.display(),
+        runtime_node.display()
+    );
+    Err(Error::with_message(
+        ErrorKind::BinaryNotFound {
+            name: runtime_binary_name().into(),
+            hint: Some(detail.clone()),
+        },
+        detail,
+    ))
+}
+
+fn cli_binary_name() -> &'static str {
+    if cfg!(windows) {
+        "copilot.exe"
+    } else {
+        "copilot"
+    }
+}
+
+fn runtime_binary_name() -> &'static str {
+    if cfg!(windows) {
+        "copilot-runtime.exe"
+    } else {
+        "copilot-runtime"
+    }
 }
 
 /// Replace characters outside `[a-zA-Z0-9._-]` with `_`. Kept in sync
@@ -142,4 +260,30 @@ fn sanitize_version(version: &str) -> String {
             _ => '_',
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+
+    use tempfile::tempdir;
+
+    use super::validate_runtime_pair;
+
+    #[test]
+    fn runtime_override_requires_adjacent_nonempty_runtime_node() {
+        let dir = tempdir().expect("temp dir");
+        let wrapper = dir.path().join(if cfg!(windows) {
+            "copilot-runtime.exe"
+        } else {
+            "copilot-runtime"
+        });
+        fs::write(&wrapper, b"wrapper").expect("write wrapper");
+
+        let error = validate_runtime_pair(&wrapper).expect_err("runtime.node is required");
+        assert!(error.to_string().contains("runtime.node"));
+
+        fs::write(dir.path().join("runtime.node"), b"runtime").expect("write runtime.node");
+        validate_runtime_pair(&wrapper).expect("complete pair is valid");
+    }
 }

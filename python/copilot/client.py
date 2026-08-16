@@ -20,6 +20,7 @@ import logging
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import threading
@@ -28,6 +29,7 @@ import uuid
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from pathlib import Path
 from types import TracebackType
 from typing import Any, ClassVar, Literal, NotRequired, TypedDict, cast, overload
 
@@ -1649,6 +1651,7 @@ class CopilotClient:
         self._actual_host: str = "localhost"
         self._is_external_server: bool = isinstance(connection, UriRuntimeConnection)
         self._cli_path_source: str | None = None
+        self._residual_cli_path: str | None = None
         self._ffi_host: FfiRuntimeHost | None = None
         self._inprocess_runtime_path: str | None = None
 
@@ -1685,7 +1688,8 @@ class CopilotClient:
             else:
                 self._effective_connection_token = None
 
-            # Resolve CLI path: explicit > COPILOT_CLI_PATH env var > downloaded binary.
+            # Resolve runtime path: explicit CLI > COPILOT_CLI_PATH > local wrapper
+            # override > downloaded wrapper pair.
             # Select the environment by identity, not truthiness, so an intentionally
             # empty per-connection or client env stays authoritative (the spawned child
             # receives that empty mapping) instead of falling back to os.environ and
@@ -1751,8 +1755,21 @@ class CopilotClient:
             self._cli_path_source = "environment"
             return self._ensure_runtime_lib(env_cli_path) if include_runtime_lib else env_cli_path
 
+        runtime_override = lookup.get("COPILOT_RUNTIME_PATH") or os.environ.get(
+            "COPILOT_RUNTIME_PATH"
+        )
+        if runtime_override and not include_runtime_lib:
+            self._cli_path_source = "runtime environment"
+            return self._validate_runtime_pair(runtime_override)
+
         downloaded_path = _get_or_download_cli(include_runtime_lib=include_runtime_lib)
         if downloaded_path:
+            if not include_runtime_lib:
+                from ._cli_download import ensure_runtime_wrapper
+
+                self._cli_path_source = "downloaded"
+                self._residual_cli_path = downloaded_path
+                return ensure_runtime_wrapper(downloaded_path)
             self._cli_path_source = "downloaded"
             return downloaded_path
 
@@ -1763,6 +1780,23 @@ class CopilotClient:
             "RuntimeConnection.for_stdio(path=...) / "
             "RuntimeConnection.for_tcp(path=...)."
         )
+
+    @staticmethod
+    def _validate_runtime_pair(runtime_path: str) -> str:
+        wrapper = Path(runtime_path)
+        runtime_node = wrapper.parent / "runtime.node"
+        if not wrapper.is_file() or wrapper.stat().st_size == 0:
+            raise RuntimeError(f"Copilot runtime wrapper not found or empty at {wrapper}")
+        if not runtime_node.is_file() or runtime_node.stat().st_size == 0:
+            raise RuntimeError(
+                f"Copilot runtime wrapper at {wrapper} is missing its adjacent "
+                f"runtime.node at {runtime_node}"
+            )
+        if sys.platform != "win32":
+            mode = wrapper.stat().st_mode
+            if mode & (stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH) == 0:
+                wrapper.chmod(mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+        return str(wrapper)
 
     @staticmethod
     def _ensure_runtime_lib(cli_path: str) -> str:
@@ -4306,6 +4340,8 @@ class CopilotClient:
             env = dict(os.environ)
         else:
             env = dict(opts.env)
+        if self._residual_cli_path is not None:
+            env["COPILOT_CLI_PATH"] = self._residual_cli_path
 
         # Set auth token in environment if provided
         if opts.github_token:

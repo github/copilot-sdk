@@ -40,6 +40,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -167,6 +168,7 @@ type Client struct {
 	cliArgs            []string
 	port               int
 	tcpConnectionToken string
+	runtimeWrapper     bool
 
 	modelsCache               []ModelInfo
 	modelsCacheMux            sync.Mutex
@@ -315,7 +317,14 @@ func NewClient(options *ClientOptions) *Client {
 	if client.cliPath == "" && !client.useInProcess {
 		if cliPath := getEnvValue(opts.Env, "COPILOT_CLI_PATH"); cliPath != "" {
 			client.cliPath = cliPath
+		} else if runtimePath := firstNonEmpty(
+			getEnvValue(opts.Env, "COPILOT_RUNTIME_PATH"),
+			os.Getenv("COPILOT_RUNTIME_PATH"),
+		); runtimePath != "" {
+			client.cliPath = runtimePath
+			client.runtimeWrapper = true
 		}
+
 	}
 
 	// Resolve the effective connection token: explicit value if set; else if the SDK
@@ -339,6 +348,15 @@ func NewClient(options *ClientOptions) *Client {
 	client.options = opts
 	validateNewClientForMode(&client.options)
 	return client
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 const defaultConnectionEnvVar = "COPILOT_SDK_DEFAULT_CONNECTION"
@@ -385,6 +403,33 @@ func setEnvValue(env []string, key string, value string) []string {
 		}
 	}
 	return append(filtered, key+"="+value)
+}
+
+func validateRuntimePair(wrapperPath string) error {
+	if wrapperPath == "" {
+		return errors.New("COPILOT_RUNTIME_PATH cannot be empty")
+	}
+	wrapperInfo, err := os.Stat(wrapperPath)
+	if err != nil {
+		return fmt.Errorf("copilot runtime wrapper not found at %q: %w", wrapperPath, err)
+	}
+	if wrapperInfo.IsDir() || wrapperInfo.Size() == 0 {
+		return fmt.Errorf("copilot runtime wrapper at %q is not a non-empty file", wrapperPath)
+	}
+	if runtime.GOOS != "windows" && wrapperInfo.Mode().Perm()&0111 == 0 {
+		if err := os.Chmod(wrapperPath, wrapperInfo.Mode().Perm()|0111); err != nil {
+			return fmt.Errorf("making copilot runtime wrapper executable: %w", err)
+		}
+	}
+	runtimeNodePath := filepath.Join(filepath.Dir(wrapperPath), "runtime.node")
+	runtimeNodeInfo, err := os.Stat(runtimeNodePath)
+	if err != nil {
+		return fmt.Errorf("copilot runtime wrapper requires adjacent runtime.node at %q: %w", runtimeNodePath, err)
+	}
+	if runtimeNodeInfo.IsDir() || runtimeNodeInfo.Size() == 0 {
+		return fmt.Errorf("adjacent runtime.node at %q is not a non-empty file", runtimeNodePath)
+	}
+	return nil
 }
 
 // parseCLIURL parses a CLI URL into host and port components.
@@ -1988,9 +2033,20 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 	}
 
 	cliPath := c.cliPath
+	residualCLIPath := ""
+	if c.runtimeWrapper {
+		if err := validateRuntimePair(cliPath); err != nil {
+			return err
+		}
+	}
 	if cliPath == "" {
-		// If no CLI path is provided, attempt to use the embedded CLI if available
-		cliPath = embeddedcli.Path()
+		if runtimePath := embeddedcli.RuntimePath(); runtimePath != "" {
+			cliPath = runtimePath
+			residualCLIPath = embeddedcli.Path()
+		} else {
+			// Bundles produced before copilot-runtime remain usable until regenerated.
+			cliPath = embeddedcli.Path()
+		}
 	}
 	if cliPath == "" {
 		// Default to "copilot" in PATH if no embedded CLI is available and no custom path is set
@@ -2055,6 +2111,9 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 	}
 
 	c.process.Env = append([]string{}, c.options.Env...)
+	if residualCLIPath != "" {
+		c.process.Env = setEnvValue(c.process.Env, "COPILOT_CLI_PATH", residualCLIPath)
+	}
 	if c.options.GitHubToken != "" {
 		c.process.Env = setEnvValue(c.process.Env, "COPILOT_SDK_AUTH_TOKEN", c.options.GitHubToken)
 	}

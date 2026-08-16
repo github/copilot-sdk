@@ -11,6 +11,8 @@ import java.io.InputStreamReader;
 import java.net.Socket;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -19,6 +21,7 @@ import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import com.github.copilot.ffi.NativeRuntimeLoader;
 import com.github.copilot.rpc.CopilotClientOptions;
 
 /**
@@ -64,7 +67,7 @@ final class CliServerManager {
     ProcessInfo startCliServer() throws IOException, InterruptedException {
         clearStderrBuffer();
 
-        String cliPath = options.getCliPath() != null ? options.getCliPath() : "copilot";
+        String cliPath = resolveCliPath();
         var args = new ArrayList<String>();
 
         if (options.getCliArgs() != null) {
@@ -308,6 +311,38 @@ final class CliServerManager {
         result.add(cliPath);
         result.addAll(args);
         return result;
+    }
+
+    private String resolveCliPath() throws IOException {
+        if (options.getCliPath() != null) {
+            return options.getCliPath();
+        }
+
+        String runtimePath = options.getEnvironment() == null
+                ? null
+                : options.getEnvironment().get("COPILOT_RUNTIME_PATH");
+        if (runtimePath == null || runtimePath.isBlank()) {
+            runtimePath = System.getenv("COPILOT_RUNTIME_PATH");
+        }
+        if (runtimePath == null || runtimePath.isBlank()) {
+            return NativeRuntimeLoader.resolveRuntimeWrapper().toString();
+        }
+
+        Path wrapper = Path.of(runtimePath);
+        Path runtimeNode = wrapper.resolveSibling("runtime.node");
+        if (!isNonEmptyFile(wrapper) || !isNonEmptyFile(runtimeNode)) {
+            throw new IOException("COPILOT_RUNTIME_PATH must point to a non-empty wrapper with an adjacent "
+                    + "non-empty runtime.node; checked " + wrapper + " and " + runtimeNode);
+        }
+        return wrapper.toString();
+    }
+
+    private static boolean isNonEmptyFile(Path path) {
+        try {
+            return Files.isRegularFile(path) && Files.size(path) > 0;
+        } catch (IOException e) {
+            return false;
+        }
     }
 
     static URI parseCliUrl(String url) {
