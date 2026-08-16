@@ -208,7 +208,7 @@ If none succeeds, startup fails. The PATH fallback does not claim to support eve
 
 ### Current platform scope
 
-The platform detector recognizes the 8 classifiers listed in this ADR. The Maven build binds native packaging only when the build host matches an implemented classifier. Currently, only Linux x64 hosts fetch and package the `linux-x64` classifier. Unsupported hosts build only the OS-neutral placeholder, sources, and Javadoc artifacts. Additional classifier artifacts remain follow-up work.
+The platform detector recognizes the 8 classifiers listed in this ADR. The Maven build binds native packaging only for an explicitly selected implemented classifier. Currently, Linux x64 glibc hosts can opt in with `copilot.native.libc=glibc`, while the `inprocess` test profile selects the required `linux-x64` classifier automatically. Both paths validate the host before downloading or packaging native files. Linux x64 musl and other unsupported hosts build only the OS-neutral placeholder, sources, and Javadoc artifacts unless they explicitly request in-process tests, which fail during host validation. Additional classifier artifacts remain follow-up work.
 
 ## Binding technology: JNA over Panama FFM
 
@@ -359,9 +359,9 @@ The pattern follows DJL's `LibUtils.loadLibrary()` approach: detect the platform
   2. Locates the matching `runtime.node` binary on the classpath (via `getResourceAsStream` from the classifier JAR).
   3. Extracts `runtime.node` and the transitional CLI entrypoint into `~/.copilot/runtime-cache/` if valid cached files are not already present.
   4. Loads it via [JNA](#references) using the C ABI entry points, per the [binding technology decision](#binding-technology-jna-over-panama-ffm) above. The JNA-specific code is confined behind an internal binding interface to preserve a future FFM migration path.
-* A supported host profile fetches the pinned matching `@github/copilot-<classifier>` npm package, verifies its SHA-512 integrity from `nodejs/package-lock.json`, and packages the version-matched runtime and CLI files.
+* A validated supported-host profile fetches the pinned matching `@github/copilot-<classifier>` npm package, verifies its SHA-512 integrity from `nodejs/package-lock.json`, and packages the version-matched runtime and CLI files.
 * The current release work publishes the `linux-x64` classifier. The planned classifier set expands to the other detected platforms.
-* Adding an implemented platform requires a host profile that supplies the classifier and platform CLI filename and binds the shared fetch, fetch-script test, package, and verification executions to the Maven lifecycle.
+* Adding an implemented platform requires validated host activation, a profile that supplies the classifier and platform CLI filename, and lifecycle bindings for the shared host validation, fetch, script test, package, and verification executions.
 * `cli-native.node` is not bundled. It provides terminal UI features that are irrelevant to the Java SDK's programmatic API surface.
 
 ## Related work items
