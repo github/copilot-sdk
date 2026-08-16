@@ -491,7 +491,7 @@ mvn jacoco:prepare-agent@wire-up-coverage-instrumentation antrun:run@print-test-
 
 Run native-runtime Maven commands from the `java` directory. Native packaging requires Node.js and npm in addition to JDK 25 and Maven because `copilot-native/scripts/fetch-native.mjs` retrieves the pinned npm runtime package.
 
-The build currently supports native packaging only on Linux x64. Maven activates the `native-linux-x64` profile automatically on a Linux `amd64` host. That profile runs the native fetch-script tests, fetches the pinned `@github/copilot-linux-x64` package, builds the `linux-x64` classifier JAR, and verifies its native contents. Ensure npm can authenticate to the package registry before running the build.
+Validated on a native Linux x64 host: Maven activates the `native-linux-x64` profile automatically on Linux `amd64` when `copilot.native.skip.download` is not set. That profile runs the native fetch-script tests, fetches the pinned `@github/copilot-linux-x64` package during `generate-resources`, packages the `linux-x64` classifier JAR during `package`, and verifies its native contents. Ensure npm can authenticate to the package registry before running the build.
 
 On macOS, Windows, Linux ARM64, and other unsupported hosts, do not force the Linux profile. A normal build produces only the OS-neutral primary, sources, and Javadoc JARs; it does not run the Linux x64 fetch-script tests, download or stage Linux native files, or produce a `linux-x64` classifier JAR. Use this command to validate that behavior:
 
@@ -499,13 +499,22 @@ On macOS, Windows, Linux ARM64, and other unsupported hosts, do not force the Li
 mvn -pl copilot-native clean verify
 ```
 
-To build only the OS-neutral artifacts on a supported host, disable native download and packaging:
+To build only the OS-neutral artifacts on any host, disable native download and packaging:
 
 ```bash
 mvn -pl copilot-native clean package -DskipTests -Dcopilot.native.skip.download=true
 ```
 
-Linux x64 validation is pending. The follow-up work must confirm automatic profile activation, run the fetch-script tests and full Java reactor, verify the classifier JAR contents, and confirm the placeholder-only command above suppresses all native output. Update this section with the validated Linux x64 behavior and any required command changes after that work is complete.
+The verified Linux x64 checks are:
+
+```bash
+mvn -pl copilot-native help:active-profiles
+mvn -pl copilot-native test
+mvn clean verify
+mvn clean package -pl copilot-native -DskipTests -Dcopilot.native.skip.download=true
+```
+
+On a supported Linux x64 host, the classifier JAR contains `native/linux-x64/runtime.node`, `native/linux-x64/platform.properties`, and `native/linux-x64/copilot`. The placeholder JAR remains OS-neutral and contains no native binaries. Unsupported hosts retain the placeholder-only behavior without producing a `-linux-x64.jar`.
 
 ## License
 
