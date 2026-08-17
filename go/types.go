@@ -1084,6 +1084,9 @@ type CustomAgentConfig struct {
 	// When empty, the runtime resolves model configuration, then inherits the
 	// parent effort only for the same model.
 	ReasoningEffort string `json:"reasoningEffort,omitempty"`
+	// LargeOutput configures large tool output handling for this agent. When
+	// nil, no agent-specific large output override is sent.
+	LargeOutput *LargeToolOutputConfig `json:"largeOutput,omitempty"`
 }
 
 // DefaultAgentConfig configures the default agent (the built-in agent that handles turns when no custom agent is selected).

@@ -1202,6 +1202,9 @@ class CustomAgentConfig(TypedDict, total=False):
     # Reasoning effort for this agent's model. When omitted, the runtime resolves
     # model configuration, then inherits the parent effort only for the same model.
     reasoning_effort: NotRequired[ReasoningEffort]
+    # Large output handling for this agent. When omitted, no agent-specific
+    # large output override is sent.
+    large_output: NotRequired[LargeToolOutputConfig]
 
 
 class DefaultAgentConfig(TypedDict, total=False):

@@ -445,6 +445,31 @@ public class SerializationTests
     }
 
     [Fact]
+    public void CustomAgentConfig_CanSerializeLargeOutput_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+        var agent = new CustomAgentConfig
+        {
+            Name = "large-output-agent",
+            Prompt = "Handle large outputs.",
+            LargeOutput = new LargeToolOutputConfig
+            {
+                Enabled = false,
+                MaxSizeBytes = 2048,
+                OutputDirectory = "/tmp/agent-large-output",
+            },
+        };
+
+        var json = JsonSerializer.Serialize(agent, options);
+        using var document = JsonDocument.Parse(json);
+        var largeOutput = document.RootElement.GetProperty("largeOutput");
+
+        Assert.False(largeOutput.GetProperty("enabled").GetBoolean());
+        Assert.Equal(2048, largeOutput.GetProperty("maxSizeBytes").GetInt64());
+        Assert.Equal("/tmp/agent-large-output", largeOutput.GetProperty("outputDir").GetString());
+    }
+
+    [Fact]
     public void SessionRequests_CanSerializeMemory_WithSdkOptions()
     {
         var options = GetSerializerOptions();

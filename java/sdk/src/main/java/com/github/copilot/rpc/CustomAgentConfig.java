@@ -66,6 +66,9 @@ public class CustomAgentConfig {
     @JsonProperty("reasoningEffort")
     private String reasoningEffort;
 
+    @JsonProperty("largeOutput")
+    private LargeToolOutputConfig largeOutput;
+
     /**
      * Gets the unique identifier name for this agent.
      *
@@ -307,6 +310,29 @@ public class CustomAgentConfig {
      */
     public CustomAgentConfig setReasoningEffort(String reasoningEffort) {
         this.reasoningEffort = reasoningEffort;
+        return this;
+    }
+
+    /**
+     * Gets the large tool output handling configuration for this agent.
+     *
+     * @return the large output configuration, or {@code null} if not set
+     */
+    public LargeToolOutputConfig getLargeOutput() {
+        return largeOutput;
+    }
+
+    /**
+     * Sets the large tool output handling configuration for this agent.
+     * <p>
+     * When omitted, no agent-specific large output override is sent.
+     *
+     * @param largeOutput
+     *            the large output configuration
+     * @return this config for method chaining
+     */
+    public CustomAgentConfig setLargeOutput(LargeToolOutputConfig largeOutput) {
+        this.largeOutput = largeOutput;
         return this;
     }
 }

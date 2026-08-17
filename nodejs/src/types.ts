@@ -1838,6 +1838,11 @@ export interface CustomAgentConfig {
      * then inherits the parent effort only if this agent uses the same model.
      */
     reasoningEffort?: ReasoningEffort;
+    /**
+     * Large tool output handling for this agent.
+     * When unset, no agent-specific large output override is sent.
+     */
+    largeOutput?: LargeToolOutputConfig;
 }
 
 /**

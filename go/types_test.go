@@ -186,6 +186,44 @@ func TestCustomAgentConfig_JSONIncludesReasoningEffort(t *testing.T) {
 	}
 }
 
+func TestCustomAgentConfig_JSONIncludesLargeOutput(t *testing.T) {
+	enabled := false
+	maxSizeBytes := int64(2048)
+	cfg := CustomAgentConfig{
+		Name:   "large-output-agent",
+		Prompt: "Handle large outputs.",
+		LargeOutput: &LargeToolOutputConfig{
+			Enabled:         &enabled,
+			MaxSizeBytes:    &maxSizeBytes,
+			OutputDirectory: "/tmp/agent-large-output",
+		},
+	}
+
+	data, err := json.Marshal(cfg)
+	if err != nil {
+		t.Fatalf("failed to marshal CustomAgentConfig: %v", err)
+	}
+
+	var decoded map[string]any
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal CustomAgentConfig: %v", err)
+	}
+
+	largeOutput, ok := decoded["largeOutput"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected largeOutput object, got %v", decoded["largeOutput"])
+	}
+	if largeOutput["enabled"] != false {
+		t.Errorf("expected enabled false, got %v", largeOutput["enabled"])
+	}
+	if largeOutput["maxSizeBytes"] != float64(2048) {
+		t.Errorf("expected maxSizeBytes 2048, got %v", largeOutput["maxSizeBytes"])
+	}
+	if largeOutput["outputDir"] != "/tmp/agent-large-output" {
+		t.Errorf("expected outputDir '/tmp/agent-large-output', got %v", largeOutput["outputDir"])
+	}
+}
+
 func TestCustomAgentConfig_JSONIncludesEmptyTools(t *testing.T) {
 	cfg := CustomAgentConfig{
 		Name:   "no-tools-agent",
