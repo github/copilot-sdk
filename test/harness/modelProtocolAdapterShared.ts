@@ -4,6 +4,8 @@
 
 export type JsonObject = Record<string, unknown>;
 
+export const canonicalUserMessageSeparator = "\n\n\n";
+
 export type CanonicalToolCall = {
   id: string;
   type: "function";

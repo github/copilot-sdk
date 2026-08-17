@@ -586,6 +586,208 @@ public sealed class ClientSessionLifetimeTests
     }
 
     [Fact]
+    public async Task PermissionResponse_Forwards_DecisionContext_As_Sibling_Of_Result()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await client.StartAsync();
+
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = (_, _) => Task.FromResult<PermissionDecision>(
+                new PermissionDecisionApproveOnce
+                {
+                    DecisionContext = new PermissionDecisionContext
+                    {
+                        Outcome = PermissionDecisionOutcome.AutoApproved,
+                        Source = PermissionDecisionSource.HostPolicy,
+                        Surface = PermissionDecisionSurface.Sdk
+                    }
+                })
+        });
+
+        DispatchEvent(session, new PermissionRequestedEvent
+        {
+            Data = new PermissionRequestedData
+            {
+                PermissionRequest = new PermissionRequest { Kind = "read" },
+                RequestId = "req-with-context"
+            }
+        });
+
+        var request = await WaitForRequestAsync(server, "session.permissions.handlePendingPermissionRequest");
+
+        Assert.True(request.Params.TryGetProperty("decisionContext", out var decisionContext));
+        Assert.Equal("auto_approved", decisionContext.GetProperty("outcome").GetString());
+        Assert.Equal("host_policy", decisionContext.GetProperty("source").GetString());
+        Assert.Equal("sdk", decisionContext.GetProperty("surface").GetString());
+
+        var result = request.Params.GetProperty("result");
+        Assert.Equal("approve-once", result.GetProperty("kind").GetString());
+        Assert.False(result.TryGetProperty("decisionContext", out _));
+    }
+
+    [Fact]
+    public async Task PermissionResponse_Omits_DecisionContext_When_Not_Supplied()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await client.StartAsync();
+
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = (_, _) => Task.FromResult(PermissionDecision.ApproveOnce())
+        });
+
+        DispatchEvent(session, new PermissionRequestedEvent
+        {
+            Data = new PermissionRequestedData
+            {
+                PermissionRequest = new PermissionRequest { Kind = "read" },
+                RequestId = "req-no-context"
+            }
+        });
+
+        var request = await WaitForRequestAsync(server, "session.permissions.handlePendingPermissionRequest");
+
+        Assert.False(request.Params.TryGetProperty("decisionContext", out _));
+        var result = request.Params.GetProperty("result");
+        Assert.Equal("approve-once", result.GetProperty("kind").GetString());
+        Assert.False(result.TryGetProperty("decisionContext", out _));
+    }
+
+    [Fact]
+    public async Task PermissionResponse_Uses_Latest_Context_When_Reassigned()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await client.StartAsync();
+
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = (_, _) =>
+            {
+                var decision = new PermissionDecisionApproveOnce
+                {
+                    DecisionContext = new PermissionDecisionContext
+                    {
+                        Outcome = PermissionDecisionOutcome.PromptedUser,
+                        Source = PermissionDecisionSource.HumanResponse,
+                        Surface = PermissionDecisionSurface.Tui
+                    }
+                };
+                decision.DecisionContext = new PermissionDecisionContext
+                {
+                    Outcome = PermissionDecisionOutcome.AutoApproved,
+                    Source = PermissionDecisionSource.HostPolicy,
+                    Surface = PermissionDecisionSurface.Sdk
+                };
+                return Task.FromResult<PermissionDecision>(decision);
+            }
+        });
+
+        DispatchEvent(session, new PermissionRequestedEvent
+        {
+            Data = new PermissionRequestedData
+            {
+                PermissionRequest = new PermissionRequest { Kind = "read" },
+                RequestId = "req-replace-context"
+            }
+        });
+
+        var request = await WaitForRequestAsync(server, "session.permissions.handlePendingPermissionRequest");
+
+        var decisionContext = request.Params.GetProperty("decisionContext");
+        Assert.Equal("auto_approved", decisionContext.GetProperty("outcome").GetString());
+        Assert.Equal("host_policy", decisionContext.GetProperty("source").GetString());
+        Assert.Equal("sdk", decisionContext.GetProperty("surface").GetString());
+    }
+
+    [Fact]
+    public async Task PermissionResponse_Is_Suppressed_For_NoResult_Even_With_Context()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await client.StartAsync();
+
+        var handlerInvoked = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = (_, _) =>
+            {
+                handlerInvoked.TrySetResult();
+                return Task.FromResult<PermissionDecision>(
+                    new PermissionDecisionNoResult
+                    {
+                        DecisionContext = new PermissionDecisionContext
+                        {
+                            Outcome = PermissionDecisionOutcome.PromptedUser,
+                            Source = PermissionDecisionSource.HumanResponse,
+                            Surface = PermissionDecisionSurface.Sdk
+                        }
+                    });
+            }
+        });
+
+        DispatchEvent(session, new PermissionRequestedEvent
+        {
+            Data = new PermissionRequestedData
+            {
+                PermissionRequest = new PermissionRequest { Kind = "read" },
+                RequestId = "req-no-result"
+            }
+        });
+
+        await handlerInvoked.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        // Give the send path a chance to (incorrectly) fire before asserting suppression.
+        await Task.Delay(200);
+
+        Assert.DoesNotContain(server.Requests, request => request.Method == "session.permissions.handlePendingPermissionRequest");
+    }
+
+    [Fact]
+    public async Task PermissionResponse_Never_Nests_DecisionContext_Inside_Result()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await client.StartAsync();
+
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = (_, _) => Task.FromResult<PermissionDecision>(
+                new PermissionDecisionReject
+                {
+                    Feedback = "denied by policy",
+                    DecisionContext = new PermissionDecisionContext
+                    {
+                        Outcome = PermissionDecisionOutcome.AutopilotDenied,
+                        Source = PermissionDecisionSource.HostPolicy,
+                        Surface = PermissionDecisionSurface.Sdk
+                    }
+                })
+        });
+
+        DispatchEvent(session, new PermissionRequestedEvent
+        {
+            Data = new PermissionRequestedData
+            {
+                PermissionRequest = new PermissionRequest { Kind = "read" },
+                RequestId = "req-reject-context"
+            }
+        });
+
+        var request = await WaitForRequestAsync(server, "session.permissions.handlePendingPermissionRequest");
+
+        var result = request.Params.GetProperty("result");
+        Assert.Equal("reject", result.GetProperty("kind").GetString());
+        Assert.Equal("denied by policy", result.GetProperty("feedback").GetString());
+        // The context provenance must never be serialized inside the decision itself.
+        Assert.False(result.TryGetProperty("decisionContext", out _));
+        // It is forwarded as a sibling instead.
+        Assert.True(request.Params.TryGetProperty("decisionContext", out _));
+    }
+
+    [Fact]
     public async Task CreateSessionAsync_Omits_ManagedSettings_When_Unset()
     {
         await using var server = await FakeCopilotServer.StartAsync();
@@ -840,6 +1042,10 @@ public sealed class ClientSessionLifetimeTests
                     ["messageId"] = "message-1"
                 },
                 "session.mcp.oauth.handlePendingRequest" => new Dictionary<string, object?>
+                {
+                    ["success"] = true
+                },
+                "session.permissions.handlePendingPermissionRequest" => new Dictionary<string, object?>
                 {
                     ["success"] = true
                 },

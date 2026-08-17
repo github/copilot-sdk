@@ -26,6 +26,7 @@ import {
   chatCompletionResponseToAnthropicMessage,
   chatCompletionResponseToAnthropicSseChunks,
 } from "./anthropicMessagesAdapter";
+import { canonicalUserMessageSeparator } from "./modelProtocolAdapterShared";
 import {
   chatCompletionResponseToResponsesApiMessage,
   chatCompletionResponseToResponsesApiSseChunks,
@@ -983,7 +984,7 @@ function coalesceAdjacentUserMessages(requestBody: string): string {
       typeof previous.content === "string" &&
       typeof message.content === "string"
     ) {
-      previous.content = `${previous.content.trimEnd()}\n\n\n${message.content.trimStart()}`;
+      previous.content = `${previous.content.trimEnd()}${canonicalUserMessageSeparator}${message.content.trimStart()}`;
     } else {
       messages.push(message);
     }
@@ -993,7 +994,7 @@ function coalesceAdjacentUserMessages(requestBody: string): string {
     if (message.role === "user" && typeof message.content === "string") {
       message.content = normalizeUserMessage(message.content).replace(
         /\n{5,}/g,
-        "\n\n\n",
+        canonicalUserMessageSeparator,
       );
     }
   }
@@ -1348,7 +1349,8 @@ function coalesceMessages(
       continue;
     }
 
-    const separator = message.role === "user" ? "\n\n\n" : "";
+    const separator =
+      message.role === "user" ? canonicalUserMessageSeparator : "";
     const previousContent = previous.content ?? "";
     const currentContent = message.content ?? "";
     const content = `${previousContent}${previousContent && currentContent ? separator : ""}${currentContent}`;

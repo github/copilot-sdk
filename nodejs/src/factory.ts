@@ -62,12 +62,16 @@ export type JsonValue =
     | { [key: string]: JsonValue };
 
 /**
- * Conservative JSON shape language accepted for structured factory agent output.
+ * Conservative JSON shape language accepted by the Agent Factories surface, for
+ * both structured factory agent output and a factory's declared `argsSchema`.
  *
- * This is a best-effort structural guard used to decide whether a subagent's
- * structured output should be accepted or retried — **not** a full JSON Schema
+ * This is a best-effort structural guard — used to decide whether a subagent's
+ * structured output should be accepted or retried, and whether a caller's
+ * factory `args` match the declared shape — **not** a full JSON Schema
  * validator. Only these keywords are honored: `type`, `required`, `enum`,
- * `const`, recursive `properties`/`items`, and `anyOf`/`oneOf`/`allOf`.
+ * `const`, recursive `properties`/`items`, and `anyOf`/`oneOf`/`allOf`. A `type`
+ * is one of `null`, `boolean`, `integer`, `number`, `string`, `array`, or
+ * `object`, or a non-empty array of those (for example `["object", "null"]`).
  *
  * Everything else is **ignored, not enforced**. In particular, string
  * constraints (`pattern`, `minLength`, `maxLength`, `format`), numeric ranges

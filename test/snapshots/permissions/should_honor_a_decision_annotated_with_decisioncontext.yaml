@@ -1,0 +1,24 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Edit protected.txt and replace 'protected' with 'hacked'.
+      - role: assistant
+        content: I'll view the file first, then make the edit.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Editing protected.txt file"}'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_1
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/protected.txt"}'

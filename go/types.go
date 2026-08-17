@@ -129,6 +129,11 @@ type ClientOptions struct {
 	// location.
 	// Ignored when connecting to an existing runtime via [URIConnection].
 	BaseDirectory string
+	// BuiltinPluginDirectories contains absolute paths to trusted plugin
+	// directories bundled by the host. When non-empty, Start replaces the
+	// runtime's complete trusted built-in plugin directory set before sessions
+	// can be created.
+	BuiltinPluginDirectories []string
 	// LogLevel for the runtime. When empty (the default), the runtime
 	// uses its own default level; the SDK does not pass --log-level.
 	// Recognized values: "none", "error", "warning", "info", "debug", "all".
@@ -378,6 +383,47 @@ type PermissionInvocation struct {
 	SessionID              string
 	ManagedSettingsEnabled bool
 }
+
+// PermissionDecisionContext describes how and where a permission decision was
+// reached. Attach it to a decision with [NewAttributedPermissionResult] so the runtime
+// can attribute auto-approval telemetry to the responding surface. It is
+// informational only and never changes permission behavior.
+//
+// Experimental: PermissionDecisionContext is part of an experimental API and
+// may change or be removed.
+type PermissionDecisionContext = rpc.PermissionDecisionContext
+
+// PermissionDecisionOutcome describes the disposition of a permission request
+// as observed by the responding client.
+type PermissionDecisionOutcome = rpc.PermissionDecisionOutcome
+
+const (
+	PermissionDecisionOutcomeAutoApproved    = rpc.PermissionDecisionOutcomeAutoApproved
+	PermissionDecisionOutcomeAutopilotDenied = rpc.PermissionDecisionOutcomeAutopilotDenied
+	PermissionDecisionOutcomePromptedUser    = rpc.PermissionDecisionOutcomePromptedUser
+)
+
+// PermissionDecisionSource identifies the controlled reason or actor
+// responsible for a permission response.
+type PermissionDecisionSource = rpc.PermissionDecisionSource
+
+const (
+	PermissionDecisionSourceHostPolicy          = rpc.PermissionDecisionSourceHostPolicy
+	PermissionDecisionSourceHumanResponse       = rpc.PermissionDecisionSourceHumanResponse
+	PermissionDecisionSourceJudgeRecommendation = rpc.PermissionDecisionSourceJudgeRecommendation
+	PermissionDecisionSourceUnattendedFallback  = rpc.PermissionDecisionSourceUnattendedFallback
+)
+
+// PermissionDecisionSurface identifies the client surface that submitted a
+// permission response.
+type PermissionDecisionSurface = rpc.PermissionDecisionSurface
+
+const (
+	PermissionDecisionSurfaceCopilotApp = rpc.PermissionDecisionSurfaceCopilotApp
+	PermissionDecisionSurfacePromptMode = rpc.PermissionDecisionSurfacePromptMode
+	PermissionDecisionSurfaceSDK        = rpc.PermissionDecisionSurfaceSDK
+	PermissionDecisionSurfaceTui        = rpc.PermissionDecisionSurfaceTui
+)
 
 // MCPAuthWwwAuthenticateParams contains parsed parameters from an MCP server's WWW-Authenticate response.
 type MCPAuthWwwAuthenticateParams struct {

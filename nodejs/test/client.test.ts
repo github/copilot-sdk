@@ -3,10 +3,11 @@ import { EventEmitter } from "node:events";
 import { PassThrough } from "stream";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import {
     approveAll,
+    createAttributedPermissionResult,
     CopilotClient,
     createCanvas,
     RuntimeConnection,
@@ -57,6 +58,51 @@ describe("approveAll", () => {
 });
 
 describe("CopilotClient", () => {
+    async function startWithMockConnection(
+        builtinPluginDirectories?: readonly string[]
+    ): Promise<ReturnType<typeof vi.fn>> {
+        const client = new CopilotClient({
+            connection: RuntimeConnection.forUri("localhost:1234"),
+            builtinPluginDirectories,
+        });
+        const sendRequest = vi.fn(async () => ({}));
+        vi.spyOn(client as any, "connectToServer").mockImplementation(async () => {
+            (client as any).connection = { sendRequest };
+        });
+        vi.spyOn(client as any, "verifyProtocolVersion").mockResolvedValue(undefined);
+
+        await client.start();
+        return sendRequest;
+    }
+
+    it.each([undefined, []])(
+        "does not configure built-in plugin directories when unset or empty",
+        async (builtinPluginDirectories) => {
+            const sendRequest = await startWithMockConnection(builtinPluginDirectories);
+
+            expect(sendRequest).not.toHaveBeenCalledWith("plugins.builtin.set", expect.anything());
+        }
+    );
+
+    it("configures built-in plugin directories before start completes", async () => {
+        const paths = [resolve("plugins/core"), resolve("plugins/github")];
+
+        const sendRequest = await startWithMockConnection(paths);
+
+        expect(sendRequest).toHaveBeenCalledTimes(1);
+        expect(sendRequest).toHaveBeenCalledWith("plugins.builtin.set", { paths });
+    });
+
+    it("rejects relative built-in plugin directories", () => {
+        expect(
+            () =>
+                new CopilotClient({
+                    connection: RuntimeConnection.forUri("localhost:1234"),
+                    builtinPluginDirectories: ["plugins/core"],
+                })
+        ).toThrow(/builtinPluginDirectories.*absolute paths.*plugins\/core/);
+    });
+
     it("disposes the stdio connection when child stdin emits an error", async () => {
         const client = new CopilotClient();
         onTestFinished(() => client.forceStop());
@@ -81,6 +127,91 @@ describe("CopilotClient", () => {
         await (session as any)._executePermissionAndRespond("request-1", { kind: "write" });
 
         expect(spy).not.toHaveBeenCalled();
+    });
+
+    it("forwards decisionContext as a top-level sibling of result", async () => {
+        const session = new CopilotSession("session-1", {} as any);
+        const decisionContext = {
+            outcome: "auto_approved" as const,
+            source: "host_policy" as const,
+            surface: "sdk" as const,
+        };
+        session.registerPermissionHandler(() =>
+            createAttributedPermissionResult({ kind: "approve-once" }, decisionContext)
+        );
+        const spy = vi
+            .spyOn(session.rpc.permissions, "handlePendingPermissionRequest")
+            .mockResolvedValue({ kind: "approve-once" } as any);
+
+        await (session as any)._executePermissionAndRespond("request-1", { kind: "write" });
+
+        expect(spy).toHaveBeenCalledOnce();
+        const params = spy.mock.calls[0][0] as any;
+        expect(params).toEqual({
+            requestId: "request-1",
+            result: { kind: "approve-once" },
+            decisionContext,
+        });
+        // decisionContext is a sibling of result, never nested inside it.
+        expect(params.result.decisionContext).toBeUndefined();
+    });
+
+    it("emits exactly requestId and result with no decisionContext key when unattributed", async () => {
+        const session = new CopilotSession("session-1", {} as any);
+        session.registerPermissionHandler(() => ({ kind: "approve-once" }));
+        const spy = vi
+            .spyOn(session.rpc.permissions, "handlePendingPermissionRequest")
+            .mockResolvedValue({ kind: "approve-once" } as any);
+
+        await (session as any)._executePermissionAndRespond("request-1", { kind: "write" });
+
+        expect(spy).toHaveBeenCalledOnce();
+        const params = spy.mock.calls[0][0] as any;
+        expect(params).toEqual({ requestId: "request-1", result: { kind: "approve-once" } });
+        expect(Object.keys(params).sort()).toEqual(["requestId", "result"]);
+        expect("decisionContext" in params).toBe(false);
+    });
+
+    it("does not respond when a no-result decision is wrapped with a context", async () => {
+        const session = new CopilotSession("session-1", {} as any);
+        const decisionContext = {
+            outcome: "auto_approved" as const,
+            source: "host_policy" as const,
+            surface: "sdk" as const,
+        };
+        session.registerPermissionHandler(() =>
+            createAttributedPermissionResult({ kind: "no-result" }, decisionContext)
+        );
+        const spy = vi.spyOn(session.rpc.permissions, "handlePendingPermissionRequest");
+
+        await (session as any)._executePermissionAndRespond("request-1", { kind: "write" });
+
+        expect(spy).not.toHaveBeenCalled();
+    });
+
+    it("replaces the context when applied twice", () => {
+        const first = {
+            outcome: "auto_approved" as const,
+            source: "judge_recommendation" as const,
+            surface: "sdk" as const,
+        };
+        const second = {
+            outcome: "prompted_user" as const,
+            source: "human_response" as const,
+            surface: "tui" as const,
+        };
+
+        const once = createAttributedPermissionResult({ kind: "approve-once" }, first);
+        const twice = createAttributedPermissionResult(once, second);
+
+        expect(twice).toEqual({
+            kind: "attributed",
+            result: { kind: "approve-once" },
+            decisionContext: second,
+        });
+        // The result stays unwrapped rather than nesting an AttributedPermissionResult.
+        expect((twice.result as any).result).toBeUndefined();
+        expect((twice.result as any).decisionContext).toBeUndefined();
     });
 
     it("responds to MCP OAuth requests with host token data", async () => {

@@ -1646,6 +1646,10 @@ func (s *Session) executePermissionAndRespond(requestID string, permissionReques
 		})
 		return
 	}
+	// Unwrap any attribution so decisionContext travels as a sibling of result,
+	// not nested inside it. The suppression and send logic below operates on the
+	// underlying decision.
+	decision, decisionContext := splitAttribution(decision)
 	if _, ok := decision.(*rpc.PermissionDecisionNoResult); ok {
 		return
 	}
@@ -1654,8 +1658,9 @@ func (s *Session) executePermissionAndRespond(requestID string, permissionReques
 	}
 
 	s.RPC.Permissions.HandlePendingPermissionRequest(context.Background(), &rpc.PermissionDecisionRequest{
-		RequestID: requestID,
-		Result:    decision,
+		RequestID:       requestID,
+		Result:          decision,
+		DecisionContext: decisionContext,
 	})
 }
 

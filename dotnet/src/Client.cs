@@ -76,6 +76,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     private readonly ILogger _logger;
     private readonly int? _optionsPort;
     private readonly string? _optionsHost;
+    private readonly string[] _builtinPluginDirectories;
     private readonly Func<CancellationToken, Task<IList<ModelInfo>>>? _onListModels;
     private readonly List<LifecycleSubscription> _lifecycleHandlers = [];
 
@@ -138,6 +139,14 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     {
         _options = options ?? new();
         _connection = _options.Connection ?? ResolveDefaultConnection(_options);
+        _builtinPluginDirectories = _options.BuiltinPluginDirectories?.ToArray() ?? [];
+        foreach (var path in _builtinPluginDirectories.Where(path => !IsFullyQualifiedPath(path)))
+        {
+            throw new ArgumentException(
+                $"{nameof(CopilotClientOptions)}.{nameof(CopilotClientOptions.BuiltinPluginDirectories)} " +
+                $"must contain only absolute paths: {path}",
+                nameof(options));
+        }
 
         switch (_connection)
         {
@@ -317,6 +326,26 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         return new Uri(url);
     }
 
+    private static bool IsFullyQualifiedPath(string path)
+    {
+        if (string.IsNullOrEmpty(path) || !Path.IsPathRooted(path))
+        {
+            return false;
+        }
+#if NETSTANDARD2_0
+        if (Path.DirectorySeparatorChar != '\\')
+        {
+            return true;
+        }
+
+        bool IsSeparator(char value) => value == '\\' || value == '/';
+        return (path.Length >= 3 && path[1] == ':' && IsSeparator(path[2]))
+            || (path.Length >= 2 && IsSeparator(path[0]) && IsSeparator(path[1]));
+#else
+        return Path.IsPathFullyQualified(path);
+#endif
+    }
+
     /// <summary>
     /// Starts the Copilot client and connects to the server.
     /// </summary>
@@ -422,6 +451,13 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
                     "CopilotClient.StartAsync protocol verification complete. Elapsed={Elapsed}",
                     startTimestamp);
+
+                if (_builtinPluginDirectories.Length > 0)
+                {
+                    var request = new BuiltinPluginDirectoriesRequest(_builtinPluginDirectories);
+                    await InvokeRpcAsync<JsonElement>(
+                        connection.Rpc, "plugins.builtin.set", [request], null, ct);
+                }
 
                 var sessionFsTimestamp = Stopwatch.GetTimestamp();
                 await ConfigureSessionFsAsync(ct);
@@ -2946,6 +2982,9 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         string? Token,
         [property: JsonPropertyName("enableGitHubTelemetryForwarding")] bool? EnableGitHubTelemetryForwarding = null);
 
+    internal record BuiltinPluginDirectoriesRequest(
+        string[] Paths);
+
     internal record SetForegroundSessionRequest(
         string SessionId);
 
@@ -2981,6 +3020,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     [JsonSerializable(typeof(GetSessionMetadataRequest))]
     [JsonSerializable(typeof(GetSessionMetadataResponse))]
     [JsonSerializable(typeof(ConnectHandshakeRequest))]
+    [JsonSerializable(typeof(BuiltinPluginDirectoriesRequest))]
     [JsonSerializable(typeof(McpOAuthTokenStorageMode))]
     [JsonSerializable(typeof(EmbeddingCacheStorageMode))]
     [JsonSerializable(typeof(ModelCapabilitiesOverride))]

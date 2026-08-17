@@ -38,6 +38,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -225,6 +226,12 @@ func NewClient(options *ClientOptions) *Client {
 	if options != nil {
 		opts = *options
 	}
+	for _, path := range opts.BuiltinPluginDirectories {
+		if !filepath.IsAbs(path) {
+			panic(fmt.Sprintf("BuiltinPluginDirectories must contain only absolute paths: %s", path))
+		}
+	}
+	opts.BuiltinPluginDirectories = append([]string(nil), opts.BuiltinPluginDirectories...)
 
 	// Resolve the connection. An explicit connection always wins; otherwise
 	// honor the same process/environment override as the other SDKs.
@@ -451,6 +458,21 @@ func (c *Client) Start(ctx context.Context) error {
 		killErr := c.killProcess()
 		c.state = stateError
 		return errors.Join(err, killErr)
+	}
+
+	if len(c.options.BuiltinPluginDirectories) > 0 {
+		if _, err := c.client.Request(ctx, "plugins.builtin.set", map[string]any{
+			"paths": c.options.BuiltinPluginDirectories,
+		}); err != nil {
+			c.client.Stop()
+			c.client = nil
+			c.conn = nil
+			c.RPC = nil
+			c.internalRPC = nil
+			killErr := c.killProcess()
+			c.state = stateError
+			return errors.Join(err, killErr)
+		}
 	}
 
 	// If a session filesystem provider was configured, register it.

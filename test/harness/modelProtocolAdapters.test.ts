@@ -128,6 +128,52 @@ async function postJson(
 }
 
 describe("Anthropic Messages adapter", () => {
+  test("canonicalizes adjacent plain-text content blocks", () => {
+    const result = JSON.parse(
+      anthropicMessagesRequestToChatCompletion(
+        JSON.stringify({
+          model: "test-model",
+          messages: [
+            {
+              role: "user",
+              content: [
+                { type: "text", text: "First prompt" },
+                { type: "text", text: "Recovery prompt" },
+              ],
+            },
+          ],
+        }),
+      ),
+    ) as {
+      messages: Array<{ role: string; content: unknown }>;
+    };
+
+    expect(result.messages).toEqual([
+      {
+        role: "user",
+        content: "First prompt\n\n\nRecovery prompt",
+      },
+    ]);
+  });
+
+  test.each([
+    ["string content", "Hello"],
+    ["one text block", [{ type: "text", text: "Hello" }]],
+  ])("preserves a single plain-text user block from %s", (_, content) => {
+    const result = JSON.parse(
+      anthropicMessagesRequestToChatCompletion(
+        JSON.stringify({
+          model: "test-model",
+          messages: [{ role: "user", content }],
+        }),
+      ),
+    ) as {
+      messages: Array<{ role: string; content: unknown }>;
+    };
+
+    expect(result.messages).toEqual([{ role: "user", content: "Hello" }]);
+  });
+
   test("normalizes messages, binary content, and tools", () => {
     const result = JSON.parse(
       anthropicMessagesRequestToChatCompletion(
@@ -584,6 +630,36 @@ describe("protocol-aware replay", () => {
           "anthropic-messages",
           "First prompt\n\n\n\n\nRecovery prompt",
         ),
+      );
+      expect(response.status).toBe(200);
+    });
+  });
+
+  test("canonicalizes Anthropic content blocks before coalescing user messages", async () => {
+    await writeSnapshot([
+      { role: "system", content: "${system}" },
+      { role: "user", content: "First prompt" },
+      { role: "user", content: "Recovery prompt" },
+      { role: "user", content: "Final prompt" },
+      { role: "assistant", content: "Recovered" },
+    ]);
+    const request = requestFor("anthropic-messages", "Final prompt");
+    request.messages = [
+      {
+        role: "user",
+        content: [
+          { type: "text", text: "First prompt" },
+          { type: "text", text: "Recovery prompt" },
+        ],
+      },
+      ...(request.messages as unknown[]),
+    ];
+
+    await withProxy("anthropic-messages", async (proxyUrl) => {
+      const response = await postJson(
+        proxyUrl,
+        endpoints["anthropic-messages"],
+        request,
       );
       expect(response.status).toBe(200);
     });

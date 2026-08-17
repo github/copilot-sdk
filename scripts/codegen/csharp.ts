@@ -40,6 +40,7 @@ import {
     isSchemaExperimental,
     isSchemaInternal,
     isOpaqueJson,
+    isOpaqueInProcess,
     isObjectSchema,
     isVoidSchema,
     getNullableInner,
@@ -355,10 +356,10 @@ function failUnmappable(context: string, schema: JSONSchema7): never {
     );
 }
 
-function omitUntypedInternalProperties(value: unknown): void {
+function omitUnrepresentableInternalProperties(value: unknown): void {
     if (!value || typeof value !== "object") return;
     if (Array.isArray(value)) {
-        value.forEach(omitUntypedInternalProperties);
+        value.forEach(omitUnrepresentableInternalProperties);
         return;
     }
 
@@ -377,16 +378,16 @@ function omitUntypedInternalProperties(value: unknown): void {
                 schema.enum !== undefined ||
                 schema.const !== undefined ||
                 isOpaqueJson(schema);
-            if (isSchemaInternal(schema) && !hasType) {
+            if (isSchemaInternal(schema) && (!hasType || isOpaqueInProcess(schema))) {
                 delete (properties as Record<string, unknown>)[name];
             } else {
-                omitUntypedInternalProperties(property);
+                omitUnrepresentableInternalProperties(property);
             }
         }
     }
 
     for (const [name, child] of Object.entries(node)) {
-        if (name !== "properties") omitUntypedInternalProperties(child);
+        if (name !== "properties") omitUnrepresentableInternalProperties(child);
     }
 }
 
@@ -2604,7 +2605,7 @@ function generateRpcCode(
     externalValueTypes: Set<string> = new Set()
 ): string {
     schema = cloneSchemaForCodegen(schema);
-    omitUntypedInternalProperties(schema);
+    omitUnrepresentableInternalProperties(schema);
     emittedRpcClassSchemas.clear();
     emittedRpcEnumResultTypes.clear();
     experimentalRpcTypes.clear();

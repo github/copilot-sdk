@@ -12,8 +12,8 @@ use tracing::{Instrument, warn};
 
 use crate::canvas::CanvasHandler;
 use crate::generated::api_types::{
-    LogRequest, ModelSwitchToRequest, OpenCanvasInstance, RegisterEventInterestParams,
-    ToolsGetCurrentMetadataResult, rpc_methods,
+    LogRequest, ModelSwitchToRequest, OpenCanvasInstance, PermissionDecisionRequest,
+    RegisterEventInterestParams, ToolsGetCurrentMetadataResult, rpc_methods,
 };
 use crate::generated::session_events::{
     CommandExecuteData, ElicitationRequestedData, ExternalToolRequestedData, McpOauthRequiredData,
@@ -1573,17 +1573,31 @@ fn permission_request_data(
     }
 }
 
-/// Map a [`PermissionResult`] to the `result` payload sent back to the
-/// server via `session.permissions.handlePendingPermissionRequest`.
+/// Build the full `session.permissions.handlePendingPermissionRequest`
+/// params for a permission result.
+///
+/// `decisionContext` is a sibling of `result` and is only present when the
+/// handler attributed the decision — omitting it preserves legacy behavior.
 ///
 /// Returns `None` when the SDK must not send a response.
-fn notification_permission_payload(result: &PermissionResult) -> Option<Value> {
-    match result {
-        PermissionResult::NoResult => None,
-        PermissionResult::Decision(decision) => Some(
-            serde_json::to_value(decision).expect("serializing permission decision should succeed"),
-        ),
-    }
+fn permission_response_params(
+    session_id: &SessionId,
+    request_id: &RequestId,
+    result: &PermissionResult,
+) -> Option<Value> {
+    let (decision, decision_context) = match result {
+        PermissionResult::Decision { decision, context } => (decision, context.clone()),
+        PermissionResult::NoResult => return None,
+    };
+    let mut params = serde_json::to_value(PermissionDecisionRequest {
+        decision_context,
+        request_id: request_id.clone(),
+        result: decision.clone(),
+    })
+    .expect("serializing permission response should succeed");
+    params["sessionId"] =
+        serde_json::to_value(session_id).expect("serializing session ID should succeed");
+    Some(params)
 }
 
 async fn register_mcp_auth_interest(client: &Client, session_id: &SessionId) -> Result<(), Error> {
@@ -1779,7 +1793,8 @@ async fn handle_notification(
                         request_id = %request_id,
                         "PermissionHandler::handle dispatch"
                     );
-                    let Some(result_value) = notification_permission_payload(&result) else {
+                    let Some(params) = permission_response_params(&sid, &request_id, &result)
+                    else {
                         // Handler returned Deferred / NoResult — it will
                         // call handlePendingPermissionRequest itself (or
                         // leave the request unanswered).
@@ -1788,12 +1803,8 @@ async fn handle_notification(
                     let rpc_start = Instant::now();
                     let _ = client
                         .call(
-                            "session.permissions.handlePendingPermissionRequest",
-                            Some(serde_json::json!({
-                                "sessionId": sid,
-                                "requestId": request_id,
-                                "result": result_value,
-                            })),
+                            rpc_methods::SESSION_PERMISSIONS_HANDLEPENDINGPERMISSIONREQUEST,
+                            Some(params),
                         )
                         .await;
                     tracing::debug!(
@@ -2563,8 +2574,12 @@ fn inject_transform_sections_resume(
 mod tests {
     use serde_json::json;
 
-    use super::{has_managed_settings, notification_permission_payload, permission_request_data};
+    use super::{has_managed_settings, permission_request_data, permission_response_params};
     use crate::handler::PermissionResult;
+    use crate::types::{
+        PermissionDecisionContext, PermissionDecisionOutcome, PermissionDecisionSource,
+        PermissionDecisionSurface, RequestId, SessionId,
+    };
 
     #[test]
     fn direct_injection_enables_managed_safeguards() {
@@ -2573,28 +2588,113 @@ mod tests {
         assert!(!has_managed_settings(None, None));
     }
 
-    #[test]
-    fn notification_payload_suppresses_no_result() {
-        assert!(notification_permission_payload(&PermissionResult::NoResult).is_none());
+    fn attribution_context() -> PermissionDecisionContext {
+        PermissionDecisionContext {
+            outcome: PermissionDecisionOutcome::AutoApproved,
+            source: PermissionDecisionSource::JudgeRecommendation,
+            surface: PermissionDecisionSurface::CopilotApp,
+        }
     }
 
     #[test]
-    fn notification_payload_serializes_decisions() {
+    fn response_params_omit_decision_context_without_attribution() {
+        for (result, expected) in [
+            (
+                PermissionResult::approve_once(),
+                json!({ "kind": "approve-once" }),
+            ),
+            (PermissionResult::reject(None), json!({ "kind": "reject" })),
+            (
+                PermissionResult::reject(Some("bad".to_string())),
+                json!({ "kind": "reject", "feedback": "bad" }),
+            ),
+            (
+                PermissionResult::user_not_available(),
+                json!({ "kind": "user-not-available" }),
+            ),
+        ] {
+            let params = permission_response_params(
+                &SessionId::from("session-1"),
+                &RequestId::from("permission-1"),
+                &result,
+            )
+            .unwrap();
+            assert_eq!(
+                params,
+                json!({
+                    "sessionId": "session-1",
+                    "requestId": "permission-1",
+                    "result": expected,
+                })
+            );
+        }
+    }
+
+    #[test]
+    fn response_params_forward_decision_context_alongside_result() {
+        let params = permission_response_params(
+            &SessionId::from("session-1"),
+            &RequestId::from("permission-1"),
+            &PermissionResult::approve_once().with_context(attribution_context()),
+        )
+        .unwrap();
         assert_eq!(
-            notification_permission_payload(&PermissionResult::approve_once()),
-            Some(json!({ "kind": "approve-once" }))
+            params,
+            json!({
+                "sessionId": "session-1",
+                "requestId": "permission-1",
+                "result": { "kind": "approve-once" },
+                "decisionContext": {
+                    "outcome": "auto_approved",
+                    "source": "judge_recommendation",
+                    "surface": "copilot_app",
+                },
+            })
         );
-        assert_eq!(
-            notification_permission_payload(&PermissionResult::reject(None)),
-            Some(json!({ "kind": "reject" }))
+        // The context is a sibling of `result`, never nested inside it.
+        assert!(params["result"].get("decisionContext").is_none());
+    }
+
+    #[test]
+    fn response_params_suppressed_for_no_result() {
+        assert!(
+            permission_response_params(
+                &SessionId::from("session-1"),
+                &RequestId::from("permission-1"),
+                &PermissionResult::NoResult,
+            )
+            .is_none()
         );
+    }
+
+    #[test]
+    fn with_context_is_a_no_op_on_no_result() {
+        let result = PermissionResult::no_result().with_context(attribution_context());
+        assert!(matches!(result, PermissionResult::NoResult));
+    }
+
+    #[test]
+    fn with_context_replaces_rather_than_nests() {
+        let result = PermissionResult::approve_once()
+            .with_context(attribution_context())
+            .with_context(PermissionDecisionContext {
+                outcome: PermissionDecisionOutcome::PromptedUser,
+                source: PermissionDecisionSource::HumanResponse,
+                surface: PermissionDecisionSurface::Sdk,
+            });
+        let params = permission_response_params(
+            &SessionId::from("session-1"),
+            &RequestId::from("permission-1"),
+            &result,
+        )
+        .unwrap();
         assert_eq!(
-            notification_permission_payload(&PermissionResult::reject(Some("bad".to_string()))),
-            Some(json!({ "kind": "reject", "feedback": "bad" }))
-        );
-        assert_eq!(
-            notification_permission_payload(&PermissionResult::user_not_available()),
-            Some(json!({ "kind": "user-not-available" }))
+            params["decisionContext"],
+            json!({
+                "outcome": "prompted_user",
+                "source": "human_response",
+                "surface": "sdk",
+            })
         );
     }
 

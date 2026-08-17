@@ -19,7 +19,7 @@ import type {
     SessionEvent as GeneratedSessionEvent,
 } from "./generated/session-events.js";
 import type { CopilotSession } from "./session.js";
-import type { JsonValue } from "./factory.js";
+import type { FactoryJsonSchema, JsonValue } from "./factory.js";
 import type {
     GitHubTelemetryNotification,
     ModelBillingTokenPrices,
@@ -53,6 +53,12 @@ export type { SessionFsSqliteStatement } from "./sessionFsProvider.js";
 export type { SessionFsSqliteTransactionErrorClass } from "./sessionFsProvider.js";
 export { SessionFsSqliteTransactionFailure } from "./sessionFsProvider.js";
 export type { LlmInferenceHeaders } from "./generated/rpc.js";
+export type {
+    PermissionDecisionContext,
+    PermissionDecisionOutcome,
+    PermissionDecisionSource,
+    PermissionDecisionSurface,
+} from "./generated/rpc.js";
 export type { CopilotRequestContext } from "./copilotRequestHandler.js";
 export {
     CopilotRequestHandler,
@@ -303,6 +309,13 @@ export interface CopilotClientOptions {
      * Ignored when connecting to an existing runtime via {@link RuntimeConnection.forUri}.
      */
     baseDirectory?: string;
+
+    /**
+     * Absolute paths to trusted plugin directories bundled by the host.
+     * When non-empty, the complete set is registered with the runtime during
+     * startup before any sessions can be created.
+     */
+    builtinPluginDirectories?: readonly string[];
 
     /**
      * Log level for the Copilot runtime. When omitted, the runtime uses its
@@ -1113,7 +1126,7 @@ export type SystemMessageConfig =
     | SystemMessageReplaceConfig
     | SystemMessageCustomizeConfig;
 
-import type { PermissionDecisionRequest } from "./generated/rpc.js";
+import type { PermissionDecisionRequest, PermissionDecisionContext } from "./generated/rpc.js";
 
 /**
  * Permission request types from the server. This is the generated
@@ -1149,10 +1162,51 @@ export type PermissionRequestedEvent = Omit<GeneratedPermissionRequestedEvent, "
  */
 export type PermissionRequestResult = PermissionDecisionRequest["result"] | { kind: "no-result" };
 
+/**
+ * A {@link PermissionRequestResult} annotated with the
+ * {@link PermissionDecisionContext} describing how and where the decision was
+ * reached. The context is informational only — it never changes permission
+ * behavior. Supplying it lets the runtime attribute auto-approval telemetry to
+ * the responding surface.
+ */
+export interface AttributedPermissionResult {
+    kind: "attributed";
+    result: PermissionRequestResult;
+    decisionContext: PermissionDecisionContext;
+}
+
+/**
+ * Narrows a {@link PermissionHandler} return value to an attributed result.
+ */
+export function isAttributedPermissionResult(
+    result: PermissionRequestResult | AttributedPermissionResult
+): result is AttributedPermissionResult {
+    return result.kind === "attributed";
+}
+
+/**
+ * Pair a permission decision with the context describing how and where it was
+ * made, so the runtime can attribute auto-approval telemetry.
+ *
+ * Passing an already-attributed result replaces the previous context rather
+ * than nesting it. The context is informational only and never changes
+ * permission behavior.
+ */
+export function createAttributedPermissionResult(
+    result: PermissionRequestResult | AttributedPermissionResult,
+    decisionContext: PermissionDecisionContext
+): AttributedPermissionResult {
+    const inner = isAttributedPermissionResult(result) ? result.result : result;
+    return { kind: "attributed", result: inner, decisionContext };
+}
+
 export type PermissionHandler = (
     request: PermissionRequest,
     invocation: { sessionId: string; managedSettingsEnabled?: boolean }
-) => Promise<PermissionRequestResult> | PermissionRequestResult;
+) =>
+    | Promise<PermissionRequestResult | AttributedPermissionResult>
+    | PermissionRequestResult
+    | AttributedPermissionResult;
 
 /**
  * Approves permission requests when managed settings are disabled.
@@ -2007,6 +2061,30 @@ export interface FactoryMeta {
     description: string;
     /** Display metadata for the progress phases the factory may report. */
     phases: Array<{ title: string; detail?: string }>;
+    /**
+     * Optional declared shape of the arguments this factory expects as `ctx.args`.
+     *
+     * Declaring one is strongly recommended for any factory that reads `ctx.args`.
+     * When the model invokes the factory through the `run_factory` tool, the CLI
+     * validates `args` against this declaration **before** the run starts, so a
+     * malformed call is rejected with a correction hint and retried without ever
+     * creating a run row, prompting the user for permission, or spending credits. A
+     * factory that declares nothing is never validated: a malformed call starts,
+     * takes an approval, spends credits, and then fails inside the factory body.
+     * `factories_manage` with `operation: "inspect"` reports the declared shape so an
+     * agent can read it before invoking.
+     *
+     * This covers the model's `run_factory` path only. `session.factory.run(...)` is
+     * not validated against the declaration, so a factory should still check
+     * `ctx.args` rather than assume the declared shape held.
+     *
+     * Enforcement covers structure — types, required properties, and enum/const
+     * values. Finer constraints such as `minLength`, `pattern`, and
+     * `additionalProperties` are recorded in the declaration but not enforced. See
+     * {@link FactoryJsonSchema} for the accepted subset. A declaration outside that
+     * subset is rejected at registration.
+     */
+    argsSchema?: FactoryJsonSchema;
     /** Optional resource ceilings presented to the user before execution. */
     limits?: FactoryLimits;
 }

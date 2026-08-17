@@ -531,11 +531,10 @@ public final class CopilotClient implements AutoCloseable {
 
     private Connection startCoreBody() {
         Process process = null;
+        JsonRpcClient rpc = null;
         InProcessTransport inProcessTransport = null;
         long startNanos = System.nanoTime();
         try {
-            JsonRpcClient rpc;
-
             if (runtimeConnection instanceof InProcessRuntimeConnection) {
                 // In-process runtime hosted in this process (no child process)
                 inProcessTransport = inProcessTransportFactory.open(options);
@@ -554,12 +553,13 @@ public final class CopilotClient implements AutoCloseable {
             LoggingHelpers.logTiming(LOG, Level.FINE, "CopilotClient.start transport setup complete. Elapsed={Elapsed}",
                     startNanos);
 
-            Connection connection = new Connection(rpc, process, new ServerRpc(rpc::invoke),
+            JsonRpcClient connectedRpc = rpc;
+            Connection connection = new Connection(connectedRpc, process, new ServerRpc(connectedRpc::invoke),
                     inProcessTransport == null ? null : inProcessTransport.host());
 
             // Register handlers for server-to-client calls
             RpcHandlerDispatcher dispatcher = new RpcHandlerDispatcher(sessions, lifecycleManager::dispatch, executor);
-            dispatcher.registerHandlers(rpc);
+            dispatcher.registerHandlers(connectedRpc);
 
             // Register the LLM inference request handler when configured.
             com.github.copilot.CopilotRequestHandler requestHandler = this.options.getRequestHandler();
@@ -567,7 +567,7 @@ public final class CopilotClient implements AutoCloseable {
             if (hasLlmInference) {
                 LlmInferenceAdapter llmAdapter = new LlmInferenceAdapter(requestHandler,
                         () -> connection.serverRpc().llmInference, executor);
-                llmAdapter.registerHandlers(rpc);
+                llmAdapter.registerHandlers(connectedRpc);
             }
 
             // Register the GitHub telemetry forwarding handler when configured.
@@ -575,13 +575,22 @@ public final class CopilotClient implements AutoCloseable {
                     .getOnGitHubTelemetry();
             if (onGitHubTelemetry != null) {
                 GitHubTelemetryAdapter telemetryAdapter = new GitHubTelemetryAdapter(onGitHubTelemetry);
-                telemetryAdapter.registerHandlers(rpc);
+                telemetryAdapter.registerHandlers(connectedRpc);
             }
 
             // Verify protocol version
             verifyProtocolVersion(connection);
             LoggingHelpers.logTiming(LOG, Level.FINE,
                     "CopilotClient.start protocol verification complete. Elapsed={Elapsed}", startNanos);
+
+            var builtinPluginDirectories = options.getBuiltinPluginDirectories();
+            if (builtinPluginDirectories != null && !builtinPluginDirectories.isEmpty()) {
+                var paths = new ArrayList<String>(builtinPluginDirectories.size());
+                for (var path : builtinPluginDirectories) {
+                    paths.add(path.toString());
+                }
+                connection.rpc.invoke("plugins.builtin.set", Map.of("paths", paths), Void.class).join();
+            }
 
             // Register as the runtime's LLM inference provider once connected.
             if (hasLlmInference) {
@@ -598,6 +607,13 @@ public final class CopilotClient implements AutoCloseable {
             // Clean up the spawned process if connection setup failed
             if (process != null) {
                 cleanupCliProcess(process, true);
+            }
+            if (rpc != null) {
+                try {
+                    rpc.close();
+                } catch (Exception closeError) {
+                    LOG.log(Level.FINE, "Error closing RPC after failed startup", closeError);
+                }
             }
             if (inProcessTransport != null) {
                 closeRuntimeHost(inProcessTransport.host());
