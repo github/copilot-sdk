@@ -11,6 +11,7 @@ import (
 )
 
 func TestGitHubTelemetryE2E(t *testing.T) {
+	testharness.SkipIfInProcess(t, "GitHub telemetry callbacks cannot be configured per-client in-process")
 	t.Run("should forward github telemetry for a live session", func(t *testing.T) {
 		// TODO(cli-1.0.81-2): CLI 1.0.81-2 does not forward GitHub telemetry notifications
 		// over the in-process (FFI) host, mirroring the existing telemetry-configuration
