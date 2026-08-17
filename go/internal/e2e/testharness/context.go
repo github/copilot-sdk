@@ -11,6 +11,7 @@ import (
 	"time"
 
 	copilot "github.com/github/copilot-sdk/go"
+	"github.com/github/copilot-sdk/go/internal/ffihost"
 )
 
 const defaultGitHubToken = "fake-token-for-e2e-tests"
@@ -21,7 +22,9 @@ var (
 )
 
 // CLIPath returns the path to the Copilot CLI, discovering it once and caching.
-func CLIPath() string {
+func CLIPath(t testing.TB) string {
+	t.Helper()
+
 	cliPathOnce.Do(func() {
 		// Check environment variable first
 		if path := os.Getenv("COPILOT_CLI_PATH"); path != "" {
@@ -34,13 +37,84 @@ func CLIPath() string {
 		// index.js ships in the installed platform package
 		// (e.g. @github/copilot-linux-x64).
 		base := RepoPath("nodejs", "node_modules", "@github")
-		matches, _ := filepath.Glob(filepath.Join(base, "copilot-*", "index.js"))
-		if len(matches) > 0 {
-			cliPath = matches[0]
-			return
-		}
+		packageNames := cliPlatformPackageNames(ffihost.PrebuildsFolder())
+		cliPath = findCLIInNodeModules(base, packageNames)
 	})
+
+	if fileExists(cliPath) {
+		return cliPath
+	}
+
+	if envPath := os.Getenv("COPILOT_CLI_PATH"); envPath != "" {
+		t.Fatalf("CLI not found at %q from COPILOT_CLI_PATH", envPath)
+	}
+
+	base := RepoPath("nodejs", "node_modules", "@github")
+	packageNames := cliPlatformPackageNames(ffihost.PrebuildsFolder())
+	installed := installedCLIPackageNames(base)
+	triedDescription := strings.Join(packageNames, ", ")
+	if triedDescription == "" {
+		triedDescription = "none (unsupported platform)"
+	}
+	installedDescription := strings.Join(installed, ", ")
+	if installedDescription == "" {
+		installedDescription = "none"
+	}
+	t.Fatalf(
+		"CLI not found for tests under %s (tried: %s; present: %s). Run 'npm install' in the nodejs directory, or set COPILOT_CLI_PATH.",
+		base,
+		triedDescription,
+		installedDescription,
+	)
 	return cliPath
+}
+
+func cliPlatformPackageNames(platform string) []string {
+	if platform == "" {
+		return nil
+	}
+
+	names := []string{"copilot-" + platform}
+	if !strings.HasPrefix(platform, "linux") {
+		return names
+	}
+
+	_, arch, ok := strings.Cut(platform, "-")
+	if !ok {
+		return names
+	}
+	for _, variant := range []string{"linux-" + arch, "linuxmusl-" + arch} {
+		name := "copilot-" + variant
+		if name != names[0] {
+			names = append(names, name)
+		}
+	}
+	return names
+}
+
+func findCLIInNodeModules(githubModules string, packageNames []string) string {
+	for _, packageName := range packageNames {
+		candidate := filepath.Join(githubModules, packageName, "index.js")
+		if fileExists(candidate) {
+			return candidate
+		}
+	}
+	return ""
+}
+
+func installedCLIPackageNames(githubModules string) []string {
+	entries, err := os.ReadDir(githubModules)
+	if err != nil {
+		return nil
+	}
+
+	var names []string
+	for _, entry := range entries {
+		if entry.IsDir() && strings.HasPrefix(entry.Name(), "copilot-") {
+			names = append(names, entry.Name())
+		}
+	}
+	return names
 }
 
 // TestContext holds shared resources for E2E tests.
@@ -118,10 +192,7 @@ func SkipIfInProcess(t *testing.T, reason string) {
 func NewTestContext(t *testing.T) *TestContext {
 	t.Helper()
 
-	cliPath := CLIPath()
-	if cliPath == "" || !fileExists(cliPath) {
-		t.Fatalf("CLI not found at %s. Run 'npm install' in the nodejs directory first.", cliPath)
-	}
+	cliPath := CLIPath(t)
 
 	homeDir, err := os.MkdirTemp("", "copilot-test-config-")
 	if err != nil {

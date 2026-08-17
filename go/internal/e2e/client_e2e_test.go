@@ -9,10 +9,7 @@ import (
 )
 
 func TestClientE2E(t *testing.T) {
-	cliPath := testharness.CLIPath()
-	if cliPath == "" {
-		t.Fatal("CLI not found. Run 'npm install' in the nodejs directory first.")
-	}
+	cliPath := testharness.CLIPath(t)
 
 	t.Run("should start and connect to server using stdio", func(t *testing.T) {
 		client := copilot.NewClient(&copilot.ClientOptions{
