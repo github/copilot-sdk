@@ -974,17 +974,39 @@ impl Client {
         // For cloud sessions (use_server_generated_id), defer session
         // registration to the inline callback so the read task registers
         // the session synchronously the instant the response arrives.
-        // For non-cloud sessions, register up-front so the CLI can issue
-        // session-scoped requests during session.create processing.
+        // For non-cloud sessions, register and start the event loop up-front
+        // so session-scoped requests issued during session.create can complete.
         let inline_stash: Arc<
             ParkingLotMutex<Option<(SessionId, crate::router::SessionChannels)>>,
         > = Arc::new(ParkingLotMutex::new(None));
-
+        let mut event_loop = None;
+        let mut registration = None;
         let inline_callback: Option<crate::jsonrpc::InlineResponseCallback> = if let Some(ref sid) =
             local_session_id
         {
             let channels = self.register_session(sid);
-            *inline_stash.lock() = Some((sid.clone(), channels));
+            event_loop = Some(spawn_event_loop(
+                sid.clone(),
+                self.clone(),
+                handlers.clone(),
+                hooks.clone(),
+                transforms.clone(),
+                command_handlers.clone(),
+                canvas_handler.clone(),
+                session_fs_provider.clone(),
+                bearer_token_providers.clone(),
+                channels,
+                idle_waiter.clone(),
+                capabilities.clone(),
+                open_canvases.clone(),
+                event_tx.clone(),
+                shutdown.clone(),
+            ));
+            registration = Some(PendingSessionRegistration::new(
+                self.clone(),
+                sid.clone(),
+                shutdown.clone(),
+            ));
             None
         } else {
             let client = self.clone();
@@ -1018,7 +1040,11 @@ impl Client {
         {
             Ok(result) => result,
             Err(error) => {
-                if let Some((id, _channels)) = inline_stash.lock().take() {
+                if let Some(registration) = registration.take() {
+                    registration
+                        .cleanup(event_loop.take().expect("local event loop must be started"))
+                        .await;
+                } else if let Some((id, _channels)) = inline_stash.lock().take() {
                     self.unregister_session(&id);
                 }
                 return Err(error);
@@ -1031,7 +1057,11 @@ impl Client {
         let create_result: CreateSessionResult = match serde_json::from_value(result) {
             Ok(result) => result,
             Err(error) => {
-                if let Some((id, _channels)) = inline_stash.lock().take() {
+                if let Some(registration) = registration.take() {
+                    registration
+                        .cleanup(event_loop.take().expect("local event loop must be started"))
+                        .await;
+                } else if let Some((id, _channels)) = inline_stash.lock().take() {
                     self.unregister_session(&id);
                 }
                 return Err(error.into());
@@ -1041,9 +1071,11 @@ impl Client {
         if let Some(ref requested) = local_session_id
             && create_result.session_id != *requested
         {
-            if let Some((id, _channels)) = inline_stash.lock().take() {
-                self.unregister_session(&id);
-            }
+            registration
+                .take()
+                .expect("local session registration must exist")
+                .cleanup(event_loop.take().expect("local event loop must be started"))
+                .await;
             return Err(ErrorKind::Session(SessionErrorKind::SessionIdMismatch {
                 requested: requested.clone(),
                 returned: create_result.session_id.clone(),
@@ -1051,27 +1083,40 @@ impl Client {
             .into());
         }
 
-        let (session_id, channels) = inline_stash
-            .lock()
-            .take()
-            .expect("session registration must have populated stash on success");
-        let event_loop = spawn_event_loop(
-            session_id.clone(),
-            self.clone(),
-            handlers,
-            hooks,
-            transforms,
-            command_handlers,
-            canvas_handler,
-            session_fs_provider,
-            bearer_token_providers,
-            channels,
-            idle_waiter.clone(),
-            capabilities.clone(),
-            open_canvases.clone(),
-            event_tx.clone(),
-            shutdown.clone(),
-        );
+        let (session_id, event_loop) = if let Some(session_id) = local_session_id {
+            (
+                session_id,
+                event_loop.expect("local event loop must be started"),
+            )
+        } else {
+            let (session_id, channels) = inline_stash
+                .lock()
+                .take()
+                .expect("cloud session registration must have populated stash on success");
+            let event_loop = spawn_event_loop(
+                session_id.clone(),
+                self.clone(),
+                handlers,
+                hooks,
+                transforms,
+                command_handlers,
+                canvas_handler,
+                session_fs_provider,
+                bearer_token_providers,
+                channels,
+                idle_waiter.clone(),
+                capabilities.clone(),
+                open_canvases.clone(),
+                event_tx.clone(),
+                shutdown.clone(),
+            );
+            registration = Some(PendingSessionRegistration::new(
+                self.clone(),
+                session_id.clone(),
+                shutdown.clone(),
+            ));
+            (session_id, event_loop)
+        };
         tracing::debug!(
             elapsed_ms = setup_start.elapsed().as_millis(),
             session_id = %session_id,
@@ -1084,6 +1129,10 @@ impl Client {
         if has_mcp_auth_handler {
             register_mcp_auth_interest(self, &session_id).await?;
         }
+        registration
+            .as_mut()
+            .expect("session registration must exist")
+            .disarm();
 
         tracing::debug!(
             elapsed_ms = total_start.elapsed().as_millis(),
