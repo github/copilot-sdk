@@ -13,8 +13,12 @@ public sealed class RuntimeWrapperTests
     public async Task Runtime_Override_Requires_Adjacent_Runtime_Node()
     {
         var directory = Directory.CreateTempSubdirectory("copilot-runtime-pair-");
+        var originalCliPath = Environment.GetEnvironmentVariable("COPILOT_CLI_PATH");
         try
         {
+            Environment.SetEnvironmentVariable(
+                "COPILOT_CLI_PATH",
+                Path.Combine(directory.FullName, OperatingSystem.IsWindows() ? "copilot.exe" : "copilot"));
             var wrapper = Path.Combine(
                 directory.FullName,
                 OperatingSystem.IsWindows() ? "copilot-runtime.exe" : "copilot-runtime");
@@ -34,6 +38,7 @@ public sealed class RuntimeWrapperTests
         }
         finally
         {
+            Environment.SetEnvironmentVariable("COPILOT_CLI_PATH", originalCliPath);
             directory.Delete(recursive: true);
         }
     }
