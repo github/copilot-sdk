@@ -71,6 +71,20 @@
                 <artifactId>exec-maven-plugin</artifactId>
                 <executions>
                     <execution>
+                        <id>validate-native-host</id>
+                        <phase>none</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <executable>node</executable>
+                            <arguments>
+                                <argument>${project.basedir}/scripts/validate-native-host.mjs</argument>
+                                <argument>${copilot.native.classifier}</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                    <execution>
                         <id>fetch-native</id>
                         <phase>none</phase>
                         <goals>
@@ -98,6 +112,7 @@
                             <arguments>
                                 <argument>--test</argument>
                                 <argument>${project.basedir}/scripts/fetch-native.test.mjs</argument>
+                                <argument>${project.basedir}/scripts/validate-native-host.test.mjs</argument>
                             </arguments>
                         </configuration>
                     </execution>
@@ -229,7 +244,8 @@
                     <arch>amd64</arch>
                 </os>
                 <property>
-                    <name>!copilot.native.skip.download</name>
+                    <name>copilot.native.libc</name>
+                    <value>glibc</value>
                 </property>
             </activation>
             <properties>
@@ -242,6 +258,65 @@
                         <groupId>org.codehaus.mojo</groupId>
                         <artifactId>exec-maven-plugin</artifactId>
                         <executions>
+                            <execution>
+                                <id>validate-native-host</id>
+                                <phase>validate</phase>
+                            </execution>
+                            <execution>
+                                <id>fetch-native</id>
+                                <phase>generate-resources</phase>
+                            </execution>
+                            <execution>
+                                <id>test-fetch-native</id>
+                                <phase>test</phase>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-jar-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>jar-native</id>
+                                <phase>package</phase>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-antrun-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>verify-native-jars</id>
+                                <phase>package</phase>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <!--
+            The SDK's inprocess test profile requires this module's classifier
+            artifact. Bind the same guarded native lifecycle so `-Pinprocess`
+            works without a separate libc property. Host validation fails
+            before download or packaging on non-glibc and unsupported hosts.
+        -->
+        <profile>
+            <id>inprocess</id>
+            <properties>
+                <copilot.native.classifier>linux-x64</copilot.native.classifier>
+                <copilot.native.cli.filename>copilot</copilot.native.cli.filename>
+            </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>validate-native-host</id>
+                                <phase>validate</phase>
+                            </execution>
                             <execution>
                                 <id>fetch-native</id>
                                 <phase>generate-resources</phase>
@@ -295,6 +370,40 @@
                         <configuration>
                             <skip>true</skip>
                         </configuration>
+                        <executions>
+                            <execution>
+                                <id>validate-native-host</id>
+                                <phase>none</phase>
+                            </execution>
+                            <execution>
+                                <id>fetch-native</id>
+                                <phase>none</phase>
+                            </execution>
+                            <execution>
+                                <id>test-fetch-native</id>
+                                <phase>none</phase>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-jar-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>jar-native</id>
+                                <phase>none</phase>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-antrun-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>verify-native-jars</id>
+                                <phase>none</phase>
+                            </execution>
+                        </executions>
                     </plugin>
                 </plugins>
             </build>

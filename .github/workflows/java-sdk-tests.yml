@@ -40,10 +40,13 @@ jobs:
         with:
           node-version: 22
 
+      - name: Validate Linux glibc native host
+        run: node copilot-native/scripts/validate-native-host.mjs linux-x64
+
       - name: Run Java SDK tests (InProcess)
         env:
           CI: "true"
-        run: mvn clean verify -Pinprocess
+        run: mvn clean verify -Pinprocess -Dcopilot.native.skip.download=false
 
       - name: Generate Test Report Summary
         if: always()
@@ -125,7 +128,9 @@ jobs:
         if: matrix.test-jdk == '25'
         env:
           CI: "true"
-        run: mvn verify -Dskip.test.harness=true
+        run: |
+          node copilot-native/scripts/validate-native-host.mjs linux-x64
+          mvn verify -Dskip.test.harness=true -Dcopilot.native.libc=glibc -Dcopilot.native.skip.download=false
 
       - name: Switch to JDK 17
         if: matrix.test-jdk == '17'
