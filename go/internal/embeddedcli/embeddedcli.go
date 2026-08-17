@@ -112,6 +112,23 @@ func RuntimePath() string {
 	return runtimePath
 }
 
+// LegacyPath returns the installed root copilot executable without installing
+// the out-of-process runtime pair.
+func LegacyPath() string {
+	setupMu.Lock()
+	defer setupMu.Unlock()
+	if !setupDone {
+		return ""
+	}
+	pathInitialized = true
+	selectLinuxMuslBundle()
+	path, err := installConfigured(false)
+	if err != nil {
+		return ""
+	}
+	return path
+}
+
 var (
 	config          Config
 	setupMu         sync.Mutex
@@ -138,6 +155,15 @@ func install() (path string) {
 			fmt.Printf("installing embedded CLI at %s installation took %s\n", path, duration)
 		}()
 	}
+	path, err := installConfigured(true)
+	if err != nil {
+		logError("installing in configured directory", err)
+		return ""
+	}
+	return path
+}
+
+func installConfigured(includeRuntime bool) (string, error) {
 	installDir := config.Dir
 	if installDir == "" {
 		if copilotHome := os.Getenv("COPILOT_HOME"); copilotHome != "" {
@@ -151,16 +177,11 @@ func install() (path string) {
 			installDir = filepath.Join(installDir, "copilot-sdk")
 		}
 	}
-	path, err := installAt(installDir)
-	if err != nil {
-		logError("installing in configured directory", err)
-		return ""
-	}
-	return path
+	return installAtMode(installDir, includeRuntime)
 }
 
 func selectLinuxMuslBundle() {
-	if runtime.GOOS != "linux" || config.LinuxMuslCli == nil || !isMusl() {
+	if linuxMuslBundle || runtime.GOOS != "linux" || config.LinuxMuslCli == nil || !isMusl() {
 		return
 	}
 	config = linuxMuslConfig(config)
@@ -185,6 +206,14 @@ func isMusl() bool {
 }
 
 func installAt(installDir string) (string, error) {
+	return installAtMode(installDir, true)
+}
+
+func installLegacyAt(installDir string) (string, error) {
+	return installAtMode(installDir, false)
+}
+
+func installAtMode(installDir string, includeRuntime bool) (string, error) {
 	version := sanitizeVersion(config.Version)
 	if version != "" {
 		installDir = filepath.Join(installDir, version)
@@ -215,14 +244,14 @@ func installAt(installDir string) (string, error) {
 		if !bytes.Equal(existingHash, config.CliHash) {
 			return "", fmt.Errorf("existing binary hash mismatch")
 		}
-		if config.RuntimeLib != nil {
+		if includeRuntime && config.RuntimeLib != nil {
 			libPath, err := installRuntimeLib(installDir)
 			if err != nil {
 				return "", err
 			}
 			runtimeLibPath = libPath
 		}
-		if config.RuntimeExecutable != nil {
+		if includeRuntime && config.RuntimeExecutable != nil {
 			wrapperPath, err := installRuntimePair(installDir)
 			if err != nil {
 				return "", err
@@ -255,14 +284,14 @@ func installAt(installDir string) (string, error) {
 
 	// Install the native in-process runtime library (if bundled) next to the CLI.
 	// Fail closed on any hash mismatch; never place unverified native code.
-	if config.RuntimeLib != nil {
+	if includeRuntime && config.RuntimeLib != nil {
 		libPath, err := installRuntimeLib(installDir)
 		if err != nil {
 			return "", err
 		}
 		runtimeLibPath = libPath
 	}
-	if config.RuntimeExecutable != nil {
+	if includeRuntime && config.RuntimeExecutable != nil {
 		wrapperPath, err := installRuntimePair(installDir)
 		if err != nil {
 			return "", err

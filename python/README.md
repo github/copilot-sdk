@@ -54,9 +54,12 @@ lazily on first use of the in-process transport.
 | Variable | Description |
 |----------|-------------|
 | `COPILOT_CLI_PATH` | Use this specific binary instead of downloading |
+| `COPILOT_SDK_USE_LEGACY_CLI` | Temporarily use the bundled root CLI for automatic out-of-process launch when set to `1` or `true` (case-insensitive) |
 | `COPILOT_CLI_EXTRACT_DIR` | Override the cache directory (binary placed directly here) |
 | `COPILOT_SKIP_CLI_DOWNLOAD` | Set to `1` to disable auto-download |
 | `COPILOT_CLI_DOWNLOAD_BASE_URL` | Override the GitHub Releases download URL |
+
+The SDK launches the bundled Rust runtime wrapper by default. `COPILOT_SDK_USE_LEGACY_CLI` applies only to automatic stdio or TCP resolution. Explicit paths, URLs, and `COPILOT_RUNTIME_PATH` take precedence, and in-process connections are unchanged.
 
 ## Run the Sample
 

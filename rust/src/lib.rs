@@ -1195,6 +1195,7 @@ impl Client {
                 let resolve_start = Instant::now();
                 let resolved = resolve::copilot_binary_with_extract_dir(
                     options.bundled_cli_extract_dir.as_deref(),
+                    matches!(options.transport, Transport::Stdio | Transport::Tcp { .. }),
                 )?;
                 let resolve_elapsed = resolve_start.elapsed();
                 timings.program_resolve_ms = Some(StartupTimings::millis(resolve_elapsed));

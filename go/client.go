@@ -169,6 +169,7 @@ type Client struct {
 	port               int
 	tcpConnectionToken string
 	runtimeWrapper     bool
+	useLegacyCLI       bool
 
 	modelsCache               []ModelInfo
 	modelsCacheMux            sync.Mutex
@@ -323,6 +324,13 @@ func NewClient(options *ClientOptions) *Client {
 		); runtimePath != "" {
 			client.cliPath = runtimePath
 			client.runtimeWrapper = true
+		} else {
+			client.useLegacyCLI = isTruthyEnvironmentValue(
+				firstNonEmpty(
+					getEnvValue(opts.Env, "COPILOT_SDK_USE_LEGACY_CLI"),
+					os.Getenv("COPILOT_SDK_USE_LEGACY_CLI"),
+				),
+			)
 		}
 
 	}
@@ -357,6 +365,10 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func isTruthyEnvironmentValue(value string) bool {
+	return value == "1" || strings.EqualFold(value, "true")
 }
 
 const defaultConnectionEnvVar = "COPILOT_SDK_DEFAULT_CONNECTION"
@@ -2040,7 +2052,9 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 		}
 	}
 	if cliPath == "" {
-		if runtimePath := embeddedcli.RuntimePath(); runtimePath != "" {
+		if c.useLegacyCLI {
+			cliPath = embeddedcli.LegacyPath()
+		} else if runtimePath := embeddedcli.RuntimePath(); runtimePath != "" {
 			cliPath = runtimePath
 			residualCLIPath = embeddedcli.Path()
 		} else {

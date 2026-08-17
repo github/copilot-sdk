@@ -211,6 +211,20 @@ class NativeRuntimeLoaderTest {
     }
 
     @Test
+    void resolveLegacyCliExtractsOnlyRootCli(@TempDir Path tempDir) throws Exception {
+        assumeLinuxX64();
+        Path cacheBase = tempDir.resolve("cache");
+        ClassLoader loader = classLoaderWithNativeArtifacts(tempDir, TEST_CLASSIFIER, TEST_NATIVE_VERSION,
+                FAKE_BINARY_CONTENT, FAKE_CLI_CONTENT);
+
+        Path result = NativeRuntimeLoader.resolveLegacyCli(cacheBase, loader, TEST_CLASSIFIER, TEST_VERSION);
+
+        assertBytesEqual(FAKE_CLI_CONTENT, Files.readAllBytes(result));
+        assertFalse(Files.exists(result.resolveSibling(NativeRuntimeLoader.RUNTIME_FILENAME)));
+        assertFalse(Files.exists(result.resolveSibling(NativeRuntimeLoader.RUNTIME_WRAPPER_FILENAME)));
+    }
+
+    @Test
     void extractToCacheReturnsCachedFileOnSecondCall(@TempDir Path tempDir) throws Exception {
         Path cacheBase = tempDir.resolve("cache");
         ClassLoader loader = classLoaderWithRuntimeResource(tempDir, TEST_CLASSIFIER);

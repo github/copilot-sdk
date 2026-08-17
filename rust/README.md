@@ -102,7 +102,9 @@ transports.
 | `extra_args`        | `Vec<String>`               | Extra CLI flags                                                   |
 | `transport`         | `Transport`                 | `Default`, `Stdio`, `InProcess`, `Tcp`, or `External`             |
 
-With the default `CliProgram::Resolve`, `Client::start()` resolves the CLI in this order: an explicit `CliProgram::Path(path)`, the `COPILOT_CLI_PATH` env var, then the bundled CLI that was embedded at build time. There is no PATH scanning — if you've opted out of bundling (`default-features = false`) you must supply either `CliProgram::Path` or `COPILOT_CLI_PATH`.
+With the default `CliProgram::Resolve`, `Client::start()` resolves the runtime in this order: an explicit `CliProgram::Path(path)`, the `COPILOT_CLI_PATH` env var, `COPILOT_RUNTIME_PATH`, then the bundled runtime that was embedded at build time. There is no PATH scanning—if you've opted out of bundling (`default-features = false`) you must supply an explicit path or retain the build-time extracted runtime.
+
+Managed stdio and TCP connections launch the bundled Rust runtime wrapper by default. As a temporary compatibility escape hatch, set `COPILOT_SDK_USE_LEGACY_CLI=1` or `COPILOT_SDK_USE_LEGACY_CLI=true` (`true` is case-insensitive) to launch the bundled root `copilot` executable instead. This setting applies only to automatic resolution: explicit paths, external connections, and `COPILOT_RUNTIME_PATH` take precedence, and in-process connections are unchanged.
 
 ### Session
 

@@ -74,6 +74,8 @@ const RUNTIME_NODE_NAME: &str = "runtime.node";
 
 #[cfg(feature = "bundled-cli")]
 static INSTALLED_PATH: OnceLock<Option<PathBuf>> = OnceLock::new();
+#[cfg(feature = "bundled-cli")]
+static LEGACY_INSTALLED_PATH: OnceLock<Option<PathBuf>> = OnceLock::new();
 
 /// Returns the path to the installed CLI binary, lazily extracting the
 /// embedded archive on first call.
@@ -112,6 +114,29 @@ pub(crate) fn path() -> Option<PathBuf> {
         .clone()
 }
 
+/// Returns the root legacy CLI without extracting the runtime wrapper pair.
+#[cfg(feature = "bundled-cli")]
+pub(crate) fn legacy_path() -> Option<PathBuf> {
+    LEGACY_INSTALLED_PATH
+        .get_or_init(|| {
+            #[cfg(has_bundled_cli)]
+            {
+                let dir = default_install_dir(CLI_VERSION);
+                match install_legacy(&dir, build_time::CLI_ARCHIVE) {
+                    Ok(path) => {
+                        info!(path = %path.display(), version = CLI_VERSION, "embedded legacy CLI installed");
+                        return Some(path);
+                    }
+                    Err(e) => {
+                        warn!(error = %e, "embedded legacy CLI installation failed");
+                    }
+                }
+            }
+            None
+        })
+        .clone()
+}
+
 /// Install the embedded CLI binary into the given directory instead of the
 /// default `<platform cache dir>/github-copilot-sdk/cli/<version>/` location
 /// (see [`path`] for the per-platform mapping).
@@ -132,6 +157,27 @@ pub(crate) fn install_at(extract_dir: &Path) -> Option<PathBuf> {
             }
             Err(e) => {
                 warn!(error = %e, "embedded CLI installation failed");
+            }
+        }
+    }
+    #[cfg(not(has_bundled_cli))]
+    {
+        let _ = extract_dir;
+    }
+    None
+}
+
+#[cfg(feature = "bundled-cli")]
+pub(crate) fn install_legacy_at(extract_dir: &Path) -> Option<PathBuf> {
+    #[cfg(has_bundled_cli)]
+    {
+        match install_legacy(extract_dir, build_time::CLI_ARCHIVE) {
+            Ok(path) => {
+                info!(path = %path.display(), version = CLI_VERSION, "embedded legacy CLI installed");
+                return Some(path);
+            }
+            Err(e) => {
+                warn!(error = %e, "embedded legacy CLI installation failed");
             }
         }
     }
@@ -182,6 +228,11 @@ fn install(install_dir: &Path, archive: &[u8]) -> Result<PathBuf, EmbeddedCliErr
         install_runtime_library(install_dir, archive)?;
     }
     Ok(install_dir.join(RUNTIME_BINARY_NAME))
+}
+
+#[cfg(has_bundled_cli)]
+fn install_legacy(install_dir: &Path, archive: &[u8]) -> Result<PathBuf, EmbeddedCliError> {
+    install_cli(install_dir, archive)
 }
 
 #[cfg(has_bundled_cli)]

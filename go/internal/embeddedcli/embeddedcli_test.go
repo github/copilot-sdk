@@ -54,6 +54,41 @@ func TestInstallAtWritesAdjacentRuntimePair(t *testing.T) {
 	}
 }
 
+func TestInstallLegacyAtWritesOnlyRootCLI(t *testing.T) {
+	resetGlobals()
+	tempDir := t.TempDir()
+	cli := []byte("cli")
+	wrapper := []byte("wrapper")
+	node := []byte("runtime")
+	cliHash := sha256.Sum256(cli)
+	wrapperHash := sha256.Sum256(wrapper)
+	nodeHash := sha256.Sum256(node)
+	Setup(Config{
+		Cli:                   bytes.NewReader(cli),
+		CliHash:               cliHash[:],
+		RuntimeExecutable:     bytes.NewReader(wrapper),
+		RuntimeExecutableHash: wrapperHash[:],
+		RuntimeNode:           bytes.NewReader(node),
+		RuntimeNodeHash:       nodeHash[:],
+		Version:               "1.2.3",
+		Dir:                   tempDir,
+	})
+
+	cliPath, err := installLegacyAt(tempDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := os.ReadFile(cliPath); err != nil || string(got) != "cli" {
+		t.Fatalf("legacy CLI content=%q err=%v", got, err)
+	}
+	pairDir := filepath.Dir(cliPath)
+	for _, name := range []string{runtimeExecutableName(), "runtime.node"} {
+		if _, err := os.Stat(filepath.Join(pairDir, name)); !os.IsNotExist(err) {
+			t.Fatalf("legacy install unexpectedly staged %s: %v", name, err)
+		}
+	}
+}
+
 func TestInstallVerifiedFileRestoresExecutablePermission(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("Windows does not use Unix execute bits")

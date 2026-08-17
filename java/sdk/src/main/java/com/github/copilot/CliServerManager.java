@@ -34,6 +34,7 @@ final class CliServerManager {
 
     private static final Logger LOG = Logger.getLogger(CliServerManager.class.getName());
     private static final int STDERR_READER_JOIN_TIMEOUT_MS = 5000;
+    private static final String USE_LEGACY_CLI_ENV = "COPILOT_SDK_USE_LEGACY_CLI";
 
     private final CopilotClientOptions options;
     private final StringBuilder stderrBuffer = new StringBuilder();
@@ -322,6 +323,11 @@ final class CliServerManager {
     }
 
     RuntimeLaunch resolveCliLaunch() throws IOException {
+        return resolveCliLaunch(NativeRuntimeLoader::resolveRuntimeWrapper, NativeRuntimeLoader::resolveLegacyCli);
+    }
+
+    RuntimeLaunch resolveCliLaunch(ArtifactResolver runtimeResolver, ArtifactResolver legacyResolver)
+            throws IOException {
         if (options.getCliPath() != null) {
             return new RuntimeLaunch(options.getCliPath(), null);
         }
@@ -333,7 +339,17 @@ final class CliServerManager {
             runtimePath = System.getenv("COPILOT_RUNTIME_PATH");
         }
         if (runtimePath == null || runtimePath.isBlank()) {
-            Path wrapper = NativeRuntimeLoader.resolveRuntimeWrapper();
+            String legacyValue = options.getEnvironment() == null
+                    ? null
+                    : options.getEnvironment().get(USE_LEGACY_CLI_ENV);
+            if (legacyValue == null) {
+                legacyValue = System.getenv(USE_LEGACY_CLI_ENV);
+            }
+            if (isTruthyEnvironmentValue(legacyValue)) {
+                return new RuntimeLaunch(legacyResolver.resolve().toString(), null);
+            }
+
+            Path wrapper = runtimeResolver.resolve();
             String residualName = wrapper.getFileName().toString().endsWith(".exe") ? "copilot.exe" : "copilot";
             Path residualCli = wrapper.resolveSibling(residualName);
             if (!isNonEmptyFile(residualCli)) {
@@ -349,6 +365,10 @@ final class CliServerManager {
                     + "non-empty runtime.node; checked " + wrapper + " and " + runtimeNode);
         }
         return new RuntimeLaunch(wrapper.toString(), null);
+    }
+
+    private static boolean isTruthyEnvironmentValue(String value) {
+        return "1".equals(value) || "true".equalsIgnoreCase(value);
     }
 
     private static boolean isNonEmptyFile(Path path) {
@@ -388,5 +408,10 @@ final class CliServerManager {
     }
 
     record RuntimeLaunch(String executable, String residualCli) {
+    }
+
+    @FunctionalInterface
+    interface ArtifactResolver {
+        Path resolve() throws IOException;
     }
 }

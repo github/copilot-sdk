@@ -6,9 +6,11 @@
 //!    [`CliProgram::Path`](crate::CliProgram::Path).
 //! 2. The `COPILOT_CLI_PATH` environment variable.
 //! 3. The `COPILOT_RUNTIME_PATH` environment variable.
-//! 4. The bundled CLI embedded in this crate at build time (when the
+//! 4. The bundled root CLI when `COPILOT_SDK_USE_LEGACY_CLI` is `1` or `true`
+//!    for a managed child-process transport.
+//! 5. The bundled runtime embedded in this crate at build time (when the
 //!    `bundled-cli` cargo feature is on, the default).
-//! 5. The build-time-extracted CLI in the per-user cache (when
+//! 6. The build-time-extracted CLI in the per-user cache (when
 //!    `bundled-cli` is off).
 //!
 //! There is no PATH scanning and no walking of standard install locations.
@@ -42,6 +44,7 @@ pub(crate) struct ResolvedProgram {
 /// under it.
 pub(crate) fn copilot_binary_with_extract_dir(
     extract_dir: Option<&Path>,
+    allow_legacy_cli: bool,
 ) -> Result<ResolvedProgram, Error> {
     if let Ok(value) = env::var("COPILOT_CLI_PATH") {
         let candidate = PathBuf::from(&value);
@@ -94,25 +97,29 @@ pub(crate) fn copilot_binary_with_extract_dir(
         });
     }
 
+    let legacy_value = env::var("COPILOT_SDK_USE_LEGACY_CLI").ok();
+    let use_legacy_cli = should_use_legacy_cli(allow_legacy_cli, legacy_value.as_deref());
+
     #[cfg(feature = "bundled-cli")]
     {
-        let bundled = match extract_dir {
-            Some(dir) => crate::embeddedcli::install_at(dir),
-            None => crate::embeddedcli::path(),
+        let bundled = match (extract_dir, use_legacy_cli) {
+            (Some(dir), true) => crate::embeddedcli::install_legacy_at(dir),
+            (None, true) => crate::embeddedcli::legacy_path(),
+            (Some(dir), false) => crate::embeddedcli::install_at(dir),
+            (None, false) => crate::embeddedcli::path(),
         };
         if let Some(path) = bundled {
-            let residual_cli = path.parent().map(|dir| dir.join(cli_binary_name()));
-            return Ok(ResolvedProgram {
-                executable: path,
-                residual_cli,
-                is_runtime_wrapper: true,
-            });
+            let directory = path.parent().unwrap_or_else(|| Path::new("."));
+            return resolved_bundled_program(directory, use_legacy_cli);
         }
     }
 
     #[cfg(not(feature = "bundled-cli"))]
     {
         let _ = extract_dir;
+        if use_legacy_cli && let Some(program) = extracted_legacy_program() {
+            return Ok(program);
+        }
         if let Some(program) = extracted_program() {
             return Ok(program);
         }
@@ -131,6 +138,52 @@ pub(crate) fn copilot_binary_with_extract_dir(
     .into())
 }
 
+fn is_truthy_environment_value(value: &str) -> bool {
+    value == "1" || value.eq_ignore_ascii_case("true")
+}
+
+fn should_use_legacy_cli(allow_legacy_cli: bool, value: Option<&str>) -> bool {
+    allow_legacy_cli && value.is_some_and(is_truthy_environment_value)
+}
+
+fn resolved_bundled_program(
+    directory: &Path,
+    use_legacy_cli: bool,
+) -> Result<ResolvedProgram, Error> {
+    let cli = directory.join(cli_binary_name());
+    if use_legacy_cli {
+        let valid = cli
+            .metadata()
+            .map(|metadata| metadata.is_file() && metadata.len() > 0)
+            .unwrap_or(false);
+        if !valid {
+            return Err(Error::with_message(
+                ErrorKind::BinaryNotFound {
+                    name: cli_binary_name().into(),
+                    hint: None,
+                },
+                format!(
+                    "bundled legacy Copilot CLI is missing or empty at '{}'",
+                    cli.display()
+                ),
+            ));
+        }
+        return Ok(ResolvedProgram {
+            executable: cli,
+            residual_cli: None,
+            is_runtime_wrapper: false,
+        });
+    }
+
+    let wrapper = directory.join(runtime_binary_name());
+    validate_runtime_pair(&wrapper)?;
+    Ok(ResolvedProgram {
+        executable: wrapper,
+        residual_cli: Some(cli),
+        is_runtime_wrapper: true,
+    })
+}
+
 /// Path to the CLI extracted into the per-user cache by `build.rs` when
 /// `bundled-cli` is disabled. Returns `None` if the cached file is missing
 /// (e.g. the user deleted the cache after building, or built with
@@ -146,15 +199,7 @@ pub(crate) fn copilot_binary_with_extract_dir(
 /// machines, and prevents copying `target/` between hosts.
 #[cfg(all(not(feature = "bundled-cli"), has_extracted_cli))]
 fn extracted_program() -> Option<ResolvedProgram> {
-    let version = env!("COPILOT_SDK_CLI_VERSION");
-    let dir = match env::var_os("COPILOT_CLI_EXTRACT_DIR") {
-        Some(custom) => PathBuf::from(custom),
-        None => dirs::cache_dir()
-            .unwrap_or_else(env::temp_dir)
-            .join("github-copilot-sdk")
-            .join("cli")
-            .join(sanitize_version(version)),
-    };
+    let dir = extracted_install_dir();
 
     let path = dir.join(runtime_binary_name());
     let residual_cli = dir.join(cli_binary_name());
@@ -170,6 +215,34 @@ fn extracted_program() -> Option<ResolvedProgram> {
         "expected build-time-extracted CLI is missing; rebuild the crate or set COPILOT_CLI_PATH"
     );
     None
+}
+
+#[cfg(all(not(feature = "bundled-cli"), has_extracted_cli))]
+fn extracted_legacy_program() -> Option<ResolvedProgram> {
+    let cli = extracted_install_dir().join(cli_binary_name());
+    cli.is_file().then_some(ResolvedProgram {
+        executable: cli,
+        residual_cli: None,
+        is_runtime_wrapper: false,
+    })
+}
+
+#[cfg(all(not(feature = "bundled-cli"), not(has_extracted_cli)))]
+fn extracted_legacy_program() -> Option<ResolvedProgram> {
+    None
+}
+
+#[cfg(all(not(feature = "bundled-cli"), has_extracted_cli))]
+fn extracted_install_dir() -> PathBuf {
+    let version = env!("COPILOT_SDK_CLI_VERSION");
+    match env::var_os("COPILOT_CLI_EXTRACT_DIR") {
+        Some(custom) => PathBuf::from(custom),
+        None => dirs::cache_dir()
+            .unwrap_or_else(env::temp_dir)
+            .join("github-copilot-sdk")
+            .join("cli")
+            .join(sanitize_version(version)),
+    }
 }
 
 /// `has_extracted_cli` is absent when the target is unsupported or the
@@ -274,7 +347,49 @@ mod tests {
 
     use tempfile::tempdir;
 
-    use super::validate_runtime_pair;
+    use super::{
+        is_truthy_environment_value, resolved_bundled_program, should_use_legacy_cli,
+        validate_runtime_pair,
+    };
+
+    #[test]
+    fn legacy_escape_hatch_accepts_only_standard_truthy_values() {
+        for value in ["1", "true", "TRUE"] {
+            assert!(is_truthy_environment_value(value), "{value}");
+        }
+        for value in ["", "0", "false", "yes"] {
+            assert!(!is_truthy_environment_value(value), "{value}");
+        }
+    }
+
+    #[test]
+    fn legacy_escape_hatch_is_limited_to_managed_child_processes() {
+        assert!(should_use_legacy_cli(true, Some("true")));
+        assert!(!should_use_legacy_cli(false, Some("true")));
+        assert!(!should_use_legacy_cli(true, Some("false")));
+        assert!(!should_use_legacy_cli(true, None));
+    }
+
+    #[test]
+    fn bundled_program_defaults_to_wrapper_and_legacy_does_not_require_runtime_pair() {
+        let dir = tempdir().expect("temp dir");
+        let cli = dir.path().join(super::cli_binary_name());
+        let wrapper = dir.path().join(super::runtime_binary_name());
+        fs::write(&cli, b"cli").expect("write CLI");
+        fs::write(&wrapper, b"wrapper").expect("write wrapper");
+        fs::write(dir.path().join("runtime.node"), b"runtime").expect("write runtime.node");
+
+        let default = resolved_bundled_program(dir.path(), false).expect("default wrapper");
+        assert_eq!(default.executable, wrapper);
+        assert_eq!(default.residual_cli, Some(cli.clone()));
+        assert!(default.is_runtime_wrapper);
+
+        fs::remove_file(dir.path().join("runtime.node")).expect("remove runtime.node");
+        let legacy = resolved_bundled_program(dir.path(), true).expect("legacy CLI");
+        assert_eq!(legacy.executable, cli);
+        assert_eq!(legacy.residual_cli, None);
+        assert!(!legacy.is_runtime_wrapper);
+    }
 
     #[test]
     fn runtime_override_requires_adjacent_nonempty_runtime_node() {

@@ -70,6 +70,10 @@ Replace `${copilot.sdk.version}` with the latest release from Maven Central.
 implementation 'com.github:copilot-sdk-java:1.0.14-preview.2-SNAPSHOT'
 ```
 
+## Managed out-of-process launch
+
+Managed stdio and TCP connections launch the bundled Rust runtime wrapper by default. As a temporary compatibility escape hatch, set `COPILOT_SDK_USE_LEGACY_CLI=1` or `COPILOT_SDK_USE_LEGACY_CLI=true` (`true` is case-insensitive) to launch the bundled root `copilot` executable instead. This setting applies only to automatic package resolution: explicit paths, URLs, and `COPILOT_RUNTIME_PATH` take precedence, and in-process connections are unchanged.
+
 ## In-process mode (experimental)
 
 The SDK supports running the Copilot runtime **in-process** as a native library instead of spawning a separate CLI process. This eliminates process management overhead and simplifies deployment. In-process mode is currently experimental and supported on **linux-x64** (glibc), **linux-arm64** (glibc), **win32-x64**, **win32-arm64**, and **darwin-arm64**.

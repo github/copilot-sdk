@@ -280,6 +280,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// explicitly.
     /// </summary>
     internal const string DefaultConnectionEnvVar = "COPILOT_SDK_DEFAULT_CONNECTION";
+    private const string UseLegacyCliEnvVar = "COPILOT_SDK_USE_LEGACY_CLI";
 
     /// <summary>
     /// Resolves the default <see cref="RuntimeConnection"/> for the no-Connection case,
@@ -2226,13 +2227,16 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         var envRuntimePath =
             (configuredEnvironment is not null && configuredEnvironment.TryGetValue("COPILOT_RUNTIME_PATH", out var configuredRuntimePath) ? configuredRuntimePath : null)
             ?? System.Environment.GetEnvironmentVariable("COPILOT_RUNTIME_PATH");
+        var useLegacyCliValue =
+            (configuredEnvironment is not null && configuredEnvironment.TryGetValue(UseLegacyCliEnvVar, out var configuredUseLegacyCli) ? configuredUseLegacyCli : null)
+            ?? System.Environment.GetEnvironmentVariable(UseLegacyCliEnvVar);
         var launch = childProcessConnection.Path is not null
             ? new RuntimeLaunch(childProcessConnection.Path, null, "Options")
             : envCliPath is not null
                 ? new RuntimeLaunch(envCliPath, null, "Environment")
                 : envRuntimePath is not null
                     ? ValidateRuntimePair(envRuntimePath, null, "Runtime environment")
-                    : GetBundledRuntimeLaunch();
+                    : GetBundledRuntimeLaunch(IsTruthyEnvironmentValue(useLegacyCliValue));
         var cliPath = launch.Executable;
         var cliPathSource = launch.Source;
         var args = new List<string>();
@@ -2429,11 +2433,20 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         return File.Exists(searchedPath) ? searchedPath : null;
     }
 
-    private static RuntimeLaunch GetBundledRuntimeLaunch()
+    private static RuntimeLaunch GetBundledRuntimeLaunch(bool useLegacyCli)
     {
         var cliPath = GetBundledCliPath(out var searchedPath)
             ?? throw new InvalidOperationException(
                 $"Copilot runtime not found at '{searchedPath}'. Ensure the SDK NuGet package was restored correctly or provide an explicit RuntimeConnection.ForStdio(path: ...) / RuntimeConnection.ForTcp(path: ...).");
+        return CreateBundledRuntimeLaunch(cliPath, useLegacyCli);
+    }
+
+    private static RuntimeLaunch CreateBundledRuntimeLaunch(string cliPath, bool useLegacyCli)
+    {
+        if (useLegacyCli)
+        {
+            return new RuntimeLaunch(cliPath, null, "Bundled legacy CLI");
+        }
         var directory = Path.GetDirectoryName(cliPath)!;
         var wrapper = Path.Combine(directory, OperatingSystem.IsWindows() ? "copilot-runtime.exe" : "copilot-runtime");
         var runtimeNode = Path.Combine(directory, "runtime.node");
@@ -2445,6 +2458,9 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         }
         return ValidateRuntimePair(wrapper, cliPath, "Bundled runtime");
     }
+
+    private static bool IsTruthyEnvironmentValue(string? value)
+        => value == "1" || string.Equals(value, "true", StringComparison.OrdinalIgnoreCase);
 
     private static RuntimeLaunch ValidateRuntimePair(string wrapper, string? residualCli, string source)
     {
