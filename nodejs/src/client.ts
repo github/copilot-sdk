@@ -65,6 +65,7 @@ import type {
     ModelInfo,
     NamedProviderConfig,
     ProviderConfig,
+    ExtensionJoinOptions,
     ResumeSessionConfig,
     SectionTransformFn,
     SessionConfig,
@@ -1711,15 +1712,17 @@ export class CopilotClient {
     async resumeSessionForExtension(
         sessionId: string,
         config: ResumeSessionConfig,
-        factories?: FactoryHandle[]
+        factories?: FactoryHandle[],
+        extensionOptions?: ExtensionJoinOptions
     ): Promise<CopilotSession> {
-        return this.resumeSessionInternal(sessionId, config, factories);
+        return this.resumeSessionInternal(sessionId, config, factories, extensionOptions);
     }
 
     private async resumeSessionInternal(
         sessionId: string,
         config: ResumeSessionConfig,
-        factories?: FactoryHandle[]
+        factories?: FactoryHandle[],
+        extensionOptions?: ExtensionJoinOptions
     ): Promise<CopilotSession> {
         if (!this.connection) {
             await this.start();
@@ -1884,7 +1887,25 @@ export class CopilotClient {
                 expAssignments: config.expAssignments,
                 enableManagedSettings: config.enableManagedSettings,
                 managedSettings: config.managedSettings,
+                ...(extensionOptions?.requestedEnvironmentVariables
+                    ? {
+                          requestedEnvironmentVariables:
+                              extensionOptions.requestedEnvironmentVariables,
+                      }
+                    : {}),
             });
+
+            // The host answers an approved environment request with the resolved
+            // values, and this method consumes the response, so the grant has to be
+            // applied here — no caller ever sees it.
+            if (extensionOptions?.requestedEnvironmentVariables) {
+                const { grantedEnvironmentVariables } = response as {
+                    grantedEnvironmentVariables?: Record<string, string>;
+                };
+                for (const [name, value] of Object.entries(grantedEnvironmentVariables ?? {})) {
+                    process.env[name] = value;
+                }
+            }
 
             const { workspacePath, capabilities, openCanvases } = response as {
                 sessionId: string;

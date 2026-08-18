@@ -47,6 +47,33 @@ describe("joinSession", () => {
         expect(config.suppressResumeEvent).toBe(false);
     });
 
+    it("forwards the requested environment variables and keeps them off the resume config", async () => {
+        process.env.SESSION_ID = "session-123";
+        const resumeForExtension = vi
+            .spyOn(CopilotClient.prototype, "resumeSessionForExtension")
+            .mockResolvedValue({} as any);
+
+        await joinSession({ env: ["GITHUB_TOKEN", "MY_SECRET"], tools: [] });
+
+        const [, config, , extensionOptions] = resumeForExtension.mock.calls[0]!;
+        expect(extensionOptions).toEqual({
+            requestedEnvironmentVariables: ["GITHUB_TOKEN", "MY_SECRET"],
+        });
+        expect(config).not.toHaveProperty("env");
+    });
+
+    it("requests no environment variables when env is omitted", async () => {
+        process.env.SESSION_ID = "session-123";
+        const resumeForExtension = vi
+            .spyOn(CopilotClient.prototype, "resumeSessionForExtension")
+            .mockResolvedValue({} as any);
+
+        await joinSession({ tools: [] });
+
+        const [, , , extensionOptions] = resumeForExtension.mock.calls[0]!;
+        expect(extensionOptions?.requestedEnvironmentVariables).toBeUndefined();
+    });
+
     it("exports the canvas helper from the extension surface", () => {
         const canvas = createCanvas({
             id: "counter",

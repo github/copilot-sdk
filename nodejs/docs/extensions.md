@@ -53,6 +53,25 @@ const session = await joinSession({
 
 The `session` object provides methods for sending messages, logging to the timeline, listening to events, and accessing the RPC API. See the `.d.ts` files in the SDK package for full type information.
 
+## Requesting sensitive environment variables
+
+The CLI strips sensitive environment variables (for example `GITHUB_TOKEN`) from every extension process before it starts. An extension that needs one asks for it by name:
+
+```js
+import { joinSession } from "@github/copilot-sdk/extension";
+
+const session = await joinSession({ env: ["GITHUB_TOKEN"] });
+
+// Granted values are in process.env once joinSession resolves.
+const token = process.env.GITHUB_TOKEN;
+```
+
+The CLI prompts the user with the extension's name and the exact list of variables requested. If the user approves, only those variables reach this extension and their values are written into `process.env` before `joinSession()` resolves. If the user denies, `joinSession()` rejects, the extension does not load, and its tools never reach the model.
+
+An approval is remembered against the exact set of names the user saw, so an extension that later asks for an additional variable prompts again. Names that are unset, or that the CLI does not filter from extensions, are not prompted for.
+
+An approved extension can pass a granted value to anything it starts, so ask only for what the extension genuinely needs.
+
 ## Further Reading
 
 - `examples.md` — Practical code examples for tools, hooks, events, and complete extensions
