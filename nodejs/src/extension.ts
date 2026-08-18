@@ -41,7 +41,8 @@ export type JoinSessionConfig = Omit<
      *
      * An approval is remembered against the exact set of names the user saw, so
      * asking for an additional variable later prompts again. Names that are unset
-     * or that the CLI does not filter from extensions are not prompted for.
+     * or that the CLI does not filter from extensions are not prompted for. An
+     * empty list means the same as omitting the option: nothing is requested.
      *
      * Requires a Copilot CLI that supports extension environment access; older
      * CLIs ignore the request and grant nothing.
@@ -135,6 +136,6 @@ export async function joinSession(config: JoinSessionConfig = {}): Promise<Copil
             suppressResumeEvent: config.suppressResumeEvent ?? true,
         },
         factories,
-        env ? { requestedEnvironmentVariables: env } : undefined
+        env?.length ? { requestedEnvironmentVariables: env } : undefined
     );
 }

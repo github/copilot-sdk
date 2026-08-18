@@ -62,16 +62,19 @@ describe("joinSession", () => {
         expect(config).not.toHaveProperty("env");
     });
 
-    it("requests no environment variables when env is omitted", async () => {
+    it("requests no environment variables when env is omitted or empty", async () => {
         process.env.SESSION_ID = "session-123";
         const resumeForExtension = vi
             .spyOn(CopilotClient.prototype, "resumeSessionForExtension")
             .mockResolvedValue({} as any);
 
         await joinSession({ tools: [] });
+        await joinSession({ env: [], tools: [] });
 
-        const [, , , extensionOptions] = resumeForExtension.mock.calls[0]!;
-        expect(extensionOptions).toBeUndefined();
+        expect(resumeForExtension.mock.calls[0]![3]).toBeUndefined();
+        // An empty list means the same as omitting the option, so it must not put
+        // an environment request on the wire either.
+        expect(resumeForExtension.mock.calls[1]![3]).toBeUndefined();
     });
 
     it("exports the canvas helper from the extension surface", () => {

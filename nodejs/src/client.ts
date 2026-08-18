@@ -1897,13 +1897,18 @@ export class CopilotClient {
 
             // The host answers an approved environment request with the resolved
             // values, and this method consumes the response, so the grant has to be
-            // applied here — no caller ever sees it.
+            // applied here — no caller ever sees it. Only the names the user
+            // approved may reach the extension, so a host that answers with
+            // anything extra cannot widen the grant.
             if (extensionOptions?.requestedEnvironmentVariables) {
+                const requested = new Set(extensionOptions.requestedEnvironmentVariables);
                 const { grantedEnvironmentVariables } = response as {
                     grantedEnvironmentVariables?: Record<string, string>;
                 };
                 for (const [name, value] of Object.entries(grantedEnvironmentVariables ?? {})) {
-                    process.env[name] = value;
+                    if (requested.has(name)) {
+                        process.env[name] = value;
+                    }
                 }
             }
 

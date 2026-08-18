@@ -44,6 +44,10 @@ interface ExtensionRun {
  */
 async function runExtensionAgainstStubHost(options: {
     requested: string[];
+    /** Pass an explicit empty list rather than omitting the option. */
+    requestEmptyList?: boolean;
+    /** Names the extension samples but never asks for. */
+    observe?: string[];
     /** Values the host resolves for an approved request, or undefined to deny it. */
     granted?: Record<string, string>;
 }): Promise<ExtensionRun> {
@@ -63,6 +67,8 @@ async function runExtensionAgainstStubHost(options: {
             SESSION_ID: "stub-host-session",
             EXTENSION_SDK_MODULE: pathToFileURL(join(DIST_DIR, "extension.js")).href,
             EXTENSION_ENV_REQUEST: options.requested.join(","),
+            EXTENSION_ENV_REQUEST_EMPTY: options.requestEmptyList ? "1" : "",
+            EXTENSION_OBSERVE_ENV_NAMES: (options.observe ?? []).join(","),
             EXTENSION_PREJOIN_FILE: prejoinFile,
             EXTENSION_POSTJOIN_FILE: postjoinFile,
             EXTENSION_RESULT_FILE: resultFile,
@@ -152,10 +158,30 @@ it("grants nothing to an extension whose request the host denies", async () => {
 });
 
 it("leaves the wire payload alone when an extension asks for nothing", async () => {
-    const run = await runExtensionAgainstStubHost({ requested: [], granted: {} });
+    const omitted = await runExtensionAgainstStubHost({ requested: [], granted: {} });
+    const emptyList = await runExtensionAgainstStubHost({
+        requested: [],
+        requestEmptyList: true,
+        granted: {},
+    });
 
-    expect(run.resumeParams).not.toHaveProperty("requestedEnvironmentVariables");
-    expect(run.result).toBe("joined");
+    expect(omitted.resumeParams).not.toHaveProperty("requestedEnvironmentVariables");
+    // An empty list is the other public way to ask for nothing.
+    expect(emptyList.resumeParams).not.toHaveProperty("requestedEnvironmentVariables");
+    expect(omitted.result).toBe("joined");
+    expect(emptyList.result).toBe("joined");
+});
+
+it("ignores a granted variable the extension never requested", async () => {
+    const run = await runExtensionAgainstStubHost({
+        requested: ["E2E_SDK_TOKEN"],
+        observe: ["E2E_SDK_SMUGGLED"],
+        granted: { E2E_SDK_TOKEN: "granted-token", E2E_SDK_SMUGGLED: "not-approved" },
+    });
+
+    // The user approved one name, so a host answering with a second one cannot
+    // widen the grant.
+    expect(run.postjoin).toBe("E2E_SDK_TOKEN=granted-token\nE2E_SDK_SMUGGLED=");
 });
 
 const cliObservations = isInProcessTransport

@@ -53,7 +53,7 @@ const session = await joinSession({
 
 The `session` object provides methods for sending messages, logging to the timeline, listening to events, and accessing the RPC API. See the `.d.ts` files in the SDK package for full type information.
 
-## Requesting sensitive environment variables
+## Requesting Sensitive Environment Variables
 
 The CLI strips sensitive environment variables (for example `GITHUB_TOKEN`) from every extension process before it starts. An extension that needs one asks for it by name:
 

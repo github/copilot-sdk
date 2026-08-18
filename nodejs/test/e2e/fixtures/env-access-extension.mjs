@@ -17,6 +17,11 @@
 // - EXTENSION_POSTJOIN_FILE: the same sample, written once the join settles.
 // - EXTENSION_RESULT_FILE: `joined` or `rejected:<message>`. A denied extension
 //   has no session to report through, so it reports here.
+// - EXTENSION_ENV_REQUEST_EMPTY: set to `1` to pass an explicit empty list when
+//   EXTENSION_ENV_REQUEST names nothing, instead of omitting the option.
+// - EXTENSION_OBSERVE_ENV_NAMES: comma-separated names that are sampled but
+//   deliberately NOT requested, so a test can prove a name outside the approved
+//   set never reached this process.
 
 import { writeFileSync } from "node:fs";
 
@@ -27,8 +32,12 @@ const requested = (process.env.EXTENSION_ENV_REQUEST ?? "")
     .split(",")
     .map((name) => name.trim())
     .filter((name) => name.length > 0);
-
-const sample = () => requested.map((name) => `${name}=${process.env[name] ?? ""}`).join("\n");
+const observed = (process.env.EXTENSION_OBSERVE_ENV_NAMES ?? "")
+    .split(",")
+    .map((name) => name.trim())
+    .filter((name) => name.length > 0);
+const sampledNames = [...requested, ...observed];
+const sample = () => sampledNames.map((name) => `${name}=${process.env[name] ?? ""}`).join("\n");
 
 const record = (file, contents) => {
     if (file) {
@@ -48,10 +57,13 @@ const config = {
         },
     ],
 };
-// An extension that wants nothing omits the option entirely, as an ordinary
-// extension does.
+// An extension that wants nothing normally omits the option entirely.
+// EXTENSION_ENV_REQUEST_EMPTY covers the other public way to ask for nothing:
+// passing an empty list, which must reach the wire the same way.
 if (requested.length > 0) {
     config.env = requested;
+} else if (process.env.EXTENSION_ENV_REQUEST_EMPTY === "1") {
+    config.env = [];
 }
 
 try {
