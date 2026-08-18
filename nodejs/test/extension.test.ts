@@ -71,7 +71,7 @@ describe("joinSession", () => {
         await joinSession({ tools: [] });
 
         const [, , , extensionOptions] = resumeForExtension.mock.calls[0]!;
-        expect(extensionOptions?.requestedEnvironmentVariables).toBeUndefined();
+        expect(extensionOptions).toBeUndefined();
     });
 
     it("exports the canvas helper from the extension surface", () => {

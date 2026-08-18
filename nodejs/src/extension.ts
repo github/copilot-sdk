@@ -135,6 +135,6 @@ export async function joinSession(config: JoinSessionConfig = {}): Promise<Copil
             suppressResumeEvent: config.suppressResumeEvent ?? true,
         },
         factories,
-        { requestedEnvironmentVariables: env }
+        env ? { requestedEnvironmentVariables: env } : undefined
     );
 }
