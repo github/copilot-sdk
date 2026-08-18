@@ -60,7 +60,9 @@ The CLI strips sensitive environment variables (for example `GITHUB_TOKEN`) from
 ```js
 import { joinSession } from "@github/copilot-sdk/extension";
 
-const session = await joinSession({ env: ["GITHUB_TOKEN"] });
+const session = await joinSession({
+    requestedEnvironmentVariables: ["GITHUB_TOKEN"],
+});
 
 // Granted values are in process.env once joinSession resolves.
 const token = process.env.GITHUB_TOKEN;

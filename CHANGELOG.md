@@ -9,14 +9,16 @@ See [GitHub Releases](https://github.com/github/copilot-sdk/releases) for the fu
 
 ### Feature: extensions can request sensitive environment variables
 
-Copilot CLI extensions can now ask for named sensitive environment variables when they join a session. `joinSession()` accepts an `env` option listing the variable names the extension needs. The CLI shows a permission prompt naming the extension and the exact variables requested. On approval, only those variables reach that extension and their values are written into the extension process's `process.env` before `joinSession()` resolves. On denial, `joinSession()` rejects, the extension does not load, and its tools never reach the model.
+Copilot CLI extensions can now ask for named sensitive environment variables when they join a session. `joinSession()` accepts a `requestedEnvironmentVariables` option listing the variable names the extension needs. The CLI shows a permission prompt naming the extension and the exact variables requested. On approval, only those variables reach that extension and their values are written into the extension process's `process.env` before `joinSession()` resolves. On denial, `joinSession()` rejects, the extension does not load, and its tools never reach the model.
 
 An approval is remembered against the exact set of names the user saw, so an extension that later asks for one more variable prompts again. Names that are unset, or that the CLI does not filter from extensions, are not prompted for. This is the client half of the feature; it requires a Copilot CLI that supports extension environment access, and older CLIs ignore the request and grant nothing.
 
 ```ts
 import { joinSession } from "@github/copilot-sdk/extension";
 
-const session = await joinSession({ env: ["GITHUB_TOKEN"] });
+const session = await joinSession({
+    requestedEnvironmentVariables: ["GITHUB_TOKEN"],
+});
 const token = process.env.GITHUB_TOKEN;
 ```
 

@@ -49,11 +49,13 @@ export type JoinSessionConfig = Omit<
      *
      * @example
      * ```typescript
-     * const session = await joinSession({ env: ["GITHUB_TOKEN"] });
+     * const session = await joinSession({
+     *     requestedEnvironmentVariables: ["GITHUB_TOKEN"],
+     * });
      * const token = process.env.GITHUB_TOKEN;
      * ```
      */
-    env?: string[];
+    requestedEnvironmentVariables?: string[];
     /**
      * Factory handles to register when the extension joins the session.
      *
@@ -121,7 +123,7 @@ export async function joinSession(config: JoinSessionConfig = {}): Promise<Copil
     const {
         extensionSdkPath: _stripped,
         factories,
-        env,
+        requestedEnvironmentVariables,
         ...rest
     } = config as JoinSessionConfig & {
         extensionSdkPath?: string;
@@ -136,6 +138,6 @@ export async function joinSession(config: JoinSessionConfig = {}): Promise<Copil
             suppressResumeEvent: config.suppressResumeEvent ?? true,
         },
         factories,
-        env?.length ? { requestedEnvironmentVariables: env } : undefined
+        requestedEnvironmentVariables?.length ? { requestedEnvironmentVariables } : undefined
     );
 }

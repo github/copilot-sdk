@@ -10,7 +10,8 @@
 //
 // - EXTENSION_SDK_MODULE: import specifier for the SDK. Defaults to the module
 //   name the CLI resolves for a forked extension.
-// - EXTENSION_ENV_REQUEST: comma-separated names to pass to joinSession({ env }).
+// - EXTENSION_ENV_REQUEST: comma-separated names to pass to joinSession as
+//   requestedEnvironmentVariables.
 // - EXTENSION_PREJOIN_FILE: `NAME=<value>` per requested name, sampled BEFORE the
 //   join. A test compares it with the post-join sample to tell a value the
 //   process already inherited from one the host granted.
@@ -61,9 +62,9 @@ const config = {
 // EXTENSION_ENV_REQUEST_EMPTY covers the other public way to ask for nothing:
 // passing an empty list, which must reach the wire the same way.
 if (requested.length > 0) {
-    config.env = requested;
+    config.requestedEnvironmentVariables = requested;
 } else if (process.env.EXTENSION_ENV_REQUEST_EMPTY === "1") {
-    config.env = [];
+    config.requestedEnvironmentVariables = [];
 }
 
 try {

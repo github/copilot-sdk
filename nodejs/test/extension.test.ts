@@ -53,23 +53,26 @@ describe("joinSession", () => {
             .spyOn(CopilotClient.prototype, "resumeSessionForExtension")
             .mockResolvedValue({} as any);
 
-        await joinSession({ env: ["GITHUB_TOKEN", "MY_SECRET"], tools: [] });
+        await joinSession({
+            requestedEnvironmentVariables: ["GITHUB_TOKEN", "MY_SECRET"],
+            tools: [],
+        });
 
         const [, config, , extensionOptions] = resumeForExtension.mock.calls[0]!;
         expect(extensionOptions).toEqual({
             requestedEnvironmentVariables: ["GITHUB_TOKEN", "MY_SECRET"],
         });
-        expect(config).not.toHaveProperty("env");
+        expect(config).not.toHaveProperty("requestedEnvironmentVariables");
     });
 
-    it("requests no environment variables when env is omitted or empty", async () => {
+    it("requests no environment variables when the option is omitted or empty", async () => {
         process.env.SESSION_ID = "session-123";
         const resumeForExtension = vi
             .spyOn(CopilotClient.prototype, "resumeSessionForExtension")
             .mockResolvedValue({} as any);
 
         await joinSession({ tools: [] });
-        await joinSession({ env: [], tools: [] });
+        await joinSession({ requestedEnvironmentVariables: [], tools: [] });
 
         expect(resumeForExtension.mock.calls[0]![3]).toBeUndefined();
         // An empty list means the same as omitting the option, so it must not put
