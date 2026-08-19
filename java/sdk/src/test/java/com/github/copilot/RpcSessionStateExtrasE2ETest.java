@@ -59,7 +59,7 @@ class RpcSessionStateExtrasE2ETest {
                                 ProviderConfigWireApi.COMPLETIONS, null, "https://models.example.test/v1",
                                 "provider-key", null, null, Map.of("x-provider", "java"), null)),
                         List.of(new ProviderModelConfig("small", "java-e2e-provider", null, null, "Java Added Model",
-                                4096.0, null, null, null))))
+                                4096L, null, null, null))))
                         .get(30, TimeUnit.SECONDS);
                 assertEquals(1, result.models().size());
 
