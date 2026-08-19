@@ -629,6 +629,44 @@ did not produce the multi-release output. Re-build on JDK 25+ and verify the
                             <skipTests>false</skipTests>
                             <forkCount>1</forkCount>
                             <parallel>none</parallel>
+                            <!--
+                                TODO(cli-1.0.81-2): @github/copilot 1.0.81-2 never
+                                completes a model-driven turn when the runtime is hosted
+                                in-process against the CAPI backend, so every test that
+                                sends a prompt times out. A full run produced 94 errors,
+                                all Timeout, and took ~284 minutes because surefire
+                                retries each one three times at 60s.
+
+                                The defect is transport-and-backend specific: in-process
+                                against a BYOK backend is unaffected, and these same
+                                classes pass over stdio in the java-sdk job. Pure-RPC
+                                in-process coverage below still runs, which is what keeps
+                                the FFI host itself under test.
+
+                                Delete this list once a fixed CLI build is picked up.
+                            -->
+                            <excludes>
+                                <exclude>**/AskUserTest.java</exclude>
+                                <exclude>**/CompactionTest.java</exclude>
+                                <exclude>**/CopilotSessionTest.java</exclude>
+                                <exclude>**/ErrorHandlingTest.java</exclude>
+                                <exclude>**/EventFidelityTest.java</exclude>
+                                <exclude>**/ExecutorWiringTest.java</exclude>
+                                <exclude>**/HooksTest.java</exclude>
+                                <exclude>**/McpAndAgentsTest.java</exclude>
+                                <exclude>**/PermissionsTest.java</exclude>
+                                <exclude>**/PreMcpToolCallHookTest.java</exclude>
+                                <exclude>**/RpcServerE2ETest.java</exclude>
+                                <exclude>**/RpcSessionStateExtrasE2ETest.java</exclude>
+                                <exclude>**/SessionConfigE2ETest.java</exclude>
+                                <exclude>**/SessionEventsE2ETest.java</exclude>
+                                <exclude>**/SessionTodosChangedTest.java</exclude>
+                                <exclude>**/SkillsTest.java</exclude>
+                                <exclude>**/StreamingFidelityTest.java</exclude>
+                                <exclude>**/SubagentHooksE2ETest.java</exclude>
+                                <exclude>**/ToolResultsTest.java</exclude>
+                                <exclude>**/ToolsTest.java</exclude>
+                            </excludes>
                             <environmentVariables>
                                 <COPILOT_SDK_DEFAULT_CONNECTION>inprocess</COPILOT_SDK_DEFAULT_CONNECTION>
                             </environmentVariables>
