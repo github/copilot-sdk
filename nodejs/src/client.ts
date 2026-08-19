@@ -54,6 +54,7 @@ import type {
     CustomAgentConfig,
     ExitPlanModeRequest,
     ExitPlanModeResult,
+    ExtensionJoinOptions,
     ForegroundSessionInfo,
     GetAuthStatusResponse,
     BearerTokenProvider,
@@ -1711,15 +1712,17 @@ export class CopilotClient {
     async resumeSessionForExtension(
         sessionId: string,
         config: ResumeSessionConfig,
-        factories?: FactoryHandle[]
+        factories?: FactoryHandle[],
+        extensionOptions?: ExtensionJoinOptions
     ): Promise<CopilotSession> {
-        return this.resumeSessionInternal(sessionId, config, factories);
+        return this.resumeSessionInternal(sessionId, config, factories, extensionOptions);
     }
 
     private async resumeSessionInternal(
         sessionId: string,
         config: ResumeSessionConfig,
-        factories?: FactoryHandle[]
+        factories?: FactoryHandle[],
+        extensionOptions?: ExtensionJoinOptions
     ): Promise<CopilotSession> {
         if (!this.connection) {
             await this.start();
@@ -1884,7 +1887,30 @@ export class CopilotClient {
                 expAssignments: config.expAssignments,
                 enableManagedSettings: config.enableManagedSettings,
                 managedSettings: config.managedSettings,
+                ...(extensionOptions?.requestedEnvironmentVariables
+                    ? {
+                          requestedEnvironmentVariables:
+                              extensionOptions.requestedEnvironmentVariables,
+                      }
+                    : {}),
             });
+
+            // The host answers an approved environment request with the resolved
+            // values, and this method consumes the response, so the grant has to be
+            // applied here — no caller ever sees it. Only the names the user
+            // approved may reach the extension, so a host that answers with
+            // anything extra cannot widen the grant.
+            if (extensionOptions?.requestedEnvironmentVariables) {
+                const requested = new Set(extensionOptions.requestedEnvironmentVariables);
+                const { grantedEnvironmentVariables } = response as {
+                    grantedEnvironmentVariables?: Record<string, string>;
+                };
+                for (const [name, value] of Object.entries(grantedEnvironmentVariables ?? {})) {
+                    if (requested.has(name)) {
+                        process.env[name] = value;
+                    }
+                }
+            }
 
             const { workspacePath, capabilities, openCanvases } = response as {
                 sessionId: string;

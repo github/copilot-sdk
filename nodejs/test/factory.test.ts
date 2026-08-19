@@ -403,6 +403,34 @@ describe("factories", () => {
         expect(generatedRpc).toContain("timeoutSeconds?: number;");
     });
 
+    // A guessed ceiling does not make a run safer: it stops a healthy run partway
+    // with `factory_limit_reached`, after that run has already taken the user's
+    // approval and spent credits. Both documents are handed to the model verbatim
+    // by the `factories_manage` guide, so neither may read as an invitation to
+    // invent one.
+    it("documents limits as opt-in rather than inviting an invented ceiling", () => {
+        const guide = readFileSync(new URL("../docs/factories.md", import.meta.url), "utf8");
+        const patterns = readFileSync(
+            new URL("../docs/factory-patterns.md", import.meta.url),
+            "utf8"
+        );
+
+        expect(guide).toContain(
+            "Set a ceiling only from real knowledge of what the factory costs, or because the user named one"
+        );
+        expect(guide).toContain("no basis for estimating a number");
+
+        // The opening `defineFactory` sample is the shape an author copies. Filling
+        // all four ceilings in there taught the numbers as much as the syntax.
+        const openingSample = guide.slice(0, guide.indexOf("## Declaring an argument shape"));
+        expect(openingSample).not.toContain("limits: {");
+
+        // The Scaling section used to answer "there is no built-in concurrency cap"
+        // with "so declare one before fanning out widely".
+        expect(patterns).not.toContain("declare one before fanning out widely");
+        expect(patterns).toContain("bound a wide fan-out with the factory's own counters");
+    });
+
     it("documents factory invocation and list paging behavior accurately", () => {
         const guide = readFileSync(new URL("../docs/factories.md", import.meta.url), "utf8");
         const publicApi = readFileSync(new URL("../src/factory.ts", import.meta.url), "utf8");
@@ -627,7 +655,8 @@ describe("factories", () => {
         expect(resumeSessionForExtension).toHaveBeenCalledWith(
             "session-extension",
             expect.objectContaining({ suppressResumeEvent: true }),
-            [factory]
+            [factory],
+            undefined
         );
     });
 

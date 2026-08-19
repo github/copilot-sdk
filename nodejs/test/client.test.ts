@@ -622,6 +622,99 @@ describe("CopilotClient", () => {
         expect(payload.openCanvasInstances).toBeUndefined();
     });
 
+    it("forwards an extension environment request and applies the grant to process.env", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => stopClient(client));
+        onTestFinished(() => {
+            delete process.env.SDK_TEST_GRANTED_TOKEN;
+        });
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.resume") {
+                    return {
+                        sessionId: params.sessionId,
+                        grantedEnvironmentVariables: { SDK_TEST_GRANTED_TOKEN: "granted-value" },
+                    };
+                }
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        await client.resumeSessionForExtension(
+            "session-env",
+            { onPermissionRequest: defaultJoinSessionPermissionHandler },
+            undefined,
+            { requestedEnvironmentVariables: ["SDK_TEST_GRANTED_TOKEN"] }
+        );
+
+        const payload = spy.mock.calls.find(([method]) => method === "session.resume")![1] as any;
+        expect(payload.requestedEnvironmentVariables).toEqual(["SDK_TEST_GRANTED_TOKEN"]);
+        expect(process.env.SDK_TEST_GRANTED_TOKEN).toBe("granted-value");
+    });
+
+    it("ignores granted variables the extension never requested", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => stopClient(client));
+        onTestFinished(() => {
+            delete process.env.SDK_TEST_GRANTED_TOKEN;
+        });
+
+        vi.spyOn((client as any).connection!, "sendRequest").mockImplementation(
+            async (method: string, params: any) => {
+                if (method === "session.resume") {
+                    return {
+                        sessionId: params.sessionId,
+                        grantedEnvironmentVariables: {
+                            SDK_TEST_GRANTED_TOKEN: "granted-value",
+                            SDK_TEST_SMUGGLED: "not-approved",
+                        },
+                    };
+                }
+                throw new Error(`Unexpected method: ${method}`);
+            }
+        );
+
+        await client.resumeSessionForExtension(
+            "session-env-extra",
+            { onPermissionRequest: defaultJoinSessionPermissionHandler },
+            undefined,
+            { requestedEnvironmentVariables: ["SDK_TEST_GRANTED_TOKEN"] }
+        );
+
+        expect(process.env.SDK_TEST_GRANTED_TOKEN).toBe("granted-value");
+        // The user approved one name, so a host answering with a second one
+        // cannot widen the grant.
+        expect(process.env.SDK_TEST_SMUGGLED).toBeUndefined();
+    });
+
+    it("omits the environment request when a resume does not ask for one", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => stopClient(client));
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.resume") {
+                    return {
+                        sessionId: params.sessionId,
+                        grantedEnvironmentVariables: { SDK_TEST_UNREQUESTED: "leaked" },
+                    };
+                }
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        await client.resumeSession("session-no-env", { onPermissionRequest: approveAll });
+
+        const payload = spy.mock.calls.find(([method]) => method === "session.resume")![1] as any;
+        expect(payload).not.toHaveProperty("requestedEnvironmentVariables");
+        // A grant is only honored for a request this client actually made.
+        expect(process.env.SDK_TEST_UNREQUESTED).toBeUndefined();
+    });
+
     it("forwards reasoningSummary in session.create and session.resume", async () => {
         const client = new CopilotClient();
         await client.start();

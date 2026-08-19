@@ -23,12 +23,6 @@ const reviewChanged = defineFactory({
                 files: { type: "array", items: { type: "string" } },
             },
         },
-        limits: {
-            maxConcurrentSubagents: 3,
-            maxTotalSubagents: 10,
-            timeoutSeconds: 90.5,
-            maxAiCredits: 5,
-        },
     },
     run: async (ctx) => {
         ctx.phase("Review");
@@ -121,7 +115,14 @@ See [factory-patterns.md](./factory-patterns.md) for composable orchestration pa
 
 ## Resource limits
 
-Limits may be declared in `meta.limits` and overridden per invocation. All limits must be positive when present.
+Limits may be declared in `meta.limits` and overridden per invocation. Every limit is optional and must be positive when present; an omitted limit leaves that dimension unbounded, except that an omitted `maxConcurrentSubagents` falls back to `maxTotalSubagents`, so a declared total cap also bounds concurrency.
+
+Set a ceiling only from real knowledge of what the factory costs, or because the user named one. A guessed ceiling does not make a run safer: it stops a healthy run partway with `factory_limit_reached`, after that run has already spent credits. An agent authoring or invoking a factory on the user's behalf has no basis for estimating a number, so it should leave `limits` unset and bound the work with the factory's own counters instead. Omitting limits does not remove oversight of a model-initiated run: `run_factory` requests permission first, and that prompt shows the effective limits. SDK-initiated `run` and `resume` do not request permission, so an SDK caller that wants a ceiling sets it deliberately, from the cost it already knows.
+
+```js
+// Only when the cost profile is known, or the user asked for this ceiling.
+limits: { maxTotalSubagents: 10 },
+```
 
 - `maxConcurrentSubagents`: Positive integer concurrent-subagent cap. Additional subagents wait in a queue. Queueing applies backpressure and does not fail the run.
 - `maxTotalSubagents`: Positive integer cumulative admission cap. An attempted subagent beyond the cap ends the attempt with failure kind `maxTotalSubagents`.

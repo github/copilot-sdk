@@ -2880,6 +2880,20 @@ export interface ResumeSessionConfig extends SessionConfigBase {
 }
 
 /**
+ * Options that only an extension join may supply, kept off {@link ResumeSessionConfig}
+ * because the runtime ignores them for every other kind of connection.
+ *
+ * @internal
+ */
+export interface ExtensionJoinOptions {
+    /**
+     * Names of sensitive environment variables the extension asks the host to grant.
+     * Sent on the `session.resume` wire payload as `requestedEnvironmentVariables`.
+     */
+    requestedEnvironmentVariables?: string[];
+}
+
+/**
  * Arguments passed to a {@link BearerTokenProvider} callback when the runtime needs a
  * fresh bearer token for a BYOK provider.
  *
