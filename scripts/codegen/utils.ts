@@ -496,6 +496,46 @@ export function addManagedApprovalRequiredToPermissionRequests<T extends JSONSch
     return cloned;
 }
 
+/**
+ * Add repository scoping to model listing until the pinned CLI schema includes the field.
+ */
+export function addCwdToModelsListRequest<T extends JSONSchema7>(schema: T): T {
+    const cloned = cloneSchemaForCodegen(schema);
+    const property: JSONSchema7 = {
+        description:
+            "Working directory used to apply repository model policy. When omitted, model availability is account-global.",
+        type: ["string", "null"],
+    };
+    (property as Record<string, unknown>)["x-copilot-sdk-append-last"] = true;
+
+    for (const definitions of [cloned.definitions, cloned.$defs]) {
+        if (!definitions) continue;
+        const definition = definitions.ModelsListRequest;
+        if (!definition || typeof definition !== "object") continue;
+        const requestDefinition = definition as JSONSchema7;
+        const objectDefinition = [
+            requestDefinition,
+            ...(requestDefinition.anyOf ?? []),
+            ...(requestDefinition.oneOf ?? []),
+        ].find(
+            (candidate): candidate is JSONSchema7 =>
+                typeof candidate === "object" &&
+                candidate !== null &&
+                (candidate.type === "object" || candidate.properties !== undefined),
+        );
+        if (!objectDefinition) continue;
+        if (objectDefinition.properties?.cwd) continue;
+        requestDefinition.description =
+            "Optional GitHub token and working directory used to resolve available models.";
+        objectDefinition.properties = {
+            ...objectDefinition.properties,
+            cwd: cloneSchemaForCodegen(property),
+        };
+    }
+
+    return cloned;
+}
+
 export function getEnumValueDescriptions(schema: JSONSchema7 | null | undefined): EnumValueDescriptions | undefined {
     if (!schema || typeof schema !== "object") return undefined;
 
