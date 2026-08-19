@@ -32,6 +32,7 @@ func TestAbortE2E(t *testing.T) {
 		var mu sync.Mutex
 		var events []copilot.SessionEvent
 		firstDelta := make(chan *copilot.AssistantMessageDeltaData, 1)
+		sessionIdle := make(chan struct{}, 1)
 
 		session.On(func(event copilot.SessionEvent) {
 			mu.Lock()
@@ -40,6 +41,12 @@ func TestAbortE2E(t *testing.T) {
 			if d, ok := event.Data.(*copilot.AssistantMessageDeltaData); ok {
 				select {
 				case firstDelta <- d:
+				default:
+				}
+			}
+			if _, ok := event.Data.(*copilot.SessionIdleData); ok {
+				select {
+				case sessionIdle <- struct{}{}:
 				default:
 				}
 			}
@@ -66,6 +73,11 @@ func TestAbortE2E(t *testing.T) {
 		// Now abort mid-stream
 		if err := session.Abort(t.Context()); err != nil {
 			t.Fatalf("Abort failed: %v", err)
+		}
+		select {
+		case <-sessionIdle:
+		case <-time.After(60 * time.Second):
+			t.Fatal("Timed out waiting for session to become idle after abort")
 		}
 
 		mu.Lock()
@@ -126,6 +138,16 @@ func TestAbortE2E(t *testing.T) {
 		}
 		t.Cleanup(func() { _ = session.Disconnect() })
 
+		sessionIdle := make(chan struct{}, 1)
+		session.On(func(event copilot.SessionEvent) {
+			if _, ok := event.Data.(*copilot.SessionIdleData); ok {
+				select {
+				case sessionIdle <- struct{}{}:
+				default:
+				}
+			}
+		})
+
 		// Fire-and-forget
 		go func() {
 			_, _ = session.Send(t.Context(), copilot.MessageOptions{
@@ -153,6 +175,11 @@ func TestAbortE2E(t *testing.T) {
 		select {
 		case releaseTool <- "RELEASED_AFTER_ABORT":
 		default:
+		}
+		select {
+		case <-sessionIdle:
+		case <-time.After(60 * time.Second):
+			t.Fatal("Timed out waiting for session to become idle after tool abort")
 		}
 
 		// Session should be usable after abort.
