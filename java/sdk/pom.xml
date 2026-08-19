@@ -654,6 +654,7 @@ did not produce the multi-release output. Re-build on JDK 25+ and verify the
                                 <exclude>**/ExecutorWiringTest.java</exclude>
                                 <exclude>**/HooksTest.java</exclude>
                                 <exclude>**/McpAndAgentsTest.java</exclude>
+                                <exclude>**/McpOAuthResumeE2ETest.java</exclude>
                                 <exclude>**/PermissionsTest.java</exclude>
                                 <exclude>**/PreMcpToolCallHookTest.java</exclude>
                                 <exclude>**/RpcServerE2ETest.java</exclude>
