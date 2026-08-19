@@ -1433,6 +1433,9 @@ func (s *Session) processEvents() {
 	}
 }
 
+// stopEventProcessing stops the session event consumer without making an RPC.
+// CreateSession/ResumeSession use this when a locally registered session fails
+// before it can be returned to the caller.
 func (s *Session) stopEventProcessing() {
 	s.closeOnce.Do(func() { close(s.eventDone) })
 }
