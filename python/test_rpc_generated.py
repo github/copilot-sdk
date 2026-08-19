@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from copilot.rpc import (
+    BuiltinToolInputSchemaType,
     CommandsApi,
     CommandsInvokeRequest,
     CommandsRespondToQueuedCommandRequest,
@@ -17,6 +18,7 @@ from copilot.rpc import (
     RemoteSessionMetadataValue,
     SessionList,
     SlashCommandTextResult,
+    UIElicitationSchemaType,
 )
 
 
@@ -39,6 +41,10 @@ def test_remote_control_status_deserializes_string_discriminated_union():
     assert isinstance(result.status, RemoteControlStatusOff)
     assert result.status.state == "off"
     assert result.status.to_dict() == {"state": "off"}
+
+
+def test_ui_elicitation_schema_type_preserves_public_alias():
+    assert UIElicitationSchemaType is BuiltinToolInputSchemaType
 
 
 def test_session_list_deserializes_boolean_discriminated_entries():
