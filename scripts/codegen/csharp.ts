@@ -1387,9 +1387,6 @@ function resolveSessionPropertyType(
 
 function generateDataClass(variant: EventVariant, knownTypes: Map<string, string>, nestedClasses: Map<string, string>, enumOutput: string[]): string {
     const dataVisibility = isSchemaInternal(variant.dataSchema) ? "internal" : "public";
-    if (!variant.dataSchema?.properties) return `${dataVisibility} sealed partial class ${variant.dataClassName} { }`;
-
-    const required = new Set(variant.dataSchema.required || []);
     const lines: string[] = [];
     if (variant.dataDescription) {
         lines.push(...xmlDocComment(variant.dataDescription, ""));
@@ -1402,6 +1399,12 @@ function generateDataClass(variant: EventVariant, knownTypes: Map<string, string
     if (isSchemaDeprecated(variant.dataSchema)) {
         pushObsoleteAttributes(lines);
     }
+    if (!variant.dataSchema?.properties) {
+        lines.push(`${dataVisibility} sealed partial class ${variant.dataClassName} { }`);
+        return lines.join("\n");
+    }
+
+    const required = new Set(variant.dataSchema.required || []);
     lines.push(`${dataVisibility} sealed partial class ${variant.dataClassName}`, `{`);
 
     for (const [propName, propSchema] of Object.entries(variant.dataSchema.properties).sort(([a], [b]) => a.localeCompare(b))) {

@@ -3886,6 +3886,7 @@ public sealed partial class SkillInvokedData
     public SkillInvokedTrigger? Trigger { get; set; }
 }
 
+/// <summary>Payload of `sandbox.decision`, a bounded governance record of what the process sandbox was configured to do and whether it took effect. Discriminated by `kind`.</summary>
 public sealed partial class SandboxDecisionData { }
 
 /// <summary>Sub-agent startup details including parent tool call and agent information.</summary>

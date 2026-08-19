@@ -201,6 +201,17 @@ function collectPythonExternalEnumNames(
     return enumNames;
 }
 
+function preservePythonSessionEventConstructorOrder(schema: JSONSchema7): void {
+    for (const definitions of [schema.definitions, schema.$defs]) {
+        if (!definitions) continue;
+        const customTool = definitions.PermissionRequestCustomTool;
+        if (!customTool || typeof customTool !== "object") continue;
+        const skipPermission = (customTool as JSONSchema7).properties?.skipPermission;
+        if (!skipPermission || typeof skipPermission !== "object") continue;
+        (skipPermission as Record<string, unknown>)["x-copilot-sdk-append-last"] = true;
+    }
+}
+
 function preservePythonRpcStringDateFields(definitions: Record<string, JSONSchema7>): void {
     const quotaSnapshot = definitions.AccountQuotaSnapshot;
     const resetDate = quotaSnapshot?.properties?.resetDate as JSONSchema7 | undefined;
@@ -2944,6 +2955,7 @@ async function generateSessionEvents(schemaPath?: string): Promise<void> {
     const schema = addManagedApprovalRequiredToPermissionRequests(
         (await loadSchemaJson(resolvedPath)) as JSONSchema7
     );
+    preservePythonSessionEventConstructorOrder(schema);
     const processed = propagateInternalVisibility(postProcessSchema(schema));
     let code = generatePythonSessionEventsCode(processed);
     const { typeNames } = collectInternalSymbols(processed);

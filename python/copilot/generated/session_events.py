@@ -5511,9 +5511,9 @@ class PermissionRequestCustomTool:
     tool_description: str
     tool_name: str
     args: Any = None
-    skip_permission: bool | None = None
     tool_call_id: str | None = None
     managed_approval_required: bool | None = None
+    skip_permission: bool | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "PermissionRequestCustomTool":
@@ -5521,16 +5521,16 @@ class PermissionRequestCustomTool:
         tool_description = from_str(obj.get("toolDescription"))
         tool_name = from_str(obj.get("toolName"))
         args = obj.get("args")
-        skip_permission = from_union([from_none, from_bool], obj.get("skipPermission"))
         tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
         managed_approval_required = from_union([from_none, from_bool], obj.get("managedApprovalRequired"))
+        skip_permission = from_union([from_none, from_bool], obj.get("skipPermission"))
         return PermissionRequestCustomTool(
             tool_description=tool_description,
             tool_name=tool_name,
             args=args,
-            skip_permission=skip_permission,
             tool_call_id=tool_call_id,
             managed_approval_required=managed_approval_required,
+            skip_permission=skip_permission,
         )
 
     def to_dict(self) -> dict:
@@ -5540,12 +5540,12 @@ class PermissionRequestCustomTool:
         result["toolName"] = from_str(self.tool_name)
         if self.args is not None:
             result["args"] = self.args
-        if self.skip_permission is not None:
-            result["skipPermission"] = from_union([from_none, from_bool], self.skip_permission)
         if self.tool_call_id is not None:
             result["toolCallId"] = from_union([from_none, from_str], self.tool_call_id)
         if self.managed_approval_required is not None:
             result["managedApprovalRequired"] = from_union([from_none, from_bool], self.managed_approval_required)
+        if self.skip_permission is not None:
+            result["skipPermission"] = from_union([from_none, from_bool], self.skip_permission)
         return result
 
 
