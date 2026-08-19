@@ -2667,7 +2667,7 @@ mod tests {
                 "result": { "kind": "approve-once" },
                 "decisionContext": {
                     "outcome": "auto_approved",
-                    "source": "judge_recommendation",
+                    "source": "assisted_approval",
                     "surface": "copilot_app",
                 },
             })
