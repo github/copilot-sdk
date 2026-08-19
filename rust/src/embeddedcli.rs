@@ -144,8 +144,8 @@ pub(crate) fn install_at(extract_dir: &Path) -> Option<PathBuf> {
     None
 }
 
-/// Returns the path to the bundled runtime wrapper, extracting the wrapper and
-/// adjacent `runtime.node` on first call.
+/// Returns the path to the bundled runtime wrapper, extracting the wrapper,
+/// adjacent `runtime.node`, and compatible CLI host on first call.
 #[cfg(feature = "bundled-cli")]
 pub(crate) fn runtime_path() -> Option<PathBuf> {
     INSTALLED_RUNTIME_PATH
@@ -168,8 +168,8 @@ pub(crate) fn runtime_path() -> Option<PathBuf> {
         .clone()
 }
 
-/// Installs the bundled runtime wrapper and adjacent `runtime.node` into a
-/// caller-specified directory.
+/// Installs the bundled runtime wrapper, adjacent `runtime.node`, and compatible
+/// CLI host into a caller-specified directory.
 #[cfg(feature = "bundled-cli")]
 pub(crate) fn install_runtime_at(extract_dir: &Path) -> Option<PathBuf> {
     #[cfg(has_bundled_cli)]
@@ -235,6 +235,7 @@ fn install_cli_bundle(install_dir: &Path, archive: &[u8]) -> Result<PathBuf, Emb
 #[cfg(has_bundled_cli)]
 fn install_runtime(install_dir: &Path, archive: &[u8]) -> Result<PathBuf, EmbeddedCliError> {
     install_runtime_pair(install_dir, archive)?;
+    install_cli(install_dir, archive)?;
     Ok(install_dir.join(RUNTIME_BINARY_NAME))
 }
 

@@ -975,9 +975,10 @@ if let Some(path) = install_bundled_runtime() {
 }
 ```
 
-This extracts `copilot-runtime` together with its adjacent `runtime.node` and
-returns the wrapper path. It does not configure or require a separate host
-process.
+This extracts `copilot-runtime` together with adjacent `runtime.node` and the
+compatible bundled CLI host, then returns the wrapper path. The wrapper finds
+the host as a sibling, so intermediate launchers do not need private
+environment metadata.
 
 ### Download cache (build-time, embed mode)
 

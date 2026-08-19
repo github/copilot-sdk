@@ -12,6 +12,8 @@ use github_copilot_sdk::{
     CliProgram, Client, ClientOptions, ErrorKind, HAS_BUNDLED_CLI, install_bundled_cli,
     install_bundled_runtime,
 };
+#[cfg(all(feature = "bundled-cli", has_bundled_cli))]
+use github_copilot_sdk::{SessionConfig, Transport};
 use serial_test::serial;
 
 fn unset_env(key: &str) {
@@ -315,7 +317,7 @@ fn install_bundled_cli_is_none_without_embed() {
 
 #[cfg(all(feature = "bundled-cli", has_bundled_cli))]
 #[test]
-fn install_bundled_runtime_returns_wrapper_pair() {
+fn install_bundled_runtime_returns_wrapper_bundle() {
     let first = install_bundled_runtime().expect("bundled runtime should install");
     assert_eq!(
         first.file_name().and_then(|name| name.to_str()),
@@ -334,9 +336,87 @@ fn install_bundled_runtime_returns_wrapper_pair() {
         "runtime.node was not installed: {}",
         runtime_node.display()
     );
+    let cli = first
+        .parent()
+        .expect("install directory")
+        .join(if cfg!(windows) {
+            "copilot.exe"
+        } else {
+            "copilot"
+        });
+    assert!(
+        cli.is_file(),
+        "compatible CLI host was not installed: {}",
+        cli.display()
+    );
 
     let second = install_bundled_runtime().expect("second call should also succeed");
     assert_eq!(first, second);
+}
+
+#[cfg(all(feature = "bundled-cli", has_bundled_cli))]
+#[tokio::test(flavor = "current_thread")]
+async fn bundled_runtime_clean_extract_starts_with_sibling_cli() {
+    let temp = tempfile::tempdir().expect("create tempdir");
+    let extract_dir = temp.path().join("runtime");
+    let empty_path = temp.path().join("empty-path");
+    let working_dir = temp.path().join("work");
+    std::fs::create_dir(&extract_dir).expect("create extraction directory");
+    std::fs::create_dir(&empty_path).expect("create empty PATH directory");
+    std::fs::create_dir(&working_dir).expect("create working directory");
+    assert_eq!(
+        std::fs::read_dir(&extract_dir)
+            .expect("read extraction directory")
+            .count(),
+        0
+    );
+
+    let options = ClientOptions::new()
+        .with_bundled_cli_extract_dir(&extract_dir)
+        .with_cwd(&working_dir)
+        .with_env([("PATH", empty_path.as_os_str())])
+        .with_env_remove([
+            "COPILOT_RUNTIME_HOST_COMMAND",
+            "COPILOT_CLI_PATH",
+            "COPILOT_RUNTIME_PROVIDER_LIB",
+        ])
+        .with_transport(Transport::Stdio)
+        .with_use_logged_in_user(false);
+    let client = Client::start(options)
+        .await
+        .expect("start bundled runtime from clean extraction");
+    let response = client
+        .ping(Some("sibling CLI fallback"))
+        .await
+        .expect("ping bundled runtime");
+    assert_eq!(response.message, "pong: sibling CLI fallback");
+
+    let session = client
+        .create_session(SessionConfig::default())
+        .await
+        .expect("create session");
+    session.disconnect().await.expect("disconnect session");
+    client.stop().await.expect("stop bundled runtime");
+
+    assert!(extract_dir.join("runtime.node").is_file());
+    assert!(
+        extract_dir
+            .join(if cfg!(windows) {
+                "copilot-runtime.exe"
+            } else {
+                "copilot-runtime"
+            })
+            .is_file()
+    );
+    assert!(
+        extract_dir
+            .join(if cfg!(windows) {
+                "copilot.exe"
+            } else {
+                "copilot"
+            })
+            .is_file()
+    );
 }
 
 #[cfg(not(all(feature = "bundled-cli", has_bundled_cli)))]

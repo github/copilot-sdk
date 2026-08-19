@@ -234,7 +234,7 @@ pub fn install_bundled_cli() -> Option<PathBuf> {
 }
 
 /// Returns the path to the bundled `copilot-runtime` executable, extracting it
-/// and its adjacent `runtime.node` on first call.
+/// with adjacent `runtime.node` and the compatible CLI host on first call.
 ///
 /// This is intended for health checks and intermediate launchers that need the
 /// concrete managed runtime path before [`Client::start`]. Subsequent calls
