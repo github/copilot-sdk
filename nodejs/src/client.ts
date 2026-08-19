@@ -378,11 +378,9 @@ function getBundledCliPath(): string {
         // ESM: resolve via import.meta.resolve
         for (const packageName of packageNames) {
             try {
-                const sdkUrl = import.meta.resolve(`${packageName}/sdk`);
-                const sdkPath = fileURLToPath(sdkUrl);
-                // sdkPath is like .../node_modules/@github/copilot-<platform>/sdk/index.js
-                // Go up two levels to get the package root, then append index.js
-                return join(dirname(dirname(sdkPath)), "index.js");
+                const packageEntryUrl = import.meta.resolve(packageName);
+                const packageEntryPath = fileURLToPath(packageEntryUrl);
+                return join(dirname(packageEntryPath), "index.js");
             } catch {
                 // Try the next candidate platform package.
             }
