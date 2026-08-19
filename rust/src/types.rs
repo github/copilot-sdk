@@ -1975,8 +1975,9 @@ pub struct SessionConfig {
     /// URL identifying this host's OAuth client metadata document.
     ///
     /// Authorization servers that support client ID metadata documents can use
-    /// this URL as the MCP OAuth client ID. Older runtimes ignore this optional
-    /// field.
+    /// this URL as the MCP OAuth client ID. When unset, the SDK does not supply
+    /// a first-party host identity and the runtime uses its generic,
+    /// session-isolated OAuth client behavior.
     pub auth_client_id_metadata_url: Option<String>,
     /// Enables runtime discovery of supported configuration. Explicitly supplied
     /// configuration takes precedence over discovered values.
@@ -3317,6 +3318,9 @@ pub struct ResumeSessionConfig {
     /// See [`SessionConfig::mcp_oauth_token_storage`] for details.
     pub mcp_oauth_token_storage: Option<String>,
     /// Re-supply the host OAuth client metadata document URL on resume.
+    ///
+    /// Set this to the same host identity used when the session was created.
+    /// When unset, the SDK does not supply a first-party host identity.
     /// See [`SessionConfig::auth_client_id_metadata_url`] for details.
     pub auth_client_id_metadata_url: Option<String>,
     /// Enables runtime discovery of supported configuration. Explicitly supplied
