@@ -11,7 +11,8 @@ use github_copilot_sdk::rpc::{
     McpResourcesReadRequest, McpSamplingExecutionAction, McpSetEnvValueModeDetails,
     McpSetEnvValueModeParams, PermissionsSetModeRequest, SkillsDisableRequest, SkillsEnableRequest,
 };
-use github_copilot_sdk::{IndexMap, McpServerConfig, McpStdioServerConfig, PermissionMode};
+use github_copilot_sdk::session_events::PermissionMode;
+use github_copilot_sdk::{IndexMap, McpServerConfig, McpStdioServerConfig};
 
 #[tokio::test]
 async fn should_list_and_toggle_session_skills() {
