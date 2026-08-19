@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { appendFileSync, existsSync } from "fs";
+import { appendFileSync } from "fs";
 import { mkdir, readFile, writeFile } from "fs/promises";
 import type {
   ChatCompletion,
@@ -206,17 +206,30 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
   }
 
   private async loadStoredData(): Promise<void> {
-    if (this.state && existsSync(this.state.filePath)) {
-      const content = await readFile(this.state.filePath, "utf-8");
-      this.state.storedData = yaml.parse(content) as NormalizedData;
-      normalizeToolResultOrder(this.state.storedData.conversations);
-      normalizeStoredUserMessages(this.state.storedData.conversations);
-      normalizeStoredToolMessages(this.state.storedData.conversations);
-      normalizeStoredMessagesForBackend(
-        this.state.storedData.conversations,
-        this.state.backend,
-      );
+    if (!this.state) {
+      return;
     }
+    // Read directly and treat a missing file as "nothing stored" rather than
+    // checking for existence first, which would be a check-then-use race.
+    const content = await readFile(this.state.filePath, "utf-8").catch(
+      (error: NodeJS.ErrnoException) => {
+        if (error.code === "ENOENT") {
+          return undefined;
+        }
+        throw error;
+      },
+    );
+    if (content === undefined) {
+      return;
+    }
+    this.state.storedData = yaml.parse(content) as NormalizedData;
+    normalizeToolResultOrder(this.state.storedData.conversations);
+    normalizeStoredUserMessages(this.state.storedData.conversations);
+    normalizeStoredToolMessages(this.state.storedData.conversations);
+    normalizeStoredMessagesForBackend(
+      this.state.storedData.conversations,
+      this.state.backend,
+    );
   }
 
   async stop(skipWritingCache?: boolean): Promise<void> {
@@ -2003,11 +2016,18 @@ function createGetModelsResponse(modelIds: string[]) {
 }
 
 async function writeFileIfDifferent(filePath: string, contents: string) {
-  if (existsSync(filePath)) {
-    const existingContents = await readFile(filePath, "utf-8");
-    if (existingContents === contents) {
-      return;
-    }
+  // Read directly instead of checking for existence first, which would be a
+  // check-then-use race on the same path.
+  const existingContents = await readFile(filePath, "utf-8").catch(
+    (error: NodeJS.ErrnoException) => {
+      if (error.code === "ENOENT") {
+        return undefined;
+      }
+      throw error;
+    },
+  );
+  if (existingContents === contents) {
+    return;
   }
 
   await writeFile(filePath, contents, "utf-8");

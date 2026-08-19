@@ -3652,19 +3652,14 @@ function resolveSharedAnyOfVariant(
 async function collectHandWrittenGoPublicNames(): Promise<Set<string>> {
     const goDir = path.join(REPO_ROOT, "go");
     const names = new Set<string>();
-    let entries: string[];
-    try {
-        entries = await fs.readdir(goDir);
-    } catch {
-        return names;
-    }
+    // Read the directory entries with their types so the file check and the read
+    // are not separate operations on the same path.
+    const entries = await fs.readdir(goDir, { withFileTypes: true }).catch(() => []);
     for (const entry of entries) {
-        if (!entry.endsWith(".go")) continue;
-        if (entry.startsWith("z")) continue;
-        const filePath = path.join(goDir, entry);
-        const stat = await fs.stat(filePath);
-        if (!stat.isFile()) continue;
-        const content = await fs.readFile(filePath, "utf-8");
+        if (!entry.isFile()) continue;
+        if (!entry.name.endsWith(".go")) continue;
+        if (entry.name.startsWith("z")) continue;
+        const content = await fs.readFile(path.join(goDir, entry.name), "utf-8");
         for (const name of collectGoTopLevelNames(content, "type")) names.add(name);
         for (const name of collectGoTopLevelNames(content, "const")) names.add(name);
     }
