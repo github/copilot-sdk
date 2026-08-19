@@ -172,15 +172,6 @@ async fn extract_dir_runtime_override_is_honored() {
     let fake = tmp.path().join(binary);
     std::fs::write(&fake, b"runtime").expect("write fake binary");
     std::fs::write(tmp.path().join("runtime.node"), b"runtime").expect("write runtime.node");
-    std::fs::write(
-        tmp.path().join(if cfg!(windows) {
-            "copilot.exe"
-        } else {
-            "copilot"
-        }),
-        b"host",
-    )
-    .expect("write runtime host");
 
     unset_env("COPILOT_CLI_PATH");
     set_env(
@@ -309,64 +300,6 @@ fn install_bundled_cli_returns_extracted_path() {
     }
 }
 
-/// The wrapper materializer returns a concrete executable and carries the
-/// residual host handoff without exposing its package layout to callers.
-#[cfg(all(feature = "bundled-cli", has_bundled_cli))]
-#[test]
-fn install_bundled_runtime_returns_launch_contract() {
-    let first = install_bundled_runtime().expect("bundled runtime should install");
-    assert_eq!(
-        first.program().file_name().and_then(|name| name.to_str()),
-        Some(if cfg!(windows) {
-            "copilot-runtime.exe"
-        } else {
-            "copilot-runtime"
-        })
-    );
-    assert!(first.program().is_file());
-    let install_dir = first.program().parent().expect("runtime install directory");
-    assert!(install_dir.join("runtime.node").is_file());
-
-    let mut options = ClientOptions::new();
-    first.apply_environment(&mut options);
-    assert_eq!(options.env.len(), 1);
-    assert_eq!(
-        options.env[0].0,
-        std::ffi::OsString::from("COPILOT_RUNTIME_HOST_COMMAND")
-    );
-    let command: Vec<String> = serde_json::from_str(
-        options.env[0]
-            .1
-            .to_str()
-            .expect("runtime host command should be UTF-8 JSON"),
-    )
-    .expect("runtime host command should be valid JSON");
-    assert_eq!(command.len(), 1);
-    let host = PathBuf::from(&command[0]);
-    assert!(host.is_file());
-    assert_eq!(host.parent(), Some(install_dir));
-    assert_eq!(
-        host.file_name().and_then(|name| name.to_str()),
-        Some(if cfg!(windows) {
-            "copilot.exe"
-        } else {
-            "copilot"
-        })
-    );
-
-    let second = install_bundled_runtime().expect("second call should also succeed");
-    assert_eq!(first, second);
-
-    let mut caller_options =
-        ClientOptions::new().with_env([("COPILOT_RUNTIME_HOST_COMMAND", "[\"caller\"]")]);
-    first.apply_environment(&mut caller_options);
-    assert_eq!(caller_options.env.len(), 2);
-    assert_eq!(
-        caller_options.env.last().expect("caller environment").1,
-        std::ffi::OsString::from("[\"caller\"]")
-    );
-}
-
 /// With `bundled-cli` off (or the target unsupported), the public API
 /// reports no bundled CLI and does not fall back to the
 /// build-time-extracted dev-cache path that `CliProgram::Resolve` uses.
@@ -378,6 +311,37 @@ fn install_bundled_cli_is_none_without_embed() {
         install_bundled_cli().is_none(),
         "install_bundled_cli must not fall back to the dev-cache path"
     );
+}
+
+#[cfg(all(feature = "bundled-cli", has_bundled_cli))]
+#[test]
+fn install_bundled_runtime_returns_wrapper_pair() {
+    let first = install_bundled_runtime().expect("bundled runtime should install");
+    assert_eq!(
+        first.file_name().and_then(|name| name.to_str()),
+        Some(if cfg!(windows) {
+            "copilot-runtime.exe"
+        } else {
+            "copilot-runtime"
+        })
+    );
+    let runtime_node = first
+        .parent()
+        .expect("install directory")
+        .join("runtime.node");
+    assert!(
+        runtime_node.is_file(),
+        "runtime.node was not installed: {}",
+        runtime_node.display()
+    );
+
+    let second = install_bundled_runtime().expect("second call should also succeed");
+    assert_eq!(first, second);
+}
+
+#[cfg(not(all(feature = "bundled-cli", has_bundled_cli)))]
+#[test]
+fn install_bundled_runtime_is_none_without_embed() {
     assert!(
         install_bundled_runtime().is_none(),
         "install_bundled_runtime must not fall back to the dev-cache path"

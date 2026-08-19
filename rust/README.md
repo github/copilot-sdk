@@ -943,30 +943,10 @@ PATH scanning.
 
 ### Reaching the bundled binary without a `Client`
 
-Health checks, diagnostics, and intermediate process launchers may need
-concrete bundled artifact paths *before* any session starts — and callers
-that always override `program` with `CliProgram::Path(...)` may never run
-`Client::start`'s resolver.
-
-Use [`install_bundled_runtime`] when another process will launch the wrapper:
-
-```rust,no_run
-use github_copilot_sdk::{ClientOptions, install_bundled_runtime};
-
-if let Some(runtime) = install_bundled_runtime() {
-    let mut options = ClientOptions::new();
-    runtime.apply_environment(&mut options);
-    println!("bundled runtime at {}", runtime.program().display());
-}
-```
-
-The returned launch contract materializes `copilot-runtime`, adjacent
-`runtime.node`, and any compatibility artifacts it currently requires.
-Applying its environment allows a supervisor to sit between the SDK and the
-wrapper without knowing the private package layout. Managed stdio and TCP
-launches apply this contract automatically.
-
-Use [`install_bundled_cli`] when the legacy CLI artifact itself is required:
+Health checks, diagnostics, and version probes often need the bundled
+CLI's path *before* any session starts — and for callers that always
+override `program` with `CliProgram::Path(...)`, `Client::start`'s
+resolver may never run. Use [`install_bundled_cli`] for those cases:
 
 ```rust,no_run
 use github_copilot_sdk::{HAS_BUNDLED_CLI, install_bundled_cli};
@@ -983,6 +963,21 @@ This returns the bundled CLI artifact, preserving the public API's original
 meaning. Managed child-process transports resolve `copilot-runtime` instead.
 The function returns `None` when `bundled-cli` is off or the target is
 unsupported and does not fall back to the build-time extraction cache.
+
+Use [`install_bundled_runtime`] when a health check or intermediate launcher
+needs the managed runtime executable:
+
+```rust,no_run
+use github_copilot_sdk::install_bundled_runtime;
+
+if let Some(path) = install_bundled_runtime() {
+    println!("bundled runtime at {}", path.display());
+}
+```
+
+This extracts `copilot-runtime` together with its adjacent `runtime.node` and
+returns the wrapper path. It does not configure or require a separate host
+process.
 
 ### Download cache (build-time, embed mode)
 
