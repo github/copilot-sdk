@@ -1293,6 +1293,20 @@ impl Client {
             })
             .into());
         }
+        if let Some(mcp_servers) = wire.mcp_servers.as_ref()
+            && let Err(error) = self
+                .call(
+                    "session.mcp.reloadWithConfig",
+                    Some(serde_json::json!({
+                        "sessionId": session_id,
+                        "config": { "mcpServers": mcp_servers },
+                    })),
+                )
+                .await
+        {
+            registration.cleanup(event_loop).await;
+            return Err(error);
+        }
         if has_mcp_auth_handler {
             register_mcp_auth_interest(self, &session_id).await?;
         }

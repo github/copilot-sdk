@@ -3423,6 +3423,14 @@ class CopilotClient:
                 session._set_open_canvases(
                     [OpenCanvasInstance.from_dict(inst) for inst in open_canvases_raw]
                 )
+            if mcp_servers is not None:
+                await self._client.request(
+                    "session.mcp.reloadWithConfig",
+                    {
+                        "sessionId": session_id,
+                        "config": {"mcpServers": _mcp_servers_to_wire(mcp_servers)},
+                    },
+                )
             if on_mcp_auth_request is not None:
                 await self._client.request(
                     "session.eventLog.registerInterest",

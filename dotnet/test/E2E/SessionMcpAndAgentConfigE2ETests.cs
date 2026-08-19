@@ -58,7 +58,6 @@ public class SessionMcpAndAgentConfigE2ETests(E2ETestFixture fixture, ITestOutpu
         // Create a session first
         var session1 = await CreateSessionAsync();
         var sessionId = session1.SessionId;
-        await session1.SendAndWaitAsync(new MessageOptions { Prompt = "What is 1+1?" });
         await session1.DisposeAsync();
 
         // Resume with MCP servers
