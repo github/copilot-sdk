@@ -1,7 +1,5 @@
 use std::collections::HashMap;
 
-use github_copilot_sdk::Client;
-use github_copilot_sdk::PermissionMode;
 use github_copilot_sdk::rpc::{
     CompletionsRequestRequest, MetadataContextHeaviestMessagesRequest, ModelSwitchToRequest,
     NamedProviderConfig, PermissionsSetModeRequest, ProviderAddRequest, ProviderConfigType,
@@ -9,6 +7,7 @@ use github_copilot_sdk::rpc::{
     SubagentSettingsEntryContextTier, UpdateSubagentSettingsRequest,
     UpdateSubagentSettingsRequestSubagents, VisibilitySetRequest,
 };
+use github_copilot_sdk::{Client, PermissionMode};
 
 use super::support::{assistant_message_content, with_e2e_context};
 

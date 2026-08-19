@@ -19,7 +19,6 @@ from copilot.rpc import (
     MetadataContextHeaviestMessagesRequest,
     ModelSwitchToRequest,
     NamedProviderConfig,
-    PermissionMode,
     PermissionsSetModeRequest,
     ProviderAddRequest,
     ProviderModelConfig,
@@ -33,6 +32,7 @@ from copilot.rpc import (
     VisibilitySetRequest,
 )
 from copilot.session import PermissionHandler
+from copilot.session_events import PermissionMode
 
 from .testharness import E2ETestContext
 
@@ -194,18 +194,14 @@ class TestRpcSessionStateExtras:
                 )
                 assert enable.success is True
                 assert enable.mode is PermissionMode.ALLOW_ALL
-                assert (
-                    await session.rpc.permissions.get_mode()
-                ).mode is PermissionMode.ALLOW_ALL
+                assert (await session.rpc.permissions.get_mode()).mode is PermissionMode.ALLOW_ALL
 
                 disable = await session.rpc.permissions.set_mode(
                     PermissionsSetModeRequest(mode=PermissionMode.MANUAL)
                 )
                 assert disable.success is True
                 assert disable.mode is PermissionMode.MANUAL
-                assert (
-                    await session.rpc.permissions.get_mode()
-                ).mode is PermissionMode.MANUAL
+                assert (await session.rpc.permissions.get_mode()).mode is PermissionMode.MANUAL
             finally:
                 with contextlib.suppress(Exception):
                     await session.rpc.permissions.set_mode(
