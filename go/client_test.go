@@ -2476,7 +2476,7 @@ func TestResumeSessionRequest_Commands(t *testing.T) {
 		req := resumeSessionRequest{
 			SessionID: "s1",
 			Commands: []wireCommand{
-				{Name: "deploy", Description: "Deploy the app"},
+				{Name: "deploy"},
 			},
 		}
 		data, err := json.Marshal(req)
@@ -2497,6 +2497,9 @@ func TestResumeSessionRequest_Commands(t *testing.T) {
 		cmd0 := cmds[0].(map[string]any)
 		if cmd0["name"] != "deploy" {
 			t.Errorf("Expected command name 'deploy', got %v", cmd0["name"])
+		}
+		if description, ok := cmd0["description"]; !ok || description != "" {
+			t.Errorf("Expected empty command description, got %v", description)
 		}
 	})
 

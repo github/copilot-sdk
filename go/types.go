@@ -2535,7 +2535,7 @@ type createSessionRequest struct {
 // wireCommand is the wire representation of a command (name + description only, no handler).
 type wireCommand struct {
 	Name        string `json:"name"`
-	Description string `json:"description,omitempty"`
+	Description string `json:"description"`
 }
 
 // createSessionResponse is the response from session.create
