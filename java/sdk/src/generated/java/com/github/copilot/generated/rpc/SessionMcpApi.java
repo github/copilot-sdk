@@ -189,7 +189,7 @@ public final class SessionMcpApi {
     }
 
     /**
-     * Opaque auth info used to configure GitHub MCP.
+     * Credential-free authentication identity used to configure GitHub MCP.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

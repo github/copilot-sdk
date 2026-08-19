@@ -24,6 +24,7 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionSettingsEvaluatePredicateResult(
+    /** Whether the named settings predicate evaluated to enabled. */
     @JsonProperty("enabled") Boolean enabled
 ) {
 }

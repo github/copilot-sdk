@@ -101,7 +101,7 @@ public final class ServerRpc {
     }
 
     /**
-     * Parameters for the `server.connect` handshake: an optional connection token and optional connection-level opt-ins (e.g. GitHub telemetry forwarding).
+     * Connection-level opt-ins for the `server.connect` handshake. Transport authentication is consumed by the native protocol boundary before dispatch.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0

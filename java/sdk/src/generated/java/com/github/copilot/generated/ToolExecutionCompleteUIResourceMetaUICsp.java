@@ -22,9 +22,13 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record ToolExecutionCompleteUIResourceMetaUICsp(
+    /** Domains the UI resource may connect to. */
     @JsonProperty("connectDomains") List<String> connectDomains,
+    /** Domains from which the UI resource may load scripts, styles, images, and other resources. */
     @JsonProperty("resourceDomains") List<String> resourceDomains,
+    /** Domains the UI resource may embed as nested frames. */
     @JsonProperty("frameDomains") List<String> frameDomains,
+    /** Domains the UI resource may use as document base URIs. */
     @JsonProperty("baseUriDomains") List<String> baseUriDomains
 ) {
 }

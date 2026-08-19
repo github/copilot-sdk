@@ -67,6 +67,7 @@ public final class AssistantMessageEvent extends SessionEvent {
         @JsonProperty("clientRequestId") String clientRequestId,
         /** Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation */
         @JsonProperty("serviceRequestId") String serviceRequestId,
+        /** Per-request treatment/eligibility signal returned by the Copilot API in the `X-GitHub-Copilot-Request-TE` response header for the associated model call; `false` when the header was absent or unparseable. */
         @JsonProperty("rte") Boolean rte,
         /** Provider's completion / response identifier; shared across all chunks of a single API call. Used to group multi-chunk assistant utterances. */
         @JsonProperty("apiCallId") String apiCallId,

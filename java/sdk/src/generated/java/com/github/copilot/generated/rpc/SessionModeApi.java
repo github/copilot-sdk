@@ -51,10 +51,10 @@ public final class SessionModeApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<Void> set(SessionModeSetParams params) {
+    public CompletableFuture<SessionModeSetResult> set(SessionModeSetParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
-        return caller.invoke("session.mode.set", _p, Void.class);
+        return caller.invoke("session.mode.set", _p, SessionModeSetResult.class);
     }
 
 }

@@ -38,6 +38,10 @@ public record ProviderConfig(
     @JsonProperty("azure") ProviderConfigAzure azure,
     /** Well-known model ID used for capability lookup. When set, agent behavior config and token limits are inferred from this model. */
     @JsonProperty("modelId") String modelId,
+    /** Overrides for model capabilities when they cannot be inferred from modelId. */
+    @JsonProperty("modelCapabilities") ModelCapabilitiesOverride modelCapabilities,
+    /** Provider name used for model and telemetry attribution. */
+    @JsonProperty("providerName") String providerName,
     /** The model identifier sent to the provider API for inference (the "wire" model), as opposed to modelId which is the well-known base. */
     @JsonProperty("wireModel") String wireModel,
     /** Maximum prompt/input tokens for the model. */

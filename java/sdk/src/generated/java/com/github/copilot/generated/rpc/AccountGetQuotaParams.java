@@ -24,7 +24,9 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record AccountGetQuotaParams(
-    /** GitHub token for per-user quota lookup. When provided, resolves this token to determine the user's quota instead of using the global auth. */
+    /** Opaque account identifier returned by `account.getAllUsers`. When omitted, the current account is used. */
+    @JsonProperty("selectionId") String selectionId,
+    /** GitHub token accepted for compatibility with existing SDK clients. When provided, resolves this token instead of using the current account. */
     @JsonProperty("gitHubToken") String gitHubToken
 ) {
 }

@@ -182,7 +182,7 @@ impl<'a> ClientRpc<'a> {
     ///
     /// # Parameters
     ///
-    /// * `params` - Parameters for the `server.connect` handshake: an optional connection token and optional connection-level opt-ins (e.g. GitHub telemetry forwarding).
+    /// * `params` - Connection-level opt-ins for the `server.connect` handshake. Transport authentication is consumed by the native protocol boundary before dispatch.
     ///
     /// # Returns
     ///
@@ -235,7 +235,7 @@ pub struct ClientRpcAccount<'a> {
 }
 
 impl<'a> ClientRpcAccount<'a> {
-    /// Gets Copilot quota usage for the authenticated user or supplied GitHub token.
+    /// Gets Copilot quota usage for the current or opaquely selected authenticated user.
     ///
     /// Wire method: `account.getQuota`.
     ///
@@ -259,13 +259,13 @@ impl<'a> ClientRpcAccount<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Gets Copilot quota usage for the authenticated user or supplied GitHub token.
+    /// Gets Copilot quota usage for the current or opaquely selected authenticated user.
     ///
     /// Wire method: `account.getQuota`.
     ///
     /// # Parameters
     ///
-    /// * `params` - Optional GitHub token used to look up quota for a specific user instead of the global auth context.
+    /// * `params` - Optional opaque account selection or compatibility GitHub token used to look up quota.
     ///
     /// # Returns
     ///
@@ -1070,7 +1070,7 @@ impl<'a> ClientRpcModels<'a> {
     ///
     /// # Parameters
     ///
-    /// * `params` - Optional GitHub token used to list models for a specific user instead of the global auth context.
+    /// * `params` - Optional opaque account selection or compatibility GitHub token used to list models.
     ///
     /// # Returns
     ///
@@ -1124,6 +1124,13 @@ pub struct ClientRpcPlugins<'a> {
 }
 
 impl<'a> ClientRpcPlugins<'a> {
+    /// `plugins.builtin.*` sub-namespace.
+    pub fn builtin(&self) -> ClientRpcPluginsBuiltin<'a> {
+        ClientRpcPluginsBuiltin {
+            client: self.client,
+        }
+    }
+
     /// `plugins.marketplaces.*` sub-namespace.
     pub fn marketplaces(&self) -> ClientRpcPluginsMarketplaces<'a> {
         ClientRpcPluginsMarketplaces {
@@ -1306,6 +1313,38 @@ impl<'a> ClientRpcPlugins<'a> {
         let _value = self
             .client
             .call(rpc_methods::PLUGINS_DISABLE, Some(wire_params))
+            .await?;
+        Ok(())
+    }
+}
+
+/// `plugins.builtin.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct ClientRpcPluginsBuiltin<'a> {
+    pub(crate) client: &'a Client,
+}
+
+impl<'a> ClientRpcPluginsBuiltin<'a> {
+    /// Replaces this server's trusted built-in plugin directories while no sessions are active.
+    ///
+    /// Wire method: `plugins.builtin.set`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Trusted built-in plugin directories to use for this runtime process.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn set(&self, params: PluginsBuiltinSetRequest) -> Result<(), Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::PLUGINS_BUILTIN_SET, Some(wire_params))
             .await?;
         Ok(())
     }
@@ -2710,6 +2749,36 @@ impl<'a> ClientRpcSkillsConfig<'a> {
             .await?;
         Ok(())
     }
+
+    /// Atomically adds or removes one skill from the disabled list.
+    ///
+    /// Wire method: `skills.config.setSkillDisabled`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Adds or removes a single skill from the global disabled list, leaving every other entry untouched.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn set_skill_disabled(
+        &self,
+        params: SkillsConfigSetSkillDisabledRequest,
+    ) -> Result<(), Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(
+                rpc_methods::SKILLS_CONFIG_SETSKILLDISABLED,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(())
+    }
 }
 
 /// `tools.*` RPCs.
@@ -3589,6 +3658,13 @@ impl<'a> SessionRpcCanvas<'a> {
         }
     }
 
+    /// `session.canvas.provider.*` sub-namespace.
+    pub fn provider(&self) -> SessionRpcCanvasProvider<'a> {
+        SessionRpcCanvasProvider {
+            session: self.session,
+        }
+    }
+
     /// Lists canvases declared for the session.
     ///
     /// Wire method: `session.canvas.list`.
@@ -3737,6 +3813,78 @@ impl<'a> SessionRpcCanvasAction<'a> {
     }
 }
 
+/// `session.canvas.provider.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct SessionRpcCanvasProvider<'a> {
+    pub(crate) session: &'a Session,
+}
+
+impl<'a> SessionRpcCanvasProvider<'a> {
+    /// Registers an internal canvas provider connection and its contributions.
+    ///
+    /// Wire method: `session.canvas.provider.register`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Internal canvas provider registration parameters.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn register(
+        &self,
+        params: CanvasProviderRegisterRequest,
+    ) -> Result<(), Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_CANVAS_PROVIDER_REGISTER,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(())
+    }
+
+    /// Unregisters an internal canvas provider connection.
+    ///
+    /// Wire method: `session.canvas.provider.unregister`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Internal canvas provider unregistration parameters.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn unregister(
+        &self,
+        params: CanvasProviderUnregisterRequest,
+    ) -> Result<(), Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_CANVAS_PROVIDER_UNREGISTER,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(())
+    }
+}
+
 /// `session.commands.*` RPCs.
 #[derive(Clone, Copy)]
 pub struct SessionRpcCommands<'a> {
@@ -3831,6 +3979,42 @@ impl<'a> SessionRpcCommands<'a> {
             .session
             .client()
             .call(rpc_methods::SESSION_COMMANDS_INVOKE, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Finalizes persistence associated with a client-applied slash-command effect.
+    ///
+    /// Wire method: `session.commands.finalizeInvocationEffect`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - The pending slash-command invocation effect to finalize, plus whether the host applied or cancelled it.
+    ///
+    /// # Returns
+    ///
+    /// Whether finalizing the invocation effect succeeded, and the failure reason when it did not.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn finalize_invocation_effect(
+        &self,
+        params: CommandsFinalizeInvocationEffectRequest,
+    ) -> Result<CommandsFinalizeInvocationEffectResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_COMMANDS_FINALIZEINVOCATIONEFFECT,
+                Some(wire_params),
+            )
             .await?;
         Ok(serde_json::from_value(_value)?)
     }
@@ -4876,6 +5060,243 @@ impl<'a> SessionRpcGitHubAuth<'a> {
             .await?;
         Ok(serde_json::from_value(_value)?)
     }
+
+    /// Gets the current authentication information for internal session hosts.
+    ///
+    /// Wire method: `session.gitHubAuth.getCurrentAuthInfo`.
+    ///
+    /// # Returns
+    ///
+    /// Current authentication information, or null when no authentication is active.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn get_current_auth_info(&self) -> Result<SessionAuthInfoResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_GITHUBAUTH_GETCURRENTAUTHINFO,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Gets all authentication accounts available to the internal session host.
+    ///
+    /// Wire method: `session.gitHubAuth.getAllAuthAvailable`.
+    ///
+    /// # Returns
+    ///
+    /// Authentication accounts available to the internal session host.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn get_all_auth_available(
+        &self,
+    ) -> Result<SessionGitHubAuthGetAllAuthAvailableResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_GITHUBAUTH_GETALLAUTHAVAILABLE,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Refreshes Copilot account metadata for the current authentication.
+    ///
+    /// Wire method: `session.gitHubAuth.refreshCopilotUser`.
+    ///
+    /// # Returns
+    ///
+    /// Current authentication information, or null when no authentication is active.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn refresh_copilot_user(&self) -> Result<SessionAuthInfoResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_GITHUBAUTH_REFRESHCOPILOTUSER,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Logs in a GitHub user through the internal session host.
+    ///
+    /// Wire method: `session.gitHubAuth.login`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Internal GitHub login parameters.
+    ///
+    /// # Returns
+    ///
+    /// Authentication credentials accepted only at native protocol ingress. Runtime outputs use credential-free `AuthIdentity` metadata.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn login(&self, params: SessionAuthLoginRequest) -> Result<AuthInfo, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_GITHUBAUTH_LOGIN, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Switches the session to another available authentication.
+    ///
+    /// Wire method: `session.gitHubAuth.switchToAuth`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Parameters for switching the session's active authentication.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn switch_to_auth(
+        &self,
+        params: SessionAuthSwitchRequest,
+    ) -> Result<(), Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_GITHUBAUTH_SWITCHTOAUTH,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(())
+    }
+
+    /// Logs out the session's current GitHub authentication.
+    ///
+    /// Wire method: `session.gitHubAuth.logout`.
+    ///
+    /// # Returns
+    ///
+    /// Whether the current authentication was logged out.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn logout(&self) -> Result<SessionGitHubAuthLogoutResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_GITHUBAUTH_LOGOUT, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Logs out a specific GitHub authentication.
+    ///
+    /// Wire method: `session.gitHubAuth.logoutUser`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Parameters identifying a GitHub authentication to log out.
+    ///
+    /// # Returns
+    ///
+    /// Whether the requested authentication was logged out.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn logout_user(
+        &self,
+        params: SessionAuthLogoutUserRequest,
+    ) -> Result<SessionGitHubAuthLogoutUserResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_GITHUBAUTH_LOGOUTUSER,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Gets validation errors from the most recent authentication attempt.
+    ///
+    /// Wire method: `session.gitHubAuth.lastAuthErrors`.
+    ///
+    /// # Returns
+    ///
+    /// Validation errors from the most recent authentication attempt.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn last_auth_errors(&self) -> Result<AuthValidationErrors, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_GITHUBAUTH_LASTAUTHERRORS,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
 }
 
 /// `session.history.*` RPCs.
@@ -5666,7 +6087,7 @@ impl<'a> SessionRpcMcp<'a> {
     ///
     /// # Parameters
     ///
-    /// * `params` - Opaque auth info used to configure GitHub MCP.
+    /// * `params` - Credential-free authentication identity used to configure GitHub MCP.
     ///
     /// # Returns
     ///
@@ -6221,6 +6642,36 @@ impl<'a> SessionRpcMcpOauth<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
+    /// Passively probes a configured remote MCP server to classify whether OAuth is required or a cached/override token is accepted. Does not start OAuth, emit pending OAuth requests, or mutate MCP connection state.
+    ///
+    /// Wire method: `session.mcp.oauth.probe`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Remote MCP server name for a passive OAuth status probe.
+    ///
+    /// # Returns
+    ///
+    /// Passive MCP OAuth probe result. `authenticated` means the server accepted the probe request while an OAuth-origin access token was attached; it does not prove the server required or independently validated that token. The probe does not make a second unauthenticated request. Failed is an expected probe-domain outcome; JSON-RPC errors are reserved for API-call failures.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn probe(&self, params: McpOauthProbeRequest) -> Result<McpOauthProbeResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_MCP_OAUTH_PROBE, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
     /// Responds to a pending MCP OAuth authorization request by its request id.
     ///
     /// Wire method: `session.mcp.oauth.respond`.
@@ -6696,6 +7147,10 @@ impl<'a> SessionRpcMode<'a> {
     ///
     /// * `params` - Agent interaction mode to apply to the session.
     ///
+    /// # Returns
+    ///
+    /// Outcome of a session mode change, including any model switch it triggered and follow-up the host must perform.
+    ///
     /// <div class="warning">
     ///
     /// **Experimental.** This API is part of an experimental wire-protocol surface
@@ -6703,7 +7158,7 @@ impl<'a> SessionRpcMode<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
-    pub async fn set(&self, params: ModeSetRequest) -> Result<(), Error> {
+    pub async fn set(&self, params: ModeSetRequest) -> Result<ModeSetResult, Error> {
         let mut wire_params = serde_json::to_value(params)?;
         wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
         let _value = self
@@ -6711,7 +7166,7 @@ impl<'a> SessionRpcMode<'a> {
             .client()
             .call(rpc_methods::SESSION_MODE_SET, Some(wire_params))
             .await?;
-        Ok(())
+        Ok(serde_json::from_value(_value)?)
     }
 }
 
@@ -6776,6 +7231,42 @@ impl<'a> SessionRpcModel<'a> {
             .session
             .client()
             .call(rpc_methods::SESSION_MODEL_SWITCHTO, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Resolves and applies organization-managed and repository model overlays.
+    ///
+    /// Wire method: `session.model.applyStartupOverlay`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Managed, repository, and CLI model overrides to overlay onto the session at startup.
+    ///
+    /// # Returns
+    ///
+    /// The model identifier active on the session after the switch.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn apply_startup_overlay(
+        &self,
+        params: ModelApplyStartupOverlayRequest,
+    ) -> Result<ModelSwitchToResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_MODEL_APPLYSTARTUPOVERLAY,
+                Some(wire_params),
+            )
             .await?;
         Ok(serde_json::from_value(_value)?)
     }
@@ -9811,6 +10302,108 @@ pub struct SessionRpcTools<'a> {
 }
 
 impl<'a> SessionRpcTools<'a> {
+    /// Executes one tool from the session's currently offered tool set through the native invocation pipeline.
+    ///
+    /// Wire method: `session.tools.execute`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - A tool name and arguments to execute through the session's native invocation pipeline.
+    ///
+    /// # Returns
+    ///
+    /// Canonical result returned by a session tool.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn execute(&self, params: ToolsExecuteRequest) -> Result<ToolResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_TOOLS_EXECUTE, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Returns the Rust-owned built-in tool descriptors used to construct the session's offered tool set.
+    ///
+    /// Wire method: `session.tools.getBuiltinDescriptors`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Options controlling how Rust-owned built-in tool descriptors are materialized.
+    ///
+    /// # Returns
+    ///
+    /// Rust-owned built-in tool descriptors for the session.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn get_builtin_descriptors(
+        &self,
+        params: ToolsGetBuiltinDescriptorsRequest,
+    ) -> Result<ToolsGetBuiltinDescriptorsResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_TOOLS_GETBUILTINDESCRIPTORS,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Projects a completed task_complete tool call into its label-safe session event payload.
+    ///
+    /// Wire method: `session.tools.taskCompleteEventData`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Task-completion tool arguments and final result used to build a label-safe session event payload.
+    ///
+    /// # Returns
+    ///
+    /// Task completion notification with summary from the agent
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn task_complete_event_data(
+        &self,
+        params: ToolsTaskCompleteEventDataRequest,
+    ) -> Result<TaskCompleteData, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_TOOLS_TASKCOMPLETEEVENTDATA,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
     /// Provides the result for a pending external tool call.
     ///
     /// Wire method: `session.tools.handlePendingToolCall`.
@@ -9903,6 +10496,36 @@ impl<'a> SessionRpcTools<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
+    /// Atomically replaces the complete externally implemented tool list supplied by the calling connection. Built-in, MCP/plugin, extension-discovered, subagent, and tools supplied by other connections remain unchanged.
+    ///
+    /// Wire method: `session.tools.set`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Complete externally implemented tool list for the calling connection. An empty list removes every tool previously supplied by that connection.
+    ///
+    /// # Returns
+    ///
+    /// Empty result after replacing the calling connection's externally implemented tools.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn set(&self, params: ToolsSetRequest) -> Result<ToolsSetResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_TOOLS_SET, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
     /// Updates the current session's live subagent settings after user settings change. The persisted user settings remain the source of truth for future sessions.
     ///
     /// Wire method: `session.tools.updateSubagentSettings`.
@@ -9957,7 +10580,7 @@ impl<'a> SessionRpcUi<'a> {
     ///
     /// # Returns
     ///
-    /// Transient answer generated from current conversation context.
+    /// Completed transient query. Ordered chunks and the terminal outcome are also delivered through `ui.ephemeral_query` session events while it runs.
     ///
     /// <div class="warning">
     ///

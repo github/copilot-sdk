@@ -28,6 +28,7 @@ public record SessionQueueInsertAtParams(
     @JsonProperty("sessionId") String sessionId,
     /** Zero-based position in the public visible queue. Values outside the queue clamp to an end. */
     @JsonProperty("position") Long position,
+    /** Queued message contents and delivery metadata. */
     @JsonProperty("message") QueueInsertMessage message
 ) {
 }

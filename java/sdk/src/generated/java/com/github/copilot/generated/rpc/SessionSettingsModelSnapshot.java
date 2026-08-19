@@ -21,9 +21,13 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionSettingsModelSnapshot(
+    /** Selected model identifier. */
     @JsonProperty("model") String model,
+    /** Default reasoning effort for the selected model. */
     @JsonProperty("defaultReasoningEffort") String defaultReasoningEffort,
+    /** Agent job identifier for the session. */
     @JsonProperty("instanceId") String instanceId,
+    /** Agent service callback URL for job and progress updates. */
     @JsonProperty("callbackUrl") String callbackUrl
 ) {
 }

@@ -31,6 +31,54 @@ public final class SessionToolsApi {
     }
 
     /**
+     * A tool name and arguments to execute through the session's native invocation pipeline.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<Void> execute(SessionToolsExecuteParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.tools.execute", _p, Void.class);
+    }
+
+    /**
+     * Options controlling how Rust-owned built-in tool descriptors are materialized.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionToolsGetBuiltinDescriptorsResult> getBuiltinDescriptors(SessionToolsGetBuiltinDescriptorsParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.tools.getBuiltinDescriptors", _p, SessionToolsGetBuiltinDescriptorsResult.class);
+    }
+
+    /**
+     * Task-completion tool arguments and final result used to build a label-safe session event payload.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionToolsTaskCompleteEventDataResult> taskCompleteEventData(SessionToolsTaskCompleteEventDataParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.tools.taskCompleteEventData", _p, SessionToolsTaskCompleteEventDataResult.class);
+    }
+
+    /**
      * Pending external tool call request ID, with the tool result or an error describing why it failed.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
@@ -66,6 +114,22 @@ public final class SessionToolsApi {
     @CopilotExperimental
     public CompletableFuture<SessionToolsGetCurrentMetadataResult> getCurrentMetadata() {
         return caller.invoke("session.tools.getCurrentMetadata", java.util.Map.of("sessionId", this.sessionId), SessionToolsGetCurrentMetadataResult.class);
+    }
+
+    /**
+     * Complete externally implemented tool list for the calling connection. An empty list removes every tool previously supplied by that connection.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<Void> set(SessionToolsSetParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.tools.set", _p, Void.class);
     }
 
     /**

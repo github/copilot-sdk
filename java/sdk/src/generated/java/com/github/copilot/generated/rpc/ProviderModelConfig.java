@@ -23,7 +23,7 @@ import javax.annotation.processing.Generated;
 public record ProviderModelConfig(
     /** Provider-local model id, unique within its provider. The session-wide selection id (shown in the model list and passed to switchTo) is the provider-qualified `provider/id`. */
     @JsonProperty("id") String id,
-    /** Name of the NamedProviderConfig that serves this model. */
+    /** Name of the configured provider that serves this model. */
     @JsonProperty("provider") String provider,
     /** The model name sent to the provider API for inference. Defaults to `id`. */
     @JsonProperty("wireModel") String wireModel,

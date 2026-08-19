@@ -34,6 +34,10 @@ public record Model(
     @JsonProperty("billing") ModelBilling billing,
     /** Supported reasoning effort levels (only present if model supports reasoning effort) */
     @JsonProperty("supportedReasoningEfforts") List<String> supportedReasoningEfforts,
+    /** Default reasoning effort level (only present if model supports reasoning effort) */
+    @JsonProperty("defaultReasoningEffort") String defaultReasoningEffort,
+    /** Context-window tiers this model offers, when the provider advertises them independently of tiered token pricing. Copilot models carry their tiers in `billing.tokenPrices`; a provider that has no pricing to publish (an agent host reached over AHP, for example) declares them here instead, so the model picker can still offer the tier toggle. */
+    @JsonProperty("supportedContextTiers") List<String> supportedContextTiers,
     /** Model capability category for grouping in the model picker */
     @JsonProperty("modelPickerCategory") ModelPickerCategory modelPickerCategory,
     /** Relative cost tier for token-based billing users */

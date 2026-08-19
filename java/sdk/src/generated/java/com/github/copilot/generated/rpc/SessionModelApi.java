@@ -58,6 +58,22 @@ public final class SessionModelApi {
     }
 
     /**
+     * Managed, repository, and CLI model overrides to overlay onto the session at startup.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionModelApplyStartupOverlayResult> applyStartupOverlay(SessionModelApplyStartupOverlayParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.model.applyStartupOverlay", _p, SessionModelApplyStartupOverlayResult.class);
+    }
+
+    /**
      * Reasoning effort level to apply to the currently selected model.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden

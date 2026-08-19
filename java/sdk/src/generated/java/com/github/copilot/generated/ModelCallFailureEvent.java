@@ -45,6 +45,7 @@ public final class ModelCallFailureEvent extends SessionEvent {
         @JsonProperty("providerCallId") String providerCallId,
         /** Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation */
         @JsonProperty("serviceRequestId") String serviceRequestId,
+        /** Per-request treatment/eligibility signal returned by the Copilot API in the `X-GitHub-Copilot-Request-TE` response header for the associated model call; `false` when the header was absent or unparseable. */
         @JsonProperty("rte") Boolean rte,
         /** HTTP status code from the failed request */
         @JsonProperty("statusCode") Long statusCode,
@@ -66,6 +67,8 @@ public final class ModelCallFailureEvent extends SessionEvent {
         @JsonProperty("isAuto") Boolean isAuto,
         /** Reasoning effort level used for the failed model call, if applicable */
         @JsonProperty("reasoningEffort") String reasoningEffort,
+        /** Authoritative interaction classification for the failed call, matching `assistant.usage.interactionType` (for example `conversation-agent`, `conversation-subagent`, or `conversation-sampling`). Absent when the producer cannot classify the interaction. */
+        @JsonProperty("interactionType") String interactionType,
         /** Where the failed model call originated */
         @JsonProperty("source") ModelCallFailureSource source,
         /** Raw provider/runtime error message for restricted telemetry */

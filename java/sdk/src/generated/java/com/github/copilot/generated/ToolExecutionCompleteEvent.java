@@ -45,6 +45,7 @@ public final class ToolExecutionCompleteEvent extends SessionEvent {
         @JsonProperty("mcpMeta") Object mcpMeta,
         /** CAPI interaction ID for correlating this tool execution with upstream telemetry */
         @JsonProperty("interactionId") String interactionId,
+        /** Per-request treatment/eligibility signal returned by the Copilot API in the `X-GitHub-Copilot-Request-TE` response header for the associated model call; `false` when the header was absent or unparseable. */
         @JsonProperty("rte") Boolean rte,
         /** Whether this tool call was explicitly requested by the user rather than the assistant */
         @JsonProperty("isUserRequested") Boolean isUserRequested,

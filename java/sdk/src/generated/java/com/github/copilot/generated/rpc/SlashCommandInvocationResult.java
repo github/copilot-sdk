@@ -22,7 +22,11 @@ import javax.annotation.processing.Generated;
     @JsonSubTypes.Type(value = SlashCommandTextResult.class, name = "text"),
     @JsonSubTypes.Type(value = SlashCommandAgentPromptResult.class, name = "agent-prompt"),
     @JsonSubTypes.Type(value = SlashCommandCompletedResult.class, name = "completed"),
-    @JsonSubTypes.Type(value = SlashCommandSelectSubcommandResult.class, name = "select-subcommand")
+    @JsonSubTypes.Type(value = SlashCommandSelectSubcommandResult.class, name = "select-subcommand"),
+    @JsonSubTypes.Type(value = SlashCommandInvocationResultAddTimelineEntry.class, name = "add-timeline-entry"),
+    @JsonSubTypes.Type(value = SlashCommandInvocationResultShowDialog.class, name = "show-dialog"),
+    @JsonSubTypes.Type(value = SlashCommandInvocationResultSetModel.class, name = "set-model"),
+    @JsonSubTypes.Type(value = SlashCommandInvocationResultSetPlanModel.class, name = "set-plan-model")
 })
 @JsonIgnoreProperties(ignoreUnknown = true)
 @javax.annotation.processing.Generated("copilot-sdk-codegen")

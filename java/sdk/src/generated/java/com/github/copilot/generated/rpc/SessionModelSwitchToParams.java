@@ -38,7 +38,21 @@ public record SessionModelSwitchToParams(
     @JsonProperty("modelCapabilities") ModelCapabilitiesOverride modelCapabilities,
     /** Explicit context tier for the selected model. `"default"` / `"long_context"` apply the requested tier; omit this field to use normal model behavior with no explicit tier. */
     @JsonProperty("contextTier") ContextTier contextTier,
+    /** Origin to record on the effective `session.model_change` event. Defaults to `sdk` when omitted. */
+    @JsonProperty("source") ModelChangeSource source,
     /** When true, defer this switch (enqueue it) if another model change is already queued, even when no turn is active — so it drains last (FIFO) and wins over the already-queued change. Intended for genuine user-initiated model selections; internal restore/reapply switches omit it and apply immediately when no turn is active. When no other model change is queued this has no effect (a switch still applies immediately unless a turn is active). */
-    @JsonProperty("deferIfModelChangeQueued") Boolean deferIfModelChangeQueued
+    @JsonProperty("deferIfModelChangeQueued") Boolean deferIfModelChangeQueued,
+    /** Explicit response to a model-switch compaction preflight. Omit to request a confirmation projection when compaction is necessary. */
+    @JsonProperty("compactionDecision") String compactionDecision,
+    /** When true, evaluate context-window compaction policy before applying the switch. */
+    @JsonProperty("runCompactionPreflight") Boolean runCompactionPreflight,
+    /** Optional repository settings scope to persist after the switch commits. */
+    @JsonProperty("repoScope") String repoScope,
+    /** Settings scope used when persisting the selected model. */
+    @JsonProperty("modelChangeScope") String modelChangeScope,
+    /** Require the target to be currently available and enabled before applying the switch. */
+    @JsonProperty("requireAvailable") Boolean requireAvailable,
+    /** Optional settings context and explicit-override flags used to persist a picker selection. */
+    @JsonProperty("pickerPersistence") ModelPickerPersistenceRequest pickerPersistence
 ) {
 }

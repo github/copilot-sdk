@@ -79,6 +79,8 @@ pub enum SessionEventType {
     AssistantTurnStart,
     #[serde(rename = "assistant.turn_retry")]
     AssistantTurnRetry,
+    #[serde(rename = "agent.interrupted")]
+    AgentInterrupted,
     #[serde(rename = "assistant.intent")]
     AssistantIntent,
     #[serde(rename = "assistant.server_tool_progress")]
@@ -103,6 +105,8 @@ pub enum SessionEventType {
     AssistantIdle,
     #[serde(rename = "assistant.usage")]
     AssistantUsage,
+    #[serde(rename = "prompt_cache_break")]
+    PromptCacheBreak,
     #[serde(rename = "model.call_failure")]
     ModelCallFailure,
     #[serde(rename = "model.call_start")]
@@ -123,6 +127,8 @@ pub enum SessionEventType {
     ToolSearchActivated,
     #[serde(rename = "skill.invoked")]
     SkillInvoked,
+    #[serde(rename = "sandbox.decision")]
+    SandboxDecision,
     #[serde(rename = "subagent.started")]
     SubagentStarted,
     #[serde(rename = "subagent.completed")]
@@ -178,6 +184,15 @@ pub enum SessionEventType {
     McpHeadersRefreshCompleted,
     #[serde(rename = "session.custom_notification")]
     SessionCustomNotification,
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "ui.ephemeral_query")]
+    UiEphemeralQuery,
     #[serde(rename = "external_tool.requested")]
     ExternalToolRequested,
     #[serde(rename = "external_tool.completed")]
@@ -244,6 +259,24 @@ pub enum SessionEventType {
     /// </div>
     #[serde(rename = "factory.run_updated")]
     FactoryRunUpdated,
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "factory.run_started")]
+    FactoryRunStarted,
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "factory.run_settled")]
+    FactoryRunSettled,
     #[serde(rename = "session.skills_loaded")]
     SessionSkillsLoaded,
     #[serde(rename = "session.custom_agents_updated")]
@@ -398,6 +431,8 @@ pub enum SessionEventData {
     AssistantTurnStart(AssistantTurnStartData),
     #[serde(rename = "assistant.turn_retry")]
     AssistantTurnRetry(AssistantTurnRetryData),
+    #[serde(rename = "agent.interrupted")]
+    AgentInterrupted(AgentInterruptedData),
     #[serde(rename = "assistant.intent")]
     AssistantIntent(AssistantIntentData),
     #[serde(rename = "assistant.server_tool_progress")]
@@ -422,6 +457,8 @@ pub enum SessionEventData {
     AssistantIdle(AssistantIdleData),
     #[serde(rename = "assistant.usage")]
     AssistantUsage(AssistantUsageData),
+    #[serde(rename = "prompt_cache_break")]
+    PromptCacheBreak(PromptCacheBreakData),
     #[serde(rename = "model.call_failure")]
     ModelCallFailure(ModelCallFailureData),
     #[serde(rename = "model.call_start")]
@@ -442,6 +479,8 @@ pub enum SessionEventData {
     ToolSearchActivated(ToolSearchActivatedData),
     #[serde(rename = "skill.invoked")]
     SkillInvoked(SkillInvokedData),
+    #[serde(rename = "sandbox.decision")]
+    SandboxDecision(SandboxDecisionData),
     #[serde(rename = "subagent.started")]
     SubagentStarted(SubagentStartedData),
     #[serde(rename = "subagent.completed")]
@@ -490,6 +529,15 @@ pub enum SessionEventData {
     McpHeadersRefreshCompleted(McpHeadersRefreshCompletedData),
     #[serde(rename = "session.custom_notification")]
     SessionCustomNotification(SessionCustomNotificationData),
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "ui.ephemeral_query")]
+    UiEphemeralQuery(UiEphemeralQueryData),
     #[serde(rename = "external_tool.requested")]
     ExternalToolRequested(ExternalToolRequestedData),
     #[serde(rename = "external_tool.completed")]
@@ -556,6 +604,24 @@ pub enum SessionEventData {
     /// </div>
     #[serde(rename = "factory.run_updated")]
     FactoryRunUpdated(FactoryRunUpdatedData),
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "factory.run_started")]
+    FactoryRunStarted(FactoryRunStartedData),
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "factory.run_settled")]
+    FactoryRunSettled(FactoryRunSettledData),
     #[serde(rename = "session.skills_loaded")]
     SessionSkillsLoaded(SessionSkillsLoadedData),
     #[serde(rename = "session.custom_agents_updated")]
@@ -994,6 +1060,9 @@ pub struct SessionModelChangeData {
     /// Reasoning summary mode after the model change, if applicable
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_summary: Option<ReasoningSummary>,
+    /// Origin of the effective model change, when known.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<ModelChangeSource>,
     /// Output verbosity level after the model change, if applicable
     #[serde(skip_serializing_if = "Option::is_none")]
     pub verbosity: Option<Verbosity>,
@@ -1140,18 +1209,6 @@ pub struct SessionSnapshotRewindData {
     pub up_to_event_id: String,
 }
 
-/// Aggregate code change metrics for the session
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ShutdownCodeChanges {
-    /// List of file paths that were modified during the session
-    pub files_modified: Vec<String>,
-    /// Total number of lines added during the session
-    pub lines_added: i64,
-    /// Total number of lines removed during the session
-    pub lines_removed: i64,
-}
-
 /// Request count and cost metrics
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1226,6 +1283,36 @@ pub struct ShutdownModelMetric {
     pub usage: ShutdownModelMetricUsage,
 }
 
+/// Usage attributed to one agent instance at session shutdown.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ShutdownAgentMetric {
+    /// Human-readable label for this subagent invocation, copied from the originating `subagent.started` event. For task-tool subagents this is the invocation's task description rather than the agent's configured display name, so group by `agentName` for stable per-agent labels.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub agent_display_name: Option<String>,
+    /// Configured agent name, when this is a subagent
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub agent_name: Option<String>,
+    /// Per-model usage for this agent, keyed by model identifier
+    pub model_metrics: HashMap<String, ShutdownModelMetric>,
+    /// Time spent in model API calls by this agent, in milliseconds
+    pub total_api_duration_ms: i64,
+    /// Accumulated nano-AI units cost for this agent
+    pub total_nano_aiu: f64,
+}
+
+/// Aggregate code change metrics for the session
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ShutdownCodeChanges {
+    /// List of file paths that were modified during the session
+    pub files_modified: Vec<String>,
+    /// Total number of lines added during the session
+    pub lines_added: i64,
+    /// Total number of lines removed during the session
+    pub lines_removed: i64,
+}
+
 /// A session-wide shutdown token-type entry storing the accumulated token count.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1238,6 +1325,9 @@ pub struct ShutdownTokenDetail {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionShutdownData {
+    /// Per-agent usage breakdown, keyed by agent instance identifier. The main conversation uses the stable key `main`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub agent_metrics: Option<HashMap<String, ShutdownAgentMetric>>,
     /// Aggregate code change metrics for the session
     pub code_changes: ShutdownCodeChanges,
     /// Non-system message token count at shutdown
@@ -1309,6 +1399,10 @@ pub struct SessionUsageCheckpointData {
     #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) model_cache_state: Option<Vec<UsageCheckpointModelCacheState>>,
+    /// Internal per-conversation prompt-cache-break detector baselines restored on resume
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) prompt_cache_break_state: Option<Vec<serde_json::Value>>,
     /// Session-wide accumulated nano-AI units cost at checkpoint time
     pub total_nano_aiu: f64,
     /// Total number of premium API requests used at checkpoint time
@@ -1588,6 +1682,9 @@ pub struct UserMessageData {
     /// Transformed version of the message sent to the model, with XML wrapping, timestamps, and other augmentations for prompt caching
     #[serde(skip_serializing_if = "Option::is_none")]
     pub transformed_content: Option<String>,
+    /// The agent-loop turn ID that consumed this message; absent when no agent-loop turn consumed it
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub turn_id: Option<String>,
 }
 
 /// Session event "pending_messages.modified". Empty payload; the event signals that the pending message queue has changed
@@ -1623,6 +1720,48 @@ pub struct AssistantTurnRetryData {
     pub turn_id: String,
 }
 
+/// Session event "agent.interrupted". Metadata for work the user interrupted while the agent was running
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentInterruptedData {
+    /// What the agent was doing when the user interrupted it
+    pub activity: AgentInterruptedActivity,
+    /// For an interrupted model call: the provider endpoint the request targeted
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub api_endpoint: Option<String>,
+    /// For an interrupted model call: whether the user interrupted before any token arrived or while the response was streaming
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cancel_phase: Option<AgentInterruptedCancelPhase>,
+    /// How long the interrupted work had been running, in milliseconds
+    pub elapsed_ms: f64,
+    /// For an interrupted background-agent batch: how many background sub-agents the stop swept. Counts accepted cancellations, so an agent cancelled as a cascade of its interrupted parent is covered by that parent rather than counted again.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub interrupted_agent_count: Option<i64>,
+    /// For an interrupted model call: the model the request targeted
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    /// For a mid-stream interrupt: the observed time to first observable output, in milliseconds. Deliberately distinct from the `ttftMs` reported on a successful model call, which measures time to first stream event.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_ttft_ms: Option<f64>,
+    /// For an interrupted model call: the reasoning effort the request asked for
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_effort: Option<String>,
+    /// Subset of `toolNames` whose tool metadata marks the tool name as safe to record unhashed in telemetry.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub safe_tool_names: Option<Vec<String>>,
+    /// Tool call identifiers that were still running
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_call_ids: Option<Vec<String>>,
+    /// Names of the tools that were still running. More than one when the model requested a parallel fan-out.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_names: Option<Vec<String>>,
+    /// For an interrupted model call: the transport the request used
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub transport: Option<ModelCallFailureTransport>,
+    /// Zero-based agentic-loop iteration the interrupt landed in
+    pub turn: i64,
+}
+
 /// Session event "assistant.intent". Agent intent description for current activity or plan
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1651,6 +1790,7 @@ pub struct AssistantReasoningData {
     pub content: String,
     /// Unique identifier for this reasoning block
     pub reasoning_id: String,
+    /// Per-request treatment/eligibility signal returned by the Copilot API in the `X-GitHub-Copilot-Request-TE` response header for the associated model call; `false` when the header was absent or unparseable.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rte: Option<bool>,
 }
@@ -1786,13 +1926,18 @@ pub struct Citations {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AssistantMessageServerTools {
+    /// Advisor model identifier associated with the server-tool payload.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub advisor_model: Option<String>,
+    /// Provider function-call namespaces keyed by function-call identifier.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub function_call_namespaces: Option<HashMap<String, String>>,
+    /// Provider-native server-tool call and output items preserved verbatim for replay.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub items: Option<Vec<serde_json::Value>>,
+    /// Model provider that produced this server-tool payload.
     pub provider: String,
+    /// Raw provider content blocks retained for verbatim round-tripping.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub raw_content_blocks: Option<Vec<serde_json::Value>>,
 }
@@ -1887,6 +2032,7 @@ pub struct AssistantMessageData {
     /// GitHub request tracing ID (x-github-request-id header) for correlating with server-side logs
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_id: Option<RequestId>,
+    /// Per-request treatment/eligibility signal returned by the Copilot API in the `X-GitHub-Copilot-Request-TE` response header for the associated model call; `false` when the header was absent or unparseable.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rte: Option<bool>,
     /// Neutral provider-tagged server-side tool-use payload (tool search, advisor) for verbatim round-tripping
@@ -2022,6 +2168,9 @@ pub(crate) struct AssistantUsageQuotaSnapshot {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AssistantUsageData {
+    /// Number of accepted speculative prediction tokens
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub accepted_prediction_tokens: Option<i64>,
     /// Completion ID from the model provider (e.g., chatcmpl-abc123)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub api_call_id: Option<String>,
@@ -2032,12 +2181,20 @@ pub struct AssistantUsageData {
     #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) available_tool_count: Option<i64>,
+    /// Whether the provider reported prompt-cache usage details for this call
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) cache_details_reported: Option<bool>,
     /// Updated prompt-cache expiration for this model call. Present only when the call establishes or refreshes known cache state.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cache_expires_at: Option<String>,
     /// Number of tokens read from prompt cache
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cache_read_tokens: Option<i64>,
+    /// Effective prompt-cache lifetime in seconds for this call
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) cache_ttl_seconds: Option<i64>,
     /// Number of tokens written to prompt cache
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cache_write_tokens: Option<i64>,
@@ -2063,6 +2220,10 @@ pub struct AssistantUsageData {
     /// Finish reason reported by the model for this API call (e.g. "stop", "length", "tool_calls", "content_filter"). Normalized to OpenAI vocabulary; for Anthropic models a "refusal" stop reason maps to "content_filter".
     #[serde(skip_serializing_if = "Option::is_none")]
     pub finish_reason: Option<String>,
+    /// How the prompt-cache frontier was determined for this call
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) frontier_source: Option<String>,
     /// What initiated this API call (e.g., "sub-agent", "mcp-sampling"); absent for user-initiated calls
     #[serde(skip_serializing_if = "Option::is_none")]
     pub initiator: Option<String>,
@@ -2075,6 +2236,18 @@ pub struct AssistantUsageData {
     /// Average inter-token latency in milliseconds. Only available for streaming requests
     #[serde(skip_serializing_if = "Option::is_none")]
     pub inter_token_latency_ms: Option<f64>,
+    /// Whether Auto mode was selected for this model call
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_auto: Option<bool>,
+    /// Whether this model call used a bring-your-own-key provider
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_byok: Option<bool>,
+    /// Requested maximum output tokens used for this model call
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_output_tokens: Option<i64>,
+    /// Effective maximum prompt-token limit used for this model call
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_prompt_tokens: Option<i64>,
     /// Model identifier used for this API call
     pub model: String,
     /// Number of tool calls returned by the model
@@ -2099,9 +2272,16 @@ pub struct AssistantUsageData {
     /// Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max")
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_effort: Option<String>,
+    /// Reasoning summary mode used for this model call, if applicable
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_summary: Option<ReasoningSummary>,
     /// Number of output tokens used for reasoning (e.g., chain-of-thought)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_tokens: Option<i64>,
+    /// Number of rejected speculative prediction tokens
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rejected_prediction_tokens: Option<i64>,
+    /// Per-request treatment/eligibility signal returned by the Copilot API in the `X-GitHub-Copilot-Request-TE` response header for the associated model call; `false` when the header was absent or unparseable.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rte: Option<bool>,
     /// Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation
@@ -2118,6 +2298,95 @@ pub struct AssistantUsageData {
     #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) tool_token_count: Option<i64>,
+    /// Transport used for this model call (http or websocket)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub transport: Option<AssistantUsageTransport>,
+}
+
+/// Session event "prompt_cache_break". A detected loss of a previously cached prompt prefix
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PromptCacheBreakData {
+    /// Request state whose cached prefix fell short
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) after_request: Option<serde_json::Value>,
+    /// Name of the sub-agent whose conversation broke, stamped by the parent bridge
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) agent_name: Option<String>,
+    /// Request state that established the prior cache frontier
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) before_request: Option<serde_json::Value>,
+    /// Names of the cache-configuration fields that changed
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) cache_config_changed_fields: Option<Vec<String>>,
+    /// All reasons that contributed to the cache break, ordered by precedence
+    pub contributing_reasons: Vec<String>,
+    /// Prior cached prompt frontier in tokens
+    pub frontier_tokens: i64,
+    /// Model that held the prior cache frontier, when the call changed models
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) model_from: Option<String>,
+    /// Model this call targeted, when the call changed models
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) model_to: Option<String>,
+    /// The highest-precedence reason for the cache break
+    pub primary_reason: String,
+    /// Fraction of the prior cache frontier that survived
+    pub retention_ratio: f64,
+    /// Index of the first conversation message whose content changed
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) rewrite_message_index: Option<i64>,
+    /// Shape of the history rewrite, for example whether the history grew or shrank
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) rewrite_shape: Option<String>,
+    /// Subsystems that announced a history rewrite before this call, for example compaction or truncation
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) rewrite_source: Option<Vec<String>>,
+    /// Cached prefix tokens lost since the prior call
+    pub shortfall_tokens: i64,
+    /// Number of cached prefix tokens that survived
+    pub survived_tokens: i64,
+    /// Names of the system-prompt segments whose content changed
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) system_segments_changed: Option<Vec<String>>,
+    /// Telemetry-safe names of tools added since the prior call
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) tools_added: Option<Vec<String>>,
+    /// Raw names of tools added since the prior call, restricted because a tool name can be user-authored
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) tools_added_raw: Option<Vec<String>>,
+    /// Telemetry-safe names of tools whose definition changed since the prior call
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) tools_redefined: Option<Vec<String>>,
+    /// Raw names of tools redefined since the prior call, restricted because a tool name can be user-authored
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) tools_redefined_raw: Option<Vec<String>>,
+    /// Telemetry-safe names of tools removed since the prior call
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) tools_removed: Option<Vec<String>>,
+    /// Raw names of tools removed since the prior call, restricted because a tool name can be user-authored
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) tools_removed_raw: Option<Vec<String>>,
+    /// Whether the tool list kept its members but changed their order
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) tools_reordered: Option<bool>,
 }
 
 /// Content-free structural summary of the failing request for diagnosing malformed 4xx calls
@@ -2172,6 +2441,9 @@ pub struct ModelCallFailureData {
     /// What initiated this API call (e.g., "sub-agent", "mcp-sampling"); absent for user-initiated calls
     #[serde(skip_serializing_if = "Option::is_none")]
     pub initiator: Option<String>,
+    /// Authoritative interaction classification for the failed call, matching `assistant.usage.interactionType` (for example `conversation-agent`, `conversation-subagent`, or `conversation-sampling`). Absent when the producer cannot classify the interaction.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub interaction_type: Option<String>,
     /// Whether the session selected Auto mode for the failed call
     #[serde(skip_serializing_if = "Option::is_none")]
     pub is_auto: Option<bool>,
@@ -2200,6 +2472,7 @@ pub struct ModelCallFailureData {
     /// Content-free structural summary of the failing request. Contains only counts and shape flags (no prompt content), so it is safe for unrestricted telemetry. Populated only for client-error (4xx) failures.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_fingerprint: Option<ModelCallFailureRequestFingerprint>,
+    /// Per-request treatment/eligibility signal returned by the Copilot API in the `X-GitHub-Copilot-Request-TE` response header for the associated model call; `false` when the header was absent or unparseable.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rte: Option<bool>,
     /// Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation
@@ -2330,6 +2603,7 @@ pub struct ToolExecutionStartData {
     #[deprecated]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parent_tool_call_id: Option<String>,
+    /// Per-request treatment/eligibility signal returned by the Copilot API in the `X-GitHub-Copilot-Request-TE` response header for the associated model call; `false` when the header was absent or unparseable.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rte: Option<bool>,
     /// Shell-tool path hints derived from the command at start time for shell tools (bash/powershell/local_shell). Produced by the same shell-aware extractor as PermissionRequestShell.possiblePaths, so it is present even when the command is auto-approved and no permission request fires. Absent for non-shell tools.
@@ -2561,12 +2835,16 @@ pub struct ToolExecutionCompleteContentResource {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ToolExecutionCompleteUIResourceMetaUICsp {
+    /// Domains the UI resource may use as document base URIs.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub base_uri_domains: Option<Vec<String>>,
+    /// Domains the UI resource may connect to.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub connect_domains: Option<Vec<String>>,
+    /// Domains the UI resource may embed as nested frames.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub frame_domains: Option<Vec<String>>,
+    /// Domains from which the UI resource may load scripts, styles, images, and other resources.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub resource_domains: Option<Vec<String>>,
 }
@@ -2616,11 +2894,13 @@ pub struct ToolExecutionCompleteUIResourceMetaUI {
     /// CSP domain allowlists for an MCP Apps UI resource, including connect, resource, frame, and base URI domains.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub csp: Option<ToolExecutionCompleteUIResourceMetaUICsp>,
+    /// Optional dedicated origin for the rendered MCP Apps UI resource.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub domain: Option<String>,
     /// Browser permission metadata for an MCP Apps UI resource, including camera, microphone, geolocation, and clipboard-write.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub permissions: Option<ToolExecutionCompleteUIResourceMetaUIPermissions>,
+    /// Whether the host should render a border around the MCP Apps UI resource.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prefers_border: Option<bool>,
 }
@@ -2772,6 +3052,7 @@ pub struct ToolExecutionCompleteData {
     /// Tool execution result on success
     #[serde(skip_serializing_if = "Option::is_none")]
     pub result: Option<ToolExecutionCompleteResult>,
+    /// Per-request treatment/eligibility signal returned by the Copilot API in the `X-GitHub-Copilot-Request-TE` response header for the associated model call; `false` when the header was absent or unparseable.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rte: Option<bool>,
     /// Whether this tool execution ran inside a sandbox container
@@ -2835,6 +3116,11 @@ pub struct SkillInvokedData {
     pub trigger: Option<SkillInvokedTrigger>,
 }
 
+/// Session event "sandbox.decision". Payload of `sandbox.decision`, a bounded governance record of what the process sandbox was configured to do and whether it took effect. Discriminated by `kind`.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SandboxDecisionData {}
+
 /// Session event "subagent.started". Sub-agent startup details including parent tool call and agent information
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -2845,6 +3131,9 @@ pub struct SubagentStartedData {
     pub agent_display_name: String,
     /// Internal name of the sub-agent
     pub agent_name: String,
+    /// Root id of the factory run that spawned this sub-agent, when it was spawned by one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub factory_run_id: Option<String>,
     /// Model the sub-agent will run with, when known at start.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
@@ -3176,6 +3465,16 @@ pub struct PermissionRequestMcp {
     /// When true, managed policy requires an explicit user decision and automatic approval must be bypassed.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub managed_approval_required: Option<bool>,
+    /// Advisory runtime permission recommendation. The SDK host remains responsible for deciding the request and may reject it.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub permission_recommendation: Option<PermissionRecommendation>,
     /// Whether this MCP tool is read-only (no side effects)
     pub read_only: bool,
     /// Name of the MCP server providing the tool
@@ -3216,6 +3515,30 @@ pub struct PermissionRequestUrl {
     pub url: String,
 }
 
+/// Auto-approval judge information attached to a permission request. Present (non-null) only when the session's allow-all mode is "auto"; its absence means auto mode was off and the judge did not evaluate the request. The `recommendation` conveys the judge's disposition for this request.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionAutoApproval {
+    /// Classified cause of an `error` recommendation. Absent for every other recommendation.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub failure_reason: Option<AutoApprovalJudgeFailureReason>,
+    /// Model id that produced the recommendation, when the judge was consulted and reported one. Absent for `excluded` (the judge was not consulted) and for failures that occurred before a model was selected.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    /// Human-readable reason for the judge's recommendation, when available.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+    /// The auto-approval safety judge's outcome for this request.
+    pub recommendation: AutoApprovalRecommendation,
+}
+
 /// Memory operation permission request
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -3223,6 +3546,9 @@ pub struct PermissionRequestMemory {
     /// Whether this is a store or vote memory operation
     #[serde(skip_serializing_if = "Option::is_none")]
     pub action: Option<PermissionRequestMemoryAction>,
+    /// Auto-approval judge information for this request; present only when auto mode is enabled.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auto_approval: Option<PermissionAutoApproval>,
     /// Source references for the stored fact (store only)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub citations: Option<String>,
@@ -3239,6 +3565,12 @@ pub struct PermissionRequestMemory {
     /// Reason for the vote (vote only)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,
+    /// Repository name with owner associated with the stored memory (store only)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub repo_nwo: Option<String>,
+    /// Scope of the stored memory (store only)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scope: Option<PermissionRequestMemoryScope>,
     /// Topic or subject of the memory (store only)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub subject: Option<String>,
@@ -3259,6 +3591,9 @@ pub struct PermissionRequestCustomTool {
     /// When true, managed policy requires an explicit user decision and automatic approval must be bypassed.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub managed_approval_required: Option<bool>,
+    /// Whether the tool declared that permission may be skipped unless a deny rule matches
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub skip_permission: Option<bool>,
     /// Tool call ID that triggered this permission request
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_call_id: Option<String>,
@@ -3328,12 +3663,16 @@ pub struct PermissionRequestFactory {
     pub approval_key: String,
     /// Whether this factory is eligible for persistent approval
     pub can_persist_approval: bool,
+    /// Factory-declared AI-credit limit before any run/resume caller override is applied.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub declared_max_ai_credits: Option<f64>,
+    /// Factory-declared concurrent-subagent limit before any run/resume caller override is applied.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub declared_max_concurrent_subagents: Option<i64>,
+    /// Factory-declared total-subagent limit before any run/resume caller override is applied.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub declared_max_total_subagents: Option<i64>,
+    /// Factory-declared active-time limit in seconds before any run/resume caller override is applied.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub declared_timeout_seconds: Option<f64>,
     /// Factory description
@@ -3384,28 +3723,19 @@ pub struct PermissionRequestExtensionPermissionAccess {
     pub tool_call_id: Option<String>,
 }
 
-/// Auto-approval judge information attached to a permission request. Present (non-null) only when the session's allow-all mode is "auto"; its absence means auto mode was off and the judge did not evaluate the request. The `recommendation` conveys the judge's disposition for this request.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
+/// Extension sensitive environment variable access request
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct PermissionAutoApproval {
-    /// Classified cause of an `error` recommendation. Absent for every other recommendation.
+pub struct PermissionRequestExtensionEnvAccess {
+    /// Names of the sensitive environment variables the extension is requesting. Values never appear here.
+    pub environment_variables: Vec<String>,
+    /// Name of the extension requesting environment variable access
+    pub extension_name: String,
+    /// Permission kind discriminator
+    pub kind: PermissionRequestExtensionEnvAccessKind,
+    /// Tool call ID that triggered this permission request
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub failure_reason: Option<AutoApprovalJudgeFailureReason>,
-    /// Model id that produced the recommendation, when the judge was consulted and reported one. Absent for `excluded` (the judge was not consulted) and for failures that occurred before a model was selected.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub model: Option<String>,
-    /// Human-readable reason for the judge's recommendation, when available.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub reason: Option<String>,
-    /// The auto-approval safety judge's outcome for this request.
-    pub recommendation: AutoApprovalRecommendation,
+    pub tool_call_id: Option<String>,
 }
 
 /// Shell command permission prompt
@@ -3525,6 +3855,16 @@ pub struct PermissionPromptRequestMcp {
     pub auto_approval: Option<PermissionAutoApproval>,
     /// Prompt kind discriminator
     pub kind: PermissionPromptRequestMcpKind,
+    /// Advisory runtime permission recommendation. The host remains responsible for deciding the request and may reject it.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub permission_recommendation: Option<PermissionRecommendation>,
     /// Name of the MCP server providing the tool
     pub server_name: String,
     /// Tool call ID that triggered this permission request
@@ -3737,12 +4077,16 @@ pub struct PermissionPromptRequestFactory {
     pub auto_approval: Option<PermissionAutoApproval>,
     /// Whether this factory is eligible for persistent approval
     pub can_persist_approval: bool,
+    /// Factory-declared AI-credit limit before any run/resume caller override is applied.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub declared_max_ai_credits: Option<f64>,
+    /// Factory-declared concurrent-subagent limit before any run/resume caller override is applied.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub declared_max_concurrent_subagents: Option<i64>,
+    /// Factory-declared total-subagent limit before any run/resume caller override is applied.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub declared_max_total_subagents: Option<i64>,
+    /// Factory-declared active-time limit in seconds before any run/resume caller override is applied.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub declared_timeout_seconds: Option<f64>,
     /// Factory description
@@ -3800,6 +4144,31 @@ pub struct PermissionPromptRequestExtensionPermissionAccess {
     pub tool_call_id: Option<String>,
 }
 
+/// Extension sensitive environment variable access prompt
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionPromptRequestExtensionEnvAccess {
+    /// Auto-approval judge information for this request; present only when auto mode is enabled.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auto_approval: Option<PermissionAutoApproval>,
+    /// Names of the sensitive environment variables the extension is requesting. Values never appear here.
+    pub environment_variables: Vec<String>,
+    /// Name of the extension requesting environment variable access
+    pub extension_name: String,
+    /// Prompt kind discriminator
+    pub kind: PermissionPromptRequestExtensionEnvAccessKind,
+    /// Tool call ID that triggered this permission request
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_call_id: Option<String>,
+}
+
 /// Session event "permission.requested". Permission request notification requiring client approval with request details
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -3825,6 +4194,9 @@ pub struct PermissionRequestedData {
 pub struct PermissionApproved {
     /// The permission request was approved
     pub kind: PermissionApprovedKind,
+    /// Whether a managed approval policy already handled this request
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub managed_approval_handled: Option<bool>,
 }
 
 /// Session-scoped tool-approval rule for specific shell command identifiers.
@@ -3915,6 +4287,18 @@ pub struct UserToolSessionApprovalExtensionPermissionAccess {
     pub kind: UserToolSessionApprovalExtensionPermissionAccessKind,
 }
 
+/// Session-scoped tool-approval rule for an extension's access to sensitive environment variables, keyed by extension name and the exact set of variable names.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UserToolSessionApprovalExtensionEnvAccess {
+    /// Names of the sensitive environment variables this approval covers. Values are never persisted.
+    pub environment_variables: Vec<String>,
+    /// Extension name
+    pub extension_name: String,
+    /// Extension environment access approval kind
+    pub kind: UserToolSessionApprovalExtensionEnvAccessKind,
+}
+
 /// Permission response variant that approves a request and remembers the provided approval for the rest of the session.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -3923,6 +4307,9 @@ pub struct PermissionApprovedForSession {
     pub approval: UserToolSessionApproval,
     /// Approved and remembered for the rest of the session
     pub kind: PermissionApprovedForSessionKind,
+    /// Whether a managed approval policy already handled this request
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub managed_approval_handled: Option<bool>,
 }
 
 /// Permission response variant that approves a request and persists the provided approval to a project location key.
@@ -3935,6 +4322,9 @@ pub struct PermissionApprovedForLocation {
     pub kind: PermissionApprovedForLocationKind,
     /// The location key (git root or cwd) to persist the approval to
     pub location_key: String,
+    /// Whether a managed approval policy already handled this request
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub managed_approval_handled: Option<bool>,
 }
 
 /// Permission response variant indicating the request was cancelled before use, with an optional reason.
@@ -4267,6 +4657,32 @@ pub struct SessionCustomNotificationData {
     pub version: Option<i64>,
 }
 
+/// Session event "ui.ephemeral_query". Ordered output and terminal state for a transient query that does not modify conversation history.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UiEphemeralQueryData {
+    /// Full response text, present for the `completed` phase.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub answer: Option<String>,
+    /// Ordered text delta, present for the `chunk` phase.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub chunk: Option<String>,
+    /// Model or transport failure message, present for the `failed` phase.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    /// Current query lifecycle phase.
+    pub phase: UIEphemeralQueryPhase,
+    /// Runtime-minted query identifier.
+    pub request_id: RequestId,
+}
+
 /// Session event "external_tool.requested". External tool invocation request for client-side tool execution
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -4274,6 +4690,9 @@ pub struct ExternalToolRequestedData {
     /// Arguments to pass to the external tool
     #[serde(skip_serializing_if = "Option::is_none")]
     pub arguments: Option<serde_json::Value>,
+    /// Stable provider identity captured with an extension-owned tool definition; hosts use it to route the request to the same provider that was offered to the model
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider_id: Option<String>,
     /// Unique identifier for this request; used to respond via session.respondToExternalTool()
     pub request_id: RequestId,
     /// Session ID that this external tool request belongs to
@@ -4557,6 +4976,9 @@ pub struct CapabilitiesChangedData {
 pub struct ExitPlanModeRequestedData {
     /// Available actions the user can take
     pub actions: Vec<ExitPlanModeAction>,
+    /// Model the session had selected when the plan was authored, when one is known
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
     /// Full content of the plan file
     pub plan_content: String,
     /// Recommended action to preselect for the user
@@ -4613,7 +5035,53 @@ pub struct SessionBackgroundTasksChangedData {}
 pub struct FactoryRunUpdatedData {
     /// Monotonic revision now available for the run.
     pub revision: i64,
+    /// Factory run identifier.
     pub run_id: String,
+}
+
+/// Session event "factory.run_started". Ephemeral signal that a factory run attempt began executing.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FactoryRunStartedData {
+    /// Attempt number this start committed; a resumed run increments it.
+    pub attempt: i64,
+    /// Name of the factory this run executes. Low cardinality by construction.
+    pub factory_name: String,
+    /// Identifier of the factory run that started.
+    pub run_id: String,
+}
+
+/// Session event "factory.run_settled". Ephemeral signal that a factory run reached a terminal status.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FactoryRunSettledData {
+    /// AI credits this run consumed, in nano-AIU.
+    pub consumed_nano_aiu: i64,
+    /// Subagents this run consumed against its limits.
+    pub consumed_subagents: i64,
+    /// Active milliseconds accumulated across every attempt of this run.
+    pub elapsed_ms: i64,
+    /// Typed failure class recorded on the run, when it failed with one (e.g. `factory_limit_reached`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub failure_type: Option<String>,
+    /// Identifier of the factory run that settled.
+    pub run_id: String,
+    /// Terminal status the run committed.
+    pub status: FactoryRunSettledStatus,
 }
 
 /// A single resolved skill in `session.skills_loaded`, including source, invocability, enabled state, path, and argument hint.
@@ -5147,6 +5615,48 @@ pub enum AutopilotObjectiveChangedStatus {
     Unknown,
 }
 
+/// Origin of an effective session model change.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ModelChangeSource {
+    /// The user selected a model directly with `/model <id>`.
+    #[serde(rename = "model_command")]
+    ModelCommand,
+    /// The user selected the model with `/settings`.
+    #[serde(rename = "settings_command")]
+    SettingsCommand,
+    /// The user selected the model with the `/config` alias.
+    #[serde(rename = "config_command")]
+    ConfigCommand,
+    /// The user selected the model in the model picker, including the picker opened by bare `/model`.
+    #[serde(rename = "model_picker")]
+    ModelPicker,
+    /// Organization-managed settings selected the model.
+    #[serde(rename = "managed_settings")]
+    ManagedSettings,
+    /// Repository settings selected the model.
+    #[serde(rename = "repo_settings")]
+    RepoSettings,
+    /// Startup model resolution selected the model.
+    #[serde(rename = "startup")]
+    Startup,
+    /// Selecting an agent selected its configured model.
+    #[serde(rename = "agent")]
+    Agent,
+    /// Entering, leaving, or reconfiguring plan mode selected the model.
+    #[serde(rename = "plan_mode")]
+    PlanMode,
+    /// The runtime selected the model automatically, such as rate-limit recovery or refusal fallback.
+    #[serde(rename = "automatic")]
+    Automatic,
+    /// An SDK or RPC caller selected the model.
+    #[serde(rename = "sdk")]
+    Sdk,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// The session mode the agent is operating in
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SessionMode {
@@ -5334,6 +5844,57 @@ pub enum UserMessageDelivery {
     Unknown,
 }
 
+/// What the agent was doing when the user interrupted it.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AgentInterruptedActivity {
+    /// A request to the model was open.
+    #[serde(rename = "model_call")]
+    ModelCall,
+    /// The turn was sleeping between retry attempts.
+    #[serde(rename = "retry_backoff")]
+    RetryBackoff,
+    /// One or more tools were executing.
+    #[serde(rename = "tool_call")]
+    ToolCall,
+    /// Background sub-agents were running while the main loop was idle.
+    #[serde(rename = "background_agent")]
+    BackgroundAgent,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Where the interruption landed relative to the first streamed token.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AgentInterruptedCancelPhase {
+    /// No output had been produced when the request was cancelled.
+    #[serde(rename = "pre_first_token")]
+    PreFirstToken,
+    /// The response was already streaming when the request was cancelled.
+    #[serde(rename = "mid_stream")]
+    MidStream,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Transport used for a failed model call
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ModelCallFailureTransport {
+    /// HTTP transport, including SSE streams.
+    #[serde(rename = "http")]
+    Http,
+    /// WebSocket transport.
+    #[serde(rename = "websocket")]
+    Websocket,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// Tool call type: "function" for standard tool calls, "custom" for grammar-based tool calls. Defaults to "function" when absent.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AssistantMessageToolRequestType {
@@ -5395,6 +5956,21 @@ pub enum AssistantUsageApiEndpoint {
     Unknown,
 }
 
+/// Transport used for a successful model call
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AssistantUsageTransport {
+    /// HTTP transport, including SSE streams.
+    #[serde(rename = "http")]
+    Http,
+    /// WebSocket transport.
+    #[serde(rename = "websocket")]
+    Websocket,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// For HTTP 400 failures only: whether the response carried a structured CAPI error envelope (structured_error, a deterministic validation failure) or no error body (bodyless, the transient gateway/proxy signature). Absent for non-400 failures.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ModelCallFailureBadRequestKind {
@@ -5437,21 +6013,6 @@ pub enum ModelCallFailureSource {
     /// Model call from MCP sampling.
     #[serde(rename = "mcp_sampling")]
     McpSampling,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// Transport used for a failed model call
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ModelCallFailureTransport {
-    /// HTTP transport, including SSE streams.
-    #[serde(rename = "http")]
-    Http,
-    /// WebSocket transport.
-    #[serde(rename = "websocket")]
-    Websocket,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
@@ -5681,6 +6242,25 @@ pub enum PermissionRequestMcpKind {
     Mcp,
 }
 
+/// Advisory recommendation the runtime attaches to a permission request whose origin it can vouch for by construction. Unlike the auto-approval judge this does not depend on auto mode and does not evaluate what the tool call does; its absence simply means the runtime has no opinion and the request follows the host's normal approval flow.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionRecommendation {
+    /// The runtime vouches for the request's origin and recommends approving it without prompting. The host still owns the decision and may deny it; deny rules, managed policy, and the auto-approval safety judge all outrank this recommendation.
+    #[serde(rename = "approve")]
+    Approve,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// Permission kind discriminator
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PermissionRequestUrlKind {
@@ -5702,101 +6282,6 @@ pub enum PermissionRequestMemoryAction {
     #[default]
     #[serde(other)]
     Unknown,
-}
-
-/// Vote direction (vote only)
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum PermissionRequestMemoryDirection {
-    /// Vote that the memory is useful or accurate.
-    #[serde(rename = "upvote")]
-    Upvote,
-    /// Vote that the memory is incorrect or outdated.
-    #[serde(rename = "downvote")]
-    Downvote,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// Permission kind discriminator
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum PermissionRequestMemoryKind {
-    #[serde(rename = "memory")]
-    #[default]
-    Memory,
-}
-
-/// Permission kind discriminator
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum PermissionRequestCustomToolKind {
-    #[serde(rename = "custom-tool")]
-    #[default]
-    CustomTool,
-}
-
-/// Permission kind discriminator
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum PermissionRequestHookKind {
-    #[serde(rename = "hook")]
-    #[default]
-    Hook,
-}
-
-/// Permission kind discriminator
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum PermissionRequestExtensionManagementKind {
-    #[serde(rename = "extension-management")]
-    #[default]
-    ExtensionManagement,
-}
-
-/// Permission kind discriminator
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum PermissionRequestFactoryKind {
-    #[serde(rename = "factory")]
-    #[default]
-    Factory,
-}
-
-/// Operation gated by a factory permission request.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum FactoryPermissionOperation {
-    /// Running a registered factory, which spends subagents, active time, and AI credits under the approved limits.
-    #[serde(rename = "run")]
-    Run,
-    /// Authoring a factory, which writes JavaScript into a session-scoped extension and loads it.
-    #[serde(rename = "author")]
-    Author,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// Permission kind discriminator
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum PermissionRequestExtensionPermissionAccessKind {
-    #[serde(rename = "extension-permission-access")]
-    #[default]
-    ExtensionPermissionAccess,
-}
-
-/// Details of the permission being requested
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum PermissionRequest {
-    Shell(PermissionRequestShell),
-    Write(PermissionRequestWrite),
-    Read(PermissionRequestRead),
-    Mcp(PermissionRequestMcp),
-    Url(PermissionRequestUrl),
-    Memory(PermissionRequestMemory),
-    CustomTool(PermissionRequestCustomTool),
-    Hook(PermissionRequestHook),
-    ExtensionManagement(PermissionRequestExtensionManagement),
-    Factory(PermissionRequestFactory),
-    ExtensionPermissionAccess(PermissionRequestExtensionPermissionAccess),
 }
 
 /// Why the auto-approval judge produced no usable recommendation. Present only alongside an `error` recommendation, where the human-readable reason is a fixed string and therefore cannot distinguish these cases. Intended to make a judge failure reportable by a consumer that has no access to the host's logs.
@@ -5856,6 +6341,125 @@ pub enum AutoApprovalRecommendation {
     #[default]
     #[serde(other)]
     Unknown,
+}
+
+/// Vote direction (vote only)
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionRequestMemoryDirection {
+    /// Vote that the memory is useful or accurate.
+    #[serde(rename = "upvote")]
+    Upvote,
+    /// Vote that the memory is incorrect or outdated.
+    #[serde(rename = "downvote")]
+    Downvote,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Permission kind discriminator
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionRequestMemoryKind {
+    #[serde(rename = "memory")]
+    #[default]
+    Memory,
+}
+
+/// Scope of a stored memory.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionRequestMemoryScope {
+    /// Store the memory for the current repository.
+    #[serde(rename = "repository")]
+    Repository,
+    /// Store the memory for the current user.
+    #[serde(rename = "user")]
+    User,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Permission kind discriminator
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionRequestCustomToolKind {
+    #[serde(rename = "custom-tool")]
+    #[default]
+    CustomTool,
+}
+
+/// Permission kind discriminator
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionRequestHookKind {
+    #[serde(rename = "hook")]
+    #[default]
+    Hook,
+}
+
+/// Permission kind discriminator
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionRequestExtensionManagementKind {
+    #[serde(rename = "extension-management")]
+    #[default]
+    ExtensionManagement,
+}
+
+/// Permission kind discriminator
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionRequestFactoryKind {
+    #[serde(rename = "factory")]
+    #[default]
+    Factory,
+}
+
+/// Operation gated by a factory permission request.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FactoryPermissionOperation {
+    /// Running a registered factory, which spends subagents, active time, and AI credits under the approved limits.
+    #[serde(rename = "run")]
+    Run,
+    /// Authoring a factory, which writes JavaScript into a session-scoped extension and loads it.
+    #[serde(rename = "author")]
+    Author,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Permission kind discriminator
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionRequestExtensionPermissionAccessKind {
+    #[serde(rename = "extension-permission-access")]
+    #[default]
+    ExtensionPermissionAccess,
+}
+
+/// Permission kind discriminator
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionRequestExtensionEnvAccessKind {
+    #[serde(rename = "extension-env-access")]
+    #[default]
+    ExtensionEnvAccess,
+}
+
+/// Details of the permission being requested
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum PermissionRequest {
+    Shell(PermissionRequestShell),
+    Write(PermissionRequestWrite),
+    Read(PermissionRequestRead),
+    Mcp(PermissionRequestMcp),
+    Url(PermissionRequestUrl),
+    Memory(PermissionRequestMemory),
+    CustomTool(PermissionRequestCustomTool),
+    Hook(PermissionRequestHook),
+    ExtensionManagement(PermissionRequestExtensionManagement),
+    Factory(PermissionRequestFactory),
+    ExtensionPermissionAccess(PermissionRequestExtensionPermissionAccess),
+    ExtensionEnvAccess(PermissionRequestExtensionEnvAccess),
 }
 
 /// Prompt kind discriminator
@@ -5972,6 +6576,14 @@ pub enum PermissionPromptRequestExtensionPermissionAccessKind {
     ExtensionPermissionAccess,
 }
 
+/// Prompt kind discriminator
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionPromptRequestExtensionEnvAccessKind {
+    #[serde(rename = "extension-env-access")]
+    #[default]
+    ExtensionEnvAccess,
+}
+
 /// Derived user-facing permission prompt details for UI consumers
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -5988,6 +6600,7 @@ pub enum PermissionPromptRequest {
     ExtensionManagement(PermissionPromptRequestExtensionManagement),
     Factory(PermissionPromptRequestFactory),
     ExtensionPermissionAccess(PermissionPromptRequestExtensionPermissionAccess),
+    ExtensionEnvAccess(PermissionPromptRequestExtensionEnvAccess),
 }
 
 /// The permission request was approved
@@ -6070,6 +6683,14 @@ pub enum UserToolSessionApprovalExtensionPermissionAccessKind {
     ExtensionPermissionAccess,
 }
 
+/// Extension environment access approval kind
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum UserToolSessionApprovalExtensionEnvAccessKind {
+    #[serde(rename = "extension-env-access")]
+    #[default]
+    ExtensionEnvAccess,
+}
+
 /// The approval to add as a session-scoped rule
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -6083,6 +6704,7 @@ pub enum UserToolSessionApproval {
     ExtensionManagement(UserToolSessionApprovalExtensionManagement),
     Factory(UserToolSessionApprovalFactory),
     ExtensionPermissionAccess(UserToolSessionApprovalExtensionPermissionAccess),
+    ExtensionEnvAccess(UserToolSessionApprovalExtensionEnvAccess),
 }
 
 /// Approved and remembered for the rest of the session
@@ -6287,6 +6909,37 @@ pub enum McpHeadersRefreshCompletedOutcome {
     Unknown,
 }
 
+/// Lifecycle phase for a Rust-owned ephemeral query stream.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum UIEphemeralQueryPhase {
+    /// The ephemeral query stream has begun.
+    #[serde(rename = "started")]
+    Started,
+    /// A partial result chunk was produced by the stream.
+    #[serde(rename = "chunk")]
+    Chunk,
+    /// The ephemeral query stream finished successfully.
+    #[serde(rename = "completed")]
+    Completed,
+    /// The ephemeral query stream ended with an error.
+    #[serde(rename = "failed")]
+    Failed,
+    /// The ephemeral query stream was cancelled before completing.
+    #[serde(rename = "aborted")]
+    Aborted,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// The user's auto-mode-switch choice
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AutoModeSwitchResponse {
@@ -6419,6 +7072,27 @@ pub enum ExitPlanModeAction {
     /// Exit plan mode and continue with parallel autonomous workers.
     #[serde(rename = "autopilot_fleet")]
     AutopilotFleet,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Terminal status a factory run committed. A settled run is never `pending` or `running`, so those two members of the run-status domain are deliberately absent.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FactoryRunSettledStatus {
+    /// The factory body resolved and its result was committed.
+    #[serde(rename = "completed")]
+    Completed,
+    /// The run was stopped by a limit, an approval refusal or another policy decision.
+    #[serde(rename = "halted")]
+    Halted,
+    /// The run was cancelled by its caller or by session disposal.
+    #[serde(rename = "cancelled")]
+    Cancelled,
+    /// The run failed, with `failureType` carrying the class when it has one.
+    #[serde(rename = "error")]
+    Error,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

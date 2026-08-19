@@ -53,7 +53,9 @@ public final class SessionModelChangeEvent extends SessionEvent {
         /** Context tier after the model change; null explicitly clears a previously selected tier */
         @JsonProperty("contextTier") ContextTier contextTier,
         /** Reason the change happened, when not user-initiated. `"rate_limit_auto_switch"` for changes triggered by the auto-mode-switch rate-limit recovery path, or `"refusal_fallback"` when the active model declined a request (content refusal) and the runtime switched to the configured refusal-fallback model. UI clients can use this to render contextual copy. */
-        @JsonProperty("cause") String cause
+        @JsonProperty("cause") String cause,
+        /** Origin of the effective model change, when known. */
+        @JsonProperty("source") ModelChangeSource source
     ) {
     }
 }

@@ -21,7 +21,9 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionOpenOptionsAdditionalContentExclusionPolicyRuleSource(
+    /** Name of the policy source. */
     @JsonProperty("name") String name,
+    /** Type of the policy source. */
     @JsonProperty("type") String type
 ) {
 }

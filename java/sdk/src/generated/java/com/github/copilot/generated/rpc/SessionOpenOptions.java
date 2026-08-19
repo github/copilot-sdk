@@ -125,7 +125,7 @@ public record SessionOpenOptions(
     @JsonProperty("trajectoryFile") String trajectoryFile,
     /** Whether model responses stream as delta events. */
     @JsonProperty("enableStreaming") Boolean enableStreaming,
-    /** Experimental: enable native model citations (Anthropic models today), normalized onto the `assistant.message` event. Off by default; may change or be removed while the citations surface is experimental. */
+    /** Experimental: enable native model citations for supported Anthropic and OpenAI models, normalized onto the `assistant.message` event. Off by default; may change or be removed while the citations surface is experimental. */
     @JsonProperty("enableCitations") Boolean enableCitations,
     /** Override URL for the Copilot API endpoint. */
     @JsonProperty("copilotUrl") String copilotUrl,
