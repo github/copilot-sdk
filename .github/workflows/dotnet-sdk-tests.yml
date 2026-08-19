@@ -32,6 +32,16 @@ jobs:
           - os: windows-latest
             transport: default
             shard: full
+          # TODO(cli-1.0.81-2): @github/copilot 1.0.81-2 never completes a model-driven
+          # turn when the runtime is hosted in-process against the CAPI backend. A full
+          # run reported 241 failures across 43 classes and took 150-225 minutes, which
+          # also starved the rest of the matrix. The defect is specific to this pairing:
+          # the in-process BYOK cells below and the stdio capi cells are unaffected.
+          # Drop these two entries once a fixed CLI build is picked up.
+          - os: ubuntu-latest
+            transport: inprocess
+          - os: macos-latest
+            transport: inprocess
         include:
           # Keep xUnit serial within each process, but split the slow Windows
           # default-transport suite across two isolated test hosts. Keep both
