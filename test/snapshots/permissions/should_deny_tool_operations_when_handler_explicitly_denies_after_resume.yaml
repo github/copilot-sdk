@@ -52,9 +52,7 @@ conversations:
           task.
       - role: tool
         tool_call_id: toolcall_1
-        content: |-
-          Permission denied and could not request permission from user.
-          No approval rule matched and this session has no way to ask, so retrying this request unchanged will be denied again. Use an approach that does not need this permission, or stop and report that it requires an approval rule this session does not have.
+        content: Permission denied and could not request permission from user.
       - role: assistant
         content: I don't have permission to run commands in this environment. Please try running `node --version` directly in
           your terminal.
