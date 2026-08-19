@@ -17,9 +17,9 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 public enum McpServerCardMediaType {
     /** The {@code application/mcp-server-card+json} variant. */
-    APPLICATION_MCP_SERVER_CARD+JSON("application/mcp-server-card+json"),
+    APPLICATION_MCP_SERVER_CARD_JSON("application/mcp-server-card+json"),
     /** The {@code application/mcp-server+json} variant. */
-    APPLICATION_MCP_SERVER+JSON("application/mcp-server+json");
+    APPLICATION_MCP_SERVER_JSON("application/mcp-server+json");
 
     private final String value;
     McpServerCardMediaType(String value) { this.value = value; }

@@ -203,21 +203,21 @@ describe("Session-scoped state extras RPC", async () => {
     it("should get and set allowall permissions", { timeout: 120_000 }, async () => {
         const session = await createSession();
         try {
-            const initial = await session.rpc.permissions.getAllowAll();
-            expect(initial.enabled).toBe(false);
+            const initial = await session.rpc.permissions.getMode();
+            expect(initial.mode).toBe("manual");
 
-            const enable = await session.rpc.permissions.setAllowAll({ enabled: true });
+            const enable = await session.rpc.permissions.setMode({ mode: "allow-all" });
             expect(enable.success).toBe(true);
-            expect(enable.enabled).toBe(true);
-            expect((await session.rpc.permissions.getAllowAll()).enabled).toBe(true);
+            expect(enable.mode).toBe("allow-all");
+            expect((await session.rpc.permissions.getMode()).mode).toBe("allow-all");
 
-            const disable = await session.rpc.permissions.setAllowAll({ enabled: false });
+            const disable = await session.rpc.permissions.setMode({ mode: "manual" });
             expect(disable.success).toBe(true);
-            expect(disable.enabled).toBe(false);
-            expect((await session.rpc.permissions.getAllowAll()).enabled).toBe(false);
+            expect(disable.mode).toBe("manual");
+            expect((await session.rpc.permissions.getMode()).mode).toBe("manual");
         } finally {
             try {
-                await session.rpc.permissions.setAllowAll({ enabled: false });
+                await session.rpc.permissions.setMode({ mode: "manual" });
             } catch {
                 // Best-effort reset.
             }

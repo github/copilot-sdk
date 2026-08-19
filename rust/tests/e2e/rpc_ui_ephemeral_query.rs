@@ -1,9 +1,5 @@
 use github_copilot_sdk::rpc::UIEphemeralQueryRequest;
 
-// TODO(cli-1.0.81-2): CLI 1.0.81-2 fails session.ui.ephemeralQuery against the recorded
-// snapshot ("Failed to get response from the AI model"). Re-enable once the runtime
-// fix ships.
-#[ignore = "blocked on CLI 1.0.81-2 session.ui.ephemeralQuery regression"]
 #[tokio::test]
 async fn should_answer_ephemeral_query() {
     super::support::with_shared_e2e_context(

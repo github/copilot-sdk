@@ -1,9 +1,10 @@
 use std::collections::HashMap;
 
 use github_copilot_sdk::Client;
+use github_copilot_sdk::PermissionMode;
 use github_copilot_sdk::rpc::{
     CompletionsRequestRequest, MetadataContextHeaviestMessagesRequest, ModelSwitchToRequest,
-    NamedProviderConfig, PermissionsSetAllowAllRequest, ProviderAddRequest, ProviderConfigType,
+    NamedProviderConfig, PermissionsSetModeRequest, ProviderAddRequest, ProviderConfigType,
     ProviderConfigWireApi, ProviderModelConfig, SessionVisibilityStatus, SubagentSettingsEntry,
     SubagentSettingsEntryContextTier, UpdateSubagentSettingsRequest,
     UpdateSubagentSettingsRequestSubagents, VisibilitySetRequest,
@@ -103,55 +104,55 @@ async fn should_get_and_set_allowall_permissions() {
                 let initial = session
                     .rpc()
                     .permissions()
-                    .get_allow_all()
+                    .get_mode()
                     .await
-                    .expect("get initial allow-all");
-                assert!(!initial.enabled);
+                    .expect("get initial permission mode");
+                assert_eq!(initial.mode, PermissionMode::Manual);
 
                 let enable = session
                     .rpc()
                     .permissions()
-                    .set_allow_all(PermissionsSetAllowAllRequest {
-                        enabled: Some(true),
-                        mode: None,
-                        model: None,
+                    .set_mode(PermissionsSetModeRequest {
+                        assisted_approval_model: None,
+                        mode: PermissionMode::AllowAll,
                         source: None,
                     })
                     .await
-                    .expect("enable allow-all");
+                    .expect("set allow-all mode");
                 assert!(enable.success);
-                assert!(enable.enabled);
-                assert!(
+                assert_eq!(enable.mode, PermissionMode::AllowAll);
+                assert_eq!(
                     session
                         .rpc()
                         .permissions()
-                        .get_allow_all()
+                        .get_mode()
                         .await
-                        .expect("get enabled allow-all")
-                        .enabled
+                        .expect("get allow-all mode")
+                        .mode,
+                    PermissionMode::AllowAll
                 );
 
                 let disable = session
                     .rpc()
                     .permissions()
-                    .set_allow_all(PermissionsSetAllowAllRequest {
-                        enabled: Some(false),
-                        mode: None,
-                        model: None,
+                    .set_mode(PermissionsSetModeRequest {
+                        assisted_approval_model: None,
+                        mode: PermissionMode::Manual,
                         source: None,
                     })
                     .await
-                    .expect("disable allow-all");
+                    .expect("set manual mode");
                 assert!(disable.success);
-                assert!(!disable.enabled);
-                assert!(
-                    !session
+                assert_eq!(disable.mode, PermissionMode::Manual);
+                assert_eq!(
+                    session
                         .rpc()
                         .permissions()
-                        .get_allow_all()
+                        .get_mode()
                         .await
-                        .expect("get disabled allow-all")
-                        .enabled
+                        .expect("get manual mode")
+                        .mode,
+                    PermissionMode::Manual
                 );
 
                 session.disconnect().await.expect("disconnect session");

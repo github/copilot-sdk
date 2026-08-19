@@ -408,10 +408,10 @@ const (
 type PermissionDecisionSource = rpc.PermissionDecisionSource
 
 const (
-	PermissionDecisionSourceHostPolicy          = rpc.PermissionDecisionSourceHostPolicy
-	PermissionDecisionSourceHumanResponse       = rpc.PermissionDecisionSourceHumanResponse
-	PermissionDecisionSourceJudgeRecommendation = rpc.PermissionDecisionSourceJudgeRecommendation
-	PermissionDecisionSourceUnattendedFallback  = rpc.PermissionDecisionSourceUnattendedFallback
+	PermissionDecisionSourceAssistedApproval   = rpc.PermissionDecisionSourceAssistedApproval
+	PermissionDecisionSourceHostPolicy         = rpc.PermissionDecisionSourceHostPolicy
+	PermissionDecisionSourceHumanResponse      = rpc.PermissionDecisionSourceHumanResponse
+	PermissionDecisionSourceUnattendedFallback = rpc.PermissionDecisionSourceUnattendedFallback
 )
 
 // PermissionDecisionSurface identifies the client surface that submitted a

@@ -2906,74 +2906,8 @@ func (r RawMCPPlanInstallResultData) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (r CatalogAuthenticationRequiredError) MarshalJSON() ([]byte, error) {
-	type alias CatalogAuthenticationRequiredError
-	return json.Marshal(struct {
-		Kind MCPPlanInstallResultKind `json:"kind"`
-		alias
-	}{
-		Kind:  r.mcpPlanInstallResultKind(),
-		alias: alias(r),
-	})
-}
-
-func (r CatalogContractViolationError) MarshalJSON() ([]byte, error) {
-	type alias CatalogContractViolationError
-	return json.Marshal(struct {
-		Kind MCPPlanInstallResultKind `json:"kind"`
-		alias
-	}{
-		Kind:  r.mcpPlanInstallResultKind(),
-		alias: alias(r),
-	})
-}
-
 func (r CatalogHandleRejectedError) MarshalJSON() ([]byte, error) {
 	type alias CatalogHandleRejectedError
-	return json.Marshal(struct {
-		Kind MCPPlanInstallResultKind `json:"kind"`
-		alias
-	}{
-		Kind:  r.mcpPlanInstallResultKind(),
-		alias: alias(r),
-	})
-}
-
-func (r CatalogInvalidRequestError) MarshalJSON() ([]byte, error) {
-	type alias CatalogInvalidRequestError
-	return json.Marshal(struct {
-		Kind MCPPlanInstallResultKind `json:"kind"`
-		alias
-	}{
-		Kind:  r.mcpPlanInstallResultKind(),
-		alias: alias(r),
-	})
-}
-
-func (r CatalogMalformedCardError) MarshalJSON() ([]byte, error) {
-	type alias CatalogMalformedCardError
-	return json.Marshal(struct {
-		Kind MCPPlanInstallResultKind `json:"kind"`
-		alias
-	}{
-		Kind:  r.mcpPlanInstallResultKind(),
-		alias: alias(r),
-	})
-}
-
-func (r CatalogNegotiationRefusedError) MarshalJSON() ([]byte, error) {
-	type alias CatalogNegotiationRefusedError
-	return json.Marshal(struct {
-		Kind MCPPlanInstallResultKind `json:"kind"`
-		alias
-	}{
-		Kind:  r.mcpPlanInstallResultKind(),
-		alias: alias(r),
-	})
-}
-
-func (r CatalogNetworkFailureError) MarshalJSON() ([]byte, error) {
-	type alias CatalogNetworkFailureError
 	return json.Marshal(struct {
 		Kind MCPPlanInstallResultKind `json:"kind"`
 		alias
@@ -2994,41 +2928,8 @@ func (r CatalogNotInstallableError) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (r CatalogPolicyRejectedError) MarshalJSON() ([]byte, error) {
-	type alias CatalogPolicyRejectedError
-	return json.Marshal(struct {
-		Kind MCPPlanInstallResultKind `json:"kind"`
-		alias
-	}{
-		Kind:  r.mcpPlanInstallResultKind(),
-		alias: alias(r),
-	})
-}
-
-func (r CatalogUnavailableError) MarshalJSON() ([]byte, error) {
-	type alias CatalogUnavailableError
-	return json.Marshal(struct {
-		Kind MCPPlanInstallResultKind `json:"kind"`
-		alias
-	}{
-		Kind:  r.mcpPlanInstallResultKind(),
-		alias: alias(r),
-	})
-}
-
 func (r CatalogUnavailableTransportError) MarshalJSON() ([]byte, error) {
 	type alias CatalogUnavailableTransportError
-	return json.Marshal(struct {
-		Kind MCPPlanInstallResultKind `json:"kind"`
-		alias
-	}{
-		Kind:  r.mcpPlanInstallResultKind(),
-		alias: alias(r),
-	})
-}
-
-func (r CatalogUnsafeRetrievalError) MarshalJSON() ([]byte, error) {
-	type alias CatalogUnsafeRetrievalError
 	return json.Marshal(struct {
 		Kind MCPPlanInstallResultKind `json:"kind"`
 		alias

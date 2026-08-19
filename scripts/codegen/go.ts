@@ -560,6 +560,7 @@ interface GoCodegenCtx {
     discriminatedUnionRawVariantSuffix?: string;
     skipDefinitionTypeNames?: Set<string>;
     encodingBlocks?: Set<string>;
+    unionVariantMarshalers?: Set<string>;
     packageName?: string;
 }
 
@@ -1975,18 +1976,22 @@ function emitGoFlatDiscriminatedUnion(
             lines.push(`\treturn ${discGoType}(r.Discriminator)`);
         }
         lines.push(`}`);
-        pushGoEncodingBlock([
-            `func (r ${variantTypeName}) MarshalJSON() ([]byte, error) {`,
-            `\ttype alias ${variantTypeName}`,
-            `\treturn json.Marshal(struct {`,
-            `\t\t${discGoName} ${discGoType} \`json:"${discriminatorProp}"\``,
-            `\t\talias`,
-            `\t}{`,
-            `\t\t${discGoName}: r.${discriminatorMethodName}(),`,
-            `\t\talias: alias(r),`,
-            `\t})`,
-            `}`,
-        ], ctx);
+        ctx.unionVariantMarshalers ??= new Set<string>();
+        if (!ctx.unionVariantMarshalers.has(variantTypeName)) {
+            ctx.unionVariantMarshalers.add(variantTypeName);
+            pushGoEncodingBlock([
+                `func (r ${variantTypeName}) MarshalJSON() ([]byte, error) {`,
+                `\ttype alias ${variantTypeName}`,
+                `\treturn json.Marshal(struct {`,
+                `\t\t${discGoName} ${discGoType} \`json:"${discriminatorProp}"\``,
+                `\t\talias`,
+                `\t}{`,
+                `\t\t${discGoName}: r.${discriminatorMethodName}(),`,
+                `\t\talias: alias(r),`,
+                `\t})`,
+                `}`,
+            ], ctx);
+        }
     }
 
     ctx.structs.push(lines.join("\n"));

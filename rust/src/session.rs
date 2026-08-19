@@ -2612,7 +2612,7 @@ mod tests {
     fn attribution_context() -> PermissionDecisionContext {
         PermissionDecisionContext {
             outcome: PermissionDecisionOutcome::AutoApproved,
-            source: PermissionDecisionSource::JudgeRecommendation,
+            source: PermissionDecisionSource::AssistedApproval,
             surface: PermissionDecisionSurface::CopilotApp,
         }
     }

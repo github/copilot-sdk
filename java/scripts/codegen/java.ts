@@ -167,7 +167,9 @@ function toCamelCase(name: string): string {
 }
 
 function toEnumConstant(value: string): string {
-    return value.toUpperCase().replace(/[-. /:]/g, "_").replace(/^_+/, "").replace(/_+/g, "_");
+    const constant = value.toUpperCase().replace(/[^A-Z0-9]/g, "_").replace(/^_+/, "").replace(/_+/g, "_");
+    if (constant.length === 0) return "_";
+    return /^[0-9]/.test(constant) ? `_${constant}` : constant;
 }
 
 // ── Schema path resolution ───────────────────────────────────────────────────
