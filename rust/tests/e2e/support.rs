@@ -1385,17 +1385,17 @@ impl CapiProxy {
             "/stop"
         };
         let result = self.post_json(path, "");
-        if let Some(mut child) = self.child.take() {
-            if let Err(error) = wait_for_child_exit(&mut child) {
-                if result.is_err() {
-                    return Err(error);
-                }
-                // The proxy acknowledges /stop before its asynchronous server shutdown.
-                // npm/tsx can occasionally leave its wrapper alive after the proxy has
-                // accepted the request; wait_for_child_exit has reaped it, so do not turn
-                // an otherwise successful test into a teardown failure.
-                eprintln!("force-killed E2E proxy after successful stop request: {error}");
+        if let Some(mut child) = self.child.take()
+            && let Err(error) = wait_for_child_exit(&mut child)
+        {
+            if result.is_err() {
+                return Err(error);
             }
+            // The proxy acknowledges /stop before its asynchronous server shutdown.
+            // npm/tsx can occasionally leave its wrapper alive after the proxy has
+            // accepted the request; wait_for_child_exit has reaped it, so do not turn
+            // an otherwise successful test into a teardown failure.
+            eprintln!("force-killed E2E proxy after successful stop request: {error}");
         }
         result
     }
