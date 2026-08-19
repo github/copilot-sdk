@@ -10,6 +10,7 @@ package com.github.copilot.generated.rpc;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.github.copilot.generated.PermissionPromptRequest;
 import javax.annotation.processing.Generated;
 
 /**
@@ -24,6 +25,6 @@ public record PendingPermissionRequest(
     /** Unique identifier for the pending permission request */
     @JsonProperty("requestId") String requestId,
     /** The user-facing permission prompt details (commands, write, read, mcp, url, memory, custom-tool, path, hook) */
-    @JsonProperty("request") Object request
+    @JsonProperty("request") PermissionPromptRequest request
 ) {
 }

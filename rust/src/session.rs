@@ -540,13 +540,20 @@ impl Session {
     pub async fn set_model(&self, model: &str, opts: Option<SetModelOptions>) -> Result<(), Error> {
         let opts = opts.unwrap_or_default();
         let request = ModelSwitchToRequest {
+            compaction_decision: None,
+            context_tier: opts.context_tier,
+            defer_if_model_change_queued: None,
+            model_capabilities: opts.model_capabilities,
+            model_change_scope: None,
             model_id: model.to_string(),
+            picker_persistence: None,
             reasoning_effort: opts.reasoning_effort,
             reasoning_summary: opts.reasoning_summary,
+            repo_scope: None,
+            require_available: None,
+            run_compaction_preflight: None,
+            source: None,
             verbosity: None,
-            context_tier: opts.context_tier,
-            model_capabilities: opts.model_capabilities,
-            defer_if_model_change_queued: None,
         };
         self.rpc().model().switch_to(request).await?;
         Ok(())

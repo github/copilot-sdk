@@ -10527,6 +10527,31 @@ internal sealed class ToolsGetBuiltinDescriptorsRequest
     public bool? SkillEmbeddingEnabled { get; set; }
 }
 
+/// <summary>Task completion notification with summary from the agent.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class TaskCompleteData
+{
+    /// <summary>Active autopilot objective ID evaluated by the completion reviewer.</summary>
+    [JsonPropertyName("objectiveId")]
+    public long? ObjectiveId { get; set; }
+
+    /// <summary>Semantic completion decision. Absent on legacy events and invalid tool calls.</summary>
+    [JsonPropertyName("outcome")]
+    public TaskCompletionOutcome? Outcome { get; set; }
+
+    /// <summary>Label-safe runtime rationale for the completion decision (e.g. a cancellation or pause/resume downgrade), when one applies. Reviewer-authored rationale is intentionally omitted here because this event has no IFC label channel; the reviewer's findings remain available through its own labeled sub-agent events.</summary>
+    [JsonPropertyName("reason")]
+    public string? Reason { get; set; }
+
+    /// <summary>Whether the task was accepted as complete. False when validation failed or completion was rejected or blocked by the reviewer.</summary>
+    [JsonPropertyName("success")]
+    public bool? Success { get; set; }
+
+    /// <summary>Summary of the completed task, provided by the agent.</summary>
+    [JsonPropertyName("summary")]
+    public string? Summary { get; set; }
+}
+
 /// <summary>Binary result returned by a tool for the model.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class ExternalToolTextResultForLlmBinaryResultsForLlm
@@ -32713,6 +32738,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SlashCommandSelectSubcommandOption))]
 [JsonSerializable(typeof(SlashCommandTimelineEntry))]
 [JsonSerializable(typeof(SubagentSettingsEntry))]
+[JsonSerializable(typeof(TaskCompleteData))]
 [JsonSerializable(typeof(TaskCompletionDecision))]
 [JsonSerializable(typeof(TaskInfo))]
 [JsonSerializable(typeof(TaskList))]

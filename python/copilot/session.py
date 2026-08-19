@@ -34,6 +34,7 @@ from .generated.rpc import (
     CanvasProviderInvokeActionRequest,
     CanvasProviderOpenRequest,
     CanvasProviderOpenResult,
+    BuiltinToolInputSchemaType,
     ClientSessionApiHandlers,
     CommandsHandlePendingCommandRequest,
     HandlePendingToolCallRequest,
@@ -57,7 +58,6 @@ from .generated.rpc import (
     UIElicitationSchema,
     UIElicitationSchemaProperty,
     UIElicitationSchemaPropertyType,
-    UIElicitationSchemaType,
     UIHandlePendingElicitationRequest,
 )
 from .generated.rpc import (
@@ -761,7 +761,7 @@ class SessionUiApi:
             UIElicitationRequest(
                 message=message,
                 requested_schema=UIElicitationSchema(
-                    type=UIElicitationSchemaType.OBJECT,
+                    type=BuiltinToolInputSchemaType.OBJECT,
                     properties={
                         "confirmed": UIElicitationSchemaProperty(
                             type=UIElicitationSchemaPropertyType.BOOLEAN,
@@ -796,7 +796,7 @@ class SessionUiApi:
             UIElicitationRequest(
                 message=message,
                 requested_schema=UIElicitationSchema(
-                    type=UIElicitationSchemaType.OBJECT,
+                    type=BuiltinToolInputSchemaType.OBJECT,
                     properties={
                         "selection": UIElicitationSchemaProperty(
                             type=UIElicitationSchemaPropertyType.STRING,

@@ -456,6 +456,7 @@ export function cloneSchemaForCodegen<T>(value: T): T {
 const PERMISSION_REQUEST_DEFINITION_NAMES = [
     "PermissionRequestCustomTool",
     "PermissionRequestExtensionManagement",
+    "PermissionRequestExtensionEnvAccess",
     "PermissionRequestExtensionPermissionAccess",
     "PermissionRequestFactory",
     "PermissionRequestHook",

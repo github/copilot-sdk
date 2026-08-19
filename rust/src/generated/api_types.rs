@@ -10,9 +10,10 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use super::session_events::{
-    AbortReason, ContextTier, McpServerSource, McpServerStatus, ModelChangeSource,
-    PermissionPromptRequest, PermissionRule, ReasoningSummary, SessionLimitsConfig, SessionMode,
-    ShutdownType, SkillSource, TaskCompletionOutcome, UserToolSessionApproval, Verbosity,
+    AbortReason, ContextTier, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerSource,
+    McpServerStatus, ModelChangeSource, OmittedBinaryOmittedReason, PermissionPromptRequest,
+    PermissionRule, ReasoningSummary, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource,
+    TaskCompletionOutcome, UserToolSessionApproval, Verbosity,
 };
 use crate::types::{RequestId, SessionEvent, SessionId};
 
@@ -797,7 +798,7 @@ pub struct AbortResult {
     pub success: bool,
 }
 
-/// Authenticated account entry returned by `account.getAllUsers`.
+/// Endpoint URLs from the raw Copilot `/copilot_internal/v2/token` user-response passthrough.
 ///
 /// <div class="warning">
 ///
@@ -807,9 +808,504 @@ pub struct AbortResult {
 /// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct CopilotUserResponseEndpoints {
+    /// Copilot API endpoint URL.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub api: Option<String>,
+    /// Experimental-service endpoint URL.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exp: Option<String>,
+    /// Origin-tracker endpoint URL.
+    #[serde(rename = "origin-tracker", skip_serializing_if = "Option::is_none")]
+    pub origin_tracker: Option<String>,
+    /// Copilot proxy endpoint URL.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub proxy: Option<String>,
+    /// Copilot telemetry endpoint URL.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub telemetry: Option<String>,
+}
+
+/// Chat quota snapshot from the raw Copilot user-response passthrough, with entitlement, overage, remaining quota, reset, and billing fields.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CopilotUserResponseQuotaSnapshotsChat {
+    /// Number of requests/units included in the entitlement for this period; `-1` denotes an unlimited entitlement.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub entitlement: Option<f64>,
+    /// Whether the user currently has quota available; when `false` and not unlimited, further requests are blocked until the quota resets.
+    #[serde(rename = "has_quota", skip_serializing_if = "Option::is_none")]
+    pub has_quota: Option<bool>,
+    /// Count of additional pay-per-request usage consumed this period beyond the entitlement.
+    #[serde(rename = "overage_count", skip_serializing_if = "Option::is_none")]
+    pub overage_count: Option<f64>,
+    /// Whether usage may continue at pay-per-request rates once the entitlement is exhausted.
+    #[serde(rename = "overage_permitted", skip_serializing_if = "Option::is_none")]
+    pub overage_permitted: Option<bool>,
+    /// Percentage of the entitlement remaining at the snapshot timestamp.
+    #[serde(rename = "percent_remaining", skip_serializing_if = "Option::is_none")]
+    pub percent_remaining: Option<f64>,
+    /// Identifier of the quota bucket this snapshot describes.
+    #[serde(rename = "quota_id", skip_serializing_if = "Option::is_none")]
+    pub quota_id: Option<String>,
+    /// Amount of quota remaining at the snapshot timestamp.
+    #[serde(rename = "quota_remaining", skip_serializing_if = "Option::is_none")]
+    pub quota_remaining: Option<f64>,
+    /// Unix epoch time, in seconds, when this quota next resets.
+    #[serde(rename = "quota_reset_at", skip_serializing_if = "Option::is_none")]
+    pub quota_reset_at: Option<f64>,
+    /// Remaining entitlement/quota amount at the snapshot timestamp.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub remaining: Option<f64>,
+    /// UTC timestamp when this snapshot was captured.
+    #[serde(rename = "timestamp_utc", skip_serializing_if = "Option::is_none")]
+    pub timestamp_utc: Option<String>,
+    /// Whether this category uses usage-based (token/AI-credit) billing rather than a fixed premium-request count.
+    #[serde(
+        rename = "token_based_billing",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub token_based_billing: Option<bool>,
+    /// Whether the entitlement for this category is unlimited.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub unlimited: Option<bool>,
+}
+
+/// Completions quota snapshot from the raw Copilot user-response passthrough, with entitlement, overage, remaining quota, reset, and billing fields.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CopilotUserResponseQuotaSnapshotsCompletions {
+    /// Number of requests/units included in the entitlement for this period; `-1` denotes an unlimited entitlement.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub entitlement: Option<f64>,
+    /// Whether the user currently has quota available; when `false` and not unlimited, further requests are blocked until the quota resets.
+    #[serde(rename = "has_quota", skip_serializing_if = "Option::is_none")]
+    pub has_quota: Option<bool>,
+    /// Count of additional pay-per-request usage consumed this period beyond the entitlement.
+    #[serde(rename = "overage_count", skip_serializing_if = "Option::is_none")]
+    pub overage_count: Option<f64>,
+    /// Whether usage may continue at pay-per-request rates once the entitlement is exhausted.
+    #[serde(rename = "overage_permitted", skip_serializing_if = "Option::is_none")]
+    pub overage_permitted: Option<bool>,
+    /// Percentage of the entitlement remaining at the snapshot timestamp.
+    #[serde(rename = "percent_remaining", skip_serializing_if = "Option::is_none")]
+    pub percent_remaining: Option<f64>,
+    /// Identifier of the quota bucket this snapshot describes.
+    #[serde(rename = "quota_id", skip_serializing_if = "Option::is_none")]
+    pub quota_id: Option<String>,
+    /// Amount of quota remaining at the snapshot timestamp.
+    #[serde(rename = "quota_remaining", skip_serializing_if = "Option::is_none")]
+    pub quota_remaining: Option<f64>,
+    /// Unix epoch time, in seconds, when this quota next resets.
+    #[serde(rename = "quota_reset_at", skip_serializing_if = "Option::is_none")]
+    pub quota_reset_at: Option<f64>,
+    /// Remaining entitlement/quota amount at the snapshot timestamp.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub remaining: Option<f64>,
+    /// UTC timestamp when this snapshot was captured.
+    #[serde(rename = "timestamp_utc", skip_serializing_if = "Option::is_none")]
+    pub timestamp_utc: Option<String>,
+    /// Whether this category uses usage-based (token/AI-credit) billing rather than a fixed premium-request count.
+    #[serde(
+        rename = "token_based_billing",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub token_based_billing: Option<bool>,
+    /// Whether the entitlement for this category is unlimited.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub unlimited: Option<bool>,
+}
+
+/// Premium-interactions quota snapshot from the raw Copilot user-response passthrough, with entitlement, overage, remaining quota, reset, and billing fields.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CopilotUserResponseQuotaSnapshotsPremiumInteractions {
+    /// Number of requests/units included in the entitlement for this period; `-1` denotes an unlimited entitlement.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub entitlement: Option<f64>,
+    /// Whether the user currently has quota available; when `false` and not unlimited, further requests are blocked until the quota resets.
+    #[serde(rename = "has_quota", skip_serializing_if = "Option::is_none")]
+    pub has_quota: Option<bool>,
+    /// Count of additional pay-per-request usage consumed this period beyond the entitlement.
+    #[serde(rename = "overage_count", skip_serializing_if = "Option::is_none")]
+    pub overage_count: Option<f64>,
+    /// Whether usage may continue at pay-per-request rates once the entitlement is exhausted.
+    #[serde(rename = "overage_permitted", skip_serializing_if = "Option::is_none")]
+    pub overage_permitted: Option<bool>,
+    /// Percentage of the entitlement remaining at the snapshot timestamp.
+    #[serde(rename = "percent_remaining", skip_serializing_if = "Option::is_none")]
+    pub percent_remaining: Option<f64>,
+    /// Identifier of the quota bucket this snapshot describes.
+    #[serde(rename = "quota_id", skip_serializing_if = "Option::is_none")]
+    pub quota_id: Option<String>,
+    /// Amount of quota remaining at the snapshot timestamp.
+    #[serde(rename = "quota_remaining", skip_serializing_if = "Option::is_none")]
+    pub quota_remaining: Option<f64>,
+    /// Unix epoch time, in seconds, when this quota next resets.
+    #[serde(rename = "quota_reset_at", skip_serializing_if = "Option::is_none")]
+    pub quota_reset_at: Option<f64>,
+    /// Remaining entitlement/quota amount at the snapshot timestamp.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub remaining: Option<f64>,
+    /// UTC timestamp when this snapshot was captured.
+    #[serde(rename = "timestamp_utc", skip_serializing_if = "Option::is_none")]
+    pub timestamp_utc: Option<String>,
+    /// Whether this category uses usage-based (token/AI-credit) billing rather than a fixed premium-request count.
+    #[serde(
+        rename = "token_based_billing",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub token_based_billing: Option<bool>,
+    /// Whether the entitlement for this category is unlimited.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub unlimited: Option<bool>,
+}
+
+/// Quota snapshot map from the raw Copilot user-response passthrough, with chat, completions, premium-interactions, and other entries.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CopilotUserResponseQuotaSnapshots {
+    /// Chat quota snapshot from the raw Copilot user-response passthrough, with entitlement, overage, remaining quota, reset, and billing fields.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub chat: Option<CopilotUserResponseQuotaSnapshotsChat>,
+    /// Completions quota snapshot from the raw Copilot user-response passthrough, with entitlement, overage, remaining quota, reset, and billing fields.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub completions: Option<CopilotUserResponseQuotaSnapshotsCompletions>,
+    /// Premium-interactions quota snapshot from the raw Copilot user-response passthrough, with entitlement, overage, remaining quota, reset, and billing fields.
+    #[serde(
+        rename = "premium_interactions",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub premium_interactions: Option<CopilotUserResponseQuotaSnapshotsPremiumInteractions>,
+}
+
+/// Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this verbatim and does not re-fetch when set.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CopilotUserResponse {
+    /// Copilot access SKU identifier (e.g. `free_limited_copilot`, `copilot_for_business_seat_quota`) used to gate model and feature access.
+    #[serde(rename = "access_type_sku", skip_serializing_if = "Option::is_none")]
+    pub access_type_sku: Option<String>,
+    /// Opaque analytics tracking identifier for the user, forwarded from the Copilot API.
+    #[serde(
+        rename = "analytics_tracking_id",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub analytics_tracking_id: Option<String>,
+    /// Date the Copilot seat was assigned to the user, if applicable.
+    #[serde(rename = "assigned_date", skip_serializing_if = "Option::is_none")]
+    pub assigned_date: Option<serde_json::Value>,
+    /// Whether the user is eligible to sign up for the free/limited Copilot tier.
+    #[serde(
+        rename = "can_signup_for_limited",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub can_signup_for_limited: Option<bool>,
+    /// Whether the user is able to upgrade their Copilot plan.
+    #[serde(rename = "can_upgrade_plan", skip_serializing_if = "Option::is_none")]
+    pub can_upgrade_plan: Option<bool>,
+    /// Whether Copilot chat is enabled for the user.
+    #[serde(rename = "chat_enabled", skip_serializing_if = "Option::is_none")]
+    pub chat_enabled: Option<bool>,
+    /// Whether CLI remote control is enabled for the user.
+    #[serde(
+        rename = "cli_remote_control_enabled",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub cli_remote_control_enabled: Option<bool>,
+    /// Whether cloud session storage is enabled for the user.
+    #[serde(
+        rename = "cloud_session_storage_enabled",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub cloud_session_storage_enabled: Option<bool>,
+    /// Whether the Codex agent is enabled for the user.
+    #[serde(
+        rename = "codex_agent_enabled",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub codex_agent_enabled: Option<bool>,
+    /// Copilot plan name for the user (e.g. `individual`, `business`, `enterprise`).
+    #[serde(rename = "copilot_plan", skip_serializing_if = "Option::is_none")]
+    pub copilot_plan: Option<String>,
+    /// Whether `.copilotignore` content-exclusion support is enabled for the user.
+    #[serde(
+        rename = "copilotignore_enabled",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub copilotignore_enabled: Option<bool>,
+    /// Endpoint URLs from the raw Copilot `/copilot_internal/v2/token` user-response passthrough.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub endpoints: Option<CopilotUserResponseEndpoints>,
+    /// Whether MCP (Model Context Protocol) support is enabled for the user.
+    #[serde(rename = "is_mcp_enabled", skip_serializing_if = "Option::is_none")]
+    pub is_mcp_enabled: Option<serde_json::Value>,
+    /// Whether the user is a GitHub/Microsoft staff member.
+    #[serde(rename = "is_staff", skip_serializing_if = "Option::is_none")]
+    pub is_staff: Option<bool>,
+    /// Per-category quota allotments for free/limited-tier users, keyed by quota category.
+    #[serde(
+        rename = "limited_user_quotas",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub limited_user_quotas: Option<HashMap<String, f64>>,
+    /// Date the free/limited-tier user's quotas next reset, as a raw string from the Copilot API.
+    #[serde(
+        rename = "limited_user_reset_date",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub limited_user_reset_date: Option<String>,
+    /// GitHub login of the authenticated user.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub login: Option<String>,
+    /// Per-category monthly quota allotments, keyed by quota category.
+    #[serde(rename = "monthly_quotas", skip_serializing_if = "Option::is_none")]
+    pub monthly_quotas: Option<HashMap<String, f64>>,
+    /// Organizations the user belongs to, each with an optional login and display name.
+    #[serde(rename = "organization_list", skip_serializing_if = "Option::is_none")]
+    pub organization_list: Option<serde_json::Value>,
+    /// Logins of the organizations the user belongs to.
+    #[serde(
+        rename = "organization_login_list",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub organization_login_list: Option<Vec<String>>,
+    /// Date the user's usage quota next resets, as a raw string from the Copilot API; see `quota_reset_date_utc` for the UTC-normalized value.
+    #[serde(rename = "quota_reset_date", skip_serializing_if = "Option::is_none")]
+    pub quota_reset_date: Option<String>,
+    /// UTC-normalized form of `quota_reset_date` (the date the user's usage quota next resets).
+    #[serde(
+        rename = "quota_reset_date_utc",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub quota_reset_date_utc: Option<String>,
+    /// Quota snapshot map from the raw Copilot user-response passthrough, with chat, completions, premium-interactions, and other entries.
+    #[serde(rename = "quota_snapshots", skip_serializing_if = "Option::is_none")]
+    pub quota_snapshots: Option<CopilotUserResponseQuotaSnapshots>,
+    /// Whether the user's telemetry is subject to restricted-data handling.
+    #[serde(
+        rename = "restricted_telemetry",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub restricted_telemetry: Option<bool>,
+    /// Raw passthrough of the Copilot API `te` flag for the user (an opaque server-side eligibility signal surfaced in telemetry); not otherwise interpreted by the runtime.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub te: Option<bool>,
+    /// Whether the account is on usage-based (token/AI-credit) billing rather than a fixed premium-request quota.
+    #[serde(
+        rename = "token_based_billing",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub token_based_billing: Option<bool>,
+}
+
+/// Authentication-info input variant for GitHub-internal HMAC auth, carrying the public GitHub host and HMAC secret.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HMACAuthInfo {
+    /// Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this verbatim and does not re-fetch when set.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub copilot_user: Option<CopilotUserResponse>,
+    /// HMAC secret used to sign requests.
+    pub hmac: String,
+    /// Authentication host. HMAC auth always targets the public GitHub host.
+    pub host: HMACAuthInfoHost,
+    /// HMAC-based authentication used by GitHub-internal services.
+    pub r#type: HMACAuthInfoType,
+}
+
+/// Authentication-info input variant for a token sourced from an environment variable, with host, optional login, token, and env var name.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EnvAuthInfo {
+    /// Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this verbatim and does not re-fetch when set.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub copilot_user: Option<CopilotUserResponse>,
+    /// Name of the environment variable the token was sourced from.
+    pub env_var: String,
+    /// Authentication host (e.g. https://github.com or a GHES host).
+    pub host: String,
+    /// User login associated with the token. Undefined for server-to-server tokens (those starting with `ghs_`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub login: Option<String>,
+    /// The token value itself. Treat as a secret.
+    pub token: String,
+    /// Personal access token (PAT) or server-to-server token sourced from an environment variable.
+    pub r#type: EnvAuthInfoType,
+}
+
+/// Authentication-info input variant for SDK-configured token authentication, carrying host and the secret token value.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TokenAuthInfo {
+    /// Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this verbatim and does not re-fetch when set.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub copilot_user: Option<CopilotUserResponse>,
+    /// Authentication host.
+    pub host: String,
+    /// The token value itself. Treat as a secret.
+    pub token: String,
+    /// SDK-side token authentication; the host configured the token directly via the SDK.
+    pub r#type: TokenAuthInfoType,
+}
+
+/// Authentication-info variant for direct Copilot API token auth sourced from environment variables, with public GitHub host.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CopilotApiTokenAuthInfo {
+    /// Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this verbatim and does not re-fetch when set.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub copilot_user: Option<CopilotUserResponse>,
+    /// Authentication host (always the public GitHub host).
+    pub host: CopilotApiTokenAuthInfoHost,
+    /// Direct Copilot API authentication via the `GITHUB_COPILOT_API_TOKEN` + `COPILOT_API_URL` environment-variable pair. The token itself is read from the environment by the runtime, not carried in this struct.
+    pub r#type: CopilotApiTokenAuthInfoType,
+}
+
+/// Authentication-info variant for OAuth user auth, with host and login; the token remains in the runtime secret store.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UserAuthInfo {
+    /// Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this verbatim and does not re-fetch when set.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub copilot_user: Option<CopilotUserResponse>,
+    /// Authentication host.
+    pub host: String,
+    /// OAuth user login.
+    pub login: String,
+    /// OAuth user authentication. The token itself is held in the runtime's secret token store (keyed by host+login) and is NOT carried in this struct.
+    pub r#type: UserAuthInfoType,
+}
+
+/// Authentication-info input variant for GitHub CLI credentials, carrying host, login, and the `gh auth token` value.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GhCliAuthInfo {
+    /// Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this verbatim and does not re-fetch when set.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub copilot_user: Option<CopilotUserResponse>,
+    /// Authentication host.
+    pub host: String,
+    /// User login as reported by `gh auth status`.
+    pub login: String,
+    /// The token returned by `gh auth token`. Treat as a secret.
+    pub token: String,
+    /// Authentication via the `gh` CLI's saved credentials.
+    pub r#type: GhCliAuthInfoType,
+}
+
+/// Authentication-info input variant for API-key authentication to a non-GitHub LLM provider, carrying the secret `apiKey` and host.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ApiKeyAuthInfo {
+    /// The API key. Treat as a secret.
+    pub api_key: String,
+    /// Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this verbatim and does not re-fetch when set.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub copilot_user: Option<CopilotUserResponse>,
+    /// Authentication host.
+    pub host: String,
+    /// API-key authentication for non-GitHub LLM providers (e.g. when running BYOM-style).
+    pub r#type: ApiKeyAuthInfoType,
+}
+
+/// Authenticated account entry returned by `account.getAllUsers`.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AccountAllUsers {
     /// Authentication information for this user
-    pub auth_info: serde_json::Value,
+    pub auth_info: AuthInfo,
     /// Opaque identifier accepted by account and model selection APIs
     #[serde(skip_serializing_if = "Option::is_none")]
     pub selection_id: Option<String>,
@@ -834,7 +1330,7 @@ pub struct AccountGetCurrentAuthResult {
     pub auth_errors: Option<Vec<String>>,
     /// Current authentication information, if authenticated
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub auth_info: Option<serde_json::Value>,
+    pub auth_info: Option<AuthInfo>,
 }
 
 /// Optional opaque account selection or compatibility GitHub token used to look up quota.
@@ -948,7 +1444,7 @@ pub struct AccountLoginResult {
 pub struct AccountLogoutRequest {
     /// Authentication information for the user to log out
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub auth_info: Option<serde_json::Value>,
+    pub auth_info: Option<AuthInfo>,
     /// Opaque account identifier returned by `account.getAllUsers`
     #[serde(skip_serializing_if = "Option::is_none")]
     pub selection_id: Option<String>,
@@ -1445,364 +1941,6 @@ pub struct AllowAllPermissionState {
     /// Current allow-all mode
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mode: Option<PermissionsAllowAllMode>,
-}
-
-/// Endpoint URLs from the raw Copilot `/copilot_internal/v2/token` user-response passthrough.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CopilotUserResponseEndpoints {
-    /// Copilot API endpoint URL.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub api: Option<String>,
-    /// Experimental-service endpoint URL.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub exp: Option<String>,
-    /// Origin-tracker endpoint URL.
-    #[serde(rename = "origin-tracker", skip_serializing_if = "Option::is_none")]
-    pub origin_tracker: Option<String>,
-    /// Copilot proxy endpoint URL.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub proxy: Option<String>,
-    /// Copilot telemetry endpoint URL.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub telemetry: Option<String>,
-}
-
-/// Chat quota snapshot from the raw Copilot user-response passthrough, with entitlement, overage, remaining quota, reset, and billing fields.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CopilotUserResponseQuotaSnapshotsChat {
-    /// Number of requests/units included in the entitlement for this period; `-1` denotes an unlimited entitlement.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub entitlement: Option<f64>,
-    /// Whether the user currently has quota available; when `false` and not unlimited, further requests are blocked until the quota resets.
-    #[serde(rename = "has_quota", skip_serializing_if = "Option::is_none")]
-    pub has_quota: Option<bool>,
-    /// Count of additional pay-per-request usage consumed this period beyond the entitlement.
-    #[serde(rename = "overage_count", skip_serializing_if = "Option::is_none")]
-    pub overage_count: Option<f64>,
-    /// Whether usage may continue at pay-per-request rates once the entitlement is exhausted.
-    #[serde(rename = "overage_permitted", skip_serializing_if = "Option::is_none")]
-    pub overage_permitted: Option<bool>,
-    /// Percentage of the entitlement remaining at the snapshot timestamp.
-    #[serde(rename = "percent_remaining", skip_serializing_if = "Option::is_none")]
-    pub percent_remaining: Option<f64>,
-    /// Identifier of the quota bucket this snapshot describes.
-    #[serde(rename = "quota_id", skip_serializing_if = "Option::is_none")]
-    pub quota_id: Option<String>,
-    /// Amount of quota remaining at the snapshot timestamp.
-    #[serde(rename = "quota_remaining", skip_serializing_if = "Option::is_none")]
-    pub quota_remaining: Option<f64>,
-    /// Unix epoch time, in seconds, when this quota next resets.
-    #[serde(rename = "quota_reset_at", skip_serializing_if = "Option::is_none")]
-    pub quota_reset_at: Option<f64>,
-    /// Remaining entitlement/quota amount at the snapshot timestamp.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub remaining: Option<f64>,
-    /// UTC timestamp when this snapshot was captured.
-    #[serde(rename = "timestamp_utc", skip_serializing_if = "Option::is_none")]
-    pub timestamp_utc: Option<String>,
-    /// Whether this category uses usage-based (token/AI-credit) billing rather than a fixed premium-request count.
-    #[serde(
-        rename = "token_based_billing",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub token_based_billing: Option<bool>,
-    /// Whether the entitlement for this category is unlimited.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub unlimited: Option<bool>,
-}
-
-/// Completions quota snapshot from the raw Copilot user-response passthrough, with entitlement, overage, remaining quota, reset, and billing fields.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CopilotUserResponseQuotaSnapshotsCompletions {
-    /// Number of requests/units included in the entitlement for this period; `-1` denotes an unlimited entitlement.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub entitlement: Option<f64>,
-    /// Whether the user currently has quota available; when `false` and not unlimited, further requests are blocked until the quota resets.
-    #[serde(rename = "has_quota", skip_serializing_if = "Option::is_none")]
-    pub has_quota: Option<bool>,
-    /// Count of additional pay-per-request usage consumed this period beyond the entitlement.
-    #[serde(rename = "overage_count", skip_serializing_if = "Option::is_none")]
-    pub overage_count: Option<f64>,
-    /// Whether usage may continue at pay-per-request rates once the entitlement is exhausted.
-    #[serde(rename = "overage_permitted", skip_serializing_if = "Option::is_none")]
-    pub overage_permitted: Option<bool>,
-    /// Percentage of the entitlement remaining at the snapshot timestamp.
-    #[serde(rename = "percent_remaining", skip_serializing_if = "Option::is_none")]
-    pub percent_remaining: Option<f64>,
-    /// Identifier of the quota bucket this snapshot describes.
-    #[serde(rename = "quota_id", skip_serializing_if = "Option::is_none")]
-    pub quota_id: Option<String>,
-    /// Amount of quota remaining at the snapshot timestamp.
-    #[serde(rename = "quota_remaining", skip_serializing_if = "Option::is_none")]
-    pub quota_remaining: Option<f64>,
-    /// Unix epoch time, in seconds, when this quota next resets.
-    #[serde(rename = "quota_reset_at", skip_serializing_if = "Option::is_none")]
-    pub quota_reset_at: Option<f64>,
-    /// Remaining entitlement/quota amount at the snapshot timestamp.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub remaining: Option<f64>,
-    /// UTC timestamp when this snapshot was captured.
-    #[serde(rename = "timestamp_utc", skip_serializing_if = "Option::is_none")]
-    pub timestamp_utc: Option<String>,
-    /// Whether this category uses usage-based (token/AI-credit) billing rather than a fixed premium-request count.
-    #[serde(
-        rename = "token_based_billing",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub token_based_billing: Option<bool>,
-    /// Whether the entitlement for this category is unlimited.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub unlimited: Option<bool>,
-}
-
-/// Premium-interactions quota snapshot from the raw Copilot user-response passthrough, with entitlement, overage, remaining quota, reset, and billing fields.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CopilotUserResponseQuotaSnapshotsPremiumInteractions {
-    /// Number of requests/units included in the entitlement for this period; `-1` denotes an unlimited entitlement.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub entitlement: Option<f64>,
-    /// Whether the user currently has quota available; when `false` and not unlimited, further requests are blocked until the quota resets.
-    #[serde(rename = "has_quota", skip_serializing_if = "Option::is_none")]
-    pub has_quota: Option<bool>,
-    /// Count of additional pay-per-request usage consumed this period beyond the entitlement.
-    #[serde(rename = "overage_count", skip_serializing_if = "Option::is_none")]
-    pub overage_count: Option<f64>,
-    /// Whether usage may continue at pay-per-request rates once the entitlement is exhausted.
-    #[serde(rename = "overage_permitted", skip_serializing_if = "Option::is_none")]
-    pub overage_permitted: Option<bool>,
-    /// Percentage of the entitlement remaining at the snapshot timestamp.
-    #[serde(rename = "percent_remaining", skip_serializing_if = "Option::is_none")]
-    pub percent_remaining: Option<f64>,
-    /// Identifier of the quota bucket this snapshot describes.
-    #[serde(rename = "quota_id", skip_serializing_if = "Option::is_none")]
-    pub quota_id: Option<String>,
-    /// Amount of quota remaining at the snapshot timestamp.
-    #[serde(rename = "quota_remaining", skip_serializing_if = "Option::is_none")]
-    pub quota_remaining: Option<f64>,
-    /// Unix epoch time, in seconds, when this quota next resets.
-    #[serde(rename = "quota_reset_at", skip_serializing_if = "Option::is_none")]
-    pub quota_reset_at: Option<f64>,
-    /// Remaining entitlement/quota amount at the snapshot timestamp.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub remaining: Option<f64>,
-    /// UTC timestamp when this snapshot was captured.
-    #[serde(rename = "timestamp_utc", skip_serializing_if = "Option::is_none")]
-    pub timestamp_utc: Option<String>,
-    /// Whether this category uses usage-based (token/AI-credit) billing rather than a fixed premium-request count.
-    #[serde(
-        rename = "token_based_billing",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub token_based_billing: Option<bool>,
-    /// Whether the entitlement for this category is unlimited.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub unlimited: Option<bool>,
-}
-
-/// Quota snapshot map from the raw Copilot user-response passthrough, with chat, completions, premium-interactions, and other entries.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CopilotUserResponseQuotaSnapshots {
-    /// Chat quota snapshot from the raw Copilot user-response passthrough, with entitlement, overage, remaining quota, reset, and billing fields.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub chat: Option<CopilotUserResponseQuotaSnapshotsChat>,
-    /// Completions quota snapshot from the raw Copilot user-response passthrough, with entitlement, overage, remaining quota, reset, and billing fields.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub completions: Option<CopilotUserResponseQuotaSnapshotsCompletions>,
-    /// Premium-interactions quota snapshot from the raw Copilot user-response passthrough, with entitlement, overage, remaining quota, reset, and billing fields.
-    #[serde(
-        rename = "premium_interactions",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub premium_interactions: Option<CopilotUserResponseQuotaSnapshotsPremiumInteractions>,
-}
-
-/// Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this verbatim and does not re-fetch when set.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CopilotUserResponse {
-    /// Copilot access SKU identifier (e.g. `free_limited_copilot`, `copilot_for_business_seat_quota`) used to gate model and feature access.
-    #[serde(rename = "access_type_sku", skip_serializing_if = "Option::is_none")]
-    pub access_type_sku: Option<String>,
-    /// Opaque analytics tracking identifier for the user, forwarded from the Copilot API.
-    #[serde(
-        rename = "analytics_tracking_id",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub analytics_tracking_id: Option<String>,
-    /// Date the Copilot seat was assigned to the user, if applicable.
-    #[serde(rename = "assigned_date", skip_serializing_if = "Option::is_none")]
-    pub assigned_date: Option<serde_json::Value>,
-    /// Whether the user is eligible to sign up for the free/limited Copilot tier.
-    #[serde(
-        rename = "can_signup_for_limited",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub can_signup_for_limited: Option<bool>,
-    /// Whether the user is able to upgrade their Copilot plan.
-    #[serde(rename = "can_upgrade_plan", skip_serializing_if = "Option::is_none")]
-    pub can_upgrade_plan: Option<bool>,
-    /// Whether Copilot chat is enabled for the user.
-    #[serde(rename = "chat_enabled", skip_serializing_if = "Option::is_none")]
-    pub chat_enabled: Option<bool>,
-    /// Whether CLI remote control is enabled for the user.
-    #[serde(
-        rename = "cli_remote_control_enabled",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub cli_remote_control_enabled: Option<bool>,
-    /// Whether cloud session storage is enabled for the user.
-    #[serde(
-        rename = "cloud_session_storage_enabled",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub cloud_session_storage_enabled: Option<bool>,
-    /// Whether the Codex agent is enabled for the user.
-    #[serde(
-        rename = "codex_agent_enabled",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub codex_agent_enabled: Option<bool>,
-    /// Copilot plan name for the user (e.g. `individual`, `business`, `enterprise`).
-    #[serde(rename = "copilot_plan", skip_serializing_if = "Option::is_none")]
-    pub copilot_plan: Option<String>,
-    /// Whether `.copilotignore` content-exclusion support is enabled for the user.
-    #[serde(
-        rename = "copilotignore_enabled",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub copilotignore_enabled: Option<bool>,
-    /// Endpoint URLs from the raw Copilot `/copilot_internal/v2/token` user-response passthrough.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub endpoints: Option<CopilotUserResponseEndpoints>,
-    /// Whether MCP (Model Context Protocol) support is enabled for the user.
-    #[serde(rename = "is_mcp_enabled", skip_serializing_if = "Option::is_none")]
-    pub is_mcp_enabled: Option<serde_json::Value>,
-    /// Whether the user is a GitHub/Microsoft staff member.
-    #[serde(rename = "is_staff", skip_serializing_if = "Option::is_none")]
-    pub is_staff: Option<bool>,
-    /// Per-category quota allotments for free/limited-tier users, keyed by quota category.
-    #[serde(
-        rename = "limited_user_quotas",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub limited_user_quotas: Option<HashMap<String, f64>>,
-    /// Date the free/limited-tier user's quotas next reset, as a raw string from the Copilot API.
-    #[serde(
-        rename = "limited_user_reset_date",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub limited_user_reset_date: Option<String>,
-    /// GitHub login of the authenticated user.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub login: Option<String>,
-    /// Per-category monthly quota allotments, keyed by quota category.
-    #[serde(rename = "monthly_quotas", skip_serializing_if = "Option::is_none")]
-    pub monthly_quotas: Option<HashMap<String, f64>>,
-    /// Organizations the user belongs to, each with an optional login and display name.
-    #[serde(rename = "organization_list", skip_serializing_if = "Option::is_none")]
-    pub organization_list: Option<serde_json::Value>,
-    /// Logins of the organizations the user belongs to.
-    #[serde(
-        rename = "organization_login_list",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub organization_login_list: Option<Vec<String>>,
-    /// Date the user's usage quota next resets, as a raw string from the Copilot API; see `quota_reset_date_utc` for the UTC-normalized value.
-    #[serde(rename = "quota_reset_date", skip_serializing_if = "Option::is_none")]
-    pub quota_reset_date: Option<String>,
-    /// UTC-normalized form of `quota_reset_date` (the date the user's usage quota next resets).
-    #[serde(
-        rename = "quota_reset_date_utc",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub quota_reset_date_utc: Option<String>,
-    /// Quota snapshot map from the raw Copilot user-response passthrough, with chat, completions, premium-interactions, and other entries.
-    #[serde(rename = "quota_snapshots", skip_serializing_if = "Option::is_none")]
-    pub quota_snapshots: Option<CopilotUserResponseQuotaSnapshots>,
-    /// Whether the user's telemetry is subject to restricted-data handling.
-    #[serde(
-        rename = "restricted_telemetry",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub restricted_telemetry: Option<bool>,
-    /// Raw passthrough of the Copilot API `te` flag for the user (an opaque server-side eligibility signal surfaced in telemetry); not otherwise interpreted by the runtime.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub te: Option<bool>,
-    /// Whether the account is on usage-based (token/AI-credit) billing rather than a fixed premium-request quota.
-    #[serde(
-        rename = "token_based_billing",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub token_based_billing: Option<bool>,
-}
-
-/// Authentication-info input variant for API-key authentication to a non-GitHub LLM provider, carrying the secret `apiKey` and host.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ApiKeyAuthInfo {
-    /// The API key. Treat as a secret.
-    pub api_key: String,
-    /// Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this verbatim and does not re-fetch when set.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub copilot_user: Option<CopilotUserResponse>,
-    /// Authentication host.
-    pub host: String,
-    /// API-key authentication for non-GitHub LLM providers (e.g. when running BYOM-style).
-    pub r#type: ApiKeyAuthInfoType,
 }
 
 /// Blob attachment with inline base64-encoded data
@@ -3396,26 +3534,6 @@ pub struct ContextHeaviestMessage {
     pub tokens: i64,
 }
 
-/// Authentication-info variant for direct Copilot API token auth sourced from environment variables, with public GitHub host.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CopilotApiTokenAuthInfo {
-    /// Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this verbatim and does not re-fetch when set.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub copilot_user: Option<CopilotUserResponse>,
-    /// Authentication host (always the public GitHub host).
-    pub host: CopilotApiTokenAuthInfoHost,
-    /// Direct Copilot API authentication via the `GITHUB_COPILOT_API_TOKEN` + `COPILOT_API_URL` environment-variable pair. The token itself is read from the environment by the runtime, not carried in this struct.
-    pub r#type: CopilotApiTokenAuthInfoType,
-}
-
 /// The currently selected model, reasoning effort, and context tier for the session. The context tier reflects `Session.getContextTier()`, restored from the session journal on resume.
 ///
 /// <div class="warning">
@@ -3776,33 +3894,6 @@ pub struct EnqueueCommandParams {
 pub struct EnqueueCommandResult {
     /// True when the command was accepted into the local execution queue. False when the call targets a session that does not support local command queueing (e.g. remote sessions).
     pub queued: bool,
-}
-
-/// Authentication-info input variant for a token sourced from an environment variable, with host, optional login, token, and env var name.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct EnvAuthInfo {
-    /// Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this verbatim and does not re-fetch when set.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub copilot_user: Option<CopilotUserResponse>,
-    /// Name of the environment variable the token was sourced from.
-    pub env_var: String,
-    /// Authentication host (e.g. https://github.com or a GHES host).
-    pub host: String,
-    /// User login associated with the token. Undefined for server-to-server tokens (those starting with `ghs_`).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub login: Option<String>,
-    /// The token value itself. Treat as a secret.
-    pub token: String,
-    /// Personal access token (PAT) or server-to-server token sourced from an environment variable.
-    pub r#type: EnvAuthInfoType,
 }
 
 /// Cursor, batch size, and optional long-poll/filter parameters for reading session events.
@@ -5190,30 +5281,6 @@ pub struct FolderTrustCheckResult {
     pub trusted: bool,
 }
 
-/// Authentication-info input variant for GitHub CLI credentials, carrying host, login, and the `gh auth token` value.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct GhCliAuthInfo {
-    /// Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this verbatim and does not re-fetch when set.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub copilot_user: Option<CopilotUserResponse>,
-    /// Authentication host.
-    pub host: String,
-    /// User login as reported by `gh auth status`.
-    pub login: String,
-    /// The token returned by `gh auth token`. Treat as a secret.
-    pub token: String,
-    /// Authentication via the `gh` CLI's saved credentials.
-    pub r#type: GhCliAuthInfoType,
-}
-
 /// Client environment metadata describing the process that produced a telemetry event.
 ///
 /// <div class="warning">
@@ -5711,28 +5778,6 @@ pub struct HistoryTruncateResult {
     pub checkpoint_cleanup_failed: Option<bool>,
     /// Number of events that were removed
     pub events_removed: i64,
-}
-
-/// Authentication-info input variant for GitHub-internal HMAC auth, carrying the public GitHub host and HMAC secret.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct HMACAuthInfo {
-    /// Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this verbatim and does not re-fetch when set.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub copilot_user: Option<CopilotUserResponse>,
-    /// HMAC secret used to sign requests.
-    pub hmac: String,
-    /// Authentication host. HMAC auth always targets the public GitHub host.
-    pub host: HMACAuthInfoHost,
-    /// HMAC-based authentication used by GitHub-internal services.
-    pub r#type: HMACAuthInfoType,
 }
 
 /// Runtime-owned wire payload for a server-to-client hook callback invocation.
@@ -7445,6 +7490,50 @@ pub struct McpOauthLoginResult {
 pub struct McpOauthProbeRequest {
     /// Name of the configured remote MCP server to probe.
     pub server_name: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpOauthProbeResultNoAuthRequired {
+    /// HTTP response returned by the server.
+    pub http_response: McpOauthHttpResponse,
+    /// Probe outcome variant discriminator.
+    pub status: McpOauthProbeResultNoAuthRequiredStatus,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpOauthProbeResultAuthenticated {
+    /// HTTP response returned by the server.
+    pub http_response: McpOauthHttpResponse,
+    /// Probe outcome variant discriminator.
+    pub status: McpOauthProbeResultAuthenticatedStatus,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpOauthProbeResultNeedsAuth {
+    /// HTTP 401 or 403 response returned by the server.
+    pub http_response: McpOauthHttpResponse,
+    /// Why authentication is needed.
+    pub reason: McpOauthProbeNeedsAuthReason,
+    /// Probe outcome variant discriminator.
+    pub status: McpOauthProbeResultNeedsAuthStatus,
+    /// Parsed WWW-Authenticate challenge parameters, when present and parseable.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub www_authenticate_params: Option<McpOauthWWWAuthenticateParams>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpOauthProbeResultFailed {
+    /// Human-readable probe failure detail.
+    pub error: String,
+    /// HTTP response returned by the server, when the probe reached the server and captured the complete response.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub http_response: Option<McpOauthHttpResponse>,
+    /// Probe outcome variant discriminator.
+    pub status: McpOauthProbeResultFailedStatus,
 }
 
 /// Pending MCP OAuth request id to respond to.
@@ -14113,11 +14202,11 @@ pub struct SessionAuthLoginRequest {
 /// and may change or be removed in future SDK or CLI releases.
 ///
 /// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionAuthLogoutUserRequest {
     /// Authentication information to log out
-    pub auth_info: serde_json::Value,
+    pub auth_info: AuthInfo,
 }
 
 /// Authentication status and account metadata for the session.
@@ -14158,11 +14247,11 @@ pub struct SessionAuthStatus {
 /// and may change or be removed in future SDK or CLI releases.
 ///
 /// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionAuthSwitchRequest {
     /// Authentication information to activate
-    pub auth_info: serde_json::Value,
+    pub auth_info: AuthInfo,
     /// Optional token paired with the authentication information
     #[serde(skip_serializing_if = "Option::is_none")]
     pub token: Option<String>,
@@ -15442,7 +15531,7 @@ pub struct SessionOpenOptions {
     pub ask_user_disabled: Option<bool>,
     /// Initial authentication info for the session.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub auth_info: Option<serde_json::Value>,
+    pub auth_info: Option<AuthInfo>,
     /// Allowlist of available tool names.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub available_tools: Option<Vec<String>>,
@@ -16017,7 +16106,7 @@ pub struct SessionsEnrichMetadataRequest {
 pub struct SessionSetCredentialsParams {
     /// The new auth credentials to install on the session. When omitted or `undefined`, the call is a no-op and the session's existing credentials are preserved. The runtime installs the supplied value immediately for outbound model/API requests. When the credential carries a raw token (`token`, `env`, or `gh-cli`) but no `copilotUser`, the runtime additionally re-resolves `copilotUser` server-side (best-effort, asynchronously, after the synchronous install) so plan/quota/billing metadata regains fidelity; on resolution failure the verbatim credential remains installed. It does NOT otherwise validate the credential. Several variants carry secret material; treat this method's params as containing secrets at rest and in transit.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub credentials: Option<serde_json::Value>,
+    pub credentials: Option<AuthInfo>,
 }
 
 /// Indicates whether the credential update succeeded.
@@ -18236,28 +18325,6 @@ pub struct TelemetrySetFeatureOverridesRequest {
     pub features: HashMap<String, String>,
 }
 
-/// Authentication-info input variant for SDK-configured token authentication, carrying host and the secret token value.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TokenAuthInfo {
-    /// Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this verbatim and does not re-fetch when set.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub copilot_user: Option<CopilotUserResponse>,
-    /// Authentication host.
-    pub host: String,
-    /// The token value itself. Treat as a secret.
-    pub token: String,
-    /// SDK-side token authentication; the host configured the token directly via the SDK.
-    pub r#type: TokenAuthInfoType,
-}
-
 /// Built-in tool metadata with identifier, optional namespaced name, description, input-parameter schema, and usage instructions.
 ///
 /// <div class="warning">
@@ -19426,28 +19493,6 @@ pub struct UsageGetMetricsResult {
     pub total_premium_request_cost: f64,
     /// Raw count of user-initiated API requests
     pub total_user_requests: i64,
-}
-
-/// Authentication-info variant for OAuth user auth, with host and login; the token remains in the runtime secret store.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct UserAuthInfo {
-    /// Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this verbatim and does not re-fetch when set.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub copilot_user: Option<CopilotUserResponse>,
-    /// Authentication host.
-    pub host: String,
-    /// OAuth user login.
-    pub login: String,
-    /// OAuth user authentication. The token itself is held in the runtime's secret token store (keyed by host+login) and is NOT carried in this struct.
-    pub r#type: UserAuthInfoType,
 }
 
 /// Result of a user-requested shell command.
@@ -25810,6 +25855,98 @@ pub type SessionGitHubAuthLastAuthErrorsResult = Vec<AuthValidationError>;
 /// </div>
 pub type SessionMcpAppsCallToolResult = HashMap<String, serde_json::Value>;
 
+/// Authentication host. HMAC auth always targets the public GitHub host.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum HMACAuthInfoHost {
+    #[serde(rename = "https://github.com")]
+    #[default]
+    HttpsGitHubCom,
+}
+
+/// HMAC-based authentication used by GitHub-internal services.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum HMACAuthInfoType {
+    #[serde(rename = "hmac")]
+    #[default]
+    Hmac,
+}
+
+/// Personal access token (PAT) or server-to-server token sourced from an environment variable.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum EnvAuthInfoType {
+    #[serde(rename = "env")]
+    #[default]
+    Env,
+}
+
+/// SDK-side token authentication; the host configured the token directly via the SDK.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TokenAuthInfoType {
+    #[serde(rename = "token")]
+    #[default]
+    Token,
+}
+
+/// Authentication host (always the public GitHub host).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CopilotApiTokenAuthInfoHost {
+    #[serde(rename = "https://github.com")]
+    #[default]
+    HttpsGitHubCom,
+}
+
+/// Direct Copilot API authentication via the `GITHUB_COPILOT_API_TOKEN` + `COPILOT_API_URL` environment-variable pair. The token itself is read from the environment by the runtime, not carried in this struct.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CopilotApiTokenAuthInfoType {
+    #[serde(rename = "copilot-api-token")]
+    #[default]
+    CopilotApiToken,
+}
+
+/// OAuth user authentication. The token itself is held in the runtime's secret token store (keyed by host+login) and is NOT carried in this struct.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum UserAuthInfoType {
+    #[serde(rename = "user")]
+    #[default]
+    User,
+}
+
+/// Authentication via the `gh` CLI's saved credentials.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum GhCliAuthInfoType {
+    #[serde(rename = "gh-cli")]
+    #[default]
+    GhCli,
+}
+
+/// API-key authentication for non-GitHub LLM providers (e.g. when running BYOM-style).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ApiKeyAuthInfoType {
+    #[serde(rename = "api-key")]
+    #[default]
+    ApiKey,
+}
+
+/// Authentication credentials accepted only at native protocol ingress. Runtime outputs use credential-free `AuthIdentity` metadata.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum AuthInfo {
+    Hmac(HMACAuthInfo),
+    Env(EnvAuthInfo),
+    Token(TokenAuthInfo),
+    CopilotApiToken(CopilotApiTokenAuthInfo),
+    User(UserAuthInfo),
+    GhCli(GhCliAuthInfo),
+    ApiKey(ApiKeyAuthInfo),
+}
+
 /// Resolved Anthropic adaptive-thinking capability for a model.
 ///
 /// <div class="warning">
@@ -26180,36 +26317,6 @@ pub enum PermissionsAllowAllMode {
     Unknown,
 }
 
-/// API-key authentication for non-GitHub LLM providers (e.g. when running BYOM-style).
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ApiKeyAuthInfoType {
-    #[serde(rename = "api-key")]
-    #[default]
-    ApiKey,
-}
-
-/// Why the binary data is absent: it exceeded the inline size limit, or its asset was unavailable
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum OmittedBinaryOmittedReason {
-    /// Bytes exceeded the session's inline size limit.
-    #[serde(rename = "too_large")]
-    TooLarge,
-    /// The referenced binary asset could not be found (e.g. a truncated log).
-    #[serde(rename = "asset_unavailable")]
-    AssetUnavailable,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
 /// Attachment type discriminator
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AttachmentBlobType {
@@ -26552,22 +26659,6 @@ pub enum ContentFilterMode {
     Unknown,
 }
 
-/// Authentication host (always the public GitHub host).
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum CopilotApiTokenAuthInfoHost {
-    #[serde(rename = "https://github.com")]
-    #[default]
-    HttpsGitHubCom,
-}
-
-/// Direct Copilot API authentication via the `GITHUB_COPILOT_API_TOKEN` + `COPILOT_API_URL` environment-variable pair. The token itself is read from the environment by the runtime, not carried in this struct.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum CopilotApiTokenAuthInfoType {
-    #[serde(rename = "copilot-api-token")]
-    #[default]
-    CopilotApiToken,
-}
-
 /// Source category for a collected debug bundle entry.
 ///
 /// <div class="warning">
@@ -26783,14 +26874,6 @@ pub enum DiscoveredMcpServerType {
     #[default]
     #[serde(other)]
     Unknown,
-}
-
-/// Personal access token (PAT) or server-to-server token sourced from an environment variable.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum EnvAuthInfoType {
-    #[serde(rename = "env")]
-    #[default]
-    Env,
 }
 
 /// Agent-scope filter: 'primary' returns only main-agent events plus events whose type starts with 'subagent.' (matching the typed-subscription default behavior); 'all' returns events from all agents (matching wildcard-subscription behavior). Default is 'all' to preserve wildcard semantics for catch-up callers.
@@ -27181,14 +27264,6 @@ pub enum FactoryRunFailureKind {
     Unknown,
 }
 
-/// Authentication via the `gh` CLI's saved credentials.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum GhCliAuthInfoType {
-    #[serde(rename = "gh-cli")]
-    #[default]
-    GhCli,
-}
-
 /// What initiated this compaction request, recorded as the `trigger` on the persisted `session.compaction_start` / `session.compaction_complete` events. When absent, the compaction is persisted without trigger attribution (initiator unknown).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum HistoryCompactRequestTrigger {
@@ -27339,22 +27414,6 @@ pub enum HistoryRewindOutcome {
     #[default]
     #[serde(other)]
     Unknown,
-}
-
-/// Authentication host. HMAC auth always targets the public GitHub host.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum HMACAuthInfoHost {
-    #[serde(rename = "https://github.com")]
-    #[default]
-    HttpsGitHubCom,
-}
-
-/// HMAC-based authentication used by GitHub-internal services.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum HMACAuthInfoType {
-    #[serde(rename = "hmac")]
-    #[default]
-    Hmac,
 }
 
 /// Hook event name dispatched through the SDK callback transport.
@@ -27959,6 +28018,55 @@ pub enum McpOauthProbeNeedsAuthReason {
     #[default]
     #[serde(other)]
     Unknown,
+}
+
+/// Probe outcome variant discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpOauthProbeResultNoAuthRequiredStatus {
+    #[serde(rename = "no-auth-required")]
+    #[default]
+    NoAuthRequired,
+}
+
+/// Probe outcome variant discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpOauthProbeResultAuthenticatedStatus {
+    #[serde(rename = "authenticated")]
+    #[default]
+    Authenticated,
+}
+
+/// Probe outcome variant discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpOauthProbeResultNeedsAuthStatus {
+    #[serde(rename = "needs-auth")]
+    #[default]
+    NeedsAuth,
+}
+
+/// Probe outcome variant discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpOauthProbeResultFailedStatus {
+    #[serde(rename = "failed")]
+    #[default]
+    Failed,
+}
+
+/// Passive MCP OAuth probe result. `authenticated` means the server accepted the probe request while an OAuth-origin access token was attached; it does not prove the server required or independently validated that token. The probe does not make a second unauthenticated request. Failed is an expected probe-domain outcome; JSON-RPC errors are reserved for API-call failures.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum McpOauthProbeResult {
+    NoAuthRequired(McpOauthProbeResultNoAuthRequired),
+    Authenticated(McpOauthProbeResultAuthenticated),
+    NeedsAuth(McpOauthProbeResultNeedsAuth),
+    Failed(McpOauthProbeResultFailed),
 }
 
 /// Outcome of the sampling inference. 'success' produced a response; 'failure' encountered an error (including agent-side rejection by content filter or criteria); 'cancelled' the caller cancelled this execution via cancelSamplingExecution.
@@ -30563,14 +30671,6 @@ pub enum TaskShellProgressType {
     Shell,
 }
 
-/// SDK-side token authentication; the host configured the token directly via the SDK.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum TokenAuthInfoType {
-    #[serde(rename = "token")]
-    #[default]
-    Token,
-}
-
 /// Execution outcome classification.
 ///
 /// <div class="warning">
@@ -30600,6 +30700,21 @@ pub enum ToolResultType {
     #[default]
     #[serde(other)]
     Unknown,
+}
+
+/// Canonical result returned by a session tool.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ToolResult {
+    String(String),
+    ToolResultExpanded(ToolResultExpanded),
 }
 
 /// User's choice for auto-mode switching: yes (allow this turn), yes_always (allow + persist as setting), or no (decline).
@@ -30820,14 +30935,6 @@ pub enum UISessionLimitsExhaustedResponseAction {
     #[default]
     #[serde(other)]
     Unknown,
-}
-
-/// OAuth user authentication. The token itself is held in the runtime's secret token store (keyed by host+login) and is NOT carried in this struct.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum UserAuthInfoType {
-    #[serde(rename = "user")]
-    #[default]
-    User,
 }
 
 /// Type of change represented by this file diff.

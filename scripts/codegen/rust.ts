@@ -300,6 +300,7 @@ function tryEmitRustUnion(
 	const enumName =
 		(typeof schema.title === "string" && schema.title) ||
 		parentTypeName + toPascalCase(jsonPropName);
+	const isAllowedUnionType = ctx.allowedUnionTypeNames.has(enumName);
 
 	const resolvedVariants: RustUnionVariant[] = [];
 	for (let i = 0; i < nonNull.length; i++) {
@@ -318,7 +319,20 @@ function tryEmitRustUnion(
 			resolveObjectSchema(variant, ctx.definitions) ??
 			resolveSchema(variant, ctx.definitions) ??
 			variant;
-		if (!isObjectSchema(resolved)) return null;
+		if (!isObjectSchema(resolved)) {
+			if (!isAllowedUnionType) return null;
+			resolvedVariants.push({
+				schema: resolved as JSONSchema7,
+				typeName: resolveRustType(
+					resolved as JSONSchema7,
+					enumName,
+					`variant${i + 1}`,
+					true,
+					ctx,
+				),
+			});
+			continue;
+		}
 		const discriminatorValue = Object.values(resolved.properties ?? {}).find(
 			(prop) => typeof prop === "object" && (prop as JSONSchema7).const !== undefined,
 		) as JSONSchema7 | undefined;
@@ -335,7 +349,6 @@ function tryEmitRustUnion(
 	}
 
 	const discriminator = findRustDiscriminator(resolvedVariants);
-	const isAllowedUnionType = ctx.allowedUnionTypeNames.has(enumName);
 	if (discriminator) {
 		if (
 			ctx.unionDiscriminatorProperties &&
@@ -344,7 +357,7 @@ function tryEmitRustUnion(
 		) {
 			return null;
 		}
-	} else if (!ctx.allowUntaggedUnions || !isAllowedUnionType) {
+	} else if (!ctx.allowUntaggedUnions && !isAllowedUnionType) {
 		return null;
 	}
 
@@ -1447,7 +1460,10 @@ function generateApiTypesCode(
 	const defCollections = collectDefinitionCollections(
 		apiSchema as Record<string, unknown>,
 	);
-	const ctx = makeCtx(defCollections, { nonDefaultableTypes });
+	const ctx = makeCtx(defCollections, {
+		nonDefaultableTypes,
+		allowedUnionTypeNames: ["AuthInfo", "McpOauthProbeResult", "ToolResult"],
+	});
 
 	// Collect all RPC methods before emitting shared definitions so method stability
 	// can propagate to referenced data types.

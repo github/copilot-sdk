@@ -573,17 +573,9 @@ function schemaTypeToJava(
         if (crossSchemaMatch) {
             const [, schemaFile, typeName] = crossSchemaMatch;
             const externalDefs = crossSchemaDefinitions.get(schemaFile);
-            if (externalDefs) {
-                const resolved = externalDefs[typeName];
-                if (resolved) {
-                    // Save and swap currentDefinitions so recursive calls resolve against
-                    // the external schema's definitions.
-                    const savedDefs = currentDefinitions;
-                    currentDefinitions = externalDefs;
-                    const result = schemaTypeToJava(resolved, required, context, propName, nestedTypes);
-                    currentDefinitions = savedDefs;
-                    return result;
-                }
+            if (schemaFile === "session-events.schema.json" && externalDefs?.[typeName]) {
+                imports.add(`com.github.copilot.generated.${typeName}`);
+                return { javaType: typeName, imports };
             }
             // Fallback: extract just the type name and warn
             console.warn(`[codegen] Unresolved cross-schema $ref: ${schema.$ref}`);

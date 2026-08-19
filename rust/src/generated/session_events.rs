@@ -2652,6 +2652,78 @@ pub struct ToolExecutionCompleteError {
     pub message: String,
 }
 
+/// Binary result returned by a tool for the model
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PersistedBinaryImage {
+    /// Base64-encoded binary data
+    pub data: String,
+    /// Human-readable description of the binary data
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Optional metadata from the producing tool.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<HashMap<String, serde_json::Value>>,
+    /// MIME type of the binary data
+    pub mime_type: String,
+    /// Binary result type discriminator. Use "image" for images and "resource" for other binary data.
+    pub r#type: PersistedBinaryImageType,
+}
+
+/// A binary result whose data was omitted from persistence due to the inline size limit
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmittedBinaryResult {
+    /// Decoded byte length of the omitted binary data
+    pub byte_length: i64,
+    /// Human-readable description of the binary data
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Optional metadata from the producing tool.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<HashMap<String, serde_json::Value>>,
+    /// MIME type of the omitted binary data
+    pub mime_type: String,
+    /// Why the binary data is absent: it exceeded the inline size limit, or its asset was unavailable
+    pub omitted_reason: OmittedBinaryOmittedReason,
+    /// Binary result type discriminator. Use "image" for images and "resource" for other binary data.
+    pub r#type: OmittedBinaryType,
+}
+
+/// A reference to binary data persisted once on a session.binary_asset event and shared by id
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BinaryAssetReference {
+    /// Content-addressed id of the session.binary_asset event that holds this binary's bytes (e.g. "sha256:...").
+    pub asset_id: String,
+    /// Decoded byte length of the referenced binary data
+    pub byte_length: i64,
+    /// Human-readable description of the binary data
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Optional metadata from the producing tool.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<HashMap<String, serde_json::Value>>,
+    /// MIME type of the referenced binary data
+    pub mime_type: String,
+    /// Binary result type discriminator. Use "image" for images and "resource" for other binary data.
+    pub r#type: BinaryAssetReferenceType,
+}
+
 /// A source supplied by a tool that should be made available to the model as citable content.
 ///
 /// <div class="warning">
@@ -2946,7 +3018,7 @@ pub struct ToolExecutionCompleteResult {
     ///
     /// </div>
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub binary_results_for_llm: Option<Vec<serde_json::Value>>,
+    pub binary_results_for_llm: Option<Vec<PersistedBinaryResult>>,
     /// Provider-neutral source material this tool makes available to the model as citable content. Persisted so it survives session resume. Experimental.
     ///
     /// <div class="warning">
@@ -3733,6 +3805,9 @@ pub struct PermissionRequestExtensionEnvAccess {
     pub extension_name: String,
     /// Permission kind discriminator
     pub kind: PermissionRequestExtensionEnvAccessKind,
+    /// When true, managed policy requires an explicit user decision and automatic approval must be bypassed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub managed_approval_required: Option<bool>,
     /// Tool call ID that triggered this permission request
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_call_id: Option<String>,
@@ -6053,6 +6128,82 @@ pub enum ToolExecutionStartToolDescriptionMetaUIVisibility {
     #[default]
     #[serde(other)]
     Unknown,
+}
+
+/// Binary result type discriminator. Use "image" for images and "resource" for other binary data.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PersistedBinaryImageType {
+    /// Binary image data.
+    #[serde(rename = "image")]
+    Image,
+    /// Other binary resource data.
+    #[serde(rename = "resource")]
+    Resource,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Why the binary data is absent: it exceeded the inline size limit, or its asset was unavailable
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum OmittedBinaryOmittedReason {
+    /// Bytes exceeded the session's inline size limit.
+    #[serde(rename = "too_large")]
+    TooLarge,
+    /// The referenced binary asset could not be found (e.g. a truncated log).
+    #[serde(rename = "asset_unavailable")]
+    AssetUnavailable,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Binary result type discriminator. Use "image" for images and "resource" for other binary data.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum OmittedBinaryType {
+    /// Binary image data.
+    #[serde(rename = "image")]
+    Image,
+    /// Other binary resource data.
+    #[serde(rename = "resource")]
+    Resource,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Binary result type discriminator. Use "image" for images and "resource" for other binary data.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum BinaryAssetReferenceType {
+    /// Binary image data.
+    #[serde(rename = "image")]
+    Image,
+    /// Other binary resource data.
+    #[serde(rename = "resource")]
+    Resource,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// A model-facing binary result as persisted: full inline data, a size-omitted marker, or a deduplicated asset reference
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum PersistedBinaryResult {
+    PersistedBinaryImage(PersistedBinaryImage),
+    OmittedBinaryResult(OmittedBinaryResult),
+    BinaryAssetReference(BinaryAssetReference),
 }
 
 /// Content block type discriminator

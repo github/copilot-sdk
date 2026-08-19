@@ -3284,6 +3284,8 @@ type PermissionRequestExtensionEnvAccess struct {
 	EnvironmentVariables []string `json:"environmentVariables"`
 	// Name of the extension requesting environment variable access
 	ExtensionName string `json:"extensionName"`
+	// When true, managed policy requires an explicit user decision and automatic approval must be bypassed.
+	ManagedApprovalRequired *bool `json:"managedApprovalRequired,omitempty"`
 	// Tool call ID that triggered this permission request
 	ToolCallID *string `json:"toolCallId,omitempty"`
 }

@@ -943,7 +943,7 @@ func (r *CitationReference) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func matchesBinaryAssetReference(data []byte) bool {
+func matchesPersistedBinaryResultBinaryAssetReference(data []byte) bool {
 	var rawGroup0 struct {
 		AssetID       json.RawMessage `json:"assetId"`
 		ByteLength    json.RawMessage `json:"byteLength"`
@@ -965,7 +965,7 @@ func matchesBinaryAssetReference(data []byte) bool {
 	return rawGroup0.OmittedReason == nil
 }
 
-func matchesOmittedBinaryResult(data []byte) bool {
+func matchesPersistedBinaryResultOmittedBinaryResult(data []byte) bool {
 	var rawGroup0 struct {
 		AssetID       json.RawMessage `json:"assetId"`
 		ByteLength    json.RawMessage `json:"byteLength"`
@@ -987,7 +987,7 @@ func matchesOmittedBinaryResult(data []byte) bool {
 	return rawGroup0.Data == nil
 }
 
-func matchesPersistedBinaryImage(data []byte) bool {
+func matchesPersistedBinaryResultPersistedBinaryImage(data []byte) bool {
 	var rawGroup0 struct {
 		AssetID       json.RawMessage `json:"assetId"`
 		ByteLength    json.RawMessage `json:"byteLength"`
@@ -1023,21 +1023,21 @@ func unmarshalPersistedBinaryResult(data []byte) (PersistedBinaryResult, error) 
 
 	switch raw.Type {
 	case PersistedBinaryResultTypeImage:
-		if matchesBinaryAssetReference(data) {
+		if matchesPersistedBinaryResultBinaryAssetReference(data) {
 			var d BinaryAssetReference
 			if err := json.Unmarshal(data, &d); err != nil {
 				return nil, err
 			}
 			return &d, nil
 		}
-		if matchesOmittedBinaryResult(data) {
+		if matchesPersistedBinaryResultOmittedBinaryResult(data) {
 			var d OmittedBinaryResult
 			if err := json.Unmarshal(data, &d); err != nil {
 				return nil, err
 			}
 			return &d, nil
 		}
-		if matchesPersistedBinaryImage(data) {
+		if matchesPersistedBinaryResultPersistedBinaryImage(data) {
 			var d PersistedBinaryImage
 			if err := json.Unmarshal(data, &d); err != nil {
 				return nil, err
@@ -1046,21 +1046,21 @@ func unmarshalPersistedBinaryResult(data []byte) (PersistedBinaryResult, error) 
 		}
 		return &RawPersistedBinaryResult{Discriminator: raw.Type, Raw: data}, nil
 	case PersistedBinaryResultTypeResource:
-		if matchesBinaryAssetReference(data) {
+		if matchesPersistedBinaryResultBinaryAssetReference(data) {
 			var d BinaryAssetReference
 			if err := json.Unmarshal(data, &d); err != nil {
 				return nil, err
 			}
 			return &d, nil
 		}
-		if matchesOmittedBinaryResult(data) {
+		if matchesPersistedBinaryResultOmittedBinaryResult(data) {
 			var d OmittedBinaryResult
 			if err := json.Unmarshal(data, &d); err != nil {
 				return nil, err
 			}
 			return &d, nil
 		}
-		if matchesPersistedBinaryImage(data) {
+		if matchesPersistedBinaryResultPersistedBinaryImage(data) {
 			var d PersistedBinaryImage
 			if err := json.Unmarshal(data, &d); err != nil {
 				return nil, err

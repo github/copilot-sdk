@@ -1621,7 +1621,13 @@ export class CopilotSession {
         }
         try {
             const result = await this.elicitationHandler(context);
-            await this.rpc.ui.handlePendingElicitation({ requestId, result });
+            await this.rpc.ui.handlePendingElicitation({
+                requestId,
+                result: {
+                    action: result.action,
+                    ...(result.content ? { content: result.content } : {}),
+                },
+            });
         } catch {
             // Handler failed — attempt to cancel so the request doesn't hang
             try {

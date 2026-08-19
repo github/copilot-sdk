@@ -2720,14 +2720,23 @@ export async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSO
     const resolvedPath = schemaPath ?? (await getApiSchemaPath());
     handWrittenCSharpTypeNames = await collectHandWrittenCSharpTypeNames();
     let schema = fixNullableRequiredRefsInApiSchema(cloneSchemaForCodegen((await loadSchemaJson(resolvedPath)) as ApiSchema));
+    let sessionEventsCode: string | undefined;
     if (sessionEventsSchema) {
+        sessionEventsCode = generateSessionEventsCode(sessionEventsSchema);
         const sharedDefinitions = findSharedSchemaDefinitions(
             schema as unknown as Record<string, unknown>,
             sessionEventsSchema as unknown as Record<string, unknown>
         );
         const reachableDefinitions = collectReachableDefinitionNames(sessionEventsSchema as unknown as Record<string, unknown>);
         for (const name of [...sharedDefinitions]) {
-            if (!reachableDefinitions.has(name)) {
+            const typeName = typeToClassName(name);
+            const declarationPattern = new RegExp(
+                `\\bpublic\\s+(?:(?:sealed|abstract|partial|readonly)\\s+)*(?:class|struct|enum)\\s+${typeName}\\b`
+            );
+            if (
+                !reachableDefinitions.has(name) ||
+                (!declarationPattern.test(sessionEventsCode) && !handWrittenCSharpTypeNames.has(typeName))
+            ) {
                 sharedDefinitions.delete(name);
             }
         }
@@ -2735,8 +2744,7 @@ export async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSO
     }
     const externalJsonSerializableRefs = new Map<string, Set<string>>();
     const externalValueTypes = new Set<string>();
-    if (sessionEventsSchema) {
-        const sessionEventsCode = generateSessionEventsCode(sessionEventsSchema);
+    if (sessionEventsSchema && sessionEventsCode) {
         const externalRefs = collectExternalSchemaRefNames(schema);
         const sessionEventRefs = externalRefs.get("session-events.schema.json");
         if (sessionEventRefs && sessionEventRefs.size > 0) {

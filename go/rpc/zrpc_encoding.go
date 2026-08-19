@@ -938,7 +938,7 @@ func (r ExternalToolTextResultForLlmContentImage) MarshalJSON() ([]byte, error) 
 	})
 }
 
-func matchesEmbeddedBlobResourceContents(data []byte) bool {
+func matchesExternalToolTextResultForLlmContentResourceDetailsEmbeddedBlobResourceContents(data []byte) bool {
 	var rawGroup0 struct {
 		Blob json.RawMessage `json:"blob"`
 		Text json.RawMessage `json:"text"`
@@ -952,7 +952,7 @@ func matchesEmbeddedBlobResourceContents(data []byte) bool {
 	return rawGroup0.Text == nil
 }
 
-func matchesEmbeddedTextResourceContents(data []byte) bool {
+func matchesExternalToolTextResultForLlmContentResourceDetailsEmbeddedTextResourceContents(data []byte) bool {
 	var rawGroup0 struct {
 		Blob json.RawMessage `json:"blob"`
 		Text json.RawMessage `json:"text"`
@@ -970,14 +970,14 @@ func unmarshalExternalToolTextResultForLlmContentResourceDetails(data []byte) (E
 	if string(data) == "null" {
 		return nil, nil
 	}
-	if matchesEmbeddedBlobResourceContents(data) {
+	if matchesExternalToolTextResultForLlmContentResourceDetailsEmbeddedBlobResourceContents(data) {
 		var d EmbeddedBlobResourceContents
 		if err := json.Unmarshal(data, &d); err != nil {
 			return nil, err
 		}
 		return &d, nil
 	}
-	if matchesEmbeddedTextResourceContents(data) {
+	if matchesExternalToolTextResultForLlmContentResourceDetailsEmbeddedTextResourceContents(data) {
 		var d EmbeddedTextResourceContents
 		if err := json.Unmarshal(data, &d); err != nil {
 			return nil, err
@@ -1365,7 +1365,7 @@ func (r *InstalledPluginSource) UnmarshalJSON(data []byte) error {
 	return errors.New("data did not match any union variant for InstalledPluginSource")
 }
 
-func matchesMCPServerConfigHTTP(data []byte) bool {
+func matchesMCPSerializableServerConfigMCPServerConfigHTTP(data []byte) bool {
 	var rawGroup0 struct {
 		Command json.RawMessage `json:"command"`
 		URL     json.RawMessage `json:"url"`
@@ -1379,7 +1379,7 @@ func matchesMCPServerConfigHTTP(data []byte) bool {
 	return rawGroup0.Command == nil
 }
 
-func matchesMCPServerConfigStdio(data []byte) bool {
+func matchesMCPSerializableServerConfigMCPServerConfigStdio(data []byte) bool {
 	var rawGroup0 struct {
 		Command json.RawMessage `json:"command"`
 		URL     json.RawMessage `json:"url"`
@@ -1397,14 +1397,14 @@ func unmarshalMCPSerializableServerConfig(data []byte) (MCPSerializableServerCon
 	if string(data) == "null" {
 		return nil, nil
 	}
-	if matchesMCPServerConfigHTTP(data) {
+	if matchesMCPSerializableServerConfigMCPServerConfigHTTP(data) {
 		var d MCPServerConfigHTTP
 		if err := json.Unmarshal(data, &d); err != nil {
 			return nil, err
 		}
 		return &d, nil
 	}
-	if matchesMCPServerConfigStdio(data) {
+	if matchesMCPSerializableServerConfigMCPServerConfigStdio(data) {
 		var d MCPServerConfigStdio
 		if err := json.Unmarshal(data, &d); err != nil {
 			return nil, err
@@ -5065,7 +5065,7 @@ func unmarshalUIElicitationFieldValue(data []byte) (UIElicitationFieldValue, err
 	return nil, errors.New("data did not match any union variant for UIElicitationFieldValue")
 }
 
-func matchesUIElicitationArrayAnyOfField(data []byte) bool {
+func matchesUIElicitationSchemaPropertyUIElicitationArrayAnyOfField(data []byte) bool {
 	var rawGroup0 struct {
 		Items json.RawMessage `json:"items"`
 	}
@@ -5092,7 +5092,7 @@ func matchesUIElicitationArrayAnyOfField(data []byte) bool {
 	return rawGroup0Items.Type == nil
 }
 
-func matchesUIElicitationArrayEnumField(data []byte) bool {
+func matchesUIElicitationSchemaPropertyUIElicitationArrayEnumField(data []byte) bool {
 	var rawGroup0 struct {
 		Items json.RawMessage `json:"items"`
 	}
@@ -5142,7 +5142,7 @@ func matchesUIElicitationSchemaPropertyString(data []byte) bool {
 	return rawGroup0.OneOf == nil
 }
 
-func matchesUIElicitationStringEnumField(data []byte) bool {
+func matchesUIElicitationSchemaPropertyUIElicitationStringEnumField(data []byte) bool {
 	var rawGroup0 struct {
 		Enum  json.RawMessage `json:"enum"`
 		OneOf json.RawMessage `json:"oneOf"`
@@ -5156,7 +5156,7 @@ func matchesUIElicitationStringEnumField(data []byte) bool {
 	return rawGroup0.OneOf == nil
 }
 
-func matchesUIElicitationStringOneOfField(data []byte) bool {
+func matchesUIElicitationSchemaPropertyUIElicitationStringOneOfField(data []byte) bool {
 	var rawGroup0 struct {
 		Enum  json.RawMessage `json:"enum"`
 		OneOf json.RawMessage `json:"oneOf"`
@@ -5184,14 +5184,14 @@ func unmarshalUIElicitationSchemaProperty(data []byte) (UIElicitationSchemaPrope
 
 	switch raw.Type {
 	case UIElicitationSchemaPropertyTypeArray:
-		if matchesUIElicitationArrayAnyOfField(data) {
+		if matchesUIElicitationSchemaPropertyUIElicitationArrayAnyOfField(data) {
 			var d UIElicitationArrayAnyOfField
 			if err := json.Unmarshal(data, &d); err != nil {
 				return nil, err
 			}
 			return &d, nil
 		}
-		if matchesUIElicitationArrayEnumField(data) {
+		if matchesUIElicitationSchemaPropertyUIElicitationArrayEnumField(data) {
 			var d UIElicitationArrayEnumField
 			if err := json.Unmarshal(data, &d); err != nil {
 				return nil, err
@@ -5225,14 +5225,14 @@ func unmarshalUIElicitationSchemaProperty(data []byte) (UIElicitationSchemaPrope
 			}
 			return &d, nil
 		}
-		if matchesUIElicitationStringEnumField(data) {
+		if matchesUIElicitationSchemaPropertyUIElicitationStringEnumField(data) {
 			var d UIElicitationStringEnumField
 			if err := json.Unmarshal(data, &d); err != nil {
 				return nil, err
 			}
 			return &d, nil
 		}
-		if matchesUIElicitationStringOneOfField(data) {
+		if matchesUIElicitationSchemaPropertyUIElicitationStringOneOfField(data) {
 			var d UIElicitationStringOneOfField
 			if err := json.Unmarshal(data, &d); err != nil {
 				return nil, err
