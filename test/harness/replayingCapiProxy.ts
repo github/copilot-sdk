@@ -126,6 +126,7 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
   private startPromise: Promise<string> | null = null;
   private defaultToolResultNormalizers: ToolResultNormalizer[] = [
     { toolName: "*", normalizer: normalizeLargeOutputFilepaths },
+    { toolName: "*", normalizer: normalizeInterruptedToolResult },
     { toolName: "${shell}", normalizer: normalizeShellExitMarkers },
     { toolName: "*", normalizer: normalizeGhAuthMessages },
     { toolName: "*", normalizer: normalizeAvailableToolNames },
@@ -1429,6 +1430,7 @@ function normalizeStoredToolMessages(conversations: NormalizedConversation[]) {
   for (const conversation of conversations) {
     for (const message of conversation.messages) {
       if (message.role === "tool" && typeof message.content === "string") {
+        message.content = normalizeInterruptedToolResult(message.content);
         message.content = normalizeAvailableToolNames(message.content);
         message.content = normalizeBackgroundAgentStartMessage(message.content);
         message.content = normalizeReadAgentResult(message.content);
@@ -1549,6 +1551,13 @@ function normalizeAvailableToolNames(result: string): string {
   return result.replace(
     /(Tool '[^']+' does not exist\.) Available tools that can be called are [^.]*\./g,
     "$1",
+  );
+}
+
+function normalizeInterruptedToolResult(result: string): string {
+  return result.replace(
+    /^Failed to execute `[^`]+` tool(?: with arguments: [\s\S]*?)? due to error: (?:Error: )?Session aborted$/,
+    "The execution of this tool, or a previous tool was interrupted.",
   );
 }
 

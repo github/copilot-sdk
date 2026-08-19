@@ -546,6 +546,48 @@ Always include PINEAPPLE_COCONUT_42.
     expect(toolMessage?.content).toBe("Tool 'report_intent' does not exist.");
   });
 
+  test("normalizes aborted tool execution results", async () => {
+    const requestBody = JSON.stringify({
+      messages: [
+        { role: "user", content: "Run a slow analysis" },
+        {
+          role: "assistant",
+          tool_calls: [
+            {
+              id: "tc1",
+              type: "function",
+              function: {
+                name: "slow_analysis",
+                arguments: '{"value":"test_abort"}',
+              },
+            },
+          ],
+        },
+        {
+          role: "tool",
+          tool_call_id: "tc1",
+          content:
+            'Failed to execute `slow_analysis` tool with arguments: {"value":"test_abort"} due to error: Error: Session aborted',
+        },
+      ],
+    });
+    const responseBody = JSON.stringify({
+      choices: [{ message: { role: "assistant", content: "Done" } }],
+    });
+
+    const outputPath = await createProxy([
+      { url: "/chat/completions", requestBody, responseBody },
+    ]);
+
+    const result = await readYamlOutput(outputPath);
+    const toolMessage = result.conversations[0].messages.find(
+      (m) => m.role === "tool",
+    );
+    expect(toolMessage?.content).toBe(
+      "The execution of this tool, or a previous tool was interrupted.",
+    );
+  });
+
   test("normalizes background agent IDs and removes runtime advisories", async () => {
     const stableResult =
       "Agent started in background with agent_id: background-agent. You'll be notified when it completes. Tell the user you're waiting and end your response, or continue unrelated work until notified.";
