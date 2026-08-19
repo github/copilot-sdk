@@ -1919,6 +1919,12 @@ export class CopilotClient {
             session["_workspacePath"] = workspacePath;
             session.setCapabilities(capabilities);
             session.setOpenCanvases(openCanvases ?? []);
+            if (config.mcpServers) {
+                await this.connection!.sendRequest("session.mcp.reloadWithConfig", {
+                    sessionId,
+                    config: { mcpServers: toWireMcpServers(config.mcpServers) },
+                });
+            }
             if (config.onMcpAuthRequest) {
                 await this.connection!.sendRequest("session.eventLog.registerInterest", {
                     sessionId,

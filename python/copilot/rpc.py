@@ -9,6 +9,8 @@ module is the stable public access point so callers can write
 from .generated.rpc import *  # noqa: F401, F403
 from .generated.rpc import (
     BuiltinToolInputSchemaType as UIElicitationSchemaType,  # noqa: F401
+)
+from .generated.rpc import (
     SessionFsReaddirWithTypesEntryType as SessionFSReaddirWithTypesEntryType,  # noqa: F401
 )
 from .generated.rpc import __all__ as _generated_all

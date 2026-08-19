@@ -111,7 +111,7 @@ public class RpcServerMiscE2ETests(E2ETestFixture fixture, ITestOutputHelper out
                 Assert.Equal(token, account.Token);
             }
 
-            var logout = await client.Rpc.Account.LogoutAsync(authInfo);
+            var logout = await client.Rpc.Account.LogoutAsync(authInfo: authInfo);
             Assert.False(logout.HasMoreUsers);
 
             var afterLogout = await client.Rpc.Account.GetCurrentAuthAsync();
