@@ -102,7 +102,7 @@ transports.
 | `extra_args`        | `Vec<String>`               | Extra CLI flags                                                   |
 | `transport`         | `Transport`                 | `Default`, `Stdio`, `InProcess`, `Tcp`, or `External`             |
 
-With the default `CliProgram::Resolve`, managed stdio and TCP transports resolve an explicit `CliProgram::Path(path)`, `COPILOT_CLI_PATH`, `COPILOT_RUNTIME_PATH`, then the bundled `copilot-runtime` wrapper and adjacent `runtime.node`. In-process transport retains its CLI-entrypoint resolution. There is no PATH scanning.
+With the default `CliProgram::Resolve`, managed stdio and TCP transports resolve an explicit `CliProgram::Path(path)`, `COPILOT_CLI_PATH`, then the bundled `copilot-runtime` wrapper and adjacent `runtime.node`. In-process transport retains its CLI-entrypoint resolution. There is no PATH scanning.
 
 ### Session
 
@@ -863,8 +863,8 @@ github-copilot-sdk = { version = "0.1", default-features = false }
 > **You become responsible for supplying the runtime at deployment.** With
 > `bundled-cli` disabled, the produced binary does not contain these artifacts
 > and will not search the system for them. For managed child-process transports,
-> supply a compatible wrapper pair via `COPILOT_RUNTIME_PATH` or an explicit
-> [`CliProgram::Path`]. `COPILOT_CLI_PATH` remains a direct program override.
+> supply a compatible wrapper pair via an explicit [`CliProgram::Path`].
+> `COPILOT_CLI_PATH` remains a direct program override.
 >
 > **Convenience on the build machine only.** As a special case,
 > `build.rs` downloads and integrity-verifies the compatible CLI version and
@@ -874,7 +874,7 @@ github-copilot-sdk = { version = "0.1", default-features = false }
 > over when you copy the built binary to another machine — distributed
 > builds (release artifacts, signed installers, container images, etc.)
 > must either keep `bundled-cli` enabled or ship the runtime pair and set
-> `CliProgram::Path` / `COPILOT_RUNTIME_PATH`.
+> `CliProgram::Path`.
 
 ### How it works
 
@@ -926,7 +926,7 @@ COPILOT_CLI_EXTRACT_DIR = { value = "vendor/copilot", relative = true, force = t
 
 ### Skipping the bundle entirely
 
-Set `COPILOT_SKIP_CLI_DOWNLOAD=1` at build time to disable the entire download / bundle / cache mechanism — `build.rs` returns immediately without touching the network. Use this when you always supply the managed runtime via `ClientOptions::program = CliProgram::Path(...)` or `COPILOT_RUNTIME_PATH`. Works regardless of the `bundled-cli` feature state; runtime resolution falls through to `Error::BinaryNotFound` unless an applicable explicit source resolves.
+Set `COPILOT_SKIP_CLI_DOWNLOAD=1` at build time to disable the entire download / bundle / cache mechanism — `build.rs` returns immediately without touching the network. Use this when you always supply the managed runtime via `ClientOptions::program = CliProgram::Path(...)`. Works regardless of the `bundled-cli` feature state; runtime resolution falls through to `Error::BinaryNotFound` unless an applicable explicit source resolves.
 
 ### Resolution priority
 
@@ -934,13 +934,12 @@ For managed child-process transports, `Client::start` resolves the program in th
 
 1. Explicit `CliProgram::Path(path)` on `ClientOptions::program`.
 2. `COPILOT_CLI_PATH` environment variable, if it points at a real file.
-3. `COPILOT_RUNTIME_PATH`, validated as a wrapper with adjacent `runtime.node`.
-4. **`bundled-cli` on:** the embedded wrapper pair, lazily extracted on first call.
-5. **`bundled-cli` off:** the build-time-extracted wrapper pair in the per-user cache.
+3. **`bundled-cli` on:** the embedded wrapper pair, lazily extracted on first call.
+4. **`bundled-cli` off:** the build-time-extracted wrapper pair in the per-user cache.
 
-In-process transport ignores `COPILOT_RUNTIME_PATH` and resolves the compatible
-CLI artifact from `COPILOT_CLI_PATH`, the embedded archive, or the build-time
-cache. There is no PATH scanning.
+In-process transport resolves the compatible CLI artifact from
+`COPILOT_CLI_PATH`, the embedded archive, or the build-time cache. There is no
+PATH scanning.
 
 ### Reaching the bundled binary without a `Client`
 

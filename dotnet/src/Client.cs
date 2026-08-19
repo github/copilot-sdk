@@ -2218,21 +2218,16 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         var useStdio = _connection is StdioRuntimeConnection;
 
         // Explicit CLI paths preserve the legacy launch contract. Otherwise use
-        // the Rust wrapper from COPILOT_RUNTIME_PATH or the bundled native pair.
+        // the bundled native runtime pair.
         var configuredEnvironment = childProcessConnection.Environment ?? options.Environment;
         var envCliPath = configuredEnvironment is not null
             ? configuredEnvironment.TryGetValue("COPILOT_CLI_PATH", out var configuredCliPath) ? configuredCliPath : null
             : System.Environment.GetEnvironmentVariable("COPILOT_CLI_PATH");
-        var envRuntimePath =
-            (configuredEnvironment is not null && configuredEnvironment.TryGetValue("COPILOT_RUNTIME_PATH", out var configuredRuntimePath) ? configuredRuntimePath : null)
-            ?? System.Environment.GetEnvironmentVariable("COPILOT_RUNTIME_PATH");
         var launch = childProcessConnection.Path is not null
             ? new RuntimeLaunch(childProcessConnection.Path, "Options")
             : envCliPath is not null
                 ? new RuntimeLaunch(envCliPath, "Environment")
-                : envRuntimePath is not null
-                    ? ValidateRuntimePair(envRuntimePath, "Runtime environment")
-                    : GetBundledRuntimeLaunch();
+                : GetBundledRuntimeLaunch();
         var cliPath = launch.Executable;
         var cliPathSource = launch.Source;
         var args = new List<string>();

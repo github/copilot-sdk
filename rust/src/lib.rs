@@ -180,9 +180,8 @@ pub enum Transport {
 #[derive(Debug, Clone, Default)]
 pub enum CliProgram {
     /// Auto-resolve the transport's program. Managed child-process transports
-    /// select `COPILOT_CLI_PATH`, then `COPILOT_RUNTIME_PATH`, then the bundled
-    /// runtime wrapper. In-process transport selects the compatible CLI
-    /// entrypoint. This is the default.
+    /// select `COPILOT_CLI_PATH`, then the bundled runtime wrapper. In-process
+    /// transport selects the compatible CLI entrypoint. This is the default.
     #[default]
     Resolve,
     /// Use an explicit binary path (skips resolution).
@@ -238,10 +237,10 @@ pub fn install_bundled_cli() -> Option<PathBuf> {
 ///
 /// When `program` is [`CliProgram::Resolve`] (the default), [`Client::start`]
 /// uses `COPILOT_CLI_PATH` when set to a real file. Managed child-process
-/// transports next use `COPILOT_RUNTIME_PATH`, then the bundled
-/// `copilot-runtime` wrapper. In-process transport uses the compatible bundled
-/// CLI entrypoint. With `bundled-cli` disabled, the corresponding artifact is
-/// resolved from the build-time extraction cache.
+/// transports next use the bundled `copilot-runtime` wrapper. In-process
+/// transport uses the compatible bundled CLI entrypoint. With `bundled-cli`
+/// disabled, the corresponding artifact is resolved from the build-time
+/// extraction cache.
 ///
 /// Set `program` to [`CliProgram::Path`] to use an explicit binary instead.
 /// This skips auto-resolution entirely.

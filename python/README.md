@@ -55,7 +55,6 @@ use of the in-process transport.
 | Variable | Description |
 |----------|-------------|
 | `COPILOT_CLI_PATH` | Use this specific binary instead of downloading |
-| `COPILOT_RUNTIME_PATH` | Use this `copilot-runtime` executable and its adjacent `runtime.node` for managed child-process connections |
 | `COPILOT_CLI_EXTRACT_DIR` | Override the cache directory (binary placed directly here) |
 | `COPILOT_SKIP_CLI_DOWNLOAD` | Set to `1` to disable auto-download |
 | `COPILOT_CLI_DOWNLOAD_BASE_URL` | Override the GitHub Releases download URL |
@@ -227,7 +226,7 @@ All options are kw-only parameters:
 
 Managed stdio and TCP connections use the downloaded `copilot-runtime` executable
 and its adjacent `runtime.node` by default. An explicit connection path or
-`COPILOT_CLI_PATH` takes precedence over `COPILOT_RUNTIME_PATH`.
+`COPILOT_CLI_PATH` overrides the downloaded runtime.
 
 Child-process connections (`for_stdio`/`for_tcp`) also expose a per-connection
 `env` field for the spawned process. Set it on the returned connection instead of

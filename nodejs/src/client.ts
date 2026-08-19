@@ -455,11 +455,7 @@ function validateRuntimePair(runtimePath: string): string {
     return runtimePath;
 }
 
-function getBundledRuntimePath(overridePath?: string): string {
-    if (overridePath) {
-        return validateRuntimePair(overridePath);
-    }
-
+function getBundledRuntimePath(): string {
     const packageNames = getCliPlatformPackageNames();
     const req = createRequire(__filename);
     const searchPaths = req.resolve.paths("@github/copilot") ?? [];
@@ -477,7 +473,7 @@ function getBundledRuntimePath(overridePath?: string): string {
     throw new Error(
         `Could not find the Copilot runtime wrapper in a platform package (tried ${packageNames.join(", ")}). ` +
             `Searched ${searchPaths.length} paths. ` +
-            `Ensure @github/copilot is installed, or set COPILOT_RUNTIME_PATH.`
+            `Ensure @github/copilot is installed, or supply an explicit runtime path in the connection configuration.`
     );
 }
 
@@ -806,9 +802,7 @@ export class CopilotClient {
             if (explicitCliPath) {
                 this.resolvedCliPath = explicitCliPath;
             } else {
-                this.resolvedCliPath = getBundledRuntimePath(
-                    effectiveEnv.COPILOT_RUNTIME_PATH ?? process.env.COPILOT_RUNTIME_PATH
-                );
+                this.resolvedCliPath = getBundledRuntimePath();
             }
         }
 

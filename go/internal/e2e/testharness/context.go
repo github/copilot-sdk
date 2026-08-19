@@ -20,8 +20,8 @@ var (
 	cliPathOnce sync.Once
 )
 
-// PackageCLIPath returns the CLI entrypoint used by direct and in-process E2E tests.
-func PackageCLIPath() string {
+// CLIPath returns the CLI entrypoint used by direct and in-process E2E tests.
+func CLIPath() string {
 	cliPathOnce.Do(func() {
 		// Check environment variable first
 		if path := os.Getenv("COPILOT_CLI_PATH"); path != "" {
@@ -41,14 +41,6 @@ func PackageCLIPath() string {
 		}
 	})
 	return cliPath
-}
-
-// CLIPath returns the out-of-process runtime path used by E2E tests.
-func CLIPath() string {
-	if path := os.Getenv("COPILOT_RUNTIME_PATH"); path != "" {
-		return path
-	}
-	return PackageCLIPath()
 }
 
 // TestContext holds shared resources for E2E tests.
@@ -289,7 +281,7 @@ func (c *TestContext) applyInProcessEnvironment(mergedEnv []string, workDir stri
 	// inherited values. The HMAC key is neutralized process-wide at package load.
 	inprocessEnv["GH_TOKEN"] = defaultGitHubToken
 	inprocessEnv["GITHUB_TOKEN"] = defaultGitHubToken
-	inprocessEnv["COPILOT_CLI_PATH"] = PackageCLIPath()
+	inprocessEnv["COPILOT_CLI_PATH"] = CLIPath()
 	delete(inprocessEnv, "COPILOT_HMAC_KEY")
 	delete(inprocessEnv, "CAPI_HMAC_KEY")
 

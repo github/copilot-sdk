@@ -5,11 +5,9 @@
 //! 1. An explicit path supplied by the application via
 //!    [`CliProgram::Path`](crate::CliProgram::Path).
 //! 2. The `COPILOT_CLI_PATH` environment variable.
-//! 3. For managed child-process transports, the `COPILOT_RUNTIME_PATH`
-//!    environment variable.
-//! 4. The bundled program embedded in this crate at build time (when the
+//! 3. The bundled program embedded in this crate at build time (when the
 //!    `bundled-cli` cargo feature is on, the default).
-//! 5. The build-time-extracted program in the per-user cache (when
+//! 4. The build-time-extracted program in the per-user cache (when
 //!    `bundled-cli` is off).
 //!
 //! There is no PATH scanning and no walking of standard install locations.
@@ -48,14 +46,6 @@ pub(crate) fn copilot_binary_with_extract_dir(
             path = %candidate.display(),
             "COPILOT_CLI_PATH is set but does not point to a file; falling back"
         );
-    }
-
-    if use_runtime_wrapper
-        && let Ok(value) = env::var("COPILOT_RUNTIME_PATH")
-    {
-        let candidate = PathBuf::from(&value);
-        validate_runtime_pair(&candidate)?;
-        return Ok(candidate);
     }
 
     #[cfg(feature = "bundled-cli")]
@@ -97,9 +87,8 @@ pub(crate) fn copilot_binary_with_extract_dir(
         hint: Some(
             "the Copilot CLI is not bundled in this build of github-copilot-sdk and \
              no applicable path override is set. Either keep the default `bundled-cli` cargo \
-             feature enabled, set COPILOT_CLI_PATH (or COPILOT_RUNTIME_PATH for managed \
-             child-process transports), or supply an explicit path via `CliProgram::Path(...)` \
-             on `ClientOptions::program`."
+             feature enabled, set COPILOT_CLI_PATH, or supply an explicit path via \
+             `CliProgram::Path(...)` on `ClientOptions::program`."
                 .into(),
         ),
     }
@@ -202,7 +191,7 @@ fn validate_runtime_pair(wrapper: &Path) -> Result<(), Error> {
         return Ok(());
     }
     let detail = format!(
-        "COPILOT_RUNTIME_PATH must point to a non-empty wrapper with an adjacent non-empty runtime.node; checked '{}' and '{}'",
+        "The runtime wrapper and its adjacent runtime.node must both be non-empty files; checked '{}' and '{}'",
         wrapper.display(),
         runtime_node.display()
     );
@@ -255,7 +244,7 @@ mod tests {
     use super::validate_runtime_pair;
 
     #[test]
-    fn runtime_override_requires_adjacent_nonempty_runtime_node() {
+    fn runtime_pair_requires_adjacent_nonempty_runtime_node() {
         let dir = tempdir().expect("temp dir");
         let wrapper = dir.path().join(if cfg!(windows) {
             "copilot-runtime.exe"

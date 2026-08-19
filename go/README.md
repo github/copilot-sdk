@@ -195,7 +195,7 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
   - `URIConnection{URL, ConnectionToken}` — connect to an already-running runtime (no process spawned)
   - `InProcessConnection{}` — **Experimental.** Host the runtime in-process via the native FFI library instead of spawning a child process. See [In-process transport](#in-process-transport-experimental) below.
 
-  When `Path` is empty for stdio/tcp, the SDK uses `COPILOT_CLI_PATH` when set, then `COPILOT_RUNTIME_PATH`, then the bundled `copilot-runtime` and adjacent `runtime.node`.
+  When `Path` is empty for stdio/tcp, the SDK uses `COPILOT_CLI_PATH` when set, then the bundled `copilot-runtime` and adjacent `runtime.node`.
 
   `StdioConnection` and `TCPConnection` accept an optional connection-level `Env`. Set environment variables via **either** the client-level `Env` option or the connection's `Env`, not both (setting both panics); prefer the connection-level `Env`.
 - `WorkingDirectory` (string): Working directory for the runtime process (default: current process working directory)
@@ -998,7 +998,6 @@ Communicates with CLI via TCP socket. Useful for distributed scenarios.
 ## Environment Variables
 
 - `COPILOT_CLI_PATH` - Path to the Copilot CLI executable
-- `COPILOT_RUNTIME_PATH` - Path to a `copilot-runtime` executable with adjacent `runtime.node` for managed child-process connections
 
 ## Development
 

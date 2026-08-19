@@ -102,8 +102,8 @@ new CopilotClient(CopilotClientOptions? options = null)
 - `RuntimeConnection.ForUri(url, connectionToken?)` — connects to an already-running runtime at `url` (e.g., `"localhost:8080"`). Does not spawn a process.
 
 Managed stdio and TCP connections use the bundled `copilot-runtime[.exe]` and
-adjacent `runtime.node` by default. Set `COPILOT_RUNTIME_PATH` to override that
-pair; an explicit connection path or `COPILOT_CLI_PATH` takes precedence.
+adjacent `runtime.node` by default. An explicit connection path or
+`COPILOT_CLI_PATH` overrides the bundled runtime.
 
 #### Methods
 

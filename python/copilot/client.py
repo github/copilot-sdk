@@ -20,7 +20,6 @@ import logging
 import os
 import re
 import shutil
-import stat
 import subprocess
 import sys
 import threading
@@ -29,7 +28,6 @@ import uuid
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from pathlib import Path
 from types import TracebackType
 from typing import Any, ClassVar, Literal, NotRequired, TypedDict, cast, overload
 
@@ -1754,13 +1752,6 @@ class CopilotClient:
             self._cli_path_source = "environment"
             return self._ensure_runtime_lib(env_cli_path) if include_runtime_lib else env_cli_path
 
-        runtime_override = lookup.get("COPILOT_RUNTIME_PATH") or os.environ.get(
-            "COPILOT_RUNTIME_PATH"
-        )
-        if runtime_override and not include_runtime_lib:
-            self._cli_path_source = "runtime environment"
-            return self._validate_runtime_pair(runtime_override)
-
         if not include_runtime_lib:
             from ._cli_download import ensure_runtime_wrapper
 
@@ -1779,23 +1770,6 @@ class CopilotClient:
             "RuntimeConnection.for_stdio(path=...) / "
             "RuntimeConnection.for_tcp(path=...)."
         )
-
-    @staticmethod
-    def _validate_runtime_pair(runtime_path: str) -> str:
-        wrapper = Path(runtime_path)
-        runtime_node = wrapper.parent / "runtime.node"
-        if not wrapper.is_file() or wrapper.stat().st_size == 0:
-            raise RuntimeError(f"Copilot runtime wrapper not found or empty at {wrapper}")
-        if not runtime_node.is_file() or runtime_node.stat().st_size == 0:
-            raise RuntimeError(
-                f"Copilot runtime wrapper at {wrapper} is missing its adjacent "
-                f"runtime.node at {runtime_node}"
-            )
-        if sys.platform != "win32":
-            mode = wrapper.stat().st_mode
-            if mode & (stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH) == 0:
-                wrapper.chmod(mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
-        return str(wrapper)
 
     @staticmethod
     def _ensure_runtime_lib(cli_path: str) -> str:

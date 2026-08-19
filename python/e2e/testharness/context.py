@@ -96,18 +96,7 @@ def get_cli_path_for_tests() -> str:
     )
 
 
-def get_runtime_path_for_tests() -> str:
-    """Get the managed out-of-process runtime path used by E2E tests."""
-    runtime_path = os.environ.get("COPILOT_RUNTIME_PATH")
-    if runtime_path:
-        path = Path(runtime_path)
-        if not path.exists():
-            raise RuntimeError(f"COPILOT_RUNTIME_PATH does not exist: {runtime_path}")
-        return str(path.resolve())
-    return get_cli_path_for_tests()
-
-
-CLI_PATH = get_runtime_path_for_tests()
+CLI_PATH = get_cli_path_for_tests()
 SNAPSHOTS_DIR = Path(__file__).parents[3] / "test" / "snapshots"
 DEFAULT_GITHUB_TOKEN = "fake-token-for-e2e-tests"
 

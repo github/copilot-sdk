@@ -82,7 +82,6 @@
   -->
   <PropertyGroup>
     <_CopilotCliBinaryPath Condition="'$(CopilotCliBinaryPath)' != ''">$(CopilotCliBinaryPath)</_CopilotCliBinaryPath>
-    <_CopilotRuntimeWrapperPath Condition="'$(CopilotRuntimePath)' != ''">$(CopilotRuntimePath)</_CopilotRuntimeWrapperPath>
   </PropertyGroup>
 
   <!-- Download and extract CLI binary.
@@ -138,11 +137,8 @@
            shared-library name next to the CLI binary. -->
       <_CopilotRuntimeNodePath>$(_CopilotCacheDir)\prebuilds\$(_CopilotPlatform)\runtime.node</_CopilotRuntimeNodePath>
       <_CopilotRuntimeWrapperPath Condition="'$(_CopilotRuntimeWrapperPath)' == ''">$(_CopilotCacheDir)\prebuilds\$(_CopilotPlatform)\$(_CopilotRuntimeWrapper)</_CopilotRuntimeWrapperPath>
-      <_CopilotRuntimeNodePath Condition="'$(CopilotRuntimePath)' != ''">$([System.IO.Path]::Combine($([System.IO.Path]::GetDirectoryName('$(CopilotRuntimePath)')), 'runtime.node'))</_CopilotRuntimeNodePath>
     </PropertyGroup>
     <Error Condition="!Exists('$(_CopilotCliBinaryPath)')" Text="Copilot CLI binary not found at '$(_CopilotCliBinaryPath)'. Set CopilotCliBinaryPath to an existing CLI binary for the current RID, or remove CopilotSkipCliDownload=true to let the SDK download it." />
-    <Error Condition="'$(CopilotRuntimePath)' != '' And !Exists('$(_CopilotRuntimeWrapperPath)')" Text="Copilot runtime wrapper not found at '$(_CopilotRuntimeWrapperPath)'." />
-    <Error Condition="'$(CopilotRuntimePath)' != '' And !Exists('$(_CopilotRuntimeNodePath)')" Text="Copilot runtime wrapper requires adjacent runtime.node at '$(_CopilotRuntimeNodePath)'." />
     <MakeDir Directories="$(_CopilotOutputDir)" />
     <Copy SourceFiles="$(_CopilotCliBinaryPath)" DestinationFiles="$(_CopilotOutputDir)\$(_CopilotBinary)" SkipUnchangedFiles="true" />
     <Copy SourceFiles="$(_CopilotRuntimeNodePath)" DestinationFiles="$(_CopilotOutputDir)\$(_CopilotRuntimeLib)" SkipUnchangedFiles="true" Condition="Exists('$(_CopilotRuntimeNodePath)')" />
@@ -160,7 +156,6 @@
       <_CopilotCliBinaryPath Condition="'$(_CopilotCliBinaryPath)' == ''">$(_CopilotCacheDir)\$(_CopilotBinary)</_CopilotCliBinaryPath>
       <_CopilotRuntimeNodePath>$(_CopilotCacheDir)\prebuilds\$(_CopilotPlatform)\runtime.node</_CopilotRuntimeNodePath>
       <_CopilotRuntimeWrapperPath Condition="'$(_CopilotRuntimeWrapperPath)' == ''">$(_CopilotCacheDir)\prebuilds\$(_CopilotPlatform)\$(_CopilotRuntimeWrapper)</_CopilotRuntimeWrapperPath>
-      <_CopilotRuntimeNodePath Condition="'$(CopilotRuntimePath)' != ''">$([System.IO.Path]::Combine($([System.IO.Path]::GetDirectoryName('$(CopilotRuntimePath)')), 'runtime.node'))</_CopilotRuntimeNodePath>
     </PropertyGroup>
     <Error Condition="!Exists('$(_CopilotCliBinaryPath)')" Text="Copilot CLI binary not found at '$(_CopilotCliBinaryPath)'. Set CopilotCliBinaryPath to an existing CLI binary for the current RID, or remove CopilotSkipCliDownload=true to let the SDK download it." />
     <ItemGroup>

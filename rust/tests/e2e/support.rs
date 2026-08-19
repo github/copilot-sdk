@@ -1171,15 +1171,6 @@ fn repo_root() -> PathBuf {
 }
 
 fn cli_path(repo_root: &Path) -> std::io::Result<PathBuf> {
-    if !is_inprocess_default()
-        && let Some(path) = std::env::var_os("COPILOT_RUNTIME_PATH")
-    {
-        let path = PathBuf::from(path);
-        if path.exists() {
-            return Ok(path);
-        }
-    }
-
     if let Some(path) = std::env::var_os("COPILOT_CLI_PATH") {
         let path = PathBuf::from(path);
         if path.exists() {

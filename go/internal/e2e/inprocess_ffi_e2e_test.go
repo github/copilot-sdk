@@ -26,7 +26,7 @@ func TestInProcessFfiE2E(t *testing.T) {
 		t.Skip("in-process FFI smoke test runs only under the inprocess transport cell")
 	}
 
-	cliPath := testharness.PackageCLIPath()
+	cliPath := testharness.CLIPath()
 	if cliPath == "" {
 		t.Fatal("CLI not found. Run 'npm install' in the nodejs directory first.")
 	}

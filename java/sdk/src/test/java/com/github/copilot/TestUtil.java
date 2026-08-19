@@ -36,8 +36,7 @@ public final class TestUtil {
      * <p>
      * Resolution order:
      * <ol>
-     * <li>Use the {@code COPILOT_RUNTIME_PATH} environment variable when set.</li>
-     * <li>Otherwise use {@code COPILOT_CLI_PATH} when set.</li>
+     * <li>Use {@code COPILOT_CLI_PATH} when set.</li>
      * <li>Otherwise search the system PATH using {@code where.exe} (Windows) or
      * {@code which} (Linux/macOS).</li>
      * <li>Finally, walk parent directories looking for
@@ -56,11 +55,6 @@ public final class TestUtil {
      *         {@code null} if none was found
      */
     static String findCliPath() {
-        String runtimePath = System.getenv("COPILOT_RUNTIME_PATH");
-        if (runtimePath != null && !runtimePath.isEmpty()) {
-            return runtimePath;
-        }
-
         String envPath = System.getenv("COPILOT_CLI_PATH");
         if (envPath != null && !envPath.isEmpty()) {
             return envPath;

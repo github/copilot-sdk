@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { EventEmitter } from "node:events";
 import { PassThrough } from "stream";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
@@ -60,33 +60,6 @@ describe("approveAll", () => {
 });
 
 describe("CopilotClient", () => {
-    it("resolves COPILOT_RUNTIME_PATH only when runtime.node is adjacent", () => {
-        const dir = mkdtempSync(join(tmpdir(), "copilot-runtime-pair-"));
-        const wrapper = join(
-            dir,
-            process.platform === "win32" ? "copilot-runtime.exe" : "copilot-runtime"
-        );
-        writeFileSync(wrapper, "wrapper");
-        writeFileSync(join(dir, "runtime.node"), "runtime");
-
-        const client = new CopilotClient({ env: { COPILOT_RUNTIME_PATH: wrapper } });
-
-        expect((client as any).resolvedCliPath).toBe(wrapper);
-    });
-
-    it("rejects a COPILOT_RUNTIME_PATH without runtime.node", () => {
-        const dir = mkdtempSync(join(tmpdir(), "copilot-runtime-missing-node-"));
-        const wrapper = join(
-            dir,
-            process.platform === "win32" ? "copilot-runtime.exe" : "copilot-runtime"
-        );
-        writeFileSync(wrapper, "wrapper");
-
-        expect(() => new CopilotClient({ env: { COPILOT_RUNTIME_PATH: wrapper } })).toThrow(
-            /adjacent runtime\.node/
-        );
-    });
-
     async function startWithMockConnection(
         builtinPluginDirectories?: readonly string[]
     ): Promise<ReturnType<typeof vi.fn>> {

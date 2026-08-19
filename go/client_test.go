@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
-	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -24,49 +23,6 @@ import (
 )
 
 // This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.test.go instead
-
-func TestRuntimeOverrideRequiresAdjacentRuntimeNode(t *testing.T) {
-	dir := t.TempDir()
-	wrapperName := "copilot-runtime"
-	if runtime.GOOS == "windows" {
-		wrapperName += ".exe"
-	}
-	wrapper := filepath.Join(dir, wrapperName)
-	wrapperMode := os.FileMode(0755)
-	if runtime.GOOS != "windows" {
-		wrapperMode = 0644
-	}
-	if err := os.WriteFile(wrapper, []byte("wrapper"), wrapperMode); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := validateRuntimePair(wrapper); err == nil || !strings.Contains(err.Error(), "adjacent runtime.node") {
-		t.Fatalf("expected missing runtime.node error, got %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "runtime.node"), []byte("runtime"), 0644); err != nil {
-		t.Fatal(err)
-	}
-	if err := validateRuntimePair(wrapper); err != nil {
-		t.Fatalf("validateRuntimePair() error = %v", err)
-	}
-	if runtime.GOOS != "windows" {
-		info, err := os.Stat(wrapper)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if info.Mode().Perm()&0111 == 0 {
-			t.Fatal("validateRuntimePair() did not make the wrapper executable")
-		}
-	}
-
-	client := NewClient(&ClientOptions{
-		Connection: StdioConnection{},
-		Env:        []string{"COPILOT_RUNTIME_PATH=" + wrapper},
-	})
-	if client.cliPath != wrapper || !client.runtimeWrapper {
-		t.Fatalf("runtime override was not selected: path=%q wrapper=%v", client.cliPath, client.runtimeWrapper)
-	}
-}
 
 func TestClient_URLParsing(t *testing.T) {
 	t.Run("should parse port-only URL format", func(t *testing.T) {

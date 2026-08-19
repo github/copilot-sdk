@@ -11,7 +11,6 @@ import java.io.InputStreamReader;
 import java.net.Socket;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -322,32 +321,8 @@ final class CliServerManager {
             return new RuntimeLaunch(options.getCliPath());
         }
 
-        String runtimePath = options.getEnvironment() == null
-                ? null
-                : options.getEnvironment().get("COPILOT_RUNTIME_PATH");
-        if (runtimePath == null || runtimePath.isBlank()) {
-            runtimePath = System.getenv("COPILOT_RUNTIME_PATH");
-        }
-        if (runtimePath == null || runtimePath.isBlank()) {
-            Path wrapper = NativeRuntimeLoader.resolveRuntimeWrapper();
-            return new RuntimeLaunch(wrapper.toString());
-        }
-
-        Path wrapper = Path.of(runtimePath);
-        Path runtimeNode = wrapper.resolveSibling("runtime.node");
-        if (!isNonEmptyFile(wrapper) || !isNonEmptyFile(runtimeNode)) {
-            throw new IOException("COPILOT_RUNTIME_PATH must point to a non-empty wrapper with an adjacent "
-                    + "non-empty runtime.node; checked " + wrapper + " and " + runtimeNode);
-        }
+        Path wrapper = NativeRuntimeLoader.resolveRuntimeWrapper();
         return new RuntimeLaunch(wrapper.toString());
-    }
-
-    private static boolean isNonEmptyFile(Path path) {
-        try {
-            return Files.isRegularFile(path) && Files.size(path) > 0;
-        } catch (IOException e) {
-            return false;
-        }
     }
 
     static URI parseCliUrl(String url) {

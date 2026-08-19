@@ -591,11 +591,6 @@ public class E2ETestContext implements AutoCloseable {
     }
 
     private static String getCliPath(Path repoRoot) throws IOException {
-        String runtimePath = System.getenv("COPILOT_RUNTIME_PATH");
-        if (runtimePath != null && !runtimePath.isEmpty()) {
-            return runtimePath;
-        }
-
         String envPath = System.getenv("COPILOT_CLI_PATH");
         if (envPath != null && !envPath.isEmpty()) {
             return envPath;

@@ -391,9 +391,7 @@ def ensure_runtime_wrapper(version: str | None = None, force: bool = False) -> s
     """Provision the adjacent ``copilot-runtime`` and ``runtime.node`` pair."""
     ver = version or CLI_VERSION
     if not ver:
-        raise RuntimeError(
-            "No runtime version pinned. Set COPILOT_RUNTIME_PATH for a local development build."
-        )
+        raise RuntimeError("No runtime version is pinned.")
     npm_platform = get_npm_platform()
     wrapper_name = "copilot-runtime.exe" if sys.platform == "win32" else "copilot-runtime"
     pair_dir = get_cache_dir(ver) / "prebuilds" / npm_platform
