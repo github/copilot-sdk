@@ -2454,7 +2454,7 @@ class CopilotClient:
         # Serialize commands (name + description only) into payload
         if commands:
             payload["commands"] = [
-                {"name": cmd.name, "description": cmd.description} for cmd in commands
+                {"name": cmd.name, "description": cmd.description or ""} for cmd in commands
             ]
 
         # Enable hooks callback if any hook handler provided
@@ -3211,7 +3211,7 @@ class CopilotClient:
         # Serialize commands (name + description only) into payload
         if commands:
             payload["commands"] = [
-                {"name": cmd.name, "description": cmd.description} for cmd in commands
+                {"name": cmd.name, "description": cmd.description or ""} for cmd in commands
             ]
 
         if hooks and any(hooks.values()):

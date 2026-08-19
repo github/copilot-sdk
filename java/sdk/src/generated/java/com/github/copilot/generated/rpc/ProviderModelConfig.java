@@ -32,11 +32,11 @@ public record ProviderModelConfig(
     /** Display name for model pickers. Defaults to the provider-qualified selection id (`provider/id`). */
     @JsonProperty("name") String name,
     /** Maximum prompt/input tokens for the model. */
-    @JsonProperty("maxPromptTokens") Double maxPromptTokens,
+    @JsonProperty("maxPromptTokens") Long maxPromptTokens,
     /** Maximum context window tokens for the model. */
-    @JsonProperty("maxContextWindowTokens") Double maxContextWindowTokens,
+    @JsonProperty("maxContextWindowTokens") Long maxContextWindowTokens,
     /** Maximum output tokens for the model. */
-    @JsonProperty("maxOutputTokens") Double maxOutputTokens,
+    @JsonProperty("maxOutputTokens") Long maxOutputTokens,
     /** Optional capability overrides (vision, tool_calls, reasoning, etc.). */
     @JsonProperty("capabilities") ModelCapabilitiesOverride capabilities
 ) {

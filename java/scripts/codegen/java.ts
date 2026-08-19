@@ -66,6 +66,24 @@ function normalizeBrandCasingNode(node: unknown): void {
     if (node === null || typeof node !== "object") return;
     const obj = node as Record<string, unknown>;
 
+    if (obj.title === "ProviderModelConfig" && obj.properties && typeof obj.properties === "object") {
+        const tokenFields = new Set([
+            "maxPromptTokens",
+            "maxContextWindowTokens",
+            "maxOutputTokens",
+        ]);
+        for (const [key, value] of Object.entries(obj.properties as Record<string, unknown>)) {
+            if (
+                tokenFields.has(key) &&
+                value !== null &&
+                typeof value === "object" &&
+                (value as Record<string, unknown>).type === "number"
+            ) {
+                (value as Record<string, unknown>).type = "integer";
+            }
+        }
+    }
+
     for (const defsKey of ["definitions", "$defs"] as const) {
         const defs = obj[defsKey];
         if (defs && typeof defs === "object" && !Array.isArray(defs)) {

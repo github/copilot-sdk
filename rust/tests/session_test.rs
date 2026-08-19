@@ -4365,13 +4365,10 @@ async fn create_serializes_commands_strips_handler() {
 
     let rollback = &wire[1];
     assert_eq!(rollback["name"], "rollback");
-    assert!(
-        rollback.get("description").is_none(),
-        "description should be omitted when None, got: {rollback}"
-    );
+    assert_eq!(rollback["description"], "");
     assert!(rollback.get("handler").is_none());
     let rollback_keys: Vec<&String> = rollback.as_object().unwrap().keys().collect();
-    assert_eq!(rollback_keys.len(), 1, "got keys: {rollback_keys:?}");
+    assert_eq!(rollback_keys.len(), 2, "got keys: {rollback_keys:?}");
 }
 
 #[tokio::test]

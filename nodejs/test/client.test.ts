@@ -3119,7 +3119,7 @@ describe("CopilotClient", () => {
             const payload = spy.mock.calls.find((c) => c[0] === "session.create")![1] as any;
             expect(payload.commands).toEqual([
                 { name: "deploy", description: "Deploy the app" },
-                { name: "rollback", description: undefined },
+                { name: "rollback", description: "" },
             ]);
         });
 

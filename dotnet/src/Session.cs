@@ -1364,7 +1364,10 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 Required = elicitationParams.RequestedSchema.Required
             };
 
-            var result = await session.Rpc.Ui.ElicitationAsync(elicitationParams.Message, schema, cancellationToken);
+            var result = await session.Rpc.Ui.ElicitationAsync(
+                elicitationParams.Message,
+                schema,
+                cancellationToken: cancellationToken);
             return new ElicitationResult
             {
                 Action = result.Action,
@@ -1388,7 +1391,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 Required = ["confirmed"]
             };
 
-            var result = await session.Rpc.Ui.ElicitationAsync(message, schema, cancellationToken);
+            var result = await session.Rpc.Ui.ElicitationAsync(message, schema, cancellationToken: cancellationToken);
             if (result.Action == UIElicitationResponseAction.Accept
                 && result.Content != null
                 && result.Content.TryGetValue("confirmed", out var val))
@@ -1422,7 +1425,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 Required = ["selection"]
             };
 
-            var result = await session.Rpc.Ui.ElicitationAsync(message, schema, cancellationToken);
+            var result = await session.Rpc.Ui.ElicitationAsync(message, schema, cancellationToken: cancellationToken);
             if (result.Action == UIElicitationResponseAction.Accept
                 && result.Content != null
                 && result.Content.TryGetValue("selection", out var val))
@@ -1457,7 +1460,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 Required = ["value"]
             };
 
-            var result = await session.Rpc.Ui.ElicitationAsync(message, schema, cancellationToken);
+            var result = await session.Rpc.Ui.ElicitationAsync(message, schema, cancellationToken: cancellationToken);
             if (result.Action == UIElicitationResponseAction.Accept
                 && result.Content != null
                 && result.Content.TryGetValue("value", out var val))
@@ -1830,14 +1833,14 @@ public sealed partial class CopilotSession : IAsyncDisposable
         ThrowIfDisposed();
 
         await Rpc.Model.SwitchToAsync(
-            model,
-            options.ReasoningEffort,
-            options.ReasoningSummary,
-            null,
-            options.ModelCapabilities,
-            options.ContextTier,
-            null,
-            cancellationToken);
+            modelId: model,
+            reasoningEffort: options.ReasoningEffort,
+            reasoningSummary: options.ReasoningSummary,
+            verbosity: null,
+            modelCapabilities: options.ModelCapabilities,
+            contextTier: options.ContextTier,
+            source: null,
+            cancellationToken: cancellationToken);
     }
 
     /// <summary>

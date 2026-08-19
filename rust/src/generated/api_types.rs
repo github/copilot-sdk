@@ -11824,13 +11824,13 @@ pub struct ProviderModelConfig {
     pub id: String,
     /// Maximum context window tokens for the model.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub max_context_window_tokens: Option<f64>,
+    pub max_context_window_tokens: Option<i64>,
     /// Maximum output tokens for the model.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub max_output_tokens: Option<f64>,
+    pub max_output_tokens: Option<i64>,
     /// Maximum prompt/input tokens for the model.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub max_prompt_tokens: Option<f64>,
+    pub max_prompt_tokens: Option<i64>,
     /// Well-known base model id used for behavior/capability/config lookup. Defaults to `id`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model_id: Option<String>,

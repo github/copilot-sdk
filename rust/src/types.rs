@@ -614,12 +614,9 @@ impl std::fmt::Debug for CommandDefinition {
 impl Serialize for CommandDefinition {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         use serde::ser::SerializeStruct;
-        let len = if self.description.is_some() { 2 } else { 1 };
-        let mut state = serializer.serialize_struct("CommandDefinition", len)?;
+        let mut state = serializer.serialize_struct("CommandDefinition", 2)?;
         state.serialize_field("name", &self.name)?;
-        if let Some(description) = &self.description {
-            state.serialize_field("description", description)?;
-        }
+        state.serialize_field("description", self.description.as_deref().unwrap_or(""))?;
         state.end()
     }
 }

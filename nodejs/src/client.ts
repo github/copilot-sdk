@@ -1569,7 +1569,7 @@ export class CopilotClient {
                 canvasProvider: config.canvasProvider,
                 commands: config.commands?.map((cmd) => ({
                     name: cmd.name,
-                    description: cmd.description,
+                    description: cmd.description ?? "",
                 })),
                 systemMessage: wireSystemMessage,
                 availableTools: toolFilterOptions.availableTools,
@@ -1827,7 +1827,7 @@ export class CopilotClient {
                 canvasProvider: config.canvasProvider,
                 commands: config.commands?.map((cmd) => ({
                     name: cmd.name,
-                    description: cmd.description,
+                    description: cmd.description ?? "",
                 })),
                 provider: bearerWireProvider,
                 capi: config.capi,
