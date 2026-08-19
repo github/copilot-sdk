@@ -85,33 +85,15 @@ func TestAbortE2E(t *testing.T) {
 			t.Error("Expected at least one assistant.message_delta event before abort")
 		}
 
-		// Session should be usable after abort. Wait for the specific recovery
-		// message rather than racing against a late idle from the aborted turn.
-		recoveryReceived := make(chan *copilot.AssistantMessageData, 1)
-		session.On(func(event copilot.SessionEvent) {
-			if d, ok := event.Data.(*copilot.AssistantMessageData); ok {
-				if strings.Contains(strings.ToLower(d.Content), "abort_recovery_ok") {
-					select {
-					case recoveryReceived <- d:
-					default:
-					}
-				}
-			}
+		// Session should be usable after abort.
+		msg, err := session.SendAndWait(t.Context(), copilot.MessageOptions{
+			Prompt: "Say 'abort_recovery_ok'.",
 		})
-
-		go func() {
-			_, _ = session.Send(t.Context(), copilot.MessageOptions{
-				Prompt: "Say 'abort_recovery_ok'.",
-			})
-		}()
-
-		select {
-		case msg := <-recoveryReceived:
-			if !strings.Contains(strings.ToLower(msg.Content), "abort_recovery_ok") {
-				t.Errorf("Expected recovery message to contain 'abort_recovery_ok', got %q", msg.Content)
-			}
-		case <-time.After(60 * time.Second):
-			t.Fatal("Timed out waiting for recovery message after abort")
+		if err != nil {
+			t.Fatalf("Recovery SendAndWait failed after abort: %v", err)
+		}
+		if content := assistantContent(t, msg); !strings.Contains(strings.ToLower(content), "abort_recovery_ok") {
+			t.Errorf("Expected recovery message to contain 'abort_recovery_ok', got %q", content)
 		}
 	})
 
@@ -173,32 +155,15 @@ func TestAbortE2E(t *testing.T) {
 		default:
 		}
 
-		// Session should be usable after abort
-		recoveryReceived := make(chan *copilot.AssistantMessageData, 1)
-		session.On(func(event copilot.SessionEvent) {
-			if d, ok := event.Data.(*copilot.AssistantMessageData); ok {
-				if strings.Contains(d.Content, "tool_abort_recovery_ok") {
-					select {
-					case recoveryReceived <- d:
-					default:
-					}
-				}
-			}
+		// Session should be usable after abort.
+		msg, err := session.SendAndWait(t.Context(), copilot.MessageOptions{
+			Prompt: "Say 'tool_abort_recovery_ok'.",
 		})
-
-		go func() {
-			_, _ = session.Send(t.Context(), copilot.MessageOptions{
-				Prompt: "Say 'tool_abort_recovery_ok'.",
-			})
-		}()
-
-		select {
-		case msg := <-recoveryReceived:
-			if !strings.Contains(msg.Content, "tool_abort_recovery_ok") {
-				t.Errorf("Expected recovery message to contain 'tool_abort_recovery_ok', got %q", msg.Content)
-			}
-		case <-time.After(60 * time.Second):
-			t.Fatal("Timed out waiting for recovery message after abort")
+		if err != nil {
+			t.Fatalf("Recovery SendAndWait failed after tool abort: %v", err)
+		}
+		if content := assistantContent(t, msg); !strings.Contains(content, "tool_abort_recovery_ok") {
+			t.Errorf("Expected recovery message to contain 'tool_abort_recovery_ok', got %q", content)
 		}
 	})
 }
