@@ -42,6 +42,16 @@ jobs:
             transport: inprocess
           - os: macos-latest
             transport: inprocess
+          # The macOS default/capi host runs the whole suite on the smallest
+          # runner in the matrix (3 vCPU / 7 GB vs ubuntu's 4 / 16). Since the
+          # 1.0.81-2 bump it stopped finishing: the job ran 50+ minutes until
+          # the runner lost communication with the server, and a runner that
+          # dies that way uploads no logs at all, so the failure could not be
+          # diagnosed from CI output. Split it across two hosts the same way
+          # the Windows default suite is split below.
+          - os: macos-latest
+            transport: default
+            shard: full
         include:
           # Keep xUnit serial within each process, but split the slow Windows
           # default-transport suite across two isolated test hosts. Keep both
@@ -52,6 +62,14 @@ jobs:
             backend: capi
             shard: "1"
           - os: windows-latest
+            transport: default
+            backend: capi
+            shard: "2"
+          - os: macos-latest
+            transport: default
+            backend: capi
+            shard: "1"
+          - os: macos-latest
             transport: default
             backend: capi
             shard: "2"
