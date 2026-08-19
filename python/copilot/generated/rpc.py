@@ -69,8 +69,9 @@ def to_enum(c: type[EnumT], x: Any) -> EnumT:
     return x.value
 
 def from_int(x: Any) -> int:
-    assert isinstance(x, int) and not isinstance(x, bool)
-    return x
+    assert isinstance(x, (int, float)) and not isinstance(x, bool)
+    assert not isinstance(x, float) or x.is_integer()
+    return int(x)
 
 def from_datetime(x: Any) -> datetime:
     return dateutil.parser.parse(x)

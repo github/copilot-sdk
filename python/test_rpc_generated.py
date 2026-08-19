@@ -18,6 +18,7 @@ from copilot.rpc import (
     RemoteSessionMetadataValue,
     SessionList,
     SlashCommandTextResult,
+    TaskAgentInfo,
     UIElicitationSchemaType,
 )
 
@@ -77,6 +78,25 @@ def test_session_list_deserializes_boolean_discriminated_entries():
     assert remote.session_id == "example-remote"
     assert remote.is_remote is True
     assert remote.repository.owner == "github"
+
+
+def test_task_agent_info_deserializes_integral_float_milliseconds():
+    task = TaskAgentInfo.from_dict(
+        {
+            "agentType": "general-purpose",
+            "description": "Example task",
+            "id": "agent-1",
+            "prompt": "Do the task",
+            "startedAt": "2026-08-19T12:00:00Z",
+            "status": "running",
+            "toolCallId": "tool-1",
+            "type": "agent",
+            "activeTimeMs": 43.0,
+        }
+    )
+
+    assert task.active_time_ms == 43
+    assert task.to_dict()["activeTimeMs"] == 43
 
 
 @pytest.mark.parametrize(

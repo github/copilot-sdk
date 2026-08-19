@@ -2585,6 +2585,13 @@ function emitPyFlatDiscriminatedUnion(
     ctx.classes.push(lines.join("\n"));
 }
 
+const PYTHON_INTEGER_DECODER = [
+    `def from_int(x: Any) -> int:`,
+    `    assert isinstance(x, (int, float)) and not isinstance(x, bool)`,
+    `    assert not isinstance(x, float) or x.is_integer()`,
+    `    return int(x)`,
+].join("\n");
+
 export function generatePythonSessionEventsCode(schema: JSONSchema7): string {
     const variants = extractPyEventVariants(schema);
     const ctx: PyCodegenCtx = {
@@ -2653,9 +2660,7 @@ export function generatePythonSessionEventsCode(schema: JSONSchema7): string {
     out.push(`    return x`);
     out.push(``);
     out.push(``);
-    out.push(`def from_int(x: Any) -> int:`);
-    out.push(`    assert isinstance(x, int) and not isinstance(x, bool)`);
-    out.push(`    return x`);
+    out.push(PYTHON_INTEGER_DECODER);
     out.push(``);
     out.push(``);
     out.push(`def to_int(x: Any) -> int:`);
@@ -3359,6 +3364,14 @@ def _patch_model_capabilities(data: dict) -> dict:
 
     // Patch models.list to normalize capabilities before deserialization
     let finalCode = lines.join("\n");
+    finalCode = finalCode.replace(
+        [
+            `def from_int(x: Any) -> int:`,
+            `    assert isinstance(x, int) and not isinstance(x, bool)`,
+            `    return x`,
+        ].join("\n"),
+        PYTHON_INTEGER_DECODER
+    );
     finalCode = finalCode.replace(
         `ModelList.from_dict(await self._client.request("models.list"`,
         `ModelList.from_dict(_patch_model_capabilities(await self._client.request("models.list"`,

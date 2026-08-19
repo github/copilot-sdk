@@ -24,8 +24,9 @@ def from_str(x: Any) -> str:
 
 
 def from_int(x: Any) -> int:
-    assert isinstance(x, int) and not isinstance(x, bool)
-    return x
+    assert isinstance(x, (int, float)) and not isinstance(x, bool)
+    assert not isinstance(x, float) or x.is_integer()
+    return int(x)
 
 
 def to_int(x: Any) -> int:

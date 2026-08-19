@@ -546,9 +546,9 @@ Always include PINEAPPLE_COCONUT_42.
     expect(toolMessage?.content).toBe("Tool 'report_intent' does not exist.");
   });
 
-  test("removes runtime advisories from background agent start results", async () => {
+  test("normalizes background agent IDs and removes runtime advisories", async () => {
     const stableResult =
-      "Agent started in background with agent_id: read-file. You'll be notified when it completes. Tell the user you're waiting and end your response, or continue unrelated work until notified.";
+      "Agent started in background with agent_id: background-agent. You'll be notified when it completes. Tell the user you're waiting and end your response, or continue unrelated work until notified.";
     const requestBody = JSON.stringify({
       messages: [
         { role: "user", content: "Help me" },
@@ -565,7 +565,8 @@ Always include PINEAPPLE_COCONUT_42.
         {
           role: "tool",
           tool_call_id: "tc1",
-          content: `${stableResult} The agent supports multi-turn conversations.`,
+          content:
+            "Agent started in background with agent_id: 3e0c7565-6091-58cb-85bb-6cb14db23ef7. You'll be notified when it completes. Tell the user you're waiting and end your response, or continue unrelated work until notified. The agent supports multi-turn conversations.",
         },
       ],
     });

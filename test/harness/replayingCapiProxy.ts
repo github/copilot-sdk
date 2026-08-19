@@ -1496,8 +1496,8 @@ function normalizeAvailableToolNames(result: string): string {
 
 function normalizeBackgroundAgentStartMessage(result: string): string {
   return result.replace(
-    /^(Agent started in background with agent_id: .*?\. You'll be notified when it completes\. Tell the user you're waiting and end your response, or continue unrelated work until notified\.).*$/s,
-    "$1",
+    /^Agent started in background with agent_id: .*?(\. You'll be notified when it completes\. Tell the user you're waiting and end your response, or continue unrelated work until notified\.).*$/s,
+    "Agent started in background with agent_id: background-agent$1",
   );
 }
 
