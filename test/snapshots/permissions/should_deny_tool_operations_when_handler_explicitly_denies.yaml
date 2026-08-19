@@ -44,7 +44,9 @@ conversations:
           task.
       - role: tool
         tool_call_id: toolcall_1
-        content: Permission denied and could not request permission from user
+        content: |-
+          Permission denied and could not request permission from user.
+          No approval rule matched and this session has no way to ask, so retrying this request unchanged will be denied again. Use an approach that does not need this permission, or stop and report that it requires an approval rule this session does not have.
       - role: assistant
         content: I don't have permission to execute commands in this environment. It seems access is restricted. You may need to
           grant permission or run the command directly in your terminal.
