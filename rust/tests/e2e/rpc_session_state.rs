@@ -1,21 +1,22 @@
 use std::collections::HashMap;
 
 use github_copilot_sdk::rpc::{
-    AuthInfoType, HistoryTruncateRequest, LspInitializeRequest, MetadataContextInfoRequest,
-    MetadataRecomputeContextTokensRequest, MetadataRecordContextChangeRequest,
-    MetadataSetWorkingDirectoryRequest, MetadataSnapshotCurrentMode, ModeSetRequest,
-    ModelSetReasoningEffortRequest, ModelSwitchToRequest, NameSetAutoRequest, NameSetRequest,
+    AuthInfo, AuthInfoType, HistoryTruncateRequest, LspInitializeRequest,
+    MetadataContextInfoRequest, MetadataRecomputeContextTokensRequest,
+    MetadataRecordContextChangeRequest, MetadataSetWorkingDirectoryRequest,
+    MetadataSnapshotCurrentMode, ModeSetRequest, ModelSetReasoningEffortRequest,
+    ModelSwitchToRequest, NameSetAutoRequest, NameSetRequest,
     PermissionsResetSessionApprovalsRequest, PermissionsSetApproveAllRequest, PlanUpdateRequest,
     SessionSetCredentialsParams, SessionUpdateOptionsParams, SessionWorkingDirectoryContext,
     SessionWorkingDirectoryContextHostType, SessionsForkRequest, ShutdownRequest,
-    TelemetrySetFeatureOverridesRequest, WorkspacesCreateFileRequest, WorkspacesReadFileRequest,
+    TelemetrySetFeatureOverridesRequest, UserAuthInfo, WorkspacesCreateFileRequest,
+    WorkspacesReadFileRequest,
 };
 use github_copilot_sdk::session_events::{
     SessionContextChangedData, SessionEventType, SessionMode, SessionShutdownData,
     SessionTitleChangedData, SessionWorkspaceFileChangedData, ShutdownType,
     WorkspaceFileChangedOperation,
 };
-use serde_json::json;
 
 use super::support::{assistant_message_content, wait_for_condition, wait_for_event};
 
@@ -129,6 +130,7 @@ async fn should_get_and_set_session_mode() {
                     .mode()
                     .set(ModeSetRequest {
                         mode: SessionMode::Plan,
+                        ..Default::default()
                     })
                     .await
                     .expect("set plan mode");
@@ -207,7 +209,10 @@ async fn should_set_and_get_each_session_mode_value() {
                     session
                         .rpc()
                         .mode()
-                        .set(ModeSetRequest { mode: mode.clone() })
+                        .set(ModeSetRequest {
+                            mode: mode.clone(),
+                            ..Default::default()
+                        })
                         .await
                         .expect("set mode");
                     assert_eq!(session.rpc().mode().get().await.expect("get mode"), mode);
@@ -888,10 +893,10 @@ async fn should_set_auth_credentials() {
                     .rpc()
                     .git_hub_auth()
                     .set_credentials(SessionSetCredentialsParams {
-                        credentials: Some(json!({
-                            "type": "user",
-                            "host": "github.com",
-                            "login": "rpc-session-user"
+                        credentials: Some(AuthInfo::User(UserAuthInfo {
+                            host: "github.com".to_string(),
+                            login: "rpc-session-user".to_string(),
+                            ..Default::default()
                         })),
                     })
                     .await

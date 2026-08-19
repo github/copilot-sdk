@@ -5556,6 +5556,7 @@ class PermissionRequestExtensionEnvAccess:
     extension_name: str
     kind: ClassVar[str] = "extension-env-access"
     tool_call_id: str | None = None
+    managed_approval_required: bool | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "PermissionRequestExtensionEnvAccess":
@@ -5563,10 +5564,12 @@ class PermissionRequestExtensionEnvAccess:
         environment_variables = from_list(from_str, obj.get("environmentVariables"))
         extension_name = from_str(obj.get("extensionName"))
         tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
+        managed_approval_required = from_union([from_none, from_bool], obj.get("managedApprovalRequired"))
         return PermissionRequestExtensionEnvAccess(
             environment_variables=environment_variables,
             extension_name=extension_name,
             tool_call_id=tool_call_id,
+            managed_approval_required=managed_approval_required,
         )
 
     def to_dict(self) -> dict:
@@ -5576,6 +5579,8 @@ class PermissionRequestExtensionEnvAccess:
         result["kind"] = self.kind
         if self.tool_call_id is not None:
             result["toolCallId"] = from_union([from_none, from_str], self.tool_call_id)
+        if self.managed_approval_required is not None:
+            result["managedApprovalRequired"] = from_union([from_none, from_bool], self.managed_approval_required)
         return result
 
 

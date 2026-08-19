@@ -1001,7 +1001,7 @@ public final class CopilotSession implements AutoCloseable {
      * future completes exceptionally.
      */
     private SessionUiHandlePendingElicitationParams buildElicitationCancelParams(String requestId) {
-        var cancelResult = new UIElicitationResponse(UIElicitationResponseAction.CANCEL, null);
+        var cancelResult = new UIElicitationResponse(UIElicitationResponseAction.CANCEL, null, null);
         return new SessionUiHandlePendingElicitationParams(sessionId, requestId, cancelResult);
     }
 
@@ -1213,7 +1213,7 @@ public final class CopilotSession implements AutoCloseable {
                                 ? result.getAction().getValue()
                                 : ElicitationResultAction.CANCEL.getValue();
                         var parsedAction = UIElicitationResponseAction.fromValue(actionStr);
-                        var elicitationResult = new UIElicitationResponse(parsedAction, result.getContent());
+                        var elicitationResult = new UIElicitationResponse(parsedAction, result.getContent(), null);
                         getRpc().ui.handlePendingElicitation(
                                 new SessionUiHandlePendingElicitationParams(sessionId, requestId, elicitationResult));
                     } catch (Exception e) {
@@ -1268,10 +1268,10 @@ public final class CopilotSession implements AutoCloseable {
         @Override
         public CompletableFuture<ElicitationResult> elicitation(ElicitationParams params) {
             assertElicitation();
-            return getRpc().ui.elicitation(new SessionUiElicitationParams(sessionId, params.getMessage(),
+            return getRpc().ui.elicitation(new SessionUiElicitationParams(sessionId, null, params.getMessage(),
                     new UIElicitationSchema(params.getRequestedSchema().getType(),
-                            params.getRequestedSchema().getProperties(), params.getRequestedSchema().getRequired())))
-                    .thenApply(resp -> {
+                            params.getRequestedSchema().getProperties(), params.getRequestedSchema().getRequired()),
+                    null, null)).thenApply(resp -> {
                         var result = new ElicitationResult();
                         if (resp.action() != null) {
                             for (ElicitationResultAction a : ElicitationResultAction.values()) {
@@ -1293,8 +1293,9 @@ public final class CopilotSession implements AutoCloseable {
         public CompletableFuture<Boolean> confirm(String message) {
             assertElicitation();
             var field = Map.of("type", "boolean", "default", (Object) true);
-            return getRpc().ui.elicitation(new SessionUiElicitationParams(sessionId, message,
-                    new UIElicitationSchema("object", Map.of("confirmed", (Object) field), List.of("confirmed"))))
+            return getRpc().ui
+                    .elicitation(new SessionUiElicitationParams(sessionId, null, message, new UIElicitationSchema(
+                            "object", Map.of("confirmed", (Object) field), List.of("confirmed")), null, null))
                     .thenApply(resp -> {
                         if (resp.action() == UIElicitationResponseAction.ACCEPT && resp.content() != null) {
                             Object val = resp.content().get("confirmed");
@@ -1316,8 +1317,9 @@ public final class CopilotSession implements AutoCloseable {
         public CompletableFuture<String> select(String message, String[] options) {
             assertElicitation();
             var field = Map.of("type", (Object) "string", "enum", (Object) options);
-            return getRpc().ui.elicitation(new SessionUiElicitationParams(sessionId, message,
-                    new UIElicitationSchema("object", Map.of("selection", (Object) field), List.of("selection"))))
+            return getRpc().ui
+                    .elicitation(new SessionUiElicitationParams(sessionId, null, message, new UIElicitationSchema(
+                            "object", Map.of("selection", (Object) field), List.of("selection")), null, null))
                     .thenApply(resp -> {
                         if (resp.action() == UIElicitationResponseAction.ACCEPT && resp.content() != null) {
                             Object val = resp.content().get("selection");
@@ -1346,9 +1348,8 @@ public final class CopilotSession implements AutoCloseable {
                 if (options.getDefaultValue() != null)
                     field.put("default", options.getDefaultValue());
             }
-            return getRpc().ui
-                    .elicitation(new SessionUiElicitationParams(sessionId, message,
-                            new UIElicitationSchema("object", Map.of("value", (Object) field), List.of("value"))))
+            return getRpc().ui.elicitation(new SessionUiElicitationParams(sessionId, null, message,
+                    new UIElicitationSchema("object", Map.of("value", (Object) field), List.of("value")), null, null))
                     .thenApply(resp -> {
                         if (resp.action() == UIElicitationResponseAction.ACCEPT && resp.content() != null) {
                             Object val = resp.content().get("value");
@@ -1994,10 +1995,8 @@ public final class CopilotSession implements AutoCloseable {
      */
     public CompletableFuture<Void> setModel(String model, String reasoningEffort) {
         ensureNotTerminated();
-        return getRpc().model
-                .switchTo(
-                        new SessionModelSwitchToParams(sessionId, model, reasoningEffort, null, null, null, null, null))
-                .thenApply(r -> null);
+        return getRpc().model.switchTo(new SessionModelSwitchToParams(sessionId, model, reasoningEffort, null, null,
+                null, null, null, null, null, null, null, null, null, null)).thenApply(r -> null);
     }
 
     /**
@@ -2077,8 +2076,10 @@ public final class CopilotSession implements AutoCloseable {
         var generatedReasoningSummary = reasoningSummary == null
                 ? null
                 : com.github.copilot.generated.rpc.ReasoningSummary.fromValue(reasoningSummary);
-        return getRpc().model.switchTo(new SessionModelSwitchToParams(sessionId, model, reasoningEffort,
-                generatedReasoningSummary, null, generatedCapabilities, null, null)).thenApply(r -> null);
+        return getRpc().model
+                .switchTo(new SessionModelSwitchToParams(sessionId, model, reasoningEffort, generatedReasoningSummary,
+                        null, generatedCapabilities, null, null, null, null, null, null, null, null, null))
+                .thenApply(r -> null);
     }
 
     /**

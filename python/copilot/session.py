@@ -27,14 +27,11 @@ from ._jsonrpc import JsonRpcError, ProcessExitedError
 from ._telemetry import get_trace_context, trace_context
 from .canvas import CanvasError, CanvasHandler, OpenCanvasInstance
 from .generated.rpc import (
-    CanvasHandler as RpcCanvasHandler,
-)
-from .generated.rpc import (
+    BuiltinToolInputSchemaType,
     CanvasProviderCloseRequest,
     CanvasProviderInvokeActionRequest,
     CanvasProviderOpenRequest,
     CanvasProviderOpenResult,
-    BuiltinToolInputSchemaType,
     ClientSessionApiHandlers,
     CommandsHandlePendingCommandRequest,
     HandlePendingToolCallRequest,
@@ -59,6 +56,9 @@ from .generated.rpc import (
     UIElicitationSchemaProperty,
     UIElicitationSchemaPropertyType,
     UIHandlePendingElicitationRequest,
+)
+from .generated.rpc import (
+    CanvasHandler as RpcCanvasHandler,
 )
 from .generated.rpc import (
     ContextTier as _RpcContextTier,
