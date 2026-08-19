@@ -95,6 +95,7 @@ new CopilotClient(options?: CopilotClientOptions)
     - `RuntimeConnection.forUri(url, { connectionToken? })` — connect to an already-running runtime (mutually exclusive with `gitHubToken`/`useLoggedInUser`). There is no top-level `cliUrl` shortcut; use this factory for URL-based connections.
     - `RuntimeConnection.forInProcess()` — host the runtime in-process over its native C ABI (FFI). **Experimental.** Because the runtime shares this process, `env`, `telemetry`, and `workingDirectory` are rejected with this transport; set them on the host process instead.
     - The child-process transports (`forStdio`/`forTcp`) also accept a per-connection `env`. Set it there or via the top-level `env` option — not both (setting both throws).
+    - Managed child-process connections use the bundled `copilot-runtime` executable and its adjacent `runtime.node` by default. Set `COPILOT_RUNTIME_PATH` to override that wrapper pair; an explicit connection `path` or `COPILOT_CLI_PATH` still takes precedence.
 - `mode?: "empty" | "copilot-cli"` - Defaulting strategy. Use `"empty"` for multi-user server mode; defaults to `"copilot-cli"`.
 - `workingDirectory?: string` - Working directory for the runtime process (default: current process cwd).
 - `baseDirectory?: string` - Base directory for Copilot data (session state, config, etc.). Sets `COPILOT_HOME` on the spawned runtime. When not set, the runtime defaults to `~/.copilot`. Ignored when connecting via `RuntimeConnection.forUri`.
@@ -108,8 +109,6 @@ new CopilotClient(options?: CopilotClientOptions)
 - `sessionFs?: SessionFsConfig` - Custom session filesystem provider.
 - `sessionIdleTimeoutSeconds?: number` - Server-wide idle timeout for sessions in seconds. Ignored when connecting via `RuntimeConnection.forUri`.
 - `enableRemoteSessions?: boolean` - Enable Mission Control remote session support. Ignored when connecting via `RuntimeConnection.forUri`.
-
-Managed stdio and TCP connections launch the bundled Rust runtime wrapper by default. As a temporary compatibility escape hatch, set `COPILOT_SDK_USE_LEGACY_CLI=1` or `COPILOT_SDK_USE_LEGACY_CLI=true` (`true` is case-insensitive) to launch the bundled root `copilot` executable instead. This setting applies only to automatic package resolution: explicit paths, URLs, and `COPILOT_RUNTIME_PATH` take precedence, and in-process connections are unchanged.
 
 #### Methods
 

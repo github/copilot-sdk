@@ -1356,7 +1356,6 @@ HandlerUnsubcribe = Callable[[], None]
 _MIN_PROTOCOL_VERSION = 3
 _RUNTIME_SHUTDOWN_TIMEOUT_SECONDS = 10
 _CLI_PROCESS_EXIT_TIMEOUT_SECONDS = 5
-_USE_LEGACY_CLI_ENV_VAR = "COPILOT_SDK_USE_LEGACY_CLI"
 
 
 def _get_or_download_cli(*, include_runtime_lib: bool = False) -> str | None:
@@ -1652,7 +1651,6 @@ class CopilotClient:
         self._actual_host: str = "localhost"
         self._is_external_server: bool = isinstance(connection, UriRuntimeConnection)
         self._cli_path_source: str | None = None
-        self._residual_cli_path: str | None = None
         self._ffi_host: FfiRuntimeHost | None = None
         self._inprocess_runtime_path: str | None = None
 
@@ -1763,21 +1761,14 @@ class CopilotClient:
             self._cli_path_source = "runtime environment"
             return self._validate_runtime_pair(runtime_override)
 
-        downloaded_path = _get_or_download_cli(include_runtime_lib=include_runtime_lib)
+        if not include_runtime_lib:
+            from ._cli_download import ensure_runtime_wrapper
+
+            self._cli_path_source = "downloaded"
+            return ensure_runtime_wrapper()
+
+        downloaded_path = _get_or_download_cli(include_runtime_lib=True)
         if downloaded_path:
-            if not include_runtime_lib:
-                legacy_value = lookup.get(_USE_LEGACY_CLI_ENV_VAR)
-                if legacy_value is None:
-                    legacy_value = os.environ.get(_USE_LEGACY_CLI_ENV_VAR)
-                if self._is_truthy_environment_value(legacy_value):
-                    self._cli_path_source = "downloaded legacy"
-                    return downloaded_path
-
-                from ._cli_download import ensure_runtime_wrapper
-
-                self._cli_path_source = "downloaded"
-                self._residual_cli_path = downloaded_path
-                return ensure_runtime_wrapper(downloaded_path)
             self._cli_path_source = "downloaded"
             return downloaded_path
 
@@ -1788,10 +1779,6 @@ class CopilotClient:
             "RuntimeConnection.for_stdio(path=...) / "
             "RuntimeConnection.for_tcp(path=...)."
         )
-
-    @staticmethod
-    def _is_truthy_environment_value(value: str | None) -> bool:
-        return value == "1" or (value is not None and value.lower() == "true")
 
     @staticmethod
     def _validate_runtime_pair(runtime_path: str) -> str:
@@ -4352,9 +4339,6 @@ class CopilotClient:
             env = dict(os.environ)
         else:
             env = dict(opts.env)
-        if self._residual_cli_path is not None:
-            env["COPILOT_CLI_PATH"] = self._residual_cli_path
-
         # Set auth token in environment if provided
         if opts.github_token:
             env["COPILOT_SDK_AUTH_TOKEN"] = opts.github_token

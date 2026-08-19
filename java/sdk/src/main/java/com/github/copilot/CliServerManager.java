@@ -34,7 +34,6 @@ final class CliServerManager {
 
     private static final Logger LOG = Logger.getLogger(CliServerManager.class.getName());
     private static final int STDERR_READER_JOIN_TIMEOUT_MS = 5000;
-    private static final String USE_LEGACY_CLI_ENV = "COPILOT_SDK_USE_LEGACY_CLI";
 
     private final CopilotClientOptions options;
     private final StringBuilder stderrBuffer = new StringBuilder();
@@ -126,7 +125,7 @@ final class CliServerManager {
             pb.directory(new File(options.getCwd()));
         }
 
-        configureProcessEnvironment(pb, launch);
+        configureProcessEnvironment(pb);
 
         Process process = pb.start();
 
@@ -270,16 +269,12 @@ final class CliServerManager {
         return result;
     }
 
-    void configureProcessEnvironment(ProcessBuilder pb, RuntimeLaunch launch) {
+    void configureProcessEnvironment(ProcessBuilder pb) {
         if (options.getEnvironment() != null) {
             pb.environment().clear();
             pb.environment().putAll(options.getEnvironment());
         }
         pb.environment().remove("NODE_DEBUG");
-
-        if (launch.residualCli() != null) {
-            pb.environment().put("COPILOT_CLI_PATH", launch.residualCli());
-        }
 
         // Set auth token in environment if provided
         if (options.getGitHubToken() != null && !options.getGitHubToken().isEmpty()) {
@@ -323,13 +318,8 @@ final class CliServerManager {
     }
 
     RuntimeLaunch resolveCliLaunch() throws IOException {
-        return resolveCliLaunch(NativeRuntimeLoader::resolveRuntimeWrapper, NativeRuntimeLoader::resolveLegacyCli);
-    }
-
-    RuntimeLaunch resolveCliLaunch(ArtifactResolver runtimeResolver, ArtifactResolver legacyResolver)
-            throws IOException {
         if (options.getCliPath() != null) {
-            return new RuntimeLaunch(options.getCliPath(), null);
+            return new RuntimeLaunch(options.getCliPath());
         }
 
         String runtimePath = options.getEnvironment() == null
@@ -339,23 +329,8 @@ final class CliServerManager {
             runtimePath = System.getenv("COPILOT_RUNTIME_PATH");
         }
         if (runtimePath == null || runtimePath.isBlank()) {
-            String legacyValue = options.getEnvironment() == null
-                    ? null
-                    : options.getEnvironment().get(USE_LEGACY_CLI_ENV);
-            if (legacyValue == null) {
-                legacyValue = System.getenv(USE_LEGACY_CLI_ENV);
-            }
-            if (isTruthyEnvironmentValue(legacyValue)) {
-                return new RuntimeLaunch(legacyResolver.resolve().toString(), null);
-            }
-
-            Path wrapper = runtimeResolver.resolve();
-            String residualName = wrapper.getFileName().toString().endsWith(".exe") ? "copilot.exe" : "copilot";
-            Path residualCli = wrapper.resolveSibling(residualName);
-            if (!isNonEmptyFile(residualCli)) {
-                throw new IOException("Bundled runtime wrapper requires the residual CLI at " + residualCli);
-            }
-            return new RuntimeLaunch(wrapper.toString(), residualCli.toString());
+            Path wrapper = NativeRuntimeLoader.resolveRuntimeWrapper();
+            return new RuntimeLaunch(wrapper.toString());
         }
 
         Path wrapper = Path.of(runtimePath);
@@ -364,11 +339,7 @@ final class CliServerManager {
             throw new IOException("COPILOT_RUNTIME_PATH must point to a non-empty wrapper with an adjacent "
                     + "non-empty runtime.node; checked " + wrapper + " and " + runtimeNode);
         }
-        return new RuntimeLaunch(wrapper.toString(), null);
-    }
-
-    private static boolean isTruthyEnvironmentValue(String value) {
-        return "1".equals(value) || "true".equalsIgnoreCase(value);
+        return new RuntimeLaunch(wrapper.toString());
     }
 
     private static boolean isNonEmptyFile(Path path) {
@@ -407,11 +378,6 @@ final class CliServerManager {
     record ProcessInfo(Process process, Integer port) {
     }
 
-    record RuntimeLaunch(String executable, String residualCli) {
-    }
-
-    @FunctionalInterface
-    interface ArtifactResolver {
-        Path resolve() throws IOException;
+    record RuntimeLaunch(String executable) {
     }
 }

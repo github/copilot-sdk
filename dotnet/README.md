@@ -101,7 +101,9 @@ new CopilotClient(CopilotClientOptions? options = null)
 - `RuntimeConnection.ForTcp(port = 0, connectionToken?, path?, args?)` — spawns the runtime as a child process listening on a TCP port. `port = 0` auto-allocates; if a non-zero port is already in use, startup fails (no fallback). Use `CopilotClient.RuntimePort` after `StartAsync` to read the assigned port. `connectionToken` is required if other clients will connect via `RuntimeConnection.ForUri(...)`.
 - `RuntimeConnection.ForUri(url, connectionToken?)` — connects to an already-running runtime at `url` (e.g., `"localhost:8080"`). Does not spawn a process.
 
-Managed stdio and TCP connections launch the bundled Rust runtime wrapper by default. As a temporary compatibility escape hatch, set `COPILOT_SDK_USE_LEGACY_CLI=1` or `COPILOT_SDK_USE_LEGACY_CLI=true` (`true` is case-insensitive) to launch the bundled root `copilot` executable instead. This setting applies only to automatic package resolution: explicit paths, URLs, and `COPILOT_RUNTIME_PATH` take precedence, and in-process connections are unchanged.
+Managed stdio and TCP connections use the bundled `copilot-runtime[.exe]` and
+adjacent `runtime.node` by default. Set `COPILOT_RUNTIME_PATH` to override that
+pair; an explicit connection path or `COPILOT_CLI_PATH` takes precedence.
 
 #### Methods
 

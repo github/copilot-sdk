@@ -95,7 +95,7 @@ async fn stale_env_override_falls_through() {
     }
 }
 
-/// With `bundled-cli` off, `build.rs` extracts the binary into the
+/// With `bundled-cli` off, `build.rs` extracts the runtime wrapper into the
 /// per-user cache and the runtime resolver recomputes its location from
 /// `COPILOT_SDK_CLI_VERSION` + the OS-derived binary name. This test
 /// mirrors that convention and asserts the file is on disk where the
@@ -105,9 +105,9 @@ async fn stale_env_override_falls_through() {
 fn extracted_binary_present_at_conventional_path() {
     let version = env!("COPILOT_SDK_CLI_VERSION");
     let binary = if cfg!(windows) {
-        "copilot.exe"
+        "copilot-runtime.exe"
     } else {
-        "copilot"
+        "copilot-runtime"
     };
     let sanitized = sanitize_version_for_test(version);
     let path = dirs::cache_dir()
@@ -158,21 +158,19 @@ async fn unbundled_resolver_finds_extracted_binary() {
 /// With `bundled-cli` off, `COPILOT_CLI_EXTRACT_DIR` set at runtime
 /// redirects the resolver to look directly under the named directory
 /// (no per-version subdir, matching the build-time write semantics).
-/// We place a fake `copilot[.exe]` there and assert the resolver picks
-/// it up — failing here means the build-time / runtime convention has
-/// drifted.
 #[cfg(all(not(feature = "bundled-cli"), has_extracted_cli))]
 #[tokio::test(flavor = "current_thread")]
 #[serial(copilot_cli_path)]
 async fn extract_dir_runtime_override_is_honored() {
     let tmp = tempfile::tempdir().expect("create tempdir");
     let binary = if cfg!(windows) {
-        "copilot.exe"
+        "copilot-runtime.exe"
     } else {
-        "copilot"
+        "copilot-runtime"
     };
     let fake = tmp.path().join(binary);
-    std::fs::write(&fake, b"").expect("write fake binary");
+    std::fs::write(&fake, b"runtime").expect("write fake binary");
+    std::fs::write(tmp.path().join("runtime.node"), b"runtime").expect("write runtime.node");
 
     unset_env("COPILOT_CLI_PATH");
     set_env(
@@ -265,6 +263,14 @@ fn install_bundled_cli_returns_extracted_path() {
         "install_bundled_cli returned a path that is not a file: {}",
         first.display()
     );
+    assert_eq!(
+        first.file_name().and_then(|name| name.to_str()),
+        Some(if cfg!(windows) {
+            "copilot.exe"
+        } else {
+            "copilot"
+        })
+    );
 
     let second = install_bundled_cli().expect("second call should also succeed");
     assert_eq!(
@@ -289,30 +295,6 @@ fn install_bundled_cli_returns_extracted_path() {
             runtime.is_file(),
             "bundled runtime library was not installed: {}",
             runtime.display()
-        );
-    }
-}
-
-/// `install_bundled_cli` returns the same path the runtime resolver
-/// hands to `Client::start` for `CliProgram::Resolve` with no
-/// `COPILOT_CLI_PATH` override. Observed indirectly: the binary the
-/// public API points at must exist, and `Client::start` must not
-/// report `BinaryNotFound` under the same env conditions.
-#[cfg(all(feature = "bundled-cli", has_bundled_cli))]
-#[tokio::test(flavor = "current_thread")]
-#[serial(copilot_cli_path)]
-async fn install_bundled_cli_matches_resolver() {
-    unset_env("COPILOT_CLI_PATH");
-    unset_env("COPILOT_CLI_EXTRACT_DIR");
-
-    let direct = install_bundled_cli().expect("bundled CLI should install");
-    assert!(direct.is_file());
-
-    let opts = ClientOptions::default().with_program(CliProgram::Resolve);
-    if let Err(e) = Client::start(opts).await {
-        assert!(
-            !matches!(e.kind(), ErrorKind::BinaryNotFound { .. }),
-            "resolver returned BinaryNotFound while install_bundled_cli succeeded: {e}"
         );
     }
 }

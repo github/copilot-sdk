@@ -107,7 +107,7 @@ class TestGetCliPathForTests:
         monkeypatch.setenv("COPILOT_RUNTIME_PATH", str(runtime))
         monkeypatch.setenv("COPILOT_CLI_PATH", str(cli))
 
-        assert context.get_cli_path_for_tests() == str(runtime.resolve())
+        assert context.get_runtime_path_for_tests() == str(runtime.resolve())
 
     def test_env_var_takes_precedence(self, tmp_path, monkeypatch):
         cli = tmp_path / "custom-cli.js"

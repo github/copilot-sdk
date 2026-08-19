@@ -20,7 +20,11 @@ Java SDK for programmatic control of GitHub Copilot CLI, enabling you to build A
 To use the SDK, you'll need:
 
 - Java 17 or later. **JDK 25 recommended**. The distributed jar is a multi-release jar (MR-JAR) and is compiled on JDK 25 with `maven.compiler.release` set to 17. This means, when run on JDK 25 and later, the SDK automatically uses virtual threads for its default internal executor.
-- GitHub Copilot CLI 1.0.55-5 or later installed and in `PATH` (or provide custom `cliPath`)
+
+Managed stdio and TCP connections use the platform classifier's
+`copilot-runtime[.exe]` and adjacent `runtime.node` by default. Set
+`COPILOT_RUNTIME_PATH` to override that pair; an explicit `cliPath` takes
+precedence.
 
 ## Installation
 
@@ -69,10 +73,6 @@ Replace `${copilot.sdk.version}` with the latest release from Maven Central.
 ```groovy
 implementation 'com.github:copilot-sdk-java:1.0.14-preview.2-SNAPSHOT'
 ```
-
-## Managed out-of-process launch
-
-Managed stdio and TCP connections launch the bundled Rust runtime wrapper by default. As a temporary compatibility escape hatch, set `COPILOT_SDK_USE_LEGACY_CLI=1` or `COPILOT_SDK_USE_LEGACY_CLI=true` (`true` is case-insensitive) to launch the bundled root `copilot` executable instead. This setting applies only to automatic package resolution: explicit paths, URLs, and `COPILOT_RUNTIME_PATH` take precedence, and in-process connections are unchanged.
 
 ## In-process mode (experimental)
 

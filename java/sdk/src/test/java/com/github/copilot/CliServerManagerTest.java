@@ -11,8 +11,6 @@ import java.net.ServerSocket;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 
 import org.junit.jupiter.api.Test;
@@ -243,98 +241,6 @@ class CliServerManagerTest {
 
         assertTrue(ex.getMessage().contains("adjacent"));
         assertTrue(ex.getMessage().contains("runtime.node"));
-    }
-
-    @Test
-    void bundledLaunchDefaultsToWrapperAndFalseValuesDoNotSelectLegacy() throws Exception {
-        Path wrapper = Files.writeString(tempDir.resolve("copilot-runtime"), "wrapper");
-        Path cli = Files.writeString(tempDir.resolve("copilot"), "cli");
-        Files.writeString(tempDir.resolve("runtime.node"), "runtime");
-
-        for (String value : new String[]{null, "false", "0"}) {
-            Map<String, String> environment = value == null
-                    ? Map.of("COPILOT_RUNTIME_PATH", "")
-                    : Map.of("COPILOT_RUNTIME_PATH", "", "COPILOT_SDK_USE_LEGACY_CLI", value);
-            var manager = new CliServerManager(new CopilotClientOptions().setEnvironment(environment));
-            List<String> resolved = new ArrayList<>();
-
-            var launch = manager.resolveCliLaunch(() -> {
-                resolved.add("wrapper");
-                return wrapper;
-            }, () -> {
-                resolved.add("legacy");
-                return cli;
-            });
-
-            assertEquals(wrapper.toString(), launch.executable());
-            assertEquals(List.of("wrapper"), resolved);
-        }
-    }
-
-    @Test
-    void truthyLegacyValuesSelectOnlyRootCli() throws Exception {
-        Path wrapper = tempDir.resolve("copilot-runtime");
-        Path cli = Files.writeString(tempDir.resolve("copilot"), "cli");
-
-        for (String value : new String[]{"1", "true", "TRUE"}) {
-            var options = new CopilotClientOptions()
-                    .setEnvironment(Map.of("COPILOT_RUNTIME_PATH", "", "COPILOT_SDK_USE_LEGACY_CLI", value));
-            var manager = new CliServerManager(options);
-            List<String> resolved = new ArrayList<>();
-
-            var launch = manager.resolveCliLaunch(() -> {
-                resolved.add("wrapper");
-                return wrapper;
-            }, () -> {
-                resolved.add("legacy");
-                return cli;
-            });
-
-            assertEquals(cli.toString(), launch.executable());
-            assertNull(launch.residualCli());
-            assertEquals(List.of("legacy"), resolved);
-        }
-    }
-
-    @Test
-    void explicitAndRuntimePathsPrecedeLegacySelection() throws Exception {
-        Path explicit = tempDir.resolve("explicit-copilot");
-        var explicitManager = new CliServerManager(new CopilotClientOptions().setCliPath(explicit.toString())
-                .setEnvironment(Map.of("COPILOT_SDK_USE_LEGACY_CLI", "true")));
-        var explicitLaunch = explicitManager.resolveCliLaunch(() -> {
-            fail("wrapper resolver must not run");
-            return null;
-        }, () -> {
-            fail("legacy resolver must not run");
-            return null;
-        });
-        assertEquals(explicit.toString(), explicitLaunch.executable());
-
-        Path wrapper = Files.writeString(tempDir.resolve("copilot-runtime"), "wrapper");
-        Files.writeString(tempDir.resolve("runtime.node"), "runtime");
-        var runtimeManager = new CliServerManager(new CopilotClientOptions().setEnvironment(
-                Map.of("COPILOT_RUNTIME_PATH", wrapper.toString(), "COPILOT_SDK_USE_LEGACY_CLI", "true")));
-        var runtimeLaunch = runtimeManager.resolveCliLaunch(() -> {
-            fail("wrapper resolver must not run");
-            return null;
-        }, () -> {
-            fail("legacy resolver must not run");
-            return null;
-        });
-        assertEquals(wrapper.toString(), runtimeLaunch.executable());
-    }
-
-    @Test
-    void bundledRuntimeResidualCliSurvivesCustomEnvironment() {
-        var options = new CopilotClientOptions().setEnvironment(Map.of("CUSTOM_ENV", "value"));
-        var manager = new CliServerManager(options);
-        var processBuilder = new ProcessBuilder();
-        var launch = new CliServerManager.RuntimeLaunch("/cache/copilot-runtime", "/cache/copilot");
-
-        manager.configureProcessEnvironment(processBuilder, launch);
-
-        assertEquals("value", processBuilder.environment().get("CUSTOM_ENV"));
-        assertEquals("/cache/copilot", processBuilder.environment().get("COPILOT_CLI_PATH"));
     }
 
     @Test

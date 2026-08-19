@@ -298,8 +298,7 @@ type bundleArtifacts struct {
 	wrapperHash         []byte
 }
 
-// buildBundle downloads the root residual CLI and the adjacent runtime wrapper
-// pair from one platform package.
+// buildBundle downloads the CLI and native runtime artifacts from one platform package.
 func buildBundle(info platformInfo, cliVersion, outputPath, goos string) (bundleArtifacts, error) {
 	outputDir := filepath.Dir(outputPath)
 	if outputDir == "" {

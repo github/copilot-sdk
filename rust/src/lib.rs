@@ -179,8 +179,10 @@ pub enum Transport {
 /// How the SDK locates the GitHub Copilot CLI binary.
 #[derive(Debug, Clone, Default)]
 pub enum CliProgram {
-    /// Auto-resolve: `COPILOT_CLI_PATH` → embedded CLI → dev cache.
-    /// This is the default.
+    /// Auto-resolve the transport's program. Managed child-process transports
+    /// select `COPILOT_CLI_PATH`, then `COPILOT_RUNTIME_PATH`, then the bundled
+    /// runtime wrapper. In-process transport selects the compatible CLI
+    /// entrypoint. This is the default.
     #[default]
     Resolve,
     /// Use an explicit binary path (skips resolution).
@@ -204,12 +206,9 @@ pub const HAS_BUNDLED_CLI: bool = cfg!(has_bundled_cli);
 /// Returns the path to the bundled Copilot CLI, extracting it from the
 /// embedded archive on first call.
 ///
-/// This is the same path [`Client::start`] resolves to when
-/// [`ClientOptions::program`] is [`CliProgram::Resolve`], no
-/// `COPILOT_CLI_PATH` override is set, and no
-/// [`ClientOptions::bundled_cli_extract_dir`] is configured — exposing
-/// it directly so callers (health checks, diagnostics, version probes)
-/// can reach the bundled binary without spinning up a full [`Client`].
+/// This exposes the CLI artifact directly for callers such as health checks,
+/// diagnostics, version probes, and in-process hosting. Managed child-process
+/// transports resolve the bundled `copilot-runtime` wrapper instead.
 ///
 /// Subsequent calls return the cached result. Extraction is skipped when
 /// an already-published binary passes a cheap integrity re-check; a
@@ -238,9 +237,11 @@ pub fn install_bundled_cli() -> Option<PathBuf> {
 /// Options for starting a [`Client`].
 ///
 /// When `program` is [`CliProgram::Resolve`] (the default), [`Client::start`]
-/// uses `COPILOT_CLI_PATH` when set to a real file. Otherwise it uses the
-/// bundled Copilot CLI when the default `bundled-cli` cargo feature is enabled,
-/// or the build-time extracted dev-cache CLI when that feature is disabled.
+/// uses `COPILOT_CLI_PATH` when set to a real file. Managed child-process
+/// transports next use `COPILOT_RUNTIME_PATH`, then the bundled
+/// `copilot-runtime` wrapper. In-process transport uses the compatible bundled
+/// CLI entrypoint. With `bundled-cli` disabled, the corresponding artifact is
+/// resolved from the build-time extraction cache.
 ///
 /// Set `program` to [`CliProgram::Path`] to use an explicit binary instead.
 /// This skips auto-resolution entirely.
@@ -859,8 +860,8 @@ impl ClientOptions {
         self
     }
 
-    /// Override the directory where the bundled CLI binary is extracted on
-    /// first use. See [`Self::bundled_cli_extract_dir`].
+    /// Override the directory where bundled CLI and runtime artifacts are
+    /// extracted on first use. See [`Self::bundled_cli_extract_dir`].
     ///
     /// Only applies when the `bundled-cli` cargo feature is on. With
     /// `bundled-cli` disabled (`default-features = false`), set
@@ -1195,7 +1196,7 @@ impl Client {
                 let resolve_start = Instant::now();
                 let resolved = resolve::copilot_binary_with_extract_dir(
                     options.bundled_cli_extract_dir.as_deref(),
-                    matches!(options.transport, Transport::Stdio | Transport::Tcp { .. }),
+                    !matches!(options.transport, Transport::InProcess),
                 )?;
                 let resolve_elapsed = resolve_start.elapsed();
                 timings.program_resolve_ms = Some(StartupTimings::millis(resolve_elapsed));
@@ -1203,11 +1204,10 @@ impl Client {
                     elapsed_ms = resolve_elapsed.as_millis(),
                     "Client::start CLI program resolution complete"
                 );
-                info!(path = %resolved.executable.display(), "resolved copilot runtime");
+                info!(path = %resolved.display(), "resolved copilot runtime");
                 #[cfg(windows)]
                 {
                     if let Some(ext) = resolved
-                        .executable
                         .extension()
                         .and_then(|e| e.to_str())
                         .filter(|ext| {
@@ -1215,39 +1215,14 @@ impl Client {
                         })
                     {
                         warn!(
-                            path = %resolved.executable.display(),
+                            path = %resolved.display(),
                             ext = %ext,
                             "resolved copilot CLI is a .cmd/.bat wrapper; \
                              this may cause console window flashes on Windows"
                         );
                     }
                 }
-                if let Some(residual_cli) = &resolved.residual_cli {
-                    options.env.insert(
-                        0,
-                        (
-                            OsString::from("COPILOT_CLI_PATH"),
-                            residual_cli.clone().into_os_string(),
-                        ),
-                    );
-                }
-                if matches!(options.transport, Transport::InProcess) {
-                    if let Some(residual_cli) = resolved.residual_cli {
-                        residual_cli
-                    } else if resolved.is_runtime_wrapper {
-                        return Err(Error::with_message(
-                            ErrorKind::InvalidConfig,
-                            format!(
-                                "in-process transport requires a residual Copilot CLI next to '{}'",
-                                resolved.executable.display()
-                            ),
-                        ));
-                    } else {
-                        resolved.executable
-                    }
-                } else {
-                    resolved.executable
-                }
+                resolved
             }
         };
         let working_directory = {

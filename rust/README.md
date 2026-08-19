@@ -102,9 +102,7 @@ transports.
 | `extra_args`        | `Vec<String>`               | Extra CLI flags                                                   |
 | `transport`         | `Transport`                 | `Default`, `Stdio`, `InProcess`, `Tcp`, or `External`             |
 
-With the default `CliProgram::Resolve`, `Client::start()` resolves the runtime in this order: an explicit `CliProgram::Path(path)`, the `COPILOT_CLI_PATH` env var, `COPILOT_RUNTIME_PATH`, then the bundled runtime that was embedded at build time. There is no PATH scanning—if you've opted out of bundling (`default-features = false`) you must supply an explicit path or retain the build-time extracted runtime.
-
-Managed stdio and TCP connections launch the bundled Rust runtime wrapper by default. As a temporary compatibility escape hatch, set `COPILOT_SDK_USE_LEGACY_CLI=1` or `COPILOT_SDK_USE_LEGACY_CLI=true` (`true` is case-insensitive) to launch the bundled root `copilot` executable instead. This setting applies only to automatic resolution: explicit paths, external connections, and `COPILOT_RUNTIME_PATH` take precedence, and in-process connections are unchanged.
+With the default `CliProgram::Resolve`, managed stdio and TCP transports resolve an explicit `CliProgram::Path(path)`, `COPILOT_CLI_PATH`, `COPILOT_RUNTIME_PATH`, then the bundled `copilot-runtime` wrapper and adjacent `runtime.node`. In-process transport retains its CLI-entrypoint resolution. There is no PATH scanning.
 
 ### Session
 
@@ -840,10 +838,11 @@ none of them are scheduled for removal.
 | `router.rs`       | Internal per-session event demux                                                                                           |
 | `jsonrpc.rs`      | Internal Content-Length framed JSON-RPC transport                                                                          |
 
-## Embedded CLI
+## Bundled runtime artifacts
 
 The SDK provisions its runtime at build time. By default the `bundled-cli`
-feature embeds the verified child-process runtime in your compiled crate.
+feature embeds the verified `copilot-runtime` wrapper, adjacent `runtime.node`,
+and the compatible CLI artifact in your compiled crate.
 Enable `bundled-in-process` to additionally embed the native runtime library
 and use `Transport::InProcess`:
 
@@ -861,15 +860,11 @@ For builds that prefer a smaller artifact, disable the `bundled-cli` feature:
 github-copilot-sdk = { version = "0.1", default-features = false }
 ```
 
-> **You become responsible for supplying the CLI at runtime.** With
-> `bundled-cli` disabled, the produced binary does not contain the CLI
-> and will not search the system for one. You must point it at a
-> compatible CLI via [`CliProgram::Path`] (on `ClientOptions`) or the
-> `COPILOT_CLI_PATH` environment variable, and you are responsible for
-> guaranteeing the supplied CLI version is compatible with this SDK
-> release. Do **not** assume that whatever CLI happens to be installed
-> on the target system will work — the SDK and CLI are versioned
-> together.
+> **You become responsible for supplying the runtime at deployment.** With
+> `bundled-cli` disabled, the produced binary does not contain these artifacts
+> and will not search the system for them. For managed child-process transports,
+> supply a compatible wrapper pair via `COPILOT_RUNTIME_PATH` or an explicit
+> [`CliProgram::Path`]. `COPILOT_CLI_PATH` remains a direct program override.
 >
 > **Convenience on the build machine only.** As a special case,
 > `build.rs` downloads and integrity-verifies the compatible CLI version and
@@ -878,8 +873,8 @@ github-copilot-sdk = { version = "0.1", default-features = false }
 > makes local development and CI ergonomic, but it does **not** carry
 > over when you copy the built binary to another machine — distributed
 > builds (release artifacts, signed installers, container images, etc.)
-> must either keep `bundled-cli` enabled or ship the CLI alongside and
-> set `CliProgram::Path` / `COPILOT_CLI_PATH`.
+> must either keep `bundled-cli` enabled or ship the runtime pair and set
+> `CliProgram::Path` / `COPILOT_RUNTIME_PATH`.
 
 ### How it works
 
@@ -892,17 +887,17 @@ github-copilot-sdk = { version = "0.1", default-features = false }
 2. **Build time:** `build.rs` downloads the platform-specific npm package and
    verifies its `sha512` integrity against the lockfile or publish snapshot.
    Then:
-   - **`bundled-cli` on (default):** creates and embeds a minimal archive containing only the CLI executable.
-   - **`bundled-in-process` on:** the minimal archive additionally contains the platform-native runtime library (`.dll`, `.so`, or `.dylib`); no other npm package files are embedded.
-   - **`bundled-cli` off:** extracts the binary directly into the platform cache (staging file + atomic rename), idempotent across rebuilds. If the extracted binary is already present at the expected path, the download is skipped entirely — the extracted binary *is* the cache.
+   - **`bundled-cli` on (default):** creates and embeds a minimal archive containing the CLI executable, `copilot-runtime[.exe]`, and `runtime.node`.
+   - **`bundled-in-process` on:** the archive additionally contains the platform-native runtime library (`.dll`, `.so`, or `.dylib`).
+   - **`bundled-cli` off:** extracts the same artifacts directly into the platform cache using staging files and atomic renames.
 
-3. **Runtime:** in both modes the binary lives at:
+3. **Runtime:** in both modes the artifacts share one versioned directory:
 
    | OS | Path |
    |----|------|
-   | macOS | `~/Library/Caches/github-copilot-sdk/cli/<version>/copilot` |
-   | Linux | `${XDG_CACHE_HOME:-~/.cache}/github-copilot-sdk/cli/<version>/copilot` |
-   | Windows | `%LOCALAPPDATA%\github-copilot-sdk\cli\<version>\copilot.exe` |
+   | macOS | `~/Library/Caches/github-copilot-sdk/cli/<version>/` |
+   | Linux | `${XDG_CACHE_HOME:-~/.cache}/github-copilot-sdk/cli/<version>/` |
+   | Windows | `%LOCALAPPDATA%\github-copilot-sdk\cli\<version>\` |
 
    Old version directories accumulate in siblings; clean them up at your leisure.
 
@@ -931,18 +926,21 @@ COPILOT_CLI_EXTRACT_DIR = { value = "vendor/copilot", relative = true, force = t
 
 ### Skipping the bundle entirely
 
-Set `COPILOT_SKIP_CLI_DOWNLOAD=1` at build time to disable the entire download / bundle / cache mechanism — `build.rs` returns immediately without touching the network. Use this when you always supply the CLI at runtime via `ClientOptions::program = CliProgram::Path(...)` or `COPILOT_CLI_PATH`. Works regardless of the `bundled-cli` feature state; runtime resolution falls through to `Error::BinaryNotFound` unless one of those explicit sources resolves.
+Set `COPILOT_SKIP_CLI_DOWNLOAD=1` at build time to disable the entire download / bundle / cache mechanism — `build.rs` returns immediately without touching the network. Use this when you always supply the managed runtime via `ClientOptions::program = CliProgram::Path(...)` or `COPILOT_RUNTIME_PATH`. Works regardless of the `bundled-cli` feature state; runtime resolution falls through to `Error::BinaryNotFound` unless an applicable explicit source resolves.
 
 ### Resolution priority
 
-`Client::start` resolves the CLI in this order:
+For managed child-process transports, `Client::start` resolves the program in this order:
 
 1. Explicit `CliProgram::Path(path)` on `ClientOptions::program`.
 2. `COPILOT_CLI_PATH` environment variable, if it points at a real file.
-3. **`bundled-cli` on:** the embedded archive, lazily extracted on first call.
-4. **`bundled-cli` off:** the build-time-extracted binary in the per-user cache, located by recomputing the convention from `COPILOT_SDK_CLI_VERSION` + OS + optional `COPILOT_CLI_EXTRACT_DIR`.
+3. `COPILOT_RUNTIME_PATH`, validated as a wrapper with adjacent `runtime.node`.
+4. **`bundled-cli` on:** the embedded wrapper pair, lazily extracted on first call.
+5. **`bundled-cli` off:** the build-time-extracted wrapper pair in the per-user cache.
 
-There is no PATH scanning. If none of the above resolves, `Client::start` returns `Error::BinaryNotFound`.
+In-process transport ignores `COPILOT_RUNTIME_PATH` and resolves the compatible
+CLI artifact from `COPILOT_CLI_PATH`, the embedded archive, or the build-time
+cache. There is no PATH scanning.
 
 ### Reaching the bundled binary without a `Client`
 
@@ -962,12 +960,10 @@ if HAS_BUNDLED_CLI {
 }
 ```
 
-This returns the same path `Client::start` would resolve to for
-`CliProgram::Resolve` with no `COPILOT_CLI_PATH` override and no
-`ClientOptions::bundled_cli_extract_dir` configured. It returns `None`
-when `bundled-cli` is off or the target is unsupported, and (unlike the
-full resolver) does not fall back to the build-time-extracted dev-cache
-path.
+This returns the bundled CLI artifact, preserving the public API's original
+meaning. Managed child-process transports resolve `copilot-runtime` instead.
+The function returns `None` when `bundled-cli` is off or the target is
+unsupported and does not fall back to the build-time extraction cache.
 
 ### Download cache (build-time, embed mode)
 
@@ -981,8 +977,8 @@ Supported: `darwin-arm64`, `darwin-x64`, `linux-x64`, `linux-arm64`, `win32-x64`
 
 | Feature | Default | Description |
 | ------- | ------- | ----------- |
-| `bundled-cli` | ✓ | Embeds only the CLI executable. Disable via `default-features = false` when supplying the CLI via `CliProgram::Path` or `COPILOT_CLI_PATH`. |
-| `bundled-in-process` | — | Enables `Transport::InProcess`, implies `bundled-cli`, and additionally embeds only the platform-native runtime library. |
+| `bundled-cli` | ✓ | Embeds the managed wrapper pair and compatible CLI artifact. Disable via `default-features = false` when supplying the runtime explicitly. |
+| `bundled-in-process` | — | Enables `Transport::InProcess`, implies `bundled-cli`, and additionally embeds the platform-native runtime library. |
 | `derive` | — | `schema_for::<T>()` for generating JSON Schema from Rust types (adds `schemars`). |
 
 ```toml

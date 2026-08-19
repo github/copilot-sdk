@@ -161,36 +161,9 @@ public final class NativeRuntimeLoader {
         return resolveRuntimeWrapper(defaultCacheBase(), loader, classifier, version);
     }
 
-    /**
-     * Resolves and extracts only the root legacy Copilot CLI executable.
-     *
-     * @return absolute path to the legacy CLI executable
-     * @throws IOException
-     *             if the classifier artifact cannot be extracted
-     */
-    public static Path resolveLegacyCli() throws IOException {
-        ClassLoader loader = NativeRuntimeLoader.class.getClassLoader();
-        String classifier = PlatformDetector.detectClassifier();
-        String version = readVersion(loader);
-        return resolveLegacyCli(defaultCacheBase(), loader, classifier, version);
-    }
-
-    static Path resolveLegacyCli(Path cacheBase, ClassLoader loader, String classifier, String version)
-            throws IOException {
-        String nativeVersion = readNativePackageVersion(loader, classifier);
-        Path cacheDir = cacheBase.resolve(version).resolve(nativeVersion).resolve(classifier);
-        extractCliToCache(cacheDir, loader, classifier, DEFAULT_PUBLISHER);
-        String cliName = classifier.startsWith("win32-") ? CLI_FILENAME_WINDOWS : CLI_FILENAME;
-        Path cliPath = cacheDir.resolve(cliName);
-        if (!isValidCachedCli(cliPath)) {
-            throw new IOException("Published legacy CLI is not a non-empty executable file: " + cliPath);
-        }
-        return cliPath;
-    }
-
     static Path resolveRuntimeWrapper(Path cacheBase, ClassLoader loader, String classifier, String version)
             throws IOException {
-        Path runtimePath = extractToCache(cacheBase, loader, classifier, version);
+        Path runtimePath = extractRuntimeToCache(cacheBase, loader, classifier, version, DEFAULT_PUBLISHER, false);
         Path cacheDir = runtimePath.getParent();
         String wrapperName = classifier.startsWith("win32-")
                 ? RUNTIME_WRAPPER_FILENAME_WINDOWS
@@ -395,6 +368,11 @@ public final class NativeRuntimeLoader {
      */
     static Path extractToCache(Path cacheBase, ClassLoader loader, String classifier, String version,
             AtomicPublisher publisher) throws IOException {
+        return extractRuntimeToCache(cacheBase, loader, classifier, version, publisher, true);
+    }
+
+    private static Path extractRuntimeToCache(Path cacheBase, ClassLoader loader, String classifier, String version,
+            AtomicPublisher publisher, boolean extractCli) throws IOException {
         String resourcePath = "native/" + classifier + "/" + RUNTIME_FILENAME;
         String nativeVersion = readNativePackageVersion(loader, classifier);
         Path cacheDir = cacheBase.resolve(version).resolve(nativeVersion).resolve(classifier);
@@ -402,7 +380,9 @@ public final class NativeRuntimeLoader {
 
         // Step 1 — fast path: return an existing valid cache entry.
         if (isValidCachedFile(cached)) {
-            extractCliToCache(cacheDir, loader, classifier, publisher);
+            if (extractCli) {
+                extractCliToCache(cacheDir, loader, classifier, publisher);
+            }
             return cached;
         }
 
@@ -425,8 +405,9 @@ public final class NativeRuntimeLoader {
             tryDelete(temp);
         }
 
-        // Step 5 — also extract the copilot CLI executable alongside runtime.node.
-        extractCliToCache(cacheDir, loader, classifier, publisher);
+        if (extractCli) {
+            extractCliToCache(cacheDir, loader, classifier, publisher);
+        }
 
         return cached;
     }

@@ -104,9 +104,7 @@ Follow these steps to embed the CLI:
 1. Run `go get -tool github.com/github/copilot-sdk/go/cmd/bundler`. This is a one-time setup step per project.
 2. Run `go tool bundler` in your build environment just before building your application.
 
-That's it! When your application calls `copilot.NewClient` without a `Connection` field (or with an empty `StdioConnection{}`) and no `COPILOT_CLI_PATH` environment variable, the SDK automatically installs the embedded runtime to a cache directory and launches the Rust runtime wrapper.
-
-As a temporary compatibility escape hatch, set `COPILOT_SDK_USE_LEGACY_CLI=1` or `COPILOT_SDK_USE_LEGACY_CLI=true` (`true` is case-insensitive) to launch the embedded root `copilot` executable instead. This setting applies only to automatic child-process resolution: explicit connections, paths, URLs, and `COPILOT_RUNTIME_PATH` take precedence, and in-process connections are unchanged.
+That's it! When your application calls `copilot.NewClient` without a `Connection` field (or with an empty `StdioConnection{}`), the SDK automatically installs the embedded `copilot-runtime` executable and adjacent `runtime.node` to a cache directory for managed child-process connections.
 
 The bundler prepares the native runtime library required by the [in-process transport](#in-process-transport-experimental). It is included in the application only when building with the `copilot_inprocess` build tag.
 
@@ -197,7 +195,7 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
   - `URIConnection{URL, ConnectionToken}` — connect to an already-running runtime (no process spawned)
   - `InProcessConnection{}` — **Experimental.** Host the runtime in-process via the native FFI library instead of spawning a child process. See [In-process transport](#in-process-transport-experimental) below.
 
-  When `Path` is empty for stdio/tcp, the SDK uses the bundled CLI (or `COPILOT_CLI_PATH` env var).
+  When `Path` is empty for stdio/tcp, the SDK uses `COPILOT_CLI_PATH` when set, then `COPILOT_RUNTIME_PATH`, then the bundled `copilot-runtime` and adjacent `runtime.node`.
 
   `StdioConnection` and `TCPConnection` accept an optional connection-level `Env`. Set environment variables via **either** the client-level `Env` option or the connection's `Env`, not both (setting both panics); prefer the connection-level `Env`.
 - `WorkingDirectory` (string): Working directory for the runtime process (default: current process working directory)
@@ -1000,6 +998,7 @@ Communicates with CLI via TCP socket. Useful for distributed scenarios.
 ## Environment Variables
 
 - `COPILOT_CLI_PATH` - Path to the Copilot CLI executable
+- `COPILOT_RUNTIME_PATH` - Path to a `copilot-runtime` executable with adjacent `runtime.node` for managed child-process connections
 
 ## Development
 

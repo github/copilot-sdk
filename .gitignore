@@ -21,6 +21,3 @@ java/.project
 java/.settings
 java/scripts/codegen/node_modules/
 .flattened-pom.xml
-
-# Locally staged copilot-runtime + runtime.node pair
-.local-runtime/

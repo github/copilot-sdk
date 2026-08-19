@@ -387,7 +387,7 @@ def _extract_runtime_wrapper(data: bytes, npm_platform: str) -> bytes:
         raise RuntimeError(f"'{target}' not found in runtime package for {npm_platform}.")
 
 
-def ensure_runtime_wrapper(cli_path: str, version: str | None = None) -> str:
+def ensure_runtime_wrapper(version: str | None = None, force: bool = False) -> str:
     """Provision the adjacent ``copilot-runtime`` and ``runtime.node`` pair."""
     ver = version or CLI_VERSION
     if not ver:
@@ -396,15 +396,15 @@ def ensure_runtime_wrapper(cli_path: str, version: str | None = None) -> str:
         )
     npm_platform = get_npm_platform()
     wrapper_name = "copilot-runtime.exe" if sys.platform == "win32" else "copilot-runtime"
-    pair_dir = Path(cli_path).resolve().parent / "prebuilds" / npm_platform
+    pair_dir = get_cache_dir(ver) / "prebuilds" / npm_platform
     wrapper_path = pair_dir / wrapper_name
     runtime_path = pair_dir / "runtime.node"
 
     wrapper_exists = wrapper_path.is_file() and wrapper_path.stat().st_size > 0
     runtime_exists = runtime_path.is_file() and runtime_path.stat().st_size > 0
-    if wrapper_exists and runtime_exists:
+    if wrapper_exists and runtime_exists and not force:
         return str(wrapper_path)
-    if wrapper_path.exists() or runtime_path.exists():
+    if not force and (wrapper_path.exists() or runtime_path.exists()):
         raise RuntimeError(
             f"Incomplete Copilot runtime pair in {pair_dir}: "
             f"both {wrapper_name} and runtime.node are required."
@@ -428,6 +428,8 @@ def ensure_runtime_wrapper(cli_path: str, version: str | None = None) -> str:
     if not wrapper_bytes or not runtime_bytes:
         raise RuntimeError("Copilot runtime wrapper and runtime.node must both be non-empty.")
 
+    import shutil
+
     pair_dir.parent.mkdir(parents=True, exist_ok=True)
     staging_dir = Path(tempfile.mkdtemp(dir=pair_dir.parent, prefix=".runtime-pair-"))
     try:
@@ -440,6 +442,8 @@ def ensure_runtime_wrapper(cli_path: str, version: str | None = None) -> str:
                 staged_wrapper.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH
             )
         try:
+            if force and pair_dir.exists():
+                shutil.rmtree(pair_dir)
             staging_dir.replace(pair_dir)
         except OSError:
             if (
@@ -452,8 +456,6 @@ def ensure_runtime_wrapper(cli_path: str, version: str | None = None) -> str:
             raise
     finally:
         if staging_dir.exists():
-            import shutil
-
             shutil.rmtree(staging_dir, ignore_errors=True)
 
     return str(wrapper_path)
@@ -622,7 +624,10 @@ def main() -> None:
 
         print(f"Downloading Copilot runtime v{ver}...")
         try:
-            path = download_cli(ver, force=args.force)
+            if args.in_process:
+                path = download_cli(ver, force=args.force)
+            else:
+                path = ensure_runtime_wrapper(ver, force=args.force)
             print(f"Runtime cached at: {path}")
             if args.in_process:
                 print("Downloading in-process (FFI) runtime library...")

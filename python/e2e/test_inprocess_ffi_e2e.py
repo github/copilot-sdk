@@ -15,7 +15,7 @@ import pytest
 from copilot import CopilotClient, RuntimeConnection
 
 from .testharness import E2ETestContext
-from .testharness.context import get_residual_cli_path_for_tests
+from .testharness.context import get_cli_path_for_tests
 
 pytestmark = pytest.mark.asyncio(loop_scope="module")
 
@@ -28,7 +28,7 @@ class TestInProcessFfi:
         # entrypoint and lets the native host spawn the worker. ``ping`` is a
         # purely local RPC round-trip, so no auth or replay proxy is involved.
         # If the native library is unavailable, start() raises and the test fails.
-        monkeypatch.setenv("COPILOT_CLI_PATH", get_residual_cli_path_for_tests())
+        monkeypatch.setenv("COPILOT_CLI_PATH", get_cli_path_for_tests())
         client = CopilotClient(connection=RuntimeConnection.for_inprocess())
         await client.start()
 

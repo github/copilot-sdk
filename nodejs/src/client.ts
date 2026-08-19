@@ -431,27 +431,6 @@ function getRuntimeWrapperName(): string {
     return process.platform === "win32" ? "copilot-runtime.exe" : "copilot-runtime";
 }
 
-function getLegacyCliName(): string {
-    return process.platform === "win32" ? "copilot.exe" : "copilot";
-}
-
-function isTruthyEnvironmentValue(value: string | undefined): boolean {
-    return value === "1" || value?.toLowerCase() === "true";
-}
-
-function validateLegacyCli(cliPath: string): string {
-    if (!existsSync(cliPath) || statSync(cliPath).size === 0) {
-        throw new Error(`Legacy Copilot CLI not found or empty at ${cliPath}.`);
-    }
-    if (process.platform !== "win32") {
-        const mode = statSync(cliPath).mode;
-        if ((mode & 0o111) === 0) {
-            chmodSync(cliPath, mode | 0o111);
-        }
-    }
-    return cliPath;
-}
-
 function validateRuntimePair(runtimePath: string): string {
     if (!existsSync(runtimePath)) {
         throw new Error(`Copilot runtime wrapper not found at ${runtimePath}.`);
@@ -476,24 +455,30 @@ function validateRuntimePair(runtimePath: string): string {
     return runtimePath;
 }
 
-function getBundledRuntimePath(
-    overridePath?: string,
-    legacyValue?: string,
-    bundled: BundledCliPackage = getBundledCliPackage()
-): { runtimePath: string; cliPath?: string } {
+function getBundledRuntimePath(overridePath?: string): string {
     if (overridePath) {
-        return { runtimePath: validateRuntimePair(overridePath) };
+        return validateRuntimePair(overridePath);
     }
-    if (isTruthyEnvironmentValue(legacyValue)) {
-        return {
-            runtimePath: validateLegacyCli(join(bundled.root, getLegacyCliName())),
-        };
+
+    const packageNames = getCliPlatformPackageNames();
+    const req = createRequire(__filename);
+    const searchPaths = req.resolve.paths("@github/copilot") ?? [];
+    for (const base of searchPaths) {
+        for (const packageName of packageNames) {
+            const root = join(base, ...packageName.split("/"));
+            const platform = packageName.slice("@github/copilot-".length);
+            const runtimePath = join(root, "prebuilds", platform, getRuntimeWrapperName());
+            if (existsSync(runtimePath)) {
+                return validateRuntimePair(runtimePath);
+            }
+        }
     }
-    const runtimePath = join(bundled.root, "prebuilds", bundled.platform, getRuntimeWrapperName());
-    return {
-        runtimePath: validateRuntimePair(runtimePath),
-        cliPath: join(bundled.root, "index.js"),
-    };
+
+    throw new Error(
+        `Could not find the Copilot runtime wrapper in a platform package (tried ${packageNames.join(", ")}). ` +
+            `Searched ${searchPaths.length} paths. ` +
+            `Ensure @github/copilot is installed, or set COPILOT_RUNTIME_PATH.`
+    );
 }
 
 /**
@@ -574,8 +559,6 @@ export class CopilotClient {
     private connectionConfig: InternalRuntimeConnection;
     /** Resolved path to the runtime executable (only used for child-process kinds). */
     private resolvedCliPath: string | undefined;
-    /** Residual CLI entrypoint used only by the Rust runtime wrapper. */
-    private residualCliPath: string | undefined;
     /** Resolved environment passed to the spawned runtime. */
     private resolvedEnv: Record<string, string | undefined>;
     private options: {
@@ -682,17 +665,6 @@ export class CopilotClient {
         throw new Error(
             `Invalid ${CopilotClient.DEFAULT_CONNECTION_ENV_VAR} value '${value}'. ` +
                 `Expected 'inprocess', 'stdio', or unset.`
-        );
-    }
-
-    private static resolveManagedLaunch(
-        effectiveEnv: Record<string, string | undefined>,
-        bundled?: BundledCliPackage
-    ): { runtimePath: string; cliPath?: string } {
-        return getBundledRuntimePath(
-            effectiveEnv.COPILOT_RUNTIME_PATH ?? process.env.COPILOT_RUNTIME_PATH,
-            effectiveEnv.COPILOT_SDK_USE_LEGACY_CLI ?? process.env.COPILOT_SDK_USE_LEGACY_CLI,
-            bundled
         );
     }
 
@@ -834,9 +806,9 @@ export class CopilotClient {
             if (explicitCliPath) {
                 this.resolvedCliPath = explicitCliPath;
             } else {
-                const bundled = CopilotClient.resolveManagedLaunch(effectiveEnv);
-                this.resolvedCliPath = bundled.runtimePath;
-                this.residualCliPath = bundled.cliPath;
+                this.resolvedCliPath = getBundledRuntimePath(
+                    effectiveEnv.COPILOT_RUNTIME_PATH ?? process.env.COPILOT_RUNTIME_PATH
+                );
             }
         }
 
@@ -2647,9 +2619,6 @@ export class CopilotClient {
     private buildRuntimeEnv(): Record<string, string | undefined> {
         const env: Record<string, string | undefined> = { ...this.resolvedEnv };
         delete env.NODE_DEBUG;
-        if (this.residualCliPath) {
-            env.COPILOT_CLI_PATH = this.residualCliPath;
-        }
 
         if (this.options.gitHubToken) {
             env.COPILOT_SDK_AUTH_TOKEN = this.options.gitHubToken;

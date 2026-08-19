@@ -3,8 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * Downloads the runtime wrapper pair for a single platform classifier and
- * stages it with the residual CLI for packaging into a classifier JAR.
+ * Downloads the native runtime artifacts for one platform classifier.
  *
  * Steps:
  *   1. Read the pinned version and the SHA-512 `integrity` value for
@@ -57,7 +56,6 @@ const cliFilename = isWindows ? 'copilot.exe' : 'copilot';
 const cliPath = path.join(resourceDir, cliFilename);
 const wrapperFilename = isWindows ? 'copilot-runtime.exe' : 'copilot-runtime';
 const wrapperPath = path.join(resourceDir, wrapperFilename);
-const runtimeOverride = process.env.COPILOT_RUNTIME_PATH;
 const platformPropertiesPath = path.join(resourceDir, 'platform.properties');
 const expectedPlatformProperties = `classifier=${classifier}\nversion=${version}\n`;
 const stampPath = path.join(outDir, '.version');
@@ -65,7 +63,6 @@ const stampPath = path.join(outDir, '.version');
 // Idempotence: skip the download only when every required staged artifact
 // matches the package identity recorded in the stamp.
 if (
-  !runtimeOverride &&
   fs.existsSync(runtimePath) &&
   fs.existsSync(wrapperPath) &&
   fs.existsSync(cliPath) &&
@@ -115,27 +112,18 @@ if (actual !== integrity) {
 }
 console.log(`Integrity verified (${integrity.slice(0, 20)}...).`);
 
-if (runtimeOverride) {
-  const localRuntimePath = path.join(path.dirname(runtimeOverride), 'runtime.node');
-  requireNonEmptyFile(runtimeOverride, 'COPILOT_RUNTIME_PATH');
-  requireNonEmptyFile(localRuntimePath, 'adjacent runtime.node');
-  fs.copyFileSync(runtimeOverride, wrapperPath);
-  fs.copyFileSync(localRuntimePath, runtimePath);
-} else {
-  const runtimeMemberPath = `package/prebuilds/${classifier}/runtime.node`;
-  const wrapperMemberPath = `package/prebuilds/${classifier}/${wrapperFilename}`;
-  execFileSync('tar', ['-xzf', tarballPath, '-C', outDir, runtimeMemberPath, wrapperMemberPath], {
-    stdio: 'inherit',
-  });
-  fs.renameSync(path.join(outDir, runtimeMemberPath), runtimePath);
-  fs.renameSync(path.join(outDir, wrapperMemberPath), wrapperPath);
-}
+const runtimeMemberPath = `package/prebuilds/${classifier}/runtime.node`;
+const wrapperMemberPath = `package/prebuilds/${classifier}/${wrapperFilename}`;
+execFileSync('tar', ['-xzf', tarballPath, '-C', outDir, runtimeMemberPath, wrapperMemberPath], {
+  stdio: 'inherit',
+});
+fs.renameSync(path.join(outDir, runtimeMemberPath), runtimePath);
+fs.renameSync(path.join(outDir, wrapperMemberPath), wrapperPath);
 if (!isWindows) {
   fs.chmodSync(wrapperPath, 0o755);
 }
 
-// Extract the copilot CLI executable (necessary-and-sufficient runtime artifact invariant:
-// host_start needs both runtime.node and the copilot CLI from the same package version).
+// Preserve the existing CLI artifact used by direct and in-process launch modes.
 execFileSync('tar', ['-xzf', tarballPath, '-C', outDir, cliTarballMember], { stdio: 'inherit' });
 fs.renameSync(path.join(outDir, cliTarballMember), cliPath);
 if (!isWindows) {
@@ -148,24 +136,11 @@ fs.rmSync(tarballPath, { force: true });
 const runtimeDigest = digestFile(runtimePath);
 const cliDigest = digestFile(cliPath);
 const wrapperDigest = digestFile(wrapperPath);
-const stagedVersion = runtimeOverride
-  ? `${version}-local-${digestIdentity(runtimeDigest, wrapperDigest)}`
-  : version;
-fs.writeFileSync(platformPropertiesPath, `classifier=${classifier}\nversion=${stagedVersion}\n`);
+fs.writeFileSync(platformPropertiesPath, expectedPlatformProperties);
 fs.writeFileSync(stampPath, `${version}\n${integrity}\n${runtimeDigest}\n${cliDigest}\n${wrapperDigest}\n`);
 
 console.log(`Staged ${runtimePath}`);
 
 function digestFile(filePath) {
   return `sha512-${createHash('sha512').update(fs.readFileSync(filePath)).digest('base64')}`;
-}
-
-function digestIdentity(...digests) {
-  return createHash('sha256').update(digests.join('\n')).digest('hex').slice(0, 16);
-}
-
-function requireNonEmptyFile(filePath, label) {
-  if (!fs.statSync(filePath, { throwIfNoEntry: false })?.isFile() || fs.statSync(filePath).size === 0) {
-    throw new Error(`${label} must be a non-empty file: ${filePath}`);
-  }
 }

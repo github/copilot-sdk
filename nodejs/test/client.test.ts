@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { EventEmitter } from "node:events";
 import { PassThrough } from "stream";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
@@ -60,80 +60,6 @@ describe("approveAll", () => {
 });
 
 describe("CopilotClient", () => {
-    function createBundledRuntimeFixture(): {
-        root: string;
-        platform: string;
-        wrapper: string;
-        legacyCli: string;
-    } {
-        const root = mkdtempSync(join(tmpdir(), "copilot-bundled-runtime-"));
-        const platform = "test-platform";
-        const prebuilds = join(root, "prebuilds", platform);
-        mkdirSync(prebuilds, { recursive: true });
-        const wrapper = join(
-            prebuilds,
-            process.platform === "win32" ? "copilot-runtime.exe" : "copilot-runtime"
-        );
-        const legacyCli = join(root, process.platform === "win32" ? "copilot.exe" : "copilot");
-        writeFileSync(wrapper, "wrapper");
-        writeFileSync(join(prebuilds, "runtime.node"), "runtime");
-        writeFileSync(legacyCli, "cli");
-        return { root, platform, wrapper, legacyCli };
-    }
-
-    it("uses the bundled wrapper by default and for false legacy values", () => {
-        const fixture = createBundledRuntimeFixture();
-
-        for (const value of [undefined, "false", "0"]) {
-            const launch = (CopilotClient as any).resolveManagedLaunch(
-                {
-                    COPILOT_RUNTIME_PATH: "",
-                    COPILOT_SDK_USE_LEGACY_CLI: value,
-                },
-                fixture
-            );
-            expect(launch).toEqual({
-                runtimePath: fixture.wrapper,
-                cliPath: join(fixture.root, "index.js"),
-            });
-        }
-    });
-
-    it.each(["1", "true", "TRUE"])("uses the bundled legacy CLI for truthy value %s", (value) => {
-        const fixture = createBundledRuntimeFixture();
-
-        const launch = (CopilotClient as any).resolveManagedLaunch(
-            {
-                COPILOT_RUNTIME_PATH: "",
-                COPILOT_SDK_USE_LEGACY_CLI: value,
-            },
-            fixture
-        );
-
-        expect(launch).toEqual({ runtimePath: fixture.legacyCli });
-    });
-
-    it("keeps explicit paths and runtime overrides ahead of legacy selection", () => {
-        const fixture = createBundledRuntimeFixture();
-        const explicitPath = join(fixture.root, "explicit-copilot");
-        writeFileSync(explicitPath, "explicit");
-
-        const explicit = new CopilotClient({
-            connection: RuntimeConnection.forStdio({ path: explicitPath }),
-            env: { COPILOT_SDK_USE_LEGACY_CLI: "true" },
-        });
-        expect((explicit as any).resolvedCliPath).toBe(explicitPath);
-
-        const launch = (CopilotClient as any).resolveManagedLaunch(
-            {
-                COPILOT_RUNTIME_PATH: fixture.wrapper,
-                COPILOT_SDK_USE_LEGACY_CLI: "true",
-            },
-            fixture
-        );
-        expect(launch).toEqual({ runtimePath: fixture.wrapper });
-    });
-
     it("resolves COPILOT_RUNTIME_PATH only when runtime.node is adjacent", () => {
         const dir = mkdtempSync(join(tmpdir(), "copilot-runtime-pair-"));
         const wrapper = join(
@@ -146,7 +72,6 @@ describe("CopilotClient", () => {
         const client = new CopilotClient({ env: { COPILOT_RUNTIME_PATH: wrapper } });
 
         expect((client as any).resolvedCliPath).toBe(wrapper);
-        expect((client as any).residualCliPath).toBeUndefined();
     });
 
     it("rejects a COPILOT_RUNTIME_PATH without runtime.node", () => {

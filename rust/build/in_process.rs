@@ -8,7 +8,6 @@ use sha2::Digest;
 pub(crate) fn main() {
     println!("cargo:rerun-if-env-changed=DOCS_RS");
     println!("cargo:rerun-if-env-changed=COPILOT_SKIP_CLI_DOWNLOAD");
-    println!("cargo:rerun-if-env-changed=COPILOT_RUNTIME_PATH");
     println!("cargo:rerun-if-env-changed=COPILOT_CLI_EXTRACT_DIR");
     println!("cargo:rerun-if-env-changed=BUNDLED_CLI_CACHE_DIR");
     println!("cargo::rustc-check-cfg=cfg(has_bundled_cli)");
@@ -39,11 +38,9 @@ pub(crate) fn main() {
     // `has_bundled_cli` nor `has_extracted_cli` emitted, runtime resolution
     // falls straight through to `Error::BinaryNotFound` unless an explicit
     // path source resolves first.
-    if std::env::var_os("COPILOT_SKIP_CLI_DOWNLOAD").is_some()
-        || std::env::var_os("COPILOT_RUNTIME_PATH").is_some()
-    {
+    if std::env::var_os("COPILOT_SKIP_CLI_DOWNLOAD").is_some() {
         println!(
-            "cargo:warning=local runtime override is set — skipping published runtime download/bundle/cache"
+            "cargo:warning=COPILOT_SKIP_CLI_DOWNLOAD is set — skipping runtime download/bundle/cache"
         );
         return;
     }

@@ -29,8 +29,9 @@ runtime:
 python -m copilot download-runtime
 ```
 
-This caches the runtime binary locally. If you skip this step, the SDK will
-attempt to download it automatically on first use as a fallback.
+This caches `copilot-runtime` and its adjacent `runtime.node` locally. If you
+skip this step, the SDK downloads the pair automatically on first managed
+stdio/TCP use.
 
 To pre-provision the native library required by the in-process (FFI) transport
 (see [In-process (FFI) transport](#in-process-ffi-transport)), pass `--in-process`:
@@ -39,27 +40,25 @@ To pre-provision the native library required by the in-process (FFI) transport
 python -m copilot download-runtime --in-process
 ```
 
-This additionally fetches the native runtime library into the versioned runtime
-cache. Stdio/TCP users never download it. When omitted, it is downloaded
-lazily on first use of the in-process transport.
+This instead provisions the compatible CLI artifact and native runtime library
+used by in-process hosting. When omitted, they are downloaded lazily on first
+use of the in-process transport.
 
 | Platform | Cache path |
 |----------|-----------|
-| Linux | `~/.cache/github-copilot-sdk/cli/<version>/copilot` |
-| macOS | `~/Library/Caches/github-copilot-sdk/cli/<version>/copilot` |
-| Windows | `%LOCALAPPDATA%\github-copilot-sdk\cli\<version>\copilot.exe` |
+| Linux | `~/.cache/github-copilot-sdk/cli/<version>/prebuilds/<platform>/` |
+| macOS | `~/Library/Caches/github-copilot-sdk/cli/<version>/prebuilds/<platform>/` |
+| Windows | `%LOCALAPPDATA%\github-copilot-sdk\cli\<version>\prebuilds\<platform>\` |
 
 ### Environment variables
 
 | Variable | Description |
 |----------|-------------|
 | `COPILOT_CLI_PATH` | Use this specific binary instead of downloading |
-| `COPILOT_SDK_USE_LEGACY_CLI` | Temporarily use the bundled root CLI for automatic out-of-process launch when set to `1` or `true` (case-insensitive) |
+| `COPILOT_RUNTIME_PATH` | Use this `copilot-runtime` executable and its adjacent `runtime.node` for managed child-process connections |
 | `COPILOT_CLI_EXTRACT_DIR` | Override the cache directory (binary placed directly here) |
 | `COPILOT_SKIP_CLI_DOWNLOAD` | Set to `1` to disable auto-download |
 | `COPILOT_CLI_DOWNLOAD_BASE_URL` | Override the GitHub Releases download URL |
-
-The SDK launches the bundled Rust runtime wrapper by default. `COPILOT_SDK_USE_LEGACY_CLI` applies only to automatic stdio or TCP resolution. Explicit paths, URLs, and `COPILOT_RUNTIME_PATH` take precedence, and in-process connections are unchanged.
 
 ## Run the Sample
 
@@ -225,6 +224,10 @@ All options are kw-only parameters:
 - `RuntimeConnection.for_tcp(port=0, connection_token=None, path=None, args=None)` — spawn a local CLI in TCP mode.
 - `RuntimeConnection.for_uri(url, connection_token=None)` — connect to an existing CLI server (e.g. `"localhost:8080"`).
 - `RuntimeConnection.for_inprocess()` — host the runtime in-process via its native C ABI (FFI). See [In-process (FFI) transport](#in-process-ffi-transport).
+
+Managed stdio and TCP connections use the downloaded `copilot-runtime` executable
+and its adjacent `runtime.node` by default. An explicit connection path or
+`COPILOT_CLI_PATH` takes precedence over `COPILOT_RUNTIME_PATH`.
 
 Child-process connections (`for_stdio`/`for_tcp`) also expose a per-connection
 `env` field for the spawned process. Set it on the returned connection instead of
