@@ -138,6 +138,10 @@ async fn should_stop_running_mcp_server() {
     .await;
 }
 
+// TODO(cli-1.0.81): CLI 1.0.81 no longer installs an MCP config from the inline start
+// payload, so `session.mcp.startServer` reports "has no installed config to start".
+// Re-enable once the runtime fix ships.
+#[ignore = "blocked on CLI 1.0.81 MCP installed-config regression"]
 #[tokio::test]
 async fn should_start_and_restart_mcp_server() {
     super::support::with_shared_e2e_context(

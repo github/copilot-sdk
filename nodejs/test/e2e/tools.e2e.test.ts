@@ -45,7 +45,11 @@ describe("Custom tools", async () => {
         expect(assistantMessage?.data.content).toContain("HELLO");
     });
 
-    it("clears context from a terminal tool and starts the seeded turn", async () => {
+    // TODO(cli-1.0.81): CLI 1.0.81 stops servicing nested requests on the same stdio
+    // connection while awaiting a tool handler, so calling session.history.clearContext
+    // from inside a terminal tool deadlocks. Tracked as a runtime reentrancy regression;
+    // re-enable once the fixed CLI ships.
+    it.skip("clears context from a terminal tool and starts the seeded turn", async () => {
         const seedPrompt = "Reply with exactly FRESH_CONTEXT.";
         const events: SessionEvent[] = [];
         let session: CopilotSession;

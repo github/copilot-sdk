@@ -566,6 +566,10 @@ func TestRPCSessionStateE2E(t *testing.T) {
 	})
 
 	t.Run("should update options and initialize session services", func(t *testing.T) {
+		// TODO(cli-1.0.81): under CLI 1.0.81 this subtest issues model traffic before the
+		// replaying proxy is configured, so the proxy rejects it with "not yet initialized".
+		// Re-enable once the runtime restores the previous option-update ordering.
+		t.Skip("blocked on CLI 1.0.81 session option/service initialization ordering")
 		initialDirectory := createUniqueRPCWorkDirectory(t, ctx, "rpc-session-state-initial")
 		optionsDirectory := createUniqueRPCWorkDirectory(t, ctx, "rpc-session-state-options")
 		featureName := "rpc-session-state-" + randomHex(t)
