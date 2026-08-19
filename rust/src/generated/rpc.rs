@@ -43,6 +43,13 @@ impl<'a> ClientRpc<'a> {
         }
     }
 
+    /// `catalog.*` sub-namespace.
+    pub fn catalog(&self) -> ClientRpcCatalog<'a> {
+        ClientRpcCatalog {
+            client: self.client,
+        }
+    }
+
     /// `commands.*` sub-namespace.
     pub fn commands(&self) -> ClientRpcCommands<'a> {
         ClientRpcCommands {
@@ -501,6 +508,42 @@ impl<'a> ClientRpcAgents<'a> {
     }
 }
 
+/// `catalog.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct ClientRpcCatalog<'a> {
+    pub(crate) client: &'a Client,
+}
+
+impl<'a> ClientRpcCatalog<'a> {
+    /// Requests a bounded catalog search. This host-implemented server method is available through SDK/TUI hosts; standalone and C-ABI runtimes whose host does not implement server-method dispatch return JSON-RPC MethodNotFound. A runtime with search available returns inert candidate summaries, each with an opaque single-use handle scoped to this runtime instance; a runtime without it returns the typed search-unavailable result. Public authorities may be searched anonymously, while an authority that requires credentials yields the typed authentication-required result. All returned text, URLs, and package metadata are untrusted external data and can never trigger instructions, tools, or installation. Read-only: nothing is installed, configured, or persisted.
+    ///
+    /// Wire method: `catalog.search`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - A bounded catalog search. Both the query length and the result count are capped by the schema so a caller cannot request an unbounded scan.
+    ///
+    /// # Returns
+    ///
+    /// Outcome of a catalog.search call: either bounded inert candidates, or one typed refusal. Never a partial success.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn search(&self, params: CatalogSearchRequest) -> Result<CatalogSearchResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::CATALOG_SEARCH, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+}
+
 /// `commands.*` RPCs.
 #[derive(Clone, Copy)]
 pub struct ClientRpcCommands<'a> {
@@ -856,6 +899,37 @@ impl<'a> ClientRpcMcp<'a> {
         let _value = self
             .client
             .call(rpc_methods::MCP_DISCOVER, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Requests a side-effect-free MCP install plan from a catalog candidate handle or a caller-supplied card. This host-implemented server method is available through SDK/TUI hosts; standalone and C-ABI runtimes whose host does not implement server-method dispatch return JSON-RPC MethodNotFound. A runtime with planning available returns a normalised plan and opaque single-use plan handle; a runtime without it returns the typed planning-unavailable result. A completed plan reports resource identity, provenance, eligible transport choices, the user-scope target, required typed values and secret placeholders, the policy result, the configuration changes installing would make, and whether a reload would be needed. Planning never writes configuration, stores a secret, or reloads MCP servers, so abandoning a plan needs no call and leaves nothing behind.
+    ///
+    /// Wire method: `mcp.planInstall`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - A side-effect-free request for an MCP install plan. Computing a plan never writes configuration, stores a secret, or reloads MCP servers.
+    ///
+    /// # Returns
+    ///
+    /// Outcome of an mcp.planInstall call: either a normalised plan, or one typed refusal. Nothing is written in either case.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn plan_install(
+        &self,
+        params: McpPlanInstallRequest,
+    ) -> Result<McpPlanInstallResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::MCP_PLANINSTALL, Some(wire_params))
             .await?;
         Ok(serde_json::from_value(_value)?)
     }
@@ -5921,6 +5995,36 @@ impl<'a> SessionRpcMcp<'a> {
         Ok(())
     }
 
+    /// Releases any turns waiting on an in-flight MCP load without cancelling the load, letting the agent proceed while MCP servers finish connecting in the background. No-op when no MCP load is in flight or waiting turns were already released.
+    ///
+    /// Wire method: `session.mcp.moveLoadingToBackground`.
+    ///
+    /// # Returns
+    ///
+    /// Result of moving in-flight MCP loading to the background.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn move_loading_to_background(
+        &self,
+    ) -> Result<MoveMcpLoadingToBackgroundResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_MCP_MOVELOADINGTOBACKGROUND,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
     /// Reloads MCP server connections for the session with an explicit host-provided configuration.
     ///
     /// Wire method: `session.mcp.reloadWithConfig`.
@@ -7667,17 +7771,17 @@ impl<'a> SessionRpcPermissions<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Sets the allow-all permission mode for the session. Used by attach-mode clients (e.g. LocalRpcSession's `/allow-all` forwarder) to flip the target session's permission state. The `on` mode swaps in unrestricted path and URL managers and emits `session.permissions_changed` on transition; the `auto` mode keeps normal prompt paths active while attaching LLM safety recommendations. The result returns the authoritative post-mutation state so callers can update their local mirrors without racing the `session.permissions_changed` notification on the same wire.
+    /// Sets the permission mode for the session. `manual` follows the normal approval flow, `assisted` attaches LLM safety recommendations, and `allow-all` automatically approves permission requests. The result returns the authoritative post-mutation mode so callers can update local state without racing the `session.permissions_changed` notification.
     ///
-    /// Wire method: `session.permissions.setAllowAll`.
+    /// Wire method: `session.permissions.setMode`.
     ///
     /// # Parameters
     ///
-    /// * `params` - Allow-all mode to apply for the session.
+    /// * `params` - Permission mode to apply for the session.
     ///
     /// # Returns
     ///
-    /// Indicates whether the operation succeeded and reports the post-mutation state.
+    /// Indicates whether the requested permission mode was applied and reports the authoritative post-mutation mode.
     ///
     /// <div class="warning">
     ///
@@ -7686,30 +7790,27 @@ impl<'a> SessionRpcPermissions<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
-    pub async fn set_allow_all(
+    pub async fn set_mode(
         &self,
-        params: PermissionsSetAllowAllRequest,
-    ) -> Result<AllowAllPermissionSetResult, Error> {
+        params: PermissionsSetModeRequest,
+    ) -> Result<PermissionsSetModeResult, Error> {
         let mut wire_params = serde_json::to_value(params)?;
         wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
         let _value = self
             .session
             .client()
-            .call(
-                rpc_methods::SESSION_PERMISSIONS_SETALLOWALL,
-                Some(wire_params),
-            )
+            .call(rpc_methods::SESSION_PERMISSIONS_SETMODE, Some(wire_params))
             .await?;
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Returns the current allow-all permission mode for the session.
+    /// Returns the current permission mode for the session.
     ///
-    /// Wire method: `session.permissions.getAllowAll`.
+    /// Wire method: `session.permissions.getMode`.
     ///
     /// # Returns
     ///
-    /// Current allow-all permission mode.
+    /// Current permission mode.
     ///
     /// <div class="warning">
     ///
@@ -7718,15 +7819,12 @@ impl<'a> SessionRpcPermissions<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
-    pub async fn get_allow_all(&self) -> Result<AllowAllPermissionState, Error> {
+    pub async fn get_mode(&self) -> Result<PermissionsGetModeResult, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self
             .session
             .client()
-            .call(
-                rpc_methods::SESSION_PERMISSIONS_GETALLOWALL,
-                Some(wire_params),
-            )
+            .call(rpc_methods::SESSION_PERMISSIONS_GETMODE, Some(wire_params))
             .await?;
         Ok(serde_json::from_value(_value)?)
     }

@@ -461,28 +461,6 @@ type AgentsGetDiscoveryPathsRequest struct {
 	ProjectPaths []string `json:"projectPaths,omitzero"`
 }
 
-// Indicates whether the operation succeeded and reports the post-mutation state.
-// Experimental: AllowAllPermissionSetResult is part of an experimental API and may change
-// or be removed.
-type AllowAllPermissionSetResult struct {
-	// Authoritative full allow-all state after the mutation
-	Enabled bool `json:"enabled"`
-	// Authoritative allow-all mode after the mutation
-	Mode *PermissionsAllowAllMode `json:"mode,omitempty"`
-	// Whether the operation succeeded
-	Success bool `json:"success"`
-}
-
-// Current allow-all permission mode.
-// Experimental: AllowAllPermissionState is part of an experimental API and may change or be
-// removed.
-type AllowAllPermissionState struct {
-	// Whether full allow-all permissions are currently active
-	Enabled bool `json:"enabled"`
-	// Current allow-all mode
-	Mode *PermissionsAllowAllMode `json:"mode,omitempty"`
-}
-
 // A user message attachment — a file, directory, code selection, blob, GitHub-anchored
 // pointer, or extension-supplied context payload
 // Experimental: Attachment is part of an experimental API and may change or be removed.
@@ -1364,6 +1342,473 @@ type CapiSessionOptions struct {
 	// this to `false` is equivalent to the `COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES`
 	// environment variable.
 	EnableWebSocketResponses *bool `json:"enableWebSocketResponses,omitempty"`
+}
+
+// Semantic digest of a strictly parsed and schema-validated JSON MCP card. Both URL-backed
+// and embedded cards are canonicalised with RFC 8785 JSON Canonicalization Scheme, encoded
+// as UTF-8, and hashed with SHA-256.
+// Experimental: CardDigest is part of an experimental API and may change or be removed.
+type CardDigest struct {
+	// Digest algorithm and canonical representation
+	Algorithm CardDigestAlgorithm `json:"algorithm"`
+	// SHA-256 digest of the RFC 8785 canonical UTF-8 bytes, encoded as exactly 64 lowercase
+	// hexadecimal characters.
+	Value string `json:"value"`
+}
+
+// SHA-256 digest encoded as exactly 64 lowercase hexadecimal characters.
+// Experimental: CardDigestValue is part of an experimental API and may change or be removed.
+type CardDigestValue string
+
+// Where and when an AI skill catalog reference was observed. Discovery provenance
+// deliberately carries no content digest because search does not establish the exact
+// validated content a later plan will bind.
+// Experimental: CatalogAiSkillCandidateProvenance is part of an experimental API and may
+// change or be removed.
+type CatalogAiSkillCandidateProvenance struct {
+	// Host of the catalog authority that advertised the reference, without path, query, or
+	// credentials. Inert untrusted data.
+	Authority string `json:"authority"`
+	// Media type advertised for the referenced AI skill card
+	MediaType CatalogAiSkillCandidateProvenanceMediaType `json:"mediaType"`
+	// ISO 8601 timestamp at which the runtime observed the catalog reference. This is not a
+	// retrieval or validation timestamp.
+	ObservedAt string `json:"observedAt"`
+}
+
+// One inert catalog result, represented as an MCP server or discovery-only AI skill variant
+// so kind, media type, provenance, and installability cannot contradict each other.
+// Experimental: CatalogCandidate is part of an experimental API and may change or be
+// removed.
+type CatalogCandidate interface {
+	catalogCandidate()
+	Kind() CatalogCandidateKind
+}
+
+type RawCatalogCandidateData struct {
+	Discriminator CatalogCandidateKind
+	Raw           json.RawMessage
+}
+
+func (RawCatalogCandidateData) catalogCandidate() {}
+func (r RawCatalogCandidateData) Kind() CatalogCandidateKind {
+	return r.Discriminator
+}
+
+// An inert AI skill catalog result. AI skills are discovery-only and cannot be represented
+// as installable through this surface.
+// Experimental: CatalogAiSkillCandidate is part of an experimental API and may change or be
+// removed.
+type CatalogAiSkillCandidate struct {
+	// Description taken verbatim from the card. Inert untrusted text.
+	Description *string `json:"description,omitempty"`
+	// Display name taken verbatim from the card. Inert untrusted text.
+	DisplayName string `json:"displayName"`
+	// Opaque, runtime-instance scoped, TTL-bound, single-use handle for this candidate. Carries
+	// no readable information and is rejected when stale, replayed, or presented to a different
+	// runtime instance. Never logged.
+	Handle string `json:"handle"`
+	// ISO 8601 timestamp after which the handle is stale and will be rejected.
+	HandleExpiresAt string `json:"handleExpiresAt"`
+	// AI skills are discovery-only and cannot be installed through this surface
+	Installability CatalogAiSkillCandidateInstallability `json:"installability"`
+	// Media type of the underlying AI skill card
+	MediaType CatalogAiSkillCandidateMediaType `json:"mediaType"`
+	// Where the catalog reference was observed, without the card itself or any content digest.
+	Provenance CatalogAiSkillCandidateProvenance `json:"provenance"`
+	// Publisher taken verbatim from the card. Inert untrusted text.
+	Publisher *string `json:"publisher,omitempty"`
+	// Where the card came from: exactly one of a URL or embedded data, encoded as a tagged
+	// union so neither both nor neither can be represented.
+	Source CatalogCandidateSource `json:"source"`
+}
+
+func (CatalogAiSkillCandidate) catalogCandidate() {}
+func (CatalogAiSkillCandidate) Kind() CatalogCandidateKind {
+	return CatalogCandidateKindAiSkill
+}
+
+// An inert MCP server catalog result. Every free-text field is untrusted external data and
+// must never be treated as an instruction, and the handle is the only way to refer to the
+// candidate in a later operation.
+// Experimental: CatalogMCPServerCandidate is part of an experimental API and may change or
+// be removed.
+type CatalogMCPServerCandidate struct {
+	// Description taken verbatim from the card. Inert untrusted text.
+	Description *string `json:"description,omitempty"`
+	// Display name taken verbatim from the card. Inert untrusted text.
+	DisplayName string `json:"displayName"`
+	// Opaque, runtime-instance scoped, TTL-bound, single-use handle for this candidate. Carries
+	// no readable information and is rejected when stale, replayed, or presented to a different
+	// runtime instance. Never logged.
+	Handle string `json:"handle"`
+	// ISO 8601 timestamp after which the handle is stale and will be rejected.
+	HandleExpiresAt string `json:"handleExpiresAt"`
+	// Whether this MCP server can be planned for installation, and if policy prevents it.
+	Installability CatalogMCPServerInstallability `json:"installability"`
+	// JSON MCP media type of the underlying card.
+	MediaType MCPServerCardMediaType `json:"mediaType"`
+	// Where the catalog reference was observed, without the card itself or any content digest.
+	Provenance CatalogMCPServerCandidateProvenance `json:"provenance"`
+	// Publisher taken verbatim from the card. Inert untrusted text.
+	Publisher *string `json:"publisher,omitempty"`
+	// Where the card came from: exactly one of a URL or embedded data, encoded as a tagged
+	// union so neither both nor neither can be represented.
+	Source CatalogCandidateSource `json:"source"`
+}
+
+func (CatalogMCPServerCandidate) catalogCandidate() {}
+func (CatalogMCPServerCandidate) Kind() CatalogCandidateKind {
+	return CatalogCandidateKindMCPServer
+}
+
+// Where a candidate's card came from. Exactly one of a URL or embedded data: the union has
+// no variant carrying both, and no variant carrying neither, so the rule holds structurally
+// rather than by validation.
+// Experimental: CatalogCandidateSource is part of an experimental API and may change or be
+// removed.
+type CatalogCandidateSource interface {
+	catalogCandidateSource()
+	Kind() CatalogCandidateSourceKind
+}
+
+type RawCatalogCandidateSourceData struct {
+	Discriminator CatalogCandidateSourceKind
+	Raw           json.RawMessage
+}
+
+func (RawCatalogCandidateSourceData) catalogCandidateSource() {}
+func (r RawCatalogCandidateSourceData) Kind() CatalogCandidateSourceKind {
+	return r.Discriminator
+}
+
+// Candidate whose card reference arrived inline. The document and its content-derived
+// properties stay behind the runtime boundary.
+// Experimental: CatalogCandidateSourceEmbedded is part of an experimental API and may
+// change or be removed.
+type CatalogCandidateSourceEmbedded struct {
+}
+
+func (CatalogCandidateSourceEmbedded) catalogCandidateSource() {}
+func (CatalogCandidateSourceEmbedded) Kind() CatalogCandidateSourceKind {
+	return CatalogCandidateSourceKindEmbedded
+}
+
+// Candidate whose card is retrieved from a URL through the runtime's hardened fetch
+// boundary.
+// Experimental: CatalogCandidateSourceURL is part of an experimental API and may change or
+// be removed.
+type CatalogCandidateSourceURL struct {
+	// Card URL as advertised. Inert untrusted data: the runtime retrieves it only through its
+	// own hardened boundary, and it is never logged.
+	URL string `json:"url"`
+}
+
+func (CatalogCandidateSourceURL) catalogCandidateSource() {}
+func (CatalogCandidateSourceURL) Kind() CatalogCandidateSourceKind {
+	return CatalogCandidateSourceKindURL
+}
+
+// Bounded extensible wire-feature identifier. Known values are described by
+// `CatalogCapability`; newer callers may send future identifiers so an older runtime can
+// return a typed negotiation refusal instead of failing schema validation. Capability
+// negotiation establishes contract understanding, while each operation's result separately
+// reports runtime availability.
+// Experimental: CatalogCapabilityID is part of an experimental API and may change or be
+// removed.
+type CatalogCapabilityID string
+
+// The protocol version and capability set a caller requires, supplied on every catalog
+// request so negotiation cannot be skipped by omission.
+// Experimental: CatalogClientContract is part of an experimental API and may change or be
+// removed.
+type CatalogClientContract struct {
+	// SDK protocol version the caller was generated against. A caller below the runtime's
+	// minimum supported version is refused rather than served a partial result.
+	ProtocolVersion int64 `json:"protocolVersion"`
+	// Wire features the caller requires the runtime to understand. Identifiers are bounded but
+	// extensible so a newer caller can negotiate with an older runtime. Requiring an unknown
+	// feature yields a typed refusal listing what is understood, never a partial grant. A grant
+	// does not promise that a deployment has enabled the operation; typed unavailable results
+	// report that separately.
+	RequiredCapabilities []string `json:"requiredCapabilities"`
+}
+
+// Where and when an MCP server catalog reference was observed. Discovery provenance
+// deliberately carries no content digest because search does not establish the exact
+// validated content a later plan will bind.
+// Experimental: CatalogMCPServerCandidateProvenance is part of an experimental API and may
+// change or be removed.
+type CatalogMCPServerCandidateProvenance struct {
+	// Host of the catalog authority that advertised the reference, without path, query, or
+	// credentials. Inert untrusted data.
+	Authority string `json:"authority"`
+	// JSON MCP media type advertised for the referenced card.
+	MediaType MCPServerCardMediaType `json:"mediaType"`
+	// ISO 8601 timestamp at which the runtime observed the catalog reference. This is not a
+	// retrieval or validation timestamp.
+	ObservedAt string `json:"observedAt"`
+}
+
+// The protocol version and capability set the runtime actually honoured for a successful
+// catalog operation.
+// Experimental: CatalogNegotiatedContract is part of an experimental API and may change or
+// be removed.
+type CatalogNegotiatedContract struct {
+	// Wire features the runtime understood for this operation. Always a superset of the
+	// caller's required features, because any shortfall is a refusal instead. Operation
+	// availability remains a separate typed result.
+	GrantedCapabilities []CatalogCapability `json:"grantedCapabilities"`
+	// Protocol version of the runtime that served the request.
+	RuntimeProtocolVersion int64 `json:"runtimeProtocolVersion"`
+}
+
+// A bounded catalog search. Both the query length and the result count are capped by the
+// schema so a caller cannot request an unbounded scan.
+// Experimental: CatalogSearchRequest is part of an experimental API and may change or be
+// removed.
+type CatalogSearchRequest struct {
+	// Protocol version and capabilities the caller requires.
+	Contract CatalogClientContract `json:"contract"`
+	// Restrict results to these candidate kinds. When omitted, every kind the runtime supports
+	// is searched.
+	Kinds []CatalogCandidateKind `json:"kinds,omitzero"`
+	// Maximum number of candidates to return. Defaults to 10 when omitted.
+	Limit *int32 `json:"limit,omitempty"`
+	// Free-text search query. Never written to logs or telemetry.
+	Query string `json:"query"`
+}
+
+// Outcome of a catalog.search call: either bounded inert candidates, or one typed refusal.
+// Never a partial success.
+// Experimental: CatalogSearchResult is part of an experimental API and may change or be
+// removed.
+type CatalogSearchResult interface {
+	catalogSearchResult()
+	Kind() CatalogSearchResultKind
+}
+
+type RawCatalogSearchResultData struct {
+	Discriminator CatalogSearchResultKind
+	Raw           json.RawMessage
+}
+
+func (RawCatalogSearchResultData) catalogSearchResult() {}
+func (r RawCatalogSearchResultData) Kind() CatalogSearchResultKind {
+	return r.Discriminator
+}
+
+// An optional catalog authentication exchange did not establish the caller's identity.
+// Anonymous search remains supported; this refusal is reserved for an operation that cannot
+// continue after the attempted exchange. It is distinct from `policy-rejected` and from a
+// network failure, and the reason identifies the recovery action.
+// Experimental: CatalogAuthenticationRequiredError is part of an experimental API and may
+// change or be removed.
+type CatalogAuthenticationRequiredError struct {
+	// Human-readable explanation, safe to surface. Never contains a credential or token, nor a
+	// query, URL, handle, or secret.
+	Message string `json:"message"`
+	// Why authentication failed. Only an expired credential justifies attempting a silent
+	// refresh; an absent or rejected credential requires sign-in.
+	Reason CatalogAuthenticationRequiredReason `json:"reason"`
+}
+
+func (CatalogAuthenticationRequiredError) catalogSearchResult() {}
+func (CatalogAuthenticationRequiredError) Kind() CatalogSearchResultKind {
+	return CatalogSearchResultKindAuthenticationRequired
+}
+
+// An upstream catalog response broke the wire contract. Most importantly, every result must
+// carry exactly one of a URL or embedded data: a result carrying both, or neither, is
+// refused here rather than being guessed at.
+// Experimental: CatalogContractViolationError is part of an experimental API and may change
+// or be removed.
+type CatalogContractViolationError struct {
+	// Human-readable explanation, safe to surface. Never echoes response content, nor a query,
+	// URL, handle, or secret.
+	Message string `json:"message"`
+	// Which rule the response broke.
+	Reason CatalogContractViolationReason `json:"reason"`
+}
+
+func (CatalogContractViolationError) catalogSearchResult() {}
+func (CatalogContractViolationError) Kind() CatalogSearchResultKind {
+	return CatalogSearchResultKindContractViolation
+}
+
+// The request was rejected before any work was done, because a bounded field fell outside
+// its permitted range or a required field was unusable.
+// Experimental: CatalogInvalidRequestError is part of an experimental API and may change or
+// be removed.
+type CatalogInvalidRequestError struct {
+	// Which request field was rejected.
+	Field CatalogInvalidRequestField `json:"field"`
+	// Human-readable explanation, safe to surface. Never echoes the offending value, nor a
+	// query, URL, handle, or secret.
+	Message string `json:"message"`
+}
+
+func (CatalogInvalidRequestError) catalogSearchResult() {}
+func (CatalogInvalidRequestError) Kind() CatalogSearchResultKind {
+	return CatalogSearchResultKindInvalidRequest
+}
+
+// A card could not be parsed or did not satisfy its declared media type's schema.
+// Experimental: CatalogMalformedCardError is part of an experimental API and may change or
+// be removed.
+type CatalogMalformedCardError struct {
+	// Media type the card was interpreted as, when it declared one this runtime recognises.
+	MediaType *CatalogMediaType `json:"mediaType,omitempty"`
+	// Human-readable explanation, safe to surface. Never echoes card content, nor a query, URL,
+	// handle, or secret.
+	Message string `json:"message"`
+	// How the card failed validation.
+	Reason CatalogMalformedCardReason `json:"reason"`
+}
+
+func (CatalogMalformedCardError) catalogSearchResult() {}
+func (CatalogMalformedCardError) Kind() CatalogSearchResultKind {
+	return CatalogSearchResultKindMalformedCard
+}
+
+// The caller's protocol version or required capabilities cannot be honoured. Returned
+// instead of a partial or ambiguous success.
+// Experimental: CatalogNegotiationRefusedError is part of an experimental API and may
+// change or be removed.
+type CatalogNegotiationRefusedError struct {
+	// Human-readable explanation, safe to surface. Never contains a query, URL, handle, or
+	// secret.
+	Message string `json:"message"`
+	// Lowest caller protocol version this runtime will serve.
+	MinimumSupportedProtocolVersion int64 `json:"minimumSupportedProtocolVersion"`
+	// Whether the version or the capability set was the problem.
+	Reason CatalogNegotiationRefusedReason `json:"reason"`
+	// Protocol version of the runtime that refused the request.
+	RuntimeProtocolVersion int64 `json:"runtimeProtocolVersion"`
+	// Every wire feature this runtime understands, so the caller can retry within that
+	// contract. This list does not imply that every deployment has enabled every operation.
+	SupportedCapabilities []CatalogCapability `json:"supportedCapabilities"`
+	// The subset of the caller's bounded extensible capability identifiers this runtime cannot
+	// honour.
+	UnsupportedCapabilities []string `json:"unsupportedCapabilities"`
+}
+
+func (CatalogNegotiationRefusedError) catalogSearchResult() {}
+func (CatalogNegotiationRefusedError) Kind() CatalogSearchResultKind {
+	return CatalogSearchResultKindNegotiationRefused
+}
+
+// The runtime could not reach the catalog authority or retrieve a card. Covers being
+// offline as well as transport-level failure.
+// Experimental: CatalogNetworkFailureError is part of an experimental API and may change or
+// be removed.
+type CatalogNetworkFailureError struct {
+	// Human-readable explanation, safe to surface. Never contains a query, URL, handle, or
+	// secret.
+	Message string `json:"message"`
+	// Categorised failure, low cardinality so it can be aggregated without carrying a URL.
+	Reason CatalogNetworkFailureReason `json:"reason"`
+	// HTTP status code, when the failure was a rejected response.
+	StatusCode *int32 `json:"statusCode,omitempty"`
+}
+
+func (CatalogNetworkFailureError) catalogSearchResult() {}
+func (CatalogNetworkFailureError) Kind() CatalogSearchResultKind {
+	return CatalogSearchResultKindNetworkFailure
+}
+
+// Registry or enterprise policy refused the operation.
+// Experimental: CatalogPolicyRejectedError is part of an experimental API and may change or
+// be removed.
+type CatalogPolicyRejectedError struct {
+	// Human-readable explanation, safe to surface. Never contains a query, URL, handle, or
+	// secret.
+	Message string `json:"message"`
+	// Which authority produced the decision.
+	Source MCPPlanPolicySource `json:"source"`
+}
+
+func (CatalogPolicyRejectedError) catalogSearchResult() {}
+func (CatalogPolicyRejectedError) Kind() CatalogSearchResultKind {
+	return CatalogSearchResultKindPolicyRejected
+}
+
+// A completed catalog search: inert candidate summaries, each carrying a single-use handle.
+// Experimental: CatalogSearchSucceeded is part of an experimental API and may change or be
+// removed.
+type CatalogSearchSucceeded struct {
+	// Matching candidates, never more than the requested limit. All text is inert untrusted
+	// data.
+	Candidates []CatalogCandidate `json:"candidates"`
+	// Protocol version and capabilities the runtime honoured.
+	Negotiated CatalogNegotiatedContract `json:"negotiated"`
+	// Pseudonymous identifier for this search, issued by the runtime or by the catalog
+	// authority it queried and never by the caller, so it cannot be forged or replayed to
+	// attribute an install to a search that never happened. Always present on a success, so a
+	// result set can be tied to the installs it leads to. It identifies a search rather than a
+	// person: it is derived from no user, account, device, or query data, and must never be
+	// joined with user identity to re-identify anyone.
+	SearchID string `json:"searchId"`
+	// Whether further matches existed beyond the requested limit.
+	Truncated bool `json:"truncated"`
+}
+
+func (CatalogSearchSucceeded) catalogSearchResult() {}
+func (CatalogSearchSucceeded) Kind() CatalogSearchResultKind {
+	return CatalogSearchResultKindSucceeded
+}
+
+// The operation is not available on this runtime. Distinct from a network failure: nothing
+// was attempted.
+// Experimental: CatalogUnavailableError is part of an experimental API and may change or be
+// removed.
+type CatalogUnavailableError struct {
+	// Human-readable explanation, safe to surface. Never contains a query, URL, handle, or
+	// secret.
+	Message string `json:"message"`
+	// Why the operation is unavailable.
+	Reason CatalogUnavailableReason `json:"reason"`
+}
+
+func (CatalogUnavailableError) catalogSearchResult() {}
+func (CatalogUnavailableError) Kind() CatalogSearchResultKind {
+	return CatalogSearchResultKindUnavailable
+}
+
+// Retrieval was refused by the runtime's hardened fetch boundary before any request left
+// the process, or before a redirect was followed.
+// Experimental: CatalogUnsafeRetrievalError is part of an experimental API and may change
+// or be removed.
+type CatalogUnsafeRetrievalError struct {
+	// Human-readable explanation, safe to surface. Never contains the refused URL, nor a query,
+	// handle, or secret.
+	Message string `json:"message"`
+	// Which control refused the retrieval, low cardinality so it can be aggregated without
+	// carrying a URL.
+	Reason CatalogUnsafeRetrievalReason `json:"reason"`
+}
+
+func (CatalogUnsafeRetrievalError) catalogSearchResult() {}
+func (CatalogUnsafeRetrievalError) Kind() CatalogSearchResultKind {
+	return CatalogSearchResultKindUnsafeRetrieval
+}
+
+// The request asked for a candidate kind this runtime does not serve.
+// Experimental: CatalogUnsupportedKindError is part of an experimental API and may change
+// or be removed.
+type CatalogUnsupportedKindError struct {
+	// Human-readable explanation, safe to surface. Never contains a query, URL, handle, or
+	// secret.
+	Message string `json:"message"`
+	// The kinds from the request that are not supported.
+	RequestedKinds []CatalogCandidateKind `json:"requestedKinds"`
+	// Every candidate kind this runtime can serve.
+	SupportedKinds []CatalogCandidateKind `json:"supportedKinds"`
+}
+
+func (CatalogUnsupportedKindError) catalogSearchResult() {}
+func (CatalogUnsupportedKindError) Kind() CatalogSearchResultKind {
+	return CatalogSearchResultKindUnsupportedKind
 }
 
 // Slash commands available in the session, after applying any include/exclude filters.
@@ -4628,6 +5073,44 @@ type MCPHostState struct {
 	PendingConnections []string `json:"pendingConnections"`
 }
 
+// A normalised, inert description of what installing an MCP server would involve. Carries
+// no raw card, no install specification, and no secret value.
+// Experimental: MCPInstallPlan is part of an experimental API and may change or be removed.
+type MCPInstallPlan struct {
+	// The configuration changes installing would make, described rather than serialised, so the
+	// mutable configuration payload stays behind the runtime boundary.
+	ConfigurationChanges []MCPPlanConfigurationChange `json:"configurationChanges"`
+	// Normalised identity of the server the plan would install.
+	Identity MCPPlanResourceIdentity `json:"identity"`
+	// Opaque, runtime-instance scoped, TTL-bound, single-use handle for this plan. Rejected
+	// when stale, replayed, or presented to a different runtime instance. Never logged.
+	PlanHandle string `json:"planHandle"`
+	// ISO 8601 timestamp after which the plan handle is stale and will be rejected. Abandoning
+	// a plan needs no call: an unused handle simply expires, so cancellation before commit is
+	// side-effect free.
+	PlanHandleExpiresAt string `json:"planHandleExpiresAt"`
+	// Outcome of evaluating the server against registry and enterprise policy.
+	Policy MCPPlanPolicyResult `json:"policy"`
+	// Origin and semantic digest of the exact validated JSON MCP card content bound to this
+	// plan.
+	Provenance MCPPlanProvenance `json:"provenance"`
+	// Identifier of the choice the runtime would pick by default. Omitted when there is no
+	// eligible transport, or when the runtime expresses no preference.
+	RecommendedTransportChoiceID *string `json:"recommendedTransportChoiceId,omitempty"`
+	// Whether applying this plan would require an MCP reload to take effect. Planning itself
+	// never reloads.
+	ReloadRequired bool `json:"reloadRequired"`
+	// Whether the plan cannot be applied without further input, because a required value has no
+	// default or a secret must be supplied.
+	RequiresInteractiveConfiguration bool `json:"requiresInteractiveConfiguration"`
+	// Configuration scope and key the plan would write to.
+	Target MCPPlanTarget `json:"target"`
+	// Every eligible transport, so a host can present an explicit choice. A completed plan
+	// always has at least one; when none is eligible, planning returns
+	// `CatalogUnavailableTransportError` instead.
+	TransportChoices []MCPPlanTransportChoice `json:"transportChoices"`
+}
+
 // Server name to check running status for.
 // Experimental: MCPIsServerRunningRequest is part of an experimental API and may change or
 // be removed.
@@ -4873,6 +5356,439 @@ type MCPOauthRespondResult struct {
 	// Whether the response was accepted. False if the request was unknown, timed out, or
 	// already resolved.
 	Success bool `json:"success"`
+}
+
+// One change applying the plan would make, described rather than serialised so the
+// configuration payload stays behind the runtime boundary.
+// Experimental: MCPPlanConfigurationChange is part of an experimental API and may change or
+// be removed.
+type MCPPlanConfigurationChange struct {
+	// Names of the configuration fields the change would set, without their values.
+	ChangedFields []string `json:"changedFields"`
+	// Configuration key the change applies to.
+	ConfigKey string `json:"configKey"`
+	// Whether the change would create a new entry or modify an existing one.
+	Operation MCPPlanConfigurationOperation `json:"operation"`
+	// Scope the change would be written to.
+	Scope MCPPlanScope `json:"scope"`
+	// Secret placeholders the written configuration would reference. The constrained
+	// placeholder type cannot carry a literal secret value.
+	SecretReferences []string `json:"secretReferences"`
+}
+
+// A side-effect-free request for an MCP install plan. Computing a plan never writes
+// configuration, stores a secret, or reloads MCP servers.
+// Experimental: MCPPlanInstallRequest is part of an experimental API and may change or be
+// removed.
+type MCPPlanInstallRequest struct {
+	// Protocol version and capabilities the caller requires.
+	Contract CatalogClientContract `json:"contract"`
+	// Configuration scope the plan targets. Defaults to user scope when omitted.
+	Scope *MCPPlanScope `json:"scope,omitempty"`
+	// What to plan: either a candidate handle from a previous search, or a card supplied
+	// directly.
+	Source MCPPlanInstallSource `json:"source"`
+}
+
+// Outcome of an mcp.planInstall call: either a normalised plan, or one typed refusal.
+// Nothing is written in either case.
+// Experimental: MCPPlanInstallResult is part of an experimental API and may change or be
+// removed.
+type MCPPlanInstallResult interface {
+	mcpPlanInstallResult()
+	mcpPlanInstallResultKind() MCPPlanInstallResultKind
+}
+
+type RawMCPPlanInstallResultData struct {
+	Discriminator MCPPlanInstallResultKind
+	Raw           json.RawMessage
+}
+
+func (RawMCPPlanInstallResultData) mcpPlanInstallResult() {}
+func (r RawMCPPlanInstallResultData) mcpPlanInstallResultKind() MCPPlanInstallResultKind {
+	return r.Discriminator
+}
+func (CatalogAuthenticationRequiredError) mcpPlanInstallResult() {}
+func (CatalogAuthenticationRequiredError) mcpPlanInstallResultKind() MCPPlanInstallResultKind {
+	return MCPPlanInstallResultKindAuthenticationRequired
+}
+func (CatalogContractViolationError) mcpPlanInstallResult() {}
+func (CatalogContractViolationError) mcpPlanInstallResultKind() MCPPlanInstallResultKind {
+	return MCPPlanInstallResultKindContractViolation
+}
+
+// A presented handle was not accepted. Handles are runtime-instance scoped, TTL-bound, and
+// single-use, so each way of failing is reported distinctly.
+// Experimental: CatalogHandleRejectedError is part of an experimental API and may change or
+// be removed.
+type CatalogHandleRejectedError struct {
+	// Which kind of handle was presented.
+	HandleType CatalogHandleType `json:"handleType"`
+	// Human-readable explanation, safe to surface. Never contains the handle itself, nor a
+	// query, URL, or secret.
+	Message string `json:"message"`
+	// Why the handle was rejected.
+	Reason CatalogHandleRejectionReason `json:"reason"`
+}
+
+func (CatalogHandleRejectedError) mcpPlanInstallResult() {}
+func (CatalogHandleRejectedError) mcpPlanInstallResultKind() MCPPlanInstallResultKind {
+	return MCPPlanInstallResultKindHandleRejected
+}
+func (CatalogInvalidRequestError) mcpPlanInstallResult() {}
+func (CatalogInvalidRequestError) mcpPlanInstallResultKind() MCPPlanInstallResultKind {
+	return MCPPlanInstallResultKindInvalidRequest
+}
+func (CatalogMalformedCardError) mcpPlanInstallResult() {}
+func (CatalogMalformedCardError) mcpPlanInstallResultKind() MCPPlanInstallResultKind {
+	return MCPPlanInstallResultKindMalformedCard
+}
+func (CatalogNegotiationRefusedError) mcpPlanInstallResult() {}
+func (CatalogNegotiationRefusedError) mcpPlanInstallResultKind() MCPPlanInstallResultKind {
+	return MCPPlanInstallResultKindNegotiationRefused
+}
+func (CatalogNetworkFailureError) mcpPlanInstallResult() {}
+func (CatalogNetworkFailureError) mcpPlanInstallResultKind() MCPPlanInstallResultKind {
+	return MCPPlanInstallResultKindNetworkFailure
+}
+
+// The candidate is discoverable but cannot be installed. `application/ai-skill` resolves
+// here, because it stays searchable while remaining typed non-installable.
+// Experimental: CatalogNotInstallableError is part of an experimental API and may change or
+// be removed.
+type CatalogNotInstallableError struct {
+	// Human-readable explanation, safe to surface. Never contains a query, URL, handle, or
+	// secret.
+	Message string `json:"message"`
+	// Why the candidate cannot be installed.
+	Reason CatalogNotInstallableReason `json:"reason"`
+}
+
+func (CatalogNotInstallableError) mcpPlanInstallResult() {}
+func (CatalogNotInstallableError) mcpPlanInstallResultKind() MCPPlanInstallResultKind {
+	return MCPPlanInstallResultKindNotInstallable
+}
+func (CatalogPolicyRejectedError) mcpPlanInstallResult() {}
+func (CatalogPolicyRejectedError) mcpPlanInstallResultKind() MCPPlanInstallResultKind {
+	return MCPPlanInstallResultKindPolicyRejected
+}
+func (CatalogUnavailableError) mcpPlanInstallResult() {}
+func (CatalogUnavailableError) mcpPlanInstallResultKind() MCPPlanInstallResultKind {
+	return MCPPlanInstallResultKindUnavailable
+}
+
+// No transport this runtime can use is available for the requested server.
+// Experimental: CatalogUnavailableTransportError is part of an experimental API and may
+// change or be removed.
+type CatalogUnavailableTransportError struct {
+	// Human-readable explanation, safe to surface. Never contains a query, URL, handle, or
+	// secret.
+	Message string `json:"message"`
+	// Why no transport could be offered.
+	Reason CatalogUnavailableTransportReason `json:"reason"`
+}
+
+func (CatalogUnavailableTransportError) mcpPlanInstallResult() {}
+func (CatalogUnavailableTransportError) mcpPlanInstallResultKind() MCPPlanInstallResultKind {
+	return MCPPlanInstallResultKindUnavailableTransport
+}
+func (CatalogUnsafeRetrievalError) mcpPlanInstallResult() {}
+func (CatalogUnsafeRetrievalError) mcpPlanInstallResultKind() MCPPlanInstallResultKind {
+	return MCPPlanInstallResultKindUnsafeRetrieval
+}
+
+// A computed MCP install plan. Nothing has been applied: the plan describes what installing
+// would change, and the plan handle is what a later apply operation would consume.
+// Experimental: MCPPlanInstallPlanned is part of an experimental API and may change or be
+// removed.
+type MCPPlanInstallPlanned struct {
+	// Protocol version and capabilities the runtime honoured.
+	Negotiated CatalogNegotiatedContract `json:"negotiated"`
+	// The normalised plan.
+	Plan MCPInstallPlan `json:"plan"`
+}
+
+func (MCPPlanInstallPlanned) mcpPlanInstallResult() {}
+func (MCPPlanInstallPlanned) mcpPlanInstallResultKind() MCPPlanInstallResultKind {
+	return MCPPlanInstallResultKindPlanned
+}
+
+// What an install plan is computed from: a candidate handle from a previous search, or a
+// card supplied directly.
+// Experimental: MCPPlanInstallSource is part of an experimental API and may change or be
+// removed.
+type MCPPlanInstallSource interface {
+	mcpPlanInstallSource()
+	Kind() MCPPlanInstallSourceKind
+}
+
+type RawMCPPlanInstallSourceData struct {
+	Discriminator MCPPlanInstallSourceKind
+	Raw           json.RawMessage
+}
+
+func (RawMCPPlanInstallSourceData) mcpPlanInstallSource() {}
+func (r RawMCPPlanInstallSourceData) Kind() MCPPlanInstallSourceKind {
+	return r.Discriminator
+}
+
+// Plan from a candidate returned by a previous catalog search.
+// Experimental: MCPPlanInstallSourceCandidate is part of an experimental API and may change
+// or be removed.
+type MCPPlanInstallSourceCandidate struct {
+	// Single-use candidate handle. Consumed by this call, so a replay of the same handle is
+	// rejected.
+	CandidateHandle string `json:"candidateHandle"`
+	// The runtime- or authority-minted `searchId` returned with the search that produced this
+	// candidate. A search implementation binds it to private candidate-handle context; a
+	// planning implementation must verify that context before returning a plan. The unavailable
+	// planning implementation in this contract layer validates presence but does not claim the
+	// verification has occurred. It identifies a search rather than a person and must never be
+	// joined with user identity to re-identify anyone.
+	SearchID string `json:"searchId"`
+}
+
+func (MCPPlanInstallSourceCandidate) mcpPlanInstallSource() {}
+func (MCPPlanInstallSourceCandidate) Kind() MCPPlanInstallSourceKind {
+	return MCPPlanInstallSourceKindCandidate
+}
+
+// Plan from a card supplied directly by the caller, without a preceding search.
+// Experimental: MCPPlanInstallSourceCard is part of an experimental API and may change or
+// be removed.
+type MCPPlanInstallSourceCard struct {
+	// The card to plan from: exactly one of a URL or embedded data.
+	Card MCPServerCardReference `json:"card"`
+}
+
+func (MCPPlanInstallSourceCard) mcpPlanInstallSource() {}
+func (MCPPlanInstallSourceCard) Kind() MCPPlanInstallSourceKind {
+	return MCPPlanInstallSourceKindCard
+}
+
+// Outcome of evaluating the planned server against registry and enterprise policy.
+// Evaluation is read-only.
+// Experimental: MCPPlanPolicyResult is part of an experimental API and may change or be
+// removed.
+type MCPPlanPolicyResult struct {
+	// What policy decided for this server.
+	Decision MCPPlanPolicyDecision `json:"decision"`
+	// Human-readable explanation, safe to surface. Never contains a query, URL, handle, or
+	// secret.
+	Reason *string `json:"reason,omitempty"`
+	// Which authority produced the decision.
+	Source MCPPlanPolicySource `json:"source"`
+}
+
+// Provenance of the exact validated JSON MCP card content bound privately to a completed
+// plan and its opaque handle.
+// Experimental: MCPPlanProvenance is part of an experimental API and may change or be
+// removed.
+type MCPPlanProvenance struct {
+	// Authority associated with the validated card, without path, query, or credentials. Inert
+	// untrusted data.
+	Authority string `json:"authority"`
+	// Semantic digest of the exact validated JSON content bound to the plan handle.
+	CardDigest CardDigest `json:"cardDigest"`
+	// JSON MCP media type the validated card was interpreted as.
+	MediaType MCPServerCardMediaType `json:"mediaType"`
+	// ISO 8601 timestamp at which the runtime completed strict parsing and schema validation of
+	// the card content.
+	ValidatedAt string `json:"validatedAt"`
+}
+
+// One non-secret value a transport choice needs, represented as a scalar or enumerated
+// variant so enum values cannot be missing or attached to another type.
+// Experimental: MCPPlanRequiredValue is part of an experimental API and may change or be
+// removed.
+type MCPPlanRequiredValue interface {
+	mcpPlanRequiredValue()
+	Kind() MCPPlanRequiredValueKind
+}
+
+type RawMCPPlanRequiredValueData struct {
+	Discriminator MCPPlanRequiredValueKind
+	Raw           json.RawMessage
+}
+
+func (RawMCPPlanRequiredValueData) mcpPlanRequiredValue() {}
+func (r RawMCPPlanRequiredValueData) Kind() MCPPlanRequiredValueKind {
+	return r.Discriminator
+}
+
+// One enumerated non-secret value a transport choice needs before it can be applied. The
+// permitted values are structurally required.
+// Experimental: MCPPlanRequiredValueEnum is part of an experimental API and may change or
+// be removed.
+type MCPPlanRequiredValueEnum struct {
+	// Where the value is applied when the server is launched.
+	Category MCPPlanValueCategory `json:"category"`
+	// Default supplied by the card, when the value can be resolved without input. Presence is
+	// the authoritative indication that a default exists. Inert untrusted data.
+	DefaultValue *string `json:"defaultValue,omitempty"`
+	// Human-readable explanation from the card. Inert untrusted text.
+	Description *string `json:"description,omitempty"`
+	// Non-empty permitted value set. Inert untrusted data.
+	EnumValues []string `json:"enumValues"`
+	// Whether the value may be supplied more than once.
+	IsRepeated bool `json:"isRepeated"`
+	// Key the value is supplied under. Inert untrusted data.
+	Key string `json:"key"`
+	// Whether the value must be present for the plan to be applicable.
+	Required bool `json:"required"`
+	// Human-readable label from the card. Inert untrusted text.
+	Title *string `json:"title,omitempty"`
+	// Discriminator: the value must be one of `enumValues`.
+	ValueType MCPPlanEnumValueType `json:"valueType"`
+}
+
+func (MCPPlanRequiredValueEnum) mcpPlanRequiredValue() {}
+func (MCPPlanRequiredValueEnum) Kind() MCPPlanRequiredValueKind {
+	return MCPPlanRequiredValueKindEnum
+}
+
+// One non-secret scalar value a transport choice needs before it can be applied.
+// Experimental: MCPPlanRequiredValueScalar is part of an experimental API and may change or
+// be removed.
+type MCPPlanRequiredValueScalar struct {
+	// Where the value is applied when the server is launched.
+	Category MCPPlanValueCategory `json:"category"`
+	// Default supplied by the card, when the value can be resolved without input. Presence is
+	// the authoritative indication that a default exists. Inert untrusted data.
+	DefaultValue *string `json:"defaultValue,omitempty"`
+	// Human-readable explanation from the card. Inert untrusted text.
+	Description *string `json:"description,omitempty"`
+	// Whether the value may be supplied more than once.
+	IsRepeated bool `json:"isRepeated"`
+	// Key the value is supplied under. Inert untrusted data.
+	Key string `json:"key"`
+	// Whether the value must be present for the plan to be applicable.
+	Required bool `json:"required"`
+	// Human-readable label from the card. Inert untrusted text.
+	Title *string `json:"title,omitempty"`
+	// Scalar type the value must conform to.
+	ValueType MCPPlanScalarValueType `json:"valueType"`
+}
+
+func (MCPPlanRequiredValueScalar) mcpPlanRequiredValue() {}
+func (MCPPlanRequiredValueScalar) Kind() MCPPlanRequiredValueKind {
+	return MCPPlanRequiredValueKindScalar
+}
+
+// Normalised identity of the MCP server a plan targets, independent of how the card spelled
+// it.
+// Experimental: MCPPlanResourceIdentity is part of an experimental API and may change or be
+// removed.
+type MCPPlanResourceIdentity struct {
+	// Canonical, normalised name of the server, for example `io.github.owner/server`.
+	CanonicalName string `json:"canonicalName"`
+	// Registry identifier of the server, when it came from a registry.
+	RegistryID *string `json:"registryId,omitempty"`
+	// Local configuration key the server would be recorded under.
+	ServerName string `json:"serverName"`
+	// Version advertised by the card, when it declares one.
+	Version *string `json:"version,omitempty"`
+}
+
+// A secret a transport choice needs, referenced by placeholder. No secret value ever
+// appears in a plan, and the placeholder resolves against the keychain only when a plan is
+// applied.
+// Experimental: MCPPlanSecretPlaceholder is part of an experimental API and may change or
+// be removed.
+type MCPPlanSecretPlaceholder struct {
+	// Key the secret is supplied under. Inert untrusted data.
+	Key string `json:"key"`
+	// The runtime-assigned `${secret:<id>}` placeholder written into configuration in place of
+	// the value.
+	Placeholder string `json:"placeholder"`
+	// Human-readable label from the card. Inert untrusted text.
+	Title *string `json:"title,omitempty"`
+}
+
+// A runtime-assigned secret placeholder. The identifier is carried once, inside the
+// placeholder, so it cannot contradict a separate secret-id field.
+// Experimental: MCPPlanSecretReference is part of an experimental API and may change or be
+// removed.
+type MCPPlanSecretReference string
+
+// Where a plan would be written.
+// Experimental: MCPPlanTarget is part of an experimental API and may change or be removed.
+type MCPPlanTarget struct {
+	// Configuration key the server would be recorded under within that scope.
+	ConfigKey string `json:"configKey"`
+	// Configuration scope the plan targets.
+	Scope MCPPlanScope `json:"scope"`
+}
+
+// One eligible way to run the server, represented as a tagged package or remote variant so
+// package identity and endpoint states cannot contradict the install method.
+// Experimental: MCPPlanTransportChoice is part of an experimental API and may change or be
+// removed.
+type MCPPlanTransportChoice interface {
+	mcpPlanTransportChoice()
+	Transport() MCPPlanTransportChoiceTransport
+}
+
+type RawMCPPlanTransportChoiceData struct {
+	Discriminator MCPPlanTransportChoiceTransport
+	Raw           json.RawMessage
+}
+
+func (RawMCPPlanTransportChoiceData) mcpPlanTransportChoice() {}
+func (r RawMCPPlanTransportChoiceData) Transport() MCPPlanTransportChoiceTransport {
+	return r.Discriminator
+}
+
+// An eligible local-package transport choice. Package identity is required and a remote
+// endpoint cannot be represented.
+// Experimental: MCPPlanTransportChoicePackage is part of an experimental API and may change
+// or be removed.
+type MCPPlanTransportChoicePackage struct {
+	// Stable identifier for this choice within the plan, used to select it when the plan is
+	// applied.
+	ChoiceID string `json:"choiceId"`
+	// Discriminator: this choice runs a local package
+	InstallMethod MCPPlanPackageInstallMethod `json:"installMethod"`
+	// Package identifier. Inert untrusted data.
+	PackageIdentifier string `json:"packageIdentifier"`
+	// Packaging ecosystem, for example `oci` or `npm`.
+	PackageType string `json:"packageType"`
+	// Typed values this choice requires, excluding secrets.
+	RequiredValues []MCPPlanRequiredValue `json:"requiredValues"`
+	// Secrets this choice requires, referenced by placeholder only.
+	SecretPlaceholders []MCPPlanSecretPlaceholder `json:"secretPlaceholders"`
+}
+
+func (MCPPlanTransportChoicePackage) mcpPlanTransportChoice() {}
+func (MCPPlanTransportChoicePackage) Transport() MCPPlanTransportChoiceTransport {
+	return MCPPlanTransportChoiceTransportStdio
+}
+
+// An eligible remote-endpoint transport choice. The endpoint is required and package
+// identity cannot be represented.
+// Experimental: MCPPlanTransportChoiceRemote is part of an experimental API and may change
+// or be removed.
+type MCPPlanTransportChoiceRemote struct {
+	// Stable identifier for this choice within the plan, used to select it when the plan is
+	// applied.
+	ChoiceID string `json:"choiceId"`
+	// Endpoint URL. Inert untrusted data.
+	Endpoint string `json:"endpoint"`
+	// Discriminator: this choice connects to a remote endpoint
+	InstallMethod MCPPlanRemoteInstallMethod `json:"installMethod"`
+	// Typed values this choice requires, excluding secrets.
+	RequiredValues []MCPPlanRequiredValue `json:"requiredValues"`
+	// Secrets this choice requires, referenced by placeholder only.
+	SecretPlaceholders []MCPPlanSecretPlaceholder `json:"secretPlaceholders"`
+	Discriminator      MCPPlanRemoteTransport     `json:"transport,omitempty"`
+}
+
+func (MCPPlanTransportChoiceRemote) mcpPlanTransportChoice() {}
+func (r MCPPlanTransportChoiceRemote) Transport() MCPPlanTransportChoiceTransport {
+	if r.Discriminator == "" {
+		return MCPPlanTransportChoiceTransportHTTP
+	}
+	return MCPPlanTransportChoiceTransport(r.Discriminator)
 }
 
 // Registration parameters for an external MCP client.
@@ -5326,6 +6242,59 @@ func (MCPServerAuthConfigRedirectPort) mcpServerAuthConfig() {}
 type MCPServerAuthConfigRedirectPort struct {
 	// Fixed port for the OAuth redirect callback server.
 	RedirectPort *int32 `json:"redirectPort,omitempty"`
+}
+
+// A card supplied directly by the caller. Exactly one of a URL or embedded data, encoded
+// structurally so neither both nor neither can be expressed.
+// Experimental: MCPServerCardReference is part of an experimental API and may change or be
+// removed.
+type MCPServerCardReference interface {
+	mcpServerCardReference()
+	Kind() MCPServerCardReferenceKind
+}
+
+type RawMCPServerCardReferenceData struct {
+	Discriminator MCPServerCardReferenceKind
+	Raw           json.RawMessage
+}
+
+func (RawMCPServerCardReferenceData) mcpServerCardReference() {}
+func (r RawMCPServerCardReferenceData) Kind() MCPServerCardReferenceKind {
+	return r.Discriminator
+}
+
+// An MCP server card supplied inline as an inert document.
+// Experimental: MCPServerCardEmbedded is part of an experimental API and may change or be
+// removed.
+type MCPServerCardEmbedded struct {
+	// The card document verbatim, treated as inert untrusted bytes. The runtime parses and
+	// validates it; the host is not expected to interpret it. Never logged.
+	Data string `json:"data"`
+	// Media type the card is expected to conform to.
+	MediaType MCPServerCardMediaType `json:"mediaType"`
+}
+
+func (MCPServerCardEmbedded) mcpServerCardReference() {}
+func (MCPServerCardEmbedded) Kind() MCPServerCardReferenceKind {
+	return MCPServerCardReferenceKindEmbedded
+}
+
+// An MCP server card to be retrieved from a URL through the runtime's hardened fetch
+// boundary.
+// Experimental: MCPServerCardURL is part of an experimental API and may change or be
+// removed.
+type MCPServerCardURL struct {
+	// Media type the card is expected to conform to.
+	MediaType MCPServerCardMediaType `json:"mediaType"`
+	// Card URL. Retrieved only through the runtime's hardened boundary, with scheme,
+	// credential, address-range, redirect, timeout, and response-size controls applied. Never
+	// logged.
+	URL string `json:"url"`
+}
+
+func (MCPServerCardURL) mcpServerCardReference() {}
+func (MCPServerCardURL) Kind() MCPServerCardReferenceKind {
+	return MCPServerCardReferenceKindURL
 }
 
 // MCP server configuration (stdio, remote HTTP/SSE, or in-process)
@@ -6126,6 +7095,16 @@ type ModeSetResult struct {
 	Status string `json:"status"`
 	// User-facing warning produced while applying the mode change.
 	Warning *string `json:"warning,omitempty"`
+}
+
+// Result of moving in-flight MCP loading to the background.
+// Experimental: MoveMCPLoadingToBackgroundResult is part of an experimental API and may
+// change or be removed.
+type MoveMCPLoadingToBackgroundResult struct {
+	// Whether an in-flight MCP load was moved to the background, releasing turns that were
+	// waiting on it. False when no MCP load was in flight or the waiting turns had already been
+	// released.
+	MovedToBackground bool `json:"movedToBackground"`
 }
 
 // External SDK input for a named custom model provider. Ingested by the native protocol
@@ -7147,9 +8126,17 @@ type PermissionsFolderTrustAddTrustedResult struct {
 }
 
 // No parameters.
-// Experimental: PermissionsGetAllowAllRequest is part of an experimental API and may change
-// or be removed.
-type PermissionsGetAllowAllRequest struct {
+// Experimental: PermissionsGetModeRequest is part of an experimental API and may change or
+// be removed.
+type PermissionsGetModeRequest struct {
+}
+
+// Current permission mode.
+// Experimental: PermissionsGetModeResult is part of an experimental API and may change or
+// be removed.
+type PermissionsGetModeResult struct {
+	// Current permission mode
+	Mode PermissionMode `json:"mode"`
 }
 
 // Tool approval to persist and apply
@@ -7412,24 +8399,6 @@ type PermissionsResetSessionApprovalsResult struct {
 	Success bool `json:"success"`
 }
 
-// Allow-all mode to apply for the session.
-// Experimental: PermissionsSetAllowAllRequest is part of an experimental API and may change
-// or be removed.
-type PermissionsSetAllowAllRequest struct {
-	// Legacy full allow-all toggle. Prefer `mode`; when `mode` is omitted, `enabled: true` is
-	// treated as `mode: "on"` and any other value is treated as `mode: "off"`.
-	Enabled *bool `json:"enabled,omitempty"`
-	// Allow-all mode to apply. `on` enables full allow-all; `auto` enables advisory LLM
-	// auto-approval; `off` disables both.
-	Mode *PermissionsAllowAllMode `json:"mode,omitempty"`
-	// Optional model id for the `auto` mode auto-approval LLM judging. Only meaningful when
-	// `mode` is `auto`; ignored otherwise. When omitted, the session resolves a default judge
-	// model: `gpt-5.5` for CAPI sessions and the session's active model for BYOK sessions.
-	Model *string `json:"model,omitempty"`
-	// Optional source for allow-all telemetry. Defaults to `rpc` when omitted for SDK callers.
-	Source *PermissionsSetAllowAllSource `json:"source,omitempty"`
-}
-
 // Allow-all toggle for tool permission requests, with an optional telemetry source.
 // Experimental: PermissionsSetApproveAllRequest is part of an experimental API and may
 // change or be removed.
@@ -7444,6 +8413,32 @@ type PermissionsSetApproveAllRequest struct {
 // Experimental: PermissionsSetApproveAllResult is part of an experimental API and may
 // change or be removed.
 type PermissionsSetApproveAllResult struct {
+	// Whether the operation succeeded
+	Success bool `json:"success"`
+}
+
+// Permission mode to apply for the session.
+// Experimental: PermissionsSetModeRequest is part of an experimental API and may change or
+// be removed.
+type PermissionsSetModeRequest struct {
+	// Optional judge model id for assisted mode. When omitted, the session resolves the
+	// provider default: `gpt-5.5` for CAPI sessions and the active session model for BYOK
+	// sessions.
+	AssistedApprovalModel *string `json:"assistedApprovalModel,omitempty"`
+	// Permission mode to apply
+	Mode PermissionMode `json:"mode"`
+	// Optional source for permission-mode telemetry. Defaults to `rpc` when omitted for SDK
+	// callers.
+	Source *PermissionModeSource `json:"source,omitempty"`
+}
+
+// Indicates whether the requested permission mode was applied and reports the authoritative
+// post-mutation mode.
+// Experimental: PermissionsSetModeResult is part of an experimental API and may change or
+// be removed.
+type PermissionsSetModeResult struct {
+	// Authoritative permission mode after the mutation
+	Mode PermissionMode `json:"mode"`
 	// Whether the operation succeeded
 	Success bool `json:"success"`
 }
@@ -7565,6 +8560,11 @@ type PlanSQLTodoDependency struct {
 // because the SQL schema is best-effort and the agent may not have populated every column.
 // Experimental: PlanSQLTodosRow is part of an experimental API and may change or be removed.
 type PlanSQLTodosRow struct {
+	// Todo creation time, as stored by the session SQL schema's `datetime('now')` default:
+	// `YYYY-MM-DD HH:MM:SS` in UTC. Lets clients attribute todos to the work item that created
+	// them (e.g. scoping a goal's progress to the todos it produced) rather than to the whole
+	// session.
+	CreatedAt *string `json:"createdAt,omitempty"`
 	// Todo description.
 	Description *string `json:"description,omitempty"`
 	// Todo identifier.
@@ -14572,6 +15572,322 @@ const (
 	BuiltinToolInputSchemaTypeObject BuiltinToolInputSchemaType = "object"
 )
 
+// Canonical digest algorithm for a validated MCP card
+// Experimental: CardDigestAlgorithm is part of an experimental API and may change or be
+// removed.
+type CardDigestAlgorithm string
+
+const (
+	// SHA-256 over RFC 8785 canonical JSON encoded as UTF-8.
+	CardDigestAlgorithmSha256Rfc8785 CardDigestAlgorithm = "sha256-rfc8785"
+)
+
+// AI skills are discovery-only and cannot be installed through this surface
+type CatalogAiSkillCandidateInstallability string
+
+const (
+	CatalogAiSkillCandidateInstallabilityNotInstallableKind CatalogAiSkillCandidateInstallability = "not-installable-kind"
+)
+
+// Media type of the underlying AI skill card
+type CatalogAiSkillCandidateMediaType string
+
+const (
+	CatalogAiSkillCandidateMediaTypeApplicationAiSkill CatalogAiSkillCandidateMediaType = "application/ai-skill"
+)
+
+// Media type advertised for the referenced AI skill card
+type CatalogAiSkillCandidateProvenanceMediaType string
+
+const (
+	CatalogAiSkillCandidateProvenanceMediaTypeApplicationAiSkill CatalogAiSkillCandidateProvenanceMediaType = "application/ai-skill"
+)
+
+// Why the catalog authority did not accept the caller's identity
+// Experimental: CatalogAuthenticationRequiredReason is part of an experimental API and may
+// change or be removed.
+type CatalogAuthenticationRequiredReason string
+
+const (
+	// A credential was presented and its lifetime has elapsed. A silent refresh is worth
+	// attempting before prompting anyone.
+	CatalogAuthenticationRequiredReasonCredentialExpired CatalogAuthenticationRequiredReason = "credential-expired"
+	// A credential was presented and the authority refused it, for example because it was
+	// revoked, malformed, or issued for another audience. Refreshing the same rejected
+	// credential is not useful; the caller must sign in again.
+	CatalogAuthenticationRequiredReasonCredentialRejected CatalogAuthenticationRequiredReason = "credential-rejected"
+	// No credential was presented, so there is nothing to refresh and the caller must sign in.
+	CatalogAuthenticationRequiredReasonNoCredential CatalogAuthenticationRequiredReason = "no-credential"
+)
+
+// Kind discriminator for CatalogCandidate.
+// Experimental: CatalogCandidateKind is part of an experimental API and may change or be
+// removed.
+type CatalogCandidateKind string
+
+const (
+	CatalogCandidateKindAiSkill   CatalogCandidateKind = "ai-skill"
+	CatalogCandidateKindMCPServer CatalogCandidateKind = "mcp-server"
+)
+
+// Kind discriminator for CatalogCandidateSource.
+type CatalogCandidateSourceKind string
+
+const (
+	CatalogCandidateSourceKindEmbedded CatalogCandidateSourceKind = "embedded"
+	CatalogCandidateSourceKindURL      CatalogCandidateSourceKind = "url"
+)
+
+// A wire feature a caller can require of the catalog surface, negotiated per request. A
+// grant means the runtime understands the feature's contract, not that the deployment has
+// enabled the operation; typed unavailable results report availability separately.
+// Experimental: CatalogCapability is part of an experimental API and may change or be
+// removed.
+type CatalogCapability string
+
+const (
+	// Understands `application/ai-skill` candidates as discovery-only and typed non-installable.
+	CatalogCapabilityAiSkillDiscovery CatalogCapability = "ai-skill-discovery"
+	// Understands the legacy `application/mcp-server+json` media type.
+	CatalogCapabilityLegacyMCPServerCard CatalogCapability = "legacy-mcp-server-card"
+	// Understands side-effect-free MCP install-plan requests, results, and plan handles;
+	// `planning-unavailable` separately reports that planning is not enabled.
+	CatalogCapabilityMCPInstallPlanning CatalogCapability = "mcp-install-planning"
+	// Understands the current `application/mcp-server-card+json` media type.
+	CatalogCapabilityMCPServerCard CatalogCapability = "mcp-server-card"
+	// Understands plans that enumerate every eligible transport rather than a single preferred
+	// one.
+	CatalogCapabilityMultipleTransportChoice CatalogCapability = "multiple-transport-choice"
+)
+
+// Which wire-contract rule an upstream response broke
+// Experimental: CatalogContractViolationReason is part of an experimental API and may
+// change or be removed.
+type CatalogContractViolationReason string
+
+const (
+	// A result carried both a URL and embedded data, when exactly one is permitted.
+	CatalogContractViolationReasonBothURLAndData CatalogContractViolationReason = "both-url-and-data"
+	// Two results claimed the same normalised identity.
+	CatalogContractViolationReasonDuplicateIdentity CatalogContractViolationReason = "duplicate-identity"
+	// A result carried neither a URL nor embedded data, when exactly one is required.
+	CatalogContractViolationReasonNeitherURLNorData CatalogContractViolationReason = "neither-url-nor-data"
+	// A result declared no media type, or one this contract does not model.
+	CatalogContractViolationReasonUnknownMediaType CatalogContractViolationReason = "unknown-media-type"
+)
+
+// Why a presented handle was rejected
+// Experimental: CatalogHandleRejectionReason is part of an experimental API and may change
+// or be removed.
+type CatalogHandleRejectionReason string
+
+const (
+	// The handle was issued by a different runtime instance.
+	CatalogHandleRejectionReasonForeign CatalogHandleRejectionReason = "foreign"
+	// The handle is unparseable, unknown, or was issued for a different operation.
+	CatalogHandleRejectionReasonInvalid CatalogHandleRejectionReason = "invalid"
+	// The handle has already been used, and handles are single-use.
+	CatalogHandleRejectionReasonReplayed CatalogHandleRejectionReason = "replayed"
+	// The handle's time to live has elapsed.
+	CatalogHandleRejectionReasonStale CatalogHandleRejectionReason = "stale"
+)
+
+// Which kind of opaque handle was presented
+// Experimental: CatalogHandleType is part of an experimental API and may change or be
+// removed.
+type CatalogHandleType string
+
+const (
+	// A search candidate handle.
+	CatalogHandleTypeCandidate CatalogHandleType = "candidate"
+	// An install plan handle.
+	CatalogHandleTypePlan CatalogHandleType = "plan"
+)
+
+// Which request field was rejected before any work was done
+// Experimental: CatalogInvalidRequestField is part of an experimental API and may change or
+// be removed.
+type CatalogInvalidRequestField string
+
+const (
+	// The supplied card was missing its media type, URL, or data.
+	CatalogInvalidRequestFieldCard CatalogInvalidRequestField = "card"
+	// The negotiation block was missing or malformed.
+	CatalogInvalidRequestFieldContract CatalogInvalidRequestField = "contract"
+	// The requested candidate kinds were empty or contained a duplicate.
+	CatalogInvalidRequestFieldKinds CatalogInvalidRequestField = "kinds"
+	// The requested result count fell outside its permitted range.
+	CatalogInvalidRequestFieldLimit CatalogInvalidRequestField = "limit"
+	// The search query was empty or longer than permitted.
+	CatalogInvalidRequestFieldQuery CatalogInvalidRequestField = "query"
+	// The requested configuration scope is not one this runtime writes.
+	CatalogInvalidRequestFieldScope CatalogInvalidRequestField = "scope"
+	// The plan source was missing or malformed.
+	CatalogInvalidRequestFieldSource CatalogInvalidRequestField = "source"
+)
+
+// How a card failed validation
+// Experimental: CatalogMalformedCardReason is part of an experimental API and may change or
+// be removed.
+type CatalogMalformedCardReason string
+
+const (
+	// The document is not well-formed JSON.
+	CatalogMalformedCardReasonInvalidJSON CatalogMalformedCardReason = "invalid-json"
+	// A field the media type requires is absent.
+	CatalogMalformedCardReasonMissingRequiredField CatalogMalformedCardReason = "missing-required-field"
+	// The document does not satisfy its media type's schema.
+	CatalogMalformedCardReasonSchemaViolation CatalogMalformedCardReason = "schema-violation"
+	// The document exceeded the permitted size.
+	CatalogMalformedCardReasonSizeLimitExceeded CatalogMalformedCardReason = "size-limit-exceeded"
+	// The declared media type is not one this runtime understands.
+	CatalogMalformedCardReasonUnsupportedMediaType CatalogMalformedCardReason = "unsupported-media-type"
+)
+
+// Whether an MCP server candidate can be planned for installation
+// Experimental: CatalogMCPServerInstallability is part of an experimental API and may
+// change or be removed.
+type CatalogMCPServerInstallability string
+
+const (
+	// An install plan can be computed for this MCP server candidate.
+	CatalogMCPServerInstallabilityInstallable CatalogMCPServerInstallability = "installable"
+	// Policy forbids installing this MCP server candidate.
+	CatalogMCPServerInstallabilityNotInstallablePolicy CatalogMCPServerInstallability = "not-installable-policy"
+)
+
+// Media type a catalog card is interpreted as
+// Experimental: CatalogMediaType is part of an experimental API and may change or be
+// removed.
+type CatalogMediaType string
+
+const (
+	// An AI skill card. Representable and searchable, but typed non-installable.
+	CatalogMediaTypeApplicationAiSkill CatalogMediaType = "application/ai-skill"
+	// The current MCP server card media type.
+	CatalogMediaTypeApplicationMCPServerCardJSON CatalogMediaType = "application/mcp-server-card+json"
+	// The legacy MCP server card media type, accepted for compatibility.
+	CatalogMediaTypeApplicationMCPServerJSON CatalogMediaType = "application/mcp-server+json"
+)
+
+// Why capability and protocol-version negotiation refused a caller
+// Experimental: CatalogNegotiationRefusedReason is part of an experimental API and may
+// change or be removed.
+type CatalogNegotiationRefusedReason string
+
+const (
+	// The caller requires at least one capability this runtime cannot honour.
+	CatalogNegotiationRefusedReasonUnsupportedCapability CatalogNegotiationRefusedReason = "unsupported-capability"
+	// The caller's protocol version is below the lowest this runtime serves.
+	CatalogNegotiationRefusedReasonUnsupportedProtocolVersion CatalogNegotiationRefusedReason = "unsupported-protocol-version"
+)
+
+// Categorised network failure, low cardinality so it can be aggregated without carrying a
+// URL
+// Experimental: CatalogNetworkFailureReason is part of an experimental API and may change
+// or be removed.
+type CatalogNetworkFailureReason string
+
+const (
+	// The connection was refused or reset.
+	CatalogNetworkFailureReasonConnectionRefused CatalogNetworkFailureReason = "connection-refused"
+	// The authority's name could not be resolved.
+	CatalogNetworkFailureReasonDns CatalogNetworkFailureReason = "dns"
+	// The authority returned a status the runtime treats as a failure.
+	CatalogNetworkFailureReasonHTTPStatus CatalogNetworkFailureReason = "http-status"
+	// No network is available, so nothing was attempted.
+	CatalogNetworkFailureReasonOffline CatalogNetworkFailureReason = "offline"
+	// A redirect was refused by the runtime's redirect policy.
+	CatalogNetworkFailureReasonRedirectRejected CatalogNetworkFailureReason = "redirect-rejected"
+	// The response exceeded the permitted size.
+	CatalogNetworkFailureReasonResponseTooLarge CatalogNetworkFailureReason = "response-too-large"
+	// The request exceeded its time budget.
+	CatalogNetworkFailureReasonTimeout CatalogNetworkFailureReason = "timeout"
+	// The TLS handshake or certificate validation failed.
+	CatalogNetworkFailureReasonTls CatalogNetworkFailureReason = "tls"
+)
+
+// Why a discoverable candidate cannot be installed
+// Experimental: CatalogNotInstallableReason is part of an experimental API and may change
+// or be removed.
+type CatalogNotInstallableReason string
+
+const (
+	// AI skills are discoverable but have no typed importer in this phase.
+	CatalogNotInstallableReasonAiSkillNotInstallable CatalogNotInstallableReason = "ai-skill-not-installable"
+	// This kind of resource is not installable through this surface.
+	CatalogNotInstallableReasonKindNotInstallable CatalogNotInstallableReason = "kind-not-installable"
+	// Policy forbids installing this candidate.
+	CatalogNotInstallableReasonPolicyForbids CatalogNotInstallableReason = "policy-forbids"
+)
+
+// Kind discriminator for CatalogSearchResult.
+type CatalogSearchResultKind string
+
+const (
+	CatalogSearchResultKindAuthenticationRequired CatalogSearchResultKind = "authentication-required"
+	CatalogSearchResultKindContractViolation      CatalogSearchResultKind = "contract-violation"
+	CatalogSearchResultKindInvalidRequest         CatalogSearchResultKind = "invalid-request"
+	CatalogSearchResultKindMalformedCard          CatalogSearchResultKind = "malformed-card"
+	CatalogSearchResultKindNegotiationRefused     CatalogSearchResultKind = "negotiation-refused"
+	CatalogSearchResultKindNetworkFailure         CatalogSearchResultKind = "network-failure"
+	CatalogSearchResultKindPolicyRejected         CatalogSearchResultKind = "policy-rejected"
+	CatalogSearchResultKindSucceeded              CatalogSearchResultKind = "succeeded"
+	CatalogSearchResultKindUnavailable            CatalogSearchResultKind = "unavailable"
+	CatalogSearchResultKindUnsafeRetrieval        CatalogSearchResultKind = "unsafe-retrieval"
+	CatalogSearchResultKindUnsupportedKind        CatalogSearchResultKind = "unsupported-kind"
+)
+
+// Why a catalog operation is not available on this runtime
+// Experimental: CatalogUnavailableReason is part of an experimental API and may change or
+// be removed.
+type CatalogUnavailableReason string
+
+const (
+	// No catalog authority is configured for this runtime.
+	CatalogUnavailableReasonAuthorityNotConfigured CatalogUnavailableReason = "authority-not-configured"
+	// The surface is disabled by policy on this runtime.
+	CatalogUnavailableReasonDisabledByPolicy CatalogUnavailableReason = "disabled-by-policy"
+	// Install planning is not wired up on this runtime build.
+	CatalogUnavailableReasonPlanningUnavailable CatalogUnavailableReason = "planning-unavailable"
+	// Bounded search is not wired up on this runtime build.
+	CatalogUnavailableReasonSearchUnavailable CatalogUnavailableReason = "search-unavailable"
+)
+
+// Why no usable transport could be offered
+// Experimental: CatalogUnavailableTransportReason is part of an experimental API and may
+// change or be removed.
+type CatalogUnavailableTransportReason string
+
+const (
+	// The card advertises no transport this runtime can use.
+	CatalogUnavailableTransportReasonNoEligibleTransport CatalogUnavailableTransportReason = "no-eligible-transport"
+	// Eligible remotes could not be enumerated, so no explicit choice can be offered.
+	CatalogUnavailableTransportReasonRemoteEnumerationUnavailable CatalogUnavailableTransportReason = "remote-enumeration-unavailable"
+	// Every advertised transport is of a kind this runtime does not implement.
+	CatalogUnavailableTransportReasonTransportNotSupported CatalogUnavailableTransportReason = "transport-not-supported"
+)
+
+// Which hardened-fetch control refused a retrieval
+// Experimental: CatalogUnsafeRetrievalReason is part of an experimental API and may change
+// or be removed.
+type CatalogUnsafeRetrievalReason string
+
+const (
+	// The URL resolved to a loopback, private, link-local, or cloud metadata address.
+	CatalogUnsafeRetrievalReasonBlockedAddress CatalogUnsafeRetrievalReason = "blocked-address"
+	// The URL used a scheme the runtime refuses to fetch.
+	CatalogUnsafeRetrievalReasonBlockedScheme CatalogUnsafeRetrievalReason = "blocked-scheme"
+	// The URL embedded credentials.
+	CatalogUnsafeRetrievalReasonCredentialsInURL CatalogUnsafeRetrievalReason = "credentials-in-url"
+	// The authority is not permitted for card retrieval.
+	CatalogUnsafeRetrievalReasonHostNotPermitted CatalogUnsafeRetrievalReason = "host-not-permitted"
+	// The configured proxy policy refused the request.
+	CatalogUnsafeRetrievalReasonProxyRejected CatalogUnsafeRetrievalReason = "proxy-rejected"
+	// A redirect target resolved to a blocked address.
+	CatalogUnsafeRetrievalReasonRedirectToBlockedAddress CatalogUnsafeRetrievalReason = "redirect-to-blocked-address"
+)
+
 // Whether a pending slash-command invocation effect was applied or cancelled by the host.
 // Experimental: CommandsInvocationEffectOutcome is part of an experimental API and may
 // change or be removed.
@@ -15406,6 +16722,230 @@ const (
 	MCPOauthProbeResultStatusNoAuthRequired MCPOauthProbeResultStatus = "no-auth-required"
 )
 
+// Whether a planned configuration change would create or modify an entry
+// Experimental: MCPPlanConfigurationOperation is part of an experimental API and may change
+// or be removed.
+type MCPPlanConfigurationOperation string
+
+const (
+	// Creates a configuration entry that does not exist yet.
+	MCPPlanConfigurationOperationAdd MCPPlanConfigurationOperation = "add"
+	// Modifies a configuration entry that already exists.
+	MCPPlanConfigurationOperationUpdate MCPPlanConfigurationOperation = "update"
+)
+
+// Discriminator for an enumerated required value
+// Experimental: MCPPlanEnumValueType is part of an experimental API and may change or be
+// removed.
+type MCPPlanEnumValueType string
+
+const (
+	// One of a fixed, non-empty set of permitted values.
+	MCPPlanEnumValueTypeEnum MCPPlanEnumValueType = "enum"
+)
+
+// Kind discriminator for MCPPlanInstallResult.
+type MCPPlanInstallResultKind string
+
+const (
+	MCPPlanInstallResultKindAuthenticationRequired MCPPlanInstallResultKind = "authentication-required"
+	MCPPlanInstallResultKindContractViolation      MCPPlanInstallResultKind = "contract-violation"
+	MCPPlanInstallResultKindHandleRejected         MCPPlanInstallResultKind = "handle-rejected"
+	MCPPlanInstallResultKindInvalidRequest         MCPPlanInstallResultKind = "invalid-request"
+	MCPPlanInstallResultKindMalformedCard          MCPPlanInstallResultKind = "malformed-card"
+	MCPPlanInstallResultKindNegotiationRefused     MCPPlanInstallResultKind = "negotiation-refused"
+	MCPPlanInstallResultKindNetworkFailure         MCPPlanInstallResultKind = "network-failure"
+	MCPPlanInstallResultKindNotInstallable         MCPPlanInstallResultKind = "not-installable"
+	MCPPlanInstallResultKindPlanned                MCPPlanInstallResultKind = "planned"
+	MCPPlanInstallResultKindPolicyRejected         MCPPlanInstallResultKind = "policy-rejected"
+	MCPPlanInstallResultKindUnavailable            MCPPlanInstallResultKind = "unavailable"
+	MCPPlanInstallResultKindUnavailableTransport   MCPPlanInstallResultKind = "unavailable-transport"
+	MCPPlanInstallResultKindUnsafeRetrieval        MCPPlanInstallResultKind = "unsafe-retrieval"
+)
+
+// Discriminator for a candidate-backed install-plan source
+// Experimental: MCPPlanInstallSourceCandidateKind is part of an experimental API and may
+// change or be removed.
+type MCPPlanInstallSourceCandidateKind string
+
+const (
+	// Plan from a candidate returned by catalog search.
+	MCPPlanInstallSourceCandidateKindCandidate MCPPlanInstallSourceCandidateKind = "candidate"
+)
+
+// Discriminator for a caller-supplied-card install-plan source
+// Experimental: MCPPlanInstallSourceCardKind is part of an experimental API and may change
+// or be removed.
+type MCPPlanInstallSourceCardKind string
+
+const (
+	// Plan directly from a caller-supplied card.
+	MCPPlanInstallSourceCardKindCard MCPPlanInstallSourceCardKind = "card"
+)
+
+// Kind discriminator for MCPPlanInstallSource.
+type MCPPlanInstallSourceKind string
+
+const (
+	MCPPlanInstallSourceKindCandidate MCPPlanInstallSourceKind = "candidate"
+	MCPPlanInstallSourceKindCard      MCPPlanInstallSourceKind = "card"
+)
+
+// Discriminator for a package-backed transport choice
+// Experimental: MCPPlanPackageInstallMethod is part of an experimental API and may change
+// or be removed.
+type MCPPlanPackageInstallMethod string
+
+const (
+	// Install and run a local package.
+	MCPPlanPackageInstallMethodPackage MCPPlanPackageInstallMethod = "package"
+)
+
+// Transport exposed by a locally launched package
+// Experimental: MCPPlanPackageTransport is part of an experimental API and may change or be
+// removed.
+type MCPPlanPackageTransport string
+
+const (
+	// A locally launched process spoken to over standard input and output.
+	MCPPlanPackageTransportStdio MCPPlanPackageTransport = "stdio"
+)
+
+// What policy decided for a planned server
+// Experimental: MCPPlanPolicyDecision is part of an experimental API and may change or be
+// removed.
+type MCPPlanPolicyDecision string
+
+const (
+	// Policy permits the server.
+	MCPPlanPolicyDecisionAllowed MCPPlanPolicyDecision = "allowed"
+	// Policy forbids the server, so the plan cannot be applied.
+	MCPPlanPolicyDecisionBlocked MCPPlanPolicyDecision = "blocked"
+	// Policy permits the server only after an explicit approval.
+	MCPPlanPolicyDecisionRequiresApproval MCPPlanPolicyDecision = "requires-approval"
+)
+
+// Which authority produced a policy decision
+// Experimental: MCPPlanPolicySource is part of an experimental API and may change or be
+// removed.
+type MCPPlanPolicySource string
+
+const (
+	// An enterprise allowlist evaluated the server.
+	MCPPlanPolicySourceEnterpriseAllowlist MCPPlanPolicySource = "enterprise-allowlist"
+	// Local trust settings evaluated the server.
+	MCPPlanPolicySourceLocalTrust MCPPlanPolicySource = "local-trust"
+	// No policy applied, so the server is permitted by default.
+	MCPPlanPolicySourceNone MCPPlanPolicySource = "none"
+	// The registry the card came from evaluated the server.
+	MCPPlanPolicySourceRegistryPolicy MCPPlanPolicySource = "registry-policy"
+)
+
+// Discriminator for a remote-endpoint transport choice
+// Experimental: MCPPlanRemoteInstallMethod is part of an experimental API and may change or
+// be removed.
+type MCPPlanRemoteInstallMethod string
+
+const (
+	// Connect to a remote endpoint.
+	MCPPlanRemoteInstallMethodRemote MCPPlanRemoteInstallMethod = "remote"
+)
+
+// Transport exposed by a remote endpoint
+// Experimental: MCPPlanRemoteTransport is part of an experimental API and may change or be
+// removed.
+type MCPPlanRemoteTransport string
+
+const (
+	// An HTTP endpoint.
+	MCPPlanRemoteTransportHTTP MCPPlanRemoteTransport = "http"
+	// A server-sent events endpoint.
+	MCPPlanRemoteTransportSSE MCPPlanRemoteTransport = "sse"
+	// A streamable HTTP endpoint.
+	MCPPlanRemoteTransportStreamableHTTP MCPPlanRemoteTransport = "streamable-http"
+)
+
+// Discriminator for an enumerated required value
+// Experimental: MCPPlanRequiredValueEnumKind is part of an experimental API and may change
+// or be removed.
+type MCPPlanRequiredValueEnumKind string
+
+const (
+	// The value uses a fixed non-empty enumeration.
+	MCPPlanRequiredValueEnumKindEnum MCPPlanRequiredValueEnumKind = "enum"
+)
+
+// Kind discriminator for MCPPlanRequiredValue.
+type MCPPlanRequiredValueKind string
+
+const (
+	MCPPlanRequiredValueKindEnum   MCPPlanRequiredValueKind = "enum"
+	MCPPlanRequiredValueKindScalar MCPPlanRequiredValueKind = "scalar"
+)
+
+// Discriminator for a scalar required value
+// Experimental: MCPPlanRequiredValueScalarKind is part of an experimental API and may
+// change or be removed.
+type MCPPlanRequiredValueScalarKind string
+
+const (
+	// The value uses one scalar type.
+	MCPPlanRequiredValueScalarKindScalar MCPPlanRequiredValueScalarKind = "scalar"
+)
+
+// Scalar type a required value must conform to
+// Experimental: MCPPlanScalarValueType is part of an experimental API and may change or be
+// removed.
+type MCPPlanScalarValueType string
+
+const (
+	// A boolean.
+	MCPPlanScalarValueTypeBoolean MCPPlanScalarValueType = "boolean"
+	// A number.
+	MCPPlanScalarValueTypeNumber MCPPlanScalarValueType = "number"
+	// A filesystem path.
+	MCPPlanScalarValueTypePath MCPPlanScalarValueType = "path"
+	// Free text.
+	MCPPlanScalarValueTypeString MCPPlanScalarValueType = "string"
+)
+
+// Configuration scope an MCP install plan targets
+// Experimental: MCPPlanScope is part of an experimental API and may change or be removed.
+type MCPPlanScope string
+
+const (
+	// The user's own MCP configuration.
+	MCPPlanScopeUser MCPPlanScope = "user"
+)
+
+// Transport discriminator for MCPPlanTransportChoice.
+type MCPPlanTransportChoiceTransport string
+
+const (
+	MCPPlanTransportChoiceTransportHTTP           MCPPlanTransportChoiceTransport = "http"
+	MCPPlanTransportChoiceTransportSSE            MCPPlanTransportChoiceTransport = "sse"
+	MCPPlanTransportChoiceTransportStdio          MCPPlanTransportChoiceTransport = "stdio"
+	MCPPlanTransportChoiceTransportStreamableHTTP MCPPlanTransportChoiceTransport = "streamable-http"
+)
+
+// Where a required value is applied when the planned server is launched
+// Experimental: MCPPlanValueCategory is part of an experimental API and may change or be
+// removed.
+type MCPPlanValueCategory string
+
+const (
+	// Set as an environment variable on the launched process.
+	MCPPlanValueCategoryEnvironmentVariable MCPPlanValueCategory = "environment-variable"
+	// Sent as a request header to a remote endpoint.
+	MCPPlanValueCategoryHeader MCPPlanValueCategory = "header"
+	// Passed to the packaged server itself.
+	MCPPlanValueCategoryPackageArgument MCPPlanValueCategory = "package-argument"
+	// Passed to the runtime that launches the package.
+	MCPPlanValueCategoryRuntimeArgument MCPPlanValueCategory = "runtime-argument"
+	// Substituted into the remote endpoint URL.
+	MCPPlanValueCategoryURLVariable MCPPlanValueCategory = "url-variable"
+)
+
 // Outcome of the sampling inference. 'success' produced a response; 'failure' encountered
 // an error (including agent-side rejection by content filter or criteria); 'cancelled' the
 // caller cancelled this execution via cancelSamplingExecution.
@@ -15420,6 +16960,46 @@ const (
 	MCPSamplingExecutionActionFailure MCPSamplingExecutionAction = "failure"
 	// The sampling inference completed and produced a result.
 	MCPSamplingExecutionActionSuccess MCPSamplingExecutionAction = "success"
+)
+
+// Discriminator for an embedded MCP server card
+// Experimental: MCPServerCardEmbeddedKind is part of an experimental API and may change or
+// be removed.
+type MCPServerCardEmbeddedKind string
+
+const (
+	// Use the embedded card document.
+	MCPServerCardEmbeddedKindEmbedded MCPServerCardEmbeddedKind = "embedded"
+)
+
+// JSON MCP card media type accepted for install planning
+// Experimental: MCPServerCardMediaType is part of an experimental API and may change or be
+// removed.
+type MCPServerCardMediaType string
+
+const (
+	// The current MCP server card media type.
+	MCPServerCardMediaTypeApplicationMCPServerCardJSON MCPServerCardMediaType = "application/mcp-server-card+json"
+	// The legacy MCP server card media type, accepted for compatibility.
+	MCPServerCardMediaTypeApplicationMCPServerJSON MCPServerCardMediaType = "application/mcp-server+json"
+)
+
+// Kind discriminator for MCPServerCardReference.
+type MCPServerCardReferenceKind string
+
+const (
+	MCPServerCardReferenceKindEmbedded MCPServerCardReferenceKind = "embedded"
+	MCPServerCardReferenceKindURL      MCPServerCardReferenceKind = "url"
+)
+
+// Discriminator for a URL-backed MCP server card
+// Experimental: MCPServerCardURLKind is part of an experimental API and may change or be
+// removed.
+type MCPServerCardURLKind string
+
+const (
+	// Retrieve the card from its URL.
+	MCPServerCardURLKindURL MCPServerCardURLKind = "url"
 )
 
 // Controls if tools provided by this server can be loaded on demand via tool search (auto)
@@ -15808,13 +17388,13 @@ const (
 type PermissionDecisionSource string
 
 const (
+	// The response followed the assisted-approval judge recommendation.
+	PermissionDecisionSourceAssistedApproval PermissionDecisionSource = "assisted_approval"
 	// The host applied a standing policy or override rather than a judge recommendation or
 	// human decision.
 	PermissionDecisionSourceHostPolicy PermissionDecisionSource = "host_policy"
 	// A human supplied the response through an interactive prompt.
 	PermissionDecisionSourceHumanResponse PermissionDecisionSource = "human_response"
-	// The response followed the auto-approval judge recommendation.
-	PermissionDecisionSourceJudgeRecommendation PermissionDecisionSource = "judge_recommendation"
 	// The host denied the request because no interactive user response was available.
 	PermissionDecisionSourceUnattendedFallback PermissionDecisionSource = "unattended_fallback"
 )
@@ -15847,19 +17427,35 @@ const (
 	PermissionLocationTypeRepo PermissionLocationType = "repo"
 )
 
-// Current or requested allow-all mode.
-// Experimental: PermissionsAllowAllMode is part of an experimental API and may change or be
-// removed.
-type PermissionsAllowAllMode string
+// Current or requested permission mode.
+// Experimental: PermissionMode is part of an experimental API and may change or be removed.
+type PermissionMode string
 
 const (
-	// Permission requests follow the normal approval flow with an LLM advisory recommendation
-	// attached; clients may choose to auto-approve requests the judge evaluated as acceptable.
-	PermissionsAllowAllModeAuto PermissionsAllowAllMode = "auto"
-	// Permission requests follow the normal approval flow.
-	PermissionsAllowAllModeOff PermissionsAllowAllMode = "off"
 	// Tool, path, and URL permission requests are automatically approved.
-	PermissionsAllowAllModeOn PermissionsAllowAllMode = "on"
+	PermissionModeAllowAll PermissionMode = "allow-all"
+	// Permission requests include an LLM safety recommendation; clients may automatically
+	// approve requests judged acceptable.
+	PermissionModeAssisted PermissionMode = "assisted"
+	// Permission requests follow the normal approval flow.
+	PermissionModeManual PermissionMode = "manual"
+)
+
+// Optional source for permission-mode telemetry. Defaults to `rpc` when omitted for SDK
+// callers.
+// Experimental: PermissionModeSource is part of an experimental API and may change or be
+// removed.
+type PermissionModeSource string
+
+const (
+	// The mode was set by confirming autopilot behavior.
+	PermissionModeSourceAutopilotConfirmation PermissionModeSource = "autopilot_confirmation"
+	// The mode was set from a CLI command-line flag.
+	PermissionModeSourceCLIFlag PermissionModeSource = "cli_flag"
+	// The mode was set through an RPC caller.
+	PermissionModeSourceRPC PermissionModeSource = "rpc"
+	// The mode was set by a slash command.
+	PermissionModeSourceSlashCommand PermissionModeSource = "slash_command"
 )
 
 // Allowed values for the `PermissionsConfigureAdditionalContentExclusionPolicyScope`
@@ -15903,22 +17499,6 @@ const (
 	PermissionsModifyRulesScopeLocation PermissionsModifyRulesScope = "location"
 	// Apply the rule change only to this session.
 	PermissionsModifyRulesScopeSession PermissionsModifyRulesScope = "session"
-)
-
-// Optional source for allow-all telemetry. Defaults to `rpc` when omitted for SDK callers.
-// Experimental: PermissionsSetAllowAllSource is part of an experimental API and may change
-// or be removed.
-type PermissionsSetAllowAllSource string
-
-const (
-	// Allow-all was enabled by confirming autopilot behavior.
-	PermissionsSetAllowAllSourceAutopilotConfirmation PermissionsSetAllowAllSource = "autopilot_confirmation"
-	// Allow-all was enabled from a CLI command-line flag.
-	PermissionsSetAllowAllSourceCLIFlag PermissionsSetAllowAllSource = "cli_flag"
-	// Allow-all was enabled through an RPC caller.
-	PermissionsSetAllowAllSourceRPC PermissionsSetAllowAllSource = "rpc"
-	// Allow-all was enabled by a slash command.
-	PermissionsSetAllowAllSourceSlashCommand PermissionsSetAllowAllSource = "slash_command"
 )
 
 // Optional source for allow-all telemetry. Defaults to `rpc` when omitted for SDK callers.
@@ -17211,6 +18791,38 @@ func (a *ServerAgentsAPI) GetDiscoveryPaths(ctx context.Context, params *AgentsG
 	return &result, nil
 }
 
+// Experimental: ServerCatalogAPI contains experimental APIs that may change or be removed.
+type ServerCatalogAPI serverAPI
+
+// Search requests a bounded catalog search. This host-implemented server method is
+// available through SDK/TUI hosts; standalone and C-ABI runtimes whose host does not
+// implement server-method dispatch return JSON-RPC MethodNotFound. A runtime with search
+// available returns inert candidate summaries, each with an opaque single-use handle scoped
+// to this runtime instance; a runtime without it returns the typed search-unavailable
+// result. Public authorities may be searched anonymously, while an authority that requires
+// credentials yields the typed authentication-required result. All returned text, URLs, and
+// package metadata are untrusted external data and can never trigger instructions, tools,
+// or installation. Read-only: nothing is installed, configured, or persisted.
+//
+// RPC method: catalog.search.
+//
+// Parameters: A bounded catalog search. Both the query length and the result count are
+// capped by the schema so a caller cannot request an unbounded scan.
+//
+// Returns: Outcome of a catalog.search call: either bounded inert candidates, or one typed
+// refusal. Never a partial success.
+func (a *ServerCatalogAPI) Search(ctx context.Context, params *CatalogSearchRequest) (CatalogSearchResult, error) {
+	raw, err := a.client.Request(ctx, "catalog.search", params)
+	if err != nil {
+		return nil, err
+	}
+	result, err := unmarshalCatalogSearchResult(raw)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
 // Experimental: ServerCommandsAPI contains experimental APIs that may change or be removed.
 type ServerCommandsAPI serverAPI
 
@@ -17449,6 +19061,36 @@ func (a *ServerMCPAPI) Discover(ctx context.Context, params *MCPDiscoverRequest)
 		return nil, err
 	}
 	return &result, nil
+}
+
+// PlanInstall requests a side-effect-free MCP install plan from a catalog candidate handle
+// or a caller-supplied card. This host-implemented server method is available through
+// SDK/TUI hosts; standalone and C-ABI runtimes whose host does not implement server-method
+// dispatch return JSON-RPC MethodNotFound. A runtime with planning available returns a
+// normalised plan and opaque single-use plan handle; a runtime without it returns the typed
+// planning-unavailable result. A completed plan reports resource identity, provenance,
+// eligible transport choices, the user-scope target, required typed values and secret
+// placeholders, the policy result, the configuration changes installing would make, and
+// whether a reload would be needed. Planning never writes configuration, stores a secret,
+// or reloads MCP servers, so abandoning a plan needs no call and leaves nothing behind.
+//
+// RPC method: mcp.planInstall.
+//
+// Parameters: A side-effect-free request for an MCP install plan. Computing a plan never
+// writes configuration, stores a secret, or reloads MCP servers.
+//
+// Returns: Outcome of an mcp.planInstall call: either a normalised plan, or one typed
+// refusal. Nothing is written in either case.
+func (a *ServerMCPAPI) PlanInstall(ctx context.Context, params *MCPPlanInstallRequest) (MCPPlanInstallResult, error) {
+	raw, err := a.client.Request(ctx, "mcp.planInstall", params)
+	if err != nil {
+		return nil, err
+	}
+	result, err := unmarshalMCPPlanInstallResult(raw)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 // Experimental: ServerMCPConfigAPI contains experimental APIs that may change or be removed.
@@ -18619,6 +20261,7 @@ type ServerRPC struct {
 	Account         *ServerAccountAPI
 	AgentRegistry   *ServerAgentRegistryAPI
 	Agents          *ServerAgentsAPI
+	Catalog         *ServerCatalogAPI
 	Commands        *ServerCommandsAPI
 	Extensions      *ServerExtensionsAPI
 	Instructions    *ServerInstructionsAPI
@@ -18682,6 +20325,7 @@ func NewServerRPC(client *jsonrpc2.Client) *ServerRPC {
 	r.Account = (*ServerAccountAPI)(&r.common)
 	r.AgentRegistry = (*ServerAgentRegistryAPI)(&r.common)
 	r.Agents = (*ServerAgentsAPI)(&r.common)
+	r.Catalog = (*ServerCatalogAPI)(&r.common)
 	r.Commands = (*ServerCommandsAPI)(&r.common)
 	r.Extensions = (*ServerExtensionsAPI)(&r.common)
 	r.Instructions = (*ServerInstructionsAPI)(&r.common)
@@ -20585,6 +22229,26 @@ func (a *MCPAPI) ListTools(ctx context.Context, params *MCPListToolsRequest) (*M
 	return &result, nil
 }
 
+// MoveLoadingToBackground releases any turns waiting on an in-flight MCP load without
+// cancelling the load, letting the agent proceed while MCP servers finish connecting in the
+// background. No-op when no MCP load is in flight or waiting turns were already released.
+//
+// RPC method: session.mcp.moveLoadingToBackground.
+//
+// Returns: Result of moving in-flight MCP loading to the background.
+func (a *MCPAPI) MoveLoadingToBackground(ctx context.Context) (*MoveMCPLoadingToBackgroundResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request(ctx, "session.mcp.moveLoadingToBackground", req)
+	if err != nil {
+		return nil, err
+	}
+	var result MoveMCPLoadingToBackgroundResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // Reloads MCP server connections for the session.
 //
 // RPC method: session.mcp.reload.
@@ -21925,18 +23589,18 @@ func (a *PermissionsAPI) Configure(ctx context.Context, params *PermissionsConfi
 	return &result, nil
 }
 
-// GetAllowAll returns the current allow-all permission mode for the session.
+// GetMode returns the current permission mode for the session.
 //
-// RPC method: session.permissions.getAllowAll.
+// RPC method: session.permissions.getMode.
 //
-// Returns: Current allow-all permission mode.
-func (a *PermissionsAPI) GetAllowAll(ctx context.Context) (*AllowAllPermissionState, error) {
+// Returns: Current permission mode.
+func (a *PermissionsAPI) GetMode(ctx context.Context) (*PermissionsGetModeResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request(ctx, "session.permissions.getAllowAll", req)
+	raw, err := a.client.Request(ctx, "session.permissions.getMode", req)
 	if err != nil {
 		return nil, err
 	}
-	var result AllowAllPermissionState
+	var result PermissionsGetModeResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -22075,46 +23739,6 @@ func (a *PermissionsAPI) ResetSessionApprovals(ctx context.Context, params *Perm
 	return &result, nil
 }
 
-// SetAllowAll sets the allow-all permission mode for the session. Used by attach-mode
-// clients (e.g. LocalRpcSession's `/allow-all` forwarder) to flip the target session's
-// permission state. The `on` mode swaps in unrestricted path and URL managers and emits
-// `session.permissions_changed` on transition; the `auto` mode keeps normal prompt paths
-// active while attaching LLM safety recommendations. The result returns the authoritative
-// post-mutation state so callers can update their local mirrors without racing the
-// `session.permissions_changed` notification on the same wire.
-//
-// RPC method: session.permissions.setAllowAll.
-//
-// Parameters: Allow-all mode to apply for the session.
-//
-// Returns: Indicates whether the operation succeeded and reports the post-mutation state.
-func (a *PermissionsAPI) SetAllowAll(ctx context.Context, params *PermissionsSetAllowAllRequest) (*AllowAllPermissionSetResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		if params.Enabled != nil {
-			req["enabled"] = *params.Enabled
-		}
-		if params.Mode != nil {
-			req["mode"] = *params.Mode
-		}
-		if params.Model != nil {
-			req["model"] = *params.Model
-		}
-		if params.Source != nil {
-			req["source"] = *params.Source
-		}
-	}
-	raw, err := a.client.Request(ctx, "session.permissions.setAllowAll", req)
-	if err != nil {
-		return nil, err
-	}
-	var result AllowAllPermissionSetResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
 // SetApproveAll enables or disables automatic approval of tool permission requests for the
 // session.
 //
@@ -22137,6 +23761,40 @@ func (a *PermissionsAPI) SetApproveAll(ctx context.Context, params *PermissionsS
 		return nil, err
 	}
 	var result PermissionsSetApproveAllResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// SetMode sets the permission mode for the session. `manual` follows the normal approval
+// flow, `assisted` attaches LLM safety recommendations, and `allow-all` automatically
+// approves permission requests. The result returns the authoritative post-mutation mode so
+// callers can update local state without racing the `session.permissions_changed`
+// notification.
+//
+// RPC method: session.permissions.setMode.
+//
+// Parameters: Permission mode to apply for the session.
+//
+// Returns: Indicates whether the requested permission mode was applied and reports the
+// authoritative post-mutation mode.
+func (a *PermissionsAPI) SetMode(ctx context.Context, params *PermissionsSetModeRequest) (*PermissionsSetModeResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.AssistedApprovalModel != nil {
+			req["assistedApprovalModel"] = *params.AssistedApprovalModel
+		}
+		req["mode"] = params.Mode
+		if params.Source != nil {
+			req["source"] = *params.Source
+		}
+	}
+	raw, err := a.client.Request(ctx, "session.permissions.setMode", req)
+	if err != nil {
+		return nil, err
+	}
+	var result PermissionsSetModeResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}

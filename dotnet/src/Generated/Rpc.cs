@@ -1141,6 +1141,891 @@ internal sealed class McpDiscoverRequest
     public string? WorkingDirectory { get; set; }
 }
 
+/// <summary>Outcome of an mcp.planInstall call: either a normalised plan, or one typed refusal. Nothing is written in either case.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>kind</c>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "kind",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(McpPlanInstallResultPlanned), "planned")]
+[JsonDerivedType(typeof(McpPlanInstallResultNegotiationRefused), "negotiation-refused")]
+[JsonDerivedType(typeof(McpPlanInstallResultHandleRejected), "handle-rejected")]
+[JsonDerivedType(typeof(McpPlanInstallResultInvalidRequest), "invalid-request")]
+[JsonDerivedType(typeof(McpPlanInstallResultAuthenticationRequired), "authentication-required")]
+[JsonDerivedType(typeof(McpPlanInstallResultPolicyRejected), "policy-rejected")]
+[JsonDerivedType(typeof(McpPlanInstallResultNetworkFailure), "network-failure")]
+[JsonDerivedType(typeof(McpPlanInstallResultUnsafeRetrieval), "unsafe-retrieval")]
+[JsonDerivedType(typeof(McpPlanInstallResultMalformedCard), "malformed-card")]
+[JsonDerivedType(typeof(McpPlanInstallResultContractViolation), "contract-violation")]
+[JsonDerivedType(typeof(McpPlanInstallResultUnavailableTransport), "unavailable-transport")]
+[JsonDerivedType(typeof(McpPlanInstallResultNotInstallable), "not-installable")]
+[JsonDerivedType(typeof(McpPlanInstallResultUnavailable), "unavailable")]
+public partial class McpPlanInstallResult
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("kind")]
+    public virtual string Kind { get; set; } = string.Empty;
+}
+
+
+/// <summary>The protocol version and capability set the runtime actually honoured for a successful catalog operation.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class CatalogNegotiatedContract
+{
+    /// <summary>Wire features the runtime understood for this operation. Always a superset of the caller's required features, because any shortfall is a refusal instead. Operation availability remains a separate typed result.</summary>
+    [JsonPropertyName("grantedCapabilities")]
+    public IList<CatalogCapability> GrantedCapabilities { get => field ??= []; set; }
+
+    /// <summary>Protocol version of the runtime that served the request.</summary>
+    [JsonPropertyName("runtimeProtocolVersion")]
+    public long RuntimeProtocolVersion { get; set; }
+}
+
+/// <summary>One change applying the plan would make, described rather than serialised so the configuration payload stays behind the runtime boundary.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class McpPlanConfigurationChange
+{
+    /// <summary>Names of the configuration fields the change would set, without their values.</summary>
+    [JsonPropertyName("changedFields")]
+    public IList<string> ChangedFields { get => field ??= []; set; }
+
+    /// <summary>Configuration key the change applies to.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("configKey")]
+    public string ConfigKey { get; set; } = string.Empty;
+
+    /// <summary>Whether the change would create a new entry or modify an existing one.</summary>
+    [JsonPropertyName("operation")]
+    public McpPlanConfigurationOperation Operation { get; set; }
+
+    /// <summary>Scope the change would be written to.</summary>
+    [JsonPropertyName("scope")]
+    public McpPlanScope Scope { get; set; }
+
+    /// <summary>Secret placeholders the written configuration would reference. The constrained placeholder type cannot carry a literal secret value.</summary>
+    [JsonPropertyName("secretReferences")]
+    public IList<string> SecretReferences { get => field ??= []; set; }
+}
+
+/// <summary>Normalised identity of the MCP server a plan targets, independent of how the card spelled it.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class McpPlanResourceIdentity
+{
+    /// <summary>Canonical, normalised name of the server, for example `io.github.owner/server`.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("canonicalName")]
+    public string CanonicalName { get; set; } = string.Empty;
+
+    /// <summary>Registry identifier of the server, when it came from a registry.</summary>
+    [JsonPropertyName("registryId")]
+    public string? RegistryId { get; set; }
+
+    /// <summary>Local configuration key the server would be recorded under.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("serverName")]
+    public string ServerName { get; set; } = string.Empty;
+
+    /// <summary>Version advertised by the card, when it declares one.</summary>
+    [JsonPropertyName("version")]
+    public string? Version { get; set; }
+}
+
+/// <summary>Outcome of evaluating the planned server against registry and enterprise policy. Evaluation is read-only.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class McpPlanPolicyResult
+{
+    /// <summary>What policy decided for this server.</summary>
+    [JsonPropertyName("decision")]
+    public McpPlanPolicyDecision Decision { get; set; }
+
+    /// <summary>Human-readable explanation, safe to surface. Never contains a query, URL, handle, or secret.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MaxLength(1000)]
+    [JsonPropertyName("reason")]
+    public string? Reason { get; set; }
+
+    /// <summary>Which authority produced the decision.</summary>
+    [JsonPropertyName("source")]
+    public McpPlanPolicySource Source { get; set; }
+}
+
+/// <summary>Semantic digest of a strictly parsed and schema-validated JSON MCP card. Both URL-backed and embedded cards are canonicalised with RFC 8785 JSON Canonicalization Scheme, encoded as UTF-8, and hashed with SHA-256.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class CardDigest
+{
+    /// <summary>Digest algorithm and canonical representation.</summary>
+    [JsonPropertyName("algorithm")]
+    public CardDigestAlgorithm Algorithm { get; set; }
+
+    /// <summary>SHA-256 digest of the RFC 8785 canonical UTF-8 bytes, encoded as exactly 64 lowercase hexadecimal characters.</summary>
+    [RegularExpression("^[0-9a-f]{64}$")]
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(64)]
+    [MaxLength(64)]
+    [JsonPropertyName("value")]
+    public string Value { get; set; } = string.Empty;
+}
+
+/// <summary>Provenance of the exact validated JSON MCP card content bound privately to a completed plan and its opaque handle.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class McpPlanProvenance
+{
+    /// <summary>Authority associated with the validated card, without path, query, or credentials. Inert untrusted data.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("authority")]
+    public string Authority { get; set; } = string.Empty;
+
+    /// <summary>Semantic digest of the exact validated JSON content bound to the plan handle.</summary>
+    [JsonPropertyName("cardDigest")]
+    public CardDigest CardDigest { get => field ??= new(); set; }
+
+    /// <summary>JSON MCP media type the validated card was interpreted as.</summary>
+    [JsonPropertyName("mediaType")]
+    public McpServerCardMediaType MediaType { get; set; }
+
+    /// <summary>ISO 8601 timestamp at which the runtime completed strict parsing and schema validation of the card content.</summary>
+    [JsonPropertyName("validatedAt")]
+    public string ValidatedAt { get; set; } = string.Empty;
+}
+
+/// <summary>Where a plan would be written.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class McpPlanTarget
+{
+    /// <summary>Configuration key the server would be recorded under within that scope.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("configKey")]
+    public string ConfigKey { get; set; } = string.Empty;
+
+    /// <summary>Configuration scope the plan targets.</summary>
+    [JsonPropertyName("scope")]
+    public McpPlanScope Scope { get; set; }
+}
+
+/// <summary>One eligible way to run the server, represented as a tagged package or remote variant so package identity and endpoint states cannot contradict the install method.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>installMethod</c>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "installMethod",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(McpPlanTransportChoicePackage), "package")]
+[JsonDerivedType(typeof(McpPlanTransportChoiceRemote), "remote")]
+public partial class McpPlanTransportChoice
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("installMethod")]
+    public virtual string InstallMethod { get; set; } = string.Empty;
+}
+
+
+/// <summary>One non-secret value a transport choice needs, represented as a scalar or enumerated variant so enum values cannot be missing or attached to another type.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>kind</c>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "kind",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(McpPlanRequiredValueScalar), "scalar")]
+[JsonDerivedType(typeof(McpPlanRequiredValueEnum), "enum")]
+public partial class McpPlanRequiredValue
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("kind")]
+    public virtual string Kind { get; set; } = string.Empty;
+}
+
+
+/// <summary>One non-secret scalar value a transport choice needs before it can be applied.</summary>
+/// <remarks>The <c>scalar</c> variant of <see cref="McpPlanRequiredValue"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class McpPlanRequiredValueScalar : McpPlanRequiredValue
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "scalar";
+
+    /// <summary>Where the value is applied when the server is launched.</summary>
+    [JsonPropertyName("category")]
+    public required McpPlanValueCategory Category { get; set; }
+
+    /// <summary>Default supplied by the card, when the value can be resolved without input. Presence is the authoritative indication that a default exists. Inert untrusted data.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("defaultValue")]
+    public string? DefaultValue { get; set; }
+
+    /// <summary>Human-readable explanation from the card. Inert untrusted text.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MaxLength(1000)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+
+    /// <summary>Whether the value may be supplied more than once.</summary>
+    [JsonPropertyName("isRepeated")]
+    public required bool IsRepeated { get; set; }
+
+    /// <summary>Key the value is supplied under. Inert untrusted data.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("key")]
+    public required string Key { get; set; }
+
+    /// <summary>Whether the value must be present for the plan to be applicable.</summary>
+    [JsonPropertyName("required")]
+    public required bool Required { get; set; }
+
+    /// <summary>Human-readable label from the card. Inert untrusted text.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MaxLength(200)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("title")]
+    public string? Title { get; set; }
+
+    /// <summary>Scalar type the value must conform to.</summary>
+    [JsonPropertyName("valueType")]
+    public required McpPlanScalarValueType ValueType { get; set; }
+}
+
+/// <summary>One enumerated non-secret value a transport choice needs before it can be applied. The permitted values are structurally required.</summary>
+/// <remarks>The <c>enum</c> variant of <see cref="McpPlanRequiredValue"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class McpPlanRequiredValueEnum : McpPlanRequiredValue
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "enum";
+
+    /// <summary>Where the value is applied when the server is launched.</summary>
+    [JsonPropertyName("category")]
+    public required McpPlanValueCategory Category { get; set; }
+
+    /// <summary>Default supplied by the card, when the value can be resolved without input. Presence is the authoritative indication that a default exists. Inert untrusted data.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("defaultValue")]
+    public string? DefaultValue { get; set; }
+
+    /// <summary>Human-readable explanation from the card. Inert untrusted text.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MaxLength(1000)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+
+    /// <summary>Non-empty permitted value set. Inert untrusted data.</summary>
+    [JsonPropertyName("enumValues")]
+    public required IList<string> EnumValues { get; set; }
+
+    /// <summary>Whether the value may be supplied more than once.</summary>
+    [JsonPropertyName("isRepeated")]
+    public required bool IsRepeated { get; set; }
+
+    /// <summary>Key the value is supplied under. Inert untrusted data.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("key")]
+    public required string Key { get; set; }
+
+    /// <summary>Whether the value must be present for the plan to be applicable.</summary>
+    [JsonPropertyName("required")]
+    public required bool Required { get; set; }
+
+    /// <summary>Human-readable label from the card. Inert untrusted text.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MaxLength(200)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("title")]
+    public string? Title { get; set; }
+
+    /// <summary>Discriminator: the value must be one of `enumValues`.</summary>
+    [JsonPropertyName("valueType")]
+    public required McpPlanEnumValueType ValueType { get; set; }
+}
+
+/// <summary>A secret a transport choice needs, referenced by placeholder. No secret value ever appears in a plan, and the placeholder resolves against the keychain only when a plan is applied.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class McpPlanSecretPlaceholder
+{
+    /// <summary>Key the secret is supplied under. Inert untrusted data.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("key")]
+    public string Key { get; set; } = string.Empty;
+
+    /// <summary>The runtime-assigned `${secret:&lt;id&gt;}` placeholder written into configuration in place of the value.</summary>
+    [JsonPropertyName("placeholder")]
+    public string Placeholder { get; set; } = string.Empty;
+
+    /// <summary>Human-readable label from the card. Inert untrusted text.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MaxLength(200)]
+    [JsonPropertyName("title")]
+    public string? Title { get; set; }
+}
+
+/// <summary>An eligible local-package transport choice. Package identity is required and a remote endpoint cannot be represented.</summary>
+/// <remarks>The <c>package</c> variant of <see cref="McpPlanTransportChoice"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class McpPlanTransportChoicePackage : McpPlanTransportChoice
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string InstallMethod => "package";
+
+    /// <summary>Stable identifier for this choice within the plan, used to select it when the plan is applied.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [MaxLength(128)]
+    [JsonPropertyName("choiceId")]
+    public required string ChoiceId { get; set; }
+
+    /// <summary>Package identifier. Inert untrusted data.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [MaxLength(512)]
+    [JsonPropertyName("packageIdentifier")]
+    public required string PackageIdentifier { get; set; }
+
+    /// <summary>Packaging ecosystem, for example `oci` or `npm`.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [MaxLength(64)]
+    [JsonPropertyName("packageType")]
+    public required string PackageType { get; set; }
+
+    /// <summary>Typed values this choice requires, excluding secrets.</summary>
+    [JsonPropertyName("requiredValues")]
+    public required IList<McpPlanRequiredValue> RequiredValues { get; set; }
+
+    /// <summary>Secrets this choice requires, referenced by placeholder only.</summary>
+    [JsonPropertyName("secretPlaceholders")]
+    public required IList<McpPlanSecretPlaceholder> SecretPlaceholders { get; set; }
+
+    /// <summary>Local process transport this package choice would use.</summary>
+    [JsonPropertyName("transport")]
+    public required McpPlanPackageTransport Transport { get; set; }
+}
+
+/// <summary>An eligible remote-endpoint transport choice. The endpoint is required and package identity cannot be represented.</summary>
+/// <remarks>The <c>remote</c> variant of <see cref="McpPlanTransportChoice"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class McpPlanTransportChoiceRemote : McpPlanTransportChoice
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string InstallMethod => "remote";
+
+    /// <summary>Stable identifier for this choice within the plan, used to select it when the plan is applied.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [MaxLength(128)]
+    [JsonPropertyName("choiceId")]
+    public required string ChoiceId { get; set; }
+
+    /// <summary>Endpoint URL. Inert untrusted data.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [MaxLength(2048)]
+    [JsonPropertyName("endpoint")]
+    public required string Endpoint { get; set; }
+
+    /// <summary>Typed values this choice requires, excluding secrets.</summary>
+    [JsonPropertyName("requiredValues")]
+    public required IList<McpPlanRequiredValue> RequiredValues { get; set; }
+
+    /// <summary>Secrets this choice requires, referenced by placeholder only.</summary>
+    [JsonPropertyName("secretPlaceholders")]
+    public required IList<McpPlanSecretPlaceholder> SecretPlaceholders { get; set; }
+
+    /// <summary>Endpoint transport this remote choice would use.</summary>
+    [JsonPropertyName("transport")]
+    public required McpPlanRemoteTransport Transport { get; set; }
+}
+
+/// <summary>A normalised, inert description of what installing an MCP server would involve. Carries no raw card, no install specification, and no secret value.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class McpInstallPlan
+{
+    /// <summary>The configuration changes installing would make, described rather than serialised, so the mutable configuration payload stays behind the runtime boundary.</summary>
+    [JsonPropertyName("configurationChanges")]
+    public IList<McpPlanConfigurationChange> ConfigurationChanges { get => field ??= []; set; }
+
+    /// <summary>Normalised identity of the server the plan would install.</summary>
+    [JsonPropertyName("identity")]
+    public McpPlanResourceIdentity Identity { get => field ??= new(); set; }
+
+    /// <summary>Opaque, runtime-instance scoped, TTL-bound, single-use handle for this plan. Rejected when stale, replayed, or presented to a different runtime instance. Never logged.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("planHandle")]
+    public string PlanHandle { get; set; } = string.Empty;
+
+    /// <summary>ISO 8601 timestamp after which the plan handle is stale and will be rejected. Abandoning a plan needs no call: an unused handle simply expires, so cancellation before commit is side-effect free.</summary>
+    [JsonPropertyName("planHandleExpiresAt")]
+    public string PlanHandleExpiresAt { get; set; } = string.Empty;
+
+    /// <summary>Outcome of evaluating the server against registry and enterprise policy.</summary>
+    [JsonPropertyName("policy")]
+    public McpPlanPolicyResult Policy { get => field ??= new(); set; }
+
+    /// <summary>Origin and semantic digest of the exact validated JSON MCP card content bound to this plan.</summary>
+    [JsonPropertyName("provenance")]
+    public McpPlanProvenance Provenance { get => field ??= new(); set; }
+
+    /// <summary>Identifier of the choice the runtime would pick by default. Omitted when there is no eligible transport, or when the runtime expresses no preference.</summary>
+    [JsonPropertyName("recommendedTransportChoiceId")]
+    public string? RecommendedTransportChoiceId { get; set; }
+
+    /// <summary>Whether applying this plan would require an MCP reload to take effect. Planning itself never reloads.</summary>
+    [JsonPropertyName("reloadRequired")]
+    public bool ReloadRequired { get; set; }
+
+    /// <summary>Whether the plan cannot be applied without further input, because a required value has no default or a secret must be supplied.</summary>
+    [JsonPropertyName("requiresInteractiveConfiguration")]
+    public bool RequiresInteractiveConfiguration { get; set; }
+
+    /// <summary>Configuration scope and key the plan would write to.</summary>
+    [JsonPropertyName("target")]
+    public McpPlanTarget Target { get => field ??= new(); set; }
+
+    /// <summary>Every eligible transport, so a host can present an explicit choice. A completed plan always has at least one; when none is eligible, planning returns `CatalogUnavailableTransportError` instead.</summary>
+    [JsonPropertyName("transportChoices")]
+    public IList<McpPlanTransportChoice> TransportChoices { get => field ??= []; set; }
+}
+
+/// <summary>A computed MCP install plan. Nothing has been applied: the plan describes what installing would change, and the plan handle is what a later apply operation would consume.</summary>
+/// <remarks>The <c>planned</c> variant of <see cref="McpPlanInstallResult"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class McpPlanInstallResultPlanned : McpPlanInstallResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "planned";
+
+    /// <summary>Protocol version and capabilities the runtime honoured.</summary>
+    [JsonPropertyName("negotiated")]
+    public required CatalogNegotiatedContract Negotiated { get; set; }
+
+    /// <summary>The normalised plan.</summary>
+    [JsonPropertyName("plan")]
+    public required McpInstallPlan Plan { get; set; }
+}
+
+/// <summary>The caller's protocol version or required capabilities cannot be honoured. Returned instead of a partial or ambiguous success.</summary>
+/// <remarks>The <c>negotiation-refused</c> variant of <see cref="McpPlanInstallResult"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class McpPlanInstallResultNegotiationRefused : McpPlanInstallResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "negotiation-refused";
+
+    /// <summary>Human-readable explanation, safe to surface. Never contains a query, URL, handle, or secret.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MaxLength(1000)]
+    [JsonPropertyName("message")]
+    public required string Message { get; set; }
+
+    /// <summary>Lowest caller protocol version this runtime will serve.</summary>
+    [JsonPropertyName("minimumSupportedProtocolVersion")]
+    public required long MinimumSupportedProtocolVersion { get; set; }
+
+    /// <summary>Whether the version or the capability set was the problem.</summary>
+    [JsonPropertyName("reason")]
+    public required CatalogNegotiationRefusedReason Reason { get; set; }
+
+    /// <summary>Protocol version of the runtime that refused the request.</summary>
+    [JsonPropertyName("runtimeProtocolVersion")]
+    public required long RuntimeProtocolVersion { get; set; }
+
+    /// <summary>Every wire feature this runtime understands, so the caller can retry within that contract. This list does not imply that every deployment has enabled every operation.</summary>
+    [JsonPropertyName("supportedCapabilities")]
+    public required IList<CatalogCapability> SupportedCapabilities { get; set; }
+
+    /// <summary>The subset of the caller's bounded extensible capability identifiers this runtime cannot honour.</summary>
+    [JsonPropertyName("unsupportedCapabilities")]
+    public required IList<string> UnsupportedCapabilities { get; set; }
+}
+
+/// <summary>A presented handle was not accepted. Handles are runtime-instance scoped, TTL-bound, and single-use, so each way of failing is reported distinctly.</summary>
+/// <remarks>The <c>handle-rejected</c> variant of <see cref="McpPlanInstallResult"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class McpPlanInstallResultHandleRejected : McpPlanInstallResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "handle-rejected";
+
+    /// <summary>Which kind of handle was presented.</summary>
+    [JsonPropertyName("handleType")]
+    public required CatalogHandleType HandleType { get; set; }
+
+    /// <summary>Human-readable explanation, safe to surface. Never contains the handle itself, nor a query, URL, or secret.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MaxLength(1000)]
+    [JsonPropertyName("message")]
+    public required string Message { get; set; }
+
+    /// <summary>Why the handle was rejected.</summary>
+    [JsonPropertyName("reason")]
+    public required CatalogHandleRejectionReason Reason { get; set; }
+}
+
+/// <summary>The request was rejected before any work was done, because a bounded field fell outside its permitted range or a required field was unusable.</summary>
+/// <remarks>The <c>invalid-request</c> variant of <see cref="McpPlanInstallResult"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class McpPlanInstallResultInvalidRequest : McpPlanInstallResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "invalid-request";
+
+    /// <summary>Which request field was rejected.</summary>
+    [JsonPropertyName("field")]
+    public required CatalogInvalidRequestField Field { get; set; }
+
+    /// <summary>Human-readable explanation, safe to surface. Never echoes the offending value, nor a query, URL, handle, or secret.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MaxLength(1000)]
+    [JsonPropertyName("message")]
+    public required string Message { get; set; }
+}
+
+/// <summary>An optional catalog authentication exchange did not establish the caller's identity. Anonymous search remains supported; this refusal is reserved for an operation that cannot continue after the attempted exchange. It is distinct from `policy-rejected` and from a network failure, and the reason identifies the recovery action.</summary>
+/// <remarks>The <c>authentication-required</c> variant of <see cref="McpPlanInstallResult"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class McpPlanInstallResultAuthenticationRequired : McpPlanInstallResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "authentication-required";
+
+    /// <summary>Human-readable explanation, safe to surface. Never contains a credential or token, nor a query, URL, handle, or secret.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MaxLength(1000)]
+    [JsonPropertyName("message")]
+    public required string Message { get; set; }
+
+    /// <summary>Why authentication failed. Only an expired credential justifies attempting a silent refresh; an absent or rejected credential requires sign-in.</summary>
+    [JsonPropertyName("reason")]
+    public required CatalogAuthenticationRequiredReason Reason { get; set; }
+}
+
+/// <summary>Registry or enterprise policy refused the operation.</summary>
+/// <remarks>The <c>policy-rejected</c> variant of <see cref="McpPlanInstallResult"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class McpPlanInstallResultPolicyRejected : McpPlanInstallResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "policy-rejected";
+
+    /// <summary>Human-readable explanation, safe to surface. Never contains a query, URL, handle, or secret.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MaxLength(1000)]
+    [JsonPropertyName("message")]
+    public required string Message { get; set; }
+
+    /// <summary>Which authority produced the decision.</summary>
+    [JsonPropertyName("source")]
+    public required McpPlanPolicySource Source { get; set; }
+}
+
+/// <summary>The runtime could not reach the catalog authority or retrieve a card. Covers being offline as well as transport-level failure.</summary>
+/// <remarks>The <c>network-failure</c> variant of <see cref="McpPlanInstallResult"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class McpPlanInstallResultNetworkFailure : McpPlanInstallResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "network-failure";
+
+    /// <summary>Human-readable explanation, safe to surface. Never contains a query, URL, handle, or secret.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MaxLength(1000)]
+    [JsonPropertyName("message")]
+    public required string Message { get; set; }
+
+    /// <summary>Categorised failure, low cardinality so it can be aggregated without carrying a URL.</summary>
+    [JsonPropertyName("reason")]
+    public required CatalogNetworkFailureReason Reason { get; set; }
+
+    /// <summary>HTTP status code, when the failure was a rejected response.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("statusCode")]
+    public int? StatusCode { get; set; }
+}
+
+/// <summary>Retrieval was refused by the runtime's hardened fetch boundary before any request left the process, or before a redirect was followed.</summary>
+/// <remarks>The <c>unsafe-retrieval</c> variant of <see cref="McpPlanInstallResult"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class McpPlanInstallResultUnsafeRetrieval : McpPlanInstallResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "unsafe-retrieval";
+
+    /// <summary>Human-readable explanation, safe to surface. Never contains the refused URL, nor a query, handle, or secret.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MaxLength(1000)]
+    [JsonPropertyName("message")]
+    public required string Message { get; set; }
+
+    /// <summary>Which control refused the retrieval, low cardinality so it can be aggregated without carrying a URL.</summary>
+    [JsonPropertyName("reason")]
+    public required CatalogUnsafeRetrievalReason Reason { get; set; }
+}
+
+/// <summary>A card could not be parsed or did not satisfy its declared media type's schema.</summary>
+/// <remarks>The <c>malformed-card</c> variant of <see cref="McpPlanInstallResult"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class McpPlanInstallResultMalformedCard : McpPlanInstallResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "malformed-card";
+
+    /// <summary>Media type the card was interpreted as, when it declared one this runtime recognises.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("mediaType")]
+    public CatalogMediaType? MediaType { get; set; }
+
+    /// <summary>Human-readable explanation, safe to surface. Never echoes card content, nor a query, URL, handle, or secret.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MaxLength(1000)]
+    [JsonPropertyName("message")]
+    public required string Message { get; set; }
+
+    /// <summary>How the card failed validation.</summary>
+    [JsonPropertyName("reason")]
+    public required CatalogMalformedCardReason Reason { get; set; }
+}
+
+/// <summary>An upstream catalog response broke the wire contract. Most importantly, every result must carry exactly one of a URL or embedded data: a result carrying both, or neither, is refused here rather than being guessed at.</summary>
+/// <remarks>The <c>contract-violation</c> variant of <see cref="McpPlanInstallResult"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class McpPlanInstallResultContractViolation : McpPlanInstallResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "contract-violation";
+
+    /// <summary>Human-readable explanation, safe to surface. Never echoes response content, nor a query, URL, handle, or secret.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MaxLength(1000)]
+    [JsonPropertyName("message")]
+    public required string Message { get; set; }
+
+    /// <summary>Which rule the response broke.</summary>
+    [JsonPropertyName("reason")]
+    public required CatalogContractViolationReason Reason { get; set; }
+}
+
+/// <summary>No transport this runtime can use is available for the requested server.</summary>
+/// <remarks>The <c>unavailable-transport</c> variant of <see cref="McpPlanInstallResult"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class McpPlanInstallResultUnavailableTransport : McpPlanInstallResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "unavailable-transport";
+
+    /// <summary>Human-readable explanation, safe to surface. Never contains a query, URL, handle, or secret.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MaxLength(1000)]
+    [JsonPropertyName("message")]
+    public required string Message { get; set; }
+
+    /// <summary>Why no transport could be offered.</summary>
+    [JsonPropertyName("reason")]
+    public required CatalogUnavailableTransportReason Reason { get; set; }
+}
+
+/// <summary>The candidate is discoverable but cannot be installed. `application/ai-skill` resolves here, because it stays searchable while remaining typed non-installable.</summary>
+/// <remarks>The <c>not-installable</c> variant of <see cref="McpPlanInstallResult"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class McpPlanInstallResultNotInstallable : McpPlanInstallResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "not-installable";
+
+    /// <summary>Human-readable explanation, safe to surface. Never contains a query, URL, handle, or secret.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MaxLength(1000)]
+    [JsonPropertyName("message")]
+    public required string Message { get; set; }
+
+    /// <summary>Why the candidate cannot be installed.</summary>
+    [JsonPropertyName("reason")]
+    public required CatalogNotInstallableReason Reason { get; set; }
+}
+
+/// <summary>The operation is not available on this runtime. Distinct from a network failure: nothing was attempted.</summary>
+/// <remarks>The <c>unavailable</c> variant of <see cref="McpPlanInstallResult"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class McpPlanInstallResultUnavailable : McpPlanInstallResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "unavailable";
+
+    /// <summary>Human-readable explanation, safe to surface. Never contains a query, URL, handle, or secret.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MaxLength(1000)]
+    [JsonPropertyName("message")]
+    public required string Message { get; set; }
+
+    /// <summary>Why the operation is unavailable.</summary>
+    [JsonPropertyName("reason")]
+    public required CatalogUnavailableReason Reason { get; set; }
+}
+
+/// <summary>The protocol version and capability set a caller requires, supplied on every catalog request so negotiation cannot be skipped by omission.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class CatalogClientContract
+{
+    /// <summary>SDK protocol version the caller was generated against. A caller below the runtime's minimum supported version is refused rather than served a partial result.</summary>
+    [JsonPropertyName("protocolVersion")]
+    public long ProtocolVersion { get; set; }
+
+    /// <summary>Wire features the caller requires the runtime to understand. Identifiers are bounded but extensible so a newer caller can negotiate with an older runtime. Requiring an unknown feature yields a typed refusal listing what is understood, never a partial grant. A grant does not promise that a deployment has enabled the operation; typed unavailable results report that separately.</summary>
+    [JsonPropertyName("requiredCapabilities")]
+    public IList<string> RequiredCapabilities { get => field ??= []; set; }
+}
+
+/// <summary>What an install plan is computed from: a candidate handle from a previous search, or a card supplied directly.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>kind</c>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "kind",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(McpPlanInstallSourceCandidate), "candidate")]
+[JsonDerivedType(typeof(McpPlanInstallSourceCard), "card")]
+public partial class McpPlanInstallSource
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("kind")]
+    public virtual string Kind { get; set; } = string.Empty;
+}
+
+
+/// <summary>Plan from a candidate returned by a previous catalog search.</summary>
+/// <remarks>The <c>candidate</c> variant of <see cref="McpPlanInstallSource"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class McpPlanInstallSourceCandidate : McpPlanInstallSource
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "candidate";
+
+    /// <summary>Single-use candidate handle. Consumed by this call, so a replay of the same handle is rejected.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [MaxLength(256)]
+    [JsonPropertyName("candidateHandle")]
+    public required string CandidateHandle { get; set; }
+
+    /// <summary>The runtime- or authority-minted `searchId` returned with the search that produced this candidate. A search implementation binds it to private candidate-handle context; a planning implementation must verify that context before returning a plan. The unavailable planning implementation in this contract layer validates presence but does not claim the verification has occurred. It identifies a search rather than a person and must never be joined with user identity to re-identify anyone.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [MaxLength(64)]
+    [JsonPropertyName("searchId")]
+    public required string SearchId { get; set; }
+}
+
+/// <summary>A card supplied directly by the caller. Exactly one of a URL or embedded data, encoded structurally so neither both nor neither can be expressed.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>kind</c>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "kind",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(McpServerCardReferenceUrl), "url")]
+[JsonDerivedType(typeof(McpServerCardReferenceEmbedded), "embedded")]
+public partial class McpServerCardReference
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("kind")]
+    public virtual string Kind { get; set; } = string.Empty;
+}
+
+
+/// <summary>An MCP server card to be retrieved from a URL through the runtime's hardened fetch boundary.</summary>
+/// <remarks>The <c>url</c> variant of <see cref="McpServerCardReference"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class McpServerCardReferenceUrl : McpServerCardReference
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "url";
+
+    /// <summary>Media type the card is expected to conform to.</summary>
+    [JsonPropertyName("mediaType")]
+    public required McpServerCardMediaType MediaType { get; set; }
+
+    /// <summary>Card URL. Retrieved only through the runtime's hardened boundary, with scheme, credential, address-range, redirect, timeout, and response-size controls applied. Never logged.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [MaxLength(2048)]
+    [JsonPropertyName("url")]
+    public required string Url { get; set; }
+}
+
+/// <summary>An MCP server card supplied inline as an inert document.</summary>
+/// <remarks>The <c>embedded</c> variant of <see cref="McpServerCardReference"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class McpServerCardReferenceEmbedded : McpServerCardReference
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "embedded";
+
+    /// <summary>The card document verbatim, treated as inert untrusted bytes. The runtime parses and validates it; the host is not expected to interpret it. Never logged.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [MaxLength(1048576)]
+    [JsonPropertyName("data")]
+    public required string Data { get; set; }
+
+    /// <summary>Media type the card is expected to conform to.</summary>
+    [JsonPropertyName("mediaType")]
+    public required McpServerCardMediaType MediaType { get; set; }
+}
+
+/// <summary>Plan from a card supplied directly by the caller, without a preceding search.</summary>
+/// <remarks>The <c>card</c> variant of <see cref="McpPlanInstallSource"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class McpPlanInstallSourceCard : McpPlanInstallSource
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "card";
+
+    /// <summary>The card to plan from: exactly one of a URL or embedded data.</summary>
+    [JsonPropertyName("card")]
+    public required McpServerCardReference Card { get; set; }
+}
+
+/// <summary>A side-effect-free request for an MCP install plan. Computing a plan never writes configuration, stores a secret, or reloads MCP servers.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class McpPlanInstallRequest
+{
+    /// <summary>Protocol version and capabilities the caller requires.</summary>
+    [JsonPropertyName("contract")]
+    public CatalogClientContract Contract { get => field ??= new(); set; }
+
+    /// <summary>Configuration scope the plan targets. Defaults to user scope when omitted.</summary>
+    [JsonPropertyName("scope")]
+    public McpPlanScope? Scope { get; set; }
+
+    /// <summary>What to plan: either a candidate handle from a previous search, or a card supplied directly.</summary>
+    [JsonPropertyName("source")]
+    public McpPlanInstallSource Source { get => field ??= new(); set; }
+}
+
 /// <summary>User-configured MCP servers, keyed by server name.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class McpConfigList
@@ -1279,6 +2164,523 @@ internal sealed class DiscoveredExtensionsDisableRequest
     /// <summary>Source-qualified user or plugin extension IDs to disable.</summary>
     [JsonPropertyName("ids")]
     public IList<string> Ids { get => field ??= []; set; }
+}
+
+/// <summary>Outcome of a catalog.search call: either bounded inert candidates, or one typed refusal. Never a partial success.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>kind</c>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "kind",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(CatalogSearchResultSucceeded), "succeeded")]
+[JsonDerivedType(typeof(CatalogSearchResultNegotiationRefused), "negotiation-refused")]
+[JsonDerivedType(typeof(CatalogSearchResultUnsupportedKind), "unsupported-kind")]
+[JsonDerivedType(typeof(CatalogSearchResultInvalidRequest), "invalid-request")]
+[JsonDerivedType(typeof(CatalogSearchResultAuthenticationRequired), "authentication-required")]
+[JsonDerivedType(typeof(CatalogSearchResultPolicyRejected), "policy-rejected")]
+[JsonDerivedType(typeof(CatalogSearchResultNetworkFailure), "network-failure")]
+[JsonDerivedType(typeof(CatalogSearchResultUnsafeRetrieval), "unsafe-retrieval")]
+[JsonDerivedType(typeof(CatalogSearchResultMalformedCard), "malformed-card")]
+[JsonDerivedType(typeof(CatalogSearchResultContractViolation), "contract-violation")]
+[JsonDerivedType(typeof(CatalogSearchResultUnavailable), "unavailable")]
+public partial class CatalogSearchResult
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("kind")]
+    public virtual string Kind { get; set; } = string.Empty;
+}
+
+
+/// <summary>One inert catalog result, represented as an MCP server or discovery-only AI skill variant so kind, media type, provenance, and installability cannot contradict each other.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>kind</c>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "kind",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(CatalogCandidateMcpServer), "mcp-server")]
+[JsonDerivedType(typeof(CatalogCandidateAiSkill), "ai-skill")]
+public partial class CatalogCandidate
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("kind")]
+    public virtual string Kind { get; set; } = string.Empty;
+}
+
+
+/// <summary>Where and when an MCP server catalog reference was observed. Discovery provenance deliberately carries no content digest because search does not establish the exact validated content a later plan will bind.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class CatalogMcpServerCandidateProvenance
+{
+    /// <summary>Host of the catalog authority that advertised the reference, without path, query, or credentials. Inert untrusted data.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("authority")]
+    public string Authority { get; set; } = string.Empty;
+
+    /// <summary>JSON MCP media type advertised for the referenced card.</summary>
+    [JsonPropertyName("mediaType")]
+    public McpServerCardMediaType MediaType { get; set; }
+
+    /// <summary>ISO 8601 timestamp at which the runtime observed the catalog reference. This is not a retrieval or validation timestamp.</summary>
+    [JsonPropertyName("observedAt")]
+    public string ObservedAt { get; set; } = string.Empty;
+}
+
+/// <summary>Where a candidate's card came from. Exactly one of a URL or embedded data: the union has no variant carrying both, and no variant carrying neither, so the rule holds structurally rather than by validation.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>kind</c>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "kind",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(CatalogCandidateSourceUrl), "url")]
+[JsonDerivedType(typeof(CatalogCandidateSourceEmbedded), "embedded")]
+public partial class CatalogCandidateSource
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("kind")]
+    public virtual string Kind { get; set; } = string.Empty;
+}
+
+
+/// <summary>Candidate whose card is retrieved from a URL through the runtime's hardened fetch boundary.</summary>
+/// <remarks>The <c>url</c> variant of <see cref="CatalogCandidateSource"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class CatalogCandidateSourceUrl : CatalogCandidateSource
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "url";
+
+    /// <summary>Card URL as advertised. Inert untrusted data: the runtime retrieves it only through its own hardened boundary, and it is never logged.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("url")]
+    public required string Url { get; set; }
+}
+
+/// <summary>Candidate whose card reference arrived inline. The document and its content-derived properties stay behind the runtime boundary.</summary>
+/// <remarks>The <c>embedded</c> variant of <see cref="CatalogCandidateSource"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class CatalogCandidateSourceEmbedded : CatalogCandidateSource
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "embedded";
+}
+
+/// <summary>An inert MCP server catalog result. Every free-text field is untrusted external data and must never be treated as an instruction, and the handle is the only way to refer to the candidate in a later operation.</summary>
+/// <remarks>The <c>mcp-server</c> variant of <see cref="CatalogCandidate"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class CatalogCandidateMcpServer : CatalogCandidate
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "mcp-server";
+
+    /// <summary>Description taken verbatim from the card. Inert untrusted text.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MaxLength(1000)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+
+    /// <summary>Display name taken verbatim from the card. Inert untrusted text.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MaxLength(200)]
+    [JsonPropertyName("displayName")]
+    public required string DisplayName { get; set; }
+
+    /// <summary>Opaque, runtime-instance scoped, TTL-bound, single-use handle for this candidate. Carries no readable information and is rejected when stale, replayed, or presented to a different runtime instance. Never logged.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("handle")]
+    public required string Handle { get; set; }
+
+    /// <summary>ISO 8601 timestamp after which the handle is stale and will be rejected.</summary>
+    [JsonPropertyName("handleExpiresAt")]
+    public required string HandleExpiresAt { get; set; }
+
+    /// <summary>Whether this MCP server can be planned for installation, and if policy prevents it.</summary>
+    [JsonPropertyName("installability")]
+    public required CatalogMcpServerInstallability Installability { get; set; }
+
+    /// <summary>JSON MCP media type of the underlying card.</summary>
+    [JsonPropertyName("mediaType")]
+    public required McpServerCardMediaType MediaType { get; set; }
+
+    /// <summary>Where the catalog reference was observed, without the card itself or any content digest.</summary>
+    [JsonPropertyName("provenance")]
+    public required CatalogMcpServerCandidateProvenance Provenance { get; set; }
+
+    /// <summary>Publisher taken verbatim from the card. Inert untrusted text.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MaxLength(200)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("publisher")]
+    public string? Publisher { get; set; }
+
+    /// <summary>Where the card came from: exactly one of a URL or embedded data, encoded as a tagged union so neither both nor neither can be represented.</summary>
+    [JsonPropertyName("source")]
+    public required CatalogCandidateSource Source { get; set; }
+}
+
+/// <summary>Where and when an AI skill catalog reference was observed. Discovery provenance deliberately carries no content digest because search does not establish the exact validated content a later plan will bind.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class CatalogAiSkillCandidateProvenance
+{
+    /// <summary>Host of the catalog authority that advertised the reference, without path, query, or credentials. Inert untrusted data.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("authority")]
+    public string Authority { get; set; } = string.Empty;
+
+    /// <summary>Media type advertised for the referenced AI skill card.</summary>
+    [JsonPropertyName("mediaType")]
+    public string MediaType { get; set; } = string.Empty;
+
+    /// <summary>ISO 8601 timestamp at which the runtime observed the catalog reference. This is not a retrieval or validation timestamp.</summary>
+    [JsonPropertyName("observedAt")]
+    public string ObservedAt { get; set; } = string.Empty;
+}
+
+/// <summary>An inert AI skill catalog result. AI skills are discovery-only and cannot be represented as installable through this surface.</summary>
+/// <remarks>The <c>ai-skill</c> variant of <see cref="CatalogCandidate"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class CatalogCandidateAiSkill : CatalogCandidate
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "ai-skill";
+
+    /// <summary>Description taken verbatim from the card. Inert untrusted text.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MaxLength(1000)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+
+    /// <summary>Display name taken verbatim from the card. Inert untrusted text.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MaxLength(200)]
+    [JsonPropertyName("displayName")]
+    public required string DisplayName { get; set; }
+
+    /// <summary>Opaque, runtime-instance scoped, TTL-bound, single-use handle for this candidate. Carries no readable information and is rejected when stale, replayed, or presented to a different runtime instance. Never logged.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("handle")]
+    public required string Handle { get; set; }
+
+    /// <summary>ISO 8601 timestamp after which the handle is stale and will be rejected.</summary>
+    [JsonPropertyName("handleExpiresAt")]
+    public required string HandleExpiresAt { get; set; }
+
+    /// <summary>AI skills are discovery-only and cannot be installed through this surface.</summary>
+    [JsonPropertyName("installability")]
+    public required string Installability { get; set; }
+
+    /// <summary>Media type of the underlying AI skill card.</summary>
+    [JsonPropertyName("mediaType")]
+    public required string MediaType { get; set; }
+
+    /// <summary>Where the catalog reference was observed, without the card itself or any content digest.</summary>
+    [JsonPropertyName("provenance")]
+    public required CatalogAiSkillCandidateProvenance Provenance { get; set; }
+
+    /// <summary>Publisher taken verbatim from the card. Inert untrusted text.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MaxLength(200)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("publisher")]
+    public string? Publisher { get; set; }
+
+    /// <summary>Where the card came from: exactly one of a URL or embedded data, encoded as a tagged union so neither both nor neither can be represented.</summary>
+    [JsonPropertyName("source")]
+    public required CatalogCandidateSource Source { get; set; }
+}
+
+/// <summary>A completed catalog search: inert candidate summaries, each carrying a single-use handle.</summary>
+/// <remarks>The <c>succeeded</c> variant of <see cref="CatalogSearchResult"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class CatalogSearchResultSucceeded : CatalogSearchResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "succeeded";
+
+    /// <summary>Matching candidates, never more than the requested limit. All text is inert untrusted data.</summary>
+    [JsonPropertyName("candidates")]
+    public required IList<CatalogCandidate> Candidates { get; set; }
+
+    /// <summary>Protocol version and capabilities the runtime honoured.</summary>
+    [JsonPropertyName("negotiated")]
+    public required CatalogNegotiatedContract Negotiated { get; set; }
+
+    /// <summary>Pseudonymous identifier for this search, issued by the runtime or by the catalog authority it queried and never by the caller, so it cannot be forged or replayed to attribute an install to a search that never happened. Always present on a success, so a result set can be tied to the installs it leads to. It identifies a search rather than a person: it is derived from no user, account, device, or query data, and must never be joined with user identity to re-identify anyone.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [MaxLength(64)]
+    [JsonPropertyName("searchId")]
+    public required string SearchId { get; set; }
+
+    /// <summary>Whether further matches existed beyond the requested limit.</summary>
+    [JsonPropertyName("truncated")]
+    public required bool Truncated { get; set; }
+}
+
+/// <summary>The caller's protocol version or required capabilities cannot be honoured. Returned instead of a partial or ambiguous success.</summary>
+/// <remarks>The <c>negotiation-refused</c> variant of <see cref="CatalogSearchResult"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class CatalogSearchResultNegotiationRefused : CatalogSearchResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "negotiation-refused";
+
+    /// <summary>Human-readable explanation, safe to surface. Never contains a query, URL, handle, or secret.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MaxLength(1000)]
+    [JsonPropertyName("message")]
+    public required string Message { get; set; }
+
+    /// <summary>Lowest caller protocol version this runtime will serve.</summary>
+    [JsonPropertyName("minimumSupportedProtocolVersion")]
+    public required long MinimumSupportedProtocolVersion { get; set; }
+
+    /// <summary>Whether the version or the capability set was the problem.</summary>
+    [JsonPropertyName("reason")]
+    public required CatalogNegotiationRefusedReason Reason { get; set; }
+
+    /// <summary>Protocol version of the runtime that refused the request.</summary>
+    [JsonPropertyName("runtimeProtocolVersion")]
+    public required long RuntimeProtocolVersion { get; set; }
+
+    /// <summary>Every wire feature this runtime understands, so the caller can retry within that contract. This list does not imply that every deployment has enabled every operation.</summary>
+    [JsonPropertyName("supportedCapabilities")]
+    public required IList<CatalogCapability> SupportedCapabilities { get; set; }
+
+    /// <summary>The subset of the caller's bounded extensible capability identifiers this runtime cannot honour.</summary>
+    [JsonPropertyName("unsupportedCapabilities")]
+    public required IList<string> UnsupportedCapabilities { get; set; }
+}
+
+/// <summary>The request asked for a candidate kind this runtime does not serve.</summary>
+/// <remarks>The <c>unsupported-kind</c> variant of <see cref="CatalogSearchResult"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class CatalogSearchResultUnsupportedKind : CatalogSearchResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "unsupported-kind";
+
+    /// <summary>Human-readable explanation, safe to surface. Never contains a query, URL, handle, or secret.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MaxLength(1000)]
+    [JsonPropertyName("message")]
+    public required string Message { get; set; }
+
+    /// <summary>The kinds from the request that are not supported.</summary>
+    [JsonPropertyName("requestedKinds")]
+    public required IList<CatalogCandidateKind> RequestedKinds { get; set; }
+
+    /// <summary>Every candidate kind this runtime can serve.</summary>
+    [JsonPropertyName("supportedKinds")]
+    public required IList<CatalogCandidateKind> SupportedKinds { get; set; }
+}
+
+/// <summary>The request was rejected before any work was done, because a bounded field fell outside its permitted range or a required field was unusable.</summary>
+/// <remarks>The <c>invalid-request</c> variant of <see cref="CatalogSearchResult"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class CatalogSearchResultInvalidRequest : CatalogSearchResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "invalid-request";
+
+    /// <summary>Which request field was rejected.</summary>
+    [JsonPropertyName("field")]
+    public required CatalogInvalidRequestField Field { get; set; }
+
+    /// <summary>Human-readable explanation, safe to surface. Never echoes the offending value, nor a query, URL, handle, or secret.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MaxLength(1000)]
+    [JsonPropertyName("message")]
+    public required string Message { get; set; }
+}
+
+/// <summary>An optional catalog authentication exchange did not establish the caller's identity. Anonymous search remains supported; this refusal is reserved for an operation that cannot continue after the attempted exchange. It is distinct from `policy-rejected` and from a network failure, and the reason identifies the recovery action.</summary>
+/// <remarks>The <c>authentication-required</c> variant of <see cref="CatalogSearchResult"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class CatalogSearchResultAuthenticationRequired : CatalogSearchResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "authentication-required";
+
+    /// <summary>Human-readable explanation, safe to surface. Never contains a credential or token, nor a query, URL, handle, or secret.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MaxLength(1000)]
+    [JsonPropertyName("message")]
+    public required string Message { get; set; }
+
+    /// <summary>Why authentication failed. Only an expired credential justifies attempting a silent refresh; an absent or rejected credential requires sign-in.</summary>
+    [JsonPropertyName("reason")]
+    public required CatalogAuthenticationRequiredReason Reason { get; set; }
+}
+
+/// <summary>Registry or enterprise policy refused the operation.</summary>
+/// <remarks>The <c>policy-rejected</c> variant of <see cref="CatalogSearchResult"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class CatalogSearchResultPolicyRejected : CatalogSearchResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "policy-rejected";
+
+    /// <summary>Human-readable explanation, safe to surface. Never contains a query, URL, handle, or secret.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MaxLength(1000)]
+    [JsonPropertyName("message")]
+    public required string Message { get; set; }
+
+    /// <summary>Which authority produced the decision.</summary>
+    [JsonPropertyName("source")]
+    public required McpPlanPolicySource Source { get; set; }
+}
+
+/// <summary>The runtime could not reach the catalog authority or retrieve a card. Covers being offline as well as transport-level failure.</summary>
+/// <remarks>The <c>network-failure</c> variant of <see cref="CatalogSearchResult"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class CatalogSearchResultNetworkFailure : CatalogSearchResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "network-failure";
+
+    /// <summary>Human-readable explanation, safe to surface. Never contains a query, URL, handle, or secret.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MaxLength(1000)]
+    [JsonPropertyName("message")]
+    public required string Message { get; set; }
+
+    /// <summary>Categorised failure, low cardinality so it can be aggregated without carrying a URL.</summary>
+    [JsonPropertyName("reason")]
+    public required CatalogNetworkFailureReason Reason { get; set; }
+
+    /// <summary>HTTP status code, when the failure was a rejected response.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("statusCode")]
+    public int? StatusCode { get; set; }
+}
+
+/// <summary>Retrieval was refused by the runtime's hardened fetch boundary before any request left the process, or before a redirect was followed.</summary>
+/// <remarks>The <c>unsafe-retrieval</c> variant of <see cref="CatalogSearchResult"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class CatalogSearchResultUnsafeRetrieval : CatalogSearchResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "unsafe-retrieval";
+
+    /// <summary>Human-readable explanation, safe to surface. Never contains the refused URL, nor a query, handle, or secret.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MaxLength(1000)]
+    [JsonPropertyName("message")]
+    public required string Message { get; set; }
+
+    /// <summary>Which control refused the retrieval, low cardinality so it can be aggregated without carrying a URL.</summary>
+    [JsonPropertyName("reason")]
+    public required CatalogUnsafeRetrievalReason Reason { get; set; }
+}
+
+/// <summary>A card could not be parsed or did not satisfy its declared media type's schema.</summary>
+/// <remarks>The <c>malformed-card</c> variant of <see cref="CatalogSearchResult"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class CatalogSearchResultMalformedCard : CatalogSearchResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "malformed-card";
+
+    /// <summary>Media type the card was interpreted as, when it declared one this runtime recognises.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("mediaType")]
+    public CatalogMediaType? MediaType { get; set; }
+
+    /// <summary>Human-readable explanation, safe to surface. Never echoes card content, nor a query, URL, handle, or secret.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MaxLength(1000)]
+    [JsonPropertyName("message")]
+    public required string Message { get; set; }
+
+    /// <summary>How the card failed validation.</summary>
+    [JsonPropertyName("reason")]
+    public required CatalogMalformedCardReason Reason { get; set; }
+}
+
+/// <summary>An upstream catalog response broke the wire contract. Most importantly, every result must carry exactly one of a URL or embedded data: a result carrying both, or neither, is refused here rather than being guessed at.</summary>
+/// <remarks>The <c>contract-violation</c> variant of <see cref="CatalogSearchResult"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class CatalogSearchResultContractViolation : CatalogSearchResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "contract-violation";
+
+    /// <summary>Human-readable explanation, safe to surface. Never echoes response content, nor a query, URL, handle, or secret.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MaxLength(1000)]
+    [JsonPropertyName("message")]
+    public required string Message { get; set; }
+
+    /// <summary>Which rule the response broke.</summary>
+    [JsonPropertyName("reason")]
+    public required CatalogContractViolationReason Reason { get; set; }
+}
+
+/// <summary>The operation is not available on this runtime. Distinct from a network failure: nothing was attempted.</summary>
+/// <remarks>The <c>unavailable</c> variant of <see cref="CatalogSearchResult"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class CatalogSearchResultUnavailable : CatalogSearchResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "unavailable";
+
+    /// <summary>Human-readable explanation, safe to surface. Never contains a query, URL, handle, or secret.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MaxLength(1000)]
+    [JsonPropertyName("message")]
+    public required string Message { get; set; }
+
+    /// <summary>Why the operation is unavailable.</summary>
+    [JsonPropertyName("reason")]
+    public required CatalogUnavailableReason Reason { get; set; }
+}
+
+/// <summary>A bounded catalog search. Both the query length and the result count are capped by the schema so a caller cannot request an unbounded scan.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class CatalogSearchRequest
+{
+    /// <summary>Protocol version and capabilities the caller requires.</summary>
+    [JsonPropertyName("contract")]
+    public CatalogClientContract Contract { get => field ??= new(); set; }
+
+    /// <summary>Restrict results to these candidate kinds. When omitted, every kind the runtime supports is searched.</summary>
+    [JsonPropertyName("kinds")]
+    public IList<CatalogCandidateKind>? Kinds { get; set; }
+
+    /// <summary>Maximum number of candidates to return. Defaults to 10 when omitted.</summary>
+    [JsonPropertyName("limit")]
+    public int? Limit { get; set; }
+
+    /// <summary>Free-text search query. Never written to logs or telemetry.</summary>
+    [RegularExpression("\\S")]
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [MaxLength(256)]
+    [JsonPropertyName("query")]
+    public string Query { get; set; } = string.Empty;
 }
 
 /// <summary>Information about an installed plugin tracked in global state.</summary>
@@ -5987,6 +7389,10 @@ internal sealed class SessionPlanDeleteRequest
 [Experimental(Diagnostics.Experimental)]
 public sealed class PlanSqlTodosRow
 {
+    /// <summary>Todo creation time, as stored by the session SQL schema's `datetime('now')` default: `YYYY-MM-DD HH:MM:SS` in UTC. Lets clients attribute todos to the work item that created them (e.g. scoping a goal's progress to the todos it produced) rather than to the whole session.</summary>
+    [JsonPropertyName("createdAt")]
+    public string? CreatedAt { get; set; }
+
     /// <summary>Todo description.</summary>
     [JsonPropertyName("description")]
     public string? Description { get; set; }
@@ -7606,6 +9012,24 @@ internal sealed class McpDisableRequest
 /// <summary>Identifies the target session.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class SessionMcpReloadRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Result of moving in-flight MCP loading to the background.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class MoveMcpLoadingToBackgroundResult
+{
+    /// <summary>Whether an in-flight MCP load was moved to the background, releasing turns that were waiting on it. False when no MCP load was in flight or the waiting turns had already been released.</summary>
+    [JsonPropertyName("movedToBackground")]
+    public bool MovedToBackground { get; set; }
+}
+
+/// <summary>Identifies the target session.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class SessionMcpMoveLoadingToBackgroundRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -12855,64 +14279,52 @@ internal sealed class PermissionsSetApproveAllRequest
     public PermissionsSetApproveAllSource? Source { get; set; }
 }
 
-/// <summary>Indicates whether the operation succeeded and reports the post-mutation state.</summary>
+/// <summary>Indicates whether the requested permission mode was applied and reports the authoritative post-mutation mode.</summary>
 [Experimental(Diagnostics.Experimental)]
-public sealed class AllowAllPermissionSetResult
+public sealed class PermissionsSetModeResult
 {
-    /// <summary>Authoritative full allow-all state after the mutation.</summary>
-    [JsonPropertyName("enabled")]
-    public bool Enabled { get; set; }
-
-    /// <summary>Authoritative allow-all mode after the mutation.</summary>
+    /// <summary>Authoritative permission mode after the mutation.</summary>
     [JsonPropertyName("mode")]
-    public PermissionsAllowAllMode? Mode { get; set; }
+    public PermissionMode Mode { get; set; }
 
     /// <summary>Whether the operation succeeded.</summary>
     [JsonPropertyName("success")]
     public bool Success { get; set; }
 }
 
-/// <summary>Allow-all mode to apply for the session.</summary>
+/// <summary>Permission mode to apply for the session.</summary>
 [Experimental(Diagnostics.Experimental)]
-internal sealed class PermissionsSetAllowAllRequest
+internal sealed class PermissionsSetModeRequest
 {
-    /// <summary>Legacy full allow-all toggle. Prefer `mode`; when `mode` is omitted, `enabled: true` is treated as `mode: "on"` and any other value is treated as `mode: "off"`.</summary>
-    [JsonPropertyName("enabled")]
-    public bool? Enabled { get; set; }
+    /// <summary>Optional judge model id for assisted mode. When omitted, the session resolves the provider default: `gpt-5.5` for CAPI sessions and the active session model for BYOK sessions.</summary>
+    [JsonPropertyName("assistedApprovalModel")]
+    public string? AssistedApprovalModel { get; set; }
 
-    /// <summary>Allow-all mode to apply. `on` enables full allow-all; `auto` enables advisory LLM auto-approval; `off` disables both.</summary>
+    /// <summary>Permission mode to apply.</summary>
     [JsonPropertyName("mode")]
-    public PermissionsAllowAllMode? Mode { get; set; }
-
-    /// <summary>Optional model id for the `auto` mode auto-approval LLM judging. Only meaningful when `mode` is `auto`; ignored otherwise. When omitted, the session resolves a default judge model: `gpt-5.5` for CAPI sessions and the session's active model for BYOK sessions.</summary>
-    [JsonPropertyName("model")]
-    public string? Model { get; set; }
+    public PermissionMode Mode { get; set; }
 
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
 
-    /// <summary>Optional source for allow-all telemetry. Defaults to `rpc` when omitted for SDK callers.</summary>
+    /// <summary>Optional source for permission-mode telemetry. Defaults to `rpc` when omitted for SDK callers.</summary>
     [JsonPropertyName("source")]
-    public PermissionsSetAllowAllSource? Source { get; set; }
+    public PermissionModeSource? Source { get; set; }
 }
 
-/// <summary>Current allow-all permission mode.</summary>
+/// <summary>Current permission mode.</summary>
 [Experimental(Diagnostics.Experimental)]
-public sealed class AllowAllPermissionState
+public sealed class PermissionsGetModeResult
 {
-    /// <summary>Whether full allow-all permissions are currently active.</summary>
-    [JsonPropertyName("enabled")]
-    public bool Enabled { get; set; }
-
-    /// <summary>Current allow-all mode.</summary>
+    /// <summary>Current permission mode.</summary>
     [JsonPropertyName("mode")]
-    public PermissionsAllowAllMode? Mode { get; set; }
+    public PermissionMode Mode { get; set; }
 }
 
 /// <summary>No parameters.</summary>
 [Experimental(Diagnostics.Experimental)]
-internal sealed class PermissionsGetAllowAllRequest
+internal sealed class PermissionsGetModeRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -17225,6 +18637,1689 @@ public readonly struct DiscoveredMcpServerType : IEquatable<DiscoveredMcpServerT
 }
 
 
+/// <summary>A wire feature a caller can require of the catalog surface, negotiated per request. A grant means the runtime understands the feature's contract, not that the deployment has enabled the operation; typed unavailable results report availability separately.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct CatalogCapability : IEquatable<CatalogCapability>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="CatalogCapability"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="CatalogCapability"/>.</param>
+    [JsonConstructor]
+    public CatalogCapability(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="CatalogCapability"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Understands the current `application/mcp-server-card+json` media type.</summary>
+    public static CatalogCapability McpServerCard { get; } = new("mcp-server-card");
+
+    /// <summary>Understands the legacy `application/mcp-server+json` media type.</summary>
+    public static CatalogCapability LegacyMcpServerCard { get; } = new("legacy-mcp-server-card");
+
+    /// <summary>Understands `application/ai-skill` candidates as discovery-only and typed non-installable.</summary>
+    public static CatalogCapability AiSkillDiscovery { get; } = new("ai-skill-discovery");
+
+    /// <summary>Understands side-effect-free MCP install-plan requests, results, and plan handles; `planning-unavailable` separately reports that planning is not enabled.</summary>
+    public static CatalogCapability McpInstallPlanning { get; } = new("mcp-install-planning");
+
+    /// <summary>Understands plans that enumerate every eligible transport rather than a single preferred one.</summary>
+    public static CatalogCapability MultipleTransportChoice { get; } = new("multiple-transport-choice");
+
+    /// <summary>Returns a value indicating whether two <see cref="CatalogCapability"/> instances are equivalent.</summary>
+    public static bool operator ==(CatalogCapability left, CatalogCapability right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="CatalogCapability"/> instances are not equivalent.</summary>
+    public static bool operator !=(CatalogCapability left, CatalogCapability right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is CatalogCapability other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(CatalogCapability other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{CatalogCapability}"/> for serializing <see cref="CatalogCapability"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<CatalogCapability>
+    {
+        /// <inheritdoc />
+        public override CatalogCapability Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, CatalogCapability value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(CatalogCapability));
+        }
+    }
+}
+
+
+/// <summary>Whether a planned configuration change would create or modify an entry.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct McpPlanConfigurationOperation : IEquatable<McpPlanConfigurationOperation>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="McpPlanConfigurationOperation"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="McpPlanConfigurationOperation"/>.</param>
+    [JsonConstructor]
+    public McpPlanConfigurationOperation(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="McpPlanConfigurationOperation"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Creates a configuration entry that does not exist yet.</summary>
+    public static McpPlanConfigurationOperation Add { get; } = new("add");
+
+    /// <summary>Modifies a configuration entry that already exists.</summary>
+    public static McpPlanConfigurationOperation Update { get; } = new("update");
+
+    /// <summary>Returns a value indicating whether two <see cref="McpPlanConfigurationOperation"/> instances are equivalent.</summary>
+    public static bool operator ==(McpPlanConfigurationOperation left, McpPlanConfigurationOperation right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="McpPlanConfigurationOperation"/> instances are not equivalent.</summary>
+    public static bool operator !=(McpPlanConfigurationOperation left, McpPlanConfigurationOperation right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is McpPlanConfigurationOperation other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(McpPlanConfigurationOperation other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{McpPlanConfigurationOperation}"/> for serializing <see cref="McpPlanConfigurationOperation"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<McpPlanConfigurationOperation>
+    {
+        /// <inheritdoc />
+        public override McpPlanConfigurationOperation Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, McpPlanConfigurationOperation value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpPlanConfigurationOperation));
+        }
+    }
+}
+
+
+/// <summary>Configuration scope an MCP install plan targets.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct McpPlanScope : IEquatable<McpPlanScope>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="McpPlanScope"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="McpPlanScope"/>.</param>
+    [JsonConstructor]
+    public McpPlanScope(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="McpPlanScope"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The user's own MCP configuration.</summary>
+    public static McpPlanScope User { get; } = new("user");
+
+    /// <summary>Returns a value indicating whether two <see cref="McpPlanScope"/> instances are equivalent.</summary>
+    public static bool operator ==(McpPlanScope left, McpPlanScope right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="McpPlanScope"/> instances are not equivalent.</summary>
+    public static bool operator !=(McpPlanScope left, McpPlanScope right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is McpPlanScope other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(McpPlanScope other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{McpPlanScope}"/> for serializing <see cref="McpPlanScope"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<McpPlanScope>
+    {
+        /// <inheritdoc />
+        public override McpPlanScope Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, McpPlanScope value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpPlanScope));
+        }
+    }
+}
+
+
+/// <summary>What policy decided for a planned server.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct McpPlanPolicyDecision : IEquatable<McpPlanPolicyDecision>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="McpPlanPolicyDecision"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="McpPlanPolicyDecision"/>.</param>
+    [JsonConstructor]
+    public McpPlanPolicyDecision(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="McpPlanPolicyDecision"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Policy permits the server.</summary>
+    public static McpPlanPolicyDecision Allowed { get; } = new("allowed");
+
+    /// <summary>Policy forbids the server, so the plan cannot be applied.</summary>
+    public static McpPlanPolicyDecision Blocked { get; } = new("blocked");
+
+    /// <summary>Policy permits the server only after an explicit approval.</summary>
+    public static McpPlanPolicyDecision RequiresApproval { get; } = new("requires-approval");
+
+    /// <summary>Returns a value indicating whether two <see cref="McpPlanPolicyDecision"/> instances are equivalent.</summary>
+    public static bool operator ==(McpPlanPolicyDecision left, McpPlanPolicyDecision right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="McpPlanPolicyDecision"/> instances are not equivalent.</summary>
+    public static bool operator !=(McpPlanPolicyDecision left, McpPlanPolicyDecision right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is McpPlanPolicyDecision other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(McpPlanPolicyDecision other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{McpPlanPolicyDecision}"/> for serializing <see cref="McpPlanPolicyDecision"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<McpPlanPolicyDecision>
+    {
+        /// <inheritdoc />
+        public override McpPlanPolicyDecision Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, McpPlanPolicyDecision value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpPlanPolicyDecision));
+        }
+    }
+}
+
+
+/// <summary>Which authority produced a policy decision.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct McpPlanPolicySource : IEquatable<McpPlanPolicySource>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="McpPlanPolicySource"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="McpPlanPolicySource"/>.</param>
+    [JsonConstructor]
+    public McpPlanPolicySource(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="McpPlanPolicySource"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>No policy applied, so the server is permitted by default.</summary>
+    public static McpPlanPolicySource None { get; } = new("none");
+
+    /// <summary>An enterprise allowlist evaluated the server.</summary>
+    public static McpPlanPolicySource EnterpriseAllowlist { get; } = new("enterprise-allowlist");
+
+    /// <summary>The registry the card came from evaluated the server.</summary>
+    public static McpPlanPolicySource RegistryPolicy { get; } = new("registry-policy");
+
+    /// <summary>Local trust settings evaluated the server.</summary>
+    public static McpPlanPolicySource LocalTrust { get; } = new("local-trust");
+
+    /// <summary>Returns a value indicating whether two <see cref="McpPlanPolicySource"/> instances are equivalent.</summary>
+    public static bool operator ==(McpPlanPolicySource left, McpPlanPolicySource right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="McpPlanPolicySource"/> instances are not equivalent.</summary>
+    public static bool operator !=(McpPlanPolicySource left, McpPlanPolicySource right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is McpPlanPolicySource other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(McpPlanPolicySource other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{McpPlanPolicySource}"/> for serializing <see cref="McpPlanPolicySource"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<McpPlanPolicySource>
+    {
+        /// <inheritdoc />
+        public override McpPlanPolicySource Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, McpPlanPolicySource value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpPlanPolicySource));
+        }
+    }
+}
+
+
+/// <summary>Canonical digest algorithm for a validated MCP card.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct CardDigestAlgorithm : IEquatable<CardDigestAlgorithm>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="CardDigestAlgorithm"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="CardDigestAlgorithm"/>.</param>
+    [JsonConstructor]
+    public CardDigestAlgorithm(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="CardDigestAlgorithm"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>SHA-256 over RFC 8785 canonical JSON encoded as UTF-8.</summary>
+    public static CardDigestAlgorithm Sha256Rfc8785 { get; } = new("sha256-rfc8785");
+
+    /// <summary>Returns a value indicating whether two <see cref="CardDigestAlgorithm"/> instances are equivalent.</summary>
+    public static bool operator ==(CardDigestAlgorithm left, CardDigestAlgorithm right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="CardDigestAlgorithm"/> instances are not equivalent.</summary>
+    public static bool operator !=(CardDigestAlgorithm left, CardDigestAlgorithm right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is CardDigestAlgorithm other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(CardDigestAlgorithm other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{CardDigestAlgorithm}"/> for serializing <see cref="CardDigestAlgorithm"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<CardDigestAlgorithm>
+    {
+        /// <inheritdoc />
+        public override CardDigestAlgorithm Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, CardDigestAlgorithm value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(CardDigestAlgorithm));
+        }
+    }
+}
+
+
+/// <summary>JSON MCP card media type accepted for install planning.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct McpServerCardMediaType : IEquatable<McpServerCardMediaType>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="McpServerCardMediaType"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="McpServerCardMediaType"/>.</param>
+    [JsonConstructor]
+    public McpServerCardMediaType(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="McpServerCardMediaType"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The current MCP server card media type.</summary>
+    public static McpServerCardMediaType ApplicationMcpServerCardJson { get; } = new("application/mcp-server-card+json");
+
+    /// <summary>The legacy MCP server card media type, accepted for compatibility.</summary>
+    public static McpServerCardMediaType ApplicationMcpServerJson { get; } = new("application/mcp-server+json");
+
+    /// <summary>Returns a value indicating whether two <see cref="McpServerCardMediaType"/> instances are equivalent.</summary>
+    public static bool operator ==(McpServerCardMediaType left, McpServerCardMediaType right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="McpServerCardMediaType"/> instances are not equivalent.</summary>
+    public static bool operator !=(McpServerCardMediaType left, McpServerCardMediaType right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is McpServerCardMediaType other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(McpServerCardMediaType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{McpServerCardMediaType}"/> for serializing <see cref="McpServerCardMediaType"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<McpServerCardMediaType>
+    {
+        /// <inheritdoc />
+        public override McpServerCardMediaType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, McpServerCardMediaType value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpServerCardMediaType));
+        }
+    }
+}
+
+
+/// <summary>Where a required value is applied when the planned server is launched.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct McpPlanValueCategory : IEquatable<McpPlanValueCategory>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="McpPlanValueCategory"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="McpPlanValueCategory"/>.</param>
+    [JsonConstructor]
+    public McpPlanValueCategory(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="McpPlanValueCategory"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Set as an environment variable on the launched process.</summary>
+    public static McpPlanValueCategory EnvironmentVariable { get; } = new("environment-variable");
+
+    /// <summary>Passed to the runtime that launches the package.</summary>
+    public static McpPlanValueCategory RuntimeArgument { get; } = new("runtime-argument");
+
+    /// <summary>Passed to the packaged server itself.</summary>
+    public static McpPlanValueCategory PackageArgument { get; } = new("package-argument");
+
+    /// <summary>Sent as a request header to a remote endpoint.</summary>
+    public static McpPlanValueCategory Header { get; } = new("header");
+
+    /// <summary>Substituted into the remote endpoint URL.</summary>
+    public static McpPlanValueCategory UrlVariable { get; } = new("url-variable");
+
+    /// <summary>Returns a value indicating whether two <see cref="McpPlanValueCategory"/> instances are equivalent.</summary>
+    public static bool operator ==(McpPlanValueCategory left, McpPlanValueCategory right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="McpPlanValueCategory"/> instances are not equivalent.</summary>
+    public static bool operator !=(McpPlanValueCategory left, McpPlanValueCategory right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is McpPlanValueCategory other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(McpPlanValueCategory other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{McpPlanValueCategory}"/> for serializing <see cref="McpPlanValueCategory"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<McpPlanValueCategory>
+    {
+        /// <inheritdoc />
+        public override McpPlanValueCategory Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, McpPlanValueCategory value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpPlanValueCategory));
+        }
+    }
+}
+
+
+/// <summary>Scalar type a required value must conform to.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct McpPlanScalarValueType : IEquatable<McpPlanScalarValueType>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="McpPlanScalarValueType"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="McpPlanScalarValueType"/>.</param>
+    [JsonConstructor]
+    public McpPlanScalarValueType(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="McpPlanScalarValueType"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Free text.</summary>
+    public static McpPlanScalarValueType String { get; } = new("string");
+
+    /// <summary>A number.</summary>
+    public static McpPlanScalarValueType Number { get; } = new("number");
+
+    /// <summary>A boolean.</summary>
+    public static McpPlanScalarValueType Boolean { get; } = new("boolean");
+
+    /// <summary>A filesystem path.</summary>
+    public static McpPlanScalarValueType Path { get; } = new("path");
+
+    /// <summary>Returns a value indicating whether two <see cref="McpPlanScalarValueType"/> instances are equivalent.</summary>
+    public static bool operator ==(McpPlanScalarValueType left, McpPlanScalarValueType right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="McpPlanScalarValueType"/> instances are not equivalent.</summary>
+    public static bool operator !=(McpPlanScalarValueType left, McpPlanScalarValueType right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is McpPlanScalarValueType other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(McpPlanScalarValueType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{McpPlanScalarValueType}"/> for serializing <see cref="McpPlanScalarValueType"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<McpPlanScalarValueType>
+    {
+        /// <inheritdoc />
+        public override McpPlanScalarValueType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, McpPlanScalarValueType value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpPlanScalarValueType));
+        }
+    }
+}
+
+
+/// <summary>Discriminator for an enumerated required value.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct McpPlanEnumValueType : IEquatable<McpPlanEnumValueType>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="McpPlanEnumValueType"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="McpPlanEnumValueType"/>.</param>
+    [JsonConstructor]
+    public McpPlanEnumValueType(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="McpPlanEnumValueType"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>One of a fixed, non-empty set of permitted values.</summary>
+    public static McpPlanEnumValueType Enum { get; } = new("enum");
+
+    /// <summary>Returns a value indicating whether two <see cref="McpPlanEnumValueType"/> instances are equivalent.</summary>
+    public static bool operator ==(McpPlanEnumValueType left, McpPlanEnumValueType right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="McpPlanEnumValueType"/> instances are not equivalent.</summary>
+    public static bool operator !=(McpPlanEnumValueType left, McpPlanEnumValueType right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is McpPlanEnumValueType other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(McpPlanEnumValueType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{McpPlanEnumValueType}"/> for serializing <see cref="McpPlanEnumValueType"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<McpPlanEnumValueType>
+    {
+        /// <inheritdoc />
+        public override McpPlanEnumValueType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, McpPlanEnumValueType value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpPlanEnumValueType));
+        }
+    }
+}
+
+
+/// <summary>Transport exposed by a locally launched package.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct McpPlanPackageTransport : IEquatable<McpPlanPackageTransport>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="McpPlanPackageTransport"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="McpPlanPackageTransport"/>.</param>
+    [JsonConstructor]
+    public McpPlanPackageTransport(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="McpPlanPackageTransport"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>A locally launched process spoken to over standard input and output.</summary>
+    public static McpPlanPackageTransport Stdio { get; } = new("stdio");
+
+    /// <summary>Returns a value indicating whether two <see cref="McpPlanPackageTransport"/> instances are equivalent.</summary>
+    public static bool operator ==(McpPlanPackageTransport left, McpPlanPackageTransport right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="McpPlanPackageTransport"/> instances are not equivalent.</summary>
+    public static bool operator !=(McpPlanPackageTransport left, McpPlanPackageTransport right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is McpPlanPackageTransport other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(McpPlanPackageTransport other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{McpPlanPackageTransport}"/> for serializing <see cref="McpPlanPackageTransport"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<McpPlanPackageTransport>
+    {
+        /// <inheritdoc />
+        public override McpPlanPackageTransport Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, McpPlanPackageTransport value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpPlanPackageTransport));
+        }
+    }
+}
+
+
+/// <summary>Transport exposed by a remote endpoint.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct McpPlanRemoteTransport : IEquatable<McpPlanRemoteTransport>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="McpPlanRemoteTransport"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="McpPlanRemoteTransport"/>.</param>
+    [JsonConstructor]
+    public McpPlanRemoteTransport(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="McpPlanRemoteTransport"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>An HTTP endpoint.</summary>
+    public static McpPlanRemoteTransport Http { get; } = new("http");
+
+    /// <summary>A streamable HTTP endpoint.</summary>
+    public static McpPlanRemoteTransport StreamableHttp { get; } = new("streamable-http");
+
+    /// <summary>A server-sent events endpoint.</summary>
+    public static McpPlanRemoteTransport Sse { get; } = new("sse");
+
+    /// <summary>Returns a value indicating whether two <see cref="McpPlanRemoteTransport"/> instances are equivalent.</summary>
+    public static bool operator ==(McpPlanRemoteTransport left, McpPlanRemoteTransport right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="McpPlanRemoteTransport"/> instances are not equivalent.</summary>
+    public static bool operator !=(McpPlanRemoteTransport left, McpPlanRemoteTransport right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is McpPlanRemoteTransport other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(McpPlanRemoteTransport other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{McpPlanRemoteTransport}"/> for serializing <see cref="McpPlanRemoteTransport"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<McpPlanRemoteTransport>
+    {
+        /// <inheritdoc />
+        public override McpPlanRemoteTransport Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, McpPlanRemoteTransport value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpPlanRemoteTransport));
+        }
+    }
+}
+
+
+/// <summary>Why capability and protocol-version negotiation refused a caller.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct CatalogNegotiationRefusedReason : IEquatable<CatalogNegotiationRefusedReason>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="CatalogNegotiationRefusedReason"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="CatalogNegotiationRefusedReason"/>.</param>
+    [JsonConstructor]
+    public CatalogNegotiationRefusedReason(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="CatalogNegotiationRefusedReason"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The caller's protocol version is below the lowest this runtime serves.</summary>
+    public static CatalogNegotiationRefusedReason UnsupportedProtocolVersion { get; } = new("unsupported-protocol-version");
+
+    /// <summary>The caller requires at least one capability this runtime cannot honour.</summary>
+    public static CatalogNegotiationRefusedReason UnsupportedCapability { get; } = new("unsupported-capability");
+
+    /// <summary>Returns a value indicating whether two <see cref="CatalogNegotiationRefusedReason"/> instances are equivalent.</summary>
+    public static bool operator ==(CatalogNegotiationRefusedReason left, CatalogNegotiationRefusedReason right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="CatalogNegotiationRefusedReason"/> instances are not equivalent.</summary>
+    public static bool operator !=(CatalogNegotiationRefusedReason left, CatalogNegotiationRefusedReason right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is CatalogNegotiationRefusedReason other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(CatalogNegotiationRefusedReason other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{CatalogNegotiationRefusedReason}"/> for serializing <see cref="CatalogNegotiationRefusedReason"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<CatalogNegotiationRefusedReason>
+    {
+        /// <inheritdoc />
+        public override CatalogNegotiationRefusedReason Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, CatalogNegotiationRefusedReason value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(CatalogNegotiationRefusedReason));
+        }
+    }
+}
+
+
+/// <summary>Which kind of opaque handle was presented.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct CatalogHandleType : IEquatable<CatalogHandleType>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="CatalogHandleType"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="CatalogHandleType"/>.</param>
+    [JsonConstructor]
+    public CatalogHandleType(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="CatalogHandleType"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>A search candidate handle.</summary>
+    public static CatalogHandleType Candidate { get; } = new("candidate");
+
+    /// <summary>An install plan handle.</summary>
+    public static CatalogHandleType Plan { get; } = new("plan");
+
+    /// <summary>Returns a value indicating whether two <see cref="CatalogHandleType"/> instances are equivalent.</summary>
+    public static bool operator ==(CatalogHandleType left, CatalogHandleType right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="CatalogHandleType"/> instances are not equivalent.</summary>
+    public static bool operator !=(CatalogHandleType left, CatalogHandleType right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is CatalogHandleType other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(CatalogHandleType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{CatalogHandleType}"/> for serializing <see cref="CatalogHandleType"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<CatalogHandleType>
+    {
+        /// <inheritdoc />
+        public override CatalogHandleType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, CatalogHandleType value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(CatalogHandleType));
+        }
+    }
+}
+
+
+/// <summary>Why a presented handle was rejected.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct CatalogHandleRejectionReason : IEquatable<CatalogHandleRejectionReason>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="CatalogHandleRejectionReason"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="CatalogHandleRejectionReason"/>.</param>
+    [JsonConstructor]
+    public CatalogHandleRejectionReason(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="CatalogHandleRejectionReason"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The handle is unparseable, unknown, or was issued for a different operation.</summary>
+    public static CatalogHandleRejectionReason Invalid { get; } = new("invalid");
+
+    /// <summary>The handle's time to live has elapsed.</summary>
+    public static CatalogHandleRejectionReason Stale { get; } = new("stale");
+
+    /// <summary>The handle has already been used, and handles are single-use.</summary>
+    public static CatalogHandleRejectionReason Replayed { get; } = new("replayed");
+
+    /// <summary>The handle was issued by a different runtime instance.</summary>
+    public static CatalogHandleRejectionReason Foreign { get; } = new("foreign");
+
+    /// <summary>Returns a value indicating whether two <see cref="CatalogHandleRejectionReason"/> instances are equivalent.</summary>
+    public static bool operator ==(CatalogHandleRejectionReason left, CatalogHandleRejectionReason right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="CatalogHandleRejectionReason"/> instances are not equivalent.</summary>
+    public static bool operator !=(CatalogHandleRejectionReason left, CatalogHandleRejectionReason right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is CatalogHandleRejectionReason other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(CatalogHandleRejectionReason other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{CatalogHandleRejectionReason}"/> for serializing <see cref="CatalogHandleRejectionReason"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<CatalogHandleRejectionReason>
+    {
+        /// <inheritdoc />
+        public override CatalogHandleRejectionReason Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, CatalogHandleRejectionReason value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(CatalogHandleRejectionReason));
+        }
+    }
+}
+
+
+/// <summary>Which request field was rejected before any work was done.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct CatalogInvalidRequestField : IEquatable<CatalogInvalidRequestField>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="CatalogInvalidRequestField"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="CatalogInvalidRequestField"/>.</param>
+    [JsonConstructor]
+    public CatalogInvalidRequestField(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="CatalogInvalidRequestField"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The search query was empty or longer than permitted.</summary>
+    public static CatalogInvalidRequestField Query { get; } = new("query");
+
+    /// <summary>The requested result count fell outside its permitted range.</summary>
+    public static CatalogInvalidRequestField Limit { get; } = new("limit");
+
+    /// <summary>The requested candidate kinds were empty or contained a duplicate.</summary>
+    public static CatalogInvalidRequestField Kinds { get; } = new("kinds");
+
+    /// <summary>The negotiation block was missing or malformed.</summary>
+    public static CatalogInvalidRequestField Contract { get; } = new("contract");
+
+    /// <summary>The plan source was missing or malformed.</summary>
+    public static CatalogInvalidRequestField Source { get; } = new("source");
+
+    /// <summary>The supplied card was missing its media type, URL, or data.</summary>
+    public static CatalogInvalidRequestField Card { get; } = new("card");
+
+    /// <summary>The requested configuration scope is not one this runtime writes.</summary>
+    public static CatalogInvalidRequestField Scope { get; } = new("scope");
+
+    /// <summary>Returns a value indicating whether two <see cref="CatalogInvalidRequestField"/> instances are equivalent.</summary>
+    public static bool operator ==(CatalogInvalidRequestField left, CatalogInvalidRequestField right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="CatalogInvalidRequestField"/> instances are not equivalent.</summary>
+    public static bool operator !=(CatalogInvalidRequestField left, CatalogInvalidRequestField right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is CatalogInvalidRequestField other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(CatalogInvalidRequestField other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{CatalogInvalidRequestField}"/> for serializing <see cref="CatalogInvalidRequestField"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<CatalogInvalidRequestField>
+    {
+        /// <inheritdoc />
+        public override CatalogInvalidRequestField Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, CatalogInvalidRequestField value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(CatalogInvalidRequestField));
+        }
+    }
+}
+
+
+/// <summary>Why the catalog authority did not accept the caller's identity.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct CatalogAuthenticationRequiredReason : IEquatable<CatalogAuthenticationRequiredReason>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="CatalogAuthenticationRequiredReason"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="CatalogAuthenticationRequiredReason"/>.</param>
+    [JsonConstructor]
+    public CatalogAuthenticationRequiredReason(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="CatalogAuthenticationRequiredReason"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>No credential was presented, so there is nothing to refresh and the caller must sign in.</summary>
+    public static CatalogAuthenticationRequiredReason NoCredential { get; } = new("no-credential");
+
+    /// <summary>A credential was presented and its lifetime has elapsed. A silent refresh is worth attempting before prompting anyone.</summary>
+    public static CatalogAuthenticationRequiredReason CredentialExpired { get; } = new("credential-expired");
+
+    /// <summary>A credential was presented and the authority refused it, for example because it was revoked, malformed, or issued for another audience. Refreshing the same rejected credential is not useful; the caller must sign in again.</summary>
+    public static CatalogAuthenticationRequiredReason CredentialRejected { get; } = new("credential-rejected");
+
+    /// <summary>Returns a value indicating whether two <see cref="CatalogAuthenticationRequiredReason"/> instances are equivalent.</summary>
+    public static bool operator ==(CatalogAuthenticationRequiredReason left, CatalogAuthenticationRequiredReason right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="CatalogAuthenticationRequiredReason"/> instances are not equivalent.</summary>
+    public static bool operator !=(CatalogAuthenticationRequiredReason left, CatalogAuthenticationRequiredReason right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is CatalogAuthenticationRequiredReason other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(CatalogAuthenticationRequiredReason other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{CatalogAuthenticationRequiredReason}"/> for serializing <see cref="CatalogAuthenticationRequiredReason"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<CatalogAuthenticationRequiredReason>
+    {
+        /// <inheritdoc />
+        public override CatalogAuthenticationRequiredReason Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, CatalogAuthenticationRequiredReason value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(CatalogAuthenticationRequiredReason));
+        }
+    }
+}
+
+
+/// <summary>Categorised network failure, low cardinality so it can be aggregated without carrying a URL.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct CatalogNetworkFailureReason : IEquatable<CatalogNetworkFailureReason>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="CatalogNetworkFailureReason"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="CatalogNetworkFailureReason"/>.</param>
+    [JsonConstructor]
+    public CatalogNetworkFailureReason(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="CatalogNetworkFailureReason"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>No network is available, so nothing was attempted.</summary>
+    public static CatalogNetworkFailureReason Offline { get; } = new("offline");
+
+    /// <summary>The authority's name could not be resolved.</summary>
+    public static CatalogNetworkFailureReason Dns { get; } = new("dns");
+
+    /// <summary>The request exceeded its time budget.</summary>
+    public static CatalogNetworkFailureReason Timeout { get; } = new("timeout");
+
+    /// <summary>The TLS handshake or certificate validation failed.</summary>
+    public static CatalogNetworkFailureReason Tls { get; } = new("tls");
+
+    /// <summary>The connection was refused or reset.</summary>
+    public static CatalogNetworkFailureReason ConnectionRefused { get; } = new("connection-refused");
+
+    /// <summary>The authority returned a status the runtime treats as a failure.</summary>
+    public static CatalogNetworkFailureReason HttpStatus { get; } = new("http-status");
+
+    /// <summary>The response exceeded the permitted size.</summary>
+    public static CatalogNetworkFailureReason ResponseTooLarge { get; } = new("response-too-large");
+
+    /// <summary>A redirect was refused by the runtime's redirect policy.</summary>
+    public static CatalogNetworkFailureReason RedirectRejected { get; } = new("redirect-rejected");
+
+    /// <summary>Returns a value indicating whether two <see cref="CatalogNetworkFailureReason"/> instances are equivalent.</summary>
+    public static bool operator ==(CatalogNetworkFailureReason left, CatalogNetworkFailureReason right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="CatalogNetworkFailureReason"/> instances are not equivalent.</summary>
+    public static bool operator !=(CatalogNetworkFailureReason left, CatalogNetworkFailureReason right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is CatalogNetworkFailureReason other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(CatalogNetworkFailureReason other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{CatalogNetworkFailureReason}"/> for serializing <see cref="CatalogNetworkFailureReason"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<CatalogNetworkFailureReason>
+    {
+        /// <inheritdoc />
+        public override CatalogNetworkFailureReason Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, CatalogNetworkFailureReason value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(CatalogNetworkFailureReason));
+        }
+    }
+}
+
+
+/// <summary>Which hardened-fetch control refused a retrieval.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct CatalogUnsafeRetrievalReason : IEquatable<CatalogUnsafeRetrievalReason>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="CatalogUnsafeRetrievalReason"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="CatalogUnsafeRetrievalReason"/>.</param>
+    [JsonConstructor]
+    public CatalogUnsafeRetrievalReason(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="CatalogUnsafeRetrievalReason"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The URL used a scheme the runtime refuses to fetch.</summary>
+    public static CatalogUnsafeRetrievalReason BlockedScheme { get; } = new("blocked-scheme");
+
+    /// <summary>The URL embedded credentials.</summary>
+    public static CatalogUnsafeRetrievalReason CredentialsInUrl { get; } = new("credentials-in-url");
+
+    /// <summary>The URL resolved to a loopback, private, link-local, or cloud metadata address.</summary>
+    public static CatalogUnsafeRetrievalReason BlockedAddress { get; } = new("blocked-address");
+
+    /// <summary>A redirect target resolved to a blocked address.</summary>
+    public static CatalogUnsafeRetrievalReason RedirectToBlockedAddress { get; } = new("redirect-to-blocked-address");
+
+    /// <summary>The configured proxy policy refused the request.</summary>
+    public static CatalogUnsafeRetrievalReason ProxyRejected { get; } = new("proxy-rejected");
+
+    /// <summary>The authority is not permitted for card retrieval.</summary>
+    public static CatalogUnsafeRetrievalReason HostNotPermitted { get; } = new("host-not-permitted");
+
+    /// <summary>Returns a value indicating whether two <see cref="CatalogUnsafeRetrievalReason"/> instances are equivalent.</summary>
+    public static bool operator ==(CatalogUnsafeRetrievalReason left, CatalogUnsafeRetrievalReason right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="CatalogUnsafeRetrievalReason"/> instances are not equivalent.</summary>
+    public static bool operator !=(CatalogUnsafeRetrievalReason left, CatalogUnsafeRetrievalReason right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is CatalogUnsafeRetrievalReason other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(CatalogUnsafeRetrievalReason other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{CatalogUnsafeRetrievalReason}"/> for serializing <see cref="CatalogUnsafeRetrievalReason"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<CatalogUnsafeRetrievalReason>
+    {
+        /// <inheritdoc />
+        public override CatalogUnsafeRetrievalReason Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, CatalogUnsafeRetrievalReason value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(CatalogUnsafeRetrievalReason));
+        }
+    }
+}
+
+
+/// <summary>Media type a catalog card is interpreted as.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct CatalogMediaType : IEquatable<CatalogMediaType>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="CatalogMediaType"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="CatalogMediaType"/>.</param>
+    [JsonConstructor]
+    public CatalogMediaType(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="CatalogMediaType"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The current MCP server card media type.</summary>
+    public static CatalogMediaType ApplicationMcpServerCardJson { get; } = new("application/mcp-server-card+json");
+
+    /// <summary>The legacy MCP server card media type, accepted for compatibility.</summary>
+    public static CatalogMediaType ApplicationMcpServerJson { get; } = new("application/mcp-server+json");
+
+    /// <summary>An AI skill card. Representable and searchable, but typed non-installable.</summary>
+    public static CatalogMediaType ApplicationAiSkill { get; } = new("application/ai-skill");
+
+    /// <summary>Returns a value indicating whether two <see cref="CatalogMediaType"/> instances are equivalent.</summary>
+    public static bool operator ==(CatalogMediaType left, CatalogMediaType right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="CatalogMediaType"/> instances are not equivalent.</summary>
+    public static bool operator !=(CatalogMediaType left, CatalogMediaType right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is CatalogMediaType other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(CatalogMediaType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{CatalogMediaType}"/> for serializing <see cref="CatalogMediaType"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<CatalogMediaType>
+    {
+        /// <inheritdoc />
+        public override CatalogMediaType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, CatalogMediaType value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(CatalogMediaType));
+        }
+    }
+}
+
+
+/// <summary>How a card failed validation.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct CatalogMalformedCardReason : IEquatable<CatalogMalformedCardReason>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="CatalogMalformedCardReason"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="CatalogMalformedCardReason"/>.</param>
+    [JsonConstructor]
+    public CatalogMalformedCardReason(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="CatalogMalformedCardReason"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The document is not well-formed JSON.</summary>
+    public static CatalogMalformedCardReason InvalidJson { get; } = new("invalid-json");
+
+    /// <summary>The document does not satisfy its media type's schema.</summary>
+    public static CatalogMalformedCardReason SchemaViolation { get; } = new("schema-violation");
+
+    /// <summary>The declared media type is not one this runtime understands.</summary>
+    public static CatalogMalformedCardReason UnsupportedMediaType { get; } = new("unsupported-media-type");
+
+    /// <summary>A field the media type requires is absent.</summary>
+    public static CatalogMalformedCardReason MissingRequiredField { get; } = new("missing-required-field");
+
+    /// <summary>The document exceeded the permitted size.</summary>
+    public static CatalogMalformedCardReason SizeLimitExceeded { get; } = new("size-limit-exceeded");
+
+    /// <summary>Returns a value indicating whether two <see cref="CatalogMalformedCardReason"/> instances are equivalent.</summary>
+    public static bool operator ==(CatalogMalformedCardReason left, CatalogMalformedCardReason right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="CatalogMalformedCardReason"/> instances are not equivalent.</summary>
+    public static bool operator !=(CatalogMalformedCardReason left, CatalogMalformedCardReason right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is CatalogMalformedCardReason other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(CatalogMalformedCardReason other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{CatalogMalformedCardReason}"/> for serializing <see cref="CatalogMalformedCardReason"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<CatalogMalformedCardReason>
+    {
+        /// <inheritdoc />
+        public override CatalogMalformedCardReason Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, CatalogMalformedCardReason value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(CatalogMalformedCardReason));
+        }
+    }
+}
+
+
+/// <summary>Which wire-contract rule an upstream response broke.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct CatalogContractViolationReason : IEquatable<CatalogContractViolationReason>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="CatalogContractViolationReason"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="CatalogContractViolationReason"/>.</param>
+    [JsonConstructor]
+    public CatalogContractViolationReason(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="CatalogContractViolationReason"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>A result carried both a URL and embedded data, when exactly one is permitted.</summary>
+    public static CatalogContractViolationReason BothUrlAndData { get; } = new("both-url-and-data");
+
+    /// <summary>A result carried neither a URL nor embedded data, when exactly one is required.</summary>
+    public static CatalogContractViolationReason NeitherUrlNorData { get; } = new("neither-url-nor-data");
+
+    /// <summary>Two results claimed the same normalised identity.</summary>
+    public static CatalogContractViolationReason DuplicateIdentity { get; } = new("duplicate-identity");
+
+    /// <summary>A result declared no media type, or one this contract does not model.</summary>
+    public static CatalogContractViolationReason UnknownMediaType { get; } = new("unknown-media-type");
+
+    /// <summary>Returns a value indicating whether two <see cref="CatalogContractViolationReason"/> instances are equivalent.</summary>
+    public static bool operator ==(CatalogContractViolationReason left, CatalogContractViolationReason right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="CatalogContractViolationReason"/> instances are not equivalent.</summary>
+    public static bool operator !=(CatalogContractViolationReason left, CatalogContractViolationReason right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is CatalogContractViolationReason other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(CatalogContractViolationReason other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{CatalogContractViolationReason}"/> for serializing <see cref="CatalogContractViolationReason"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<CatalogContractViolationReason>
+    {
+        /// <inheritdoc />
+        public override CatalogContractViolationReason Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, CatalogContractViolationReason value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(CatalogContractViolationReason));
+        }
+    }
+}
+
+
+/// <summary>Why no usable transport could be offered.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct CatalogUnavailableTransportReason : IEquatable<CatalogUnavailableTransportReason>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="CatalogUnavailableTransportReason"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="CatalogUnavailableTransportReason"/>.</param>
+    [JsonConstructor]
+    public CatalogUnavailableTransportReason(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="CatalogUnavailableTransportReason"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The card advertises no transport this runtime can use.</summary>
+    public static CatalogUnavailableTransportReason NoEligibleTransport { get; } = new("no-eligible-transport");
+
+    /// <summary>Every advertised transport is of a kind this runtime does not implement.</summary>
+    public static CatalogUnavailableTransportReason TransportNotSupported { get; } = new("transport-not-supported");
+
+    /// <summary>Eligible remotes could not be enumerated, so no explicit choice can be offered.</summary>
+    public static CatalogUnavailableTransportReason RemoteEnumerationUnavailable { get; } = new("remote-enumeration-unavailable");
+
+    /// <summary>Returns a value indicating whether two <see cref="CatalogUnavailableTransportReason"/> instances are equivalent.</summary>
+    public static bool operator ==(CatalogUnavailableTransportReason left, CatalogUnavailableTransportReason right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="CatalogUnavailableTransportReason"/> instances are not equivalent.</summary>
+    public static bool operator !=(CatalogUnavailableTransportReason left, CatalogUnavailableTransportReason right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is CatalogUnavailableTransportReason other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(CatalogUnavailableTransportReason other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{CatalogUnavailableTransportReason}"/> for serializing <see cref="CatalogUnavailableTransportReason"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<CatalogUnavailableTransportReason>
+    {
+        /// <inheritdoc />
+        public override CatalogUnavailableTransportReason Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, CatalogUnavailableTransportReason value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(CatalogUnavailableTransportReason));
+        }
+    }
+}
+
+
+/// <summary>Why a discoverable candidate cannot be installed.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct CatalogNotInstallableReason : IEquatable<CatalogNotInstallableReason>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="CatalogNotInstallableReason"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="CatalogNotInstallableReason"/>.</param>
+    [JsonConstructor]
+    public CatalogNotInstallableReason(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="CatalogNotInstallableReason"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>This kind of resource is not installable through this surface.</summary>
+    public static CatalogNotInstallableReason KindNotInstallable { get; } = new("kind-not-installable");
+
+    /// <summary>AI skills are discoverable but have no typed importer in this phase.</summary>
+    public static CatalogNotInstallableReason AiSkillNotInstallable { get; } = new("ai-skill-not-installable");
+
+    /// <summary>Policy forbids installing this candidate.</summary>
+    public static CatalogNotInstallableReason PolicyForbids { get; } = new("policy-forbids");
+
+    /// <summary>Returns a value indicating whether two <see cref="CatalogNotInstallableReason"/> instances are equivalent.</summary>
+    public static bool operator ==(CatalogNotInstallableReason left, CatalogNotInstallableReason right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="CatalogNotInstallableReason"/> instances are not equivalent.</summary>
+    public static bool operator !=(CatalogNotInstallableReason left, CatalogNotInstallableReason right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is CatalogNotInstallableReason other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(CatalogNotInstallableReason other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{CatalogNotInstallableReason}"/> for serializing <see cref="CatalogNotInstallableReason"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<CatalogNotInstallableReason>
+    {
+        /// <inheritdoc />
+        public override CatalogNotInstallableReason Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, CatalogNotInstallableReason value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(CatalogNotInstallableReason));
+        }
+    }
+}
+
+
+/// <summary>Why a catalog operation is not available on this runtime.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct CatalogUnavailableReason : IEquatable<CatalogUnavailableReason>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="CatalogUnavailableReason"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="CatalogUnavailableReason"/>.</param>
+    [JsonConstructor]
+    public CatalogUnavailableReason(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="CatalogUnavailableReason"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Bounded search is not wired up on this runtime build.</summary>
+    public static CatalogUnavailableReason SearchUnavailable { get; } = new("search-unavailable");
+
+    /// <summary>Install planning is not wired up on this runtime build.</summary>
+    public static CatalogUnavailableReason PlanningUnavailable { get; } = new("planning-unavailable");
+
+    /// <summary>No catalog authority is configured for this runtime.</summary>
+    public static CatalogUnavailableReason AuthorityNotConfigured { get; } = new("authority-not-configured");
+
+    /// <summary>The surface is disabled by policy on this runtime.</summary>
+    public static CatalogUnavailableReason DisabledByPolicy { get; } = new("disabled-by-policy");
+
+    /// <summary>Returns a value indicating whether two <see cref="CatalogUnavailableReason"/> instances are equivalent.</summary>
+    public static bool operator ==(CatalogUnavailableReason left, CatalogUnavailableReason right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="CatalogUnavailableReason"/> instances are not equivalent.</summary>
+    public static bool operator !=(CatalogUnavailableReason left, CatalogUnavailableReason right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is CatalogUnavailableReason other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(CatalogUnavailableReason other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{CatalogUnavailableReason}"/> for serializing <see cref="CatalogUnavailableReason"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<CatalogUnavailableReason>
+    {
+        /// <inheritdoc />
+        public override CatalogUnavailableReason Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, CatalogUnavailableReason value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(CatalogUnavailableReason));
+        }
+    }
+}
+
+
 /// <summary>Persisted extension discovery source.</summary>
 [Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -17349,6 +20444,132 @@ public readonly struct DiscoveredExtensionMode : IEquatable<DiscoveredExtensionM
         public override void Write(Utf8JsonWriter writer, DiscoveredExtensionMode value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(DiscoveredExtensionMode));
+        }
+    }
+}
+
+
+/// <summary>Whether an MCP server candidate can be planned for installation.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct CatalogMcpServerInstallability : IEquatable<CatalogMcpServerInstallability>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="CatalogMcpServerInstallability"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="CatalogMcpServerInstallability"/>.</param>
+    [JsonConstructor]
+    public CatalogMcpServerInstallability(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="CatalogMcpServerInstallability"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>An install plan can be computed for this MCP server candidate.</summary>
+    public static CatalogMcpServerInstallability Installable { get; } = new("installable");
+
+    /// <summary>Policy forbids installing this MCP server candidate.</summary>
+    public static CatalogMcpServerInstallability NotInstallablePolicy { get; } = new("not-installable-policy");
+
+    /// <summary>Returns a value indicating whether two <see cref="CatalogMcpServerInstallability"/> instances are equivalent.</summary>
+    public static bool operator ==(CatalogMcpServerInstallability left, CatalogMcpServerInstallability right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="CatalogMcpServerInstallability"/> instances are not equivalent.</summary>
+    public static bool operator !=(CatalogMcpServerInstallability left, CatalogMcpServerInstallability right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is CatalogMcpServerInstallability other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(CatalogMcpServerInstallability other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{CatalogMcpServerInstallability}"/> for serializing <see cref="CatalogMcpServerInstallability"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<CatalogMcpServerInstallability>
+    {
+        /// <inheritdoc />
+        public override CatalogMcpServerInstallability Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, CatalogMcpServerInstallability value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(CatalogMcpServerInstallability));
+        }
+    }
+}
+
+
+/// <summary>What kind of resource a catalog candidate describes.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct CatalogCandidateKind : IEquatable<CatalogCandidateKind>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="CatalogCandidateKind"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="CatalogCandidateKind"/>.</param>
+    [JsonConstructor]
+    public CatalogCandidateKind(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="CatalogCandidateKind"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>An MCP server, which can be planned for installation.</summary>
+    public static CatalogCandidateKind McpServer { get; } = new("mcp-server");
+
+    /// <summary>An AI skill, which is discoverable but not installable through this surface.</summary>
+    public static CatalogCandidateKind AiSkill { get; } = new("ai-skill");
+
+    /// <summary>Returns a value indicating whether two <see cref="CatalogCandidateKind"/> instances are equivalent.</summary>
+    public static bool operator ==(CatalogCandidateKind left, CatalogCandidateKind right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="CatalogCandidateKind"/> instances are not equivalent.</summary>
+    public static bool operator !=(CatalogCandidateKind left, CatalogCandidateKind right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is CatalogCandidateKind other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(CatalogCandidateKind other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{CatalogCandidateKind}"/> for serializing <see cref="CatalogCandidateKind"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<CatalogCandidateKind>
+    {
+        /// <inheritdoc />
+        public override CatalogCandidateKind Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, CatalogCandidateKind value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(CatalogCandidateKind));
         }
     }
 }
@@ -23479,8 +26700,8 @@ public readonly struct PermissionDecisionSource : IEquatable<PermissionDecisionS
     /// <summary>Gets the value associated with this <see cref="PermissionDecisionSource"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>The response followed the auto-approval judge recommendation.</summary>
-    public static PermissionDecisionSource JudgeRecommendation { get; } = new("judge_recommendation");
+    /// <summary>The response followed the assisted-approval judge recommendation.</summary>
+    public static PermissionDecisionSource AssistedApproval { get; } = new("assisted_approval");
 
     /// <summary>A human supplied the response through an interactive prompt.</summary>
     public static PermissionDecisionSource HumanResponse { get; } = new("human_response");
@@ -23666,46 +26887,49 @@ public readonly struct PermissionsSetApproveAllSource : IEquatable<PermissionsSe
 }
 
 
-/// <summary>Current or requested allow-all mode.</summary>
+/// <summary>Optional source for permission-mode telemetry. Defaults to `rpc` when omitted for SDK callers.</summary>
 [Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
-public readonly struct PermissionsAllowAllMode : IEquatable<PermissionsAllowAllMode>
+public readonly struct PermissionModeSource : IEquatable<PermissionModeSource>
 {
     private readonly string? _value;
 
-    /// <summary>Initializes a new instance of the <see cref="PermissionsAllowAllMode"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="PermissionsAllowAllMode"/>.</param>
+    /// <summary>Initializes a new instance of the <see cref="PermissionModeSource"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="PermissionModeSource"/>.</param>
     [JsonConstructor]
-    public PermissionsAllowAllMode(string value)
+    public PermissionModeSource(string value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
 
-    /// <summary>Gets the value associated with this <see cref="PermissionsAllowAllMode"/>.</summary>
+    /// <summary>Gets the value associated with this <see cref="PermissionModeSource"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Permission requests follow the normal approval flow.</summary>
-    public static PermissionsAllowAllMode Off { get; } = new("off");
+    /// <summary>The mode was set from a CLI command-line flag.</summary>
+    public static PermissionModeSource CliFlag { get; } = new("cli_flag");
 
-    /// <summary>Tool, path, and URL permission requests are automatically approved.</summary>
-    public static PermissionsAllowAllMode On { get; } = new("on");
+    /// <summary>The mode was set by a slash command.</summary>
+    public static PermissionModeSource SlashCommand { get; } = new("slash_command");
 
-    /// <summary>Permission requests follow the normal approval flow with an LLM advisory recommendation attached; clients may choose to auto-approve requests the judge evaluated as acceptable.</summary>
-    public static PermissionsAllowAllMode Auto { get; } = new("auto");
+    /// <summary>The mode was set by confirming autopilot behavior.</summary>
+    public static PermissionModeSource AutopilotConfirmation { get; } = new("autopilot_confirmation");
 
-    /// <summary>Returns a value indicating whether two <see cref="PermissionsAllowAllMode"/> instances are equivalent.</summary>
-    public static bool operator ==(PermissionsAllowAllMode left, PermissionsAllowAllMode right) => left.Equals(right);
+    /// <summary>The mode was set through an RPC caller.</summary>
+    public static PermissionModeSource Rpc { get; } = new("rpc");
 
-    /// <summary>Returns a value indicating whether two <see cref="PermissionsAllowAllMode"/> instances are not equivalent.</summary>
-    public static bool operator !=(PermissionsAllowAllMode left, PermissionsAllowAllMode right) => !(left == right);
+    /// <summary>Returns a value indicating whether two <see cref="PermissionModeSource"/> instances are equivalent.</summary>
+    public static bool operator ==(PermissionModeSource left, PermissionModeSource right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="PermissionModeSource"/> instances are not equivalent.</summary>
+    public static bool operator !=(PermissionModeSource left, PermissionModeSource right) => !(left == right);
 
     /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is PermissionsAllowAllMode other && Equals(other);
+    public override bool Equals(object? obj) => obj is PermissionModeSource other && Equals(other);
 
     /// <inheritdoc />
-    public bool Equals(PermissionsAllowAllMode other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+    public bool Equals(PermissionModeSource other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
 
     /// <inheritdoc />
     public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
@@ -23713,89 +26937,20 @@ public readonly struct PermissionsAllowAllMode : IEquatable<PermissionsAllowAllM
     /// <inheritdoc />
     public override string ToString() => Value;
 
-    /// <summary>Provides a <see cref="JsonConverter{PermissionsAllowAllMode}"/> for serializing <see cref="PermissionsAllowAllMode"/> instances.</summary>
+    /// <summary>Provides a <see cref="JsonConverter{PermissionModeSource}"/> for serializing <see cref="PermissionModeSource"/> instances.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<PermissionsAllowAllMode>
+    public sealed class Converter : JsonConverter<PermissionModeSource>
     {
         /// <inheritdoc />
-        public override PermissionsAllowAllMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        public override PermissionModeSource Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
             return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, PermissionsAllowAllMode value, JsonSerializerOptions options)
+        public override void Write(Utf8JsonWriter writer, PermissionModeSource value, JsonSerializerOptions options)
         {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PermissionsAllowAllMode));
-        }
-    }
-}
-
-
-/// <summary>Optional source for allow-all telemetry. Defaults to `rpc` when omitted for SDK callers.</summary>
-[Experimental(Diagnostics.Experimental)]
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct PermissionsSetAllowAllSource : IEquatable<PermissionsSetAllowAllSource>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="PermissionsSetAllowAllSource"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="PermissionsSetAllowAllSource"/>.</param>
-    [JsonConstructor]
-    public PermissionsSetAllowAllSource(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="PermissionsSetAllowAllSource"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>Allow-all was enabled from a CLI command-line flag.</summary>
-    public static PermissionsSetAllowAllSource CliFlag { get; } = new("cli_flag");
-
-    /// <summary>Allow-all was enabled by a slash command.</summary>
-    public static PermissionsSetAllowAllSource SlashCommand { get; } = new("slash_command");
-
-    /// <summary>Allow-all was enabled by confirming autopilot behavior.</summary>
-    public static PermissionsSetAllowAllSource AutopilotConfirmation { get; } = new("autopilot_confirmation");
-
-    /// <summary>Allow-all was enabled through an RPC caller.</summary>
-    public static PermissionsSetAllowAllSource Rpc { get; } = new("rpc");
-
-    /// <summary>Returns a value indicating whether two <see cref="PermissionsSetAllowAllSource"/> instances are equivalent.</summary>
-    public static bool operator ==(PermissionsSetAllowAllSource left, PermissionsSetAllowAllSource right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="PermissionsSetAllowAllSource"/> instances are not equivalent.</summary>
-    public static bool operator !=(PermissionsSetAllowAllSource left, PermissionsSetAllowAllSource right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is PermissionsSetAllowAllSource other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(PermissionsSetAllowAllSource other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{PermissionsSetAllowAllSource}"/> for serializing <see cref="PermissionsSetAllowAllSource"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<PermissionsSetAllowAllSource>
-    {
-        /// <inheritdoc />
-        public override PermissionsSetAllowAllSource Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, PermissionsSetAllowAllSource value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PermissionsSetAllowAllSource));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PermissionModeSource));
         }
     }
 }
@@ -25740,6 +28895,12 @@ public sealed class ServerRpc
         Interlocked.CompareExchange(ref field, new(_rpc), null) ??
         field;
 
+    /// <summary>Catalog APIs.</summary>
+    public ServerCatalogApi Catalog =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_rpc), null) ??
+        field;
+
     /// <summary>Plugins APIs.</summary>
     public ServerPluginsApi Plugins =>
         field ??
@@ -25977,6 +29138,21 @@ public sealed class ServerMcpApi
         return await CopilotClient.InvokeRpcAsync<McpDiscoverResult>(_rpc, "mcp.discover", [request], cancellationToken);
     }
 
+    /// <summary>Requests a side-effect-free MCP install plan from a catalog candidate handle or a caller-supplied card. This host-implemented server method is available through SDK/TUI hosts; standalone and C-ABI runtimes whose host does not implement server-method dispatch return JSON-RPC MethodNotFound. A runtime with planning available returns a normalised plan and opaque single-use plan handle; a runtime without it returns the typed planning-unavailable result. A completed plan reports resource identity, provenance, eligible transport choices, the user-scope target, required typed values and secret placeholders, the policy result, the configuration changes installing would make, and whether a reload would be needed. Planning never writes configuration, stores a secret, or reloads MCP servers, so abandoning a plan needs no call and leaves nothing behind.</summary>
+    /// <param name="contract">Protocol version and capabilities the caller requires.</param>
+    /// <param name="source">What to plan: either a candidate handle from a previous search, or a card supplied directly.</param>
+    /// <param name="scope">Configuration scope the plan targets. Defaults to user scope when omitted.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Outcome of an mcp.planInstall call: either a normalised plan, or one typed refusal. Nothing is written in either case.</returns>
+    public async Task<McpPlanInstallResult> PlanInstallAsync(CatalogClientContract contract, McpPlanInstallSource source, McpPlanScope? scope = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(contract);
+        ArgumentNullException.ThrowIfNull(source);
+
+        var request = new McpPlanInstallRequest { Contract = contract, Source = source, Scope = scope };
+        return await CopilotClient.InvokeRpcAsync<McpPlanInstallResult>(_rpc, "mcp.planInstall", [request], cancellationToken);
+    }
+
     /// <summary>Config APIs.</summary>
     public ServerMcpConfigApi Config =>
         field ??
@@ -26109,6 +29285,34 @@ public sealed class ServerExtensionsApi
 
         var request = new DiscoveredExtensionsDisableRequest { Ids = ids };
         await CopilotClient.InvokeRpcAsync(_rpc, "extensions.disable", [request], cancellationToken);
+    }
+}
+
+/// <summary>Provides server-scoped Catalog APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ServerCatalogApi
+{
+    private readonly JsonRpc _rpc;
+
+    internal ServerCatalogApi(JsonRpc rpc)
+    {
+        _rpc = rpc;
+    }
+
+    /// <summary>Requests a bounded catalog search. This host-implemented server method is available through SDK/TUI hosts; standalone and C-ABI runtimes whose host does not implement server-method dispatch return JSON-RPC MethodNotFound. A runtime with search available returns inert candidate summaries, each with an opaque single-use handle scoped to this runtime instance; a runtime without it returns the typed search-unavailable result. Public authorities may be searched anonymously, while an authority that requires credentials yields the typed authentication-required result. All returned text, URLs, and package metadata are untrusted external data and can never trigger instructions, tools, or installation. Read-only: nothing is installed, configured, or persisted.</summary>
+    /// <param name="contract">Protocol version and capabilities the caller requires.</param>
+    /// <param name="query">Free-text search query. Never written to logs or telemetry.</param>
+    /// <param name="limit">Maximum number of candidates to return. Defaults to 10 when omitted.</param>
+    /// <param name="kinds">Restrict results to these candidate kinds. When omitted, every kind the runtime supports is searched.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Outcome of a catalog.search call: either bounded inert candidates, or one typed refusal. Never a partial success.</returns>
+    public async Task<CatalogSearchResult> SearchAsync(CatalogClientContract contract, string query, int? limit = null, IList<CatalogCandidateKind>? kinds = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(contract);
+        ArgumentNullException.ThrowIfNull(query);
+
+        var request = new CatalogSearchRequest { Contract = contract, Query = query, Limit = limit, Kinds = kinds };
+        return await CopilotClient.InvokeRpcAsync<CatalogSearchResult>(_rpc, "catalog.search", [request], cancellationToken);
     }
 }
 
@@ -28865,6 +32069,17 @@ public sealed class McpApi
         await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.mcp.reload", [request], cancellationToken);
     }
 
+    /// <summary>Releases any turns waiting on an in-flight MCP load without cancelling the load, letting the agent proceed while MCP servers finish connecting in the background. No-op when no MCP load is in flight or waiting turns were already released.</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Result of moving in-flight MCP loading to the background.</returns>
+    public async Task<MoveMcpLoadingToBackgroundResult> MoveLoadingToBackgroundAsync(CancellationToken cancellationToken = default)
+    {
+        _session.ThrowIfDisposed();
+
+        var request = new SessionMcpMoveLoadingToBackgroundRequest { SessionId = _session.SessionId };
+        return await CopilotClient.InvokeRpcAsync<MoveMcpLoadingToBackgroundResult>(_session.Rpc, "session.mcp.moveLoadingToBackground", [request], cancellationToken);
+    }
+
     /// <summary>Reloads MCP server connections for the session with an explicit host-provided configuration.</summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>MCP server startup filtering result.</returns>
@@ -30044,30 +33259,29 @@ public sealed class PermissionsApi
         return await CopilotClient.InvokeRpcAsync<PermissionsSetApproveAllResult>(_session.Rpc, "session.permissions.setApproveAll", [request], cancellationToken);
     }
 
-    /// <summary>Sets the allow-all permission mode for the session. Used by attach-mode clients (e.g. LocalRpcSession's `/allow-all` forwarder) to flip the target session's permission state. The `on` mode swaps in unrestricted path and URL managers and emits `session.permissions_changed` on transition; the `auto` mode keeps normal prompt paths active while attaching LLM safety recommendations. The result returns the authoritative post-mutation state so callers can update their local mirrors without racing the `session.permissions_changed` notification on the same wire.</summary>
-    /// <param name="mode">Allow-all mode to apply. `on` enables full allow-all; `auto` enables advisory LLM auto-approval; `off` disables both.</param>
-    /// <param name="enabled">Legacy full allow-all toggle. Prefer `mode`; when `mode` is omitted, `enabled: true` is treated as `mode: "on"` and any other value is treated as `mode: "off"`.</param>
-    /// <param name="model">Optional model id for the `auto` mode auto-approval LLM judging. Only meaningful when `mode` is `auto`; ignored otherwise. When omitted, the session resolves a default judge model: `gpt-5.5` for CAPI sessions and the session's active model for BYOK sessions.</param>
-    /// <param name="source">Optional source for allow-all telemetry. Defaults to `rpc` when omitted for SDK callers.</param>
+    /// <summary>Sets the permission mode for the session. `manual` follows the normal approval flow, `assisted` attaches LLM safety recommendations, and `allow-all` automatically approves permission requests. The result returns the authoritative post-mutation mode so callers can update local state without racing the `session.permissions_changed` notification.</summary>
+    /// <param name="mode">Permission mode to apply.</param>
+    /// <param name="assistedApprovalModel">Optional judge model id for assisted mode. When omitted, the session resolves the provider default: `gpt-5.5` for CAPI sessions and the active session model for BYOK sessions.</param>
+    /// <param name="source">Optional source for permission-mode telemetry. Defaults to `rpc` when omitted for SDK callers.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>Indicates whether the operation succeeded and reports the post-mutation state.</returns>
-    public async Task<AllowAllPermissionSetResult> SetAllowAllAsync(PermissionsAllowAllMode? mode = null, bool? enabled = null, string? model = null, PermissionsSetAllowAllSource? source = null, CancellationToken cancellationToken = default)
+    /// <returns>Indicates whether the requested permission mode was applied and reports the authoritative post-mutation mode.</returns>
+    public async Task<PermissionsSetModeResult> SetModeAsync(PermissionMode mode, string? assistedApprovalModel = null, PermissionModeSource? source = null, CancellationToken cancellationToken = default)
     {
         _session.ThrowIfDisposed();
 
-        var request = new PermissionsSetAllowAllRequest { SessionId = _session.SessionId, Mode = mode, Enabled = enabled, Model = model, Source = source };
-        return await CopilotClient.InvokeRpcAsync<AllowAllPermissionSetResult>(_session.Rpc, "session.permissions.setAllowAll", [request], cancellationToken);
+        var request = new PermissionsSetModeRequest { SessionId = _session.SessionId, Mode = mode, AssistedApprovalModel = assistedApprovalModel, Source = source };
+        return await CopilotClient.InvokeRpcAsync<PermissionsSetModeResult>(_session.Rpc, "session.permissions.setMode", [request], cancellationToken);
     }
 
-    /// <summary>Returns the current allow-all permission mode for the session.</summary>
+    /// <summary>Returns the current permission mode for the session.</summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>Current allow-all permission mode.</returns>
-    public async Task<AllowAllPermissionState> GetAllowAllAsync(CancellationToken cancellationToken = default)
+    /// <returns>Current permission mode.</returns>
+    public async Task<PermissionsGetModeResult> GetModeAsync(CancellationToken cancellationToken = default)
     {
         _session.ThrowIfDisposed();
 
-        var request = new PermissionsGetAllowAllRequest { SessionId = _session.SessionId };
-        return await CopilotClient.InvokeRpcAsync<AllowAllPermissionState>(_session.Rpc, "session.permissions.getAllowAll", [request], cancellationToken);
+        var request = new PermissionsGetModeRequest { SessionId = _session.SessionId };
+        return await CopilotClient.InvokeRpcAsync<PermissionsGetModeResult>(_session.Rpc, "session.permissions.getMode", [request], cancellationToken);
     }
 
     /// <summary>Adds or removes session-scoped or location-scoped permission rules.</summary>
@@ -31665,6 +34879,8 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.AssistantUsageData), TypeInfoPropertyName = "SessionEventsAssistantUsageData")]
 [JsonSerializable(typeof(GitHub.Copilot.AssistantUsageEvent), TypeInfoPropertyName = "SessionEventsAssistantUsageEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.AssistantUsageTransport), TypeInfoPropertyName = "SessionEventsAssistantUsageTransport")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistedApprovalJudgeFailureReason), TypeInfoPropertyName = "SessionEventsAssistedApprovalJudgeFailureReason")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistedApprovalRecommendation), TypeInfoPropertyName = "SessionEventsAssistedApprovalRecommendation")]
 [JsonSerializable(typeof(GitHub.Copilot.Attachment), TypeInfoPropertyName = "SessionEventsAttachment")]
 [JsonSerializable(typeof(GitHub.Copilot.AttachmentBlob), TypeInfoPropertyName = "SessionEventsAttachmentBlob")]
 [JsonSerializable(typeof(GitHub.Copilot.AttachmentDirectory), TypeInfoPropertyName = "SessionEventsAttachmentDirectory")]
@@ -31688,8 +34904,6 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.AttachmentSelectionDetails), TypeInfoPropertyName = "SessionEventsAttachmentSelectionDetails")]
 [JsonSerializable(typeof(GitHub.Copilot.AttachmentSelectionDetailsEnd), TypeInfoPropertyName = "SessionEventsAttachmentSelectionDetailsEnd")]
 [JsonSerializable(typeof(GitHub.Copilot.AttachmentSelectionDetailsStart), TypeInfoPropertyName = "SessionEventsAttachmentSelectionDetailsStart")]
-[JsonSerializable(typeof(GitHub.Copilot.AutoApprovalJudgeFailureReason), TypeInfoPropertyName = "SessionEventsAutoApprovalJudgeFailureReason")]
-[JsonSerializable(typeof(GitHub.Copilot.AutoApprovalRecommendation), TypeInfoPropertyName = "SessionEventsAutoApprovalRecommendation")]
 [JsonSerializable(typeof(GitHub.Copilot.AutoModeResolvedReasoningBucket), TypeInfoPropertyName = "SessionEventsAutoModeResolvedReasoningBucket")]
 [JsonSerializable(typeof(GitHub.Copilot.AutoModeSwitchCompletedData), TypeInfoPropertyName = "SessionEventsAutoModeSwitchCompletedData")]
 [JsonSerializable(typeof(GitHub.Copilot.AutoModeSwitchCompletedEvent), TypeInfoPropertyName = "SessionEventsAutoModeSwitchCompletedEvent")]
@@ -31817,10 +35031,10 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.OmittedBinaryType), TypeInfoPropertyName = "SessionEventsOmittedBinaryType")]
 [JsonSerializable(typeof(GitHub.Copilot.PendingMessagesModifiedData), TypeInfoPropertyName = "SessionEventsPendingMessagesModifiedData")]
 [JsonSerializable(typeof(GitHub.Copilot.PendingMessagesModifiedEvent), TypeInfoPropertyName = "SessionEventsPendingMessagesModifiedEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.PermissionAllowAllMode), TypeInfoPropertyName = "SessionEventsPermissionAllowAllMode")]
-[JsonSerializable(typeof(GitHub.Copilot.PermissionAutoApproval), TypeInfoPropertyName = "SessionEventsPermissionAutoApproval")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionAssistedApproval), TypeInfoPropertyName = "SessionEventsPermissionAssistedApproval")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionCompletedData), TypeInfoPropertyName = "SessionEventsPermissionCompletedData")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionCompletedEvent), TypeInfoPropertyName = "SessionEventsPermissionCompletedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionMode), TypeInfoPropertyName = "SessionEventsPermissionMode")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequest), TypeInfoPropertyName = "SessionEventsPermissionPromptRequest")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestCommands), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestCommands")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestCustomTool), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestCustomTool")]
@@ -32016,8 +35230,6 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(AgentSetPromptRequest))]
 [JsonSerializable(typeof(AgentsDiscoverRequest))]
 [JsonSerializable(typeof(AgentsGetDiscoveryPathsRequest))]
-[JsonSerializable(typeof(AllowAllPermissionSetResult))]
-[JsonSerializable(typeof(AllowAllPermissionState))]
 [JsonSerializable(typeof(AuthIdentity))]
 [JsonSerializable(typeof(AuthInfo))]
 [JsonSerializable(typeof(AuthValidationError))]
@@ -32044,6 +35256,15 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(CanvasProviderUnregisterRequest))]
 [JsonSerializable(typeof(CanvasSessionContext))]
 [JsonSerializable(typeof(CapiSessionOptions))]
+[JsonSerializable(typeof(CardDigest))]
+[JsonSerializable(typeof(CatalogAiSkillCandidateProvenance))]
+[JsonSerializable(typeof(CatalogCandidate))]
+[JsonSerializable(typeof(CatalogCandidateSource))]
+[JsonSerializable(typeof(CatalogClientContract))]
+[JsonSerializable(typeof(CatalogMcpServerCandidateProvenance))]
+[JsonSerializable(typeof(CatalogNegotiatedContract))]
+[JsonSerializable(typeof(CatalogSearchRequest))]
+[JsonSerializable(typeof(CatalogSearchResult))]
 [JsonSerializable(typeof(CommandList))]
 [JsonSerializable(typeof(CommandsFinalizeInvocationEffectRequest))]
 [JsonSerializable(typeof(CommandsFinalizeInvocationEffectRequestEffect))]
@@ -32242,6 +35463,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(McpHeadersHandlePendingHeadersRefreshRequestRequest))]
 [JsonSerializable(typeof(McpHeadersHandlePendingHeadersRefreshRequestResult))]
 [JsonSerializable(typeof(McpHostState))]
+[JsonSerializable(typeof(McpInstallPlan))]
 [JsonSerializable(typeof(McpIsServerRunningRequest))]
 [JsonSerializable(typeof(McpIsServerRunningResult))]
 [JsonSerializable(typeof(McpListToolsRequest))]
@@ -32256,6 +35478,17 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(McpOauthProbeResult))]
 [JsonSerializable(typeof(McpOauthRespondRequest))]
 [JsonSerializable(typeof(McpOauthRespondResult))]
+[JsonSerializable(typeof(McpPlanConfigurationChange))]
+[JsonSerializable(typeof(McpPlanInstallRequest))]
+[JsonSerializable(typeof(McpPlanInstallResult))]
+[JsonSerializable(typeof(McpPlanInstallSource))]
+[JsonSerializable(typeof(McpPlanPolicyResult))]
+[JsonSerializable(typeof(McpPlanProvenance))]
+[JsonSerializable(typeof(McpPlanRequiredValue))]
+[JsonSerializable(typeof(McpPlanResourceIdentity))]
+[JsonSerializable(typeof(McpPlanSecretPlaceholder))]
+[JsonSerializable(typeof(McpPlanTarget))]
+[JsonSerializable(typeof(McpPlanTransportChoice))]
 [JsonSerializable(typeof(McpRegisterExternalClientRequest))]
 [JsonSerializable(typeof(McpReloadWithConfigRequest))]
 [JsonSerializable(typeof(McpRemoveGitHubResult))]
@@ -32273,6 +35506,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(McpRestartServerRequest))]
 [JsonSerializable(typeof(McpSamplingExecutionResult))]
 [JsonSerializable(typeof(McpServer))]
+[JsonSerializable(typeof(McpServerCardReference))]
 [JsonSerializable(typeof(McpServerFailureInfo))]
 [JsonSerializable(typeof(McpServerList))]
 [JsonSerializable(typeof(McpServerNeedsAuthInfo))]
@@ -32331,6 +35565,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(ModelSwitchToRequest))]
 [JsonSerializable(typeof(ModelSwitchToResult))]
 [JsonSerializable(typeof(ModelsListRequest))]
+[JsonSerializable(typeof(MoveMcpLoadingToBackgroundResult))]
 [JsonSerializable(typeof(NameGetResult))]
 [JsonSerializable(typeof(NameSetAutoRequest))]
 [JsonSerializable(typeof(NameSetAutoResult))]
@@ -32371,7 +35606,8 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(PermissionsConfigureParams))]
 [JsonSerializable(typeof(PermissionsConfigureResult))]
 [JsonSerializable(typeof(PermissionsFolderTrustAddTrustedResult))]
-[JsonSerializable(typeof(PermissionsGetAllowAllRequest))]
+[JsonSerializable(typeof(PermissionsGetModeRequest))]
+[JsonSerializable(typeof(PermissionsGetModeResult))]
 [JsonSerializable(typeof(PermissionsLocationsAddToolApprovalDetails))]
 [JsonSerializable(typeof(PermissionsLocationsAddToolApprovalResult))]
 [JsonSerializable(typeof(PermissionsModifyRulesParams))]
@@ -32383,9 +35619,10 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(PermissionsPendingRequestsRequest))]
 [JsonSerializable(typeof(PermissionsResetSessionApprovalsRequest))]
 [JsonSerializable(typeof(PermissionsResetSessionApprovalsResult))]
-[JsonSerializable(typeof(PermissionsSetAllowAllRequest))]
 [JsonSerializable(typeof(PermissionsSetApproveAllRequest))]
 [JsonSerializable(typeof(PermissionsSetApproveAllResult))]
+[JsonSerializable(typeof(PermissionsSetModeRequest))]
+[JsonSerializable(typeof(PermissionsSetModeResult))]
 [JsonSerializable(typeof(PermissionsSetRequiredRequest))]
 [JsonSerializable(typeof(PermissionsSetRequiredResult))]
 [JsonSerializable(typeof(PermissionsUrlsSetUnrestrictedModeResult))]
@@ -32588,6 +35825,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SessionLoadDeferredRepoHooksResult))]
 [JsonSerializable(typeof(SessionMcpAppsGetHostContextRequest))]
 [JsonSerializable(typeof(SessionMcpListRequest))]
+[JsonSerializable(typeof(SessionMcpMoveLoadingToBackgroundRequest))]
 [JsonSerializable(typeof(SessionMcpReloadRequest))]
 [JsonSerializable(typeof(SessionMcpRemoveGitHubRequest))]
 [JsonSerializable(typeof(SessionMetadataActivityRequest))]

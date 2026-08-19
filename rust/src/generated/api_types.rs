@@ -11,9 +11,9 @@ use serde::{Deserialize, Serialize};
 
 use super::session_events::{
     AbortReason, ContextTier, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerSource,
-    McpServerStatus, ModelChangeSource, OmittedBinaryOmittedReason, PermissionPromptRequest,
-    PermissionRule, ReasoningSummary, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource,
-    TaskCompletionOutcome, UserToolSessionApproval, Verbosity,
+    McpServerStatus, ModelChangeSource, OmittedBinaryOmittedReason, PermissionMode,
+    PermissionPromptRequest, PermissionRule, ReasoningSummary, SessionLimitsConfig, SessionMode,
+    ShutdownType, SkillSource, TaskCompletionOutcome, UserToolSessionApproval, Verbosity,
 };
 use crate::types::{RequestId, SessionEvent, SessionId};
 
@@ -57,6 +57,8 @@ pub mod rpc_methods {
     pub const MCP_CONFIG_RELOAD: &str = "mcp.config.reload";
     /// `mcp.discover`
     pub const MCP_DISCOVER: &str = "mcp.discover";
+    /// `mcp.planInstall`
+    pub const MCP_PLANINSTALL: &str = "mcp.planInstall";
     /// `extensions.discover`
     pub const EXTENSIONS_DISCOVER: &str = "extensions.discover";
     /// `extensions.enable`
@@ -65,6 +67,8 @@ pub mod rpc_methods {
     pub const EXTENSIONS_DISABLE: &str = "extensions.disable";
     /// `registerExtensionLaunchProvider`
     pub const REGISTEREXTENSIONLAUNCHPROVIDER: &str = "registerExtensionLaunchProvider";
+    /// `catalog.search`
+    pub const CATALOG_SEARCH: &str = "catalog.search";
     /// `plugins.list`
     pub const PLUGINS_LIST: &str = "plugins.list";
     /// `plugins.install`
@@ -400,6 +404,8 @@ pub mod rpc_methods {
     pub const SESSION_MCP_DISABLE: &str = "session.mcp.disable";
     /// `session.mcp.reload`
     pub const SESSION_MCP_RELOAD: &str = "session.mcp.reload";
+    /// `session.mcp.moveLoadingToBackground`
+    pub const SESSION_MCP_MOVELOADINGTOBACKGROUND: &str = "session.mcp.moveLoadingToBackground";
     /// `session.mcp.reloadWithConfig`
     pub const SESSION_MCP_RELOADWITHCONFIG: &str = "session.mcp.reloadWithConfig";
     /// `session.mcp.executeSampling`
@@ -549,10 +555,10 @@ pub mod rpc_methods {
     pub const SESSION_PERMISSIONS_PENDINGREQUESTS: &str = "session.permissions.pendingRequests";
     /// `session.permissions.setApproveAll`
     pub const SESSION_PERMISSIONS_SETAPPROVEALL: &str = "session.permissions.setApproveAll";
-    /// `session.permissions.setAllowAll`
-    pub const SESSION_PERMISSIONS_SETALLOWALL: &str = "session.permissions.setAllowAll";
-    /// `session.permissions.getAllowAll`
-    pub const SESSION_PERMISSIONS_GETALLOWALL: &str = "session.permissions.getAllowAll";
+    /// `session.permissions.setMode`
+    pub const SESSION_PERMISSIONS_SETMODE: &str = "session.permissions.setMode";
+    /// `session.permissions.getMode`
+    pub const SESSION_PERMISSIONS_GETMODE: &str = "session.permissions.getMode";
     /// `session.permissions.modifyRules`
     pub const SESSION_PERMISSIONS_MODIFYRULES: &str = "session.permissions.modifyRules";
     /// `session.permissions.setRequired`
@@ -1905,44 +1911,6 @@ pub struct AgentsGetDiscoveryPathsRequest {
     pub project_paths: Option<Vec<String>>,
 }
 
-/// Indicates whether the operation succeeded and reports the post-mutation state.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AllowAllPermissionSetResult {
-    /// Authoritative full allow-all state after the mutation
-    pub enabled: bool,
-    /// Authoritative allow-all mode after the mutation
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub mode: Option<PermissionsAllowAllMode>,
-    /// Whether the operation succeeded
-    pub success: bool,
-}
-
-/// Current allow-all permission mode.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AllowAllPermissionState {
-    /// Whether full allow-all permissions are currently active
-    pub enabled: bool,
-    /// Current allow-all mode
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub mode: Option<PermissionsAllowAllMode>,
-}
-
 /// Blob attachment with inline base64-encoded data
 ///
 /// <div class="warning">
@@ -3021,6 +2989,508 @@ pub struct CapiSessionOptions {
     /// Whether to use WebSocket transport for the CAPI Responses API. Enabled by default when the model advertises `ws:/responses` support; set to `false` to force the HTTP Responses transport in environments where WebSockets are blocked (e.g. behind a proxy). Setting this to `false` is equivalent to the `COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES` environment variable.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_web_socket_responses: Option<bool>,
+}
+
+/// Semantic digest of a strictly parsed and schema-validated JSON MCP card. Both URL-backed and embedded cards are canonicalised with RFC 8785 JSON Canonicalization Scheme, encoded as UTF-8, and hashed with SHA-256.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CardDigest {
+    /// Digest algorithm and canonical representation
+    pub algorithm: CardDigestAlgorithm,
+    /// SHA-256 digest of the RFC 8785 canonical UTF-8 bytes, encoded as exactly 64 lowercase hexadecimal characters.
+    pub value: String,
+}
+
+/// Where and when an AI skill catalog reference was observed. Discovery provenance deliberately carries no content digest because search does not establish the exact validated content a later plan will bind.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogAiSkillCandidateProvenance {
+    /// Host of the catalog authority that advertised the reference, without path, query, or credentials. Inert untrusted data.
+    pub authority: String,
+    /// Media type advertised for the referenced AI skill card
+    pub media_type: CatalogAiSkillCandidateProvenanceMediaType,
+    /// ISO 8601 timestamp at which the runtime observed the catalog reference. This is not a retrieval or validation timestamp.
+    pub observed_at: String,
+}
+
+/// Candidate whose card is retrieved from a URL through the runtime's hardened fetch boundary.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogCandidateSourceUrl {
+    /// Discriminator: the card is URL-backed, and carries no embedded data
+    pub kind: CatalogCandidateSourceUrlKind,
+    /// Card URL as advertised. Inert untrusted data: the runtime retrieves it only through its own hardened boundary, and it is never logged.
+    pub url: String,
+}
+
+/// Candidate whose card reference arrived inline. The document and its content-derived properties stay behind the runtime boundary.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogCandidateSourceEmbedded {
+    /// Discriminator: the card is embedded, and carries no URL
+    pub kind: CatalogCandidateSourceEmbeddedKind,
+}
+
+/// An inert AI skill catalog result. AI skills are discovery-only and cannot be represented as installable through this surface.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogAiSkillCandidate {
+    /// Description taken verbatim from the card. Inert untrusted text.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Display name taken verbatim from the card. Inert untrusted text.
+    pub display_name: String,
+    /// Opaque, runtime-instance scoped, TTL-bound, single-use handle for this candidate. Carries no readable information and is rejected when stale, replayed, or presented to a different runtime instance. Never logged.
+    pub handle: String,
+    /// ISO 8601 timestamp after which the handle is stale and will be rejected.
+    pub handle_expires_at: String,
+    /// AI skills are discovery-only and cannot be installed through this surface
+    pub installability: CatalogAiSkillCandidateInstallability,
+    /// Discriminator: this candidate describes an AI skill
+    pub kind: CatalogAiSkillCandidateKind,
+    /// Media type of the underlying AI skill card
+    pub media_type: CatalogAiSkillCandidateMediaType,
+    /// Where the catalog reference was observed, without the card itself or any content digest.
+    pub provenance: CatalogAiSkillCandidateProvenance,
+    /// Publisher taken verbatim from the card. Inert untrusted text.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub publisher: Option<String>,
+    /// Where the card came from: exactly one of a URL or embedded data, encoded as a tagged union so neither both nor neither can be represented.
+    pub source: CatalogCandidateSource,
+}
+
+/// An optional catalog authentication exchange did not establish the caller's identity. Anonymous search remains supported; this refusal is reserved for an operation that cannot continue after the attempted exchange. It is distinct from `policy-rejected` and from a network failure, and the reason identifies the recovery action.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogAuthenticationRequiredError {
+    /// Discriminator: the caller is not authenticated
+    pub kind: CatalogAuthenticationRequiredErrorKind,
+    /// Human-readable explanation, safe to surface. Never contains a credential or token, nor a query, URL, handle, or secret.
+    pub message: String,
+    /// Why authentication failed. Only an expired credential justifies attempting a silent refresh; an absent or rejected credential requires sign-in.
+    pub reason: CatalogAuthenticationRequiredReason,
+}
+
+/// Where and when an MCP server catalog reference was observed. Discovery provenance deliberately carries no content digest because search does not establish the exact validated content a later plan will bind.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogMcpServerCandidateProvenance {
+    /// Host of the catalog authority that advertised the reference, without path, query, or credentials. Inert untrusted data.
+    pub authority: String,
+    /// JSON MCP media type advertised for the referenced card.
+    pub media_type: McpServerCardMediaType,
+    /// ISO 8601 timestamp at which the runtime observed the catalog reference. This is not a retrieval or validation timestamp.
+    pub observed_at: String,
+}
+
+/// An inert MCP server catalog result. Every free-text field is untrusted external data and must never be treated as an instruction, and the handle is the only way to refer to the candidate in a later operation.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogMcpServerCandidate {
+    /// Description taken verbatim from the card. Inert untrusted text.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Display name taken verbatim from the card. Inert untrusted text.
+    pub display_name: String,
+    /// Opaque, runtime-instance scoped, TTL-bound, single-use handle for this candidate. Carries no readable information and is rejected when stale, replayed, or presented to a different runtime instance. Never logged.
+    pub handle: String,
+    /// ISO 8601 timestamp after which the handle is stale and will be rejected.
+    pub handle_expires_at: String,
+    /// Whether this MCP server can be planned for installation, and if policy prevents it.
+    pub installability: CatalogMcpServerInstallability,
+    /// Discriminator: this candidate describes an MCP server
+    pub kind: CatalogMcpServerCandidateKind,
+    /// JSON MCP media type of the underlying card.
+    pub media_type: McpServerCardMediaType,
+    /// Where the catalog reference was observed, without the card itself or any content digest.
+    pub provenance: CatalogMcpServerCandidateProvenance,
+    /// Publisher taken verbatim from the card. Inert untrusted text.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub publisher: Option<String>,
+    /// Where the card came from: exactly one of a URL or embedded data, encoded as a tagged union so neither both nor neither can be represented.
+    pub source: CatalogCandidateSource,
+}
+
+/// The protocol version and capability set a caller requires, supplied on every catalog request so negotiation cannot be skipped by omission.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogClientContract {
+    /// SDK protocol version the caller was generated against. A caller below the runtime's minimum supported version is refused rather than served a partial result.
+    pub protocol_version: i64,
+    /// Wire features the caller requires the runtime to understand. Identifiers are bounded but extensible so a newer caller can negotiate with an older runtime. Requiring an unknown feature yields a typed refusal listing what is understood, never a partial grant. A grant does not promise that a deployment has enabled the operation; typed unavailable results report that separately.
+    pub required_capabilities: Vec<String>,
+}
+
+/// An upstream catalog response broke the wire contract. Most importantly, every result must carry exactly one of a URL or embedded data: a result carrying both, or neither, is refused here rather than being guessed at.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogContractViolationError {
+    /// Discriminator: the upstream response broke the contract
+    pub kind: CatalogContractViolationErrorKind,
+    /// Human-readable explanation, safe to surface. Never echoes response content, nor a query, URL, handle, or secret.
+    pub message: String,
+    /// Which rule the response broke.
+    pub reason: CatalogContractViolationReason,
+}
+
+/// A presented handle was not accepted. Handles are runtime-instance scoped, TTL-bound, and single-use, so each way of failing is reported distinctly.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogHandleRejectedError {
+    /// Which kind of handle was presented.
+    pub handle_type: CatalogHandleType,
+    /// Discriminator: a handle was rejected
+    pub kind: CatalogHandleRejectedErrorKind,
+    /// Human-readable explanation, safe to surface. Never contains the handle itself, nor a query, URL, or secret.
+    pub message: String,
+    /// Why the handle was rejected.
+    pub reason: CatalogHandleRejectionReason,
+}
+
+/// The request was rejected before any work was done, because a bounded field fell outside its permitted range or a required field was unusable.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogInvalidRequestError {
+    /// Which request field was rejected.
+    pub field: CatalogInvalidRequestField,
+    /// Discriminator: the request itself was invalid
+    pub kind: CatalogInvalidRequestErrorKind,
+    /// Human-readable explanation, safe to surface. Never echoes the offending value, nor a query, URL, handle, or secret.
+    pub message: String,
+}
+
+/// A card could not be parsed or did not satisfy its declared media type's schema.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogMalformedCardError {
+    /// Discriminator: the card was malformed
+    pub kind: CatalogMalformedCardErrorKind,
+    /// Media type the card was interpreted as, when it declared one this runtime recognises.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub media_type: Option<CatalogMediaType>,
+    /// Human-readable explanation, safe to surface. Never echoes card content, nor a query, URL, handle, or secret.
+    pub message: String,
+    /// How the card failed validation.
+    pub reason: CatalogMalformedCardReason,
+}
+
+/// The protocol version and capability set the runtime actually honoured for a successful catalog operation.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogNegotiatedContract {
+    /// Wire features the runtime understood for this operation. Always a superset of the caller's required features, because any shortfall is a refusal instead. Operation availability remains a separate typed result.
+    pub granted_capabilities: Vec<CatalogCapability>,
+    /// Protocol version of the runtime that served the request.
+    pub runtime_protocol_version: i64,
+}
+
+/// The caller's protocol version or required capabilities cannot be honoured. Returned instead of a partial or ambiguous success.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogNegotiationRefusedError {
+    /// Discriminator: capability or protocol-version negotiation failed
+    pub kind: CatalogNegotiationRefusedErrorKind,
+    /// Human-readable explanation, safe to surface. Never contains a query, URL, handle, or secret.
+    pub message: String,
+    /// Lowest caller protocol version this runtime will serve.
+    pub minimum_supported_protocol_version: i64,
+    /// Whether the version or the capability set was the problem.
+    pub reason: CatalogNegotiationRefusedReason,
+    /// Protocol version of the runtime that refused the request.
+    pub runtime_protocol_version: i64,
+    /// Every wire feature this runtime understands, so the caller can retry within that contract. This list does not imply that every deployment has enabled every operation.
+    pub supported_capabilities: Vec<CatalogCapability>,
+    /// The subset of the caller's bounded extensible capability identifiers this runtime cannot honour.
+    pub unsupported_capabilities: Vec<String>,
+}
+
+/// The runtime could not reach the catalog authority or retrieve a card. Covers being offline as well as transport-level failure.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogNetworkFailureError {
+    /// Discriminator: the network operation failed
+    pub kind: CatalogNetworkFailureErrorKind,
+    /// Human-readable explanation, safe to surface. Never contains a query, URL, handle, or secret.
+    pub message: String,
+    /// Categorised failure, low cardinality so it can be aggregated without carrying a URL.
+    pub reason: CatalogNetworkFailureReason,
+    /// HTTP status code, when the failure was a rejected response.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status_code: Option<i32>,
+}
+
+/// The candidate is discoverable but cannot be installed. `application/ai-skill` resolves here, because it stays searchable while remaining typed non-installable.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogNotInstallableError {
+    /// Discriminator: the candidate cannot be installed
+    pub kind: CatalogNotInstallableErrorKind,
+    /// Human-readable explanation, safe to surface. Never contains a query, URL, handle, or secret.
+    pub message: String,
+    /// Why the candidate cannot be installed.
+    pub reason: CatalogNotInstallableReason,
+}
+
+/// Registry or enterprise policy refused the operation.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogPolicyRejectedError {
+    /// Discriminator: policy refused the operation
+    pub kind: CatalogPolicyRejectedErrorKind,
+    /// Human-readable explanation, safe to surface. Never contains a query, URL, handle, or secret.
+    pub message: String,
+    /// Which authority produced the decision.
+    pub source: McpPlanPolicySource,
+}
+
+/// A bounded catalog search. Both the query length and the result count are capped by the schema so a caller cannot request an unbounded scan.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogSearchRequest {
+    /// Protocol version and capabilities the caller requires.
+    pub contract: CatalogClientContract,
+    /// Restrict results to these candidate kinds. When omitted, every kind the runtime supports is searched.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kinds: Option<Vec<CatalogCandidateKind>>,
+    /// Maximum number of candidates to return. Defaults to 10 when omitted.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit: Option<i32>,
+    /// Free-text search query. Never written to logs or telemetry.
+    pub query: String,
+}
+
+/// A completed catalog search: inert candidate summaries, each carrying a single-use handle.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogSearchSucceeded {
+    /// Matching candidates, never more than the requested limit. All text is inert untrusted data.
+    pub candidates: Vec<CatalogCandidate>,
+    /// Discriminator: the search completed
+    pub kind: CatalogSearchSucceededKind,
+    /// Protocol version and capabilities the runtime honoured.
+    pub negotiated: CatalogNegotiatedContract,
+    /// Pseudonymous identifier for this search, issued by the runtime or by the catalog authority it queried and never by the caller, so it cannot be forged or replayed to attribute an install to a search that never happened. Always present on a success, so a result set can be tied to the installs it leads to. It identifies a search rather than a person: it is derived from no user, account, device, or query data, and must never be joined with user identity to re-identify anyone.
+    pub search_id: String,
+    /// Whether further matches existed beyond the requested limit.
+    pub truncated: bool,
+}
+
+/// The request asked for a candidate kind this runtime does not serve.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogUnsupportedKindError {
+    /// Discriminator: an unsupported candidate kind was requested
+    pub kind: CatalogUnsupportedKindErrorKind,
+    /// Human-readable explanation, safe to surface. Never contains a query, URL, handle, or secret.
+    pub message: String,
+    /// The kinds from the request that are not supported.
+    pub requested_kinds: Vec<CatalogCandidateKind>,
+    /// Every candidate kind this runtime can serve.
+    pub supported_kinds: Vec<CatalogCandidateKind>,
+}
+
+/// Retrieval was refused by the runtime's hardened fetch boundary before any request left the process, or before a redirect was followed.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogUnsafeRetrievalError {
+    /// Discriminator: retrieval was refused as unsafe
+    pub kind: CatalogUnsafeRetrievalErrorKind,
+    /// Human-readable explanation, safe to surface. Never contains the refused URL, nor a query, handle, or secret.
+    pub message: String,
+    /// Which control refused the retrieval, low cardinality so it can be aggregated without carrying a URL.
+    pub reason: CatalogUnsafeRetrievalReason,
+}
+
+/// The operation is not available on this runtime. Distinct from a network failure: nothing was attempted.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogUnavailableError {
+    /// Discriminator: the operation is not available
+    pub kind: CatalogUnavailableErrorKind,
+    /// Human-readable explanation, safe to surface. Never contains a query, URL, handle, or secret.
+    pub message: String,
+    /// Why the operation is unavailable.
+    pub reason: CatalogUnavailableReason,
+}
+
+/// No transport this runtime can use is available for the requested server.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogUnavailableTransportError {
+    /// Discriminator: no usable transport is available
+    pub kind: CatalogUnavailableTransportErrorKind,
+    /// Human-readable explanation, safe to surface. Never contains a query, URL, handle, or secret.
+    pub message: String,
+    /// Why no transport could be offered.
+    pub reason: CatalogUnavailableTransportReason,
 }
 
 /// A literal choice the command input accepts, with a human-facing description
@@ -7252,6 +7722,146 @@ pub struct McpHostState {
     pub pending_connections: Vec<String>,
 }
 
+/// One change applying the plan would make, described rather than serialised so the configuration payload stays behind the runtime boundary.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpPlanConfigurationChange {
+    /// Names of the configuration fields the change would set, without their values.
+    pub changed_fields: Vec<String>,
+    /// Configuration key the change applies to.
+    pub config_key: String,
+    /// Whether the change would create a new entry or modify an existing one.
+    pub operation: McpPlanConfigurationOperation,
+    /// Scope the change would be written to.
+    pub scope: McpPlanScope,
+    /// Secret placeholders the written configuration would reference. The constrained placeholder type cannot carry a literal secret value.
+    pub secret_references: Vec<String>,
+}
+
+/// Normalised identity of the MCP server a plan targets, independent of how the card spelled it.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpPlanResourceIdentity {
+    /// Canonical, normalised name of the server, for example `io.github.owner/server`.
+    pub canonical_name: String,
+    /// Registry identifier of the server, when it came from a registry.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub registry_id: Option<String>,
+    /// Local configuration key the server would be recorded under.
+    pub server_name: String,
+    /// Version advertised by the card, when it declares one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
+}
+
+/// Outcome of evaluating the planned server against registry and enterprise policy. Evaluation is read-only.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpPlanPolicyResult {
+    /// What policy decided for this server.
+    pub decision: McpPlanPolicyDecision,
+    /// Human-readable explanation, safe to surface. Never contains a query, URL, handle, or secret.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+    /// Which authority produced the decision.
+    pub source: McpPlanPolicySource,
+}
+
+/// Provenance of the exact validated JSON MCP card content bound privately to a completed plan and its opaque handle.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpPlanProvenance {
+    /// Authority associated with the validated card, without path, query, or credentials. Inert untrusted data.
+    pub authority: String,
+    /// Semantic digest of the exact validated JSON content bound to the plan handle.
+    pub card_digest: CardDigest,
+    /// JSON MCP media type the validated card was interpreted as.
+    pub media_type: McpServerCardMediaType,
+    /// ISO 8601 timestamp at which the runtime completed strict parsing and schema validation of the card content.
+    pub validated_at: String,
+}
+
+/// Where a plan would be written.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpPlanTarget {
+    /// Configuration key the server would be recorded under within that scope.
+    pub config_key: String,
+    /// Configuration scope the plan targets.
+    pub scope: McpPlanScope,
+}
+
+/// A normalised, inert description of what installing an MCP server would involve. Carries no raw card, no install specification, and no secret value.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpInstallPlan {
+    /// The configuration changes installing would make, described rather than serialised, so the mutable configuration payload stays behind the runtime boundary.
+    pub configuration_changes: Vec<McpPlanConfigurationChange>,
+    /// Normalised identity of the server the plan would install.
+    pub identity: McpPlanResourceIdentity,
+    /// Opaque, runtime-instance scoped, TTL-bound, single-use handle for this plan. Rejected when stale, replayed, or presented to a different runtime instance. Never logged.
+    pub plan_handle: String,
+    /// ISO 8601 timestamp after which the plan handle is stale and will be rejected. Abandoning a plan needs no call: an unused handle simply expires, so cancellation before commit is side-effect free.
+    pub plan_handle_expires_at: String,
+    /// Outcome of evaluating the server against registry and enterprise policy.
+    pub policy: McpPlanPolicyResult,
+    /// Origin and semantic digest of the exact validated JSON MCP card content bound to this plan.
+    pub provenance: McpPlanProvenance,
+    /// Identifier of the choice the runtime would pick by default. Omitted when there is no eligible transport, or when the runtime expresses no preference.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub recommended_transport_choice_id: Option<String>,
+    /// Whether applying this plan would require an MCP reload to take effect. Planning itself never reloads.
+    pub reload_required: bool,
+    /// Whether the plan cannot be applied without further input, because a required value has no default or a secret must be supplied.
+    pub requires_interactive_configuration: bool,
+    /// Configuration scope and key the plan would write to.
+    pub target: McpPlanTarget,
+    /// Every eligible transport, so a host can present an explicit choice. A completed plan always has at least one; when none is eligible, planning returns `CatalogUnavailableTransportError` instead.
+    pub transport_choices: Vec<serde_json::Value>,
+}
+
 /// Server name to check running status for.
 ///
 /// <div class="warning">
@@ -7564,6 +8174,261 @@ pub struct McpOauthRespondRequest {
 pub struct McpOauthRespondResult {
     /// Whether the response was accepted. False if the request was unknown, timed out, or already resolved.
     pub success: bool,
+}
+
+/// A computed MCP install plan. Nothing has been applied: the plan describes what installing would change, and the plan handle is what a later apply operation would consume.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpPlanInstallPlanned {
+    /// Discriminator: a plan was computed and nothing was changed
+    pub kind: McpPlanInstallPlannedKind,
+    /// Protocol version and capabilities the runtime honoured.
+    pub negotiated: CatalogNegotiatedContract,
+    /// The normalised plan.
+    pub plan: McpInstallPlan,
+}
+
+/// Plan from a candidate returned by a previous catalog search.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpPlanInstallSourceCandidate {
+    /// Single-use candidate handle. Consumed by this call, so a replay of the same handle is rejected.
+    pub candidate_handle: String,
+    /// Discriminator: plan from a previously returned candidate
+    pub kind: McpPlanInstallSourceCandidateKind,
+    /// The runtime- or authority-minted `searchId` returned with the search that produced this candidate. A search implementation binds it to private candidate-handle context; a planning implementation must verify that context before returning a plan. The unavailable planning implementation in this contract layer validates presence but does not claim the verification has occurred. It identifies a search rather than a person and must never be joined with user identity to re-identify anyone.
+    pub search_id: String,
+}
+
+/// An MCP server card to be retrieved from a URL through the runtime's hardened fetch boundary.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpServerCardUrl {
+    /// Discriminator: the card is URL-backed, and carries no embedded data
+    pub kind: McpServerCardUrlKind,
+    /// Media type the card is expected to conform to.
+    pub media_type: McpServerCardMediaType,
+    /// Card URL. Retrieved only through the runtime's hardened boundary, with scheme, credential, address-range, redirect, timeout, and response-size controls applied. Never logged.
+    pub url: String,
+}
+
+/// An MCP server card supplied inline as an inert document.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpServerCardEmbedded {
+    /// The card document verbatim, treated as inert untrusted bytes. The runtime parses and validates it; the host is not expected to interpret it. Never logged.
+    pub data: String,
+    /// Discriminator: the card is embedded, and carries no URL
+    pub kind: McpServerCardEmbeddedKind,
+    /// Media type the card is expected to conform to.
+    pub media_type: McpServerCardMediaType,
+}
+
+/// Plan from a card supplied directly by the caller, without a preceding search.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpPlanInstallSourceCard {
+    /// The card to plan from: exactly one of a URL or embedded data.
+    pub card: McpServerCardReference,
+    /// Discriminator: plan from a caller-supplied card
+    pub kind: McpPlanInstallSourceCardKind,
+}
+
+/// A side-effect-free request for an MCP install plan. Computing a plan never writes configuration, stores a secret, or reloads MCP servers.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpPlanInstallRequest {
+    /// Protocol version and capabilities the caller requires.
+    pub contract: CatalogClientContract,
+    /// Configuration scope the plan targets. Defaults to user scope when omitted.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scope: Option<McpPlanScope>,
+    /// What to plan: either a candidate handle from a previous search, or a card supplied directly.
+    pub source: McpPlanInstallSource,
+}
+
+/// One non-secret scalar value a transport choice needs before it can be applied.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpPlanRequiredValueScalar {
+    /// Where the value is applied when the server is launched.
+    pub category: McpPlanValueCategory,
+    /// Default supplied by the card, when the value can be resolved without input. Presence is the authoritative indication that a default exists. Inert untrusted data.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_value: Option<String>,
+    /// Human-readable explanation from the card. Inert untrusted text.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Whether the value may be supplied more than once.
+    pub is_repeated: bool,
+    /// Key the value is supplied under. Inert untrusted data.
+    pub key: String,
+    /// Discriminator: this required value uses a scalar type.
+    pub kind: McpPlanRequiredValueScalarKind,
+    /// Whether the value must be present for the plan to be applicable.
+    pub required: bool,
+    /// Human-readable label from the card. Inert untrusted text.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    /// Scalar type the value must conform to.
+    pub value_type: McpPlanScalarValueType,
+}
+
+/// One enumerated non-secret value a transport choice needs before it can be applied. The permitted values are structurally required.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpPlanRequiredValueEnum {
+    /// Where the value is applied when the server is launched.
+    pub category: McpPlanValueCategory,
+    /// Default supplied by the card, when the value can be resolved without input. Presence is the authoritative indication that a default exists. Inert untrusted data.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_value: Option<String>,
+    /// Human-readable explanation from the card. Inert untrusted text.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Non-empty permitted value set. Inert untrusted data.
+    pub enum_values: Vec<String>,
+    /// Whether the value may be supplied more than once.
+    pub is_repeated: bool,
+    /// Key the value is supplied under. Inert untrusted data.
+    pub key: String,
+    /// Discriminator: this required value uses a fixed enumeration.
+    pub kind: McpPlanRequiredValueEnumKind,
+    /// Whether the value must be present for the plan to be applicable.
+    pub required: bool,
+    /// Human-readable label from the card. Inert untrusted text.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    /// Discriminator: the value must be one of `enumValues`.
+    pub value_type: McpPlanEnumValueType,
+}
+
+/// A secret a transport choice needs, referenced by placeholder. No secret value ever appears in a plan, and the placeholder resolves against the keychain only when a plan is applied.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpPlanSecretPlaceholder {
+    /// Key the secret is supplied under. Inert untrusted data.
+    pub key: String,
+    /// The runtime-assigned `${secret:<id>}` placeholder written into configuration in place of the value.
+    pub placeholder: String,
+    /// Human-readable label from the card. Inert untrusted text.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+}
+
+/// An eligible local-package transport choice. Package identity is required and a remote endpoint cannot be represented.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpPlanTransportChoicePackage {
+    /// Stable identifier for this choice within the plan, used to select it when the plan is applied.
+    pub choice_id: String,
+    /// Discriminator: this choice runs a local package
+    pub install_method: McpPlanPackageInstallMethod,
+    /// Package identifier. Inert untrusted data.
+    pub package_identifier: String,
+    /// Packaging ecosystem, for example `oci` or `npm`.
+    pub package_type: String,
+    /// Typed values this choice requires, excluding secrets.
+    pub required_values: Vec<McpPlanRequiredValue>,
+    /// Secrets this choice requires, referenced by placeholder only.
+    pub secret_placeholders: Vec<McpPlanSecretPlaceholder>,
+    /// Local process transport this package choice would use.
+    pub transport: McpPlanPackageTransport,
+}
+
+/// An eligible remote-endpoint transport choice. The endpoint is required and package identity cannot be represented.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpPlanTransportChoiceRemote {
+    /// Stable identifier for this choice within the plan, used to select it when the plan is applied.
+    pub choice_id: String,
+    /// Endpoint URL. Inert untrusted data.
+    pub endpoint: String,
+    /// Discriminator: this choice connects to a remote endpoint
+    pub install_method: McpPlanRemoteInstallMethod,
+    /// Typed values this choice requires, excluding secrets.
+    pub required_values: Vec<McpPlanRequiredValue>,
+    /// Secrets this choice requires, referenced by placeholder only.
+    pub secret_placeholders: Vec<McpPlanSecretPlaceholder>,
+    /// Endpoint transport this remote choice would use.
+    pub transport: McpPlanRemoteTransport,
 }
 
 /// Registration parameters for an external MCP client.
@@ -9520,6 +10385,21 @@ pub struct ModeSetResult {
     pub warning: Option<String>,
 }
 
+/// Result of moving in-flight MCP loading to the background.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MoveMcpLoadingToBackgroundResult {
+    /// Whether an in-flight MCP load was moved to the background, releasing turns that were waiting on it. False when no MCP load was in flight or the waiting turns had already been released.
+    pub moved_to_background: bool,
+}
+
 /// Azure-specific provider options.
 ///
 /// <div class="warning">
@@ -11018,7 +11898,22 @@ pub struct PermissionsFolderTrustAddTrustedResult {
 /// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct PermissionsGetAllowAllRequest {}
+pub struct PermissionsGetModeRequest {}
+
+/// Current permission mode.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionsGetModeResult {
+    /// Current permission mode
+    pub mode: PermissionMode,
+}
 
 /// Indicates whether the operation succeeded.
 ///
@@ -11174,31 +12069,6 @@ pub struct PermissionsResetSessionApprovalsResult {
     pub success: bool,
 }
 
-/// Allow-all mode to apply for the session.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PermissionsSetAllowAllRequest {
-    /// Legacy full allow-all toggle. Prefer `mode`; when `mode` is omitted, `enabled: true` is treated as `mode: "on"` and any other value is treated as `mode: "off"`.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub enabled: Option<bool>,
-    /// Allow-all mode to apply. `on` enables full allow-all; `auto` enables advisory LLM auto-approval; `off` disables both.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub mode: Option<PermissionsAllowAllMode>,
-    /// Optional model id for the `auto` mode auto-approval LLM judging. Only meaningful when `mode` is `auto`; ignored otherwise. When omitted, the session resolves a default judge model: `gpt-5.5` for CAPI sessions and the session's active model for BYOK sessions.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub model: Option<String>,
-    /// Optional source for allow-all telemetry. Defaults to `rpc` when omitted for SDK callers.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub source: Option<PermissionsSetAllowAllSource>,
-}
-
 /// Allow-all toggle for tool permission requests, with an optional telemetry source.
 ///
 /// <div class="warning">
@@ -11228,6 +12098,44 @@ pub struct PermissionsSetApproveAllRequest {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionsSetApproveAllResult {
+    /// Whether the operation succeeded
+    pub success: bool,
+}
+
+/// Permission mode to apply for the session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionsSetModeRequest {
+    /// Optional judge model id for assisted mode. When omitted, the session resolves the provider default: `gpt-5.5` for CAPI sessions and the active session model for BYOK sessions.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub assisted_approval_model: Option<String>,
+    /// Permission mode to apply
+    pub mode: PermissionMode,
+    /// Optional source for permission-mode telemetry. Defaults to `rpc` when omitted for SDK callers.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<PermissionModeSource>,
+}
+
+/// Indicates whether the requested permission mode was applied and reports the authoritative post-mutation mode.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionsSetModeResult {
+    /// Authoritative permission mode after the mutation
+    pub mode: PermissionMode,
     /// Whether the operation succeeded
     pub success: bool,
 }
@@ -11357,6 +12265,9 @@ pub struct PlanReadResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PlanSqlTodosRow {
+    /// Todo creation time, as stored by the session SQL schema's `datetime('now')` default: `YYYY-MM-DD HH:MM:SS` in UTC. Lets clients attribute todos to the work item that created them (e.g. scoping a goal's progress to the todos it produced) rather than to the whole session.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<String>,
     /// Todo description.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
@@ -22945,6 +23856,36 @@ pub struct SessionMcpReloadParams {
     pub session_id: SessionId,
 }
 
+/// Identifies the target session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionMcpMoveLoadingToBackgroundParams {
+    /// Target session identifier
+    pub session_id: SessionId,
+}
+
+/// Result of moving in-flight MCP loading to the background.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionMcpMoveLoadingToBackgroundResult {
+    /// Whether an in-flight MCP load was moved to the background, releasing turns that were waiting on it. False when no MCP load was in flight or the waiting turns had already been released.
+    pub moved_to_background: bool,
+}
+
 /// MCP server startup filtering result.
 ///
 /// <div class="warning">
@@ -23900,7 +24841,7 @@ pub struct SessionPermissionsSetApproveAllResult {
     pub success: bool,
 }
 
-/// Indicates whether the operation succeeded and reports the post-mutation state.
+/// Indicates whether the requested permission mode was applied and reports the authoritative post-mutation mode.
 ///
 /// <div class="warning">
 ///
@@ -23910,17 +24851,14 @@ pub struct SessionPermissionsSetApproveAllResult {
 /// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SessionPermissionsSetAllowAllResult {
-    /// Authoritative full allow-all state after the mutation
-    pub enabled: bool,
-    /// Authoritative allow-all mode after the mutation
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub mode: Option<PermissionsAllowAllMode>,
+pub struct SessionPermissionsSetModeResult {
+    /// Authoritative permission mode after the mutation
+    pub mode: PermissionMode,
     /// Whether the operation succeeded
     pub success: bool,
 }
 
-/// Current allow-all permission mode.
+/// Current permission mode.
 ///
 /// <div class="warning">
 ///
@@ -23930,12 +24868,9 @@ pub struct SessionPermissionsSetAllowAllResult {
 /// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SessionPermissionsGetAllowAllResult {
-    /// Whether full allow-all permissions are currently active
-    pub enabled: bool,
-    /// Current allow-all mode
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub mode: Option<PermissionsAllowAllMode>,
+pub struct SessionPermissionsGetModeResult {
+    /// Current permission mode
+    pub mode: PermissionMode,
 }
 
 /// Indicates whether the operation succeeded.
@@ -25755,6 +26690,26 @@ pub struct CanvasOpenResult {
 /// </div>
 pub type AuthValidationErrors = Vec<AuthValidationError>;
 
+/// SHA-256 digest encoded as exactly 64 lowercase hexadecimal characters.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+pub type CardDigestValue = String;
+
+/// Bounded extensible wire-feature identifier. Known values are described by `CatalogCapability`; newer callers may send future identifiers so an older runtime can return a typed negotiation refusal instead of failing schema validation. Capability negotiation establishes contract understanding, while each operation's result separately reports runtime availability.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+pub type CatalogCapabilityId = String;
+
 /// HTTP headers as a map from lowercased header name to a list of values. Multi-valued headers (e.g. Set-Cookie) preserve all values.
 ///
 /// <div class="warning">
@@ -25774,6 +26729,16 @@ pub type LlmInferenceHeaders = HashMap<String, Vec<String>>;
 ///
 /// </div>
 pub type McpExecuteSamplingResult = HashMap<String, serde_json::Value>;
+
+/// A runtime-assigned secret placeholder. The identifier is carried once, inside the placeholder, so it cannot contradict a separate secret-id field.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+pub type McpPlanSecretReference = String;
 
 /// The form values submitted by the user (present when action is 'accept')
 ///
@@ -26292,31 +27257,6 @@ pub enum AgentRegistrySpawnResult {
     ValidationError(AgentRegistrySpawnValidationError),
 }
 
-/// Current or requested allow-all mode.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum PermissionsAllowAllMode {
-    /// Permission requests follow the normal approval flow.
-    #[serde(rename = "off")]
-    Off,
-    /// Tool, path, and URL permission requests are automatically approved.
-    #[serde(rename = "on")]
-    On,
-    /// Permission requests follow the normal approval flow with an LLM advisory recommendation attached; clients may choose to auto-approve requests the judge evaluated as acceptable.
-    #[serde(rename = "auto")]
-    Auto,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
 /// Attachment type discriminator
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AttachmentBlobType {
@@ -26523,6 +27463,742 @@ pub enum BuiltinToolInputSchemaType {
     /// The tool accepts a JSON object.
     #[serde(rename = "object")]
     Object,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Canonical digest algorithm for a validated MCP card
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CardDigestAlgorithm {
+    /// SHA-256 over RFC 8785 canonical JSON encoded as UTF-8.
+    #[serde(rename = "sha256-rfc8785")]
+    Sha256Rfc8785,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// AI skills are discovery-only and cannot be installed through this surface
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogAiSkillCandidateInstallability {
+    #[serde(rename = "not-installable-kind")]
+    #[default]
+    NotInstallableKind,
+}
+
+/// Discriminator: this candidate describes an AI skill
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogAiSkillCandidateKind {
+    #[serde(rename = "ai-skill")]
+    #[default]
+    AiSkill,
+}
+
+/// Media type of the underlying AI skill card
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogAiSkillCandidateMediaType {
+    #[serde(rename = "application/ai-skill")]
+    #[default]
+    ApplicationAiSkill,
+}
+
+/// Media type advertised for the referenced AI skill card
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogAiSkillCandidateProvenanceMediaType {
+    #[serde(rename = "application/ai-skill")]
+    #[default]
+    ApplicationAiSkill,
+}
+
+/// Discriminator: the card is URL-backed, and carries no embedded data
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogCandidateSourceUrlKind {
+    #[serde(rename = "url")]
+    #[default]
+    Url,
+}
+
+/// Discriminator: the card is embedded, and carries no URL
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogCandidateSourceEmbeddedKind {
+    #[serde(rename = "embedded")]
+    #[default]
+    Embedded,
+}
+
+/// Where a candidate's card came from. Exactly one of a URL or embedded data: the union has no variant carrying both, and no variant carrying neither, so the rule holds structurally rather than by validation.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum CatalogCandidateSource {
+    Url(CatalogCandidateSourceUrl),
+    Embedded(CatalogCandidateSourceEmbedded),
+}
+
+/// Discriminator: the caller is not authenticated
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogAuthenticationRequiredErrorKind {
+    #[serde(rename = "authentication-required")]
+    #[default]
+    AuthenticationRequired,
+}
+
+/// Why the catalog authority did not accept the caller's identity
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogAuthenticationRequiredReason {
+    /// No credential was presented, so there is nothing to refresh and the caller must sign in.
+    #[serde(rename = "no-credential")]
+    NoCredential,
+    /// A credential was presented and its lifetime has elapsed. A silent refresh is worth attempting before prompting anyone.
+    #[serde(rename = "credential-expired")]
+    CredentialExpired,
+    /// A credential was presented and the authority refused it, for example because it was revoked, malformed, or issued for another audience. Refreshing the same rejected credential is not useful; the caller must sign in again.
+    #[serde(rename = "credential-rejected")]
+    CredentialRejected,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Whether an MCP server candidate can be planned for installation
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogMcpServerInstallability {
+    /// An install plan can be computed for this MCP server candidate.
+    #[serde(rename = "installable")]
+    Installable,
+    /// Policy forbids installing this MCP server candidate.
+    #[serde(rename = "not-installable-policy")]
+    NotInstallablePolicy,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Discriminator: this candidate describes an MCP server
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogMcpServerCandidateKind {
+    #[serde(rename = "mcp-server")]
+    #[default]
+    McpServer,
+}
+
+/// JSON MCP card media type accepted for install planning
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpServerCardMediaType {
+    /// The current MCP server card media type.
+    #[serde(rename = "application/mcp-server-card+json")]
+    ApplicationMcpServerCardJson,
+    /// The legacy MCP server card media type, accepted for compatibility.
+    #[serde(rename = "application/mcp-server+json")]
+    ApplicationMcpServerJson,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// One inert catalog result, represented as an MCP server or discovery-only AI skill variant so kind, media type, provenance, and installability cannot contradict each other.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum CatalogCandidate {
+    McpServer(CatalogMcpServerCandidate),
+    AiSkill(CatalogAiSkillCandidate),
+}
+
+/// What kind of resource a catalog candidate describes
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogCandidateKind {
+    /// An MCP server, which can be planned for installation.
+    #[serde(rename = "mcp-server")]
+    McpServer,
+    /// An AI skill, which is discoverable but not installable through this surface.
+    #[serde(rename = "ai-skill")]
+    AiSkill,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// A wire feature a caller can require of the catalog surface, negotiated per request. A grant means the runtime understands the feature's contract, not that the deployment has enabled the operation; typed unavailable results report availability separately.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogCapability {
+    /// Understands the current `application/mcp-server-card+json` media type.
+    #[serde(rename = "mcp-server-card")]
+    McpServerCard,
+    /// Understands the legacy `application/mcp-server+json` media type.
+    #[serde(rename = "legacy-mcp-server-card")]
+    LegacyMcpServerCard,
+    /// Understands `application/ai-skill` candidates as discovery-only and typed non-installable.
+    #[serde(rename = "ai-skill-discovery")]
+    AiSkillDiscovery,
+    /// Understands side-effect-free MCP install-plan requests, results, and plan handles; `planning-unavailable` separately reports that planning is not enabled.
+    #[serde(rename = "mcp-install-planning")]
+    McpInstallPlanning,
+    /// Understands plans that enumerate every eligible transport rather than a single preferred one.
+    #[serde(rename = "multiple-transport-choice")]
+    MultipleTransportChoice,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Discriminator: the upstream response broke the contract
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogContractViolationErrorKind {
+    #[serde(rename = "contract-violation")]
+    #[default]
+    ContractViolation,
+}
+
+/// Which wire-contract rule an upstream response broke
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogContractViolationReason {
+    /// A result carried both a URL and embedded data, when exactly one is permitted.
+    #[serde(rename = "both-url-and-data")]
+    BothUrlAndData,
+    /// A result carried neither a URL nor embedded data, when exactly one is required.
+    #[serde(rename = "neither-url-nor-data")]
+    NeitherUrlNorData,
+    /// Two results claimed the same normalised identity.
+    #[serde(rename = "duplicate-identity")]
+    DuplicateIdentity,
+    /// A result declared no media type, or one this contract does not model.
+    #[serde(rename = "unknown-media-type")]
+    UnknownMediaType,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Which kind of opaque handle was presented
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogHandleType {
+    /// A search candidate handle.
+    #[serde(rename = "candidate")]
+    Candidate,
+    /// An install plan handle.
+    #[serde(rename = "plan")]
+    Plan,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Discriminator: a handle was rejected
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogHandleRejectedErrorKind {
+    #[serde(rename = "handle-rejected")]
+    #[default]
+    HandleRejected,
+}
+
+/// Why a presented handle was rejected
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogHandleRejectionReason {
+    /// The handle is unparseable, unknown, or was issued for a different operation.
+    #[serde(rename = "invalid")]
+    Invalid,
+    /// The handle's time to live has elapsed.
+    #[serde(rename = "stale")]
+    Stale,
+    /// The handle has already been used, and handles are single-use.
+    #[serde(rename = "replayed")]
+    Replayed,
+    /// The handle was issued by a different runtime instance.
+    #[serde(rename = "foreign")]
+    Foreign,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Which request field was rejected before any work was done
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogInvalidRequestField {
+    /// The search query was empty or longer than permitted.
+    #[serde(rename = "query")]
+    Query,
+    /// The requested result count fell outside its permitted range.
+    #[serde(rename = "limit")]
+    Limit,
+    /// The requested candidate kinds were empty or contained a duplicate.
+    #[serde(rename = "kinds")]
+    Kinds,
+    /// The negotiation block was missing or malformed.
+    #[serde(rename = "contract")]
+    Contract,
+    /// The plan source was missing or malformed.
+    #[serde(rename = "source")]
+    Source,
+    /// The supplied card was missing its media type, URL, or data.
+    #[serde(rename = "card")]
+    Card,
+    /// The requested configuration scope is not one this runtime writes.
+    #[serde(rename = "scope")]
+    Scope,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Discriminator: the request itself was invalid
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogInvalidRequestErrorKind {
+    #[serde(rename = "invalid-request")]
+    #[default]
+    InvalidRequest,
+}
+
+/// Discriminator: the card was malformed
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogMalformedCardErrorKind {
+    #[serde(rename = "malformed-card")]
+    #[default]
+    MalformedCard,
+}
+
+/// Media type a catalog card is interpreted as
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogMediaType {
+    /// The current MCP server card media type.
+    #[serde(rename = "application/mcp-server-card+json")]
+    ApplicationMcpServerCardJson,
+    /// The legacy MCP server card media type, accepted for compatibility.
+    #[serde(rename = "application/mcp-server+json")]
+    ApplicationMcpServerJson,
+    /// An AI skill card. Representable and searchable, but typed non-installable.
+    #[serde(rename = "application/ai-skill")]
+    ApplicationAiSkill,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// How a card failed validation
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogMalformedCardReason {
+    /// The document is not well-formed JSON.
+    #[serde(rename = "invalid-json")]
+    InvalidJson,
+    /// The document does not satisfy its media type's schema.
+    #[serde(rename = "schema-violation")]
+    SchemaViolation,
+    /// The declared media type is not one this runtime understands.
+    #[serde(rename = "unsupported-media-type")]
+    UnsupportedMediaType,
+    /// A field the media type requires is absent.
+    #[serde(rename = "missing-required-field")]
+    MissingRequiredField,
+    /// The document exceeded the permitted size.
+    #[serde(rename = "size-limit-exceeded")]
+    SizeLimitExceeded,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Discriminator: capability or protocol-version negotiation failed
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogNegotiationRefusedErrorKind {
+    #[serde(rename = "negotiation-refused")]
+    #[default]
+    NegotiationRefused,
+}
+
+/// Why capability and protocol-version negotiation refused a caller
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogNegotiationRefusedReason {
+    /// The caller's protocol version is below the lowest this runtime serves.
+    #[serde(rename = "unsupported-protocol-version")]
+    UnsupportedProtocolVersion,
+    /// The caller requires at least one capability this runtime cannot honour.
+    #[serde(rename = "unsupported-capability")]
+    UnsupportedCapability,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Discriminator: the network operation failed
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogNetworkFailureErrorKind {
+    #[serde(rename = "network-failure")]
+    #[default]
+    NetworkFailure,
+}
+
+/// Categorised network failure, low cardinality so it can be aggregated without carrying a URL
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogNetworkFailureReason {
+    /// No network is available, so nothing was attempted.
+    #[serde(rename = "offline")]
+    Offline,
+    /// The authority's name could not be resolved.
+    #[serde(rename = "dns")]
+    Dns,
+    /// The request exceeded its time budget.
+    #[serde(rename = "timeout")]
+    Timeout,
+    /// The TLS handshake or certificate validation failed.
+    #[serde(rename = "tls")]
+    Tls,
+    /// The connection was refused or reset.
+    #[serde(rename = "connection-refused")]
+    ConnectionRefused,
+    /// The authority returned a status the runtime treats as a failure.
+    #[serde(rename = "http-status")]
+    HttpStatus,
+    /// The response exceeded the permitted size.
+    #[serde(rename = "response-too-large")]
+    ResponseTooLarge,
+    /// A redirect was refused by the runtime's redirect policy.
+    #[serde(rename = "redirect-rejected")]
+    RedirectRejected,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Discriminator: the candidate cannot be installed
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogNotInstallableErrorKind {
+    #[serde(rename = "not-installable")]
+    #[default]
+    NotInstallable,
+}
+
+/// Why a discoverable candidate cannot be installed
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogNotInstallableReason {
+    /// This kind of resource is not installable through this surface.
+    #[serde(rename = "kind-not-installable")]
+    KindNotInstallable,
+    /// AI skills are discoverable but have no typed importer in this phase.
+    #[serde(rename = "ai-skill-not-installable")]
+    AiSkillNotInstallable,
+    /// Policy forbids installing this candidate.
+    #[serde(rename = "policy-forbids")]
+    PolicyForbids,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Discriminator: policy refused the operation
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogPolicyRejectedErrorKind {
+    #[serde(rename = "policy-rejected")]
+    #[default]
+    PolicyRejected,
+}
+
+/// Which authority produced a policy decision
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpPlanPolicySource {
+    /// No policy applied, so the server is permitted by default.
+    #[serde(rename = "none")]
+    None,
+    /// An enterprise allowlist evaluated the server.
+    #[serde(rename = "enterprise-allowlist")]
+    EnterpriseAllowlist,
+    /// The registry the card came from evaluated the server.
+    #[serde(rename = "registry-policy")]
+    RegistryPolicy,
+    /// Local trust settings evaluated the server.
+    #[serde(rename = "local-trust")]
+    LocalTrust,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Discriminator: the search completed
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogSearchSucceededKind {
+    #[serde(rename = "succeeded")]
+    #[default]
+    Succeeded,
+}
+
+/// Discriminator: an unsupported candidate kind was requested
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogUnsupportedKindErrorKind {
+    #[serde(rename = "unsupported-kind")]
+    #[default]
+    UnsupportedKind,
+}
+
+/// Discriminator: retrieval was refused as unsafe
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogUnsafeRetrievalErrorKind {
+    #[serde(rename = "unsafe-retrieval")]
+    #[default]
+    UnsafeRetrieval,
+}
+
+/// Which hardened-fetch control refused a retrieval
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogUnsafeRetrievalReason {
+    /// The URL used a scheme the runtime refuses to fetch.
+    #[serde(rename = "blocked-scheme")]
+    BlockedScheme,
+    /// The URL embedded credentials.
+    #[serde(rename = "credentials-in-url")]
+    CredentialsInUrl,
+    /// The URL resolved to a loopback, private, link-local, or cloud metadata address.
+    #[serde(rename = "blocked-address")]
+    BlockedAddress,
+    /// A redirect target resolved to a blocked address.
+    #[serde(rename = "redirect-to-blocked-address")]
+    RedirectToBlockedAddress,
+    /// The configured proxy policy refused the request.
+    #[serde(rename = "proxy-rejected")]
+    ProxyRejected,
+    /// The authority is not permitted for card retrieval.
+    #[serde(rename = "host-not-permitted")]
+    HostNotPermitted,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Discriminator: the operation is not available
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogUnavailableErrorKind {
+    #[serde(rename = "unavailable")]
+    #[default]
+    Unavailable,
+}
+
+/// Why a catalog operation is not available on this runtime
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogUnavailableReason {
+    /// Bounded search is not wired up on this runtime build.
+    #[serde(rename = "search-unavailable")]
+    SearchUnavailable,
+    /// Install planning is not wired up on this runtime build.
+    #[serde(rename = "planning-unavailable")]
+    PlanningUnavailable,
+    /// No catalog authority is configured for this runtime.
+    #[serde(rename = "authority-not-configured")]
+    AuthorityNotConfigured,
+    /// The surface is disabled by policy on this runtime.
+    #[serde(rename = "disabled-by-policy")]
+    DisabledByPolicy,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Outcome of a catalog.search call: either bounded inert candidates, or one typed refusal. Never a partial success.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum CatalogSearchResult {
+    Succeeded(CatalogSearchSucceeded),
+    NegotiationRefused(CatalogNegotiationRefusedError),
+    UnsupportedKind(CatalogUnsupportedKindError),
+    InvalidRequest(CatalogInvalidRequestError),
+    AuthenticationRequired(CatalogAuthenticationRequiredError),
+    PolicyRejected(CatalogPolicyRejectedError),
+    NetworkFailure(CatalogNetworkFailureError),
+    UnsafeRetrieval(CatalogUnsafeRetrievalError),
+    MalformedCard(CatalogMalformedCardError),
+    ContractViolation(CatalogContractViolationError),
+    Unavailable(CatalogUnavailableError),
+}
+
+/// Discriminator: no usable transport is available
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogUnavailableTransportErrorKind {
+    #[serde(rename = "unavailable-transport")]
+    #[default]
+    UnavailableTransport,
+}
+
+/// Why no usable transport could be offered
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CatalogUnavailableTransportReason {
+    /// The card advertises no transport this runtime can use.
+    #[serde(rename = "no-eligible-transport")]
+    NoEligibleTransport,
+    /// Every advertised transport is of a kind this runtime does not implement.
+    #[serde(rename = "transport-not-supported")]
+    TransportNotSupported,
+    /// Eligible remotes could not be enumerated, so no explicit choice can be offered.
+    #[serde(rename = "remote-enumeration-unavailable")]
+    RemoteEnumerationUnavailable,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
@@ -27920,6 +29596,72 @@ pub enum McpHeadersHandlePendingHeadersRefreshRequest {
     None(McpHeadersHandlePendingHeadersRefreshRequestNone),
 }
 
+/// Whether a planned configuration change would create or modify an entry
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpPlanConfigurationOperation {
+    /// Creates a configuration entry that does not exist yet.
+    #[serde(rename = "add")]
+    Add,
+    /// Modifies a configuration entry that already exists.
+    #[serde(rename = "update")]
+    Update,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Configuration scope an MCP install plan targets
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpPlanScope {
+    /// The user's own MCP configuration.
+    #[serde(rename = "user")]
+    User,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// What policy decided for a planned server
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpPlanPolicyDecision {
+    /// Policy permits the server.
+    #[serde(rename = "allowed")]
+    Allowed,
+    /// Policy forbids the server, so the plan cannot be applied.
+    #[serde(rename = "blocked")]
+    Blocked,
+    /// Policy permits the server only after an explicit approval.
+    #[serde(rename = "requires-approval")]
+    RequiresApproval,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// Consumer allowed to call an MCP tool.
 ///
 /// <div class="warning">
@@ -28067,6 +29809,359 @@ pub enum McpOauthProbeResult {
     Authenticated(McpOauthProbeResultAuthenticated),
     NeedsAuth(McpOauthProbeResultNeedsAuth),
     Failed(McpOauthProbeResultFailed),
+}
+
+/// Discriminator for an enumerated required value
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpPlanEnumValueType {
+    /// One of a fixed, non-empty set of permitted values.
+    #[serde(rename = "enum")]
+    Enum,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Discriminator: a plan was computed and nothing was changed
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpPlanInstallPlannedKind {
+    #[serde(rename = "planned")]
+    #[default]
+    Planned,
+}
+
+/// Discriminator for a candidate-backed install-plan source
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpPlanInstallSourceCandidateKind {
+    /// Plan from a candidate returned by catalog search.
+    #[serde(rename = "candidate")]
+    Candidate,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Discriminator for a URL-backed MCP server card
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpServerCardUrlKind {
+    /// Retrieve the card from its URL.
+    #[serde(rename = "url")]
+    Url,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Discriminator for an embedded MCP server card
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpServerCardEmbeddedKind {
+    /// Use the embedded card document.
+    #[serde(rename = "embedded")]
+    Embedded,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// A card supplied directly by the caller. Exactly one of a URL or embedded data, encoded structurally so neither both nor neither can be expressed.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum McpServerCardReference {
+    Url(McpServerCardUrl),
+    Embedded(McpServerCardEmbedded),
+}
+
+/// Discriminator for a caller-supplied-card install-plan source
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpPlanInstallSourceCardKind {
+    /// Plan directly from a caller-supplied card.
+    #[serde(rename = "card")]
+    Card,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// What an install plan is computed from: a candidate handle from a previous search, or a card supplied directly.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum McpPlanInstallSource {
+    Candidate(McpPlanInstallSourceCandidate),
+    Card(McpPlanInstallSourceCard),
+}
+
+/// Outcome of an mcp.planInstall call: either a normalised plan, or one typed refusal. Nothing is written in either case.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum McpPlanInstallResult {
+    Planned(McpPlanInstallPlanned),
+    NegotiationRefused(CatalogNegotiationRefusedError),
+    HandleRejected(CatalogHandleRejectedError),
+    InvalidRequest(CatalogInvalidRequestError),
+    AuthenticationRequired(CatalogAuthenticationRequiredError),
+    PolicyRejected(CatalogPolicyRejectedError),
+    NetworkFailure(CatalogNetworkFailureError),
+    UnsafeRetrieval(CatalogUnsafeRetrievalError),
+    MalformedCard(CatalogMalformedCardError),
+    ContractViolation(CatalogContractViolationError),
+    UnavailableTransport(CatalogUnavailableTransportError),
+    NotInstallable(CatalogNotInstallableError),
+    Unavailable(CatalogUnavailableError),
+}
+
+/// Discriminator for a package-backed transport choice
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpPlanPackageInstallMethod {
+    /// Install and run a local package.
+    #[serde(rename = "package")]
+    Package,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Transport exposed by a locally launched package
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpPlanPackageTransport {
+    /// A locally launched process spoken to over standard input and output.
+    #[serde(rename = "stdio")]
+    Stdio,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Discriminator for a remote-endpoint transport choice
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpPlanRemoteInstallMethod {
+    /// Connect to a remote endpoint.
+    #[serde(rename = "remote")]
+    Remote,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Transport exposed by a remote endpoint
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpPlanRemoteTransport {
+    /// An HTTP endpoint.
+    #[serde(rename = "http")]
+    Http,
+    /// A streamable HTTP endpoint.
+    #[serde(rename = "streamable-http")]
+    StreamableHttp,
+    /// A server-sent events endpoint.
+    #[serde(rename = "sse")]
+    Sse,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Where a required value is applied when the planned server is launched
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpPlanValueCategory {
+    /// Set as an environment variable on the launched process.
+    #[serde(rename = "environment-variable")]
+    EnvironmentVariable,
+    /// Passed to the runtime that launches the package.
+    #[serde(rename = "runtime-argument")]
+    RuntimeArgument,
+    /// Passed to the packaged server itself.
+    #[serde(rename = "package-argument")]
+    PackageArgument,
+    /// Sent as a request header to a remote endpoint.
+    #[serde(rename = "header")]
+    Header,
+    /// Substituted into the remote endpoint URL.
+    #[serde(rename = "url-variable")]
+    UrlVariable,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Discriminator for a scalar required value
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpPlanRequiredValueScalarKind {
+    /// The value uses one scalar type.
+    #[serde(rename = "scalar")]
+    Scalar,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Scalar type a required value must conform to
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpPlanScalarValueType {
+    /// Free text.
+    #[serde(rename = "string")]
+    String,
+    /// A number.
+    #[serde(rename = "number")]
+    Number,
+    /// A boolean.
+    #[serde(rename = "boolean")]
+    Boolean,
+    /// A filesystem path.
+    #[serde(rename = "path")]
+    Path,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Discriminator for an enumerated required value
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpPlanRequiredValueEnumKind {
+    /// The value uses a fixed non-empty enumeration.
+    #[serde(rename = "enum")]
+    Enum,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// One non-secret value a transport choice needs, represented as a scalar or enumerated variant so enum values cannot be missing or attached to another type.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum McpPlanRequiredValue {
+    Scalar(McpPlanRequiredValueScalar),
+    Enum(McpPlanRequiredValueEnum),
 }
 
 /// Outcome of the sampling inference. 'success' produced a response; 'failure' encountered an error (including agent-side rejection by content filter or criteria); 'cancelled' the caller cancelled this execution via cancelSamplingExecution.
@@ -28962,9 +31057,9 @@ pub enum PermissionDecisionOutcome {
 /// </div>
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PermissionDecisionSource {
-    /// The response followed the auto-approval judge recommendation.
-    #[serde(rename = "judge_recommendation")]
-    JudgeRecommendation,
+    /// The response followed the assisted-approval judge recommendation.
+    #[serde(rename = "assisted_approval")]
+    AssistedApproval,
     /// A human supplied the response through an interactive prompt.
     #[serde(rename = "human_response")]
     HumanResponse,
@@ -29142,6 +31237,34 @@ pub enum PermissionLocationType {
     Unknown,
 }
 
+/// Optional source for permission-mode telemetry. Defaults to `rpc` when omitted for SDK callers.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionModeSource {
+    /// The mode was set from a CLI command-line flag.
+    #[serde(rename = "cli_flag")]
+    CliFlag,
+    /// The mode was set by a slash command.
+    #[serde(rename = "slash_command")]
+    SlashCommand,
+    /// The mode was set by confirming autopilot behavior.
+    #[serde(rename = "autopilot_confirmation")]
+    AutopilotConfirmation,
+    /// The mode was set through an RPC caller.
+    #[serde(rename = "rpc")]
+    Rpc,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// Allowed values for the `PermissionsConfigureAdditionalContentExclusionPolicyScope` enumeration.
 ///
 /// <div class="warning">
@@ -29180,34 +31303,6 @@ pub enum PermissionsModifyRulesScope {
     /// Persist the rule change for this project location.
     #[serde(rename = "location")]
     Location,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// Optional source for allow-all telemetry. Defaults to `rpc` when omitted for SDK callers.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum PermissionsSetAllowAllSource {
-    /// Allow-all was enabled from a CLI command-line flag.
-    #[serde(rename = "cli_flag")]
-    CliFlag,
-    /// Allow-all was enabled by a slash command.
-    #[serde(rename = "slash_command")]
-    SlashCommand,
-    /// Allow-all was enabled by confirming autopilot behavior.
-    #[serde(rename = "autopilot_confirmation")]
-    AutopilotConfirmation,
-    /// Allow-all was enabled through an RPC caller.
-    #[serde(rename = "rpc")]
-    Rpc,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

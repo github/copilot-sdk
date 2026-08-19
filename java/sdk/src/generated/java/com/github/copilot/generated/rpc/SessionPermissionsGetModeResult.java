@@ -14,7 +14,7 @@ import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * Current allow-all permission mode.
+ * Current permission mode.
  *
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
@@ -23,10 +23,8 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record SessionPermissionsGetAllowAllResult(
-    /** Whether full allow-all permissions are currently active */
-    @JsonProperty("enabled") Boolean enabled,
-    /** Current allow-all mode */
-    @JsonProperty("mode") PermissionsAllowAllMode mode
+public record SessionPermissionsGetModeResult(
+    /** Current permission mode */
+    @JsonProperty("mode") PermissionMode mode
 ) {
 }

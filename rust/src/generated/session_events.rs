@@ -41,6 +41,13 @@ pub enum SessionEventType {
     SessionModeChanged,
     #[serde(rename = "session.session_limits_changed")]
     SessionSessionLimitsChanged,
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
     #[serde(rename = "session.permissions_changed")]
     SessionPermissionsChanged,
     #[serde(rename = "session.plan_changed")]
@@ -393,6 +400,13 @@ pub enum SessionEventData {
     SessionModeChanged(SessionModeChangedData),
     #[serde(rename = "session.session_limits_changed")]
     SessionSessionLimitsChanged(SessionSessionLimitsChangedData),
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
     #[serde(rename = "session.permissions_changed")]
     SessionPermissionsChanged(SessionPermissionsChangedData),
     #[serde(rename = "session.plan_changed")]
@@ -1086,11 +1100,18 @@ pub struct SessionSessionLimitsChangedData {
     pub session_limits: Option<SessionLimitsConfig>,
 }
 
-/// Session event "session.permissions_changed". Permissions change details carrying the aggregate allow-all transition.
+/// Session event "session.permissions_changed". Permission-mode transition details.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionPermissionsChangedData {
-    /// Allow-all mode after the change
+    /// Explicit LLM judge model override used by assisted mode; omitted when the provider default applies
     ///
     /// <div class="warning">
     ///
@@ -1099,10 +1120,8 @@ pub struct SessionPermissionsChangedData {
     ///
     /// </div>
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub allow_all_permission_mode: Option<PermissionAllowAllMode>,
-    /// Aggregate allow-all flag after the change
-    pub allow_all_permissions: bool,
-    /// Allow-all mode before the change
+    pub assisted_approval_model: Option<String>,
+    /// Permission mode after the change
     ///
     /// <div class="warning">
     ///
@@ -1110,10 +1129,16 @@ pub struct SessionPermissionsChangedData {
     /// and may change or be removed in future SDK or CLI releases.
     ///
     /// </div>
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub previous_allow_all_permission_mode: Option<PermissionAllowAllMode>,
-    /// Aggregate allow-all flag before the change
-    pub previous_allow_all_permissions: bool,
+    pub mode: PermissionMode,
+    /// Permission mode before the change
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    pub previous_mode: PermissionMode,
 }
 
 /// Session event "session.plan_changed". Plan file operation details indicating what changed
@@ -3587,7 +3612,7 @@ pub struct PermissionRequestUrl {
     pub url: String,
 }
 
-/// Auto-approval judge information attached to a permission request. Present (non-null) only when the session's allow-all mode is "auto"; its absence means auto mode was off and the judge did not evaluate the request. The `recommendation` conveys the judge's disposition for this request.
+/// Assisted-approval judge information attached to a permission request. Present only in assisted mode; its absence means the judge did not evaluate the request. The `recommendation` conveys the judge's disposition for this request.
 ///
 /// <div class="warning">
 ///
@@ -3597,18 +3622,18 @@ pub struct PermissionRequestUrl {
 /// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct PermissionAutoApproval {
+pub struct PermissionAssistedApproval {
     /// Classified cause of an `error` recommendation. Absent for every other recommendation.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub failure_reason: Option<AutoApprovalJudgeFailureReason>,
+    pub failure_reason: Option<AssistedApprovalJudgeFailureReason>,
     /// Model id that produced the recommendation, when the judge was consulted and reported one. Absent for `excluded` (the judge was not consulted) and for failures that occurred before a model was selected.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
     /// Human-readable reason for the judge's recommendation, when available.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,
-    /// The auto-approval safety judge's outcome for this request.
-    pub recommendation: AutoApprovalRecommendation,
+    /// The assisted-approval safety judge's outcome for this request.
+    pub recommendation: AssistedApprovalRecommendation,
 }
 
 /// Memory operation permission request
@@ -3618,9 +3643,16 @@ pub struct PermissionRequestMemory {
     /// Whether this is a store or vote memory operation
     #[serde(skip_serializing_if = "Option::is_none")]
     pub action: Option<PermissionRequestMemoryAction>,
-    /// Auto-approval judge information for this request; present only when auto mode is enabled.
+    /// Assisted-approval judge information for this request; present only in assisted mode.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub auto_approval: Option<PermissionAutoApproval>,
+    pub assisted_approval: Option<PermissionAssistedApproval>,
     /// Source references for the stored fact (store only)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub citations: Option<String>,
@@ -3817,7 +3849,7 @@ pub struct PermissionRequestExtensionEnvAccess {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionPromptRequestCommands {
-    /// Auto-approval judge information for this request; present only when auto mode is enabled.
+    /// Assisted-approval judge information for this request; present only in assisted mode.
     ///
     /// <div class="warning">
     ///
@@ -3826,7 +3858,7 @@ pub struct PermissionPromptRequestCommands {
     ///
     /// </div>
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub auto_approval: Option<PermissionAutoApproval>,
+    pub assisted_approval: Option<PermissionAssistedApproval>,
     /// Whether the UI can offer session-wide approval for this command pattern
     pub can_offer_session_approval: bool,
     /// Command identifiers covered by this approval prompt
@@ -3852,7 +3884,7 @@ pub struct PermissionPromptRequestCommands {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionPromptRequestWrite {
-    /// Auto-approval judge information for this request; present only when auto mode is enabled.
+    /// Assisted-approval judge information for this request; present only in assisted mode.
     ///
     /// <div class="warning">
     ///
@@ -3861,7 +3893,7 @@ pub struct PermissionPromptRequestWrite {
     ///
     /// </div>
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub auto_approval: Option<PermissionAutoApproval>,
+    pub assisted_approval: Option<PermissionAssistedApproval>,
     /// Whether the UI can offer session-wide approval for file write operations
     pub can_offer_session_approval: bool,
     /// Unified diff showing the proposed changes
@@ -3887,7 +3919,7 @@ pub struct PermissionPromptRequestWrite {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionPromptRequestRead {
-    /// Auto-approval judge information for this request; present only when auto mode is enabled.
+    /// Assisted-approval judge information for this request; present only in assisted mode.
     ///
     /// <div class="warning">
     ///
@@ -3896,7 +3928,7 @@ pub struct PermissionPromptRequestRead {
     ///
     /// </div>
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub auto_approval: Option<PermissionAutoApproval>,
+    pub assisted_approval: Option<PermissionAssistedApproval>,
     /// Human-readable description of why the file is being read
     pub intention: String,
     /// Prompt kind discriminator
@@ -3918,7 +3950,7 @@ pub struct PermissionPromptRequestMcp {
     /// Arguments to pass to the MCP tool
     #[serde(skip_serializing_if = "Option::is_none")]
     pub args: Option<serde_json::Value>,
-    /// Auto-approval judge information for this request; present only when auto mode is enabled.
+    /// Assisted-approval judge information for this request; present only in assisted mode.
     ///
     /// <div class="warning">
     ///
@@ -3927,7 +3959,7 @@ pub struct PermissionPromptRequestMcp {
     ///
     /// </div>
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub auto_approval: Option<PermissionAutoApproval>,
+    pub assisted_approval: Option<PermissionAssistedApproval>,
     /// Prompt kind discriminator
     pub kind: PermissionPromptRequestMcpKind,
     /// Advisory runtime permission recommendation. The host remains responsible for deciding the request and may reject it.
@@ -3955,7 +3987,7 @@ pub struct PermissionPromptRequestMcp {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionPromptRequestUrl {
-    /// Auto-approval judge information for this request; present only when auto mode is enabled.
+    /// Assisted-approval judge information for this request; present only in assisted mode.
     ///
     /// <div class="warning">
     ///
@@ -3964,7 +3996,7 @@ pub struct PermissionPromptRequestUrl {
     ///
     /// </div>
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub auto_approval: Option<PermissionAutoApproval>,
+    pub assisted_approval: Option<PermissionAssistedApproval>,
     /// Human-readable description of why the URL is being accessed
     pub intention: String,
     /// Prompt kind discriminator
@@ -3995,7 +4027,7 @@ pub struct PermissionPromptRequestMemory {
     /// Whether this is a store or vote memory operation
     #[serde(skip_serializing_if = "Option::is_none")]
     pub action: Option<PermissionRequestMemoryAction>,
-    /// Auto-approval judge information for this request; present only when auto mode is enabled.
+    /// Assisted-approval judge information for this request; present only in assisted mode.
     ///
     /// <div class="warning">
     ///
@@ -4004,7 +4036,7 @@ pub struct PermissionPromptRequestMemory {
     ///
     /// </div>
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub auto_approval: Option<PermissionAutoApproval>,
+    pub assisted_approval: Option<PermissionAssistedApproval>,
     /// Source references for the stored fact (store only)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub citations: Option<String>,
@@ -4033,7 +4065,7 @@ pub struct PermissionPromptRequestCustomTool {
     /// Arguments to pass to the custom tool
     #[serde(skip_serializing_if = "Option::is_none")]
     pub args: Option<serde_json::Value>,
-    /// Auto-approval judge information for this request; present only when auto mode is enabled.
+    /// Assisted-approval judge information for this request; present only in assisted mode.
     ///
     /// <div class="warning">
     ///
@@ -4042,7 +4074,7 @@ pub struct PermissionPromptRequestCustomTool {
     ///
     /// </div>
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub auto_approval: Option<PermissionAutoApproval>,
+    pub assisted_approval: Option<PermissionAssistedApproval>,
     /// Prompt kind discriminator
     pub kind: PermissionPromptRequestCustomToolKind,
     /// Tool call ID that triggered this permission request
@@ -4060,7 +4092,7 @@ pub struct PermissionPromptRequestCustomTool {
 pub struct PermissionPromptRequestPath {
     /// Underlying permission kind that needs path approval
     pub access_kind: PermissionPromptRequestPathAccessKind,
-    /// Auto-approval judge information for this request; present only when auto mode is enabled.
+    /// Assisted-approval judge information for this request; present only in assisted mode.
     ///
     /// <div class="warning">
     ///
@@ -4069,7 +4101,7 @@ pub struct PermissionPromptRequestPath {
     ///
     /// </div>
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub auto_approval: Option<PermissionAutoApproval>,
+    pub assisted_approval: Option<PermissionAssistedApproval>,
     /// Prompt kind discriminator
     pub kind: PermissionPromptRequestPathKind,
     /// File paths that require explicit approval
@@ -4083,7 +4115,7 @@ pub struct PermissionPromptRequestPath {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionPromptRequestHook {
-    /// Auto-approval judge information for this request; present only when auto mode is enabled.
+    /// Assisted-approval judge information for this request; present only in assisted mode.
     ///
     /// <div class="warning">
     ///
@@ -4092,7 +4124,7 @@ pub struct PermissionPromptRequestHook {
     ///
     /// </div>
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub auto_approval: Option<PermissionAutoApproval>,
+    pub assisted_approval: Option<PermissionAssistedApproval>,
     /// Optional message from the hook explaining why confirmation is needed
     #[serde(skip_serializing_if = "Option::is_none")]
     pub hook_message: Option<String>,
@@ -4112,7 +4144,7 @@ pub struct PermissionPromptRequestHook {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionPromptRequestExtensionManagement {
-    /// Auto-approval judge information for this request; present only when auto mode is enabled.
+    /// Assisted-approval judge information for this request; present only in assisted mode.
     ///
     /// <div class="warning">
     ///
@@ -4121,7 +4153,7 @@ pub struct PermissionPromptRequestExtensionManagement {
     ///
     /// </div>
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub auto_approval: Option<PermissionAutoApproval>,
+    pub assisted_approval: Option<PermissionAssistedApproval>,
     /// Name of the extension being managed
     #[serde(skip_serializing_if = "Option::is_none")]
     pub extension_name: Option<String>,
@@ -4140,7 +4172,7 @@ pub struct PermissionPromptRequestExtensionManagement {
 pub struct PermissionPromptRequestFactory {
     /// Canonical key used for scoped factory approvals
     pub approval_key: String,
-    /// Auto-approval judge information for this request; present only when auto mode is enabled.
+    /// Assisted-approval judge information for this request; present only in assisted mode.
     ///
     /// <div class="warning">
     ///
@@ -4149,7 +4181,7 @@ pub struct PermissionPromptRequestFactory {
     ///
     /// </div>
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub auto_approval: Option<PermissionAutoApproval>,
+    pub assisted_approval: Option<PermissionAssistedApproval>,
     /// Whether this factory is eligible for persistent approval
     pub can_persist_approval: bool,
     /// Factory-declared AI-credit limit before any run/resume caller override is applied.
@@ -4198,7 +4230,7 @@ pub struct PermissionPromptRequestFactory {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionPromptRequestExtensionPermissionAccess {
-    /// Auto-approval judge information for this request; present only when auto mode is enabled.
+    /// Assisted-approval judge information for this request; present only in assisted mode.
     ///
     /// <div class="warning">
     ///
@@ -4207,7 +4239,7 @@ pub struct PermissionPromptRequestExtensionPermissionAccess {
     ///
     /// </div>
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub auto_approval: Option<PermissionAutoApproval>,
+    pub assisted_approval: Option<PermissionAssistedApproval>,
     /// Capabilities the extension is requesting
     pub capabilities: Vec<String>,
     /// Name of the extension requesting permission access
@@ -4223,7 +4255,7 @@ pub struct PermissionPromptRequestExtensionPermissionAccess {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionPromptRequestExtensionEnvAccess {
-    /// Auto-approval judge information for this request; present only when auto mode is enabled.
+    /// Assisted-approval judge information for this request; present only in assisted mode.
     ///
     /// <div class="warning">
     ///
@@ -4232,7 +4264,7 @@ pub struct PermissionPromptRequestExtensionEnvAccess {
     ///
     /// </div>
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub auto_approval: Option<PermissionAutoApproval>,
+    pub assisted_approval: Option<PermissionAssistedApproval>,
     /// Names of the sensitive environment variables the extension is requesting. Values never appear here.
     pub environment_variables: Vec<String>,
     /// Name of the extension requesting environment variable access
@@ -5750,7 +5782,7 @@ pub enum SessionMode {
     Unknown,
 }
 
-/// Allow-all mode for the session.
+/// Permission mode for the session.
 ///
 /// <div class="warning">
 ///
@@ -5759,16 +5791,16 @@ pub enum SessionMode {
 ///
 /// </div>
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum PermissionAllowAllMode {
+pub enum PermissionMode {
     /// Permission requests follow the normal approval flow.
-    #[serde(rename = "off")]
-    Off,
+    #[serde(rename = "manual")]
+    Manual,
+    /// Permission requests include an LLM safety recommendation; clients may automatically approve requests judged acceptable.
+    #[serde(rename = "assisted")]
+    Assisted,
     /// Tool, path, and URL permission requests are automatically approved.
-    #[serde(rename = "on")]
-    On,
-    /// Permission requests follow the normal approval flow with an LLM advisory recommendation attached; clients may choose to auto-approve requests the judge evaluated as acceptable.
-    #[serde(rename = "auto")]
-    Auto,
+    #[serde(rename = "allow-all")]
+    AllowAll,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
@@ -6435,7 +6467,7 @@ pub enum PermissionRequestMemoryAction {
     Unknown,
 }
 
-/// Why the auto-approval judge produced no usable recommendation. Present only alongside an `error` recommendation, where the human-readable reason is a fixed string and therefore cannot distinguish these cases. Intended to make a judge failure reportable by a consumer that has no access to the host's logs.
+/// Why the assisted-approval judge produced no usable recommendation. Present only alongside an `error` recommendation, where the human-readable reason is a fixed string and therefore cannot distinguish these cases. Intended to make a judge failure reportable by a consumer that has no access to the host's logs.
 ///
 /// <div class="warning">
 ///
@@ -6444,7 +6476,7 @@ pub enum PermissionRequestMemoryAction {
 ///
 /// </div>
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum AutoApprovalJudgeFailureReason {
+pub enum AssistedApprovalJudgeFailureReason {
     /// The judge model call exceeded its deadline.
     #[serde(rename = "timeout")]
     Timeout,
@@ -6466,7 +6498,7 @@ pub enum AutoApprovalJudgeFailureReason {
     Unknown,
 }
 
-/// Outcome of the auto-approval safety judge for a permission request. Present only when auto mode is enabled; its absence means the judge did not evaluate the request (auto mode was off).
+/// Outcome of the assisted-approval safety judge for a permission request. Present only in assisted mode; its absence means the judge did not evaluate the request.
 ///
 /// <div class="warning">
 ///
@@ -6475,14 +6507,14 @@ pub enum AutoApprovalJudgeFailureReason {
 ///
 /// </div>
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum AutoApprovalRecommendation {
+pub enum AssistedApprovalRecommendation {
     /// The judge evaluated the request and recommends automatically approving it.
     #[serde(rename = "approve")]
     Approve,
-    /// The judge evaluated the request and does not recommend auto-approving it; explicit approval is required. Whether that means prompting, denying, or something else is the consumer's decision.
+    /// The judge evaluated the request and does not recommend automatically approving it; explicit approval is required. Whether that means prompting, denying, or something else is the consumer's decision.
     #[serde(rename = "requireApproval")]
     RequireApproval,
-    /// Auto mode is enabled, but this request category is never auto-approvable (for example, sandbox-bypass requests), so the judge was not consulted.
+    /// Assisted mode is enabled, but this request category is never automatically approvable (for example, sandbox-bypass requests), so the judge was not consulted.
     #[serde(rename = "excluded")]
     Excluded,
     /// The judge was consulted but did not return a usable recommendation, so the request requires explicit approval.
@@ -7187,15 +7219,15 @@ pub enum ManagedSettingsEnforcedAction {
 /// For a `bypass_permissions_blocked` action, which permission-escalation primitive was refused
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ManagedSettingsEnforcedEscalation {
-    /// Full allow-all ("/allow-all on") permissions — auto-approving tools, paths, and URLs.
+    /// Full allow-all permissions — automatically approving tools, paths, and URLs.
     #[serde(rename = "allow_all")]
     AllowAll,
-    /// Auto-approval of all tool permission requests.
+    /// Automatic approval of all tool permission requests.
     #[serde(rename = "approve_all")]
     ApproveAll,
-    /// Advisory auto-approval ("/allow-all auto") mode — keeps normal prompt paths and adds LLM-advised approval, distinct from full allow-all.
-    #[serde(rename = "auto_approval")]
-    AutoApproval,
+    /// Assisted mode — keeps normal prompt paths and adds an LLM recommendation, distinct from allow-all.
+    #[serde(rename = "assisted_approval")]
+    AssistedApproval,
     /// Unrestricted filesystem access outside the session's allowed directories.
     #[serde(rename = "unrestricted_paths")]
     UnrestrictedPaths,

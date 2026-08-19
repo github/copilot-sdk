@@ -10,30 +10,28 @@ package com.github.copilot.generated.rpc;
 import javax.annotation.processing.Generated;
 
 /**
- * Optional source for allow-all telemetry. Defaults to `rpc` when omitted for SDK callers.
+ * Why the catalog authority did not accept the caller's identity
  *
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
-public enum PermissionsSetAllowAllSource {
-    /** The {@code cli_flag} variant. */
-    CLI_FLAG("cli_flag"),
-    /** The {@code slash_command} variant. */
-    SLASH_COMMAND("slash_command"),
-    /** The {@code autopilot_confirmation} variant. */
-    AUTOPILOT_CONFIRMATION("autopilot_confirmation"),
-    /** The {@code rpc} variant. */
-    RPC("rpc");
+public enum CatalogAuthenticationRequiredReason {
+    /** The {@code no-credential} variant. */
+    NO_CREDENTIAL("no-credential"),
+    /** The {@code credential-expired} variant. */
+    CREDENTIAL_EXPIRED("credential-expired"),
+    /** The {@code credential-rejected} variant. */
+    CREDENTIAL_REJECTED("credential-rejected");
 
     private final String value;
-    PermissionsSetAllowAllSource(String value) { this.value = value; }
+    CatalogAuthenticationRequiredReason(String value) { this.value = value; }
     @com.fasterxml.jackson.annotation.JsonValue
     public String getValue() { return value; }
     @com.fasterxml.jackson.annotation.JsonCreator
-    public static PermissionsSetAllowAllSource fromValue(String value) {
-        for (PermissionsSetAllowAllSource v : values()) {
+    public static CatalogAuthenticationRequiredReason fromValue(String value) {
+        for (CatalogAuthenticationRequiredReason v : values()) {
             if (v.value.equals(value)) return v;
         }
-        throw new IllegalArgumentException("Unknown PermissionsSetAllowAllSource value: " + value);
+        throw new IllegalArgumentException("Unknown CatalogAuthenticationRequiredReason value: " + value);
     }
 }

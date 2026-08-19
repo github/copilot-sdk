@@ -5,7 +5,7 @@
 
 import type { MessageConnection } from "vscode-jsonrpc/node.js";
 
-import type { AbortReason, Attachment, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerSource, McpServerStatus, ModelChangeSource, PermissionPromptRequest, PermissionRule, ReasoningSummary, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskCompleteData, TaskCompletionOutcome, UserToolSessionApproval, Verbosity } from "./session-events.js";
+import type { AbortReason, Attachment, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerSource, McpServerStatus, ModelChangeSource, PermissionMode, PermissionPromptRequest, PermissionRule, ReasoningSummary, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskCompleteData, TaskCompletionOutcome, UserToolSessionApproval, Verbosity } from "./session-events.js";
 
 /** A value that can be represented losslessly on the SDK JSON wire. */
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
@@ -244,20 +244,6 @@ export type AgentRegistrySpawnValidationErrorField =
   /** The permissionMode parameter */
   | "permissionMode";
 /**
- * Current or requested allow-all mode.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "PermissionsAllowAllMode".
- */
-/** @experimental */
-export type PermissionsAllowAllMode =
-  /** Permission requests follow the normal approval flow. */
-  | "off"
-  /** Tool, path, and URL permission requests are automatically approved. */
-  | "on"
-  /** Permission requests follow the normal approval flow with an LLM advisory recommendation attached; clients may choose to auto-approve requests the judge evaluated as acceptable. */
-  | "auto";
-/**
  * Authentication type
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -327,6 +313,347 @@ export type CanvasJsonSchema = JsonValue;
  */
 /** @experimental */
 export type CanvasActionInvokeResult = JsonValue;
+/**
+ * Canonical digest algorithm for a validated MCP card
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CardDigestAlgorithm".
+ */
+/** @experimental */
+export type CardDigestAlgorithm = /** SHA-256 over RFC 8785 canonical JSON encoded as UTF-8. */ "sha256-rfc8785";
+/**
+ * SHA-256 digest encoded as exactly 64 lowercase hexadecimal characters.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CardDigestValue".
+ */
+/** @experimental */
+export type CardDigestValue = string;
+/**
+ * Where a candidate's card came from. Exactly one of a URL or embedded data: the union has no variant carrying both, and no variant carrying neither, so the rule holds structurally rather than by validation.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogCandidateSource".
+ */
+/** @experimental */
+export type CatalogCandidateSource = CatalogCandidateSourceUrl | CatalogCandidateSourceEmbedded;
+/**
+ * Why the catalog authority did not accept the caller's identity
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogAuthenticationRequiredReason".
+ */
+/** @experimental */
+export type CatalogAuthenticationRequiredReason =
+  /** No credential was presented, so there is nothing to refresh and the caller must sign in. */
+  | "no-credential"
+  /** A credential was presented and its lifetime has elapsed. A silent refresh is worth attempting before prompting anyone. */
+  | "credential-expired"
+  /** A credential was presented and the authority refused it, for example because it was revoked, malformed, or issued for another audience. Refreshing the same rejected credential is not useful; the caller must sign in again. */
+  | "credential-rejected";
+/**
+ * One inert catalog result, represented as an MCP server or discovery-only AI skill variant so kind, media type, provenance, and installability cannot contradict each other.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogCandidate".
+ */
+/** @experimental */
+export type CatalogCandidate = CatalogMcpServerCandidate | CatalogAiSkillCandidate;
+/**
+ * JSON MCP card media type accepted for install planning
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpServerCardMediaType".
+ */
+/** @experimental */
+export type McpServerCardMediaType =
+  /** The current MCP server card media type. */
+  | "application/mcp-server-card+json"
+  /** The legacy MCP server card media type, accepted for compatibility. */
+  | "application/mcp-server+json";
+/**
+ * Whether an MCP server candidate can be planned for installation
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogMcpServerInstallability".
+ */
+/** @experimental */
+export type CatalogMcpServerInstallability =
+  /** An install plan can be computed for this MCP server candidate. */
+  | "installable"
+  /** Policy forbids installing this MCP server candidate. */
+  | "not-installable-policy";
+/**
+ * What kind of resource a catalog candidate describes
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogCandidateKind".
+ */
+/** @experimental */
+export type CatalogCandidateKind =
+  /** An MCP server, which can be planned for installation. */
+  | "mcp-server"
+  /** An AI skill, which is discoverable but not installable through this surface. */
+  | "ai-skill";
+/**
+ * A wire feature a caller can require of the catalog surface, negotiated per request. A grant means the runtime understands the feature's contract, not that the deployment has enabled the operation; typed unavailable results report availability separately.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogCapability".
+ */
+/** @experimental */
+export type CatalogCapability =
+  /** Understands the current `application/mcp-server-card+json` media type. */
+  | "mcp-server-card"
+  /** Understands the legacy `application/mcp-server+json` media type. */
+  | "legacy-mcp-server-card"
+  /** Understands `application/ai-skill` candidates as discovery-only and typed non-installable. */
+  | "ai-skill-discovery"
+  /** Understands side-effect-free MCP install-plan requests, results, and plan handles; `planning-unavailable` separately reports that planning is not enabled. */
+  | "mcp-install-planning"
+  /** Understands plans that enumerate every eligible transport rather than a single preferred one. */
+  | "multiple-transport-choice";
+/**
+ * Bounded extensible wire-feature identifier. Known values are described by `CatalogCapability`; newer callers may send future identifiers so an older runtime can return a typed negotiation refusal instead of failing schema validation. Capability negotiation establishes contract understanding, while each operation's result separately reports runtime availability.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogCapabilityId".
+ */
+/** @experimental */
+export type CatalogCapabilityId = string;
+/**
+ * Which wire-contract rule an upstream response broke
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogContractViolationReason".
+ */
+/** @experimental */
+export type CatalogContractViolationReason =
+  /** A result carried both a URL and embedded data, when exactly one is permitted. */
+  | "both-url-and-data"
+  /** A result carried neither a URL nor embedded data, when exactly one is required. */
+  | "neither-url-nor-data"
+  /** Two results claimed the same normalised identity. */
+  | "duplicate-identity"
+  /** A result declared no media type, or one this contract does not model. */
+  | "unknown-media-type";
+/**
+ * Which kind of opaque handle was presented
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogHandleType".
+ */
+/** @experimental */
+export type CatalogHandleType =
+  /** A search candidate handle. */
+  | "candidate"
+  /** An install plan handle. */
+  | "plan";
+/**
+ * Why a presented handle was rejected
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogHandleRejectionReason".
+ */
+/** @experimental */
+export type CatalogHandleRejectionReason =
+  /** The handle is unparseable, unknown, or was issued for a different operation. */
+  | "invalid"
+  /** The handle's time to live has elapsed. */
+  | "stale"
+  /** The handle has already been used, and handles are single-use. */
+  | "replayed"
+  /** The handle was issued by a different runtime instance. */
+  | "foreign";
+/**
+ * Which request field was rejected before any work was done
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogInvalidRequestField".
+ */
+/** @experimental */
+export type CatalogInvalidRequestField =
+  /** The search query was empty or longer than permitted. */
+  | "query"
+  /** The requested result count fell outside its permitted range. */
+  | "limit"
+  /** The requested candidate kinds were empty or contained a duplicate. */
+  | "kinds"
+  /** The negotiation block was missing or malformed. */
+  | "contract"
+  /** The plan source was missing or malformed. */
+  | "source"
+  /** The supplied card was missing its media type, URL, or data. */
+  | "card"
+  /** The requested configuration scope is not one this runtime writes. */
+  | "scope";
+/**
+ * How a card failed validation
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogMalformedCardReason".
+ */
+/** @experimental */
+export type CatalogMalformedCardReason =
+  /** The document is not well-formed JSON. */
+  | "invalid-json"
+  /** The document does not satisfy its media type's schema. */
+  | "schema-violation"
+  /** The declared media type is not one this runtime understands. */
+  | "unsupported-media-type"
+  /** A field the media type requires is absent. */
+  | "missing-required-field"
+  /** The document exceeded the permitted size. */
+  | "size-limit-exceeded";
+/**
+ * Media type a catalog card is interpreted as
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogMediaType".
+ */
+/** @experimental */
+export type CatalogMediaType =
+  /** The current MCP server card media type. */
+  | "application/mcp-server-card+json"
+  /** The legacy MCP server card media type, accepted for compatibility. */
+  | "application/mcp-server+json"
+  /** An AI skill card. Representable and searchable, but typed non-installable. */
+  | "application/ai-skill";
+/**
+ * Why capability and protocol-version negotiation refused a caller
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogNegotiationRefusedReason".
+ */
+/** @experimental */
+export type CatalogNegotiationRefusedReason =
+  /** The caller's protocol version is below the lowest this runtime serves. */
+  | "unsupported-protocol-version"
+  /** The caller requires at least one capability this runtime cannot honour. */
+  | "unsupported-capability";
+/**
+ * Categorised network failure, low cardinality so it can be aggregated without carrying a URL
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogNetworkFailureReason".
+ */
+/** @experimental */
+export type CatalogNetworkFailureReason =
+  /** No network is available, so nothing was attempted. */
+  | "offline"
+  /** The authority's name could not be resolved. */
+  | "dns"
+  /** The request exceeded its time budget. */
+  | "timeout"
+  /** The TLS handshake or certificate validation failed. */
+  | "tls"
+  /** The connection was refused or reset. */
+  | "connection-refused"
+  /** The authority returned a status the runtime treats as a failure. */
+  | "http-status"
+  /** The response exceeded the permitted size. */
+  | "response-too-large"
+  /** A redirect was refused by the runtime's redirect policy. */
+  | "redirect-rejected";
+/**
+ * Why a discoverable candidate cannot be installed
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogNotInstallableReason".
+ */
+/** @experimental */
+export type CatalogNotInstallableReason =
+  /** This kind of resource is not installable through this surface. */
+  | "kind-not-installable"
+  /** AI skills are discoverable but have no typed importer in this phase. */
+  | "ai-skill-not-installable"
+  /** Policy forbids installing this candidate. */
+  | "policy-forbids";
+/**
+ * Which authority produced a policy decision
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPlanPolicySource".
+ */
+/** @experimental */
+export type McpPlanPolicySource =
+  /** No policy applied, so the server is permitted by default. */
+  | "none"
+  /** An enterprise allowlist evaluated the server. */
+  | "enterprise-allowlist"
+  /** The registry the card came from evaluated the server. */
+  | "registry-policy"
+  /** Local trust settings evaluated the server. */
+  | "local-trust";
+/**
+ * Outcome of a catalog.search call: either bounded inert candidates, or one typed refusal. Never a partial success.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogSearchResult".
+ */
+/** @experimental */
+export type CatalogSearchResult =
+  | CatalogSearchSucceeded
+  | CatalogNegotiationRefusedError
+  | CatalogUnsupportedKindError
+  | CatalogInvalidRequestError
+  | CatalogAuthenticationRequiredError
+  | CatalogPolicyRejectedError
+  | CatalogNetworkFailureError
+  | CatalogUnsafeRetrievalError
+  | CatalogMalformedCardError
+  | CatalogContractViolationError
+  | CatalogUnavailableError;
+/**
+ * Which hardened-fetch control refused a retrieval
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogUnsafeRetrievalReason".
+ */
+/** @experimental */
+export type CatalogUnsafeRetrievalReason =
+  /** The URL used a scheme the runtime refuses to fetch. */
+  | "blocked-scheme"
+  /** The URL embedded credentials. */
+  | "credentials-in-url"
+  /** The URL resolved to a loopback, private, link-local, or cloud metadata address. */
+  | "blocked-address"
+  /** A redirect target resolved to a blocked address. */
+  | "redirect-to-blocked-address"
+  /** The configured proxy policy refused the request. */
+  | "proxy-rejected"
+  /** The authority is not permitted for card retrieval. */
+  | "host-not-permitted";
+/**
+ * Why a catalog operation is not available on this runtime
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogUnavailableReason".
+ */
+/** @experimental */
+export type CatalogUnavailableReason =
+  /** Bounded search is not wired up on this runtime build. */
+  | "search-unavailable"
+  /** Install planning is not wired up on this runtime build. */
+  | "planning-unavailable"
+  /** No catalog authority is configured for this runtime. */
+  | "authority-not-configured"
+  /** The surface is disabled by policy on this runtime. */
+  | "disabled-by-policy";
+/**
+ * Why no usable transport could be offered
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogUnavailableTransportReason".
+ */
+/** @experimental */
+export type CatalogUnavailableTransportReason =
+  /** The card advertises no transport this runtime can use. */
+  | "no-eligible-transport"
+  /** Every advertised transport is of a kind this runtime does not implement. */
+  | "transport-not-supported"
+  /** Eligible remotes could not be enumerated, so no explicit choice can be offered. */
+  | "remote-enumeration-unavailable";
 /**
  * Coarse command category for grouping and behavior: runtime built-in, skill-backed command, or SDK/client-owned command
  *
@@ -1335,6 +1662,162 @@ export type McpHeadersHandlePendingHeadersRefreshRequest =
       kind: "none";
     };
 /**
+ * One eligible way to run the server, represented as a tagged package or remote variant so package identity and endpoint states cannot contradict the install method.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPlanTransportChoice".
+ */
+/** @experimental */
+export type McpPlanTransportChoice = McpPlanTransportChoicePackage | McpPlanTransportChoiceRemote;
+/**
+ * Transport exposed by a locally launched package
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPlanPackageTransport".
+ */
+/** @experimental */
+export type McpPlanPackageTransport =
+  /** A locally launched process spoken to over standard input and output. */
+  "stdio";
+/**
+ * Discriminator for a package-backed transport choice
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPlanPackageInstallMethod".
+ */
+/** @experimental */
+export type McpPlanPackageInstallMethod = /** Install and run a local package. */ "package";
+/**
+ * One non-secret value a transport choice needs, represented as a scalar or enumerated variant so enum values cannot be missing or attached to another type.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPlanRequiredValue".
+ */
+/** @experimental */
+export type McpPlanRequiredValue = McpPlanRequiredValueScalar | McpPlanRequiredValueEnum;
+/**
+ * Discriminator for a scalar required value
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPlanRequiredValueScalarKind".
+ */
+/** @experimental */
+export type McpPlanRequiredValueScalarKind = /** The value uses one scalar type. */ "scalar";
+/**
+ * Where a required value is applied when the planned server is launched
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPlanValueCategory".
+ */
+/** @experimental */
+export type McpPlanValueCategory =
+  /** Set as an environment variable on the launched process. */
+  | "environment-variable"
+  /** Passed to the runtime that launches the package. */
+  | "runtime-argument"
+  /** Passed to the packaged server itself. */
+  | "package-argument"
+  /** Sent as a request header to a remote endpoint. */
+  | "header"
+  /** Substituted into the remote endpoint URL. */
+  | "url-variable";
+/**
+ * Scalar type a required value must conform to
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPlanScalarValueType".
+ */
+/** @experimental */
+export type McpPlanScalarValueType =
+  /** Free text. */
+  | "string"
+  /** A number. */
+  | "number"
+  /** A boolean. */
+  | "boolean"
+  /** A filesystem path. */
+  | "path";
+/**
+ * Discriminator for an enumerated required value
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPlanRequiredValueEnumKind".
+ */
+/** @experimental */
+export type McpPlanRequiredValueEnumKind = /** The value uses a fixed non-empty enumeration. */ "enum";
+/**
+ * Discriminator for an enumerated required value
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPlanEnumValueType".
+ */
+/** @experimental */
+export type McpPlanEnumValueType = /** One of a fixed, non-empty set of permitted values. */ "enum";
+/**
+ * A runtime-assigned secret placeholder. The identifier is carried once, inside the placeholder, so it cannot contradict a separate secret-id field.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPlanSecretReference".
+ */
+/** @experimental */
+export type McpPlanSecretReference = string;
+/**
+ * Transport exposed by a remote endpoint
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPlanRemoteTransport".
+ */
+/** @experimental */
+export type McpPlanRemoteTransport =
+  /** An HTTP endpoint. */
+  | "http"
+  /** A streamable HTTP endpoint. */
+  | "streamable-http"
+  /** A server-sent events endpoint. */
+  | "sse";
+/**
+ * Discriminator for a remote-endpoint transport choice
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPlanRemoteInstallMethod".
+ */
+/** @experimental */
+export type McpPlanRemoteInstallMethod = /** Connect to a remote endpoint. */ "remote";
+/**
+ * Configuration scope an MCP install plan targets
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPlanScope".
+ */
+/** @experimental */
+export type McpPlanScope = /** The user's own MCP configuration. */ "user";
+/**
+ * What policy decided for a planned server
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPlanPolicyDecision".
+ */
+/** @experimental */
+export type McpPlanPolicyDecision =
+  /** Policy permits the server. */
+  | "allowed"
+  /** Policy forbids the server, so the plan cannot be applied. */
+  | "blocked"
+  /** Policy permits the server only after an explicit approval. */
+  | "requires-approval";
+/**
+ * Whether a planned configuration change would create or modify an entry
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPlanConfigurationOperation".
+ */
+/** @experimental */
+export type McpPlanConfigurationOperation =
+  /** Creates a configuration entry that does not exist yet. */
+  | "add"
+  /** Modifies a configuration entry that already exists. */
+  | "update";
+/**
  * Consumer allowed to call an MCP tool.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -1446,6 +1929,75 @@ export type McpOauthProbeResult =
        */
       status: "failed";
     };
+/**
+ * What an install plan is computed from: a candidate handle from a previous search, or a card supplied directly.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPlanInstallSource".
+ */
+/** @experimental */
+export type McpPlanInstallSource = McpPlanInstallSourceCandidate | McpPlanInstallSourceCard;
+/**
+ * Discriminator for a candidate-backed install-plan source
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPlanInstallSourceCandidateKind".
+ */
+/** @experimental */
+export type McpPlanInstallSourceCandidateKind = /** Plan from a candidate returned by catalog search. */ "candidate";
+/**
+ * Discriminator for a caller-supplied-card install-plan source
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPlanInstallSourceCardKind".
+ */
+/** @experimental */
+export type McpPlanInstallSourceCardKind = /** Plan directly from a caller-supplied card. */ "card";
+/**
+ * A card supplied directly by the caller. Exactly one of a URL or embedded data, encoded structurally so neither both nor neither can be expressed.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpServerCardReference".
+ */
+/** @experimental */
+export type McpServerCardReference = McpServerCardUrl | McpServerCardEmbedded;
+/**
+ * Discriminator for a URL-backed MCP server card
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpServerCardUrlKind".
+ */
+/** @experimental */
+export type McpServerCardUrlKind = /** Retrieve the card from its URL. */ "url";
+/**
+ * Discriminator for an embedded MCP server card
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpServerCardEmbeddedKind".
+ */
+/** @experimental */
+export type McpServerCardEmbeddedKind = /** Use the embedded card document. */ "embedded";
+/**
+ * Outcome of an mcp.planInstall call: either a normalised plan, or one typed refusal. Nothing is written in either case.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPlanInstallResult".
+ */
+/** @experimental */
+export type McpPlanInstallResult =
+  | McpPlanInstallPlanned
+  | CatalogNegotiationRefusedError
+  | CatalogHandleRejectedError
+  | CatalogInvalidRequestError
+  | CatalogAuthenticationRequiredError
+  | CatalogPolicyRejectedError
+  | CatalogNetworkFailureError
+  | CatalogUnsafeRetrievalError
+  | CatalogMalformedCardError
+  | CatalogContractViolationError
+  | CatalogUnavailableTransportError
+  | CatalogNotInstallableError
+  | CatalogUnavailableError;
 /**
  * MCP server configuration (stdio, remote HTTP/SSE, or in-process)
  *
@@ -1930,8 +2482,8 @@ export type PermissionDecisionOutcome =
  */
 /** @experimental */
 export type PermissionDecisionSource =
-  /** The response followed the auto-approval judge recommendation. */
-  | "judge_recommendation"
+  /** The response followed the assisted-approval judge recommendation. */
+  | "assisted_approval"
   /** A human supplied the response through an interactive prompt. */
   | "human_response"
   /** The host applied a standing policy or override rather than a judge recommendation or human decision. */
@@ -1986,6 +2538,22 @@ export type PermissionLocationType =
   /** The permission location is persisted at the working directory. */
   | "dir";
 /**
+ * Optional source for permission-mode telemetry. Defaults to `rpc` when omitted for SDK callers.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "PermissionModeSource".
+ */
+/** @experimental */
+export type PermissionModeSource =
+  /** The mode was set from a CLI command-line flag. */
+  | "cli_flag"
+  /** The mode was set by a slash command. */
+  | "slash_command"
+  /** The mode was set by confirming autopilot behavior. */
+  | "autopilot_confirmation"
+  /** The mode was set through an RPC caller. */
+  | "rpc";
+/**
  * Allowed values for the `PermissionsConfigureAdditionalContentExclusionPolicyScope` enumeration.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -2009,22 +2577,6 @@ export type PermissionsModifyRulesScope =
   | "session"
   /** Persist the rule change for this project location. */
   | "location";
-/**
- * Optional source for allow-all telemetry. Defaults to `rpc` when omitted for SDK callers.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "PermissionsSetAllowAllSource".
- */
-/** @experimental */
-export type PermissionsSetAllowAllSource =
-  /** Allow-all was enabled from a CLI command-line flag. */
-  | "cli_flag"
-  /** Allow-all was enabled by a slash command. */
-  | "slash_command"
-  /** Allow-all was enabled by confirming autopilot behavior. */
-  | "autopilot_confirmation"
-  /** Allow-all was enabled through an RPC caller. */
-  | "rpc";
 /**
  * Optional source for allow-all telemetry. Defaults to `rpc` when omitted for SDK callers.
  *
@@ -4255,38 +4807,6 @@ export interface AgentsGetDiscoveryPathsRequest {
   excludeHostAgents?: boolean;
 }
 /**
- * Indicates whether the operation succeeded and reports the post-mutation state.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "AllowAllPermissionSetResult".
- */
-/** @experimental */
-export interface AllowAllPermissionSetResult {
-  /**
-   * Whether the operation succeeded
-   */
-  success: boolean;
-  /**
-   * Authoritative full allow-all state after the mutation
-   */
-  enabled: boolean;
-  mode?: PermissionsAllowAllMode;
-}
-/**
- * Current allow-all permission mode.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "AllowAllPermissionState".
- */
-/** @experimental */
-export interface AllowAllPermissionState {
-  /**
-   * Whether full allow-all permissions are currently active
-   */
-  enabled: boolean;
-  mode?: PermissionsAllowAllMode;
-}
-/**
  * Credential-free authentication identity safe to expose to hosts and user interfaces.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -4839,6 +5359,520 @@ export interface CapiSessionOptions {
    * Whether to use WebSocket transport for the CAPI Responses API. Enabled by default when the model advertises `ws:/responses` support; set to `false` to force the HTTP Responses transport in environments where WebSockets are blocked (e.g. behind a proxy). Setting this to `false` is equivalent to the `COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES` environment variable.
    */
   enableWebSocketResponses?: boolean;
+}
+/**
+ * Semantic digest of a strictly parsed and schema-validated JSON MCP card. Both URL-backed and embedded cards are canonicalised with RFC 8785 JSON Canonicalization Scheme, encoded as UTF-8, and hashed with SHA-256.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CardDigest".
+ */
+/** @experimental */
+export interface CardDigest {
+  algorithm: CardDigestAlgorithm;
+  value: CardDigestValue;
+}
+/**
+ * An inert AI skill catalog result. AI skills are discovery-only and cannot be represented as installable through this surface.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogAiSkillCandidate".
+ */
+/** @experimental */
+export interface CatalogAiSkillCandidate {
+  /**
+   * Opaque, runtime-instance scoped, TTL-bound, single-use handle for this candidate. Carries no readable information and is rejected when stale, replayed, or presented to a different runtime instance. Never logged.
+   */
+  handle: string;
+  /**
+   * ISO 8601 timestamp after which the handle is stale and will be rejected.
+   */
+  handleExpiresAt: string;
+  /**
+   * Discriminator: this candidate describes an AI skill
+   */
+  kind: "ai-skill";
+  /**
+   * Media type of the underlying AI skill card
+   */
+  mediaType: "application/ai-skill";
+  /**
+   * AI skills are discovery-only and cannot be installed through this surface
+   */
+  installability: "not-installable-kind";
+  /**
+   * Display name taken verbatim from the card. Inert untrusted text.
+   */
+  displayName: string;
+  /**
+   * Description taken verbatim from the card. Inert untrusted text.
+   */
+  description?: string;
+  /**
+   * Publisher taken verbatim from the card. Inert untrusted text.
+   */
+  publisher?: string;
+  source: CatalogCandidateSource;
+  provenance: CatalogAiSkillCandidateProvenance;
+}
+/**
+ * Candidate whose card is retrieved from a URL through the runtime's hardened fetch boundary.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogCandidateSourceUrl".
+ */
+/** @experimental */
+export interface CatalogCandidateSourceUrl {
+  /**
+   * Discriminator: the card is URL-backed, and carries no embedded data
+   */
+  kind: "url";
+  /**
+   * Card URL as advertised. Inert untrusted data: the runtime retrieves it only through its own hardened boundary, and it is never logged.
+   */
+  url: string;
+}
+/**
+ * Candidate whose card reference arrived inline. The document and its content-derived properties stay behind the runtime boundary.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogCandidateSourceEmbedded".
+ */
+/** @experimental */
+export interface CatalogCandidateSourceEmbedded {
+  /**
+   * Discriminator: the card is embedded, and carries no URL
+   */
+  kind: "embedded";
+}
+/**
+ * Where and when an AI skill catalog reference was observed. Discovery provenance deliberately carries no content digest because search does not establish the exact validated content a later plan will bind.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogAiSkillCandidateProvenance".
+ */
+/** @experimental */
+export interface CatalogAiSkillCandidateProvenance {
+  /**
+   * Host of the catalog authority that advertised the reference, without path, query, or credentials. Inert untrusted data.
+   */
+  authority: string;
+  /**
+   * ISO 8601 timestamp at which the runtime observed the catalog reference. This is not a retrieval or validation timestamp.
+   */
+  observedAt: string;
+  /**
+   * Media type advertised for the referenced AI skill card
+   */
+  mediaType: "application/ai-skill";
+}
+/**
+ * An optional catalog authentication exchange did not establish the caller's identity. Anonymous search remains supported; this refusal is reserved for an operation that cannot continue after the attempted exchange. It is distinct from `policy-rejected` and from a network failure, and the reason identifies the recovery action.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogAuthenticationRequiredError".
+ */
+/** @experimental */
+export interface CatalogAuthenticationRequiredError {
+  /**
+   * Discriminator: the caller is not authenticated
+   */
+  kind: "authentication-required";
+  reason: CatalogAuthenticationRequiredReason;
+  /**
+   * Human-readable explanation, safe to surface. Never contains a credential or token, nor a query, URL, handle, or secret.
+   */
+  message: string;
+}
+/**
+ * An inert MCP server catalog result. Every free-text field is untrusted external data and must never be treated as an instruction, and the handle is the only way to refer to the candidate in a later operation.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogMcpServerCandidate".
+ */
+/** @experimental */
+export interface CatalogMcpServerCandidate {
+  /**
+   * Opaque, runtime-instance scoped, TTL-bound, single-use handle for this candidate. Carries no readable information and is rejected when stale, replayed, or presented to a different runtime instance. Never logged.
+   */
+  handle: string;
+  /**
+   * ISO 8601 timestamp after which the handle is stale and will be rejected.
+   */
+  handleExpiresAt: string;
+  /**
+   * Discriminator: this candidate describes an MCP server
+   */
+  kind: "mcp-server";
+  mediaType: McpServerCardMediaType;
+  installability: CatalogMcpServerInstallability;
+  /**
+   * Display name taken verbatim from the card. Inert untrusted text.
+   */
+  displayName: string;
+  /**
+   * Description taken verbatim from the card. Inert untrusted text.
+   */
+  description?: string;
+  /**
+   * Publisher taken verbatim from the card. Inert untrusted text.
+   */
+  publisher?: string;
+  source: CatalogCandidateSource;
+  provenance: CatalogMcpServerCandidateProvenance;
+}
+/**
+ * Where and when an MCP server catalog reference was observed. Discovery provenance deliberately carries no content digest because search does not establish the exact validated content a later plan will bind.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogMcpServerCandidateProvenance".
+ */
+/** @experimental */
+export interface CatalogMcpServerCandidateProvenance {
+  /**
+   * Host of the catalog authority that advertised the reference, without path, query, or credentials. Inert untrusted data.
+   */
+  authority: string;
+  /**
+   * ISO 8601 timestamp at which the runtime observed the catalog reference. This is not a retrieval or validation timestamp.
+   */
+  observedAt: string;
+  mediaType: McpServerCardMediaType;
+}
+/**
+ * The protocol version and capability set a caller requires, supplied on every catalog request so negotiation cannot be skipped by omission.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogClientContract".
+ */
+/** @experimental */
+export interface CatalogClientContract {
+  /**
+   * SDK protocol version the caller was generated against. A caller below the runtime's minimum supported version is refused rather than served a partial result.
+   */
+  protocolVersion: number;
+  /**
+   * Wire features the caller requires the runtime to understand. Identifiers are bounded but extensible so a newer caller can negotiate with an older runtime. Requiring an unknown feature yields a typed refusal listing what is understood, never a partial grant. A grant does not promise that a deployment has enabled the operation; typed unavailable results report that separately.
+   *
+   * @maxItems 32
+   */
+  requiredCapabilities: CatalogCapabilityId[];
+}
+/**
+ * An upstream catalog response broke the wire contract. Most importantly, every result must carry exactly one of a URL or embedded data: a result carrying both, or neither, is refused here rather than being guessed at.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogContractViolationError".
+ */
+/** @experimental */
+export interface CatalogContractViolationError {
+  /**
+   * Discriminator: the upstream response broke the contract
+   */
+  kind: "contract-violation";
+  reason: CatalogContractViolationReason;
+  /**
+   * Human-readable explanation, safe to surface. Never echoes response content, nor a query, URL, handle, or secret.
+   */
+  message: string;
+}
+/**
+ * A presented handle was not accepted. Handles are runtime-instance scoped, TTL-bound, and single-use, so each way of failing is reported distinctly.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogHandleRejectedError".
+ */
+/** @experimental */
+export interface CatalogHandleRejectedError {
+  /**
+   * Discriminator: a handle was rejected
+   */
+  kind: "handle-rejected";
+  handleType: CatalogHandleType;
+  reason: CatalogHandleRejectionReason;
+  /**
+   * Human-readable explanation, safe to surface. Never contains the handle itself, nor a query, URL, or secret.
+   */
+  message: string;
+}
+/**
+ * The request was rejected before any work was done, because a bounded field fell outside its permitted range or a required field was unusable.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogInvalidRequestError".
+ */
+/** @experimental */
+export interface CatalogInvalidRequestError {
+  /**
+   * Discriminator: the request itself was invalid
+   */
+  kind: "invalid-request";
+  field: CatalogInvalidRequestField;
+  /**
+   * Human-readable explanation, safe to surface. Never echoes the offending value, nor a query, URL, handle, or secret.
+   */
+  message: string;
+}
+/**
+ * A card could not be parsed or did not satisfy its declared media type's schema.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogMalformedCardError".
+ */
+/** @experimental */
+export interface CatalogMalformedCardError {
+  /**
+   * Discriminator: the card was malformed
+   */
+  kind: "malformed-card";
+  reason: CatalogMalformedCardReason;
+  mediaType?: CatalogMediaType;
+  /**
+   * Human-readable explanation, safe to surface. Never echoes card content, nor a query, URL, handle, or secret.
+   */
+  message: string;
+}
+/**
+ * The protocol version and capability set the runtime actually honoured for a successful catalog operation.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogNegotiatedContract".
+ */
+/** @experimental */
+export interface CatalogNegotiatedContract {
+  /**
+   * Protocol version of the runtime that served the request.
+   */
+  runtimeProtocolVersion: number;
+  /**
+   * Wire features the runtime understood for this operation. Always a superset of the caller's required features, because any shortfall is a refusal instead. Operation availability remains a separate typed result.
+   */
+  grantedCapabilities: CatalogCapability[];
+}
+/**
+ * The caller's protocol version or required capabilities cannot be honoured. Returned instead of a partial or ambiguous success.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogNegotiationRefusedError".
+ */
+/** @experimental */
+export interface CatalogNegotiationRefusedError {
+  /**
+   * Discriminator: capability or protocol-version negotiation failed
+   */
+  kind: "negotiation-refused";
+  reason: CatalogNegotiationRefusedReason;
+  /**
+   * Protocol version of the runtime that refused the request.
+   */
+  runtimeProtocolVersion: number;
+  /**
+   * Lowest caller protocol version this runtime will serve.
+   */
+  minimumSupportedProtocolVersion: number;
+  /**
+   * Every wire feature this runtime understands, so the caller can retry within that contract. This list does not imply that every deployment has enabled every operation.
+   */
+  supportedCapabilities: CatalogCapability[];
+  /**
+   * The subset of the caller's bounded extensible capability identifiers this runtime cannot honour.
+   *
+   * @maxItems 32
+   */
+  unsupportedCapabilities: CatalogCapabilityId[];
+  /**
+   * Human-readable explanation, safe to surface. Never contains a query, URL, handle, or secret.
+   */
+  message: string;
+}
+/**
+ * The runtime could not reach the catalog authority or retrieve a card. Covers being offline as well as transport-level failure.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogNetworkFailureError".
+ */
+/** @experimental */
+export interface CatalogNetworkFailureError {
+  /**
+   * Discriminator: the network operation failed
+   */
+  kind: "network-failure";
+  reason: CatalogNetworkFailureReason;
+  /**
+   * HTTP status code, when the failure was a rejected response.
+   */
+  statusCode?: number;
+  /**
+   * Human-readable explanation, safe to surface. Never contains a query, URL, handle, or secret.
+   */
+  message: string;
+}
+/**
+ * The candidate is discoverable but cannot be installed. `application/ai-skill` resolves here, because it stays searchable while remaining typed non-installable.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogNotInstallableError".
+ */
+/** @experimental */
+export interface CatalogNotInstallableError {
+  /**
+   * Discriminator: the candidate cannot be installed
+   */
+  kind: "not-installable";
+  reason: CatalogNotInstallableReason;
+  /**
+   * Human-readable explanation, safe to surface. Never contains a query, URL, handle, or secret.
+   */
+  message: string;
+}
+/**
+ * Registry or enterprise policy refused the operation.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogPolicyRejectedError".
+ */
+/** @experimental */
+export interface CatalogPolicyRejectedError {
+  /**
+   * Discriminator: policy refused the operation
+   */
+  kind: "policy-rejected";
+  source: McpPlanPolicySource;
+  /**
+   * Human-readable explanation, safe to surface. Never contains a query, URL, handle, or secret.
+   */
+  message: string;
+}
+/**
+ * A bounded catalog search. Both the query length and the result count are capped by the schema so a caller cannot request an unbounded scan.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogSearchRequest".
+ */
+/** @experimental */
+export interface CatalogSearchRequest {
+  contract: CatalogClientContract;
+  /**
+   * Free-text search query. Never written to logs or telemetry.
+   */
+  query: string;
+  /**
+   * Maximum number of candidates to return. Defaults to 10 when omitted.
+   */
+  limit?: number;
+  /**
+   * Restrict results to these candidate kinds. When omitted, every kind the runtime supports is searched.
+   *
+   * @minItems 1
+   * @maxItems 2
+   */
+  kinds?: [CatalogCandidateKind] | [CatalogCandidateKind, CatalogCandidateKind];
+}
+/**
+ * A completed catalog search: inert candidate summaries, each carrying a single-use handle.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogSearchSucceeded".
+ */
+/** @experimental */
+export interface CatalogSearchSucceeded {
+  /**
+   * Discriminator: the search completed
+   */
+  kind: "succeeded";
+  /**
+   * Pseudonymous identifier for this search, issued by the runtime or by the catalog authority it queried and never by the caller, so it cannot be forged or replayed to attribute an install to a search that never happened. Always present on a success, so a result set can be tied to the installs it leads to. It identifies a search rather than a person: it is derived from no user, account, device, or query data, and must never be joined with user identity to re-identify anyone.
+   */
+  searchId: string;
+  /**
+   * Matching candidates, never more than the requested limit. All text is inert untrusted data.
+   *
+   * @maxItems 50
+   */
+  candidates: CatalogCandidate[];
+  /**
+   * Whether further matches existed beyond the requested limit.
+   */
+  truncated: boolean;
+  negotiated: CatalogNegotiatedContract;
+}
+/**
+ * The request asked for a candidate kind this runtime does not serve.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogUnsupportedKindError".
+ */
+/** @experimental */
+export interface CatalogUnsupportedKindError {
+  /**
+   * Discriminator: an unsupported candidate kind was requested
+   */
+  kind: "unsupported-kind";
+  /**
+   * The kinds from the request that are not supported.
+   */
+  requestedKinds: CatalogCandidateKind[];
+  /**
+   * Every candidate kind this runtime can serve.
+   */
+  supportedKinds: CatalogCandidateKind[];
+  /**
+   * Human-readable explanation, safe to surface. Never contains a query, URL, handle, or secret.
+   */
+  message: string;
+}
+/**
+ * Retrieval was refused by the runtime's hardened fetch boundary before any request left the process, or before a redirect was followed.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogUnsafeRetrievalError".
+ */
+/** @experimental */
+export interface CatalogUnsafeRetrievalError {
+  /**
+   * Discriminator: retrieval was refused as unsafe
+   */
+  kind: "unsafe-retrieval";
+  reason: CatalogUnsafeRetrievalReason;
+  /**
+   * Human-readable explanation, safe to surface. Never contains the refused URL, nor a query, handle, or secret.
+   */
+  message: string;
+}
+/**
+ * The operation is not available on this runtime. Distinct from a network failure: nothing was attempted.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogUnavailableError".
+ */
+/** @experimental */
+export interface CatalogUnavailableError {
+  /**
+   * Discriminator: the operation is not available
+   */
+  kind: "unavailable";
+  reason: CatalogUnavailableReason;
+  /**
+   * Human-readable explanation, safe to surface. Never contains a query, URL, handle, or secret.
+   */
+  message: string;
+}
+/**
+ * No transport this runtime can use is available for the requested server.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogUnavailableTransportError".
+ */
+/** @experimental */
+export interface CatalogUnavailableTransportError {
+  /**
+   * Discriminator: no usable transport is available
+   */
+  kind: "unavailable-transport";
+  reason: CatalogUnavailableTransportReason;
+  /**
+   * Human-readable explanation, safe to surface. Never contains a query, URL, handle, or secret.
+   */
+  message: string;
 }
 /**
  * Slash commands available in the session, after applying any include/exclude filters.
@@ -9311,6 +10345,300 @@ export interface McpServerNeedsAuthInfo {
   timestamp: number;
 }
 /**
+ * A normalised, inert description of what installing an MCP server would involve. Carries no raw card, no install specification, and no secret value.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpInstallPlan".
+ */
+/** @experimental */
+export interface McpInstallPlan {
+  /**
+   * Opaque, runtime-instance scoped, TTL-bound, single-use handle for this plan. Rejected when stale, replayed, or presented to a different runtime instance. Never logged.
+   */
+  planHandle: string;
+  /**
+   * ISO 8601 timestamp after which the plan handle is stale and will be rejected. Abandoning a plan needs no call: an unused handle simply expires, so cancellation before commit is side-effect free.
+   */
+  planHandleExpiresAt: string;
+  identity: McpPlanResourceIdentity;
+  provenance: McpPlanProvenance;
+  /**
+   * Every eligible transport, so a host can present an explicit choice. A completed plan always has at least one; when none is eligible, planning returns `CatalogUnavailableTransportError` instead.
+   *
+   * @minItems 1
+   * @maxItems 50
+   */
+  transportChoices: [McpPlanTransportChoice, ...McpPlanTransportChoice[]];
+  /**
+   * Identifier of the choice the runtime would pick by default. Omitted when there is no eligible transport, or when the runtime expresses no preference.
+   */
+  recommendedTransportChoiceId?: string;
+  target: McpPlanTarget;
+  policy: McpPlanPolicyResult;
+  /**
+   * The configuration changes installing would make, described rather than serialised, so the mutable configuration payload stays behind the runtime boundary.
+   */
+  configurationChanges: McpPlanConfigurationChange[];
+  /**
+   * Whether applying this plan would require an MCP reload to take effect. Planning itself never reloads.
+   */
+  reloadRequired: boolean;
+  /**
+   * Whether the plan cannot be applied without further input, because a required value has no default or a secret must be supplied.
+   */
+  requiresInteractiveConfiguration: boolean;
+}
+/**
+ * Normalised identity of the MCP server a plan targets, independent of how the card spelled it.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPlanResourceIdentity".
+ */
+/** @experimental */
+export interface McpPlanResourceIdentity {
+  /**
+   * Canonical, normalised name of the server, for example `io.github.owner/server`.
+   */
+  canonicalName: string;
+  /**
+   * Local configuration key the server would be recorded under.
+   */
+  serverName: string;
+  /**
+   * Version advertised by the card, when it declares one.
+   */
+  version?: string;
+  /**
+   * Registry identifier of the server, when it came from a registry.
+   */
+  registryId?: string;
+}
+/**
+ * Provenance of the exact validated JSON MCP card content bound privately to a completed plan and its opaque handle.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPlanProvenance".
+ */
+/** @experimental */
+export interface McpPlanProvenance {
+  /**
+   * Authority associated with the validated card, without path, query, or credentials. Inert untrusted data.
+   */
+  authority: string;
+  /**
+   * ISO 8601 timestamp at which the runtime completed strict parsing and schema validation of the card content.
+   */
+  validatedAt: string;
+  cardDigest: CardDigest;
+  mediaType: McpServerCardMediaType;
+}
+/**
+ * An eligible local-package transport choice. Package identity is required and a remote endpoint cannot be represented.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPlanTransportChoicePackage".
+ */
+/** @experimental */
+export interface McpPlanTransportChoicePackage {
+  /**
+   * Stable identifier for this choice within the plan, used to select it when the plan is applied.
+   */
+  choiceId: string;
+  transport: McpPlanPackageTransport;
+  installMethod: McpPlanPackageInstallMethod;
+  /**
+   * Packaging ecosystem, for example `oci` or `npm`.
+   */
+  packageType: string;
+  /**
+   * Package identifier. Inert untrusted data.
+   */
+  packageIdentifier: string;
+  /**
+   * Typed values this choice requires, excluding secrets.
+   */
+  requiredValues: McpPlanRequiredValue[];
+  /**
+   * Secrets this choice requires, referenced by placeholder only.
+   */
+  secretPlaceholders: McpPlanSecretPlaceholder[];
+}
+/**
+ * One non-secret scalar value a transport choice needs before it can be applied.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPlanRequiredValueScalar".
+ */
+/** @experimental */
+export interface McpPlanRequiredValueScalar {
+  kind: McpPlanRequiredValueScalarKind;
+  /**
+   * Key the value is supplied under. Inert untrusted data.
+   */
+  key: string;
+  category: McpPlanValueCategory;
+  valueType: McpPlanScalarValueType;
+  /**
+   * Whether the value must be present for the plan to be applicable.
+   */
+  required: boolean;
+  /**
+   * Default supplied by the card, when the value can be resolved without input. Presence is the authoritative indication that a default exists. Inert untrusted data.
+   */
+  defaultValue?: string;
+  /**
+   * Human-readable label from the card. Inert untrusted text.
+   */
+  title?: string;
+  /**
+   * Human-readable explanation from the card. Inert untrusted text.
+   */
+  description?: string;
+  /**
+   * Whether the value may be supplied more than once.
+   */
+  isRepeated: boolean;
+}
+/**
+ * One enumerated non-secret value a transport choice needs before it can be applied. The permitted values are structurally required.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPlanRequiredValueEnum".
+ */
+/** @experimental */
+export interface McpPlanRequiredValueEnum {
+  kind: McpPlanRequiredValueEnumKind;
+  /**
+   * Key the value is supplied under. Inert untrusted data.
+   */
+  key: string;
+  category: McpPlanValueCategory;
+  valueType: McpPlanEnumValueType;
+  /**
+   * Whether the value must be present for the plan to be applicable.
+   */
+  required: boolean;
+  /**
+   * Default supplied by the card, when the value can be resolved without input. Presence is the authoritative indication that a default exists. Inert untrusted data.
+   */
+  defaultValue?: string;
+  /**
+   * Human-readable label from the card. Inert untrusted text.
+   */
+  title?: string;
+  /**
+   * Human-readable explanation from the card. Inert untrusted text.
+   */
+  description?: string;
+  /**
+   * Non-empty permitted value set. Inert untrusted data.
+   *
+   * @minItems 1
+   */
+  enumValues: [string, ...string[]];
+  /**
+   * Whether the value may be supplied more than once.
+   */
+  isRepeated: boolean;
+}
+/**
+ * A secret a transport choice needs, referenced by placeholder. No secret value ever appears in a plan, and the placeholder resolves against the keychain only when a plan is applied.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPlanSecretPlaceholder".
+ */
+/** @experimental */
+export interface McpPlanSecretPlaceholder {
+  /**
+   * Key the secret is supplied under. Inert untrusted data.
+   */
+  key: string;
+  placeholder: McpPlanSecretReference;
+  /**
+   * Human-readable label from the card. Inert untrusted text.
+   */
+  title?: string;
+}
+/**
+ * An eligible remote-endpoint transport choice. The endpoint is required and package identity cannot be represented.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPlanTransportChoiceRemote".
+ */
+/** @experimental */
+export interface McpPlanTransportChoiceRemote {
+  /**
+   * Stable identifier for this choice within the plan, used to select it when the plan is applied.
+   */
+  choiceId: string;
+  transport: McpPlanRemoteTransport;
+  installMethod: McpPlanRemoteInstallMethod;
+  /**
+   * Endpoint URL. Inert untrusted data.
+   */
+  endpoint: string;
+  /**
+   * Typed values this choice requires, excluding secrets.
+   */
+  requiredValues: McpPlanRequiredValue[];
+  /**
+   * Secrets this choice requires, referenced by placeholder only.
+   */
+  secretPlaceholders: McpPlanSecretPlaceholder[];
+}
+/**
+ * Where a plan would be written.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPlanTarget".
+ */
+/** @experimental */
+export interface McpPlanTarget {
+  scope: McpPlanScope;
+  /**
+   * Configuration key the server would be recorded under within that scope.
+   */
+  configKey: string;
+}
+/**
+ * Outcome of evaluating the planned server against registry and enterprise policy. Evaluation is read-only.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPlanPolicyResult".
+ */
+/** @experimental */
+export interface McpPlanPolicyResult {
+  decision: McpPlanPolicyDecision;
+  source: McpPlanPolicySource;
+  /**
+   * Human-readable explanation, safe to surface. Never contains a query, URL, handle, or secret.
+   */
+  reason?: string;
+}
+/**
+ * One change applying the plan would make, described rather than serialised so the configuration payload stays behind the runtime boundary.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPlanConfigurationChange".
+ */
+/** @experimental */
+export interface McpPlanConfigurationChange {
+  operation: McpPlanConfigurationOperation;
+  scope: McpPlanScope;
+  /**
+   * Configuration key the change applies to.
+   */
+  configKey: string;
+  /**
+   * Names of the configuration fields the change would set, without their values.
+   */
+  changedFields: string[];
+  /**
+   * Secret placeholders the written configuration would reference. The constrained placeholder type cannot carry a literal secret value.
+   */
+  secretReferences: McpPlanSecretReference[];
+}
+/**
  * Server name to check running status for.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -9530,6 +10858,92 @@ export interface McpOauthRespondResult {
    * Whether the response was accepted. False if the request was unknown, timed out, or already resolved.
    */
   success: boolean;
+}
+/**
+ * A computed MCP install plan. Nothing has been applied: the plan describes what installing would change, and the plan handle is what a later apply operation would consume.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPlanInstallPlanned".
+ */
+/** @experimental */
+export interface McpPlanInstallPlanned {
+  /**
+   * Discriminator: a plan was computed and nothing was changed
+   */
+  kind: "planned";
+  plan: McpInstallPlan;
+  negotiated: CatalogNegotiatedContract;
+}
+/**
+ * A side-effect-free request for an MCP install plan. Computing a plan never writes configuration, stores a secret, or reloads MCP servers.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPlanInstallRequest".
+ */
+/** @experimental */
+export interface McpPlanInstallRequest {
+  contract: CatalogClientContract;
+  source: McpPlanInstallSource;
+  scope?: McpPlanScope;
+}
+/**
+ * Plan from a candidate returned by a previous catalog search.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPlanInstallSourceCandidate".
+ */
+/** @experimental */
+export interface McpPlanInstallSourceCandidate {
+  kind: McpPlanInstallSourceCandidateKind;
+  /**
+   * Single-use candidate handle. Consumed by this call, so a replay of the same handle is rejected.
+   */
+  candidateHandle: string;
+  /**
+   * The runtime- or authority-minted `searchId` returned with the search that produced this candidate. A search implementation binds it to private candidate-handle context; a planning implementation must verify that context before returning a plan. The unavailable planning implementation in this contract layer validates presence but does not claim the verification has occurred. It identifies a search rather than a person and must never be joined with user identity to re-identify anyone.
+   */
+  searchId: string;
+}
+/**
+ * Plan from a card supplied directly by the caller, without a preceding search.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpPlanInstallSourceCard".
+ */
+/** @experimental */
+export interface McpPlanInstallSourceCard {
+  kind: McpPlanInstallSourceCardKind;
+  card: McpServerCardReference;
+}
+/**
+ * An MCP server card to be retrieved from a URL through the runtime's hardened fetch boundary.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpServerCardUrl".
+ */
+/** @experimental */
+export interface McpServerCardUrl {
+  kind: McpServerCardUrlKind;
+  mediaType: McpServerCardMediaType;
+  /**
+   * Card URL. Retrieved only through the runtime's hardened boundary, with scheme, credential, address-range, redirect, timeout, and response-size controls applied. Never logged.
+   */
+  url: string;
+}
+/**
+ * An MCP server card supplied inline as an inert document.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpServerCardEmbedded".
+ */
+/** @experimental */
+export interface McpServerCardEmbedded {
+  kind: McpServerCardEmbeddedKind;
+  mediaType: McpServerCardMediaType;
+  /**
+   * The card document verbatim, treated as inert untrusted bytes. The runtime parses and validates it; the host is not expected to interpret it. Never logged.
+   */
+  data: string;
 }
 /**
  * Registration parameters for an external MCP client.
@@ -11036,6 +12450,19 @@ export interface ModeSetResult {
   armInteractiveContinuation?: boolean;
 }
 /**
+ * Result of moving in-flight MCP loading to the background.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "MoveMcpLoadingToBackgroundResult".
+ */
+/** @experimental */
+export interface MoveMcpLoadingToBackgroundResult {
+  /**
+   * Whether an in-flight MCP load was moved to the background, releasing turns that were waiting on it. False when no MCP load was in flight or the waiting turns had already been released.
+   */
+  movedToBackground: boolean;
+}
+/**
  * External SDK input for a named custom model provider. Ingested by the native protocol boundary before host dispatch.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -12435,10 +13862,20 @@ export interface PermissionsFolderTrustAddTrustedResult {
  * No parameters.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "PermissionsGetAllowAllRequest".
+ * via the `definition` "PermissionsGetModeRequest".
  */
 /** @experimental */
-export interface PermissionsGetAllowAllRequest {}
+export interface PermissionsGetModeRequest {}
+/**
+ * Current permission mode.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "PermissionsGetModeResult".
+ */
+/** @experimental */
+export interface PermissionsGetModeResult {
+  mode: PermissionMode;
+}
 /**
  * Indicates whether the operation succeeded.
  *
@@ -12569,25 +14006,6 @@ export interface PermissionsResetSessionApprovalsResult {
   success: boolean;
 }
 /**
- * Allow-all mode to apply for the session.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "PermissionsSetAllowAllRequest".
- */
-/** @experimental */
-export interface PermissionsSetAllowAllRequest {
-  mode?: PermissionsAllowAllMode;
-  /**
-   * Legacy full allow-all toggle. Prefer `mode`; when `mode` is omitted, `enabled: true` is treated as `mode: "on"` and any other value is treated as `mode: "off"`.
-   */
-  enabled?: boolean;
-  /**
-   * Optional model id for the `auto` mode auto-approval LLM judging. Only meaningful when `mode` is `auto`; ignored otherwise. When omitted, the session resolves a default judge model: `gpt-5.5` for CAPI sessions and the session's active model for BYOK sessions.
-   */
-  model?: string;
-  source?: PermissionsSetAllowAllSource;
-}
-/**
  * Allow-all toggle for tool permission requests, with an optional telemetry source.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -12613,6 +14031,35 @@ export interface PermissionsSetApproveAllResult {
    * Whether the operation succeeded
    */
   success: boolean;
+}
+/**
+ * Permission mode to apply for the session.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "PermissionsSetModeRequest".
+ */
+/** @experimental */
+export interface PermissionsSetModeRequest {
+  mode: PermissionMode;
+  /**
+   * Optional judge model id for assisted mode. When omitted, the session resolves the provider default: `gpt-5.5` for CAPI sessions and the active session model for BYOK sessions.
+   */
+  assistedApprovalModel?: string;
+  source?: PermissionModeSource;
+}
+/**
+ * Indicates whether the requested permission mode was applied and reports the authoritative post-mutation mode.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "PermissionsSetModeResult".
+ */
+/** @experimental */
+export interface PermissionsSetModeResult {
+  /**
+   * Whether the operation succeeded
+   */
+  success: boolean;
+  mode: PermissionMode;
 }
 /**
  * Toggles whether permission prompts should be bridged into session events for this client.
@@ -12758,6 +14205,10 @@ export interface PlanSqlTodosRow {
    * Todo status.
    */
   status?: string;
+  /**
+   * Todo creation time, as stored by the session SQL schema's `datetime('now')` default: `YYYY-MM-DD HH:MM:SS` in UTC. Lets clients attribute todos to the work item that created them (e.g. scoping a goal's progress to the todos it produced) rather than to the whole session.
+   */
+  createdAt?: string;
 }
 /**
  * Todo rows + dependency edges read from the session SQL database.
@@ -21130,6 +22581,15 @@ export function createServerRpc(connection: MessageConnection) {
              */
             discover: async (params: McpDiscoverRequest): Promise<McpDiscoverResult> =>
                 connection.sendRequest("mcp.discover", params),
+            /**
+             * Requests a side-effect-free MCP install plan from a catalog candidate handle or a caller-supplied card. This host-implemented server method is available through SDK/TUI hosts; standalone and C-ABI runtimes whose host does not implement server-method dispatch return JSON-RPC MethodNotFound. A runtime with planning available returns a normalised plan and opaque single-use plan handle; a runtime without it returns the typed planning-unavailable result. A completed plan reports resource identity, provenance, eligible transport choices, the user-scope target, required typed values and secret placeholders, the policy result, the configuration changes installing would make, and whether a reload would be needed. Planning never writes configuration, stores a secret, or reloads MCP servers, so abandoning a plan needs no call and leaves nothing behind.
+             *
+             * @param params A side-effect-free request for an MCP install plan. Computing a plan never writes configuration, stores a secret, or reloads MCP servers.
+             *
+             * @returns Outcome of an mcp.planInstall call: either a normalised plan, or one typed refusal. Nothing is written in either case.
+             */
+            planInstall: async (params: McpPlanInstallRequest): Promise<McpPlanInstallResult> =>
+                connection.sendRequest("mcp.planInstall", params),
         },
         /** @experimental */
         extensions: {
@@ -21162,6 +22622,18 @@ export function createServerRpc(connection: MessageConnection) {
          */
         registerExtensionLaunchProvider: async (): Promise<void> =>
             connection.sendRequest("registerExtensionLaunchProvider", {}),
+        /** @experimental */
+        catalog: {
+            /**
+             * Requests a bounded catalog search. This host-implemented server method is available through SDK/TUI hosts; standalone and C-ABI runtimes whose host does not implement server-method dispatch return JSON-RPC MethodNotFound. A runtime with search available returns inert candidate summaries, each with an opaque single-use handle scoped to this runtime instance; a runtime without it returns the typed search-unavailable result. Public authorities may be searched anonymously, while an authority that requires credentials yields the typed authentication-required result. All returned text, URLs, and package metadata are untrusted external data and can never trigger instructions, tools, or installation. Read-only: nothing is installed, configured, or persisted.
+             *
+             * @param params A bounded catalog search. Both the query length and the result count are capped by the schema so a caller cannot request an unbounded scan.
+             *
+             * @returns Outcome of a catalog.search call: either bounded inert candidates, or one typed refusal. Never a partial success.
+             */
+            search: async (params: CatalogSearchRequest): Promise<CatalogSearchResult> =>
+                connection.sendRequest("catalog.search", params),
+        },
         /** @experimental */
         plugins: {
             /**
@@ -22527,6 +23999,13 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             reload: async (): Promise<void> =>
                 connection.sendRequest("session.mcp.reload", { sessionId }),
             /**
+             * Releases any turns waiting on an in-flight MCP load without cancelling the load, letting the agent proceed while MCP servers finish connecting in the background. No-op when no MCP load is in flight or waiting turns were already released.
+             *
+             * @returns Result of moving in-flight MCP loading to the background.
+             */
+            moveLoadingToBackground: async (): Promise<MoveMcpLoadingToBackgroundResult> =>
+                connection.sendRequest("session.mcp.moveLoadingToBackground", { sessionId }),
+            /**
              * Runs an MCP sampling inference on behalf of an MCP server.
              *
              * @param params Identifiers and raw MCP CreateMessageRequest params used to run a sampling inference.
@@ -23101,21 +24580,21 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             setApproveAll: async (params: PermissionsSetApproveAllRequest): Promise<PermissionsSetApproveAllResult> =>
                 connection.sendRequest("session.permissions.setApproveAll", { sessionId, ...params }),
             /**
-             * Sets the allow-all permission mode for the session. Used by attach-mode clients (e.g. LocalRpcSession's `/allow-all` forwarder) to flip the target session's permission state. The `on` mode swaps in unrestricted path and URL managers and emits `session.permissions_changed` on transition; the `auto` mode keeps normal prompt paths active while attaching LLM safety recommendations. The result returns the authoritative post-mutation state so callers can update their local mirrors without racing the `session.permissions_changed` notification on the same wire.
+             * Sets the permission mode for the session. `manual` follows the normal approval flow, `assisted` attaches LLM safety recommendations, and `allow-all` automatically approves permission requests. The result returns the authoritative post-mutation mode so callers can update local state without racing the `session.permissions_changed` notification.
              *
-             * @param params Allow-all mode to apply for the session.
+             * @param params Permission mode to apply for the session.
              *
-             * @returns Indicates whether the operation succeeded and reports the post-mutation state.
+             * @returns Indicates whether the requested permission mode was applied and reports the authoritative post-mutation mode.
              */
-            setAllowAll: async (params: PermissionsSetAllowAllRequest): Promise<AllowAllPermissionSetResult> =>
-                connection.sendRequest("session.permissions.setAllowAll", { sessionId, ...params }),
+            setMode: async (params: PermissionsSetModeRequest): Promise<PermissionsSetModeResult> =>
+                connection.sendRequest("session.permissions.setMode", { sessionId, ...params }),
             /**
-             * Returns the current allow-all permission mode for the session.
+             * Returns the current permission mode for the session.
              *
-             * @returns Current allow-all permission mode.
+             * @returns Current permission mode.
              */
-            getAllowAll: async (): Promise<AllowAllPermissionState> =>
-                connection.sendRequest("session.permissions.getAllowAll", { sessionId }),
+            getMode: async (): Promise<PermissionsGetModeResult> =>
+                connection.sendRequest("session.permissions.getMode", { sessionId }),
             /**
              * Adds or removes session-scoped or location-scoped permission rules.
              *

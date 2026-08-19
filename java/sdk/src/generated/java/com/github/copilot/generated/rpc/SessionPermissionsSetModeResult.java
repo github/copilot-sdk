@@ -14,7 +14,7 @@ import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * No parameters.
+ * Indicates whether the requested permission mode was applied and reports the authoritative post-mutation mode.
  *
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
@@ -23,8 +23,10 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record SessionPermissionsGetAllowAllParams(
-    /** Target session identifier */
-    @JsonProperty("sessionId") String sessionId
+public record SessionPermissionsSetModeResult(
+    /** Whether the operation succeeded */
+    @JsonProperty("success") Boolean success,
+    /** Authoritative permission mode after the mutation */
+    @JsonProperty("mode") PermissionMode mode
 ) {
 }

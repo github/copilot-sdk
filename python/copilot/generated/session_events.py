@@ -138,6 +138,7 @@ class SessionEventType(Enum):
     SESSION_MODEL_CHANGE = "session.model_change"
     SESSION_MODE_CHANGED = "session.mode_changed"
     SESSION_SESSION_LIMITS_CHANGED = "session.session_limits_changed"
+    # Experimental: this event is part of an experimental API and may change or be removed.
     SESSION_PERMISSIONS_CHANGED = "session.permissions_changed"
     SESSION_PLAN_CHANGED = "session.plan_changed"
     SESSION_TODOS_CHANGED = "session.todos_changed"
@@ -924,21 +925,21 @@ class OmittedBinaryResult:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
-class PermissionAutoApproval:
-    "Auto-approval judge information attached to a permission request. Present (non-null) only when the session's allow-all mode is \"auto\"; its absence means auto mode was off and the judge did not evaluate the request. The `recommendation` conveys the judge's disposition for this request."
-    recommendation: AutoApprovalRecommendation
-    failure_reason: AutoApprovalJudgeFailureReason | None = None
+class PermissionAssistedApproval:
+    "Assisted-approval judge information attached to a permission request. Present only in assisted mode; its absence means the judge did not evaluate the request. The `recommendation` conveys the judge's disposition for this request."
+    recommendation: AssistedApprovalRecommendation
+    failure_reason: AssistedApprovalJudgeFailureReason | None = None
     model: str | None = None
     reason: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "PermissionAutoApproval":
+    def from_dict(obj: Any) -> "PermissionAssistedApproval":
         assert isinstance(obj, dict)
-        recommendation = parse_enum(AutoApprovalRecommendation, obj.get("recommendation"))
-        failure_reason = from_union([from_none, lambda x: parse_enum(AutoApprovalJudgeFailureReason, x)], obj.get("failureReason"))
+        recommendation = parse_enum(AssistedApprovalRecommendation, obj.get("recommendation"))
+        failure_reason = from_union([from_none, lambda x: parse_enum(AssistedApprovalJudgeFailureReason, x)], obj.get("failureReason"))
         model = from_union([from_none, from_str], obj.get("model"))
         reason = from_union([from_none, from_str], obj.get("reason"))
-        return PermissionAutoApproval(
+        return PermissionAssistedApproval(
             recommendation=recommendation,
             failure_reason=failure_reason,
             model=model,
@@ -947,9 +948,9 @@ class PermissionAutoApproval:
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["recommendation"] = to_enum(AutoApprovalRecommendation, self.recommendation)
+        result["recommendation"] = to_enum(AssistedApprovalRecommendation, self.recommendation)
         if self.failure_reason is not None:
-            result["failureReason"] = from_union([from_none, lambda x: to_enum(AutoApprovalJudgeFailureReason, x)], self.failure_reason)
+            result["failureReason"] = from_union([from_none, lambda x: to_enum(AssistedApprovalJudgeFailureReason, x)], self.failure_reason)
         if self.model is not None:
             result["model"] = from_union([from_none, from_str], self.model)
         if self.reason is not None:
@@ -1336,6 +1337,38 @@ class SessionManagedSettingsResolvedData:
             result["permissionsAllowIntersected"] = from_union([from_none, from_bool], self.permissions_allow_intersected)
         if self.settings is not None:
             result["settings"] = self.settings
+        return result
+
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class SessionPermissionsChangedData:
+    "Permission-mode transition details."
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    mode: PermissionMode
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    previous_mode: PermissionMode
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    assisted_approval_model: str | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "SessionPermissionsChangedData":
+        assert isinstance(obj, dict)
+        mode = parse_enum(PermissionMode, obj.get("mode"))
+        previous_mode = parse_enum(PermissionMode, obj.get("previousMode"))
+        assisted_approval_model = from_union([from_none, from_str], obj.get("assistedApprovalModel"))
+        return SessionPermissionsChangedData(
+            mode=mode,
+            previous_mode=previous_mode,
+            assisted_approval_model=assisted_approval_model,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["mode"] = to_enum(PermissionMode, self.mode)
+        result["previousMode"] = to_enum(PermissionMode, self.previous_mode)
+        if self.assisted_approval_model is not None:
+            result["assistedApprovalModel"] = from_union([from_none, from_str], self.assisted_approval_model)
         return result
 
 
@@ -4876,7 +4909,7 @@ class PermissionPromptRequestCommands:
     intention: str
     kind: ClassVar[str] = "commands"
     # Experimental: this field is part of an experimental API and may change or be removed.
-    auto_approval: PermissionAutoApproval | None = None
+    assisted_approval: PermissionAssistedApproval | None = None
     managed_approval_required: bool | None = None
     tool_call_id: str | None = None
     warning: str | None = None
@@ -4888,7 +4921,7 @@ class PermissionPromptRequestCommands:
         command_identifiers = from_list(from_str, obj.get("commandIdentifiers"))
         full_command_text = from_str(obj.get("fullCommandText"))
         intention = from_str(obj.get("intention"))
-        auto_approval = from_union([from_none, PermissionAutoApproval.from_dict], obj.get("autoApproval"))
+        assisted_approval = from_union([from_none, PermissionAssistedApproval.from_dict], obj.get("assistedApproval"))
         managed_approval_required = from_union([from_none, from_bool], obj.get("managedApprovalRequired"))
         tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
         warning = from_union([from_none, from_str], obj.get("warning"))
@@ -4897,7 +4930,7 @@ class PermissionPromptRequestCommands:
             command_identifiers=command_identifiers,
             full_command_text=full_command_text,
             intention=intention,
-            auto_approval=auto_approval,
+            assisted_approval=assisted_approval,
             managed_approval_required=managed_approval_required,
             tool_call_id=tool_call_id,
             warning=warning,
@@ -4910,8 +4943,8 @@ class PermissionPromptRequestCommands:
         result["fullCommandText"] = from_str(self.full_command_text)
         result["intention"] = from_str(self.intention)
         result["kind"] = self.kind
-        if self.auto_approval is not None:
-            result["autoApproval"] = from_union([from_none, lambda x: to_class(PermissionAutoApproval, x)], self.auto_approval)
+        if self.assisted_approval is not None:
+            result["assistedApproval"] = from_union([from_none, lambda x: to_class(PermissionAssistedApproval, x)], self.assisted_approval)
         if self.managed_approval_required is not None:
             result["managedApprovalRequired"] = from_union([from_none, from_bool], self.managed_approval_required)
         if self.tool_call_id is not None:
@@ -4929,7 +4962,7 @@ class PermissionPromptRequestCustomTool:
     tool_name: str
     args: Any = None
     # Experimental: this field is part of an experimental API and may change or be removed.
-    auto_approval: PermissionAutoApproval | None = None
+    assisted_approval: PermissionAssistedApproval | None = None
     tool_call_id: str | None = None
 
     @staticmethod
@@ -4938,13 +4971,13 @@ class PermissionPromptRequestCustomTool:
         tool_description = from_str(obj.get("toolDescription"))
         tool_name = from_str(obj.get("toolName"))
         args = obj.get("args")
-        auto_approval = from_union([from_none, PermissionAutoApproval.from_dict], obj.get("autoApproval"))
+        assisted_approval = from_union([from_none, PermissionAssistedApproval.from_dict], obj.get("assistedApproval"))
         tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
         return PermissionPromptRequestCustomTool(
             tool_description=tool_description,
             tool_name=tool_name,
             args=args,
-            auto_approval=auto_approval,
+            assisted_approval=assisted_approval,
             tool_call_id=tool_call_id,
         )
 
@@ -4955,8 +4988,8 @@ class PermissionPromptRequestCustomTool:
         result["toolName"] = from_str(self.tool_name)
         if self.args is not None:
             result["args"] = self.args
-        if self.auto_approval is not None:
-            result["autoApproval"] = from_union([from_none, lambda x: to_class(PermissionAutoApproval, x)], self.auto_approval)
+        if self.assisted_approval is not None:
+            result["assistedApproval"] = from_union([from_none, lambda x: to_class(PermissionAssistedApproval, x)], self.assisted_approval)
         if self.tool_call_id is not None:
             result["toolCallId"] = from_union([from_none, from_str], self.tool_call_id)
         return result
@@ -4969,7 +5002,7 @@ class PermissionPromptRequestExtensionEnvAccess:
     extension_name: str
     kind: ClassVar[str] = "extension-env-access"
     # Experimental: this field is part of an experimental API and may change or be removed.
-    auto_approval: PermissionAutoApproval | None = None
+    assisted_approval: PermissionAssistedApproval | None = None
     tool_call_id: str | None = None
 
     @staticmethod
@@ -4977,12 +5010,12 @@ class PermissionPromptRequestExtensionEnvAccess:
         assert isinstance(obj, dict)
         environment_variables = from_list(from_str, obj.get("environmentVariables"))
         extension_name = from_str(obj.get("extensionName"))
-        auto_approval = from_union([from_none, PermissionAutoApproval.from_dict], obj.get("autoApproval"))
+        assisted_approval = from_union([from_none, PermissionAssistedApproval.from_dict], obj.get("assistedApproval"))
         tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
         return PermissionPromptRequestExtensionEnvAccess(
             environment_variables=environment_variables,
             extension_name=extension_name,
-            auto_approval=auto_approval,
+            assisted_approval=assisted_approval,
             tool_call_id=tool_call_id,
         )
 
@@ -4991,8 +5024,8 @@ class PermissionPromptRequestExtensionEnvAccess:
         result["environmentVariables"] = from_list(from_str, self.environment_variables)
         result["extensionName"] = from_str(self.extension_name)
         result["kind"] = self.kind
-        if self.auto_approval is not None:
-            result["autoApproval"] = from_union([from_none, lambda x: to_class(PermissionAutoApproval, x)], self.auto_approval)
+        if self.assisted_approval is not None:
+            result["assistedApproval"] = from_union([from_none, lambda x: to_class(PermissionAssistedApproval, x)], self.assisted_approval)
         if self.tool_call_id is not None:
             result["toolCallId"] = from_union([from_none, from_str], self.tool_call_id)
         return result
@@ -5004,7 +5037,7 @@ class PermissionPromptRequestExtensionManagement:
     kind: ClassVar[str] = "extension-management"
     operation: str
     # Experimental: this field is part of an experimental API and may change or be removed.
-    auto_approval: PermissionAutoApproval | None = None
+    assisted_approval: PermissionAssistedApproval | None = None
     extension_name: str | None = None
     tool_call_id: str | None = None
 
@@ -5012,12 +5045,12 @@ class PermissionPromptRequestExtensionManagement:
     def from_dict(obj: Any) -> "PermissionPromptRequestExtensionManagement":
         assert isinstance(obj, dict)
         operation = from_str(obj.get("operation"))
-        auto_approval = from_union([from_none, PermissionAutoApproval.from_dict], obj.get("autoApproval"))
+        assisted_approval = from_union([from_none, PermissionAssistedApproval.from_dict], obj.get("assistedApproval"))
         extension_name = from_union([from_none, from_str], obj.get("extensionName"))
         tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
         return PermissionPromptRequestExtensionManagement(
             operation=operation,
-            auto_approval=auto_approval,
+            assisted_approval=assisted_approval,
             extension_name=extension_name,
             tool_call_id=tool_call_id,
         )
@@ -5026,8 +5059,8 @@ class PermissionPromptRequestExtensionManagement:
         result: dict = {}
         result["kind"] = self.kind
         result["operation"] = from_str(self.operation)
-        if self.auto_approval is not None:
-            result["autoApproval"] = from_union([from_none, lambda x: to_class(PermissionAutoApproval, x)], self.auto_approval)
+        if self.assisted_approval is not None:
+            result["assistedApproval"] = from_union([from_none, lambda x: to_class(PermissionAssistedApproval, x)], self.assisted_approval)
         if self.extension_name is not None:
             result["extensionName"] = from_union([from_none, from_str], self.extension_name)
         if self.tool_call_id is not None:
@@ -5042,7 +5075,7 @@ class PermissionPromptRequestExtensionPermissionAccess:
     extension_name: str
     kind: ClassVar[str] = "extension-permission-access"
     # Experimental: this field is part of an experimental API and may change or be removed.
-    auto_approval: PermissionAutoApproval | None = None
+    assisted_approval: PermissionAssistedApproval | None = None
     tool_call_id: str | None = None
 
     @staticmethod
@@ -5050,12 +5083,12 @@ class PermissionPromptRequestExtensionPermissionAccess:
         assert isinstance(obj, dict)
         capabilities = from_list(from_str, obj.get("capabilities"))
         extension_name = from_str(obj.get("extensionName"))
-        auto_approval = from_union([from_none, PermissionAutoApproval.from_dict], obj.get("autoApproval"))
+        assisted_approval = from_union([from_none, PermissionAssistedApproval.from_dict], obj.get("assistedApproval"))
         tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
         return PermissionPromptRequestExtensionPermissionAccess(
             capabilities=capabilities,
             extension_name=extension_name,
-            auto_approval=auto_approval,
+            assisted_approval=assisted_approval,
             tool_call_id=tool_call_id,
         )
 
@@ -5064,8 +5097,8 @@ class PermissionPromptRequestExtensionPermissionAccess:
         result["capabilities"] = from_list(from_str, self.capabilities)
         result["extensionName"] = from_str(self.extension_name)
         result["kind"] = self.kind
-        if self.auto_approval is not None:
-            result["autoApproval"] = from_union([from_none, lambda x: to_class(PermissionAutoApproval, x)], self.auto_approval)
+        if self.assisted_approval is not None:
+            result["assistedApproval"] = from_union([from_none, lambda x: to_class(PermissionAssistedApproval, x)], self.assisted_approval)
         if self.tool_call_id is not None:
             result["toolCallId"] = from_union([from_none, from_str], self.tool_call_id)
         return result
@@ -5082,7 +5115,7 @@ class PermissionPromptRequestFactory:
     operation: FactoryPermissionOperation
     phases: list[FactoryPermissionPhase]
     # Experimental: this field is part of an experimental API and may change or be removed.
-    auto_approval: PermissionAutoApproval | None = None
+    assisted_approval: PermissionAssistedApproval | None = None
     declared_max_ai_credits: float | None = None
     declared_max_concurrent_subagents: int | None = None
     declared_max_total_subagents: int | None = None
@@ -5103,7 +5136,7 @@ class PermissionPromptRequestFactory:
         name = from_str(obj.get("name"))
         operation = parse_enum(FactoryPermissionOperation, obj.get("operation"))
         phases = from_list(FactoryPermissionPhase.from_dict, obj.get("phases"))
-        auto_approval = from_union([from_none, PermissionAutoApproval.from_dict], obj.get("autoApproval"))
+        assisted_approval = from_union([from_none, PermissionAssistedApproval.from_dict], obj.get("assistedApproval"))
         declared_max_ai_credits = from_union([from_none, from_float], obj.get("declaredMaxAiCredits"))
         declared_max_concurrent_subagents = from_union([from_none, from_int], obj.get("declaredMaxConcurrentSubagents"))
         declared_max_total_subagents = from_union([from_none, from_int], obj.get("declaredMaxTotalSubagents"))
@@ -5121,7 +5154,7 @@ class PermissionPromptRequestFactory:
             name=name,
             operation=operation,
             phases=phases,
-            auto_approval=auto_approval,
+            assisted_approval=assisted_approval,
             declared_max_ai_credits=declared_max_ai_credits,
             declared_max_concurrent_subagents=declared_max_concurrent_subagents,
             declared_max_total_subagents=declared_max_total_subagents,
@@ -5143,8 +5176,8 @@ class PermissionPromptRequestFactory:
         result["name"] = from_str(self.name)
         result["operation"] = to_enum(FactoryPermissionOperation, self.operation)
         result["phases"] = from_list(lambda x: to_class(FactoryPermissionPhase, x), self.phases)
-        if self.auto_approval is not None:
-            result["autoApproval"] = from_union([from_none, lambda x: to_class(PermissionAutoApproval, x)], self.auto_approval)
+        if self.assisted_approval is not None:
+            result["assistedApproval"] = from_union([from_none, lambda x: to_class(PermissionAssistedApproval, x)], self.assisted_approval)
         if self.declared_max_ai_credits is not None:
             result["declaredMaxAiCredits"] = from_union([from_none, to_float], self.declared_max_ai_credits)
         if self.declared_max_concurrent_subagents is not None:
@@ -5174,7 +5207,7 @@ class PermissionPromptRequestHook:
     kind: ClassVar[str] = "hook"
     tool_name: str
     # Experimental: this field is part of an experimental API and may change or be removed.
-    auto_approval: PermissionAutoApproval | None = None
+    assisted_approval: PermissionAssistedApproval | None = None
     hook_message: str | None = None
     tool_args: Any = None
     tool_call_id: str | None = None
@@ -5183,13 +5216,13 @@ class PermissionPromptRequestHook:
     def from_dict(obj: Any) -> "PermissionPromptRequestHook":
         assert isinstance(obj, dict)
         tool_name = from_str(obj.get("toolName"))
-        auto_approval = from_union([from_none, PermissionAutoApproval.from_dict], obj.get("autoApproval"))
+        assisted_approval = from_union([from_none, PermissionAssistedApproval.from_dict], obj.get("assistedApproval"))
         hook_message = from_union([from_none, from_str], obj.get("hookMessage"))
         tool_args = obj.get("toolArgs")
         tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
         return PermissionPromptRequestHook(
             tool_name=tool_name,
-            auto_approval=auto_approval,
+            assisted_approval=assisted_approval,
             hook_message=hook_message,
             tool_args=tool_args,
             tool_call_id=tool_call_id,
@@ -5199,8 +5232,8 @@ class PermissionPromptRequestHook:
         result: dict = {}
         result["kind"] = self.kind
         result["toolName"] = from_str(self.tool_name)
-        if self.auto_approval is not None:
-            result["autoApproval"] = from_union([from_none, lambda x: to_class(PermissionAutoApproval, x)], self.auto_approval)
+        if self.assisted_approval is not None:
+            result["assistedApproval"] = from_union([from_none, lambda x: to_class(PermissionAssistedApproval, x)], self.assisted_approval)
         if self.hook_message is not None:
             result["hookMessage"] = from_union([from_none, from_str], self.hook_message)
         if self.tool_args is not None:
@@ -5219,7 +5252,7 @@ class PermissionPromptRequestMcp:
     tool_title: str
     args: Any = None
     # Experimental: this field is part of an experimental API and may change or be removed.
-    auto_approval: PermissionAutoApproval | None = None
+    assisted_approval: PermissionAssistedApproval | None = None
     # Experimental: this field is part of an experimental API and may change or be removed.
     permission_recommendation: PermissionRecommendation | None = None
     tool_call_id: str | None = None
@@ -5231,7 +5264,7 @@ class PermissionPromptRequestMcp:
         tool_name = from_str(obj.get("toolName"))
         tool_title = from_str(obj.get("toolTitle"))
         args = obj.get("args")
-        auto_approval = from_union([from_none, PermissionAutoApproval.from_dict], obj.get("autoApproval"))
+        assisted_approval = from_union([from_none, PermissionAssistedApproval.from_dict], obj.get("assistedApproval"))
         permission_recommendation = from_union([from_none, lambda x: parse_enum(PermissionRecommendation, x)], obj.get("permissionRecommendation"))
         tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
         return PermissionPromptRequestMcp(
@@ -5239,7 +5272,7 @@ class PermissionPromptRequestMcp:
             tool_name=tool_name,
             tool_title=tool_title,
             args=args,
-            auto_approval=auto_approval,
+            assisted_approval=assisted_approval,
             permission_recommendation=permission_recommendation,
             tool_call_id=tool_call_id,
         )
@@ -5252,8 +5285,8 @@ class PermissionPromptRequestMcp:
         result["toolTitle"] = from_str(self.tool_title)
         if self.args is not None:
             result["args"] = self.args
-        if self.auto_approval is not None:
-            result["autoApproval"] = from_union([from_none, lambda x: to_class(PermissionAutoApproval, x)], self.auto_approval)
+        if self.assisted_approval is not None:
+            result["assistedApproval"] = from_union([from_none, lambda x: to_class(PermissionAssistedApproval, x)], self.assisted_approval)
         if self.permission_recommendation is not None:
             result["permissionRecommendation"] = from_union([from_none, lambda x: to_enum(PermissionRecommendation, x)], self.permission_recommendation)
         if self.tool_call_id is not None:
@@ -5268,7 +5301,7 @@ class PermissionPromptRequestMemory:
     kind: ClassVar[str] = "memory"
     action: PermissionRequestMemoryAction | None = None
     # Experimental: this field is part of an experimental API and may change or be removed.
-    auto_approval: PermissionAutoApproval | None = None
+    assisted_approval: PermissionAssistedApproval | None = None
     citations: str | None = None
     direction: PermissionRequestMemoryDirection | None = None
     reason: str | None = None
@@ -5280,7 +5313,7 @@ class PermissionPromptRequestMemory:
         assert isinstance(obj, dict)
         fact = from_str(obj.get("fact"))
         action = from_union([from_none, lambda x: parse_enum(PermissionRequestMemoryAction, x)], obj.get("action"))
-        auto_approval = from_union([from_none, PermissionAutoApproval.from_dict], obj.get("autoApproval"))
+        assisted_approval = from_union([from_none, PermissionAssistedApproval.from_dict], obj.get("assistedApproval"))
         citations = from_union([from_none, from_str], obj.get("citations"))
         direction = from_union([from_none, lambda x: parse_enum(PermissionRequestMemoryDirection, x)], obj.get("direction"))
         reason = from_union([from_none, from_str], obj.get("reason"))
@@ -5289,7 +5322,7 @@ class PermissionPromptRequestMemory:
         return PermissionPromptRequestMemory(
             fact=fact,
             action=action,
-            auto_approval=auto_approval,
+            assisted_approval=assisted_approval,
             citations=citations,
             direction=direction,
             reason=reason,
@@ -5303,8 +5336,8 @@ class PermissionPromptRequestMemory:
         result["kind"] = self.kind
         if self.action is not None:
             result["action"] = from_union([from_none, lambda x: to_enum(PermissionRequestMemoryAction, x)], self.action)
-        if self.auto_approval is not None:
-            result["autoApproval"] = from_union([from_none, lambda x: to_class(PermissionAutoApproval, x)], self.auto_approval)
+        if self.assisted_approval is not None:
+            result["assistedApproval"] = from_union([from_none, lambda x: to_class(PermissionAssistedApproval, x)], self.assisted_approval)
         if self.citations is not None:
             result["citations"] = from_union([from_none, from_str], self.citations)
         if self.direction is not None:
@@ -5325,7 +5358,7 @@ class PermissionPromptRequestPath:
     kind: ClassVar[str] = "path"
     paths: list[str]
     # Experimental: this field is part of an experimental API and may change or be removed.
-    auto_approval: PermissionAutoApproval | None = None
+    assisted_approval: PermissionAssistedApproval | None = None
     tool_call_id: str | None = None
 
     @staticmethod
@@ -5333,12 +5366,12 @@ class PermissionPromptRequestPath:
         assert isinstance(obj, dict)
         access_kind = parse_enum(PermissionPromptRequestPathAccessKind, obj.get("accessKind"))
         paths = from_list(from_str, obj.get("paths"))
-        auto_approval = from_union([from_none, PermissionAutoApproval.from_dict], obj.get("autoApproval"))
+        assisted_approval = from_union([from_none, PermissionAssistedApproval.from_dict], obj.get("assistedApproval"))
         tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
         return PermissionPromptRequestPath(
             access_kind=access_kind,
             paths=paths,
-            auto_approval=auto_approval,
+            assisted_approval=assisted_approval,
             tool_call_id=tool_call_id,
         )
 
@@ -5347,8 +5380,8 @@ class PermissionPromptRequestPath:
         result["accessKind"] = to_enum(PermissionPromptRequestPathAccessKind, self.access_kind)
         result["kind"] = self.kind
         result["paths"] = from_list(from_str, self.paths)
-        if self.auto_approval is not None:
-            result["autoApproval"] = from_union([from_none, lambda x: to_class(PermissionAutoApproval, x)], self.auto_approval)
+        if self.assisted_approval is not None:
+            result["assistedApproval"] = from_union([from_none, lambda x: to_class(PermissionAssistedApproval, x)], self.assisted_approval)
         if self.tool_call_id is not None:
             result["toolCallId"] = from_union([from_none, from_str], self.tool_call_id)
         return result
@@ -5361,7 +5394,7 @@ class PermissionPromptRequestRead:
     kind: ClassVar[str] = "read"
     path: str
     # Experimental: this field is part of an experimental API and may change or be removed.
-    auto_approval: PermissionAutoApproval | None = None
+    assisted_approval: PermissionAssistedApproval | None = None
     managed_approval_required: bool | None = None
     tool_call_id: str | None = None
 
@@ -5370,13 +5403,13 @@ class PermissionPromptRequestRead:
         assert isinstance(obj, dict)
         intention = from_str(obj.get("intention"))
         path = from_str(obj.get("path"))
-        auto_approval = from_union([from_none, PermissionAutoApproval.from_dict], obj.get("autoApproval"))
+        assisted_approval = from_union([from_none, PermissionAssistedApproval.from_dict], obj.get("assistedApproval"))
         managed_approval_required = from_union([from_none, from_bool], obj.get("managedApprovalRequired"))
         tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
         return PermissionPromptRequestRead(
             intention=intention,
             path=path,
-            auto_approval=auto_approval,
+            assisted_approval=assisted_approval,
             managed_approval_required=managed_approval_required,
             tool_call_id=tool_call_id,
         )
@@ -5386,8 +5419,8 @@ class PermissionPromptRequestRead:
         result["intention"] = from_str(self.intention)
         result["kind"] = self.kind
         result["path"] = from_str(self.path)
-        if self.auto_approval is not None:
-            result["autoApproval"] = from_union([from_none, lambda x: to_class(PermissionAutoApproval, x)], self.auto_approval)
+        if self.assisted_approval is not None:
+            result["assistedApproval"] = from_union([from_none, lambda x: to_class(PermissionAssistedApproval, x)], self.assisted_approval)
         if self.managed_approval_required is not None:
             result["managedApprovalRequired"] = from_union([from_none, from_bool], self.managed_approval_required)
         if self.tool_call_id is not None:
@@ -5402,7 +5435,7 @@ class PermissionPromptRequestUrl:
     kind: ClassVar[str] = "url"
     url: str
     # Experimental: this field is part of an experimental API and may change or be removed.
-    auto_approval: PermissionAutoApproval | None = None
+    assisted_approval: PermissionAssistedApproval | None = None
     managed_approval_required: bool | None = None
     redirected_from: str | None = None
     request_sandbox_bypass: bool | None = None
@@ -5414,7 +5447,7 @@ class PermissionPromptRequestUrl:
         assert isinstance(obj, dict)
         intention = from_str(obj.get("intention"))
         url = from_str(obj.get("url"))
-        auto_approval = from_union([from_none, PermissionAutoApproval.from_dict], obj.get("autoApproval"))
+        assisted_approval = from_union([from_none, PermissionAssistedApproval.from_dict], obj.get("assistedApproval"))
         managed_approval_required = from_union([from_none, from_bool], obj.get("managedApprovalRequired"))
         redirected_from = from_union([from_none, from_str], obj.get("redirectedFrom"))
         request_sandbox_bypass = from_union([from_none, from_bool], obj.get("requestSandboxBypass"))
@@ -5423,7 +5456,7 @@ class PermissionPromptRequestUrl:
         return PermissionPromptRequestUrl(
             intention=intention,
             url=url,
-            auto_approval=auto_approval,
+            assisted_approval=assisted_approval,
             managed_approval_required=managed_approval_required,
             redirected_from=redirected_from,
             request_sandbox_bypass=request_sandbox_bypass,
@@ -5436,8 +5469,8 @@ class PermissionPromptRequestUrl:
         result["intention"] = from_str(self.intention)
         result["kind"] = self.kind
         result["url"] = from_str(self.url)
-        if self.auto_approval is not None:
-            result["autoApproval"] = from_union([from_none, lambda x: to_class(PermissionAutoApproval, x)], self.auto_approval)
+        if self.assisted_approval is not None:
+            result["assistedApproval"] = from_union([from_none, lambda x: to_class(PermissionAssistedApproval, x)], self.assisted_approval)
         if self.managed_approval_required is not None:
             result["managedApprovalRequired"] = from_union([from_none, from_bool], self.managed_approval_required)
         if self.redirected_from is not None:
@@ -5460,7 +5493,7 @@ class PermissionPromptRequestWrite:
     intention: str
     kind: ClassVar[str] = "write"
     # Experimental: this field is part of an experimental API and may change or be removed.
-    auto_approval: PermissionAutoApproval | None = None
+    assisted_approval: PermissionAssistedApproval | None = None
     managed_approval_required: bool | None = None
     new_file_contents: str | None = None
     tool_call_id: str | None = None
@@ -5472,7 +5505,7 @@ class PermissionPromptRequestWrite:
         diff = from_str(obj.get("diff"))
         file_name = from_str(obj.get("fileName"))
         intention = from_str(obj.get("intention"))
-        auto_approval = from_union([from_none, PermissionAutoApproval.from_dict], obj.get("autoApproval"))
+        assisted_approval = from_union([from_none, PermissionAssistedApproval.from_dict], obj.get("assistedApproval"))
         managed_approval_required = from_union([from_none, from_bool], obj.get("managedApprovalRequired"))
         new_file_contents = from_union([from_none, from_str], obj.get("newFileContents"))
         tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
@@ -5481,7 +5514,7 @@ class PermissionPromptRequestWrite:
             diff=diff,
             file_name=file_name,
             intention=intention,
-            auto_approval=auto_approval,
+            assisted_approval=assisted_approval,
             managed_approval_required=managed_approval_required,
             new_file_contents=new_file_contents,
             tool_call_id=tool_call_id,
@@ -5494,8 +5527,8 @@ class PermissionPromptRequestWrite:
         result["fileName"] = from_str(self.file_name)
         result["intention"] = from_str(self.intention)
         result["kind"] = self.kind
-        if self.auto_approval is not None:
-            result["autoApproval"] = from_union([from_none, lambda x: to_class(PermissionAutoApproval, x)], self.auto_approval)
+        if self.assisted_approval is not None:
+            result["assistedApproval"] = from_union([from_none, lambda x: to_class(PermissionAssistedApproval, x)], self.assisted_approval)
         if self.managed_approval_required is not None:
             result["managedApprovalRequired"] = from_union([from_none, from_bool], self.managed_approval_required)
         if self.new_file_contents is not None:
@@ -5848,7 +5881,8 @@ class PermissionRequestMemory:
     fact: str
     kind: ClassVar[str] = "memory"
     action: PermissionRequestMemoryAction | None = None
-    auto_approval: PermissionAutoApproval | None = None
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    assisted_approval: PermissionAssistedApproval | None = None
     citations: str | None = None
     direction: PermissionRequestMemoryDirection | None = None
     reason: str | None = None
@@ -5863,7 +5897,7 @@ class PermissionRequestMemory:
         assert isinstance(obj, dict)
         fact = from_str(obj.get("fact"))
         action = from_union([from_none, lambda x: parse_enum(PermissionRequestMemoryAction, x)], obj.get("action"))
-        auto_approval = from_union([from_none, PermissionAutoApproval.from_dict], obj.get("autoApproval"))
+        assisted_approval = from_union([from_none, PermissionAssistedApproval.from_dict], obj.get("assistedApproval"))
         citations = from_union([from_none, from_str], obj.get("citations"))
         direction = from_union([from_none, lambda x: parse_enum(PermissionRequestMemoryDirection, x)], obj.get("direction"))
         reason = from_union([from_none, from_str], obj.get("reason"))
@@ -5875,7 +5909,7 @@ class PermissionRequestMemory:
         return PermissionRequestMemory(
             fact=fact,
             action=action,
-            auto_approval=auto_approval,
+            assisted_approval=assisted_approval,
             citations=citations,
             direction=direction,
             reason=reason,
@@ -5892,8 +5926,8 @@ class PermissionRequestMemory:
         result["kind"] = self.kind
         if self.action is not None:
             result["action"] = from_union([from_none, lambda x: to_enum(PermissionRequestMemoryAction, x)], self.action)
-        if self.auto_approval is not None:
-            result["autoApproval"] = from_union([from_none, lambda x: to_class(PermissionAutoApproval, x)], self.auto_approval)
+        if self.assisted_approval is not None:
+            result["assistedApproval"] = from_union([from_none, lambda x: to_class(PermissionAssistedApproval, x)], self.assisted_approval)
         if self.citations is not None:
             result["citations"] = from_union([from_none, from_str], self.citations)
         if self.direction is not None:
@@ -7332,41 +7366,6 @@ class SessionModelChangeData:
             result["source"] = from_union([from_none, lambda x: to_enum(ModelChangeSource, x)], self.source)
         if self.verbosity is not None:
             result["verbosity"] = from_union([from_none, lambda x: to_enum(Verbosity, x)], self.verbosity)
-        return result
-
-
-@dataclass
-class SessionPermissionsChangedData:
-    "Permissions change details carrying the aggregate allow-all transition."
-    allow_all_permissions: bool
-    previous_allow_all_permissions: bool
-    # Experimental: this field is part of an experimental API and may change or be removed.
-    allow_all_permission_mode: PermissionAllowAllMode | None = None
-    # Experimental: this field is part of an experimental API and may change or be removed.
-    previous_allow_all_permission_mode: PermissionAllowAllMode | None = None
-
-    @staticmethod
-    def from_dict(obj: Any) -> "SessionPermissionsChangedData":
-        assert isinstance(obj, dict)
-        allow_all_permissions = from_bool(obj.get("allowAllPermissions"))
-        previous_allow_all_permissions = from_bool(obj.get("previousAllowAllPermissions"))
-        allow_all_permission_mode = from_union([from_none, lambda x: parse_enum(PermissionAllowAllMode, x)], obj.get("allowAllPermissionMode"))
-        previous_allow_all_permission_mode = from_union([from_none, lambda x: parse_enum(PermissionAllowAllMode, x)], obj.get("previousAllowAllPermissionMode"))
-        return SessionPermissionsChangedData(
-            allow_all_permissions=allow_all_permissions,
-            previous_allow_all_permissions=previous_allow_all_permissions,
-            allow_all_permission_mode=allow_all_permission_mode,
-            previous_allow_all_permission_mode=previous_allow_all_permission_mode,
-        )
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["allowAllPermissions"] = from_bool(self.allow_all_permissions)
-        result["previousAllowAllPermissions"] = from_bool(self.previous_allow_all_permissions)
-        if self.allow_all_permission_mode is not None:
-            result["allowAllPermissionMode"] = from_union([from_none, lambda x: to_enum(PermissionAllowAllMode, x)], self.allow_all_permission_mode)
-        if self.previous_allow_all_permission_mode is not None:
-            result["previousAllowAllPermissionMode"] = from_union([from_none, lambda x: to_enum(PermissionAllowAllMode, x)], self.previous_allow_all_permission_mode)
         return result
 
 
@@ -10527,8 +10526,8 @@ PermissionResult = PermissionApproved | PermissionApprovedForSession | Permissio
 
 
 # Experimental: this enum is part of an experimental API and may change or be removed.
-class AutoApprovalJudgeFailureReason(Enum):
-    "Why the auto-approval judge produced no usable recommendation. Present only alongside an `error` recommendation, where the human-readable reason is a fixed string and therefore cannot distinguish these cases. Intended to make a judge failure reportable by a consumer that has no access to the host's logs."
+class AssistedApprovalJudgeFailureReason(Enum):
+    "Why the assisted-approval judge produced no usable recommendation. Present only alongside an `error` recommendation, where the human-readable reason is a fixed string and therefore cannot distinguish these cases. Intended to make a judge failure reportable by a consumer that has no access to the host's logs."
     # The judge model call exceeded its deadline.
     TIMEOUT = "timeout"
     # The judge model call was cancelled before it returned.
@@ -10542,13 +10541,13 @@ class AutoApprovalJudgeFailureReason(Enum):
 
 
 # Experimental: this enum is part of an experimental API and may change or be removed.
-class AutoApprovalRecommendation(Enum):
-    "Outcome of the auto-approval safety judge for a permission request. Present only when auto mode is enabled; its absence means the judge did not evaluate the request (auto mode was off)."
+class AssistedApprovalRecommendation(Enum):
+    "Outcome of the assisted-approval safety judge for a permission request. Present only in assisted mode; its absence means the judge did not evaluate the request."
     # The judge evaluated the request and recommends automatically approving it.
     APPROVE = "approve"
-    # The judge evaluated the request and does not recommend auto-approving it; explicit approval is required. Whether that means prompting, denying, or something else is the consumer's decision.
+    # The judge evaluated the request and does not recommend automatically approving it; explicit approval is required. Whether that means prompting, denying, or something else is the consumer's decision.
     REQUIRE_APPROVAL = "requireApproval"
-    # Auto mode is enabled, but this request category is never auto-approvable (for example, sandbox-bypass requests), so the judge was not consulted.
+    # Assisted mode is enabled, but this request category is never automatically approvable (for example, sandbox-bypass requests), so the judge was not consulted.
     EXCLUDED = "excluded"
     # The judge was consulted but did not return a usable recommendation, so the request requires explicit approval.
     ERROR = "error"
@@ -10566,14 +10565,14 @@ class CitationProvider(Enum):
 
 
 # Experimental: this enum is part of an experimental API and may change or be removed.
-class PermissionAllowAllMode(Enum):
-    "Allow-all mode for the session."
+class PermissionMode(Enum):
+    "Permission mode for the session."
     # Permission requests follow the normal approval flow.
-    OFF = "off"
+    MANUAL = "manual"
+    # Permission requests include an LLM safety recommendation; clients may automatically approve requests judged acceptable.
+    ASSISTED = "assisted"
     # Tool, path, and URL permission requests are automatically approved.
-    ON = "on"
-    # Permission requests follow the normal approval flow with an LLM advisory recommendation attached; clients may choose to auto-approve requests the judge evaluated as acceptable.
-    AUTO = "auto"
+    ALLOW_ALL = "allow-all"
 
 
 # Experimental: this enum is part of an experimental API and may change or be removed.
@@ -10838,12 +10837,12 @@ class ManagedSettingsEnforcedAction(Enum):
 
 class ManagedSettingsEnforcedEscalation(Enum):
     "For a `bypass_permissions_blocked` action, which permission-escalation primitive was refused"
-    # Full allow-all ("/allow-all on") permissions — auto-approving tools, paths, and URLs.
+    # Full allow-all permissions — automatically approving tools, paths, and URLs.
     ALLOW_ALL = "allow_all"
-    # Auto-approval of all tool permission requests.
+    # Automatic approval of all tool permission requests.
     APPROVE_ALL = "approve_all"
-    # Advisory auto-approval ("/allow-all auto") mode — keeps normal prompt paths and adds LLM-advised approval, distinct from full allow-all.
-    AUTO_APPROVAL = "auto_approval"
+    # Assisted mode — keeps normal prompt paths and adds an LLM recommendation, distinct from allow-all.
+    ASSISTED_APPROVAL = "assisted_approval"
     # Unrestricted filesystem access outside the session's allowed directories.
     UNRESTRICTED_PATHS = "unrestricted_paths"
     # Unrestricted URL fetch access.
@@ -11467,6 +11466,8 @@ __all__ = [
     "AssistantUsageCopilotUsageTokenDetail",
     "AssistantUsageData",
     "AssistantUsageTransport",
+    "AssistedApprovalJudgeFailureReason",
+    "AssistedApprovalRecommendation",
     "Attachment",
     "AttachmentBlob",
     "AttachmentDirectory",
@@ -11490,8 +11491,6 @@ __all__ = [
     "AttachmentSelectionDetails",
     "AttachmentSelectionDetailsEnd",
     "AttachmentSelectionDetailsStart",
-    "AutoApprovalJudgeFailureReason",
-    "AutoApprovalRecommendation",
     "AutoModeResolvedReasoningBucket",
     "AutoModeSwitchCompletedData",
     "AutoModeSwitchRequestedData",
@@ -11593,11 +11592,10 @@ __all__ = [
     "OmittedBinaryResult",
     "OmittedBinaryType",
     "PendingMessagesModifiedData",
-    "PermissionAllowAllMode",
     "PermissionApproved",
     "PermissionApprovedForLocation",
     "PermissionApprovedForSession",
-    "PermissionAutoApproval",
+    "PermissionAssistedApproval",
     "PermissionCancelled",
     "PermissionCompletedData",
     "PermissionDeniedByContentExclusionPolicy",
@@ -11605,6 +11603,7 @@ __all__ = [
     "PermissionDeniedByRules",
     "PermissionDeniedInteractivelyByUser",
     "PermissionDeniedNoApprovalRuleAndCouldNotRequestFromUser",
+    "PermissionMode",
     "PermissionPromptRequest",
     "PermissionPromptRequestCommands",
     "PermissionPromptRequestCustomTool",

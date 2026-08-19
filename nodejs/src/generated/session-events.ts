@@ -229,16 +229,16 @@ export type SessionMode =
   /** The agent is working autonomously toward task completion. */
   | "autopilot";
 /**
- * Allow-all mode for the session.
+ * Permission mode for the session.
  */
 /** @experimental */
-export type PermissionAllowAllMode =
+export type PermissionMode =
   /** Permission requests follow the normal approval flow. */
-  | "off"
+  | "manual"
+  /** Permission requests include an LLM safety recommendation; clients may automatically approve requests judged acceptable. */
+  | "assisted"
   /** Tool, path, and URL permission requests are automatically approved. */
-  | "on"
-  /** Permission requests follow the normal approval flow with an LLM advisory recommendation attached; clients may choose to auto-approve requests the judge evaluated as acceptable. */
-  | "auto";
+  | "allow-all";
 /**
  * The type of operation performed on the plan file
  */
@@ -604,10 +604,10 @@ export type PermissionRequestMemoryAction =
   /** Vote on an existing memory. */
   | "vote";
 /**
- * Why the auto-approval judge produced no usable recommendation. Present only alongside an `error` recommendation, where the human-readable reason is a fixed string and therefore cannot distinguish these cases. Intended to make a judge failure reportable by a consumer that has no access to the host's logs.
+ * Why the assisted-approval judge produced no usable recommendation. Present only alongside an `error` recommendation, where the human-readable reason is a fixed string and therefore cannot distinguish these cases. Intended to make a judge failure reportable by a consumer that has no access to the host's logs.
  */
 /** @experimental */
-export type AutoApprovalJudgeFailureReason =
+export type AssistedApprovalJudgeFailureReason =
   /** The judge model call exceeded its deadline. */
   | "timeout"
   /** The judge model call was cancelled before it returned. */
@@ -619,15 +619,15 @@ export type AutoApprovalJudgeFailureReason =
   /** The judge model replied, but the reply carried no ALLOW/DENY verdict. */
   | "parse_error";
 /**
- * Outcome of the auto-approval safety judge for a permission request. Present only when auto mode is enabled; its absence means the judge did not evaluate the request (auto mode was off).
+ * Outcome of the assisted-approval safety judge for a permission request. Present only in assisted mode; its absence means the judge did not evaluate the request.
  */
 /** @experimental */
-export type AutoApprovalRecommendation =
+export type AssistedApprovalRecommendation =
   /** The judge evaluated the request and recommends automatically approving it. */
   | "approve"
-  /** The judge evaluated the request and does not recommend auto-approving it; explicit approval is required. Whether that means prompting, denying, or something else is the consumer's decision. */
+  /** The judge evaluated the request and does not recommend automatically approving it; explicit approval is required. Whether that means prompting, denying, or something else is the consumer's decision. */
   | "requireApproval"
-  /** Auto mode is enabled, but this request category is never auto-approvable (for example, sandbox-bypass requests), so the judge was not consulted. */
+  /** Assisted mode is enabled, but this request category is never automatically approvable (for example, sandbox-bypass requests), so the judge was not consulted. */
   | "excluded"
   /** The judge was consulted but did not return a usable recommendation, so the request requires explicit approval. */
   | "error";
@@ -846,12 +846,12 @@ export type ManagedSettingsEnforcedAction =
  * For a `bypass_permissions_blocked` action, which permission-escalation primitive was refused
  */
 export type ManagedSettingsEnforcedEscalation =
-  /** Full allow-all ("/allow-all on") permissions — auto-approving tools, paths, and URLs. */
+  /** Full allow-all permissions — automatically approving tools, paths, and URLs. */
   | "allow_all"
-  /** Auto-approval of all tool permission requests. */
+  /** Automatic approval of all tool permission requests. */
   | "approve_all"
-  /** Advisory auto-approval ("/allow-all auto") mode — keeps normal prompt paths and adds LLM-advised approval, distinct from full allow-all. */
-  | "auto_approval"
+  /** Assisted mode — keeps normal prompt paths and adds an LLM recommendation, distinct from allow-all. */
+  | "assisted_approval"
   /** Unrestricted filesystem access outside the session's allowed directories. */
   | "unrestricted_paths"
   /** Unrestricted URL fetch access. */
@@ -1821,8 +1821,9 @@ export interface SessionLimitsChangedData {
   sessionLimits: SessionLimitsConfig | null;
 }
 /**
- * Session event "session.permissions_changed". Permissions change details carrying the aggregate allow-all transition.
+ * Session event "session.permissions_changed". Permission-mode transition details.
  */
+/** @experimental */
 export interface PermissionsChangedEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
@@ -1851,29 +1852,28 @@ export interface PermissionsChangedEvent {
   type: "session.permissions_changed";
 }
 /**
- * Permissions change details carrying the aggregate allow-all transition.
+ * Permission-mode transition details.
  */
+/** @experimental */
 export interface PermissionsChangedData {
   /**
-   * Allow-all mode after the change
+   * Explicit LLM judge model override used by assisted mode; omitted when the provider default applies
    *
    * @experimental
    */
-  allowAllPermissionMode?: PermissionAllowAllMode;
+  assistedApprovalModel?: string;
   /**
-   * Aggregate allow-all flag after the change
-   */
-  allowAllPermissions: boolean;
-  /**
-   * Allow-all mode before the change
+   * Permission mode after the change
    *
    * @experimental
    */
-  previousAllowAllPermissionMode?: PermissionAllowAllMode;
+  mode: PermissionMode;
   /**
-   * Aggregate allow-all flag before the change
+   * Permission mode before the change
+   *
+   * @experimental
    */
-  previousAllowAllPermissions: boolean;
+  previousMode: PermissionMode;
 }
 /**
  * Session event "session.plan_changed". Plan file operation details indicating what changed
@@ -6790,7 +6790,12 @@ export interface PermissionRequestUrl {
  */
 export interface PermissionRequestMemory {
   action?: PermissionRequestMemoryAction;
-  autoApproval?: PermissionAutoApproval;
+  /**
+   * Assisted-approval judge information for this request; present only in assisted mode.
+   *
+   * @experimental
+   */
+  assistedApproval?: PermissionAssistedApproval;
   /**
    * Source references for the stored fact (store only)
    */
@@ -6823,11 +6828,11 @@ export interface PermissionRequestMemory {
   toolCallId?: string;
 }
 /**
- * Auto-approval judge information attached to a permission request. Present (non-null) only when the session's allow-all mode is "auto"; its absence means auto mode was off and the judge did not evaluate the request. The `recommendation` conveys the judge's disposition for this request.
+ * Assisted-approval judge information attached to a permission request. Present only in assisted mode; its absence means the judge did not evaluate the request. The `recommendation` conveys the judge's disposition for this request.
  */
 /** @experimental */
-export interface PermissionAutoApproval {
-  failureReason?: AutoApprovalJudgeFailureReason;
+export interface PermissionAssistedApproval {
+  failureReason?: AssistedApprovalJudgeFailureReason;
   /**
    * Model id that produced the recommendation, when the judge was consulted and reported one. Absent for `excluded` (the judge was not consulted) and for failures that occurred before a model was selected.
    */
@@ -6836,7 +6841,7 @@ export interface PermissionAutoApproval {
    * Human-readable reason for the judge's recommendation, when available.
    */
   reason?: string;
-  recommendation: AutoApprovalRecommendation;
+  recommendation: AssistedApprovalRecommendation;
 }
 /**
  * Custom tool invocation permission request
@@ -7041,11 +7046,11 @@ export interface PermissionRequestExtensionEnvAccess {
  */
 export interface PermissionPromptRequestCommands {
   /**
-   * Auto-approval judge information for this request; present only when auto mode is enabled.
+   * Assisted-approval judge information for this request; present only in assisted mode.
    *
    * @experimental
    */
-  autoApproval?: PermissionAutoApproval;
+  assistedApproval?: PermissionAssistedApproval;
   /**
    * Whether the UI can offer session-wide approval for this command pattern
    */
@@ -7084,11 +7089,11 @@ export interface PermissionPromptRequestCommands {
  */
 export interface PermissionPromptRequestWrite {
   /**
-   * Auto-approval judge information for this request; present only when auto mode is enabled.
+   * Assisted-approval judge information for this request; present only in assisted mode.
    *
    * @experimental
    */
-  autoApproval?: PermissionAutoApproval;
+  assistedApproval?: PermissionAssistedApproval;
   /**
    * Whether the UI can offer session-wide approval for file write operations
    */
@@ -7127,11 +7132,11 @@ export interface PermissionPromptRequestWrite {
  */
 export interface PermissionPromptRequestRead {
   /**
-   * Auto-approval judge information for this request; present only when auto mode is enabled.
+   * Assisted-approval judge information for this request; present only in assisted mode.
    *
    * @experimental
    */
-  autoApproval?: PermissionAutoApproval;
+  assistedApproval?: PermissionAssistedApproval;
   /**
    * Human-readable description of why the file is being read
    */
@@ -7162,11 +7167,11 @@ export interface PermissionPromptRequestMcp {
    */
   args?: JsonValue;
   /**
-   * Auto-approval judge information for this request; present only when auto mode is enabled.
+   * Assisted-approval judge information for this request; present only in assisted mode.
    *
    * @experimental
    */
-  autoApproval?: PermissionAutoApproval;
+  assistedApproval?: PermissionAssistedApproval;
   /**
    * Prompt kind discriminator
    */
@@ -7199,11 +7204,11 @@ export interface PermissionPromptRequestMcp {
  */
 export interface PermissionPromptRequestUrl {
   /**
-   * Auto-approval judge information for this request; present only when auto mode is enabled.
+   * Assisted-approval judge information for this request; present only in assisted mode.
    *
    * @experimental
    */
-  autoApproval?: PermissionAutoApproval;
+  assistedApproval?: PermissionAssistedApproval;
   /**
    * Human-readable description of why the URL is being accessed
    */
@@ -7243,11 +7248,11 @@ export interface PermissionPromptRequestUrl {
 export interface PermissionPromptRequestMemory {
   action?: PermissionRequestMemoryAction;
   /**
-   * Auto-approval judge information for this request; present only when auto mode is enabled.
+   * Assisted-approval judge information for this request; present only in assisted mode.
    *
    * @experimental
    */
-  autoApproval?: PermissionAutoApproval;
+  assistedApproval?: PermissionAssistedApproval;
   /**
    * Source references for the stored fact (store only)
    */
@@ -7283,11 +7288,11 @@ export interface PermissionPromptRequestCustomTool {
    */
   args?: JsonValue;
   /**
-   * Auto-approval judge information for this request; present only when auto mode is enabled.
+   * Assisted-approval judge information for this request; present only in assisted mode.
    *
    * @experimental
    */
-  autoApproval?: PermissionAutoApproval;
+  assistedApproval?: PermissionAssistedApproval;
   /**
    * Prompt kind discriminator
    */
@@ -7311,11 +7316,11 @@ export interface PermissionPromptRequestCustomTool {
 export interface PermissionPromptRequestPath {
   accessKind: PermissionPromptRequestPathAccessKind;
   /**
-   * Auto-approval judge information for this request; present only when auto mode is enabled.
+   * Assisted-approval judge information for this request; present only in assisted mode.
    *
    * @experimental
    */
-  autoApproval?: PermissionAutoApproval;
+  assistedApproval?: PermissionAssistedApproval;
   /**
    * Prompt kind discriminator
    */
@@ -7334,11 +7339,11 @@ export interface PermissionPromptRequestPath {
  */
 export interface PermissionPromptRequestHook {
   /**
-   * Auto-approval judge information for this request; present only when auto mode is enabled.
+   * Assisted-approval judge information for this request; present only in assisted mode.
    *
    * @experimental
    */
-  autoApproval?: PermissionAutoApproval;
+  assistedApproval?: PermissionAssistedApproval;
   /**
    * Optional message from the hook explaining why confirmation is needed
    */
@@ -7365,11 +7370,11 @@ export interface PermissionPromptRequestHook {
  */
 export interface PermissionPromptRequestExtensionManagement {
   /**
-   * Auto-approval judge information for this request; present only when auto mode is enabled.
+   * Assisted-approval judge information for this request; present only in assisted mode.
    *
    * @experimental
    */
-  autoApproval?: PermissionAutoApproval;
+  assistedApproval?: PermissionAssistedApproval;
   /**
    * Name of the extension being managed
    */
@@ -7396,11 +7401,11 @@ export interface PermissionPromptRequestFactory {
    */
   approvalKey: string;
   /**
-   * Auto-approval judge information for this request; present only when auto mode is enabled.
+   * Assisted-approval judge information for this request; present only in assisted mode.
    *
    * @experimental
    */
-  autoApproval?: PermissionAutoApproval;
+  assistedApproval?: PermissionAssistedApproval;
   /**
    * Whether this factory is eligible for persistent approval
    */
@@ -7468,11 +7473,11 @@ export interface PermissionPromptRequestFactory {
  */
 export interface PermissionPromptRequestExtensionPermissionAccess {
   /**
-   * Auto-approval judge information for this request; present only when auto mode is enabled.
+   * Assisted-approval judge information for this request; present only in assisted mode.
    *
    * @experimental
    */
-  autoApproval?: PermissionAutoApproval;
+  assistedApproval?: PermissionAssistedApproval;
   /**
    * Capabilities the extension is requesting
    */
@@ -7495,11 +7500,11 @@ export interface PermissionPromptRequestExtensionPermissionAccess {
  */
 export interface PermissionPromptRequestExtensionEnvAccess {
   /**
-   * Auto-approval judge information for this request; present only when auto mode is enabled.
+   * Assisted-approval judge information for this request; present only in assisted mode.
    *
    * @experimental
    */
-  autoApproval?: PermissionAutoApproval;
+  assistedApproval?: PermissionAssistedApproval;
   /**
    * Names of the sensitive environment variables the extension is requesting. Values never appear here.
    *

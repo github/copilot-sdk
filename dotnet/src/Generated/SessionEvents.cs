@@ -382,8 +382,9 @@ public sealed partial class SessionSessionLimitsChangedEvent : SessionEvent
     public required SessionSessionLimitsChangedData Data { get; set; }
 }
 
-/// <summary>Permissions change details carrying the aggregate allow-all transition.</summary>
+/// <summary>Permission-mode transition details.</summary>
 /// <remarks>Represents the <c>session.permissions_changed</c> event.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public sealed partial class SessionPermissionsChangedEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -2205,28 +2206,25 @@ public sealed partial class SessionSessionLimitsChangedData
     public SessionLimitsConfig? SessionLimits { get; set; }
 }
 
-/// <summary>Permissions change details carrying the aggregate allow-all transition.</summary>
+/// <summary>Permission-mode transition details.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed partial class SessionPermissionsChangedData
 {
-    /// <summary>Allow-all mode after the change.</summary>
+    /// <summary>Explicit LLM judge model override used by assisted mode; omitted when the provider default applies.</summary>
     [Experimental(Diagnostics.Experimental)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("allowAllPermissionMode")]
-    public PermissionAllowAllMode? AllowAllPermissionMode { get; set; }
+    [JsonPropertyName("assistedApprovalModel")]
+    public string? AssistedApprovalModel { get; set; }
 
-    /// <summary>Aggregate allow-all flag after the change.</summary>
-    [JsonPropertyName("allowAllPermissions")]
-    public required bool AllowAllPermissions { get; set; }
-
-    /// <summary>Allow-all mode before the change.</summary>
+    /// <summary>Permission mode after the change.</summary>
     [Experimental(Diagnostics.Experimental)]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("previousAllowAllPermissionMode")]
-    public PermissionAllowAllMode? PreviousAllowAllPermissionMode { get; set; }
+    [JsonPropertyName("mode")]
+    public required PermissionMode Mode { get; set; }
 
-    /// <summary>Aggregate allow-all flag before the change.</summary>
-    [JsonPropertyName("previousAllowAllPermissions")]
-    public required bool PreviousAllowAllPermissions { get; set; }
+    /// <summary>Permission mode before the change.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonPropertyName("previousMode")]
+    public required PermissionMode PreviousMode { get; set; }
 }
 
 /// <summary>Plan file operation details indicating what changed.</summary>
@@ -7813,15 +7811,15 @@ public sealed partial class PermissionRequestUrl : PermissionRequest
     public required string Url { get; set; }
 }
 
-/// <summary>Auto-approval judge information attached to a permission request. Present (non-null) only when the session's allow-all mode is "auto"; its absence means auto mode was off and the judge did not evaluate the request. The `recommendation` conveys the judge's disposition for this request.</summary>
-/// <remarks>Nested data type for <c>PermissionAutoApproval</c>.</remarks>
+/// <summary>Assisted-approval judge information attached to a permission request. Present only in assisted mode; its absence means the judge did not evaluate the request. The `recommendation` conveys the judge's disposition for this request.</summary>
+/// <remarks>Nested data type for <c>PermissionAssistedApproval</c>.</remarks>
 [Experimental(Diagnostics.Experimental)]
-public sealed partial class PermissionAutoApproval
+public sealed partial class PermissionAssistedApproval
 {
     /// <summary>Classified cause of an `error` recommendation. Absent for every other recommendation.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("failureReason")]
-    public AutoApprovalJudgeFailureReason? FailureReason { get; set; }
+    public AssistedApprovalJudgeFailureReason? FailureReason { get; set; }
 
     /// <summary>Model id that produced the recommendation, when the judge was consulted and reported one. Absent for `excluded` (the judge was not consulted) and for failures that occurred before a model was selected.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -7833,9 +7831,9 @@ public sealed partial class PermissionAutoApproval
     [JsonPropertyName("reason")]
     public string? Reason { get; set; }
 
-    /// <summary>The auto-approval safety judge's outcome for this request.</summary>
+    /// <summary>The assisted-approval safety judge's outcome for this request.</summary>
     [JsonPropertyName("recommendation")]
-    public required AutoApprovalRecommendation Recommendation { get; set; }
+    public required AssistedApprovalRecommendation Recommendation { get; set; }
 }
 
 /// <summary>Memory operation permission request.</summary>
@@ -7851,10 +7849,11 @@ public sealed partial class PermissionRequestMemory : PermissionRequest
     [JsonPropertyName("action")]
     public PermissionRequestMemoryAction? Action { get; set; }
 
-    /// <summary>Auto-approval judge information for this request; present only when auto mode is enabled.</summary>
+    /// <summary>Assisted-approval judge information for this request; present only in assisted mode.</summary>
+    [Experimental(Diagnostics.Experimental)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("autoApproval")]
-    public PermissionAutoApproval? AutoApproval { get; set; }
+    [JsonPropertyName("assistedApproval")]
+    public PermissionAssistedApproval? AssistedApproval { get; set; }
 
     /// <summary>Source references for the stored fact (store only).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -8153,11 +8152,11 @@ public sealed partial class PermissionPromptRequestCommands : PermissionPromptRe
     [JsonIgnore]
     public override string Kind => "commands";
 
-    /// <summary>Auto-approval judge information for this request; present only when auto mode is enabled.</summary>
+    /// <summary>Assisted-approval judge information for this request; present only in assisted mode.</summary>
     [Experimental(Diagnostics.Experimental)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("autoApproval")]
-    public PermissionAutoApproval? AutoApproval { get; set; }
+    [JsonPropertyName("assistedApproval")]
+    public PermissionAssistedApproval? AssistedApproval { get; set; }
 
     /// <summary>Whether the UI can offer session-wide approval for this command pattern.</summary>
     [JsonPropertyName("canOfferSessionApproval")]
@@ -8199,11 +8198,11 @@ public sealed partial class PermissionPromptRequestWrite : PermissionPromptReque
     [JsonIgnore]
     public override string Kind => "write";
 
-    /// <summary>Auto-approval judge information for this request; present only when auto mode is enabled.</summary>
+    /// <summary>Assisted-approval judge information for this request; present only in assisted mode.</summary>
     [Experimental(Diagnostics.Experimental)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("autoApproval")]
-    public PermissionAutoApproval? AutoApproval { get; set; }
+    [JsonPropertyName("assistedApproval")]
+    public PermissionAssistedApproval? AssistedApproval { get; set; }
 
     /// <summary>Whether the UI can offer session-wide approval for file write operations.</summary>
     [JsonPropertyName("canOfferSessionApproval")]
@@ -8245,11 +8244,11 @@ public sealed partial class PermissionPromptRequestRead : PermissionPromptReques
     [JsonIgnore]
     public override string Kind => "read";
 
-    /// <summary>Auto-approval judge information for this request; present only when auto mode is enabled.</summary>
+    /// <summary>Assisted-approval judge information for this request; present only in assisted mode.</summary>
     [Experimental(Diagnostics.Experimental)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("autoApproval")]
-    public PermissionAutoApproval? AutoApproval { get; set; }
+    [JsonPropertyName("assistedApproval")]
+    public PermissionAssistedApproval? AssistedApproval { get; set; }
 
     /// <summary>Human-readable description of why the file is being read.</summary>
     [JsonPropertyName("intention")]
@@ -8283,11 +8282,11 @@ public sealed partial class PermissionPromptRequestMcp : PermissionPromptRequest
     [JsonPropertyName("args")]
     public JsonElement? Args { get; set; }
 
-    /// <summary>Auto-approval judge information for this request; present only when auto mode is enabled.</summary>
+    /// <summary>Assisted-approval judge information for this request; present only in assisted mode.</summary>
     [Experimental(Diagnostics.Experimental)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("autoApproval")]
-    public PermissionAutoApproval? AutoApproval { get; set; }
+    [JsonPropertyName("assistedApproval")]
+    public PermissionAssistedApproval? AssistedApproval { get; set; }
 
     /// <summary>Advisory runtime permission recommendation. The host remains responsible for deciding the request and may reject it.</summary>
     [Experimental(Diagnostics.Experimental)]
@@ -8321,11 +8320,11 @@ public sealed partial class PermissionPromptRequestUrl : PermissionPromptRequest
     [JsonIgnore]
     public override string Kind => "url";
 
-    /// <summary>Auto-approval judge information for this request; present only when auto mode is enabled.</summary>
+    /// <summary>Assisted-approval judge information for this request; present only in assisted mode.</summary>
     [Experimental(Diagnostics.Experimental)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("autoApproval")]
-    public PermissionAutoApproval? AutoApproval { get; set; }
+    [JsonPropertyName("assistedApproval")]
+    public PermissionAssistedApproval? AssistedApproval { get; set; }
 
     /// <summary>Human-readable description of why the URL is being accessed.</summary>
     [JsonPropertyName("intention")]
@@ -8374,11 +8373,11 @@ public sealed partial class PermissionPromptRequestMemory : PermissionPromptRequ
     [JsonPropertyName("action")]
     public PermissionRequestMemoryAction? Action { get; set; }
 
-    /// <summary>Auto-approval judge information for this request; present only when auto mode is enabled.</summary>
+    /// <summary>Assisted-approval judge information for this request; present only in assisted mode.</summary>
     [Experimental(Diagnostics.Experimental)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("autoApproval")]
-    public PermissionAutoApproval? AutoApproval { get; set; }
+    [JsonPropertyName("assistedApproval")]
+    public PermissionAssistedApproval? AssistedApproval { get; set; }
 
     /// <summary>Source references for the stored fact (store only).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -8423,11 +8422,11 @@ public sealed partial class PermissionPromptRequestCustomTool : PermissionPrompt
     [JsonPropertyName("args")]
     public JsonElement? Args { get; set; }
 
-    /// <summary>Auto-approval judge information for this request; present only when auto mode is enabled.</summary>
+    /// <summary>Assisted-approval judge information for this request; present only in assisted mode.</summary>
     [Experimental(Diagnostics.Experimental)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("autoApproval")]
-    public PermissionAutoApproval? AutoApproval { get; set; }
+    [JsonPropertyName("assistedApproval")]
+    public PermissionAssistedApproval? AssistedApproval { get; set; }
 
     /// <summary>Tool call ID that triggered this permission request.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -8455,11 +8454,11 @@ public sealed partial class PermissionPromptRequestPath : PermissionPromptReques
     [JsonPropertyName("accessKind")]
     public required PermissionPromptRequestPathAccessKind AccessKind { get; set; }
 
-    /// <summary>Auto-approval judge information for this request; present only when auto mode is enabled.</summary>
+    /// <summary>Assisted-approval judge information for this request; present only in assisted mode.</summary>
     [Experimental(Diagnostics.Experimental)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("autoApproval")]
-    public PermissionAutoApproval? AutoApproval { get; set; }
+    [JsonPropertyName("assistedApproval")]
+    public PermissionAssistedApproval? AssistedApproval { get; set; }
 
     /// <summary>File paths that require explicit approval.</summary>
     [JsonPropertyName("paths")]
@@ -8479,11 +8478,11 @@ public sealed partial class PermissionPromptRequestHook : PermissionPromptReques
     [JsonIgnore]
     public override string Kind => "hook";
 
-    /// <summary>Auto-approval judge information for this request; present only when auto mode is enabled.</summary>
+    /// <summary>Assisted-approval judge information for this request; present only in assisted mode.</summary>
     [Experimental(Diagnostics.Experimental)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("autoApproval")]
-    public PermissionAutoApproval? AutoApproval { get; set; }
+    [JsonPropertyName("assistedApproval")]
+    public PermissionAssistedApproval? AssistedApproval { get; set; }
 
     /// <summary>Optional message from the hook explaining why confirmation is needed.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -8513,11 +8512,11 @@ public sealed partial class PermissionPromptRequestExtensionManagement : Permiss
     [JsonIgnore]
     public override string Kind => "extension-management";
 
-    /// <summary>Auto-approval judge information for this request; present only when auto mode is enabled.</summary>
+    /// <summary>Assisted-approval judge information for this request; present only in assisted mode.</summary>
     [Experimental(Diagnostics.Experimental)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("autoApproval")]
-    public PermissionAutoApproval? AutoApproval { get; set; }
+    [JsonPropertyName("assistedApproval")]
+    public PermissionAssistedApproval? AssistedApproval { get; set; }
 
     /// <summary>Name of the extension being managed.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -8546,11 +8545,11 @@ public sealed partial class PermissionPromptRequestFactory : PermissionPromptReq
     [JsonPropertyName("approvalKey")]
     public required string ApprovalKey { get; set; }
 
-    /// <summary>Auto-approval judge information for this request; present only when auto mode is enabled.</summary>
+    /// <summary>Assisted-approval judge information for this request; present only in assisted mode.</summary>
     [Experimental(Diagnostics.Experimental)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("autoApproval")]
-    public PermissionAutoApproval? AutoApproval { get; set; }
+    [JsonPropertyName("assistedApproval")]
+    public PermissionAssistedApproval? AssistedApproval { get; set; }
 
     /// <summary>Whether this factory is eligible for persistent approval.</summary>
     [JsonPropertyName("canPersistApproval")]
@@ -8631,11 +8630,11 @@ public sealed partial class PermissionPromptRequestExtensionPermissionAccess : P
     [JsonIgnore]
     public override string Kind => "extension-permission-access";
 
-    /// <summary>Auto-approval judge information for this request; present only when auto mode is enabled.</summary>
+    /// <summary>Assisted-approval judge information for this request; present only in assisted mode.</summary>
     [Experimental(Diagnostics.Experimental)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("autoApproval")]
-    public PermissionAutoApproval? AutoApproval { get; set; }
+    [JsonPropertyName("assistedApproval")]
+    public PermissionAssistedApproval? AssistedApproval { get; set; }
 
     /// <summary>Capabilities the extension is requesting.</summary>
     [JsonPropertyName("capabilities")]
@@ -8659,11 +8658,11 @@ public sealed partial class PermissionPromptRequestExtensionEnvAccess : Permissi
     [JsonIgnore]
     public override string Kind => "extension-env-access";
 
-    /// <summary>Auto-approval judge information for this request; present only when auto mode is enabled.</summary>
+    /// <summary>Assisted-approval judge information for this request; present only in assisted mode.</summary>
     [Experimental(Diagnostics.Experimental)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("autoApproval")]
-    public PermissionAutoApproval? AutoApproval { get; set; }
+    [JsonPropertyName("assistedApproval")]
+    public PermissionAssistedApproval? AssistedApproval { get; set; }
 
     /// <summary>Names of the sensitive environment variables the extension is requesting. Values never appear here.</summary>
     [JsonPropertyName("environmentVariables")]
@@ -10011,46 +10010,46 @@ public readonly struct SessionMode : IEquatable<SessionMode>
     }
 }
 
-/// <summary>Allow-all mode for the session.</summary>
+/// <summary>Permission mode for the session.</summary>
 [Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
-public readonly struct PermissionAllowAllMode : IEquatable<PermissionAllowAllMode>
+public readonly struct PermissionMode : IEquatable<PermissionMode>
 {
     private readonly string? _value;
 
-    /// <summary>Initializes a new instance of the <see cref="PermissionAllowAllMode"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="PermissionAllowAllMode"/>.</param>
+    /// <summary>Initializes a new instance of the <see cref="PermissionMode"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="PermissionMode"/>.</param>
     [JsonConstructor]
-    public PermissionAllowAllMode(string value)
+    public PermissionMode(string value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
 
-    /// <summary>Gets the value associated with this <see cref="PermissionAllowAllMode"/>.</summary>
+    /// <summary>Gets the value associated with this <see cref="PermissionMode"/>.</summary>
     public string Value => _value ?? string.Empty;
 
     /// <summary>Permission requests follow the normal approval flow.</summary>
-    public static PermissionAllowAllMode Off { get; } = new("off");
+    public static PermissionMode Manual { get; } = new("manual");
+
+    /// <summary>Permission requests include an LLM safety recommendation; clients may automatically approve requests judged acceptable.</summary>
+    public static PermissionMode Assisted { get; } = new("assisted");
 
     /// <summary>Tool, path, and URL permission requests are automatically approved.</summary>
-    public static PermissionAllowAllMode On { get; } = new("on");
+    public static PermissionMode AllowAll { get; } = new("allow-all");
 
-    /// <summary>Permission requests follow the normal approval flow with an LLM advisory recommendation attached; clients may choose to auto-approve requests the judge evaluated as acceptable.</summary>
-    public static PermissionAllowAllMode Auto { get; } = new("auto");
+    /// <summary>Returns a value indicating whether two <see cref="PermissionMode"/> instances are equivalent.</summary>
+    public static bool operator ==(PermissionMode left, PermissionMode right) => left.Equals(right);
 
-    /// <summary>Returns a value indicating whether two <see cref="PermissionAllowAllMode"/> instances are equivalent.</summary>
-    public static bool operator ==(PermissionAllowAllMode left, PermissionAllowAllMode right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="PermissionAllowAllMode"/> instances are not equivalent.</summary>
-    public static bool operator !=(PermissionAllowAllMode left, PermissionAllowAllMode right) => !(left == right);
+    /// <summary>Returns a value indicating whether two <see cref="PermissionMode"/> instances are not equivalent.</summary>
+    public static bool operator !=(PermissionMode left, PermissionMode right) => !(left == right);
 
     /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is PermissionAllowAllMode other && Equals(other);
+    public override bool Equals(object? obj) => obj is PermissionMode other && Equals(other);
 
     /// <inheritdoc />
-    public bool Equals(PermissionAllowAllMode other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+    public bool Equals(PermissionMode other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
 
     /// <inheritdoc />
     public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
@@ -10058,20 +10057,20 @@ public readonly struct PermissionAllowAllMode : IEquatable<PermissionAllowAllMod
     /// <inheritdoc />
     public override string ToString() => Value;
 
-    /// <summary>Provides a <see cref="JsonConverter{PermissionAllowAllMode}"/> for serializing <see cref="PermissionAllowAllMode"/> instances.</summary>
+    /// <summary>Provides a <see cref="JsonConverter{PermissionMode}"/> for serializing <see cref="PermissionMode"/> instances.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<PermissionAllowAllMode>
+    public sealed class Converter : JsonConverter<PermissionMode>
     {
         /// <inheritdoc />
-        public override PermissionAllowAllMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        public override PermissionMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
             return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, PermissionAllowAllMode value, JsonSerializerOptions options)
+        public override void Write(Utf8JsonWriter writer, PermissionMode value, JsonSerializerOptions options)
         {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PermissionAllowAllMode));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PermissionMode));
         }
     }
 }
@@ -12209,52 +12208,52 @@ public readonly struct PermissionRequestMemoryAction : IEquatable<PermissionRequ
     }
 }
 
-/// <summary>Why the auto-approval judge produced no usable recommendation. Present only alongside an `error` recommendation, where the human-readable reason is a fixed string and therefore cannot distinguish these cases. Intended to make a judge failure reportable by a consumer that has no access to the host's logs.</summary>
+/// <summary>Why the assisted-approval judge produced no usable recommendation. Present only alongside an `error` recommendation, where the human-readable reason is a fixed string and therefore cannot distinguish these cases. Intended to make a judge failure reportable by a consumer that has no access to the host's logs.</summary>
 [Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
-public readonly struct AutoApprovalJudgeFailureReason : IEquatable<AutoApprovalJudgeFailureReason>
+public readonly struct AssistedApprovalJudgeFailureReason : IEquatable<AssistedApprovalJudgeFailureReason>
 {
     private readonly string? _value;
 
-    /// <summary>Initializes a new instance of the <see cref="AutoApprovalJudgeFailureReason"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="AutoApprovalJudgeFailureReason"/>.</param>
+    /// <summary>Initializes a new instance of the <see cref="AssistedApprovalJudgeFailureReason"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="AssistedApprovalJudgeFailureReason"/>.</param>
     [JsonConstructor]
-    public AutoApprovalJudgeFailureReason(string value)
+    public AssistedApprovalJudgeFailureReason(string value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
 
-    /// <summary>Gets the value associated with this <see cref="AutoApprovalJudgeFailureReason"/>.</summary>
+    /// <summary>Gets the value associated with this <see cref="AssistedApprovalJudgeFailureReason"/>.</summary>
     public string Value => _value ?? string.Empty;
 
     /// <summary>The judge model call exceeded its deadline.</summary>
-    public static AutoApprovalJudgeFailureReason Timeout { get; } = new("timeout");
+    public static AssistedApprovalJudgeFailureReason Timeout { get; } = new("timeout");
 
     /// <summary>The judge model call was cancelled before it returned.</summary>
-    public static AutoApprovalJudgeFailureReason Abort { get; } = new("abort");
+    public static AssistedApprovalJudgeFailureReason Abort { get; } = new("abort");
 
     /// <summary>The judge model call completed but returned no content.</summary>
-    public static AutoApprovalJudgeFailureReason EmptyResponse { get; } = new("empty_response");
+    public static AssistedApprovalJudgeFailureReason EmptyResponse { get; } = new("empty_response");
 
     /// <summary>The judge model call failed (for example a transport, authentication, or rate-limit error).</summary>
-    public static AutoApprovalJudgeFailureReason ModelError { get; } = new("model_error");
+    public static AssistedApprovalJudgeFailureReason ModelError { get; } = new("model_error");
 
     /// <summary>The judge model replied, but the reply carried no ALLOW/DENY verdict.</summary>
-    public static AutoApprovalJudgeFailureReason ParseError { get; } = new("parse_error");
+    public static AssistedApprovalJudgeFailureReason ParseError { get; } = new("parse_error");
 
-    /// <summary>Returns a value indicating whether two <see cref="AutoApprovalJudgeFailureReason"/> instances are equivalent.</summary>
-    public static bool operator ==(AutoApprovalJudgeFailureReason left, AutoApprovalJudgeFailureReason right) => left.Equals(right);
+    /// <summary>Returns a value indicating whether two <see cref="AssistedApprovalJudgeFailureReason"/> instances are equivalent.</summary>
+    public static bool operator ==(AssistedApprovalJudgeFailureReason left, AssistedApprovalJudgeFailureReason right) => left.Equals(right);
 
-    /// <summary>Returns a value indicating whether two <see cref="AutoApprovalJudgeFailureReason"/> instances are not equivalent.</summary>
-    public static bool operator !=(AutoApprovalJudgeFailureReason left, AutoApprovalJudgeFailureReason right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is AutoApprovalJudgeFailureReason other && Equals(other);
+    /// <summary>Returns a value indicating whether two <see cref="AssistedApprovalJudgeFailureReason"/> instances are not equivalent.</summary>
+    public static bool operator !=(AssistedApprovalJudgeFailureReason left, AssistedApprovalJudgeFailureReason right) => !(left == right);
 
     /// <inheritdoc />
-    public bool Equals(AutoApprovalJudgeFailureReason other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+    public override bool Equals(object? obj) => obj is AssistedApprovalJudgeFailureReason other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(AssistedApprovalJudgeFailureReason other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
 
     /// <inheritdoc />
     public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
@@ -12262,67 +12261,67 @@ public readonly struct AutoApprovalJudgeFailureReason : IEquatable<AutoApprovalJ
     /// <inheritdoc />
     public override string ToString() => Value;
 
-    /// <summary>Provides a <see cref="JsonConverter{AutoApprovalJudgeFailureReason}"/> for serializing <see cref="AutoApprovalJudgeFailureReason"/> instances.</summary>
+    /// <summary>Provides a <see cref="JsonConverter{AssistedApprovalJudgeFailureReason}"/> for serializing <see cref="AssistedApprovalJudgeFailureReason"/> instances.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<AutoApprovalJudgeFailureReason>
+    public sealed class Converter : JsonConverter<AssistedApprovalJudgeFailureReason>
     {
         /// <inheritdoc />
-        public override AutoApprovalJudgeFailureReason Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        public override AssistedApprovalJudgeFailureReason Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
             return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, AutoApprovalJudgeFailureReason value, JsonSerializerOptions options)
+        public override void Write(Utf8JsonWriter writer, AssistedApprovalJudgeFailureReason value, JsonSerializerOptions options)
         {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AutoApprovalJudgeFailureReason));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AssistedApprovalJudgeFailureReason));
         }
     }
 }
 
-/// <summary>Outcome of the auto-approval safety judge for a permission request. Present only when auto mode is enabled; its absence means the judge did not evaluate the request (auto mode was off).</summary>
+/// <summary>Outcome of the assisted-approval safety judge for a permission request. Present only in assisted mode; its absence means the judge did not evaluate the request.</summary>
 [Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
-public readonly struct AutoApprovalRecommendation : IEquatable<AutoApprovalRecommendation>
+public readonly struct AssistedApprovalRecommendation : IEquatable<AssistedApprovalRecommendation>
 {
     private readonly string? _value;
 
-    /// <summary>Initializes a new instance of the <see cref="AutoApprovalRecommendation"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="AutoApprovalRecommendation"/>.</param>
+    /// <summary>Initializes a new instance of the <see cref="AssistedApprovalRecommendation"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="AssistedApprovalRecommendation"/>.</param>
     [JsonConstructor]
-    public AutoApprovalRecommendation(string value)
+    public AssistedApprovalRecommendation(string value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
 
-    /// <summary>Gets the value associated with this <see cref="AutoApprovalRecommendation"/>.</summary>
+    /// <summary>Gets the value associated with this <see cref="AssistedApprovalRecommendation"/>.</summary>
     public string Value => _value ?? string.Empty;
 
     /// <summary>The judge evaluated the request and recommends automatically approving it.</summary>
-    public static AutoApprovalRecommendation Approve { get; } = new("approve");
+    public static AssistedApprovalRecommendation Approve { get; } = new("approve");
 
-    /// <summary>The judge evaluated the request and does not recommend auto-approving it; explicit approval is required. Whether that means prompting, denying, or something else is the consumer's decision.</summary>
-    public static AutoApprovalRecommendation RequireApproval { get; } = new("requireApproval");
+    /// <summary>The judge evaluated the request and does not recommend automatically approving it; explicit approval is required. Whether that means prompting, denying, or something else is the consumer's decision.</summary>
+    public static AssistedApprovalRecommendation RequireApproval { get; } = new("requireApproval");
 
-    /// <summary>Auto mode is enabled, but this request category is never auto-approvable (for example, sandbox-bypass requests), so the judge was not consulted.</summary>
-    public static AutoApprovalRecommendation Excluded { get; } = new("excluded");
+    /// <summary>Assisted mode is enabled, but this request category is never automatically approvable (for example, sandbox-bypass requests), so the judge was not consulted.</summary>
+    public static AssistedApprovalRecommendation Excluded { get; } = new("excluded");
 
     /// <summary>The judge was consulted but did not return a usable recommendation, so the request requires explicit approval.</summary>
-    public static AutoApprovalRecommendation Error { get; } = new("error");
+    public static AssistedApprovalRecommendation Error { get; } = new("error");
 
-    /// <summary>Returns a value indicating whether two <see cref="AutoApprovalRecommendation"/> instances are equivalent.</summary>
-    public static bool operator ==(AutoApprovalRecommendation left, AutoApprovalRecommendation right) => left.Equals(right);
+    /// <summary>Returns a value indicating whether two <see cref="AssistedApprovalRecommendation"/> instances are equivalent.</summary>
+    public static bool operator ==(AssistedApprovalRecommendation left, AssistedApprovalRecommendation right) => left.Equals(right);
 
-    /// <summary>Returns a value indicating whether two <see cref="AutoApprovalRecommendation"/> instances are not equivalent.</summary>
-    public static bool operator !=(AutoApprovalRecommendation left, AutoApprovalRecommendation right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is AutoApprovalRecommendation other && Equals(other);
+    /// <summary>Returns a value indicating whether two <see cref="AssistedApprovalRecommendation"/> instances are not equivalent.</summary>
+    public static bool operator !=(AssistedApprovalRecommendation left, AssistedApprovalRecommendation right) => !(left == right);
 
     /// <inheritdoc />
-    public bool Equals(AutoApprovalRecommendation other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+    public override bool Equals(object? obj) => obj is AssistedApprovalRecommendation other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(AssistedApprovalRecommendation other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
 
     /// <inheritdoc />
     public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
@@ -12330,20 +12329,20 @@ public readonly struct AutoApprovalRecommendation : IEquatable<AutoApprovalRecom
     /// <inheritdoc />
     public override string ToString() => Value;
 
-    /// <summary>Provides a <see cref="JsonConverter{AutoApprovalRecommendation}"/> for serializing <see cref="AutoApprovalRecommendation"/> instances.</summary>
+    /// <summary>Provides a <see cref="JsonConverter{AssistedApprovalRecommendation}"/> for serializing <see cref="AssistedApprovalRecommendation"/> instances.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<AutoApprovalRecommendation>
+    public sealed class Converter : JsonConverter<AssistedApprovalRecommendation>
     {
         /// <inheritdoc />
-        public override AutoApprovalRecommendation Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        public override AssistedApprovalRecommendation Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
             return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, AutoApprovalRecommendation value, JsonSerializerOptions options)
+        public override void Write(Utf8JsonWriter writer, AssistedApprovalRecommendation value, JsonSerializerOptions options)
         {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AutoApprovalRecommendation));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AssistedApprovalRecommendation));
         }
     }
 }
@@ -13389,14 +13388,14 @@ public readonly struct ManagedSettingsEnforcedEscalation : IEquatable<ManagedSet
     /// <summary>Gets the value associated with this <see cref="ManagedSettingsEnforcedEscalation"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Full allow-all ("/allow-all on") permissions — auto-approving tools, paths, and URLs.</summary>
+    /// <summary>Full allow-all permissions — automatically approving tools, paths, and URLs.</summary>
     public static ManagedSettingsEnforcedEscalation AllowAll { get; } = new("allow_all");
 
-    /// <summary>Auto-approval of all tool permission requests.</summary>
+    /// <summary>Automatic approval of all tool permission requests.</summary>
     public static ManagedSettingsEnforcedEscalation ApproveAll { get; } = new("approve_all");
 
-    /// <summary>Advisory auto-approval ("/allow-all auto") mode — keeps normal prompt paths and adds LLM-advised approval, distinct from full allow-all.</summary>
-    public static ManagedSettingsEnforcedEscalation AutoApproval { get; } = new("auto_approval");
+    /// <summary>Assisted mode — keeps normal prompt paths and adds an LLM recommendation, distinct from allow-all.</summary>
+    public static ManagedSettingsEnforcedEscalation AssistedApproval { get; } = new("assisted_approval");
 
     /// <summary>Unrestricted filesystem access outside the session's allowed directories.</summary>
     public static ManagedSettingsEnforcedEscalation UnrestrictedPaths { get; } = new("unrestricted_paths");
@@ -14155,7 +14154,7 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(OmittedBinaryResult))]
 [JsonSerializable(typeof(PendingMessagesModifiedData))]
 [JsonSerializable(typeof(PendingMessagesModifiedEvent))]
-[JsonSerializable(typeof(PermissionAutoApproval))]
+[JsonSerializable(typeof(PermissionAssistedApproval))]
 [JsonSerializable(typeof(PermissionCompletedData))]
 [JsonSerializable(typeof(PermissionCompletedEvent))]
 [JsonSerializable(typeof(PermissionPromptRequest))]

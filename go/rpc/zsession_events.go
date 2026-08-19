@@ -161,41 +161,43 @@ const (
 	SessionEventTypeSessionMCPServerStatusChanged  SessionEventType = "session.mcp_server_status_changed"
 	SessionEventTypeSessionModeChanged             SessionEventType = "session.mode_changed"
 	SessionEventTypeSessionModelChange             SessionEventType = "session.model_change"
-	SessionEventTypeSessionPermissionsChanged      SessionEventType = "session.permissions_changed"
-	SessionEventTypeSessionPlanChanged             SessionEventType = "session.plan_changed"
-	SessionEventTypeSessionRemoteSteerableChanged  SessionEventType = "session.remote_steerable_changed"
-	SessionEventTypeSessionResume                  SessionEventType = "session.resume"
-	SessionEventTypeSessionScheduleCancelled       SessionEventType = "session.schedule_cancelled"
-	SessionEventTypeSessionScheduleCreated         SessionEventType = "session.schedule_created"
-	SessionEventTypeSessionScheduleRearmed         SessionEventType = "session.schedule_rearmed"
-	SessionEventTypeSessionSessionLimitsChanged    SessionEventType = "session.session_limits_changed"
-	SessionEventTypeSessionShutdown                SessionEventType = "session.shutdown"
-	SessionEventTypeSessionSkillsLoaded            SessionEventType = "session.skills_loaded"
-	SessionEventTypeSessionSnapshotRewind          SessionEventType = "session.snapshot_rewind"
-	SessionEventTypeSessionStart                   SessionEventType = "session.start"
-	SessionEventTypeSessionTaskComplete            SessionEventType = "session.task_complete"
-	SessionEventTypeSessionTitleChanged            SessionEventType = "session.title_changed"
-	SessionEventTypeSessionTodosChanged            SessionEventType = "session.todos_changed"
-	SessionEventTypeSessionToolsUpdated            SessionEventType = "session.tools_updated"
-	SessionEventTypeSessionTruncation              SessionEventType = "session.truncation"
-	SessionEventTypeSessionUsageCheckpoint         SessionEventType = "session.usage_checkpoint"
-	SessionEventTypeSessionUsageInfo               SessionEventType = "session.usage_info"
-	SessionEventTypeSessionWarning                 SessionEventType = "session.warning"
-	SessionEventTypeSessionWorkspaceFileChanged    SessionEventType = "session.workspace_file_changed"
-	SessionEventTypeSkillInvoked                   SessionEventType = "skill.invoked"
-	SessionEventTypeSubagentCompleted              SessionEventType = "subagent.completed"
-	SessionEventTypeSubagentDeselected             SessionEventType = "subagent.deselected"
-	SessionEventTypeSubagentFailed                 SessionEventType = "subagent.failed"
-	SessionEventTypeSubagentSelected               SessionEventType = "subagent.selected"
-	SessionEventTypeSubagentStarted                SessionEventType = "subagent.started"
-	SessionEventTypeSystemMessage                  SessionEventType = "system.message"
-	SessionEventTypeSystemNotification             SessionEventType = "system.notification"
-	SessionEventTypeToolExecutionComplete          SessionEventType = "tool.execution_complete"
-	SessionEventTypeToolExecutionPartialResult     SessionEventType = "tool.execution_partial_result"
-	SessionEventTypeToolExecutionProgress          SessionEventType = "tool.execution_progress"
-	SessionEventTypeToolExecutionStart             SessionEventType = "tool.execution_start"
-	SessionEventTypeToolSearchActivated            SessionEventType = "tool_search.activated"
-	SessionEventTypeToolUserRequested              SessionEventType = "tool.user_requested"
+	// Experimental: SessionEventTypeSessionPermissionsChanged identifies an experimental event
+	// that may change or be removed.
+	SessionEventTypeSessionPermissionsChanged     SessionEventType = "session.permissions_changed"
+	SessionEventTypeSessionPlanChanged            SessionEventType = "session.plan_changed"
+	SessionEventTypeSessionRemoteSteerableChanged SessionEventType = "session.remote_steerable_changed"
+	SessionEventTypeSessionResume                 SessionEventType = "session.resume"
+	SessionEventTypeSessionScheduleCancelled      SessionEventType = "session.schedule_cancelled"
+	SessionEventTypeSessionScheduleCreated        SessionEventType = "session.schedule_created"
+	SessionEventTypeSessionScheduleRearmed        SessionEventType = "session.schedule_rearmed"
+	SessionEventTypeSessionSessionLimitsChanged   SessionEventType = "session.session_limits_changed"
+	SessionEventTypeSessionShutdown               SessionEventType = "session.shutdown"
+	SessionEventTypeSessionSkillsLoaded           SessionEventType = "session.skills_loaded"
+	SessionEventTypeSessionSnapshotRewind         SessionEventType = "session.snapshot_rewind"
+	SessionEventTypeSessionStart                  SessionEventType = "session.start"
+	SessionEventTypeSessionTaskComplete           SessionEventType = "session.task_complete"
+	SessionEventTypeSessionTitleChanged           SessionEventType = "session.title_changed"
+	SessionEventTypeSessionTodosChanged           SessionEventType = "session.todos_changed"
+	SessionEventTypeSessionToolsUpdated           SessionEventType = "session.tools_updated"
+	SessionEventTypeSessionTruncation             SessionEventType = "session.truncation"
+	SessionEventTypeSessionUsageCheckpoint        SessionEventType = "session.usage_checkpoint"
+	SessionEventTypeSessionUsageInfo              SessionEventType = "session.usage_info"
+	SessionEventTypeSessionWarning                SessionEventType = "session.warning"
+	SessionEventTypeSessionWorkspaceFileChanged   SessionEventType = "session.workspace_file_changed"
+	SessionEventTypeSkillInvoked                  SessionEventType = "skill.invoked"
+	SessionEventTypeSubagentCompleted             SessionEventType = "subagent.completed"
+	SessionEventTypeSubagentDeselected            SessionEventType = "subagent.deselected"
+	SessionEventTypeSubagentFailed                SessionEventType = "subagent.failed"
+	SessionEventTypeSubagentSelected              SessionEventType = "subagent.selected"
+	SessionEventTypeSubagentStarted               SessionEventType = "subagent.started"
+	SessionEventTypeSystemMessage                 SessionEventType = "system.message"
+	SessionEventTypeSystemNotification            SessionEventType = "system.notification"
+	SessionEventTypeToolExecutionComplete         SessionEventType = "tool.execution_complete"
+	SessionEventTypeToolExecutionPartialResult    SessionEventType = "tool.execution_partial_result"
+	SessionEventTypeToolExecutionProgress         SessionEventType = "tool.execution_progress"
+	SessionEventTypeToolExecutionStart            SessionEventType = "tool.execution_start"
+	SessionEventTypeToolSearchActivated           SessionEventType = "tool_search.activated"
+	SessionEventTypeToolUserRequested             SessionEventType = "tool.user_requested"
 	// Experimental: SessionEventTypeUIEphemeralQuery identifies an experimental event that may
 	// change or be removed.
 	SessionEventTypeUIEphemeralQuery   SessionEventType = "ui.ephemeral_query"
@@ -1554,18 +1556,18 @@ type PermissionRequestedData struct {
 func (*PermissionRequestedData) sessionEventData()      {}
 func (*PermissionRequestedData) Type() SessionEventType { return SessionEventTypePermissionRequested }
 
-// Permissions change details carrying the aggregate allow-all transition.
+// Permission-mode transition details.
+// Experimental: SessionPermissionsChangedData is part of an experimental API and may change or be removed.
 type SessionPermissionsChangedData struct {
-	// Allow-all mode after the change
-	// Experimental: AllowAllPermissionMode is part of an experimental API and may change or be removed.
-	AllowAllPermissionMode *PermissionAllowAllMode `json:"allowAllPermissionMode,omitempty"`
-	// Aggregate allow-all flag after the change
-	AllowAllPermissions bool `json:"allowAllPermissions"`
-	// Allow-all mode before the change
-	// Experimental: PreviousAllowAllPermissionMode is part of an experimental API and may change or be removed.
-	PreviousAllowAllPermissionMode *PermissionAllowAllMode `json:"previousAllowAllPermissionMode,omitempty"`
-	// Aggregate allow-all flag before the change
-	PreviousAllowAllPermissions bool `json:"previousAllowAllPermissions"`
+	// Explicit LLM judge model override used by assisted mode; omitted when the provider default applies
+	// Experimental: AssistedApprovalModel is part of an experimental API and may change or be removed.
+	AssistedApprovalModel *string `json:"assistedApprovalModel,omitempty"`
+	// Permission mode after the change
+	// Experimental: Mode is part of an experimental API and may change or be removed.
+	Mode PermissionMode `json:"mode"`
+	// Permission mode before the change
+	// Experimental: PreviousMode is part of an experimental API and may change or be removed.
+	PreviousMode PermissionMode `json:"previousMode"`
 }
 
 func (*SessionPermissionsChangedData) sessionEventData() {}
@@ -2906,17 +2908,17 @@ type ModelCallFailureRequestFingerprint struct {
 	ToolResultMessageCount int64 `json:"toolResultMessageCount"`
 }
 
-// Auto-approval judge information attached to a permission request. Present (non-null) only when the session's allow-all mode is "auto"; its absence means auto mode was off and the judge did not evaluate the request. The `recommendation` conveys the judge's disposition for this request.
-// Experimental: PermissionAutoApproval is part of an experimental API and may change or be removed.
-type PermissionAutoApproval struct {
+// Assisted-approval judge information attached to a permission request. Present only in assisted mode; its absence means the judge did not evaluate the request. The `recommendation` conveys the judge's disposition for this request.
+// Experimental: PermissionAssistedApproval is part of an experimental API and may change or be removed.
+type PermissionAssistedApproval struct {
 	// Classified cause of an `error` recommendation. Absent for every other recommendation.
-	FailureReason *AutoApprovalJudgeFailureReason `json:"failureReason,omitempty"`
+	FailureReason *AssistedApprovalJudgeFailureReason `json:"failureReason,omitempty"`
 	// Model id that produced the recommendation, when the judge was consulted and reported one. Absent for `excluded` (the judge was not consulted) and for failures that occurred before a model was selected.
 	Model *string `json:"model,omitempty"`
 	// Human-readable reason for the judge's recommendation, when available.
 	Reason *string `json:"reason,omitempty"`
-	// The auto-approval safety judge's outcome for this request.
-	Recommendation AutoApprovalRecommendation `json:"recommendation"`
+	// The assisted-approval safety judge's outcome for this request.
+	Recommendation AssistedApprovalRecommendation `json:"recommendation"`
 }
 
 // Derived user-facing permission prompt details for UI consumers
@@ -2937,9 +2939,9 @@ func (r RawPermissionPromptRequest) Kind() PermissionPromptRequestKind {
 
 // Shell command permission prompt
 type PermissionPromptRequestCommands struct {
-	// Auto-approval judge information for this request; present only when auto mode is enabled.
-	// Experimental: AutoApproval is part of an experimental API and may change or be removed.
-	AutoApproval *PermissionAutoApproval `json:"autoApproval,omitempty"`
+	// Assisted-approval judge information for this request; present only in assisted mode.
+	// Experimental: AssistedApproval is part of an experimental API and may change or be removed.
+	AssistedApproval *PermissionAssistedApproval `json:"assistedApproval,omitempty"`
 	// Whether the UI can offer session-wide approval for this command pattern
 	CanOfferSessionApproval bool `json:"canOfferSessionApproval"`
 	// Command identifiers covered by this approval prompt
@@ -2965,9 +2967,9 @@ func (PermissionPromptRequestCommands) Kind() PermissionPromptRequestKind {
 type PermissionPromptRequestCustomTool struct {
 	// Arguments to pass to the custom tool
 	Args any `json:"args,omitempty"`
-	// Auto-approval judge information for this request; present only when auto mode is enabled.
-	// Experimental: AutoApproval is part of an experimental API and may change or be removed.
-	AutoApproval *PermissionAutoApproval `json:"autoApproval,omitempty"`
+	// Assisted-approval judge information for this request; present only in assisted mode.
+	// Experimental: AssistedApproval is part of an experimental API and may change or be removed.
+	AssistedApproval *PermissionAssistedApproval `json:"assistedApproval,omitempty"`
 	// Tool call ID that triggered this permission request
 	ToolCallID *string `json:"toolCallId,omitempty"`
 	// Description of what the custom tool does
@@ -2983,9 +2985,9 @@ func (PermissionPromptRequestCustomTool) Kind() PermissionPromptRequestKind {
 
 // Extension sensitive environment variable access prompt
 type PermissionPromptRequestExtensionEnvAccess struct {
-	// Auto-approval judge information for this request; present only when auto mode is enabled.
-	// Experimental: AutoApproval is part of an experimental API and may change or be removed.
-	AutoApproval *PermissionAutoApproval `json:"autoApproval,omitempty"`
+	// Assisted-approval judge information for this request; present only in assisted mode.
+	// Experimental: AssistedApproval is part of an experimental API and may change or be removed.
+	AssistedApproval *PermissionAssistedApproval `json:"assistedApproval,omitempty"`
 	// Names of the sensitive environment variables the extension is requesting. Values never appear here.
 	EnvironmentVariables []string `json:"environmentVariables"`
 	// Name of the extension requesting environment variable access
@@ -3001,9 +3003,9 @@ func (PermissionPromptRequestExtensionEnvAccess) Kind() PermissionPromptRequestK
 
 // Extension management permission prompt
 type PermissionPromptRequestExtensionManagement struct {
-	// Auto-approval judge information for this request; present only when auto mode is enabled.
-	// Experimental: AutoApproval is part of an experimental API and may change or be removed.
-	AutoApproval *PermissionAutoApproval `json:"autoApproval,omitempty"`
+	// Assisted-approval judge information for this request; present only in assisted mode.
+	// Experimental: AssistedApproval is part of an experimental API and may change or be removed.
+	AssistedApproval *PermissionAssistedApproval `json:"assistedApproval,omitempty"`
 	// Name of the extension being managed
 	ExtensionName *string `json:"extensionName,omitempty"`
 	// The extension management operation (scaffold, reload)
@@ -3019,9 +3021,9 @@ func (PermissionPromptRequestExtensionManagement) Kind() PermissionPromptRequest
 
 // Extension permission access prompt
 type PermissionPromptRequestExtensionPermissionAccess struct {
-	// Auto-approval judge information for this request; present only when auto mode is enabled.
-	// Experimental: AutoApproval is part of an experimental API and may change or be removed.
-	AutoApproval *PermissionAutoApproval `json:"autoApproval,omitempty"`
+	// Assisted-approval judge information for this request; present only in assisted mode.
+	// Experimental: AssistedApproval is part of an experimental API and may change or be removed.
+	AssistedApproval *PermissionAssistedApproval `json:"assistedApproval,omitempty"`
 	// Capabilities the extension is requesting
 	Capabilities []string `json:"capabilities"`
 	// Name of the extension requesting permission access
@@ -3039,9 +3041,9 @@ func (PermissionPromptRequestExtensionPermissionAccess) Kind() PermissionPromptR
 type PermissionPromptRequestFactory struct {
 	// Canonical key used for scoped factory approvals
 	ApprovalKey string `json:"approvalKey"`
-	// Auto-approval judge information for this request; present only when auto mode is enabled.
-	// Experimental: AutoApproval is part of an experimental API and may change or be removed.
-	AutoApproval *PermissionAutoApproval `json:"autoApproval,omitempty"`
+	// Assisted-approval judge information for this request; present only in assisted mode.
+	// Experimental: AssistedApproval is part of an experimental API and may change or be removed.
+	AssistedApproval *PermissionAssistedApproval `json:"assistedApproval,omitempty"`
 	// Whether this factory is eligible for persistent approval
 	CanPersistApproval bool `json:"canPersistApproval"`
 	// Factory-declared AI-credit limit before any run/resume caller override is applied.
@@ -3081,9 +3083,9 @@ func (PermissionPromptRequestFactory) Kind() PermissionPromptRequestKind {
 
 // Hook confirmation permission prompt
 type PermissionPromptRequestHook struct {
-	// Auto-approval judge information for this request; present only when auto mode is enabled.
-	// Experimental: AutoApproval is part of an experimental API and may change or be removed.
-	AutoApproval *PermissionAutoApproval `json:"autoApproval,omitempty"`
+	// Assisted-approval judge information for this request; present only in assisted mode.
+	// Experimental: AssistedApproval is part of an experimental API and may change or be removed.
+	AssistedApproval *PermissionAssistedApproval `json:"assistedApproval,omitempty"`
 	// Optional message from the hook explaining why confirmation is needed
 	HookMessage *string `json:"hookMessage,omitempty"`
 	// Arguments of the tool call being gated
@@ -3103,9 +3105,9 @@ func (PermissionPromptRequestHook) Kind() PermissionPromptRequestKind {
 type PermissionPromptRequestMCP struct {
 	// Arguments to pass to the MCP tool
 	Args any `json:"args,omitempty"`
-	// Auto-approval judge information for this request; present only when auto mode is enabled.
-	// Experimental: AutoApproval is part of an experimental API and may change or be removed.
-	AutoApproval *PermissionAutoApproval `json:"autoApproval,omitempty"`
+	// Assisted-approval judge information for this request; present only in assisted mode.
+	// Experimental: AssistedApproval is part of an experimental API and may change or be removed.
+	AssistedApproval *PermissionAssistedApproval `json:"assistedApproval,omitempty"`
 	// Advisory runtime permission recommendation. The host remains responsible for deciding the request and may reject it.
 	// Experimental: PermissionRecommendation is part of an experimental API and may change or be removed.
 	PermissionRecommendation *PermissionRecommendation `json:"permissionRecommendation,omitempty"`
@@ -3128,9 +3130,9 @@ func (PermissionPromptRequestMCP) Kind() PermissionPromptRequestKind {
 type PermissionPromptRequestMemory struct {
 	// Whether this is a store or vote memory operation
 	Action *PermissionRequestMemoryAction `json:"action,omitempty"`
-	// Auto-approval judge information for this request; present only when auto mode is enabled.
-	// Experimental: AutoApproval is part of an experimental API and may change or be removed.
-	AutoApproval *PermissionAutoApproval `json:"autoApproval,omitempty"`
+	// Assisted-approval judge information for this request; present only in assisted mode.
+	// Experimental: AssistedApproval is part of an experimental API and may change or be removed.
+	AssistedApproval *PermissionAssistedApproval `json:"assistedApproval,omitempty"`
 	// Source references for the stored fact (store only)
 	Citations *string `json:"citations,omitempty"`
 	// Vote direction (vote only)
@@ -3154,9 +3156,9 @@ func (PermissionPromptRequestMemory) Kind() PermissionPromptRequestKind {
 type PermissionPromptRequestPath struct {
 	// Underlying permission kind that needs path approval
 	AccessKind PermissionPromptRequestPathAccessKind `json:"accessKind"`
-	// Auto-approval judge information for this request; present only when auto mode is enabled.
-	// Experimental: AutoApproval is part of an experimental API and may change or be removed.
-	AutoApproval *PermissionAutoApproval `json:"autoApproval,omitempty"`
+	// Assisted-approval judge information for this request; present only in assisted mode.
+	// Experimental: AssistedApproval is part of an experimental API and may change or be removed.
+	AssistedApproval *PermissionAssistedApproval `json:"assistedApproval,omitempty"`
 	// File paths that require explicit approval
 	Paths []string `json:"paths"`
 	// Tool call ID that triggered this permission request
@@ -3170,9 +3172,9 @@ func (PermissionPromptRequestPath) Kind() PermissionPromptRequestKind {
 
 // File read permission prompt
 type PermissionPromptRequestRead struct {
-	// Auto-approval judge information for this request; present only when auto mode is enabled.
-	// Experimental: AutoApproval is part of an experimental API and may change or be removed.
-	AutoApproval *PermissionAutoApproval `json:"autoApproval,omitempty"`
+	// Assisted-approval judge information for this request; present only in assisted mode.
+	// Experimental: AssistedApproval is part of an experimental API and may change or be removed.
+	AssistedApproval *PermissionAssistedApproval `json:"assistedApproval,omitempty"`
 	// Human-readable description of why the file is being read
 	Intention string `json:"intention"`
 	// Whether managed policy requires a human response and forbids host auto-approval
@@ -3190,9 +3192,9 @@ func (PermissionPromptRequestRead) Kind() PermissionPromptRequestKind {
 
 // URL access permission prompt
 type PermissionPromptRequestURL struct {
-	// Auto-approval judge information for this request; present only when auto mode is enabled.
-	// Experimental: AutoApproval is part of an experimental API and may change or be removed.
-	AutoApproval *PermissionAutoApproval `json:"autoApproval,omitempty"`
+	// Assisted-approval judge information for this request; present only in assisted mode.
+	// Experimental: AssistedApproval is part of an experimental API and may change or be removed.
+	AssistedApproval *PermissionAssistedApproval `json:"assistedApproval,omitempty"`
 	// Human-readable description of why the URL is being accessed
 	Intention string `json:"intention"`
 	// Whether managed policy requires a human response and forbids host auto-approval
@@ -3216,9 +3218,9 @@ func (PermissionPromptRequestURL) Kind() PermissionPromptRequestKind {
 
 // File write permission prompt
 type PermissionPromptRequestWrite struct {
-	// Auto-approval judge information for this request; present only when auto mode is enabled.
-	// Experimental: AutoApproval is part of an experimental API and may change or be removed.
-	AutoApproval *PermissionAutoApproval `json:"autoApproval,omitempty"`
+	// Assisted-approval judge information for this request; present only in assisted mode.
+	// Experimental: AssistedApproval is part of an experimental API and may change or be removed.
+	AssistedApproval *PermissionAssistedApproval `json:"assistedApproval,omitempty"`
 	// Whether the UI can offer session-wide approval for file write operations
 	CanOfferSessionApproval bool `json:"canOfferSessionApproval"`
 	// Unified diff showing the proposed changes
@@ -3419,8 +3421,9 @@ func (PermissionRequestMCP) Kind() PermissionRequestKind {
 type PermissionRequestMemory struct {
 	// Whether this is a store or vote memory operation
 	Action *PermissionRequestMemoryAction `json:"action,omitempty"`
-	// Auto-approval judge information for this request; present only when auto mode is enabled.
-	AutoApproval *PermissionAutoApproval `json:"autoApproval,omitempty"`
+	// Assisted-approval judge information for this request; present only in assisted mode.
+	// Experimental: AssistedApproval is part of an experimental API and may change or be removed.
+	AssistedApproval *PermissionAssistedApproval `json:"assistedApproval,omitempty"`
 	// Source references for the stored fact (store only)
 	Citations *string `json:"citations,omitempty"`
 	// Vote direction (vote only)
@@ -4443,36 +4446,36 @@ const (
 	AssistantUsageTransportWebsocket AssistantUsageTransport = "websocket"
 )
 
-// Why the auto-approval judge produced no usable recommendation. Present only alongside an `error` recommendation, where the human-readable reason is a fixed string and therefore cannot distinguish these cases. Intended to make a judge failure reportable by a consumer that has no access to the host's logs.
-// Experimental: AutoApprovalJudgeFailureReason is part of an experimental API and may change or be removed.
-type AutoApprovalJudgeFailureReason string
+// Why the assisted-approval judge produced no usable recommendation. Present only alongside an `error` recommendation, where the human-readable reason is a fixed string and therefore cannot distinguish these cases. Intended to make a judge failure reportable by a consumer that has no access to the host's logs.
+// Experimental: AssistedApprovalJudgeFailureReason is part of an experimental API and may change or be removed.
+type AssistedApprovalJudgeFailureReason string
 
 const (
 	// The judge model call was cancelled before it returned.
-	AutoApprovalJudgeFailureReasonAbort AutoApprovalJudgeFailureReason = "abort"
+	AssistedApprovalJudgeFailureReasonAbort AssistedApprovalJudgeFailureReason = "abort"
 	// The judge model call completed but returned no content.
-	AutoApprovalJudgeFailureReasonEmptyResponse AutoApprovalJudgeFailureReason = "empty_response"
+	AssistedApprovalJudgeFailureReasonEmptyResponse AssistedApprovalJudgeFailureReason = "empty_response"
 	// The judge model call failed (for example a transport, authentication, or rate-limit error).
-	AutoApprovalJudgeFailureReasonModelError AutoApprovalJudgeFailureReason = "model_error"
+	AssistedApprovalJudgeFailureReasonModelError AssistedApprovalJudgeFailureReason = "model_error"
 	// The judge model replied, but the reply carried no ALLOW/DENY verdict.
-	AutoApprovalJudgeFailureReasonParseError AutoApprovalJudgeFailureReason = "parse_error"
+	AssistedApprovalJudgeFailureReasonParseError AssistedApprovalJudgeFailureReason = "parse_error"
 	// The judge model call exceeded its deadline.
-	AutoApprovalJudgeFailureReasonTimeout AutoApprovalJudgeFailureReason = "timeout"
+	AssistedApprovalJudgeFailureReasonTimeout AssistedApprovalJudgeFailureReason = "timeout"
 )
 
-// Outcome of the auto-approval safety judge for a permission request. Present only when auto mode is enabled; its absence means the judge did not evaluate the request (auto mode was off).
-// Experimental: AutoApprovalRecommendation is part of an experimental API and may change or be removed.
-type AutoApprovalRecommendation string
+// Outcome of the assisted-approval safety judge for a permission request. Present only in assisted mode; its absence means the judge did not evaluate the request.
+// Experimental: AssistedApprovalRecommendation is part of an experimental API and may change or be removed.
+type AssistedApprovalRecommendation string
 
 const (
 	// The judge evaluated the request and recommends automatically approving it.
-	AutoApprovalRecommendationApprove AutoApprovalRecommendation = "approve"
+	AssistedApprovalRecommendationApprove AssistedApprovalRecommendation = "approve"
 	// The judge was consulted but did not return a usable recommendation, so the request requires explicit approval.
-	AutoApprovalRecommendationError AutoApprovalRecommendation = "error"
-	// Auto mode is enabled, but this request category is never auto-approvable (for example, sandbox-bypass requests), so the judge was not consulted.
-	AutoApprovalRecommendationExcluded AutoApprovalRecommendation = "excluded"
-	// The judge evaluated the request and does not recommend auto-approving it; explicit approval is required. Whether that means prompting, denying, or something else is the consumer's decision.
-	AutoApprovalRecommendationRequireApproval AutoApprovalRecommendation = "requireApproval"
+	AssistedApprovalRecommendationError AssistedApprovalRecommendation = "error"
+	// Assisted mode is enabled, but this request category is never automatically approvable (for example, sandbox-bypass requests), so the judge was not consulted.
+	AssistedApprovalRecommendationExcluded AssistedApprovalRecommendation = "excluded"
+	// The judge evaluated the request and does not recommend automatically approving it; explicit approval is required. Whether that means prompting, denying, or something else is the consumer's decision.
+	AssistedApprovalRecommendationRequireApproval AssistedApprovalRecommendation = "requireApproval"
 )
 
 // Coarse request-difficulty bucket for UX explainability
@@ -4701,12 +4704,12 @@ const (
 type ManagedSettingsEnforcedEscalation string
 
 const (
-	// Full allow-all ("/allow-all on") permissions — auto-approving tools, paths, and URLs.
+	// Full allow-all permissions — automatically approving tools, paths, and URLs.
 	ManagedSettingsEnforcedEscalationAllowAll ManagedSettingsEnforcedEscalation = "allow_all"
-	// Auto-approval of all tool permission requests.
+	// Automatic approval of all tool permission requests.
 	ManagedSettingsEnforcedEscalationApproveAll ManagedSettingsEnforcedEscalation = "approve_all"
-	// Advisory auto-approval ("/allow-all auto") mode — keeps normal prompt paths and adds LLM-advised approval, distinct from full allow-all.
-	ManagedSettingsEnforcedEscalationAutoApproval ManagedSettingsEnforcedEscalation = "auto_approval"
+	// Assisted mode — keeps normal prompt paths and adds an LLM recommendation, distinct from allow-all.
+	ManagedSettingsEnforcedEscalationAssistedApproval ManagedSettingsEnforcedEscalation = "assisted_approval"
 	// Unrestricted filesystem access outside the session's allowed directories.
 	ManagedSettingsEnforcedEscalationUnrestrictedPaths ManagedSettingsEnforcedEscalation = "unrestricted_paths"
 	// Unrestricted URL fetch access.
@@ -4848,19 +4851,6 @@ const (
 	OmittedBinaryTypeImage OmittedBinaryType = "image"
 	// Other binary resource data.
 	OmittedBinaryTypeResource OmittedBinaryType = "resource"
-)
-
-// Allow-all mode for the session.
-// Experimental: PermissionAllowAllMode is part of an experimental API and may change or be removed.
-type PermissionAllowAllMode string
-
-const (
-	// Permission requests follow the normal approval flow with an LLM advisory recommendation attached; clients may choose to auto-approve requests the judge evaluated as acceptable.
-	PermissionAllowAllModeAuto PermissionAllowAllMode = "auto"
-	// Permission requests follow the normal approval flow.
-	PermissionAllowAllModeOff PermissionAllowAllMode = "off"
-	// Tool, path, and URL permission requests are automatically approved.
-	PermissionAllowAllModeOn PermissionAllowAllMode = "on"
 )
 
 // Kind discriminator for PermissionPromptRequest.

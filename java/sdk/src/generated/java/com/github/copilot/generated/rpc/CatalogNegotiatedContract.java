@@ -10,25 +10,21 @@ package com.github.copilot.generated.rpc;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.github.copilot.CopilotExperimental;
+import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * Indicates whether the operation succeeded and reports the post-mutation state.
+ * The protocol version and capability set the runtime actually honoured for a successful catalog operation.
  *
- * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
-@CopilotExperimental
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record SessionPermissionsSetAllowAllResult(
-    /** Whether the operation succeeded */
-    @JsonProperty("success") Boolean success,
-    /** Authoritative full allow-all state after the mutation */
-    @JsonProperty("enabled") Boolean enabled,
-    /** Authoritative allow-all mode after the mutation */
-    @JsonProperty("mode") PermissionsAllowAllMode mode
+public record CatalogNegotiatedContract(
+    /** Protocol version of the runtime that served the request. */
+    @JsonProperty("runtimeProtocolVersion") Long runtimeProtocolVersion,
+    /** Wire features the runtime understood for this operation. Always a superset of the caller's required features, because any shortfall is a refusal instead. Operation availability remains a separate typed result. */
+    @JsonProperty("grantedCapabilities") List<CatalogCapability> grantedCapabilities
 ) {
 }

@@ -10,28 +10,30 @@ package com.github.copilot.generated.rpc;
 import javax.annotation.processing.Generated;
 
 /**
- * Current or requested allow-all mode.
+ * Optional source for permission-mode telemetry. Defaults to `rpc` when omitted for SDK callers.
  *
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
-public enum PermissionsAllowAllMode {
-    /** The {@code off} variant. */
-    OFF("off"),
-    /** The {@code on} variant. */
-    ON("on"),
-    /** The {@code auto} variant. */
-    AUTO("auto");
+public enum PermissionModeSource {
+    /** The {@code cli_flag} variant. */
+    CLI_FLAG("cli_flag"),
+    /** The {@code slash_command} variant. */
+    SLASH_COMMAND("slash_command"),
+    /** The {@code autopilot_confirmation} variant. */
+    AUTOPILOT_CONFIRMATION("autopilot_confirmation"),
+    /** The {@code rpc} variant. */
+    RPC("rpc");
 
     private final String value;
-    PermissionsAllowAllMode(String value) { this.value = value; }
+    PermissionModeSource(String value) { this.value = value; }
     @com.fasterxml.jackson.annotation.JsonValue
     public String getValue() { return value; }
     @com.fasterxml.jackson.annotation.JsonCreator
-    public static PermissionsAllowAllMode fromValue(String value) {
-        for (PermissionsAllowAllMode v : values()) {
+    public static PermissionModeSource fromValue(String value) {
+        for (PermissionModeSource v : values()) {
             if (v.value.equals(value)) return v;
         }
-        throw new IllegalArgumentException("Unknown PermissionsAllowAllMode value: " + value);
+        throw new IllegalArgumentException("Unknown PermissionModeSource value: " + value);
     }
 }
