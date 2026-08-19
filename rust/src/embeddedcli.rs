@@ -234,6 +234,8 @@ fn install_cli_bundle(install_dir: &Path, archive: &[u8]) -> Result<PathBuf, Emb
 
 #[cfg(has_bundled_cli)]
 fn install_runtime(install_dir: &Path, archive: &[u8]) -> Result<PathBuf, EmbeddedCliError> {
+    fs::create_dir_all(install_dir)
+        .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::CreateDir, e))?;
     install_runtime_pair(install_dir, archive)?;
     install_cli(install_dir, archive)?;
     Ok(install_dir.join(RUNTIME_BINARY_NAME))

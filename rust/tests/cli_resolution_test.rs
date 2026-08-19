@@ -356,20 +356,15 @@ fn install_bundled_runtime_returns_wrapper_bundle() {
 
 #[cfg(all(feature = "bundled-cli", has_bundled_cli))]
 #[tokio::test(flavor = "current_thread")]
+#[serial(copilot_cli_path)]
 async fn bundled_runtime_clean_extract_starts_with_sibling_cli() {
     let temp = tempfile::tempdir().expect("create tempdir");
     let extract_dir = temp.path().join("runtime");
     let empty_path = temp.path().join("empty-path");
     let working_dir = temp.path().join("work");
-    std::fs::create_dir(&extract_dir).expect("create extraction directory");
     std::fs::create_dir(&empty_path).expect("create empty PATH directory");
     std::fs::create_dir(&working_dir).expect("create working directory");
-    assert_eq!(
-        std::fs::read_dir(&extract_dir)
-            .expect("read extraction directory")
-            .count(),
-        0
-    );
+    assert!(!extract_dir.exists());
 
     let options = ClientOptions::new()
         .with_bundled_cli_extract_dir(&extract_dir)
