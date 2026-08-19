@@ -2504,7 +2504,7 @@ impl SessionConfig {
             cmds.iter()
                 .map(|c| crate::wire::CommandWireDefinition {
                     name: c.name.clone(),
-                    description: c.description.clone(),
+                    description: c.description.clone().unwrap_or_default(),
                 })
                 .collect()
         });
@@ -3648,7 +3648,7 @@ impl ResumeSessionConfig {
             cmds.iter()
                 .map(|c| crate::wire::CommandWireDefinition {
                     name: c.name.clone(),
-                    description: c.description.clone(),
+                    description: c.description.clone().unwrap_or_default(),
                 })
                 .collect()
         });

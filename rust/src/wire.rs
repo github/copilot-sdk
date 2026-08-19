@@ -38,8 +38,9 @@ use crate::types::{
 #[serde(rename_all = "camelCase")]
 pub(crate) struct CommandWireDefinition {
     pub name: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
+    /// Always sent. The runtime requires a string, so a command declared
+    /// without a description is serialized as `""` rather than omitted.
+    pub description: String,
 }
 
 /// The exact JSON shape sent on the `session.create` JSON-RPC request.
