@@ -80,6 +80,7 @@ public class SessionConfig {
     private InfiniteSessionConfig infiniteSessions;
     private List<String> skillDirectories;
     private List<String> instructionDirectories;
+    private List<String> customAgentDirectories;
     private List<String> pluginDirectories;
     private LargeToolOutputConfig largeOutput;
     private ToolSearchConfig toolSearch;
@@ -1197,6 +1198,27 @@ public class SessionConfig {
     }
 
     /**
+     * Gets the additional directories to search for custom agent files.
+     *
+     * @return the list of custom agent directory paths
+     */
+    public List<String> getCustomAgentDirectories() {
+        return customAgentDirectories == null ? null : Collections.unmodifiableList(customAgentDirectories);
+    }
+
+    /**
+     * Sets additional directories to search for custom agent files.
+     *
+     * @param customAgentDirectories
+     *            the list of custom agent directory paths
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setCustomAgentDirectories(List<String> customAgentDirectories) {
+        this.customAgentDirectories = customAgentDirectories;
+        return this;
+    }
+
+    /**
      * Gets the plugin directories to load Open Plugin definitions from.
      *
      * @return the list of plugin directory paths
@@ -2157,6 +2179,9 @@ public class SessionConfig {
         copy.skillDirectories = this.skillDirectories != null ? new ArrayList<>(this.skillDirectories) : null;
         copy.instructionDirectories = this.instructionDirectories != null
                 ? new ArrayList<>(this.instructionDirectories)
+                : null;
+        copy.customAgentDirectories = this.customAgentDirectories != null
+                ? new ArrayList<>(this.customAgentDirectories)
                 : null;
         copy.pluginDirectories = this.pluginDirectories != null ? new ArrayList<>(this.pluginDirectories) : null;
         copy.largeOutput = this.largeOutput;

@@ -249,6 +249,39 @@ public class SerializationTests
     }
 
     [Fact]
+    public void CreateSessionRequest_CanSerializeCustomAgentDirectories_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+        var requestType = GetNestedType(typeof(CopilotClient), "CreateSessionRequest");
+        var request = CreateInternalRequest(
+            requestType,
+            ("SessionId", "session-id"),
+            ("CustomAgentDirectories", new List<string> { "C:\\extra-agents", "C:\\more-agents" }));
+
+        var json = JsonSerializer.Serialize(request, requestType, options);
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+        Assert.Equal("C:\\extra-agents", root.GetProperty("customAgentDirectories")[0].GetString());
+        Assert.Equal("C:\\more-agents", root.GetProperty("customAgentDirectories")[1].GetString());
+    }
+
+    [Fact]
+    public void ResumeSessionRequest_CanSerializeCustomAgentDirectories_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+        var requestType = GetNestedType(typeof(CopilotClient), "ResumeSessionRequest");
+        var request = CreateInternalRequest(
+            requestType,
+            ("SessionId", "session-id"),
+            ("CustomAgentDirectories", new List<string> { "C:\\resume-agents" }));
+
+        var json = JsonSerializer.Serialize(request, requestType, options);
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+        Assert.Equal("C:\\resume-agents", root.GetProperty("customAgentDirectories")[0].GetString());
+    }
+
+    [Fact]
     public void SessionRequests_CanSerializeCapiOptions_WithSdkOptions()
     {
         var options = GetSerializerOptions();
