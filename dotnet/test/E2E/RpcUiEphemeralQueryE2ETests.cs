@@ -19,10 +19,10 @@ namespace GitHub.Copilot.Test.E2E;
 public class RpcUiEphemeralQueryE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     : E2ETestBase(fixture, "rpc_ui_ephemeral_query", output)
 {
-    // TODO(cli-1.0.81): CLI 1.0.81 fails session.ui.ephemeralQuery against the recorded
+    // TODO(cli-1.0.81-2): CLI 1.0.81-2 fails session.ui.ephemeralQuery against the recorded
     // snapshot ("Failed to get response from the AI model"). Re-enable once the runtime
     // fix ships.
-    [Fact(Skip = "Blocked on CLI 1.0.81 session.ui.ephemeralQuery regression")]
+    [Fact(Skip = "Blocked on CLI 1.0.81-2 session.ui.ephemeralQuery regression")]
     public async Task Should_Answer_Ephemeral_Query()
     {
         await using var session = await CreateSessionAsync();

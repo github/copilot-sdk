@@ -407,9 +407,9 @@ fn sqlite_session_config(
         .with_session_fs_provider(provider)
 }
 
-// TODO(cli-1.0.81): CLI 1.0.81 hangs servicing the nested SQL tool request, so this test
+// TODO(cli-1.0.81-2): CLI 1.0.81-2 hangs servicing the nested SQL tool request, so this test
 // times out. Re-enable once the runtime reentrancy fix ships.
-#[ignore = "blocked on CLI 1.0.81 nested tool-request servicing regression"]
+#[ignore = "blocked on CLI 1.0.81-2 nested tool-request servicing regression"]
 #[tokio::test]
 async fn should_route_sql_queries_through_the_sessionfs_sqlite_handler() {
     super::support::with_shared_e2e_context(
@@ -481,9 +481,9 @@ async fn should_route_sql_queries_through_the_sessionfs_sqlite_handler() {
     .await;
 }
 
-// TODO(cli-1.0.81): CLI 1.0.81 hangs servicing the nested SQL tool request, so this test
+// TODO(cli-1.0.81-2): CLI 1.0.81-2 hangs servicing the nested SQL tool request, so this test
 // times out. Re-enable once the runtime reentrancy fix ships.
-#[ignore = "blocked on CLI 1.0.81 nested tool-request servicing regression"]
+#[ignore = "blocked on CLI 1.0.81-2 nested tool-request servicing regression"]
 #[tokio::test]
 async fn should_allow_subagents_to_use_sql_tool_via_inherited_sessionfs() {
     super::support::with_shared_e2e_context(

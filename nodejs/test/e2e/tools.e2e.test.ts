@@ -45,7 +45,7 @@ describe("Custom tools", async () => {
         expect(assistantMessage?.data.content).toContain("HELLO");
     });
 
-    // TODO(cli-1.0.81): CLI 1.0.81 stops servicing nested requests on the same stdio
+    // TODO(cli-1.0.81-2): CLI 1.0.81-2 stops servicing nested requests on the same stdio
     // connection while awaiting a tool handler, so calling session.history.clearContext
     // from inside a terminal tool deadlocks. Tracked as a runtime reentrancy regression;
     // re-enable once the fixed CLI ships.
