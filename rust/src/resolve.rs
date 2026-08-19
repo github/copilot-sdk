@@ -20,7 +20,29 @@ use std::path::{Path, PathBuf};
 
 use tracing::warn;
 
-use crate::{Error, ErrorKind};
+use crate::{BundledRuntimeLaunch, Error, ErrorKind};
+
+pub(crate) struct ResolvedProgram {
+    pub(crate) program: PathBuf,
+    pub(crate) bundled_runtime_launch: Option<BundledRuntimeLaunch>,
+}
+
+impl ResolvedProgram {
+    fn direct(program: PathBuf) -> Self {
+        Self {
+            program,
+            bundled_runtime_launch: None,
+        }
+    }
+
+    #[cfg(any(feature = "bundled-cli", has_extracted_cli))]
+    fn bundled_runtime(launch: BundledRuntimeLaunch) -> Self {
+        Self {
+            program: launch.program().to_path_buf(),
+            bundled_runtime_launch: Some(launch),
+        }
+    }
+}
 
 /// Resolve the CLI binary, optionally overriding the directory the bundled
 /// CLI is extracted to. Called by `Client::start` to thread
@@ -36,11 +58,12 @@ use crate::{Error, ErrorKind};
 pub(crate) fn copilot_binary_with_extract_dir(
     extract_dir: Option<&Path>,
     use_runtime_wrapper: bool,
-) -> Result<PathBuf, Error> {
+    prepare_managed_launch: bool,
+) -> Result<ResolvedProgram, Error> {
     if let Ok(value) = env::var("COPILOT_CLI_PATH") {
         let candidate = PathBuf::from(&value);
         if candidate.is_file() {
-            return Ok(candidate);
+            return Ok(ResolvedProgram::direct(candidate));
         }
         warn!(
             path = %candidate.display(),
@@ -50,29 +73,48 @@ pub(crate) fn copilot_binary_with_extract_dir(
 
     #[cfg(feature = "bundled-cli")]
     {
-        let bundled = if use_runtime_wrapper {
-            match extract_dir {
+        if use_runtime_wrapper && prepare_managed_launch {
+            let launch = match extract_dir {
+                Some(dir) => crate::embeddedcli::install_runtime_launch_at(dir),
+                None => crate::embeddedcli::runtime_launch(),
+            };
+            if let Some(launch) = launch {
+                validate_runtime_pair(launch.program())?;
+                return Ok(ResolvedProgram::bundled_runtime(launch));
+            }
+            let wrapper = match extract_dir {
                 Some(dir) => crate::embeddedcli::install_runtime_at(dir),
                 None => crate::embeddedcli::runtime_path(),
+            };
+            if let Some(wrapper) = wrapper {
+                validate_runtime_pair(&wrapper)?;
+                return Err(runtime_host_materialization_error(&wrapper));
             }
         } else {
-            match extract_dir {
-                Some(dir) => crate::embeddedcli::install_at(dir),
-                None => crate::embeddedcli::path(),
+            let bundled = if use_runtime_wrapper {
+                match extract_dir {
+                    Some(dir) => crate::embeddedcli::install_runtime_at(dir),
+                    None => crate::embeddedcli::runtime_path(),
+                }
+            } else {
+                match extract_dir {
+                    Some(dir) => crate::embeddedcli::install_at(dir),
+                    None => crate::embeddedcli::path(),
+                }
+            };
+            if let Some(path) = bundled {
+                if use_runtime_wrapper {
+                    validate_runtime_pair(&path)?;
+                }
+                return Ok(ResolvedProgram::direct(path));
             }
-        };
-        if let Some(path) = bundled {
-            if use_runtime_wrapper {
-                validate_runtime_pair(&path)?;
-            }
-            return Ok(path);
         }
     }
 
     #[cfg(not(feature = "bundled-cli"))]
     {
         let _ = extract_dir;
-        if let Some(program) = extracted_program(use_runtime_wrapper) {
+        if let Some(program) = extracted_program(use_runtime_wrapper, prepare_managed_launch)? {
             return Ok(program);
         }
     }
@@ -109,7 +151,10 @@ pub(crate) fn copilot_binary_with_extract_dir(
 /// `$HOME` / `$LOCALAPPDATA` into the artifact, breaks sccache across
 /// machines, and prevents copying `target/` between hosts.
 #[cfg(all(not(feature = "bundled-cli"), has_extracted_cli))]
-fn extracted_program(use_runtime_wrapper: bool) -> Option<PathBuf> {
+fn extracted_program(
+    use_runtime_wrapper: bool,
+    prepare_managed_launch: bool,
+) -> Result<Option<ResolvedProgram>, Error> {
     let version = env!("COPILOT_SDK_CLI_VERSION");
     let dir = match env::var_os("COPILOT_CLI_EXTRACT_DIR") {
         Some(custom) => PathBuf::from(custom),
@@ -127,24 +172,57 @@ fn extracted_program(use_runtime_wrapper: bool) -> Option<PathBuf> {
     });
     if use_runtime_wrapper {
         if validate_runtime_pair(&path).is_ok() {
-            return Some(path);
+            if prepare_managed_launch {
+                let host = dir.join(cli_binary_name());
+                if !host.is_file() {
+                    return Err(runtime_host_materialization_error(&path));
+                }
+                let Some(launch) = BundledRuntimeLaunch::new(path.clone(), &host) else {
+                    return Err(runtime_host_materialization_error(&path));
+                };
+                return Ok(Some(ResolvedProgram::bundled_runtime(launch)));
+            }
+            return Ok(Some(ResolvedProgram::direct(path)));
         }
     } else if path.is_file() {
-        return Some(path);
+        return Ok(Some(ResolvedProgram::direct(path)));
     }
     warn!(
         path = %path.display(),
         "expected build-time-extracted CLI is missing; rebuild the crate or set COPILOT_CLI_PATH"
     );
-    None
+    Ok(None)
 }
 
 /// `has_extracted_cli` is absent when the target is unsupported or the
 /// build opted out via `COPILOT_SKIP_CLI_DOWNLOAD`. In both cases there's
 /// no binary to look up, so the resolver returns `None` immediately.
 #[cfg(all(not(feature = "bundled-cli"), not(has_extracted_cli)))]
-fn extracted_program(_use_runtime_wrapper: bool) -> Option<PathBuf> {
-    None
+fn extracted_program(
+    _use_runtime_wrapper: bool,
+    _prepare_managed_launch: bool,
+) -> Result<Option<ResolvedProgram>, Error> {
+    Ok(None)
+}
+
+#[cfg(any(feature = "bundled-cli", has_extracted_cli))]
+fn runtime_host_materialization_error(wrapper: &Path) -> Error {
+    let host = wrapper
+        .parent()
+        .map(|parent| parent.join(cli_binary_name()))
+        .unwrap_or_else(|| PathBuf::from(cli_binary_name()));
+    let detail = format!(
+        "The managed Copilot runtime requires a compatible host executable at '{}', \
+         but it could not be materialized or represented in the child-process environment",
+        host.display()
+    );
+    Error::with_message(
+        ErrorKind::BinaryNotFound {
+            name: cli_binary_name().into(),
+            hint: Some(detail.clone()),
+        },
+        detail,
+    )
 }
 
 fn validate_runtime_pair(wrapper: &Path) -> Result<(), Error> {

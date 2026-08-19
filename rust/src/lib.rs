@@ -233,6 +233,69 @@ pub fn install_bundled_cli() -> Option<PathBuf> {
     }
 }
 
+/// Materialized files and child-process configuration for the bundled
+/// `copilot-runtime` wrapper.
+///
+/// The environment carried by this value is part of the wrapper's launch
+/// contract. Callers that insert another process between the SDK and the
+/// wrapper must preserve it with [`Self::apply_environment`].
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BundledRuntimeLaunch {
+    program: PathBuf,
+    environment: Vec<(OsString, OsString)>,
+}
+
+impl BundledRuntimeLaunch {
+    #[cfg(any(feature = "bundled-cli", has_extracted_cli))]
+    fn new(program: PathBuf, host: &Path) -> Option<Self> {
+        let host = host.to_str()?;
+        let command =
+            serde_json::to_string(&[host]).expect("serializing a string slice cannot fail");
+        Some(Self {
+            program,
+            environment: vec![(
+                OsString::from("COPILOT_RUNTIME_HOST_COMMAND"),
+                OsString::from(command),
+            )],
+        })
+    }
+
+    /// Concrete path to the materialized `copilot-runtime[.exe]` wrapper.
+    pub fn program(&self) -> &Path {
+        &self.program
+    }
+
+    /// Prepend the wrapper's required environment to client options.
+    ///
+    /// Existing caller-provided entries remain later in the environment list,
+    /// so they retain precedence. [`ClientOptions::env_remove`] is applied last
+    /// and can still remove an injected value.
+    pub fn apply_environment(&self, options: &mut ClientOptions) {
+        options.env.splice(0..0, self.environment.iter().cloned());
+    }
+}
+
+/// Materializes the bundled `copilot-runtime` wrapper and everything required
+/// to launch it.
+///
+/// This is intended for health checks and intermediate launchers that need a
+/// concrete wrapper path before [`Client::start`]. Use
+/// [`BundledRuntimeLaunch::apply_environment`] when another process, such as a
+/// supervisor, will ultimately launch the wrapper.
+///
+/// Returns `None` when the `bundled-cli` feature is off, the target platform
+/// is unsupported, or materialization fails.
+pub fn install_bundled_runtime() -> Option<BundledRuntimeLaunch> {
+    #[cfg(feature = "bundled-cli")]
+    {
+        embeddedcli::runtime_launch()
+    }
+    #[cfg(not(feature = "bundled-cli"))]
+    {
+        None
+    }
+}
+
 /// Options for starting a [`Client`].
 ///
 /// When `program` is [`CliProgram::Resolve`] (the default), [`Client::start`]
@@ -1186,16 +1249,17 @@ impl Client {
             .as_ref()
             .and_then(|c| c.capabilities.as_ref())
             .is_some_and(|caps| caps.sqlite);
-        let program = match &options.program {
+        let (program, bundled_runtime_launch) = match &options.program {
             CliProgram::Path(path) => {
                 info!(path = %path.display(), "using explicit copilot CLI path");
-                path.clone()
+                (path.clone(), None)
             }
             CliProgram::Resolve => {
                 let resolve_start = Instant::now();
                 let resolved = resolve::copilot_binary_with_extract_dir(
                     options.bundled_cli_extract_dir.as_deref(),
                     !matches!(options.transport, Transport::InProcess),
+                    matches!(options.transport, Transport::Stdio | Transport::Tcp { .. }),
                 )?;
                 let resolve_elapsed = resolve_start.elapsed();
                 timings.program_resolve_ms = Some(StartupTimings::millis(resolve_elapsed));
@@ -1203,10 +1267,11 @@ impl Client {
                     elapsed_ms = resolve_elapsed.as_millis(),
                     "Client::start CLI program resolution complete"
                 );
-                info!(path = %resolved.display(), "resolved copilot runtime");
+                info!(path = %resolved.program.display(), "resolved copilot runtime");
                 #[cfg(windows)]
                 {
                     if let Some(ext) = resolved
+                        .program
                         .extension()
                         .and_then(|e| e.to_str())
                         .filter(|ext| {
@@ -1214,16 +1279,19 @@ impl Client {
                         })
                     {
                         warn!(
-                            path = %resolved.display(),
+                            path = %resolved.program.display(),
                             ext = %ext,
                             "resolved copilot CLI is a .cmd/.bat wrapper; \
                              this may cause console window flashes on Windows"
                         );
                     }
                 }
-                resolved
+                (resolved.program, resolved.bundled_runtime_launch)
             }
         };
+        if let Some(launch) = bundled_runtime_launch {
+            launch.apply_environment(&mut options);
+        }
         let working_directory = {
             let cwd = options.working_directory.clone();
             if cwd.as_os_str().is_empty() {

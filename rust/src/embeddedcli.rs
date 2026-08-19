@@ -76,6 +76,8 @@ const RUNTIME_NODE_NAME: &str = "runtime.node";
 static INSTALLED_PATH: OnceLock<Option<PathBuf>> = OnceLock::new();
 #[cfg(feature = "bundled-cli")]
 static INSTALLED_RUNTIME_PATH: OnceLock<Option<PathBuf>> = OnceLock::new();
+#[cfg(feature = "bundled-cli")]
+static INSTALLED_HOST_PATH: OnceLock<Option<PathBuf>> = OnceLock::new();
 
 /// Returns the path to the installed CLI binary, lazily extracting the
 /// embedded archive on first call.
@@ -168,6 +170,37 @@ pub(crate) fn runtime_path() -> Option<PathBuf> {
         .clone()
 }
 
+/// Returns the materialized wrapper and its required child-process
+/// configuration.
+#[cfg(feature = "bundled-cli")]
+pub(crate) fn runtime_launch() -> Option<crate::BundledRuntimeLaunch> {
+    let program = runtime_path()?;
+    let host = host_path()?;
+    runtime_launch_from_paths(program, &host)
+}
+
+#[cfg(feature = "bundled-cli")]
+fn host_path() -> Option<PathBuf> {
+    INSTALLED_HOST_PATH
+        .get_or_init(|| {
+            #[cfg(has_bundled_cli)]
+            {
+                let dir = default_install_dir(CLI_VERSION);
+                match install_cli(&dir, build_time::CLI_ARCHIVE) {
+                    Ok(path) => {
+                        info!(path = %path.display(), version = CLI_VERSION, "embedded runtime host installed");
+                        return Some(path);
+                    }
+                    Err(e) => {
+                        warn!(error = %e, "embedded runtime host installation failed");
+                    }
+                }
+            }
+            None
+        })
+        .clone()
+}
+
 /// Installs the bundled runtime wrapper and adjacent `runtime.node` into a
 /// caller-specified directory.
 #[cfg(feature = "bundled-cli")]
@@ -189,6 +222,48 @@ pub(crate) fn install_runtime_at(extract_dir: &Path) -> Option<PathBuf> {
         let _ = extract_dir;
     }
     None
+}
+
+/// Installs the wrapper, `runtime.node`, and residual host into a
+/// caller-specified directory.
+#[cfg(feature = "bundled-cli")]
+pub(crate) fn install_runtime_launch_at(extract_dir: &Path) -> Option<crate::BundledRuntimeLaunch> {
+    let program = install_runtime_at(extract_dir)?;
+    let host = install_host_at(extract_dir)?;
+    runtime_launch_from_paths(program, &host)
+}
+
+#[cfg(feature = "bundled-cli")]
+fn install_host_at(extract_dir: &Path) -> Option<PathBuf> {
+    #[cfg(has_bundled_cli)]
+    {
+        match install_cli(extract_dir, build_time::CLI_ARCHIVE) {
+            Ok(path) => {
+                info!(path = %path.display(), version = CLI_VERSION, "embedded runtime host installed");
+                return Some(path);
+            }
+            Err(e) => {
+                warn!(error = %e, "embedded runtime host installation failed");
+            }
+        }
+    }
+    #[cfg(not(has_bundled_cli))]
+    {
+        let _ = extract_dir;
+    }
+    None
+}
+
+#[cfg(feature = "bundled-cli")]
+fn runtime_launch_from_paths(program: PathBuf, host: &Path) -> Option<crate::BundledRuntimeLaunch> {
+    let launch = crate::BundledRuntimeLaunch::new(program, host);
+    if launch.is_none() {
+        tracing::warn!(
+            path = %host.display(),
+            "bundled CLI path cannot be represented in the runtime host command"
+        );
+    }
+    launch
 }
 
 #[cfg(has_bundled_cli)]
@@ -223,10 +298,7 @@ const RUNTIME_LIBRARY_NAME: &str = "libcopilot_runtime.dylib";
 const RUNTIME_LIBRARY_NAME: &str = "libcopilot_runtime.so";
 
 #[cfg(has_bundled_cli)]
-fn install_cli_bundle(
-    install_dir: &Path,
-    archive: &[u8],
-) -> Result<PathBuf, EmbeddedCliError> {
+fn install_cli_bundle(install_dir: &Path, archive: &[u8]) -> Result<PathBuf, EmbeddedCliError> {
     install_cli(install_dir, archive)?;
     #[cfg(feature = "bundled-in-process")]
     {
