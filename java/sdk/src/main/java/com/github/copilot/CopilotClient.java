@@ -40,8 +40,6 @@ import com.github.copilot.generated.rpc.ConnectResult;
 import com.github.copilot.generated.rpc.GitHubTelemetryNotification;
 import com.github.copilot.generated.rpc.ServerRpc;
 import com.github.copilot.generated.rpc.SessionEventLogRegisterInterestParams;
-import com.github.copilot.generated.rpc.SessionMcpReloadWithConfigParams;
-import com.github.copilot.generated.rpc.SessionMcpReloadWithConfigResult;
 import com.github.copilot.rpc.DeleteSessionResponse;
 import com.github.copilot.rpc.GetAuthStatusResponse;
 import com.github.copilot.rpc.GetLastSessionIdResponse;
@@ -1148,17 +1146,11 @@ public final class CopilotClient implements AutoCloseable {
                                 rpcNanos);
                         String returnedId = response.sessionId();
                         String interestSessionId = returnedId != null ? returnedId : sessionId;
-                        CompletableFuture<?> reload = config.getMcpServers() != null
-                                ? connection.rpc.invoke("session.mcp.reloadWithConfig",
-                                        new SessionMcpReloadWithConfigParams(interestSessionId,
-                                                Map.of("mcpServers", config.getMcpServers())),
-                                        SessionMcpReloadWithConfigResult.class)
-                                : CompletableFuture.completedFuture(null);
                         CompletableFuture<?> interest = config.getOnMcpAuthRequest() != null
                                 ? session.getRpc().eventLog.registerInterest(new SessionEventLogRegisterInterestParams(
                                         interestSessionId, "mcp.oauth_required"))
                                 : CompletableFuture.completedFuture(null);
-                        return reload.thenCompose(ignored -> interest).thenApply(interestResult -> {
+                        return interest.thenApply(interestResult -> {
                             logMcpAuthInterestRegistration(interestResult);
                             return response;
                         });

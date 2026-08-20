@@ -150,7 +150,7 @@ async fn should_login_list_getcurrentauth_and_logout_account() {
                     .account()
                     .login(AccountLoginRequest {
                         host: "https://github.com".to_string(),
-                        login: "rust-account-user".to_string(),
+                        login: Some("rust-account-user".to_string()),
                         token: "rust-account-token".to_string(),
                     })
                     .await

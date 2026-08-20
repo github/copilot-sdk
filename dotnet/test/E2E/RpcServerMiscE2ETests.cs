@@ -92,7 +92,7 @@ public class RpcServerMiscE2ETests(E2ETestFixture fixture, ITestOutputHelper out
             var initial = await client.Rpc.Account.GetCurrentAuthAsync();
             Assert.Null(initial.AuthInfo);
 
-            var loginResult = await client.Rpc.Account.LoginAsync("https://github.com", login, token);
+            var loginResult = await client.Rpc.Account.LoginAsync("https://github.com", token, login);
             Assert.NotNull(loginResult);
 
             var current = await client.Rpc.Account.GetCurrentAuthAsync();

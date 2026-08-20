@@ -1356,19 +1356,6 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
 
-	if config.MCPServers != nil {
-		internalSessionRPC := rpc.NewInternalSessionRPC(c.client, sessionID)
-		_, err := internalSessionRPC.MCP.ReloadWithConfig(ctx, &rpc.MCPReloadWithConfigRequest{
-			Config: map[string]any{"mcpServers": config.MCPServers},
-		})
-		if err != nil {
-			c.sessionsMux.Lock()
-			delete(c.sessions, sessionID)
-			c.sessionsMux.Unlock()
-			return nil, fmt.Errorf("failed to reload MCP servers after resume: %w", err)
-		}
-	}
-
 	if config.OnMCPAuthRequest != nil {
 		if _, err := c.client.Request(ctx, "session.eventLog.registerInterest", map[string]any{
 			"sessionId": sessionID,
