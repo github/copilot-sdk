@@ -1909,6 +1909,14 @@ impl ManagedSettings {
 pub struct SessionConfig {
     /// Custom session ID. When unset, the CLI generates one.
     pub session_id: Option<SessionId>,
+    /// Client session ID reported for AI-credit attribution and telemetry.
+    ///
+    /// When set to a non-empty value, this seeds the runtime's client-session
+    /// scalar (which drives `X-Client-Session-Id` and telemetry) without
+    /// affecting the logical [`session_id`](Self::session_id) used for
+    /// resume-reattach, permission hooks, and the workspace filesystem. When
+    /// unset or empty, the runtime falls back to `session_id`.
+    pub reported_client_session_id: Option<String>,
     /// Model to use (e.g. `"gpt-4"`, `"claude-sonnet-4"`).
     pub model: Option<String>,
     /// Application name sent as `User-Agent` context.
@@ -2222,6 +2230,10 @@ impl std::fmt::Debug for SessionConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SessionConfig")
             .field("session_id", &self.session_id)
+            .field(
+                "reported_client_session_id",
+                &self.reported_client_session_id,
+            )
             .field("model", &self.model)
             .field("client_name", &self.client_name)
             .field("reasoning_effort", &self.reasoning_effort)
@@ -2357,6 +2369,7 @@ impl Default for SessionConfig {
     fn default() -> Self {
         Self {
             session_id: None,
+            reported_client_session_id: None,
             model: None,
             client_name: None,
             reasoning_effort: None,
@@ -2515,6 +2528,7 @@ impl SessionConfig {
 
         let wire = crate::wire::SessionCreateWire {
             session_id,
+            reported_client_session_id: self.reported_client_session_id,
             model: self.model,
             client_name: self.client_name,
             reasoning_effort: self.reasoning_effort,
@@ -2720,6 +2734,15 @@ impl SessionConfig {
     /// Set a custom session ID (when unset, the CLI generates one).
     pub fn with_session_id(mut self, id: impl Into<SessionId>) -> Self {
         self.session_id = Some(id.into());
+        self
+    }
+
+    /// Set the client session ID reported for AI-credit attribution and
+    /// telemetry. Seeds the runtime's client-session scalar
+    /// (`X-Client-Session-Id`) without changing the logical session ID used for
+    /// resume-reattach, permission hooks, and the workspace filesystem.
+    pub fn with_reported_client_session_id(mut self, id: impl Into<String>) -> Self {
+        self.reported_client_session_id = Some(id.into());
         self
     }
 
@@ -3239,6 +3262,16 @@ impl SessionConfig {
 pub struct ResumeSessionConfig {
     /// ID of the session to resume.
     pub session_id: SessionId,
+    /// Client session ID reported for AI-credit attribution and telemetry.
+    ///
+    /// When set to a non-empty value, this seeds the runtime's client-session
+    /// scalar (which drives `X-Client-Session-Id` and telemetry) without
+    /// affecting the logical [`session_id`](Self::session_id) used for
+    /// resume-reattach, permission hooks, and the workspace filesystem. When
+    /// unset or empty, the runtime falls back to `session_id`. This matters for
+    /// steering/resume runs where the reported client session differs from the
+    /// session being resumed.
+    pub reported_client_session_id: Option<String>,
     /// Model to use for this session (e.g. `"gpt-4"`, `"claude-sonnet-4"`).
     /// Can change the model when resuming.
     pub model: Option<String>,
@@ -3487,6 +3520,10 @@ impl std::fmt::Debug for ResumeSessionConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ResumeSessionConfig")
             .field("session_id", &self.session_id)
+            .field(
+                "reported_client_session_id",
+                &self.reported_client_session_id,
+            )
             .field("model", &self.model)
             .field("client_name", &self.client_name)
             .field("reasoning_effort", &self.reasoning_effort)
@@ -3659,6 +3696,7 @@ impl ResumeSessionConfig {
 
         let wire = crate::wire::SessionResumeWire {
             session_id: self.session_id,
+            reported_client_session_id: self.reported_client_session_id,
             model: self.model,
             client_name: self.client_name,
             reasoning_effort: self.reasoning_effort,
@@ -3763,6 +3801,7 @@ impl ResumeSessionConfig {
     pub fn new(session_id: SessionId) -> Self {
         Self {
             session_id,
+            reported_client_session_id: None,
             model: None,
             client_name: None,
             reasoning_effort: None,
@@ -3944,6 +3983,16 @@ impl ResumeSessionConfig {
     /// Set the model identifier to switch to on resume (e.g. `"claude-sonnet-4"`).
     pub fn with_model(mut self, model: impl Into<String>) -> Self {
         self.model = Some(model.into());
+        self
+    }
+
+    /// Set the client session ID reported for AI-credit attribution and
+    /// telemetry. Seeds the runtime's client-session scalar
+    /// (`X-Client-Session-Id`) without changing the logical session ID being
+    /// resumed. On steering/resume runs this lets credit spend bill to the
+    /// steering session rather than the resumed task session.
+    pub fn with_reported_client_session_id(mut self, id: impl Into<String>) -> Self {
+        self.reported_client_session_id = Some(id.into());
         self
     }
 
@@ -7152,6 +7201,40 @@ mod tests {
             .expect("no duplicate handlers");
         let empty_json = serde_json::to_value(&empty_wire).unwrap();
         assert!(empty_json.get("capi").is_none());
+    }
+
+    #[test]
+    fn reported_client_session_id_serializes_top_level_on_create() {
+        let (wire, _) = SessionConfig::default()
+            .with_reported_client_session_id("steering-session")
+            .into_wire(Some(SessionId::from("task-session")))
+            .expect("no duplicate handlers");
+        let json = serde_json::to_value(&wire).unwrap();
+        assert_eq!(json["reportedClientSessionId"], "steering-session");
+        assert_eq!(json["sessionId"], "task-session");
+
+        let (empty_wire, _) = SessionConfig::default()
+            .into_wire(Some(SessionId::from("task-session")))
+            .expect("no duplicate handlers");
+        let empty_json = serde_json::to_value(&empty_wire).unwrap();
+        assert!(empty_json.get("reportedClientSessionId").is_none());
+    }
+
+    #[test]
+    fn reported_client_session_id_serializes_top_level_on_resume() {
+        let (wire, _) = ResumeSessionConfig::new(SessionId::from("task-session"))
+            .with_reported_client_session_id("steering-session")
+            .into_wire()
+            .expect("no duplicate handlers");
+        let json = serde_json::to_value(&wire).unwrap();
+        assert_eq!(json["reportedClientSessionId"], "steering-session");
+        assert_eq!(json["sessionId"], "task-session");
+
+        let (empty_wire, _) = ResumeSessionConfig::new(SessionId::from("task-session"))
+            .into_wire()
+            .expect("no duplicate handlers");
+        let empty_json = serde_json::to_value(&empty_wire).unwrap();
+        assert!(empty_json.get("reportedClientSessionId").is_none());
     }
 
     #[test]

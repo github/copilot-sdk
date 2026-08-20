@@ -50,6 +50,8 @@ pub(crate) struct SessionCreateWire {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<SessionId>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub reported_client_session_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub client_name: Option<String>,
@@ -198,6 +200,8 @@ pub(crate) struct SessionCreateWire {
 #[serde(rename_all = "camelCase")]
 pub(crate) struct SessionResumeWire {
     pub session_id: SessionId,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reported_client_session_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
