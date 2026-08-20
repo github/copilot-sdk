@@ -9,7 +9,10 @@ import { createSdkTestContext } from "./harness/sdkTestContext.js";
 describe("UI ephemeral query RPC", async () => {
     const { copilotClient: client } = await createSdkTestContext();
 
-    it("should answer ephemeral query", { timeout: 120_000 }, async () => {
+    // TODO(cli-1.0.81-2): CLI 1.0.81-5 still fails session.ui.ephemeralQuery against the
+    // recorded snapshot on macOS ("Failed to get response from the AI model"). Re-enable
+    // once the runtime fix ships.
+    it.skip("should answer ephemeral query", { timeout: 120_000 }, async () => {
         const session = await client.createSession({ onPermissionRequest: approveAll });
         try {
             const result = await session.rpc.ui.ephemeralQuery({
