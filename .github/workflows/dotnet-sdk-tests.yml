@@ -44,8 +44,8 @@ jobs:
           # 1.0.81-2 bump it stopped finishing: the job ran 50+ minutes until
           # the runner lost communication with the server, and a runner that
           # dies that way uploads no logs at all, so the failure could not be
-          # diagnosed from CI output. Split it across two hosts the same way
-          # the Windows default suite is split below.
+          # diagnosed from CI output. Split it across isolated hosts so one
+          # poisoned runtime cannot consume the entire job without diagnostics.
           - os: macos-latest
             transport: default
             shard: full
@@ -69,7 +69,15 @@ jobs:
           - os: macos-latest
             transport: default
             backend: capi
-            shard: "2"
+            shard: "2a"
+          - os: macos-latest
+            transport: default
+            backend: capi
+            shard: "2b"
+          - os: macos-latest
+            transport: default
+            backend: capi
+            shard: "2c"
           - os: ubuntu-latest
             transport: inprocess
             backend: anthropic-messages
@@ -149,13 +157,28 @@ jobs:
 
           filter="$DOTNET_TEST_FILTER"
           if [[ "$DOTNET_TEST_SHARD" != "full" ]]; then
-            if [[ "$DOTNET_TEST_SHARD" == "1" ]]; then
-              initials=(A C D H I J K L N Q S U W Y)
-              shard_filter="FullyQualifiedName~GitHub.Copilot.Test.ConnectionToken"
-            else
-              initials=(B E F G M O P R T V X Z)
-              shard_filter=""
-            fi
+            case "$DOTNET_TEST_SHARD" in
+              1)
+                initials=(A C D H I J K L N Q S U W Y)
+                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.ConnectionToken"
+                ;;
+              2)
+                initials=(B E F G M O P R T V X Z)
+                shard_filter=""
+                ;;
+              2a)
+                initials=(B E F G)
+                shard_filter=""
+                ;;
+              2b)
+                initials=(M O P R)
+                shard_filter=""
+                ;;
+              2c)
+                initials=(T V X Z)
+                shard_filter=""
+                ;;
+            esac
 
             for namespace in E2E Unit; do
               for initial in "${initials[@]}"; do
