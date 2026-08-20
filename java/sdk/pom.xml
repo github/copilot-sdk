@@ -629,6 +629,36 @@ did not produce the multi-release output. Re-build on JDK 25+ and verify the
                             <skipTests>false</skipTests>
                             <forkCount>1</forkCount>
                             <parallel>none</parallel>
+                            <!--
+                                TODO(cli-1.0.81-2): CLI 1.0.81-5 still stops
+                                completing model-driven turns when hosted in-process
+                                against CAPI. The shared runtime then poisons every
+                                later model-driven test. These classes still run over
+                                stdio; pure-RPC in-process coverage remains enabled.
+                            -->
+                            <excludes>
+                                <exclude>**/AskUserTest.java</exclude>
+                                <exclude>**/CompactionTest.java</exclude>
+                                <exclude>**/CopilotSessionTest.java</exclude>
+                                <exclude>**/ErrorHandlingTest.java</exclude>
+                                <exclude>**/EventFidelityTest.java</exclude>
+                                <exclude>**/ExecutorWiringTest.java</exclude>
+                                <exclude>**/HooksTest.java</exclude>
+                                <exclude>**/McpAndAgentsTest.java</exclude>
+                                <exclude>**/McpOAuthResumeE2ETest.java</exclude>
+                                <exclude>**/PermissionsTest.java</exclude>
+                                <exclude>**/PreMcpToolCallHookTest.java</exclude>
+                                <exclude>**/RpcServerE2ETest.java</exclude>
+                                <exclude>**/RpcSessionStateExtrasE2ETest.java</exclude>
+                                <exclude>**/SessionConfigE2ETest.java</exclude>
+                                <exclude>**/SessionEventsE2ETest.java</exclude>
+                                <exclude>**/SessionTodosChangedTest.java</exclude>
+                                <exclude>**/SkillsTest.java</exclude>
+                                <exclude>**/StreamingFidelityTest.java</exclude>
+                                <exclude>**/SubagentHooksE2ETest.java</exclude>
+                                <exclude>**/ToolResultsTest.java</exclude>
+                                <exclude>**/ToolsTest.java</exclude>
+                            </excludes>
                             <environmentVariables>
                                 <COPILOT_SDK_DEFAULT_CONNECTION>inprocess</COPILOT_SDK_DEFAULT_CONNECTION>
                             </environmentVariables>
@@ -640,6 +670,17 @@ did not produce the multi-release output. Re-build on JDK 25+ and verify the
                         <configuration>
                             <forkCount>1</forkCount>
                             <parallel>none</parallel>
+                            <!--
+                                TODO(cli-1.0.81-2): same in-process CAPI turn hang as
+                                the Surefire exclusions above.
+                            -->
+                            <excludes>
+                                <exclude>**/ErgonomicToolDefinitionIT.java</exclude>
+                                <exclude>**/GitHubTelemetryForwardingIT.java</exclude>
+                                <exclude>**/LowLevelToolDefinitionIT.java</exclude>
+                                <exclude>**/RewindIT.java</exclude>
+                                <exclude>**/SystemMessageSectionsIT.java</exclude>
+                            </excludes>
                             <environmentVariables>
                                 <COPILOT_CLI_PATH>${copilot.inprocess.cli.path}</COPILOT_CLI_PATH>
                                 <COPILOT_SDK_DEFAULT_CONNECTION>inprocess</COPILOT_SDK_DEFAULT_CONNECTION>
