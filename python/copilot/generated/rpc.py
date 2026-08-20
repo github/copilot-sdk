@@ -418,30 +418,34 @@ class AccountQuotaSnapshot:
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class AccountLoginRequest:
-    """Credentials to store after successful authentication"""
-
+    """Credentials to validate and store. Omit login to resolve the authenticated user from the
+    token.
+    """
     host: str
     """GitHub host URL"""
 
-    login: str
-    """User login/username"""
-
     token: str
     """GitHub authentication token"""
+
+    login: str | None = None
+    """User login/username. When omitted, the runtime validates the token and resolves the login
+    from GitHub.
+    """
 
     @staticmethod
     def from_dict(obj: Any) -> 'AccountLoginRequest':
         assert isinstance(obj, dict)
         host = from_str(obj.get("host"))
-        login = from_str(obj.get("login"))
         token = from_str(obj.get("token"))
-        return AccountLoginRequest(host, login, token)
+        login = from_union([from_str, from_none], obj.get("login"))
+        return AccountLoginRequest(host, token, login)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["host"] = from_str(self.host)
-        result["login"] = from_str(self.login)
         result["token"] = from_str(self.token)
+        if self.login is not None:
+            result["login"] = from_union([from_str, from_none], self.login)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -33600,6 +33604,7 @@ class PermissionSource(Enum):
     CLI_FLAG = "cli_flag"
     RPC = "rpc"
     SLASH_COMMAND = "slash_command"
+    USER_SETTING = "user_setting"
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
@@ -38492,7 +38497,7 @@ class ServerAccountApi:
         return list(await self._client.request("account.getAllUsers", {}, **_timeout_kwargs(timeout)))
 
     async def login(self, params: AccountLoginRequest, *, timeout: float | None = None) -> AccountLoginResult:
-        "Stores authentication credentials after successful login (e.g., device code flow).\n\nArgs:\n    params: Credentials to store after successful authentication\n\nReturns:\n    Result of a successful login; throws on failure"
+        "Validates and stores authentication credentials. When login is omitted, resolves the authenticated user from the token before persistence.\n\nArgs:\n    params: Credentials to validate and store. Omit login to resolve the authenticated user from the token.\n\nReturns:\n    Result of a successful login; throws on failure"
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return AccountLoginResult.from_dict(await self._client.request("account.login", params_dict, **_timeout_kwargs(timeout)))
 

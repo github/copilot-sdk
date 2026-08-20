@@ -74,7 +74,7 @@ public final class ServerAccountApi {
     }
 
     /**
-     * Credentials to store after successful authentication
+     * Credentials to validate and store. Omit login to resolve the authenticated user from the token.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0

@@ -1034,7 +1034,7 @@ public sealed class AccountLoginResult
     public bool StoredInVault { get; set; }
 }
 
-/// <summary>Credentials to store after successful authentication.</summary>
+/// <summary>Credentials to validate and store. Omit login to resolve the authenticated user from the token.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class AccountLoginRequest
 {
@@ -1042,9 +1042,9 @@ internal sealed class AccountLoginRequest
     [JsonPropertyName("host")]
     public string Host { get; set; } = string.Empty;
 
-    /// <summary>User login/username.</summary>
+    /// <summary>User login/username. When omitted, the runtime validates the token and resolves the login from GitHub.</summary>
     [JsonPropertyName("login")]
-    public string Login { get; set; } = string.Empty;
+    public string? Login { get; set; }
 
     /// <summary>GitHub authentication token.</summary>
     [JsonPropertyName("token")]
@@ -26847,6 +26847,9 @@ public readonly struct PermissionsSetApproveAllSource : IEquatable<PermissionsSe
     /// <summary>Allow-all was enabled by confirming autopilot behavior.</summary>
     public static PermissionsSetApproveAllSource AutopilotConfirmation { get; } = new("autopilot_confirmation");
 
+    /// <summary>Allow-all was enabled at startup by the `defaultPermissionMode` user setting.</summary>
+    public static PermissionsSetApproveAllSource UserSetting { get; } = new("user_setting");
+
     /// <summary>Allow-all was enabled through an RPC caller.</summary>
     public static PermissionsSetApproveAllSource Rpc { get; } = new("rpc");
 
@@ -26915,6 +26918,9 @@ public readonly struct PermissionModeSource : IEquatable<PermissionModeSource>
 
     /// <summary>The mode was set by confirming autopilot behavior.</summary>
     public static PermissionModeSource AutopilotConfirmation { get; } = new("autopilot_confirmation");
+
+    /// <summary>The mode was set at startup by the `defaultPermissionMode` user setting.</summary>
+    public static PermissionModeSource UserSetting { get; } = new("user_setting");
 
     /// <summary>The mode was set through an RPC caller.</summary>
     public static PermissionModeSource Rpc { get; } = new("rpc");
@@ -29065,19 +29071,18 @@ public sealed class ServerAccountApi
         return await CopilotClient.InvokeRpcAsync<IList<AccountAllUsers>>(_rpc, "account.getAllUsers", [], cancellationToken);
     }
 
-    /// <summary>Stores authentication credentials after successful login (e.g., device code flow).</summary>
+    /// <summary>Validates and stores authentication credentials. When login is omitted, resolves the authenticated user from the token before persistence.</summary>
     /// <param name="host">GitHub host URL.</param>
-    /// <param name="login">User login/username.</param>
     /// <param name="token">GitHub authentication token.</param>
+    /// <param name="login">User login/username. When omitted, the runtime validates the token and resolves the login from GitHub.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Result of a successful login; throws on failure.</returns>
-    public async Task<AccountLoginResult> LoginAsync(string host, string login, string token, CancellationToken cancellationToken = default)
+    public async Task<AccountLoginResult> LoginAsync(string host, string token, string? login = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(host);
-        ArgumentNullException.ThrowIfNull(login);
         ArgumentNullException.ThrowIfNull(token);
 
-        var request = new AccountLoginRequest { Host = host, Login = login, Token = token };
+        var request = new AccountLoginRequest { Host = host, Token = token, Login = login };
         return await CopilotClient.InvokeRpcAsync<AccountLoginResult>(_rpc, "account.login", [request], cancellationToken);
     }
 

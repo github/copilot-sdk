@@ -345,13 +345,13 @@ impl<'a> ClientRpcAccount<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Stores authentication credentials after successful login (e.g., device code flow).
+    /// Validates and stores authentication credentials. When login is omitted, resolves the authenticated user from the token before persistence.
     ///
     /// Wire method: `account.login`.
     ///
     /// # Parameters
     ///
-    /// * `params` - Credentials to store after successful authentication
+    /// * `params` - Credentials to validate and store. Omit login to resolve the authenticated user from the token.
     ///
     /// # Returns
     ///

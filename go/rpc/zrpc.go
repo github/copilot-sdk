@@ -73,14 +73,16 @@ type AccountGetQuotaResult struct {
 	QuotaSnapshots map[string]AccountQuotaSnapshot `json:"quotaSnapshots"`
 }
 
-// Credentials to store after successful authentication
+// Credentials to validate and store. Omit login to resolve the authenticated user from the
+// token.
 // Experimental: AccountLoginRequest is part of an experimental API and may change or be
 // removed.
 type AccountLoginRequest struct {
 	// GitHub host URL
 	Host string `json:"host"`
-	// User login/username
-	Login string `json:"login"`
+	// User login/username. When omitted, the runtime validates the token and resolves the login
+	// from GitHub.
+	Login *string `json:"login,omitempty"`
 	// GitHub authentication token
 	Token string `json:"token"`
 }
@@ -17456,6 +17458,8 @@ const (
 	PermissionModeSourceRPC PermissionModeSource = "rpc"
 	// The mode was set by a slash command.
 	PermissionModeSourceSlashCommand PermissionModeSource = "slash_command"
+	// The mode was set at startup by the `defaultPermissionMode` user setting.
+	PermissionModeSourceUserSetting PermissionModeSource = "user_setting"
 )
 
 // Allowed values for the `PermissionsConfigureAdditionalContentExclusionPolicyScope`
@@ -17515,6 +17519,8 @@ const (
 	PermissionsSetApproveAllSourceRPC PermissionsSetApproveAllSource = "rpc"
 	// Allow-all was enabled by a slash command.
 	PermissionsSetApproveAllSourceSlashCommand PermissionsSetApproveAllSource = "slash_command"
+	// Allow-all was enabled at startup by the `defaultPermissionMode` user setting.
+	PermissionsSetApproveAllSourceUserSetting PermissionsSetApproveAllSource = "user_setting"
 )
 
 // Controls whether the runtime may defer loading an external tool definition.
@@ -18682,11 +18688,13 @@ func (a *ServerAccountAPI) GetQuota(ctx context.Context, params *AccountGetQuota
 	return &result, nil
 }
 
-// Login stores authentication credentials after successful login (e.g., device code flow).
+// Login validates and stores authentication credentials. When login is omitted, resolves
+// the authenticated user from the token before persistence.
 //
 // RPC method: account.login.
 //
-// Parameters: Credentials to store after successful authentication
+// Parameters: Credentials to validate and store. Omit login to resolve the authenticated
+// user from the token.
 //
 // Returns: Result of a successful login; throws on failure
 func (a *ServerAccountAPI) Login(ctx context.Context, params *AccountLoginRequest) (*AccountLoginResult, error) {

@@ -1403,7 +1403,7 @@ pub struct AccountGetQuotaResult {
     pub quota_snapshots: HashMap<String, AccountQuotaSnapshot>,
 }
 
-/// Credentials to store after successful authentication
+/// Credentials to validate and store. Omit login to resolve the authenticated user from the token.
 ///
 /// <div class="warning">
 ///
@@ -1416,8 +1416,9 @@ pub struct AccountGetQuotaResult {
 pub struct AccountLoginRequest {
     /// GitHub host URL
     pub host: String,
-    /// User login/username
-    pub login: String,
+    /// User login/username. When omitted, the runtime validates the token and resolves the login from GitHub.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub login: Option<String>,
     /// GitHub authentication token
     pub token: String,
 }
@@ -31256,6 +31257,9 @@ pub enum PermissionModeSource {
     /// The mode was set by confirming autopilot behavior.
     #[serde(rename = "autopilot_confirmation")]
     AutopilotConfirmation,
+    /// The mode was set at startup by the `defaultPermissionMode` user setting.
+    #[serde(rename = "user_setting")]
+    UserSetting,
     /// The mode was set through an RPC caller.
     #[serde(rename = "rpc")]
     Rpc,
@@ -31328,6 +31332,9 @@ pub enum PermissionsSetApproveAllSource {
     /// Allow-all was enabled by confirming autopilot behavior.
     #[serde(rename = "autopilot_confirmation")]
     AutopilotConfirmation,
+    /// Allow-all was enabled at startup by the `defaultPermissionMode` user setting.
+    #[serde(rename = "user_setting")]
+    UserSetting,
     /// Allow-all was enabled through an RPC caller.
     #[serde(rename = "rpc")]
     Rpc,

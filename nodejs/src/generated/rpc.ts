@@ -2551,6 +2551,8 @@ export type PermissionModeSource =
   | "slash_command"
   /** The mode was set by confirming autopilot behavior. */
   | "autopilot_confirmation"
+  /** The mode was set at startup by the `defaultPermissionMode` user setting. */
+  | "user_setting"
   /** The mode was set through an RPC caller. */
   | "rpc";
 /**
@@ -2591,6 +2593,8 @@ export type PermissionsSetApproveAllSource =
   | "slash_command"
   /** Allow-all was enabled by confirming autopilot behavior. */
   | "autopilot_confirmation"
+  /** Allow-all was enabled at startup by the `defaultPermissionMode` user setting. */
+  | "user_setting"
   /** Allow-all was enabled through an RPC caller. */
   | "rpc";
 /**
@@ -4350,7 +4354,7 @@ export interface AccountQuotaSnapshot {
   resetDate?: string;
 }
 /**
- * Credentials to store after successful authentication
+ * Credentials to validate and store. Omit login to resolve the authenticated user from the token.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "AccountLoginRequest".
@@ -4362,9 +4366,9 @@ export interface AccountLoginRequest {
    */
   host: string;
   /**
-   * User login/username
+   * User login/username. When omitted, the runtime validates the token and resolves the login from GitHub.
    */
-  login: string;
+  login?: string;
   /**
    * GitHub authentication token
    */
@@ -22490,9 +22494,9 @@ export function createServerRpc(connection: MessageConnection) {
             getAllUsers: async (): Promise<AccountGetAllUsersResult> =>
                 connection.sendRequest("account.getAllUsers", {}),
             /**
-             * Stores authentication credentials after successful login (e.g., device code flow).
+             * Validates and stores authentication credentials. When login is omitted, resolves the authenticated user from the token before persistence.
              *
-             * @param params Credentials to store after successful authentication
+             * @param params Credentials to validate and store. Omit login to resolve the authenticated user from the token.
              *
              * @returns Result of a successful login; throws on failure
              */
