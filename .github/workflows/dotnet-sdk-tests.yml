@@ -32,13 +32,6 @@ jobs:
           - os: windows-latest
             transport: default
             shard: full
-          # TODO(cli-1.0.81-4): in-process CAPI model turns eventually stop
-          # completing and poison the shared runtime until the job times out.
-          # Stdio CAPI and in-process BYOK cells remain enabled.
-          - os: ubuntu-latest
-            transport: inprocess
-          - os: macos-latest
-            transport: inprocess
           # The macOS default/capi host runs the whole suite on the smallest
           # runner in the matrix (3 vCPU / 7 GB vs ubuntu's 4 / 16). Since the
           # 1.0.81-2 bump it stopped finishing: the job ran 50+ minutes until

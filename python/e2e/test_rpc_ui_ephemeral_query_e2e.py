@@ -18,10 +18,6 @@ pytestmark = pytest.mark.asyncio(loop_scope="module")
 
 
 class TestRpcUiEphemeralQuery:
-    # TODO(cli-1.0.81-2): CLI 1.0.81-4 still fails session.ui.ephemeralQuery against the
-    # recorded snapshot ("Failed to get response from the AI model"). Re-enable once the
-    # runtime fix ships.
-    @pytest.mark.skip(reason="blocked on CLI 1.0.81-4 session.ui.ephemeralQuery regression")
     async def test_should_answer_ephemeral_query(self, ctx: E2ETestContext):
         async with await ctx.client.create_session(
             on_permission_request=PermissionHandler.approve_all,
