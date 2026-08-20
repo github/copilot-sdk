@@ -12,11 +12,6 @@ import (
 
 func TestGitHubTelemetryE2E(t *testing.T) {
 	t.Run("should forward github telemetry for a live session", func(t *testing.T) {
-		// TODO(cli-1.0.81-2): CLI 1.0.81-2 does not forward GitHub telemetry notifications
-		// over the in-process (FFI) host, mirroring the existing telemetry-configuration
-		// limitation. Still covered by the default (stdio) transport.
-		testharness.SkipIfInProcess(t, "GitHub telemetry forwarding is not honored in-process")
-
 		ctx := testharness.NewTestContext(t)
 		ctx.ConfigureForTest(t)
 
