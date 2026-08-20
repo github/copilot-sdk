@@ -2426,19 +2426,10 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
     private static RuntimeLaunch GetBundledRuntimeLaunch()
     {
-        var wrapper = GetBundledNativePath(
+        _ = GetBundledNativePath(
             OperatingSystem.IsWindows() ? "copilot-runtime.exe" : "copilot-runtime",
             out var searchedWrapper);
-        var runtimeNode = Path.Combine(Path.GetDirectoryName(searchedWrapper)!, "runtime.node");
-        if (wrapper is not null || File.Exists(runtimeNode))
-        {
-            return ValidateRuntimePair(searchedWrapper, "Bundled runtime");
-        }
-
-        var cliPath = GetBundledCliPath(out var searchedCli)
-            ?? throw new InvalidOperationException(
-                $"Copilot runtime not found at '{searchedWrapper}' or '{searchedCli}'. Ensure the SDK NuGet package was restored correctly or provide an explicit RuntimeConnection.ForStdio(path: ...) / RuntimeConnection.ForTcp(path: ...).");
-        return new RuntimeLaunch(cliPath, "Bundled CLI");
+        return ValidateRuntimePair(searchedWrapper, "Bundled runtime");
     }
 
     private static RuntimeLaunch ValidateRuntimePair(string wrapper, string source)

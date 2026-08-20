@@ -350,6 +350,18 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
+func resolveRuntimeExecutable(explicitPath, bundledRuntimePath string) (string, error) {
+	if explicitPath != "" {
+		return explicitPath, nil
+	}
+	if bundledRuntimePath == "" {
+		return "", errors.New(
+			"managed Copilot runtime unavailable: the embedded bundle does not contain copilot-runtime and adjacent runtime.node; regenerate the bundle, provide an explicit path, or set COPILOT_CLI_PATH",
+		)
+	}
+	return bundledRuntimePath, nil
+}
+
 const defaultConnectionEnvVar = "COPILOT_SDK_DEFAULT_CONNECTION"
 
 // resolveDefaultConnection selects the transport when no explicit connection
@@ -1996,18 +2008,9 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 		return c.startInProcess(ctx)
 	}
 
-	cliPath := c.cliPath
-	if cliPath == "" {
-		if runtimePath := embeddedcli.RuntimePath(); runtimePath != "" {
-			cliPath = runtimePath
-		} else {
-			// Bundles produced before copilot-runtime remain usable until regenerated.
-			cliPath = embeddedcli.Path()
-		}
-	}
-	if cliPath == "" {
-		// Default to "copilot" in PATH if no embedded CLI is available and no custom path is set
-		cliPath = "copilot"
+	cliPath, err := resolveRuntimeExecutable(c.cliPath, embeddedcli.RuntimePath())
+	if err != nil {
+		return err
 	}
 
 	// Start with user-provided CLIArgs, then add SDK-managed args

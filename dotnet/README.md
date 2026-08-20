@@ -104,6 +104,7 @@ new CopilotClient(CopilotClientOptions? options = null)
 Managed stdio and TCP connections use the bundled `copilot-runtime[.exe]` and
 adjacent `runtime.node` by default. An explicit connection path or
 `COPILOT_CLI_PATH` overrides the bundled runtime.
+Managed launch fails if the bundled wrapper pair is unavailable.
 
 #### Methods
 

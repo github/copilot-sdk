@@ -20,7 +20,7 @@ var (
 	cliPathOnce sync.Once
 )
 
-// CLIPath returns the CLI entrypoint used by direct and in-process E2E tests.
+// CLIPath returns the path to the Copilot CLI, discovering it once and caching.
 func CLIPath() string {
 	cliPathOnce.Do(func() {
 		// Check environment variable first
@@ -281,7 +281,7 @@ func (c *TestContext) applyInProcessEnvironment(mergedEnv []string, workDir stri
 	// inherited values. The HMAC key is neutralized process-wide at package load.
 	inprocessEnv["GH_TOKEN"] = defaultGitHubToken
 	inprocessEnv["GITHUB_TOKEN"] = defaultGitHubToken
-	inprocessEnv["COPILOT_CLI_PATH"] = CLIPath()
+	inprocessEnv["COPILOT_CLI_PATH"] = c.CLIPath
 	delete(inprocessEnv, "COPILOT_HMAC_KEY")
 	delete(inprocessEnv, "CAPI_HMAC_KEY")
 

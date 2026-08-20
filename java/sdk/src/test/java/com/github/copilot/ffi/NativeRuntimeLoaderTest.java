@@ -551,6 +551,21 @@ class NativeRuntimeLoaderTest {
     }
 
     @Test
+    void resolveRuntimeWrapperRejectsClassifierWithoutCliHost(@TempDir Path tempDir) throws Exception {
+        writeRuntimeResource(tempDir, TEST_CLASSIFIER, FAKE_BINARY_CONTENT);
+        Path resourceDir = tempDir.resolve("native").resolve(TEST_CLASSIFIER);
+        Files.write(resourceDir.resolve(TEST_CLASSIFIER.startsWith("win32")
+                ? NativeRuntimeLoader.RUNTIME_WRAPPER_FILENAME_WINDOWS
+                : NativeRuntimeLoader.RUNTIME_WRAPPER_FILENAME), FAKE_WRAPPER_CONTENT);
+        ClassLoader loader = new URLClassLoader(new URL[]{tempDir.toUri().toURL()}, null);
+
+        IOException error = assertThrows(IOException.class, () -> NativeRuntimeLoader
+                .resolveRuntimeWrapper(tempDir.resolve("cache"), loader, TEST_CLASSIFIER, TEST_VERSION));
+
+        assertTrue(error.getMessage().contains(TEST_CLI_FILENAME));
+    }
+
+    @Test
     void resolveFallsBackToRuntimeAlongsideBundledCli(@TempDir Path tempDir) throws Exception {
         Path cacheBase = tempDir.resolve("cache");
         ClassLoader emptyLoader = new URLClassLoader(new URL[0], null);

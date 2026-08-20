@@ -21,9 +21,9 @@ To use the SDK, you'll need:
 
 - Java 17 or later. **JDK 25 recommended**. The distributed jar is a multi-release jar (MR-JAR) and is compiled on JDK 25 with `maven.compiler.release` set to 17. This means, when run on JDK 25 and later, the SDK automatically uses virtual threads for its default internal executor.
 
-Managed stdio and TCP connections use the platform classifier's
-`copilot-runtime[.exe]` and adjacent `runtime.node` by default. An explicit
-`cliPath` overrides the bundled runtime.
+Managed stdio and TCP connections materialize the platform classifier's
+`copilot-runtime[.exe]`, adjacent `runtime.node`, and compatible `copilot[.exe]`
+host by default. An explicit `cliPath` overrides the bundled runtime.
 
 ## Installation
 

@@ -1685,8 +1685,7 @@ class CopilotClient:
             else:
                 self._effective_connection_token = None
 
-            # Resolve runtime path: explicit CLI > COPILOT_CLI_PATH > local wrapper
-            # override > downloaded wrapper pair.
+            # Resolve runtime path: explicit CLI > COPILOT_CLI_PATH > downloaded runtime.
             # Select the environment by identity, not truthiness, so an intentionally
             # empty per-connection or client env stays authoritative (the spawned child
             # receives that empty mapping) instead of falling back to os.environ and

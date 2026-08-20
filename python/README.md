@@ -29,9 +29,9 @@ runtime:
 python -m copilot download-runtime
 ```
 
-This caches `copilot-runtime` and its adjacent `runtime.node` locally. If you
-skip this step, the SDK downloads the pair automatically on first managed
-stdio/TCP use.
+This caches `copilot-runtime`, its adjacent `runtime.node`, and the compatible
+`copilot` host locally. If you skip this step, the SDK downloads the bundle
+automatically on first managed stdio/TCP use.
 
 To pre-provision the native library required by the in-process (FFI) transport
 (see [In-process (FFI) transport](#in-process-ffi-transport)), pass `--in-process`:
@@ -224,9 +224,10 @@ All options are kw-only parameters:
 - `RuntimeConnection.for_uri(url, connection_token=None)` — connect to an existing CLI server (e.g. `"localhost:8080"`).
 - `RuntimeConnection.for_inprocess()` — host the runtime in-process via its native C ABI (FFI). See [In-process (FFI) transport](#in-process-ffi-transport).
 
-Managed stdio and TCP connections use the downloaded `copilot-runtime` executable
-and its adjacent `runtime.node` by default. An explicit connection path or
-`COPILOT_CLI_PATH` overrides the downloaded runtime.
+Managed stdio and TCP connections use the downloaded `copilot-runtime`
+executable with adjacent `runtime.node` and compatible `copilot` host by
+default. An explicit connection path or `COPILOT_CLI_PATH` overrides the
+downloaded runtime.
 
 Child-process connections (`for_stdio`/`for_tcp`) also expose a per-connection
 `env` field for the spawned process. Set it on the returned connection instead of

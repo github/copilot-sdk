@@ -36,10 +36,10 @@ public final class TestUtil {
      * <p>
      * Resolution order:
      * <ol>
-     * <li>Use {@code COPILOT_CLI_PATH} when set.</li>
+     * <li>Use the {@code COPILOT_CLI_PATH} environment variable when set.</li>
      * <li>Otherwise search the system PATH using {@code where.exe} (Windows) or
      * {@code which} (Linux/macOS).</li>
-     * <li>Finally, walk parent directories looking for
+     * <li>Walk parent directories looking for
      * {@code nodejs/node_modules/@github/copilot/npm-loader.js}.</li>
      * </ol>
      *

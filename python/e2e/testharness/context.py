@@ -67,10 +67,10 @@ def _installed_cli_package_names(github_modules: Path) -> list[str]:
 
 
 def get_cli_path_for_tests() -> str:
-    """Get the CLI entrypoint used by direct and in-process E2E tests.
+    """Get CLI path for E2E tests.
 
-    Uses COPILOT_CLI_PATH when set, otherwise the
-    platform-specific package in the sibling nodejs directory's node_modules.
+    Uses COPILOT_CLI_PATH env var if set, otherwise the platform-specific CLI
+    package in the sibling nodejs directory's node_modules.
     """
     env_path = os.environ.get("COPILOT_CLI_PATH")
     if env_path and Path(env_path).exists():

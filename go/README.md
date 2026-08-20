@@ -138,6 +138,9 @@ Resolution and requirements:
   always takes precedence.
 - Set `COPILOT_CLI_PATH` only when using an externally provisioned compatible runtime package; otherwise the bundled runtime is used. No `PATH` lookup is performed.
 - Embedded runtime versions are isolated in separate cache directories. Start fails loudly if the native runtime is unavailable.
+- Managed child-process start fails if the embedded `copilot-runtime` and
+  `runtime.node` pair is unavailable; explicit paths and `COPILOT_CLI_PATH`
+  remain direct overrides.
 - Linux in-process bundles include both glibc and musl runtime packages and select the matching package automatically at startup.
 - Only one native runtime version may be loaded per process.
 

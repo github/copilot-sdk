@@ -13,7 +13,7 @@
 
 import { spawn, type ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { chmodSync, existsSync, statSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { Socket } from "node:net";
 import { dirname, isAbsolute, join } from "node:path";
@@ -43,6 +43,7 @@ import type {
 import { getSdkProtocolVersion } from "./sdkProtocolVersion.js";
 import { CopilotSession } from "./session.js";
 import type { FfiRuntimeHost } from "./ffiRuntimeHost.js";
+import { materializeRuntimeBundle } from "./runtimeArtifacts.js";
 import { createSessionFsAdapter, type SessionFsProvider } from "./sessionFsProvider.js";
 import { createCopilotRequestAdapter } from "./copilotRequestHandler.js";
 import type { CopilotRequestHandler } from "./copilotRequestHandler.js";
@@ -431,50 +432,19 @@ function getRuntimeWrapperName(): string {
     return process.platform === "win32" ? "copilot-runtime.exe" : "copilot-runtime";
 }
 
-function validateRuntimePair(runtimePath: string): string {
-    if (!existsSync(runtimePath)) {
-        throw new Error(`Copilot runtime wrapper not found at ${runtimePath}.`);
-    }
-    const runtimeNode = join(dirname(runtimePath), "runtime.node");
-    if (!existsSync(runtimeNode)) {
-        throw new Error(
-            `Copilot runtime wrapper at ${runtimePath} is missing its adjacent runtime.node at ${runtimeNode}.`
-        );
-    }
-    if (statSync(runtimePath).size === 0 || statSync(runtimeNode).size === 0) {
-        throw new Error(
-            `Copilot runtime wrapper and adjacent runtime.node must both be non-empty.`
-        );
-    }
-    if (process.platform !== "win32") {
-        const mode = statSync(runtimePath).mode;
-        if ((mode & 0o111) === 0) {
-            chmodSync(runtimePath, mode | 0o111);
-        }
-    }
-    return runtimePath;
+function getCliExecutableName(): string {
+    return process.platform === "win32" ? "copilot.exe" : "copilot";
 }
 
 function getBundledRuntimePath(): string {
-    const packageNames = getCliPlatformPackageNames();
-    const req = createRequire(__filename);
-    const searchPaths = req.resolve.paths("@github/copilot") ?? [];
-    for (const base of searchPaths) {
-        for (const packageName of packageNames) {
-            const root = join(base, ...packageName.split("/"));
-            const platform = packageName.slice("@github/copilot-".length);
-            const runtimePath = join(root, "prebuilds", platform, getRuntimeWrapperName());
-            if (existsSync(runtimePath)) {
-                return validateRuntimePair(runtimePath);
-            }
-        }
-    }
-
-    throw new Error(
-        `Could not find the Copilot runtime wrapper in a platform package (tried ${packageNames.join(", ")}). ` +
-            `Searched ${searchPaths.length} paths. ` +
-            `Ensure @github/copilot is installed, or supply an explicit runtime path in the connection configuration.`
-    );
+    const bundled = getBundledCliPackage();
+    const prebuilds = join(bundled.root, "prebuilds", bundled.platform);
+    return materializeRuntimeBundle({
+        wrapper: join(prebuilds, getRuntimeWrapperName()),
+        runtimeNode: join(prebuilds, "runtime.node"),
+        cli: join(bundled.root, getCliExecutableName()),
+        platform: bundled.platform,
+    });
 }
 
 /**

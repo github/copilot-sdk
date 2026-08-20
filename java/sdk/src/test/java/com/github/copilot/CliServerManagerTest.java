@@ -27,6 +27,14 @@ class CliServerManagerTest {
     @TempDir
     Path tempDir;
 
+    @Test
+    void explicitCliPathDoesNotRequireRuntimeBundle() throws Exception {
+        Path explicit = tempDir.resolve("copilot");
+        var manager = new CliServerManager(new CopilotClientOptions().setCliPath(explicit.toString()));
+
+        assertEquals(explicit.toString(), manager.resolveCliLaunch().executable());
+    }
+
     // ===== parseCliUrl tests =====
 
     @Test
