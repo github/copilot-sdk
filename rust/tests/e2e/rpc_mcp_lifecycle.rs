@@ -209,6 +209,7 @@ async fn should_start_and_restart_mcp_server() {
 // internal methods generically; it never exercised a supported wire API.
 
 #[tokio::test]
+#[ignore = "blocked on CLI 1.0.81-6 missing session.mcp.reloadWithConfig handler"]
 async fn should_reload_mcp_servers_with_config() {
     super::support::with_shared_e2e_context(
         &E2E,
@@ -252,6 +253,7 @@ async fn should_reload_mcp_servers_with_config() {
 }
 
 #[tokio::test]
+#[ignore = "blocked on CLI 1.0.81-6 missing session.mcp.configureGitHub handler"]
 async fn should_configure_github_mcp_server() {
     super::support::with_shared_e2e_context(
         &E2E,

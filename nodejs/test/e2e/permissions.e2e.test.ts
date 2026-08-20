@@ -17,8 +17,6 @@ import { approveAll, defineTool, createAttributedPermissionResult } from "../../
 import { createSdkTestContext, isInProcessTransport } from "./harness/sdkTestContext.js";
 import { getFinalAssistantMessage, getNextEventOfType } from "./harness/sdkTestHelper.js";
 
-const isWindows = process.platform === "win32";
-
 describe("Permission callbacks", async () => {
     const { copilotClient: client, workDir } = await createSdkTestContext();
 
@@ -632,76 +630,67 @@ describe("Permission callbacks", async () => {
         }
     });
 
-    // TODO(cli-1.0.81-2): CLI 1.0.81-2 no longer matches the location key returned by
-    // permissions.locations.resolve when permissions.locations.apply re-resolves it on Windows,
-    // so appliedRuleCount comes back as 0. Still covered on Linux and macOS.
-    it.skipIf(isWindows)(
-        "should invoke permission location and folder trust rpc apis",
-        async () => {
-            const session = await client.createSession({ onPermissionRequest: approveAll });
-            const locationDirectory = await createUniqueWorkDirectory(
-                workDir,
-                "permission-location"
-            );
-            const trustedDirectory = await createUniqueWorkDirectory(workDir, "folder-trust");
-            const commandIdentifier = `node-permission-location-${Date.now()}`;
-            try {
-                const resolved = await session.rpc.permissions.locations.resolve({
-                    workingDirectory: locationDirectory,
-                });
-                expect(resolved.locationType).toBe("dir");
-                expectPathEqual(resolved.locationKey, locationDirectory);
+    it("should invoke permission location and folder trust rpc apis", async () => {
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+        const locationDirectory = await createUniqueWorkDirectory(workDir, "permission-location");
+        const trustedDirectory = await createUniqueWorkDirectory(workDir, "folder-trust");
+        const commandIdentifier = `node-permission-location-${Date.now()}`;
+        try {
+            const resolved = await session.rpc.permissions.locations.resolve({
+                workingDirectory: locationDirectory,
+            });
+            expect(resolved.locationType).toBe("dir");
+            expectPathEqual(resolved.locationKey, locationDirectory);
 
-                expect(
-                    (
-                        await session.rpc.permissions.locations.addToolApproval({
-                            locationKey: resolved.locationKey,
-                            approval: {
-                                kind: "commands",
-                                commandIdentifiers: [commandIdentifier],
-                            },
-                        })
-                    ).success
-                ).toBe(true);
+            expect(
+                (
+                    await session.rpc.permissions.locations.addToolApproval({
+                        locationKey: resolved.locationKey,
+                        approval: {
+                            kind: "commands",
+                            commandIdentifiers: [commandIdentifier],
+                        },
+                    })
+                ).success
+            ).toBe(true);
 
-                const applied = await session.rpc.permissions.locations.apply({
-                    workingDirectory: locationDirectory,
-                });
-                expect(applied.locationType).toBe(resolved.locationType);
-                expectPathEqual(applied.locationKey, resolved.locationKey);
-                expect(applied.appliedRuleCount).toBeGreaterThanOrEqual(1);
-                expect(
-                    applied.appliedRules.some(
-                        (rule) => rule.kind === "shell" && rule.argument === commandIdentifier
-                    )
-                ).toBe(true);
+            const applied = await session.rpc.permissions.locations.apply({
+                workingDirectory: locationDirectory,
+            });
+            expect(applied.locationType).toBe(resolved.locationType);
+            expectPathEqual(applied.locationKey, resolved.locationKey);
+            expect(applied.appliedRuleCount).toBeGreaterThanOrEqual(1);
+            expect(
+                applied.appliedRules.some(
+                    (rule) => rule.kind === "shell" && rule.argument === commandIdentifier
+                )
+            ).toBe(true);
 
-                expect(
-                    (
-                        await session.rpc.permissions.folderTrust.isTrusted({
-                            path: trustedDirectory,
-                        })
-                    ).trusted
-                ).toBe(false);
-                expect(
-                    (
-                        await session.rpc.permissions.folderTrust.addTrusted({
-                            path: trustedDirectory,
-                        })
-                    ).success
-                ).toBe(true);
-                expect(
-                    (
-                        await session.rpc.permissions.folderTrust.isTrusted({
-                            path: trustedDirectory,
-                        })
-                    ).trusted
-                ).toBe(true);
-            } finally {
-                await session.disconnect();
-            }
+            expect(
+                (
+                    await session.rpc.permissions.folderTrust.isTrusted({
+                        path: trustedDirectory,
+                    })
+                ).trusted
+            ).toBe(false);
+            expect(
+                (
+                    await session.rpc.permissions.folderTrust.addTrusted({
+                        path: trustedDirectory,
+                    })
+                ).success
+            ).toBe(true);
+            expect(
+                (
+                    await session.rpc.permissions.folderTrust.isTrusted({
+                        path: trustedDirectory,
+                    })
+                ).trusted
+            ).toBe(true);
+        } finally {
+            await session.disconnect();
         }
-    );
+    });
 });
 
 async function createUniqueWorkDirectory(baseDir: string, prefix: string): Promise<string> {
