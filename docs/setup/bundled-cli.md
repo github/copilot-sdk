@@ -39,6 +39,9 @@ flowchart TB
 
 ## Quick start
 
+> [!NOTE]
+> Each SDK requires a minimum language runtime: **Node.js** 20+, **Python** 3.11+, **Go** 1.24+, **Rust** 1.94+, **Java** 17+, or **.NET** 8.0+. On an older Python, `pip` installs an outdated SDK release rather than reporting the version conflict, and the example below then fails with an error that does not mention the Python version. See [Prerequisites](../getting-started.md#prerequisites).
+
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
 
