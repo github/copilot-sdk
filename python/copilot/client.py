@@ -20,6 +20,7 @@ import logging
 import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import threading
@@ -1259,6 +1260,40 @@ _RUNTIME_SHUTDOWN_TIMEOUT_SECONDS = 10
 _CLI_PROCESS_EXIT_TIMEOUT_SECONDS = 5
 
 
+def _kill_process_tree(proc: subprocess.Popen[Any], *, force: bool = False) -> None:
+    """Signal the runtime's process tree.
+
+    Windows: ``taskkill /T /F`` walks the tree rooted at *pid*. ``force`` is
+    ignored there because Windows has no graceful equivalent and ``/T`` can only
+    enumerate the tree while the root is still alive. POSIX: the runtime is
+    spawned with ``start_new_session=True``, so ``os.killpg`` reaches every
+    descendant that stayed in the group.
+
+    Falls back to the ``Popen`` methods whenever a real pid is unavailable or
+    the tree-wide signal fails, so behaviour degrades to the single-process
+    termination this replaced.
+
+    See: https://github.com/github/copilot-sdk/issues/1804
+    """
+    fallback = proc.kill if force else proc.terminate
+    pid = getattr(proc, "pid", None)
+    if not isinstance(pid, int):
+        fallback()
+        return
+    if sys.platform == "win32":
+        try:
+            args = ["taskkill", "/T", "/F", "/PID", str(pid)]
+            if subprocess.run(args, capture_output=True, timeout=5).returncode != 0:
+                fallback()
+        except Exception:
+            fallback()
+        return
+    try:
+        os.killpg(pid, signal.SIGKILL if force else signal.SIGTERM)
+    except (ProcessLookupError, PermissionError, OSError):
+        fallback()
+
+
 def _get_or_download_cli(*, include_runtime_lib: bool = False) -> str | None:
     """Get the cached CLI binary, downloading if necessary.
 
@@ -1990,14 +2025,14 @@ class CopilotClient:
             poll = getattr(self._cli_process, "poll", None)
             is_running = poll is None or poll() is None
             if is_running:
-                self._cli_process.terminate()
+                _kill_process_tree(self._cli_process)
                 try:
                     await asyncio.to_thread(
                         self._cli_process.wait,
                         timeout=_CLI_PROCESS_EXIT_TIMEOUT_SECONDS,
                     )
                 except subprocess.TimeoutExpired:
-                    self._cli_process.kill()
+                    _kill_process_tree(self._cli_process, force=True)
                     try:
                         await asyncio.to_thread(
                             self._cli_process.wait,
@@ -2056,7 +2091,7 @@ class CopilotClient:
                     if self._process is not None and self._process is not self._cli_process:
                         self._process.terminate()
                     if self._cli_process is not None:
-                        self._cli_process.kill()
+                        _kill_process_tree(self._cli_process, force=True)
                     self._process = None
                     self._cli_process = None
             except Exception:
@@ -4182,6 +4217,9 @@ class CopilotClient:
                 cwd=cwd,
                 env=env,
                 creationflags=creationflags,
+                # Place the runtime in its own process group so
+                # _kill_process_tree() can signal all descendants.
+                start_new_session=(sys.platform != "win32"),
             )
             self._cli_process = self._process
         else:
@@ -4195,6 +4233,7 @@ class CopilotClient:
                 cwd=cwd,
                 env=env,
                 creationflags=creationflags,
+                start_new_session=(sys.platform != "win32"),
             )
             self._cli_process = self._process
         log_timing(

@@ -812,19 +812,19 @@ public final class CopilotClient implements AutoCloseable {
                 // will never come just wastes time, so terminate the child
                 // immediately and only wait to reap it.
                 if (forceImmediately) {
-                    process.destroyForcibly();
+                    killProcessTree(process, true);
                     if (!process.waitFor(FORCE_KILL_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
                         LOG.fine("Process did not terminate within force kill timeout");
                     }
                     return;
                 }
 
-                process.destroy();
+                killProcessTree(process, false);
                 if (process.waitFor(FORCE_KILL_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
                     return;
                 }
 
-                process.destroyForcibly();
+                killProcessTree(process, true);
                 if (!process.waitFor(FORCE_KILL_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
                     LOG.fine("Process did not terminate within force kill timeout");
                 }
@@ -834,6 +834,36 @@ public final class CopilotClient implements AutoCloseable {
             LOG.log(Level.FINE, "Interrupted while killing process", e);
         } catch (Exception e) {
             LOG.log(Level.FINE, "Error killing process", e);
+        }
+    }
+
+    /**
+     * Terminates the runtime's process tree, ending the descendants before the root
+     * so none of them are reparented and left behind.
+     *
+     * @param process
+     *            the runtime process
+     * @param force
+     *            {@code true} to terminate forcibly, {@code false} to request a
+     *            graceful exit first
+     */
+    private static void killProcessTree(Process process, boolean force) {
+        try {
+            // descendants() is empty once the root is gone, so collect first.
+            process.toHandle().descendants().toList().forEach(ph -> {
+                if (force) {
+                    ph.destroyForcibly();
+                } else {
+                    ph.destroy();
+                }
+            });
+        } catch (Exception e) {
+            LOG.log(Level.FINE, "Error terminating process descendants", e);
+        }
+        if (force) {
+            process.destroyForcibly();
+        } else {
+            process.destroy();
         }
     }
 

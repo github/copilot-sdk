@@ -7,12 +7,14 @@ This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.py
 import asyncio
 import inspect
 import os
+import signal
 from datetime import UTC, datetime
 from tempfile import TemporaryDirectory
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
+import copilot.client
 from copilot import (
     CanvasProviderIdentity,
     CapiSessionOptions,
@@ -172,6 +174,89 @@ class TestClientShutdown:
         process.terminate.assert_called_once()
         assert client._process is None
         assert client._cli_process is None
+
+
+class TestKillProcessTree:
+    """Coverage for the platform paths of the process-tree termination helper."""
+
+    @staticmethod
+    def _proc(pid=4321):
+        proc = Mock()
+        proc.pid = pid
+        return proc
+
+    @staticmethod
+    def _as_posix(monkeypatch):
+        """Pretend to be POSIX, supplying the symbols Windows hosts lack."""
+        monkeypatch.setattr(copilot.client.sys, "platform", "linux")
+        monkeypatch.setattr(copilot.client.signal, "SIGKILL", 9, raising=False)
+
+    def test_posix_signals_the_process_group(self, monkeypatch):
+        proc = self._proc()
+        signalled: list[tuple[int, int]] = []
+        self._as_posix(monkeypatch)
+        monkeypatch.setattr(
+            copilot.client.os,
+            "killpg",
+            lambda pid, sig: signalled.append((pid, sig)),
+            raising=False,
+        )
+
+        copilot.client._kill_process_tree(proc)
+        copilot.client._kill_process_tree(proc, force=True)
+
+        assert signalled == [(4321, signal.SIGTERM), (4321, copilot.client.signal.SIGKILL)]
+        proc.terminate.assert_not_called()
+        proc.kill.assert_not_called()
+
+    def test_posix_falls_back_when_the_group_is_gone(self, monkeypatch):
+        proc = self._proc()
+        self._as_posix(monkeypatch)
+
+        def boom(pid, sig):
+            raise ProcessLookupError
+
+        monkeypatch.setattr(copilot.client.os, "killpg", boom, raising=False)
+
+        copilot.client._kill_process_tree(proc)
+
+        proc.terminate.assert_called_once()
+
+    def test_windows_uses_taskkill_for_the_whole_tree(self, monkeypatch):
+        proc = self._proc()
+        commands: list[list[str]] = []
+        monkeypatch.setattr(copilot.client.sys, "platform", "win32")
+        monkeypatch.setattr(
+            copilot.client.subprocess,
+            "run",
+            lambda args, **kwargs: commands.append(args) or Mock(returncode=0),
+        )
+
+        copilot.client._kill_process_tree(proc)
+
+        assert commands == [["taskkill", "/T", "/F", "/PID", "4321"]]
+        proc.terminate.assert_not_called()
+
+    def test_windows_falls_back_when_taskkill_fails(self, monkeypatch):
+        proc = self._proc()
+        monkeypatch.setattr(copilot.client.sys, "platform", "win32")
+        monkeypatch.setattr(
+            copilot.client.subprocess, "run", lambda args, **kwargs: Mock(returncode=128)
+        )
+
+        copilot.client._kill_process_tree(proc, force=True)
+
+        proc.kill.assert_called_once()
+
+    def test_missing_pid_falls_back_to_the_process_handle(self, monkeypatch):
+        proc = Mock()  # Mock.pid is not an int
+        monkeypatch.setattr(
+            copilot.client.os, "killpg", Mock(side_effect=AssertionError), raising=False
+        )
+
+        copilot.client._kill_process_tree(proc)
+
+        proc.terminate.assert_called_once()
 
 
 class TestPermissionHandlerOptional:
