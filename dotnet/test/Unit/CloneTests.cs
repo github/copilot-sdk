@@ -103,6 +103,7 @@ public class CloneTests
             DefaultAgent = new DefaultAgentConfig { ExcludedTools = ["hidden-tool"] },
             SkillDirectories = ["/skills"],
             InstructionDirectories = ["/instructions"],
+            CustomAgentDirectories = ["/agents"],
             DisabledSkills = ["skill1"],
             DisabledMcpServers = ["server1"],
             PluginDirectories = ["/plugins"],
@@ -145,6 +146,7 @@ public class CloneTests
         Assert.Equal(original.DefaultAgent!.ExcludedTools, clone.DefaultAgent!.ExcludedTools);
         Assert.Equal(original.SkillDirectories, clone.SkillDirectories);
         Assert.Equal(original.InstructionDirectories, clone.InstructionDirectories);
+        Assert.Equal(original.CustomAgentDirectories, clone.CustomAgentDirectories);
         Assert.Equal(original.DisabledSkills, clone.DisabledSkills);
         Assert.Equal(original.DisabledMcpServers, clone.DisabledMcpServers);
         Assert.Equal(original.PluginDirectories, clone.PluginDirectories);
@@ -168,6 +170,7 @@ public class CloneTests
             AdditionalDirectories = ["/shared"],
             SkillDirectories = ["/skills"],
             InstructionDirectories = ["/instructions"],
+            CustomAgentDirectories = ["/agents"],
             DisabledSkills = ["skill1"],
             DisabledMcpServers = ["server1"],
         };
@@ -183,6 +186,7 @@ public class CloneTests
         clone.AdditionalDirectories!.Add("/generated");
         clone.SkillDirectories!.Add("/more");
         clone.InstructionDirectories!.Add("/more-instructions");
+        clone.CustomAgentDirectories!.Add("/more-agents");
         clone.DisabledSkills!.Add("skill99");
         clone.DisabledMcpServers!.Add("server99");
 
@@ -195,6 +199,7 @@ public class CloneTests
         Assert.Single(original.AdditionalDirectories!);
         Assert.Single(original.SkillDirectories!);
         Assert.Single(original.InstructionDirectories!);
+        Assert.Single(original.CustomAgentDirectories!);
         Assert.Single(original.DisabledSkills!);
         Assert.Single(original.DisabledMcpServers!);
     }
@@ -223,6 +228,7 @@ public class CloneTests
             AdditionalDirectories = ["/shared"],
             SkillDirectories = ["/skills"],
             InstructionDirectories = ["/instructions"],
+            CustomAgentDirectories = ["/agents"],
             DisabledSkills = ["skill1"],
             DisabledMcpServers = ["server1"],
         };
@@ -238,6 +244,7 @@ public class CloneTests
         clone.AdditionalDirectories!.Add("/generated");
         clone.SkillDirectories!.Add("/more");
         clone.InstructionDirectories!.Add("/more-instructions");
+        clone.CustomAgentDirectories!.Add("/more-agents");
         clone.DisabledSkills!.Add("skill99");
         clone.DisabledMcpServers!.Add("server99");
 
@@ -250,6 +257,7 @@ public class CloneTests
         Assert.Single(original.AdditionalDirectories!);
         Assert.Single(original.SkillDirectories!);
         Assert.Single(original.InstructionDirectories!);
+        Assert.Single(original.CustomAgentDirectories!);
         Assert.Single(original.DisabledSkills!);
         Assert.Single(original.DisabledMcpServers!);
     }
@@ -311,6 +319,7 @@ public class CloneTests
         Assert.Null(clone.CustomAgents);
         Assert.Null(clone.SkillDirectories);
         Assert.Null(clone.InstructionDirectories);
+        Assert.Null(clone.CustomAgentDirectories);
         Assert.Null(clone.DisabledSkills);
         Assert.Null(clone.DisabledMcpServers);
         Assert.Null(clone.Tools);

@@ -148,6 +148,7 @@ class ConfigCloneTest {
         toolList.add("bash");
         original.setAvailableTools(toolList);
         original.setInstructionDirectories(new ArrayList<>(List.of("/path/a", "/path/b")));
+        original.setCustomAgentDirectories(new ArrayList<>(List.of("/agents/a", "/agents/b")));
         original.setDisabledMcpServers(new ArrayList<>(List.of("local-files")));
 
         SessionConfig cloned = original.clone();
@@ -159,6 +160,7 @@ class ConfigCloneTest {
         assertEquals(2, cloned.getAvailableTools().size());
         assertEquals(3, original.getAvailableTools().size());
         assertEquals(List.of("/path/a", "/path/b"), cloned.getInstructionDirectories());
+        assertEquals(List.of("/agents/a", "/agents/b"), cloned.getCustomAgentDirectories());
         assertEquals(List.of("local-files"), cloned.getDisabledMcpServers());
     }
 

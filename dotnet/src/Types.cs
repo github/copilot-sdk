@@ -3222,6 +3222,7 @@ public abstract class SessionConfigBase
         SkillDirectories = other.SkillDirectories is not null ? [.. other.SkillDirectories] : null;
         PluginDirectories = other.PluginDirectories is not null ? [.. other.PluginDirectories] : null;
         InstructionDirectories = other.InstructionDirectories is not null ? [.. other.InstructionDirectories] : null;
+        CustomAgentDirectories = other.CustomAgentDirectories is not null ? [.. other.CustomAgentDirectories] : null;
         SessionLimits = other.SessionLimits;
         Streaming = other.Streaming;
         IncludeSubAgentStreamingEvents = other.IncludeSubAgentStreamingEvents;
@@ -3582,6 +3583,9 @@ public abstract class SessionConfigBase
 
     /// <summary>Additional directories to search for custom instruction files.</summary>
     public IList<string>? InstructionDirectories { get; set; }
+
+    /// <summary>Additional directories to search for custom agent files.</summary>
+    public IList<string>? CustomAgentDirectories { get; set; }
 
     /// <summary>List of skill names to disable.</summary>
     public IList<string>? DisabledSkills { get; set; }

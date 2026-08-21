@@ -2026,6 +2026,9 @@ pub struct SessionConfig {
     /// Additional directories to search for custom instruction files.
     /// Forwarded to the CLI; not the same as [`skill_directories`](Self::skill_directories).
     pub instruction_directories: Option<Vec<PathBuf>>,
+    /// Additional directories to search for custom agent files.
+    /// Forwarded to the CLI; not the same as [`skill_directories`](Self::skill_directories).
+    pub custom_agent_directories: Option<Vec<PathBuf>>,
     /// Open Plugin directory paths passed through to the CLI.
     pub plugin_directories: Option<Vec<PathBuf>>,
     /// Configuration for large tool output handling, forwarded to the CLI.
@@ -2269,6 +2272,7 @@ impl std::fmt::Debug for SessionConfig {
             .field("enable_mcp_apps", &self.enable_mcp_apps)
             .field("skill_directories", &self.skill_directories)
             .field("instruction_directories", &self.instruction_directories)
+            .field("custom_agent_directories", &self.custom_agent_directories)
             .field("plugin_directories", &self.plugin_directories)
             .field("large_output", &self.large_output)
             .field("tool_search", &self.tool_search)
@@ -2390,6 +2394,7 @@ impl Default for SessionConfig {
             github_mcp_tool_config: None,
             skill_directories: None,
             instruction_directories: None,
+            custom_agent_directories: None,
             plugin_directories: None,
             large_output: None,
             tool_search: None,
@@ -2555,6 +2560,7 @@ impl SessionConfig {
             hooks: hooks_flag,
             skill_directories: self.skill_directories,
             instruction_directories: self.instruction_directories,
+            custom_agent_directories: self.custom_agent_directories,
             plugin_directories: self.plugin_directories,
             large_output: self.large_output,
             tool_search: self.tool_search,
@@ -2966,6 +2972,18 @@ impl SessionConfig {
         self
     }
 
+    /// Set additional directories to search for custom agent files.
+    /// Forwarded to the CLI; not the same as
+    /// [`with_skill_directories`](Self::with_skill_directories).
+    pub fn with_custom_agent_directories<I, P>(mut self, paths: I) -> Self
+    where
+        I: IntoIterator<Item = P>,
+        P: Into<PathBuf>,
+    {
+        self.custom_agent_directories = Some(paths.into_iter().map(Into::into).collect());
+        self
+    }
+
     /// Set Open Plugin directory paths passed through to the CLI on session create.
     pub fn with_plugin_directories<I, P>(mut self, paths: I) -> Self
     where
@@ -3330,6 +3348,9 @@ pub struct ResumeSessionConfig {
     /// Additional directories to search for custom instruction files on
     /// resume. Forwarded to the CLI; not the same as [`skill_directories`](Self::skill_directories).
     pub instruction_directories: Option<Vec<PathBuf>>,
+    /// Additional directories to search for custom agent files.
+    /// Forwarded to the CLI; not the same as [`skill_directories`](Self::skill_directories).
+    pub custom_agent_directories: Option<Vec<PathBuf>>,
     /// Open Plugin directory paths passed through to the CLI on resume.
     pub plugin_directories: Option<Vec<PathBuf>>,
     /// Configuration for large tool output handling, forwarded to the CLI on resume.
@@ -3535,6 +3556,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("enable_mcp_apps", &self.enable_mcp_apps)
             .field("skill_directories", &self.skill_directories)
             .field("instruction_directories", &self.instruction_directories)
+            .field("custom_agent_directories", &self.custom_agent_directories)
             .field("plugin_directories", &self.plugin_directories)
             .field("large_output", &self.large_output)
             .field("tool_search", &self.tool_search)
@@ -3700,6 +3722,7 @@ impl ResumeSessionConfig {
             hooks: hooks_flag,
             skill_directories: self.skill_directories,
             instruction_directories: self.instruction_directories,
+            custom_agent_directories: self.custom_agent_directories,
             plugin_directories: self.plugin_directories,
             large_output: self.large_output,
             tool_search: self.tool_search,
@@ -3797,6 +3820,7 @@ impl ResumeSessionConfig {
             github_mcp_tool_config: None,
             skill_directories: None,
             instruction_directories: None,
+            custom_agent_directories: None,
             plugin_directories: None,
             large_output: None,
             tool_search: None,
@@ -4184,6 +4208,18 @@ impl ResumeSessionConfig {
         P: Into<PathBuf>,
     {
         self.instruction_directories = Some(paths.into_iter().map(Into::into).collect());
+        self
+    }
+
+    /// Set additional directories to search for custom agent files.
+    /// Forwarded to the CLI; not the same as
+    /// [`with_skill_directories`](Self::with_skill_directories).
+    pub fn with_custom_agent_directories<I, P>(mut self, paths: I) -> Self
+    where
+        I: IntoIterator<Item = P>,
+        P: Into<PathBuf>,
+    {
+        self.custom_agent_directories = Some(paths.into_iter().map(Into::into).collect());
         self
     }
 
@@ -6957,6 +6993,49 @@ mod tests {
             .expect("no duplicate handlers");
         let json = serde_json::to_value(&wire).unwrap();
         assert!(json.get("instructionDirectories").is_none());
+    }
+
+    /// `custom_agent_directories` must serialize to wire as
+    /// `customAgentDirectories` on `SessionConfig`.
+    #[test]
+    fn session_config_serializes_custom_agent_directories_to_camel_case() {
+        let cfg =
+            SessionConfig::default().with_custom_agent_directories([PathBuf::from("/tmp/agents")]);
+        let (wire, _) = cfg
+            .into_wire(Some(SessionId::from("agents-on")))
+            .expect("no duplicate handlers");
+        let json = serde_json::to_value(&wire).unwrap();
+        assert_eq!(
+            json["customAgentDirectories"],
+            serde_json::json!(["/tmp/agents"])
+        );
+
+        // Unset case — skip_serializing_if must omit the field.
+        let (wire, _) = SessionConfig::default()
+            .into_wire(Some(SessionId::from("agents-off")))
+            .expect("no duplicate handlers");
+        let json = serde_json::to_value(&wire).unwrap();
+        assert!(json.get("customAgentDirectories").is_none());
+    }
+
+    /// Same check on the resume path. Forwarded to the CLI on
+    /// `session.resume`.
+    #[test]
+    fn resume_session_config_serializes_custom_agent_directories_to_camel_case() {
+        let cfg = ResumeSessionConfig::new(SessionId::from("sess-1"))
+            .with_custom_agent_directories([PathBuf::from("/tmp/agents")]);
+        let (wire, _) = cfg.into_wire().expect("no duplicate handlers");
+        let json = serde_json::to_value(&wire).unwrap();
+        assert_eq!(
+            json["customAgentDirectories"],
+            serde_json::json!(["/tmp/agents"])
+        );
+
+        let (wire, _) = ResumeSessionConfig::new(SessionId::from("sess-2"))
+            .into_wire()
+            .expect("no duplicate handlers");
+        let json = serde_json::to_value(&wire).unwrap();
+        assert!(json.get("customAgentDirectories").is_none());
     }
 
     #[test]
