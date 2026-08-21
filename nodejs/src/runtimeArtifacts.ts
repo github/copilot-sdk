@@ -15,7 +15,6 @@ import { basename, join } from "node:path";
 export interface RuntimeArtifactSources {
     wrapper: string;
     runtimeNode: string;
-    cli: string;
     platform: string;
 }
 
@@ -28,15 +27,14 @@ function validateFile(path: string, label: string): void {
     }
 }
 
-function validateRuntimeBundle(wrapper: string, runtimeNode: string, cli: string): void {
+function validateRuntimeBundle(wrapper: string, runtimeNode: string): void {
     validateFile(wrapper, "Copilot runtime wrapper");
     validateFile(runtimeNode, "Copilot runtime.node");
-    validateFile(cli, "Copilot CLI host");
 }
 
 function sourceFingerprint(sources: RuntimeArtifactSources): string {
     const hash = createHash("sha256");
-    for (const path of [sources.wrapper, sources.runtimeNode, sources.cli]) {
+    for (const path of [sources.wrapper, sources.runtimeNode]) {
         const stat = statSync(path);
         hash.update(path).update("\0");
         hash.update(`${stat.size}:${stat.mtimeMs}`).update("\0");
@@ -58,16 +56,14 @@ export function materializeRuntimeBundle(
     sources: RuntimeArtifactSources,
     cacheRoot = join(tmpdir(), "github-copilot-sdk", "runtime")
 ): string {
-    validateRuntimeBundle(sources.wrapper, sources.runtimeNode, sources.cli);
+    validateRuntimeBundle(sources.wrapper, sources.runtimeNode);
 
     const installDir = join(cacheRoot, `${sources.platform}-${sourceFingerprint(sources)}`);
     const installedWrapper = join(installDir, basename(sources.wrapper));
     const installedRuntimeNode = join(installDir, "runtime.node");
-    const installedCli = join(installDir, basename(sources.cli));
     if (existsSync(installDir)) {
-        validateRuntimeBundle(installedWrapper, installedRuntimeNode, installedCli);
+        validateRuntimeBundle(installedWrapper, installedRuntimeNode);
         makeExecutable(installedWrapper);
-        makeExecutable(installedCli);
         return installedWrapper;
     }
 
@@ -76,18 +72,15 @@ export function materializeRuntimeBundle(
     try {
         const stagedWrapper = join(stagingDir, basename(sources.wrapper));
         const stagedRuntimeNode = join(stagingDir, "runtime.node");
-        const stagedCli = join(stagingDir, basename(sources.cli));
         copyFileSync(sources.wrapper, stagedWrapper);
         copyFileSync(sources.runtimeNode, stagedRuntimeNode);
-        copyFileSync(sources.cli, stagedCli);
         makeExecutable(stagedWrapper);
-        makeExecutable(stagedCli);
         renameSync(stagingDir, installDir);
     } catch (error) {
         if (!existsSync(installDir)) {
             throw error;
         }
-        validateRuntimeBundle(installedWrapper, installedRuntimeNode, installedCli);
+        validateRuntimeBundle(installedWrapper, installedRuntimeNode);
     } finally {
         rmSync(stagingDir, { recursive: true, force: true });
     }

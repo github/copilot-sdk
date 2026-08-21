@@ -841,8 +841,9 @@ none of them are scheduled for removal.
 ## Bundled runtime artifacts
 
 The SDK provisions its runtime at build time. By default the `bundled-cli`
-feature embeds the verified `copilot-runtime` wrapper, adjacent `runtime.node`,
-and the compatible CLI artifact in your compiled crate.
+feature embeds the verified `copilot-runtime` wrapper and adjacent
+`runtime.node` in your compiled crate. The compatible CLI artifact remains
+available separately for `install_bundled_cli` and in-process hosting.
 Enable `bundled-in-process` to additionally embed the native runtime library
 and use `Transport::InProcess`:
 
@@ -975,10 +976,8 @@ if let Some(path) = install_bundled_runtime() {
 }
 ```
 
-This extracts `copilot-runtime` together with adjacent `runtime.node` and the
-compatible bundled CLI host, then returns the wrapper path. The wrapper finds
-the host as a sibling, so intermediate launchers do not need private
-environment metadata.
+This extracts `copilot-runtime` together with adjacent `runtime.node`, then
+returns the wrapper path.
 
 ### Download cache (build-time, embed mode)
 

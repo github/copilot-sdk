@@ -387,42 +387,25 @@ def _extract_runtime_wrapper(data: bytes, npm_platform: str) -> bytes:
         raise RuntimeError(f"'{target}' not found in runtime package for {npm_platform}.")
 
 
-def _extract_runtime_cli(data: bytes, npm_platform: str) -> bytes:
-    """Extract the residual CLI host from an npm platform tarball."""
-    cli_name = "copilot.exe" if sys.platform == "win32" else "copilot"
-    target = f"package/{cli_name}"
-    with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as tf:
-        for name in tf.getnames():
-            if name == target or name.endswith(f"/{target}"):
-                member = tf.getmember(name)
-                extracted = tf.extractfile(member)
-                if extracted is not None:
-                    return extracted.read()
-        raise RuntimeError(f"'{target}' not found in runtime package for {npm_platform}.")
-
-
 def ensure_runtime_wrapper(version: str | None = None, force: bool = False) -> str:
-    """Provision the adjacent ``copilot-runtime``, ``runtime.node``, and CLI host."""
+    """Provision the adjacent ``copilot-runtime`` and ``runtime.node`` pair."""
     ver = version or CLI_VERSION
     if not ver:
         raise RuntimeError("No runtime version is pinned.")
     npm_platform = get_npm_platform()
     wrapper_name = "copilot-runtime.exe" if sys.platform == "win32" else "copilot-runtime"
-    cli_name = "copilot.exe" if sys.platform == "win32" else "copilot"
     pair_dir = get_cache_dir(ver) / "prebuilds" / npm_platform
     wrapper_path = pair_dir / wrapper_name
     runtime_path = pair_dir / "runtime.node"
-    cli_path = pair_dir / cli_name
 
     wrapper_exists = wrapper_path.is_file() and wrapper_path.stat().st_size > 0
     runtime_exists = runtime_path.is_file() and runtime_path.stat().st_size > 0
-    cli_exists = cli_path.is_file() and cli_path.stat().st_size > 0
-    if wrapper_exists and runtime_exists and cli_exists and not force:
+    if wrapper_exists and runtime_exists and not force:
         return str(wrapper_path)
-    if not force and (wrapper_path.exists() or runtime_path.exists() or cli_path.exists()):
+    if not force and (wrapper_path.exists() or runtime_path.exists()):
         raise RuntimeError(
             f"Incomplete Copilot runtime bundle in {pair_dir}: "
-            f"{wrapper_name}, runtime.node, and {cli_name} are required."
+            f"{wrapper_name} and runtime.node are required."
         )
     if _should_skip_download():
         raise RuntimeError(
@@ -440,11 +423,8 @@ def ensure_runtime_wrapper(version: str | None = None, force: bool = False) -> s
     _verify_integrity(data, integrity)
     wrapper_bytes = _extract_runtime_wrapper(data, npm_platform)
     runtime_bytes = _extract_runtime_node(data, npm_platform)
-    cli_bytes = _extract_runtime_cli(data, npm_platform)
-    if not wrapper_bytes or not runtime_bytes or not cli_bytes:
-        raise RuntimeError(
-            "Copilot runtime wrapper, runtime.node, and CLI host must all be non-empty."
-        )
+    if not wrapper_bytes or not runtime_bytes:
+        raise RuntimeError("Copilot runtime wrapper and runtime.node must both be non-empty.")
 
     import shutil
 
@@ -453,15 +433,12 @@ def ensure_runtime_wrapper(version: str | None = None, force: bool = False) -> s
     try:
         staged_wrapper = staging_dir / wrapper_name
         staged_runtime = staging_dir / "runtime.node"
-        staged_cli = staging_dir / cli_name
         staged_wrapper.write_bytes(wrapper_bytes)
         staged_runtime.write_bytes(runtime_bytes)
-        staged_cli.write_bytes(cli_bytes)
         if sys.platform != "win32":
-            for executable in (staged_wrapper, staged_cli):
-                executable.chmod(
-                    executable.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH
-                )
+            staged_wrapper.chmod(
+                staged_wrapper.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH
+            )
         try:
             if force and pair_dir.exists():
                 shutil.rmtree(pair_dir)
@@ -472,8 +449,6 @@ def ensure_runtime_wrapper(version: str | None = None, force: bool = False) -> s
                 and wrapper_path.stat().st_size > 0
                 and runtime_path.is_file()
                 and runtime_path.stat().st_size > 0
-                and cli_path.is_file()
-                and cli_path.stat().st_size > 0
             ):
                 return str(wrapper_path)
             raise

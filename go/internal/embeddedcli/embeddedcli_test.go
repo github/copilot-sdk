@@ -21,7 +21,7 @@ func resetGlobals() {
 	linuxMuslBundle = false
 }
 
-func TestInstallAtWritesAdjacentRuntimePair(t *testing.T) {
+func TestInstallRuntimeWritesAdjacentPairWithoutCLI(t *testing.T) {
 	resetGlobals()
 	tempDir := t.TempDir()
 	cli := []byte("cli")
@@ -41,17 +41,24 @@ func TestInstallAtWritesAdjacentRuntimePair(t *testing.T) {
 		Dir:                   tempDir,
 	})
 
-	_, err := installAt(tempDir)
+	gotWrapper, err := installRuntimeAt(tempDir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	gotWrapper := runtimePath
 	if gotWrapper != filepath.Join(tempDir, "1.2.3", runtimeExecutableName()) {
 		t.Fatalf("RuntimePath() = %q", gotWrapper)
 	}
 	if got, err := os.ReadFile(filepath.Join(filepath.Dir(gotWrapper), "runtime.node")); err != nil || !bytes.Equal(got, node) {
 		t.Fatalf("runtime.node content=%q err=%v", got, err)
 	}
+	if cliPath := filepath.Join(filepath.Dir(gotWrapper), binaryNameForOS()); fileExists(cliPath) {
+		t.Fatalf("managed runtime installation unexpectedly materialized CLI host at %q", cliPath)
+	}
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }
 
 func TestInstallVerifiedFileRestoresExecutablePermission(t *testing.T) {

@@ -21,11 +21,9 @@ def _integrity(data: bytes, algo: str = "sha512") -> str:
 
 def _runtime_package(npm_platform: str) -> bytes:
     wrapper_name = "copilot-runtime.exe" if os.name == "nt" else "copilot-runtime"
-    cli_name = "copilot.exe" if os.name == "nt" else "copilot"
     members = {
         f"package/prebuilds/{npm_platform}/{wrapper_name}": b"wrapper",
         f"package/prebuilds/{npm_platform}/runtime.node": b"runtime",
-        f"package/{cli_name}": b"cli",
     }
     buffer = io.BytesIO()
     with tarfile.open(fileobj=buffer, mode="w:gz") as archive:
@@ -74,12 +72,11 @@ class TestEnsureRuntimeLibraryFailsClosed:
 
 
 class TestEnsureRuntimeWrapper:
-    def test_materializes_triplet_from_absent_cache_with_stripped_environment(
+    def test_materializes_pair_from_absent_cache_with_stripped_environment(
         self, tmp_path, monkeypatch
     ):
         npm_platform = "win32-x64" if os.name == "nt" else "linux-x64"
         wrapper_name = "copilot-runtime.exe" if os.name == "nt" else "copilot-runtime"
-        cli_name = "copilot.exe" if os.name == "nt" else "copilot"
         data = _runtime_package(npm_platform)
         cache_dir = tmp_path / "cache"
         empty_path = tmp_path / "empty-path"
@@ -111,19 +108,16 @@ class TestEnsureRuntimeWrapper:
         assert wrapper == str(install_dir / wrapper_name)
         assert (install_dir / wrapper_name).read_bytes() == b"wrapper"
         assert (install_dir / "runtime.node").read_bytes() == b"runtime"
-        assert (install_dir / cli_name).read_bytes() == b"cli"
         if os.name != "nt":
             assert (install_dir / wrapper_name).stat().st_mode & 0o111
-            assert (install_dir / cli_name).stat().st_mode & 0o111
 
-    def test_rejects_cached_pair_without_sibling_cli(self, tmp_path):
+    def test_rejects_cached_wrapper_without_runtime_node(self, tmp_path):
         npm_platform = "win32-x64" if os.name == "nt" else "linux-x64"
         wrapper_name = "copilot-runtime.exe" if os.name == "nt" else "copilot-runtime"
         cache_dir = tmp_path / "cache"
         install_dir = cache_dir / "prebuilds" / npm_platform
         install_dir.mkdir(parents=True)
         (install_dir / wrapper_name).write_bytes(b"wrapper")
-        (install_dir / "runtime.node").write_bytes(b"runtime")
 
         with (
             patch.object(_cli_download, "get_cache_dir", return_value=cache_dir),

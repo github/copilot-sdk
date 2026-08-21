@@ -336,20 +336,6 @@ fn install_bundled_runtime_returns_wrapper_bundle() {
         "runtime.node was not installed: {}",
         runtime_node.display()
     );
-    let cli = first
-        .parent()
-        .expect("install directory")
-        .join(if cfg!(windows) {
-            "copilot.exe"
-        } else {
-            "copilot"
-        });
-    assert!(
-        cli.is_file(),
-        "compatible CLI host was not installed: {}",
-        cli.display()
-    );
-
     let second = install_bundled_runtime().expect("second call should also succeed");
     assert_eq!(first, second);
 }
@@ -357,7 +343,7 @@ fn install_bundled_runtime_returns_wrapper_bundle() {
 #[cfg(all(feature = "bundled-cli", has_bundled_cli))]
 #[tokio::test(flavor = "current_thread")]
 #[serial(copilot_cli_path)]
-async fn bundled_runtime_clean_extract_starts_with_sibling_cli() {
+async fn bundled_runtime_clean_extract_starts_without_cli_host() {
     let temp = tempfile::tempdir().expect("create tempdir");
     let extract_dir = temp.path().join("runtime");
     let empty_path = temp.path().join("empty-path");
@@ -381,10 +367,10 @@ async fn bundled_runtime_clean_extract_starts_with_sibling_cli() {
         .await
         .expect("start bundled runtime from clean extraction");
     let response = client
-        .ping(Some("sibling CLI fallback"))
+        .ping(Some("hostless runtime"))
         .await
         .expect("ping bundled runtime");
-    assert_eq!(response.message, "pong: sibling CLI fallback");
+    assert_eq!(response.message, "pong: hostless runtime");
 
     let session = client
         .create_session(SessionConfig::default())
@@ -404,13 +390,13 @@ async fn bundled_runtime_clean_extract_starts_with_sibling_cli() {
             .is_file()
     );
     assert!(
-        extract_dir
+        !extract_dir
             .join(if cfg!(windows) {
                 "copilot.exe"
             } else {
                 "copilot"
             })
-            .is_file()
+            .exists()
     );
 }
 

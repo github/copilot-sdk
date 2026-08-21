@@ -99,11 +99,10 @@ pub(crate) fn main() {
         emit_embedded(out, &archive, platform, include_runtime);
         println!("cargo:rustc-cfg=has_bundled_cli");
     } else {
-        // With `bundled-cli` off the extracted binary *is* the cache.
-        // Skip the upstream download entirely when it already exists at
-        // the expected path. No two separate caches.
+        // With `bundled-cli` off the extracted runtime pair *is* the cache.
+        // Skip the upstream download entirely when both files already exist.
         //
-        // Runtime resolution (see `src/resolve.rs::extracted_cli_path`)
+        // Runtime resolution (see `src/resolve.rs::extracted_program`)
         // recomputes this same path from `COPILOT_SDK_CLI_VERSION` + the
         // OS-derived binary name + optional `COPILOT_CLI_EXTRACT_DIR`,
         // so we don't bake an absolute path into the crate.
@@ -111,11 +110,10 @@ pub(crate) fn main() {
         let required_paths = [
             install_dir.join(platform.runtime_wrapper_name()),
             install_dir.join("runtime.node"),
-            install_dir.join(platform.binary_name),
         ];
 
-        // Invalidate build.rs whenever a cached artifact disappears (cache GC,
-        // manual rm, OS reset, switching extract dir). Without this, cargo
+        // Invalidate build.rs whenever either cached artifact disappears (cache
+        // GC, manual rm, OS reset, switching extract dir). Without this, cargo
         // replays the saved `has_extracted_cli` cfg from its build-script
         // output cache even when the file is gone, and runtime resolution
         // fails with BinaryNotFound.
@@ -395,8 +393,8 @@ fn target_platform() -> Option<Platform> {
     }
 }
 
-/// Write the single binary entry from `archive` to
-/// `<install_dir>/<binary_name>` and return the resulting path.
+/// Write the runtime wrapper pair from `archive` to `install_dir` and return
+/// the wrapper path.
 /// Idempotent — returns the existing path if a previous build already
 /// populated the target.
 ///
@@ -418,12 +416,6 @@ fn extract_to_cache(
         )
     });
 
-    install_cached_file(
-        install_dir,
-        platform.binary_name,
-        &extract_binary_bytes(archive, platform),
-        true,
-    );
     let runtime = extract_runtime_library_bytes(archive).expect("verified runtime.node is present");
     install_cached_file(install_dir, "runtime.node", &runtime, false);
     install_cached_file(

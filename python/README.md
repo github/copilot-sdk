@@ -225,9 +225,8 @@ All options are kw-only parameters:
 - `RuntimeConnection.for_inprocess()` — host the runtime in-process via its native C ABI (FFI). See [In-process (FFI) transport](#in-process-ffi-transport).
 
 Managed stdio and TCP connections use the downloaded `copilot-runtime`
-executable with adjacent `runtime.node` and compatible `copilot` host by
-default. An explicit connection path or `COPILOT_CLI_PATH` overrides the
-downloaded runtime.
+executable with adjacent `runtime.node` by default. An explicit connection
+path or `COPILOT_CLI_PATH` overrides the downloaded runtime.
 
 Child-process connections (`for_stdio`/`for_tcp`) also expose a per-connection
 `env` field for the spawned process. Set it on the returned connection instead of

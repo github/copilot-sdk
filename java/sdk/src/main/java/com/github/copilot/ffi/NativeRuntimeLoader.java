@@ -163,17 +163,11 @@ public final class NativeRuntimeLoader {
 
     static Path resolveRuntimeWrapper(Path cacheBase, ClassLoader loader, String classifier, String version)
             throws IOException {
-        Path runtimePath = extractRuntimeToCache(cacheBase, loader, classifier, version, DEFAULT_PUBLISHER, true);
+        Path runtimePath = extractRuntimeToCache(cacheBase, loader, classifier, version, DEFAULT_PUBLISHER, false);
         Path cacheDir = runtimePath.getParent();
         String wrapperName = classifier.startsWith("win32-")
                 ? RUNTIME_WRAPPER_FILENAME_WINDOWS
                 : RUNTIME_WRAPPER_FILENAME;
-        String cliName = classifier.startsWith("win32-") ? CLI_FILENAME_WINDOWS : CLI_FILENAME;
-        Path cachedCli = cacheDir.resolve(cliName);
-        if (!isValidCachedCli(cachedCli)) {
-            throw new FileNotFoundException("Copilot CLI host not found on classpath: native/" + classifier + "/"
-                    + cliName + " — the runtime wrapper requires the complete classifier artifact set");
-        }
         Path cachedWrapper = cacheDir.resolve(wrapperName);
         if (isValidCachedCli(cachedWrapper)) {
             return cachedWrapper;

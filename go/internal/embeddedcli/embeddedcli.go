@@ -106,9 +106,19 @@ func RuntimeLibPath() string {
 // RuntimePath returns the installed copilot-runtime executable, or "" when the
 // application bundle predates the out-of-process runtime pair.
 func RuntimePath() string {
-	Path()
 	setupMu.Lock()
 	defer setupMu.Unlock()
+	if !setupDone {
+		return ""
+	}
+	pathInitialized = true
+	selectLinuxMuslBundle()
+	if config.RuntimeExecutable == nil {
+		return ""
+	}
+	if runtimePath == "" {
+		runtimePath = installRuntime()
+	}
 	return runtimePath
 }
 
@@ -138,6 +148,38 @@ func install() (path string) {
 			fmt.Printf("installing embedded CLI at %s installation took %s\n", path, duration)
 		}()
 	}
+	installDir := configuredInstallDir()
+	path, err := installAt(installDir)
+	if err != nil {
+		logError("installing in configured directory", err)
+		return ""
+	}
+	return path
+}
+
+func installRuntime() (path string) {
+	verbose := os.Getenv("COPILOT_CLI_INSTALL_VERBOSE") == "1"
+	logError := func(msg string, err error) {
+		if verbose {
+			fmt.Printf("embedded runtime installation error: %s: %v\n", msg, err)
+		}
+	}
+	if verbose {
+		start := time.Now()
+		defer func() {
+			fmt.Printf("installing embedded runtime at %s took %s\n", path, time.Since(start))
+		}()
+	}
+
+	path, err := installRuntimeAt(configuredInstallDir())
+	if err != nil {
+		logError("installing in configured directory", err)
+		return ""
+	}
+	return path
+}
+
+func configuredInstallDir() string {
 	installDir := config.Dir
 	if installDir == "" {
 		if copilotHome := os.Getenv("COPILOT_HOME"); copilotHome != "" {
@@ -151,12 +193,7 @@ func install() (path string) {
 			installDir = filepath.Join(installDir, "copilot-sdk")
 		}
 	}
-	path, err := installAt(installDir)
-	if err != nil {
-		logError("installing in configured directory", err)
-		return ""
-	}
-	return path
+	return installDir
 }
 
 func selectLinuxMuslBundle() {
@@ -222,13 +259,6 @@ func installAt(installDir string) (string, error) {
 			}
 			runtimeLibPath = libPath
 		}
-		if config.RuntimeExecutable != nil {
-			wrapperPath, err := installRuntimePair(installDir)
-			if err != nil {
-				return "", err
-			}
-			runtimePath = wrapperPath
-		}
 		return finalPath, nil
 	}
 
@@ -262,15 +292,26 @@ func installAt(installDir string) (string, error) {
 		}
 		runtimeLibPath = libPath
 	}
-	if config.RuntimeExecutable != nil {
-		wrapperPath, err := installRuntimePair(installDir)
-		if err != nil {
-			return "", err
-		}
-		runtimePath = wrapperPath
-	}
 
 	return finalPath, nil
+}
+
+func installRuntimeAt(installDir string) (string, error) {
+	version := sanitizeVersion(config.Version)
+	if version != "" {
+		installDir = filepath.Join(installDir, version)
+	}
+	if linuxMuslBundle {
+		installDir = filepath.Join(installDir, "linuxmusl")
+	}
+	if err := os.MkdirAll(installDir, 0755); err != nil {
+		return "", fmt.Errorf("creating install directory: %w", err)
+	}
+
+	if release, _ := flock.Acquire(filepath.Join(installDir, ".copilot-cli.lock")); release != nil {
+		defer release()
+	}
+	return installRuntimePair(installDir)
 }
 
 func validateRuntimePairConfig(wrapper io.Reader, wrapperHash []byte, node io.Reader, nodeHash []byte, prefix string) {

@@ -2008,7 +2008,11 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 		return c.startInProcess(ctx)
 	}
 
-	cliPath, err := resolveRuntimeExecutable(c.cliPath, embeddedcli.RuntimePath())
+	bundledRuntimePath := ""
+	if c.cliPath == "" {
+		bundledRuntimePath = embeddedcli.RuntimePath()
+	}
+	cliPath, err := resolveRuntimeExecutable(c.cliPath, bundledRuntimePath)
 	if err != nil {
 		return err
 	}
