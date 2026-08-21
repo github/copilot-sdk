@@ -96,7 +96,7 @@ type Session struct {
 	// eventCh serializes user event handler dispatch. dispatchEvent enqueues;
 	// a single goroutine (processEvents) dequeues and invokes handlers in FIFO order.
 	eventCh   chan SessionEvent
-	closeOnce sync.Once // guards eventCh close so Disconnect is safe to call more than once
+	closeOnce sync.Once // guards eventCh close across disconnect and failed session creation
 
 	// RPC provides typed session-scoped RPC methods.
 	RPC *rpc.SessionRPC
@@ -1421,6 +1421,13 @@ func (s *Session) processEvents() {
 	}
 }
 
+// closeEventChannel stops the session event consumer without making an RPC.
+// CreateSession uses this when a locally registered session fails before it can
+// be returned to the caller.
+func (s *Session) closeEventChannel() {
+	s.closeOnce.Do(func() { close(s.eventCh) })
+}
+
 // handleBroadcastEvent handles broadcast request events by executing local handlers
 // and responding via RPC. This implements the protocol v3 broadcast model where tool
 // calls and permission requests are broadcast as session events to all clients.
@@ -1726,7 +1733,7 @@ func (s *Session) Disconnect() error {
 		return fmt.Errorf("failed to disconnect session: %w", err)
 	}
 
-	s.closeOnce.Do(func() { close(s.eventCh) })
+	s.closeEventChannel()
 
 	// Clear handlers
 	s.handlerMutex.Lock()
