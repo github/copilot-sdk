@@ -1969,6 +1969,13 @@ pub struct SessionConfig {
     /// applied automatically at session creation/resume time. `None` means no
     /// explicit value is set and the runtime default takes effect.
     pub mcp_oauth_token_storage: Option<String>,
+    /// URL identifying this host's OAuth client metadata document.
+    ///
+    /// Authorization servers that support client ID metadata documents can use
+    /// this URL as the MCP OAuth client ID. When unset, the SDK does not supply
+    /// a first-party host identity and the runtime uses its generic,
+    /// session-isolated OAuth client behavior.
+    pub auth_client_id_metadata_url: Option<String>,
     /// Enables runtime discovery of supported configuration. Explicitly supplied
     /// configuration takes precedence over discovered values.
     pub enable_config_discovery: Option<bool>,
@@ -2245,6 +2252,10 @@ impl std::fmt::Debug for SessionConfig {
             .field("excluded_builtin_agents", &self.excluded_builtin_agents)
             .field("mcp_servers", &self.mcp_servers)
             .field("mcp_oauth_token_storage", &self.mcp_oauth_token_storage)
+            .field(
+                "auth_client_id_metadata_url",
+                &self.auth_client_id_metadata_url,
+            )
             .field("embedding_cache_storage", &self.embedding_cache_storage)
             .field("enable_config_discovery", &self.enable_config_discovery)
             .field("skip_embedding_retrieval", &self.skip_embedding_retrieval)
@@ -2377,6 +2388,7 @@ impl Default for SessionConfig {
             excluded_builtin_agents: None,
             mcp_servers: None,
             mcp_oauth_token_storage: None,
+            auth_client_id_metadata_url: None,
             enable_config_discovery: None,
             skip_embedding_retrieval: None,
             organization_custom_instructions: None,
@@ -2535,6 +2547,7 @@ impl SessionConfig {
             tool_filter_precedence: "excluded",
             mcp_servers: self.mcp_servers,
             mcp_oauth_token_storage: self.mcp_oauth_token_storage,
+            auth_client_id_metadata_url: self.auth_client_id_metadata_url,
             embedding_cache_storage: self.embedding_cache_storage,
             env_value_mode: "direct",
             enable_config_discovery: self.enable_config_discovery,
@@ -2864,6 +2877,12 @@ impl SessionConfig {
     /// applied automatically at session creation/resume time.
     pub fn with_mcp_oauth_token_storage(mut self, mode: impl Into<String>) -> Self {
         self.mcp_oauth_token_storage = Some(mode.into());
+        self
+    }
+
+    /// Set the URL identifying this host's OAuth client metadata document.
+    pub fn with_auth_client_id_metadata_url(mut self, url: impl Into<String>) -> Self {
+        self.auth_client_id_metadata_url = Some(url.into());
         self
     }
 
@@ -3295,6 +3314,12 @@ pub struct ResumeSessionConfig {
     /// Controls how MCP OAuth tokens are stored for this session.
     /// See [`SessionConfig::mcp_oauth_token_storage`] for details.
     pub mcp_oauth_token_storage: Option<String>,
+    /// Re-supply the host OAuth client metadata document URL on resume.
+    ///
+    /// Set this to the same host identity used when the session was created.
+    /// When unset, the SDK does not supply a first-party host identity.
+    /// See [`SessionConfig::auth_client_id_metadata_url`] for details.
+    pub auth_client_id_metadata_url: Option<String>,
     /// Enables runtime discovery of supported configuration. Explicitly supplied
     /// configuration takes precedence over discovered values.
     pub enable_config_discovery: Option<bool>,
@@ -3511,6 +3536,10 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("excluded_builtin_agents", &self.excluded_builtin_agents)
             .field("mcp_servers", &self.mcp_servers)
             .field("mcp_oauth_token_storage", &self.mcp_oauth_token_storage)
+            .field(
+                "auth_client_id_metadata_url",
+                &self.auth_client_id_metadata_url,
+            )
             .field("embedding_cache_storage", &self.embedding_cache_storage)
             .field("enable_config_discovery", &self.enable_config_discovery)
             .field("skip_embedding_retrieval", &self.skip_embedding_retrieval)
@@ -3680,6 +3709,7 @@ impl ResumeSessionConfig {
             tool_filter_precedence: "excluded",
             mcp_servers: self.mcp_servers,
             mcp_oauth_token_storage: self.mcp_oauth_token_storage,
+            auth_client_id_metadata_url: self.auth_client_id_metadata_url,
             embedding_cache_storage: self.embedding_cache_storage,
             env_value_mode: "direct",
             enable_config_discovery: self.enable_config_discovery,
@@ -3784,6 +3814,7 @@ impl ResumeSessionConfig {
             excluded_builtin_agents: None,
             mcp_servers: None,
             mcp_oauth_token_storage: None,
+            auth_client_id_metadata_url: None,
             enable_config_discovery: None,
             skip_embedding_retrieval: None,
             organization_custom_instructions: None,
@@ -4085,6 +4116,12 @@ impl ResumeSessionConfig {
     /// See [`SessionConfig::with_mcp_oauth_token_storage`] for details.
     pub fn with_mcp_oauth_token_storage(mut self, mode: impl Into<String>) -> Self {
         self.mcp_oauth_token_storage = Some(mode.into());
+        self
+    }
+
+    /// Set the host OAuth client metadata document URL on resume.
+    pub fn with_auth_client_id_metadata_url(mut self, url: impl Into<String>) -> Self {
+        self.auth_client_id_metadata_url = Some(url.into());
         self
     }
 
@@ -6664,6 +6701,37 @@ mod tests {
         assert!(empty_json.get("pluginDirectories").is_none());
         assert!(empty_json.get("disabledMcpServers").is_none());
         assert!(empty_json.get("largeOutput").is_none());
+    }
+
+    #[test]
+    fn auth_client_id_metadata_url_reaches_create_and_resume_wire_payloads() {
+        let url = "https://example.com/oauth/client-metadata.json";
+
+        let (create_wire, _) = SessionConfig::default()
+            .with_auth_client_id_metadata_url(url)
+            .into_wire(None)
+            .expect("default create has no duplicate handlers");
+        let create_json = serde_json::to_value(&create_wire).unwrap();
+        assert_eq!(create_json["authClientIdMetadataUrl"], url);
+
+        let (resume_wire, _) = ResumeSessionConfig::new(SessionId::from("sess-1"))
+            .with_auth_client_id_metadata_url(url)
+            .into_wire()
+            .expect("default resume has no duplicate handlers");
+        let resume_json = serde_json::to_value(&resume_wire).unwrap();
+        assert_eq!(resume_json["authClientIdMetadataUrl"], url);
+
+        let (empty_create_wire, _) = SessionConfig::default()
+            .into_wire(None)
+            .expect("default create has no duplicate handlers");
+        let empty_create_json = serde_json::to_value(&empty_create_wire).unwrap();
+        assert!(empty_create_json.get("authClientIdMetadataUrl").is_none());
+
+        let (empty_resume_wire, _) = ResumeSessionConfig::new(SessionId::from("sess-2"))
+            .into_wire()
+            .expect("default resume has no duplicate handlers");
+        let empty_resume_json = serde_json::to_value(&empty_resume_wire).unwrap();
+        assert!(empty_resume_json.get("authClientIdMetadataUrl").is_none());
     }
 
     #[test]
