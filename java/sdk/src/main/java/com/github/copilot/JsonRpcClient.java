@@ -19,6 +19,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -134,6 +135,22 @@ class JsonRpcClient implements AutoCloseable {
      * Sends a JSON-RPC request and waits for the response.
      */
     public <T> CompletableFuture<T> invoke(String method, Object params, Class<T> responseType) {
+        return invoke(method, params, responseType, ex -> false);
+    }
+
+    /**
+     * Sends a JSON-RPC request and waits for the response, logging the failure at
+     * {@link Level#FINE} when {@code expectedFailure} accepts it.
+     *
+     * <p>
+     * Callers that recover from one specific failure (for example probing for a
+     * method that older servers do not implement) use this so the recovered failure
+     * is not surfaced to users as a warning with a stack trace. The predicate
+     * receives the unwrapped cause; every failure it rejects is still logged at
+     * {@link Level#WARNING}.
+     */
+    <T> CompletableFuture<T> invoke(String method, Object params, Class<T> responseType,
+            Predicate<Throwable> expectedFailure) {
         long timingNanos = System.nanoTime();
         long id = requestIdCounter.incrementAndGet();
         var future = new CompletableFuture<JsonNode>();
@@ -167,12 +184,21 @@ class JsonRpcClient implements AutoCloseable {
                 throw new CompletionException(e);
             }
         }).exceptionally(ex -> {
-            LoggingHelpers.logTiming(LOG, Level.WARNING, ex,
+            Level failureLevel = expectedFailure.test(unwrapCompletion(ex)) ? Level.FINE : Level.WARNING;
+            LoggingHelpers.logTiming(LOG, failureLevel, ex,
                     "JsonRpc.invoke JSON-RPC request finished. Elapsed={Elapsed}, Method=" + method + ", RequestId="
                             + id + ", Status=Failed",
                     timingNanos);
             throw ex instanceof RuntimeException re ? re : new RuntimeException(ex);
         });
+    }
+
+    private static Throwable unwrapCompletion(Throwable ex) {
+        Throwable cause = ex;
+        while (cause instanceof CompletionException && cause.getCause() != null) {
+            cause = cause.getCause();
+        }
+        return cause;
     }
 
     /**

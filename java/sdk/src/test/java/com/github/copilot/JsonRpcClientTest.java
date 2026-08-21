@@ -12,11 +12,18 @@ import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
+import java.util.logging.Handler;
+import java.util.logging.Level;
+import java.util.logging.LogRecord;
+import java.util.logging.Logger;
 
 import org.junit.jupiter.api.Test;
 
@@ -448,5 +455,82 @@ class JsonRpcClientTest {
 
         pair.serverSide.close();
         pair.serverSocket.close();
+    }
+
+    // ---- invoke() failure log level ----
+
+    private static final class RecordingLogHandler extends Handler {
+
+        private final List<LogRecord> records = new CopyOnWriteArrayList<>();
+
+        @Override
+        public void publish(LogRecord record) {
+            records.add(record);
+        }
+
+        @Override
+        public void flush() {
+        }
+
+        @Override
+        public void close() {
+        }
+    }
+
+    /**
+     * Runs an invocation that the server rejects with {@code errorCode} and returns
+     * everything the {@link JsonRpcClient} logger emitted while it ran.
+     */
+    private List<LogRecord> captureLogsForFailedInvoke(Function<JsonRpcClient, CompletableFuture<?>> invoker,
+            int errorCode) throws Exception {
+        var logger = Logger.getLogger(JsonRpcClient.class.getName());
+        var handler = new RecordingLogHandler();
+        logger.addHandler(handler);
+        try (var pair = createSocketPair()) {
+            CompletableFuture<?> future = invoker.apply(pair.client);
+
+            String request = readRpcMessage(pair.serverSide.getInputStream());
+            long id = MAPPER.readTree(request).get("id").asLong();
+            writeRpcMessage(pair.serverSide.getOutputStream(), "{\"jsonrpc\":\"2.0\",\"id\":" + id + ",\"error\":{"
+                    + "\"code\":" + errorCode + ",\"message\":\"Unhandled method connect\"}}");
+
+            assertThrows(ExecutionException.class, () -> future.get(5, TimeUnit.SECONDS));
+            return handler.records;
+        } finally {
+            logger.removeHandler(handler);
+        }
+    }
+
+    /** Matches the JSON-RPC "method not found" rejection from a legacy server. */
+    private static boolean isMethodNotFound(Throwable cause) {
+        return cause instanceof JsonRpcException rpcEx && rpcEx.getCode() == -32601;
+    }
+
+    @Test
+    void testInvokeLogsFailureAtWarningByDefault() throws Exception {
+        var records = captureLogsForFailedInvoke(client -> client.invoke("connect", Map.of(), JsonNode.class), -32601);
+
+        assertTrue(records.stream().anyMatch(r -> r.getLevel() == Level.WARNING),
+                "Callers that declare no expected failure should still get a WARNING");
+    }
+
+    @Test
+    void testInvokeDowngradesExpectedFailure() throws Exception {
+        var records = captureLogsForFailedInvoke(
+                client -> client.invoke("connect", Map.of(), JsonNode.class, JsonRpcClientTest::isMethodNotFound),
+                -32601);
+
+        assertTrue(records.stream().noneMatch(r -> r.getLevel().intValue() >= Level.WARNING.intValue()),
+                "A failure the caller expects and recovers from must not be logged at WARNING");
+    }
+
+    @Test
+    void testInvokeKeepsWarningForUnexpectedFailure() throws Exception {
+        var records = captureLogsForFailedInvoke(
+                client -> client.invoke("connect", Map.of(), JsonNode.class, JsonRpcClientTest::isMethodNotFound),
+                -32603);
+
+        assertTrue(records.stream().anyMatch(r -> r.getLevel() == Level.WARNING),
+                "A failure the predicate rejects must still be logged at WARNING");
     }
 }
