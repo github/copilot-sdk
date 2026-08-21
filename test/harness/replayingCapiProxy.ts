@@ -1556,7 +1556,7 @@ function normalizeAvailableToolNames(result: string): string {
 
 function normalizeInterruptedToolResult(result: string): string {
   return result.replace(
-    /^Failed to execute `[^`]+` tool(?: with arguments: [\s\S]*?)? due to error: (?:Error: )?Session aborted$/,
+    /^(?:Failed to execute `[^`]+` tool(?: with arguments: [\s\S]*?)? due to error: (?:Error: )?Session aborted|<shell context is being reconfigured; retry the command>)$/,
     "The execution of this tool, or a previous tool was interrupted.",
   );
 }

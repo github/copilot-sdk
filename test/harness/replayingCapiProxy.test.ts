@@ -546,7 +546,7 @@ Always include PINEAPPLE_COCONUT_42.
     expect(toolMessage?.content).toBe("Tool 'report_intent' does not exist.");
   });
 
-  test("normalizes aborted tool execution results", async () => {
+  test("normalizes interrupted tool execution results", async () => {
     const requestBody = JSON.stringify({
       messages: [
         { role: "user", content: "Run a slow analysis" },
@@ -561,6 +561,14 @@ Always include PINEAPPLE_COCONUT_42.
                 arguments: '{"value":"test_abort"}',
               },
             },
+            {
+              id: "tc2",
+              type: "function",
+              function: {
+                name: "powershell",
+                arguments: '{"command":"sleep 100"}',
+              },
+            },
           ],
         },
         {
@@ -568,6 +576,11 @@ Always include PINEAPPLE_COCONUT_42.
           tool_call_id: "tc1",
           content:
             'Failed to execute `slow_analysis` tool with arguments: {"value":"test_abort"} due to error: Error: Session aborted',
+        },
+        {
+          role: "tool",
+          tool_call_id: "tc2",
+          content: "<shell context is being reconfigured; retry the command>",
         },
       ],
     });
@@ -580,12 +593,13 @@ Always include PINEAPPLE_COCONUT_42.
     ]);
 
     const result = await readYamlOutput(outputPath);
-    const toolMessage = result.conversations[0].messages.find(
+    const toolMessages = result.conversations[0].messages.filter(
       (m) => m.role === "tool",
     );
-    expect(toolMessage?.content).toBe(
+    expect(toolMessages.map((message) => message.content)).toEqual([
       "The execution of this tool, or a previous tool was interrupted.",
-    );
+      "The execution of this tool, or a previous tool was interrupted.",
+    ]);
   });
 
   test("normalizes background agent IDs and removes runtime advisories", async () => {
@@ -940,6 +954,119 @@ Always include PINEAPPLE_COCONUT_42.
           (JSON.parse(response.body) as ChatCompletion).choices[0].message
             .content,
         ).toBe("Done");
+      } finally {
+        await proxy.stop();
+      }
+    });
+
+    test("matches semantically equivalent interrupted shell results", async () => {
+      const originalShellConfig =
+        process.platform === "win32"
+          ? ShellConfig.powerShell
+          : ShellConfig.bash;
+      const cachePath = path.join(tempDir, "cache.yaml");
+      const cacheContent = yaml.stringify({
+        models: ["test-model"],
+        conversations: [
+          {
+            messages: [
+              { role: "system", content: "${system}" },
+              { role: "user", content: "Run command" },
+              {
+                role: "assistant",
+                tool_calls: [
+                  {
+                    id: "toolcall_0",
+                    type: "function",
+                    function: {
+                      name: "${shell}",
+                      arguments: '{"command":"sleep 100"}',
+                    },
+                  },
+                ],
+              },
+              {
+                role: "tool",
+                tool_call_id: "toolcall_0",
+                content:
+                  "The execution of this tool, or a previous tool was interrupted.",
+              },
+              { role: "assistant", content: "Ready for another request." },
+            ],
+          },
+        ],
+      } satisfies NormalizedData);
+      await writeFile(cachePath, cacheContent);
+
+      const proxy = new ReplayingCapiProxy(
+        "http://localhost:9999",
+        cachePath,
+        workDir,
+      );
+      const proxyUrl = await proxy.start();
+
+      try {
+        const messages = [
+          { role: "system", content: "System prompt" },
+          { role: "user", content: "Run command" },
+          {
+            role: "assistant",
+            tool_calls: [
+              {
+                id: "runtime-call-id",
+                type: "function",
+                function: {
+                  name: originalShellConfig.shellToolName,
+                  arguments: '{"command":"sleep 100"}',
+                },
+              },
+            ],
+          },
+        ];
+        const interruptedResponse = await makeRequest(
+          proxyUrl,
+          "/chat/completions",
+          {
+            body: {
+              model: "test-model",
+              messages: [
+                ...messages,
+                {
+                  role: "tool",
+                  tool_call_id: "runtime-call-id",
+                  content:
+                    "<shell context is being reconfigured; retry the command>",
+                },
+              ],
+            },
+          },
+        );
+
+        expect(interruptedResponse.status).toBe(200);
+        expect(
+          (JSON.parse(interruptedResponse.body) as ChatCompletion).choices[0]
+            .message.content,
+        ).toBe("Ready for another request.");
+
+        const meaningfulErrorResponse = await makeRequest(
+          proxyUrl,
+          "/chat/completions",
+          {
+            body: {
+              model: "test-model",
+              messages: [
+                ...messages,
+                {
+                  role: "tool",
+                  tool_call_id: "runtime-call-id",
+                  content:
+                    "The command failed because the executable was missing.",
+                },
+              ],
+            },
+          },
+        );
+        expect(meaningfulErrorResponse.status).toBe(500);
       } finally {
         await proxy.stop();
       }
