@@ -20,7 +20,7 @@ use serde::Serialize;
 
 use crate::canvas::CanvasDeclaration;
 use crate::generated::api_types::{
-    ModelCapabilitiesOverride, OpenCanvasInstance, RemoteSessionMode,
+    ModelCapabilitiesOverride, OpenCanvasInstance, RemoteSessionMode, SandboxConfig,
 };
 use crate::generated::session_events::ReasoningSummary;
 use crate::types::{
@@ -158,6 +158,8 @@ pub(crate) struct SessionCreateWire {
     pub enable_file_change_tracking: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_limits: Option<SessionLimitsConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sandbox_config: Option<SandboxConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model_capabilities: Option<ModelCapabilitiesOverride>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -308,6 +310,8 @@ pub(crate) struct SessionResumeWire {
     pub enable_file_change_tracking: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_limits: Option<SessionLimitsConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sandbox_config: Option<SandboxConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model_capabilities: Option<ModelCapabilitiesOverride>,
     #[serde(skip_serializing_if = "Option::is_none")]
