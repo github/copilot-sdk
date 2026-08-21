@@ -17,7 +17,7 @@
     <packaging>jar</packaging>
 
     <name>GitHub Copilot SDK :: Java :: Native Runtime</name>
-    <description>Native runtime binaries for the GitHub Copilot Java SDK, published as per-platform classifier JARs</description>
+    <description>Native runtime artifacts for the GitHub Copilot Java SDK, with host-matched platform classifier JARs</description>
     <url>https://github.com/github/copilot-sdk</url>
 
     <scm>
@@ -35,12 +35,6 @@
             its SHA-512 integrity hash.
         -->
         <copilot.sdk.root>${project.basedir}/../..</copilot.sdk.root>
-        <!--
-            Phase 4 hard invariant: linux-x64 is the only supported platform.
-            Additional classifiers are added in a later phase, each with its own
-            fetch execution and maven-jar-plugin execution.
-        -->
-        <copilot.native.classifier>linux-x64</copilot.native.classifier>
         <copilot.native.staging>${project.build.directory}/native-staging</copilot.native.staging>
         <!--
             The native runtime is downloaded from npm; this module is published
@@ -64,20 +58,35 @@
         </resources>
         <plugins>
             <!--
-                Download and verify the native runtime binary. The helper script
-                reads the pinned version and SHA-512 integrity hash for
-                @github/copilot-<classifier> from nodejs/package-lock.json,
-                runs `npm pack`, verifies the tarball against that hash, and
-                extracts runtime.node into the staging directory. Requires
-                Node.js and npm — already required for the Java E2E tests.
+                On a supported build host, download and verify the matching native
+                runtime binary. The helper script reads the pinned version and
+                SHA-512 integrity hash for @github/copilot-<classifier> from
+                nodejs/package-lock.json, runs `npm pack`, verifies the tarball
+                against that hash, and extracts runtime.node into the staging
+                directory. Requires Node.js and npm — already required for the
+                Java E2E tests.
             -->
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>
                 <executions>
                     <execution>
-                        <id>fetch-native-linux-x64</id>
-                        <phase>generate-resources</phase>
+                        <id>validate-native-host</id>
+                        <phase>none</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <executable>node</executable>
+                            <arguments>
+                                <argument>${project.basedir}/scripts/validate-native-host.mjs</argument>
+                                <argument>${copilot.native.classifier}</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>fetch-native</id>
+                        <phase>none</phase>
                         <goals>
                             <goal>exec</goal>
                         </goals>
@@ -93,15 +102,17 @@
                     </execution>
                     <execution>
                         <id>test-fetch-native</id>
-                        <phase>test</phase>
+                        <phase>none</phase>
                         <goals>
                             <goal>exec</goal>
                         </goals>
                         <configuration>
+                            <skip>${skipTests}</skip>
                             <executable>node</executable>
                             <arguments>
                                 <argument>--test</argument>
                                 <argument>${project.basedir}/scripts/fetch-native.test.mjs</argument>
+                                <argument>${project.basedir}/scripts/validate-native-host.test.mjs</argument>
                             </arguments>
                         </configuration>
                     </execution>
@@ -118,8 +129,8 @@
                         native/<classifier>/platform.properties.
                     -->
                     <execution>
-                        <id>jar-linux-x64</id>
-                        <phase>package</phase>
+                        <id>jar-native</id>
+                        <phase>none</phase>
                         <goals>
                             <goal>jar</goal>
                         </goals>
@@ -173,7 +184,7 @@
                 <executions>
                     <execution>
                         <id>verify-native-jars</id>
-                        <phase>package</phase>
+                        <phase>none</phase>
                         <goals>
                             <goal>run</goal>
                         </goals>
@@ -193,10 +204,10 @@
                                 <fail unless="native.properties.present" message="Classifier JAR is missing native/${copilot.native.classifier}/platform.properties" />
                                 <condition property="native.cli.present">
                                     <resourceexists>
-                                        <zipentry zipfile="${project.build.directory}/${project.build.finalName}-${copilot.native.classifier}.jar" name="native/${copilot.native.classifier}/copilot" />
+                                        <zipentry zipfile="${project.build.directory}/${project.build.finalName}-${copilot.native.classifier}.jar" name="native/${copilot.native.classifier}/${copilot.native.cli.filename}" />
                                     </resourceexists>
                                 </condition>
-                                <fail unless="native.cli.present" message="Classifier JAR is missing native/${copilot.native.classifier}/copilot" />
+                                <fail unless="native.cli.present" message="Classifier JAR is missing native/${copilot.native.classifier}/${copilot.native.cli.filename}" />
                                 <condition property="placeholder.jar.polluted">
                                     <resourceexists>
                                         <zipentry zipfile="${project.build.directory}/${project.build.finalName}.jar" name="native/${copilot.native.classifier}/runtime.node" />
@@ -222,6 +233,124 @@
 
     <profiles>
         <!--
+            Bind native packaging only when the build host matches an implemented
+            classifier. Add sibling profiles as additional platforms are supported.
+        -->
+        <profile>
+            <id>native-linux-x64</id>
+            <activation>
+                <os>
+                    <name>Linux</name>
+                    <arch>amd64</arch>
+                </os>
+                <property>
+                    <name>copilot.native.libc</name>
+                    <value>glibc</value>
+                </property>
+            </activation>
+            <properties>
+                <copilot.native.classifier>linux-x64</copilot.native.classifier>
+                <copilot.native.cli.filename>copilot</copilot.native.cli.filename>
+            </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>validate-native-host</id>
+                                <phase>validate</phase>
+                            </execution>
+                            <execution>
+                                <id>fetch-native</id>
+                                <phase>generate-resources</phase>
+                            </execution>
+                            <execution>
+                                <id>test-fetch-native</id>
+                                <phase>test</phase>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-jar-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>jar-native</id>
+                                <phase>package</phase>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-antrun-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>verify-native-jars</id>
+                                <phase>package</phase>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <!--
+            The SDK's inprocess test profile requires this module's classifier
+            artifact. Bind the same guarded native lifecycle so `-Pinprocess`
+            works without a separate libc property. Host validation fails
+            before download or packaging on non-glibc and unsupported hosts.
+        -->
+        <profile>
+            <id>inprocess</id>
+            <properties>
+                <copilot.native.classifier>linux-x64</copilot.native.classifier>
+                <copilot.native.cli.filename>copilot</copilot.native.cli.filename>
+            </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>validate-native-host</id>
+                                <phase>validate</phase>
+                            </execution>
+                            <execution>
+                                <id>fetch-native</id>
+                                <phase>generate-resources</phase>
+                            </execution>
+                            <execution>
+                                <id>test-fetch-native</id>
+                                <phase>test</phase>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-jar-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>jar-native</id>
+                                <phase>package</phase>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-antrun-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>verify-native-jars</id>
+                                <phase>package</phase>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <!--
             Skip the npm download when building offline or when only the
             placeholder JAR is needed: mvn -Dcopilot.native.skip.download=true
         -->
@@ -241,13 +370,27 @@
                         <configuration>
                             <skip>true</skip>
                         </configuration>
+                        <executions>
+                            <execution>
+                                <id>validate-native-host</id>
+                                <phase>none</phase>
+                            </execution>
+                            <execution>
+                                <id>fetch-native</id>
+                                <phase>none</phase>
+                            </execution>
+                            <execution>
+                                <id>test-fetch-native</id>
+                                <phase>none</phase>
+                            </execution>
+                        </executions>
                     </plugin>
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-jar-plugin</artifactId>
                         <executions>
                             <execution>
-                                <id>jar-linux-x64</id>
+                                <id>jar-native</id>
                                 <phase>none</phase>
                             </execution>
                         </executions>

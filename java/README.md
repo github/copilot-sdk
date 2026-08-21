@@ -487,6 +487,45 @@ mvn verify -Dskip.test.harness=true
 mvn jacoco:prepare-agent@wire-up-coverage-instrumentation antrun:run@print-test-jdk-banner surefire:test failsafe:integration-test failsafe:verify jacoco:report@build-coverage-report-from-tests -Denforcer.skip=true
 ```
 
+#### Development Setup for native embedding
+
+Run native-runtime Maven commands from the `java` directory. Native packaging requires Node.js and npm in addition to JDK 25 and Maven because `copilot-native/scripts/fetch-native.mjs` retrieves the pinned npm runtime package.
+
+Validated on a native Linux x64 glibc host: Maven activates the `native-linux-x64` profile on Linux `amd64` when `copilot.native.libc=glibc` is set. The build validates the host before downloading or packaging native files. The profile runs the native script tests, fetches the pinned `@github/copilot-linux-x64` package during `generate-resources`, packages the `linux-x64` classifier JAR during `package`, and verifies its native contents. An absent or explicitly false `copilot.native.skip.download` value preserves normal native packaging. Ensure npm can authenticate to the package registry before running the build.
+
+Before opting in, validate that Node.js reports glibc for the build host:
+
+```bash
+node copilot-native/scripts/validate-native-host.mjs linux-x64
+mvn -pl copilot-native clean verify -Dcopilot.native.libc=glibc
+```
+
+The `inprocess` test profile performs the same validation and native packaging automatically, so the full in-process test command remains:
+
+```bash
+mvn -Pinprocess clean verify
+```
+
+On macOS, Windows, Linux ARM64, Linux x64 musl, and other unsupported hosts, do not set `copilot.native.libc=glibc`. A normal build produces only the OS-neutral primary, sources, and Javadoc JARs; it does not run the Linux x64 native script tests, download or stage Linux native files, or produce a `linux-x64` classifier JAR.
+
+To build only the OS-neutral artifacts on any host, or override the glibc opt-in, disable native download and packaging:
+
+```bash
+mvn -pl copilot-native clean package -DskipTests -Dcopilot.native.libc=glibc -Dcopilot.native.skip.download=true
+```
+
+The verified Linux x64 checks are:
+
+```bash
+node --test copilot-native/scripts/fetch-native.test.mjs copilot-native/scripts/validate-native-host.test.mjs
+mvn -pl copilot-native help:active-profiles -Dcopilot.native.libc=glibc -Dcopilot.native.skip.download=false
+mvn -pl copilot-native test -Dcopilot.native.libc=glibc
+mvn clean verify -Dcopilot.native.libc=glibc
+mvn clean package -pl copilot-native -DskipTests -Dcopilot.native.libc=glibc -Dcopilot.native.skip.download=true
+```
+
+On a supported Linux x64 host, the classifier JAR contains `native/linux-x64/runtime.node`, `native/linux-x64/platform.properties`, and `native/linux-x64/copilot`. The placeholder JAR remains OS-neutral and contains no native binaries. Unsupported hosts retain the placeholder-only behavior without producing a `-linux-x64.jar`.
+
 ## License
 
 MIT — see [LICENSE](sdk/LICENSE) for details.
