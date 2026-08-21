@@ -44,6 +44,6 @@ conversations:
           task.
       - role: tool
         tool_call_id: toolcall_1
-        content: Permission denied and could not request permission from user
+        content: Permission denied and could not request permission from user.
       - role: assistant
         content: failed
