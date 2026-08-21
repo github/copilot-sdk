@@ -750,6 +750,21 @@ export class CopilotSession {
         const outcomePromise = new Promise<SessionOutcome>((resolve) => {
             resolveOutcome = resolve;
         });
+        let resolveShutdown: (error: Error) => void;
+        const shutdownPromise = new Promise<Error>((resolve) => {
+            resolveShutdown = resolve;
+        });
+        let outcomeSettled = false;
+        const settleOutcome = (outcome: SessionOutcome, shutdown = false): void => {
+            if (outcomeSettled) {
+                return;
+            }
+            outcomeSettled = true;
+            resolveOutcome(outcome);
+            if (shutdown && outcome.kind === "error") {
+                resolveShutdown(outcome.error);
+            }
+        };
 
         let lastAssistantMessage: AssistantMessageEvent | undefined;
 
@@ -759,17 +774,29 @@ export class CopilotSession {
             if (event.type === "assistant.message") {
                 lastAssistantMessage = event;
             } else if (event.type === "session.idle") {
-                resolveOutcome({ kind: "idle" });
+                settleOutcome({ kind: "idle" });
             } else if (event.type === "session.error") {
                 const error = new Error(event.data.message);
                 error.stack = event.data.stack;
-                resolveOutcome({ kind: "error", error });
+                settleOutcome({ kind: "error", error });
+            } else if (event.type === "session.shutdown") {
+                const reason = event.data.errorReason ? `: ${event.data.errorReason}` : "";
+                const error = new Error(
+                    `Session ${this.sessionId} shut down before becoming idle${reason}`
+                );
+                settleOutcome({ kind: "error", error }, true);
             }
         });
 
         let timeoutId: ReturnType<typeof setTimeout> | undefined;
         try {
-            await this.send(options);
+            const sendResult = await Promise.race([
+                this.send(options).then(() => ({ kind: "sent" }) as const),
+                shutdownPromise.then((error) => ({ kind: "shutdown", error }) as const),
+            ]);
+            if (sendResult.kind === "shutdown") {
+                throw sendResult.error;
+            }
 
             const timeoutPromise = new Promise<never>((_, reject) => {
                 timeoutId = setTimeout(
