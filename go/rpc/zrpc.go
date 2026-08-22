@@ -1949,6 +1949,25 @@ type ConfigureSessionExtensionsParams struct {
 	SessionID string `json:"sessionId"`
 }
 
+// Identity of the integrating host, declared once on the `server.connect` handshake so
+// telemetry from this connection is attributed to a single, consistent surface. All fields
+// are optional; omit them to keep the default attribution.
+// Experimental: ConnectClientInfo is part of an experimental API and may change or be
+// removed.
+// Internal: ConnectClientInfo is an internal SDK API and is not part of the public surface.
+type ConnectClientInfo struct {
+	// Name of the host editor, e.g. `"vscode"`.
+	EditorName *string `json:"editorName,omitempty"`
+	// Version of the host editor, e.g. `"1.124.2"`. Ignored unless it looks like a version
+	// string.
+	EditorVersion *string `json:"editorVersion,omitempty"`
+	// Name of the Copilot extension within the host, e.g. `"copilot-chat"`.
+	ExtensionName *string `json:"extensionName,omitempty"`
+	// Version of the Copilot extension within the host, e.g. `"0.54.0"`. Ignored unless it
+	// looks like a version string.
+	ExtensionVersion *string `json:"extensionVersion,omitempty"`
+}
+
 // Metadata for a connected remote session.
 // Experimental: ConnectedRemoteSessionMetadata is part of an experimental API and may
 // change or be removed.
@@ -2002,6 +2021,10 @@ type ConnectRemoteSessionParams struct {
 // Experimental: ConnectRequest is part of an experimental API and may change or be removed.
 // Internal: ConnectRequest is an internal SDK API and is not part of the public surface.
 type ConnectRequest struct {
+	// Identity of the integrating host. Optional; omit it to keep the default attribution.
+	// Internal: ClientInfo is part of the SDK's internal API surface and is not intended for
+	// external use.
+	ClientInfo *ConnectClientInfo `json:"clientInfo,omitempty"`
 	// Opt this connection in to GitHub telemetry forwarding for its lifetime. When set, the
 	// runtime forwards every internal telemetry event it emits — across all sessions, plus
 	// sessionless events — to this connection over the `gitHubTelemetry.event` notification.
@@ -6669,6 +6692,10 @@ type Model struct {
 	DefaultReasoningEffort *string `json:"defaultReasoningEffort,omitempty"`
 	// Model identifier (e.g., "claude-sonnet-4.5")
 	ID string `json:"id"`
+	// Informational notices the service published for this model, such as an upcoming change or
+	// a recommended alternative. Present only when the service published at least one notice.
+	// Hosts should surface these without implying anything is wrong with the model.
+	InfoMessages []ModelMessage `json:"infoMessages,omitzero"`
 	// Model capability category for grouping in the model picker
 	ModelPickerCategory *ModelPickerCategory `json:"modelPickerCategory,omitempty"`
 	// Relative cost tier for token-based billing users
@@ -6684,6 +6711,10 @@ type Model struct {
 	SupportedContextTiers []string `json:"supportedContextTiers,omitzero"`
 	// Supported reasoning effort levels (only present if model supports reasoning effort)
 	SupportedReasoningEfforts []string `json:"supportedReasoningEfforts,omitzero"`
+	// Warnings the service published for this model, such as a deprecated client version.
+	// Present only when the service published at least one warning. The model remains usable;
+	// hosts should surface these as advisory rather than blocking.
+	WarningMessages []ModelMessage `json:"warningMessages,omitzero"`
 }
 
 // Managed, repository, and CLI model overrides to overlay onto the session at startup.
@@ -6904,6 +6935,18 @@ type ModelList struct {
 type ModelListRequest struct {
 	// If true, bypasses the per-session model list cache and re-fetches from CAPI.
 	SkipCache *bool `json:"skipCache,omitempty"`
+}
+
+// A service-published message about a model, carrying a stable machine-readable code
+// alongside human-readable text.
+// Experimental: ModelMessage is part of an experimental API and may change or be removed.
+type ModelMessage struct {
+	// Stable machine-readable identifier for the message, such as `client_version_deprecated`.
+	// Hosts can key custom presentation off this; unrecognized codes should fall back to
+	// displaying `message`.
+	Code string `json:"code"`
+	// Human-readable message text intended for display to the user.
+	Message string `json:"message"`
 }
 
 // Experimental: ModelPickerPersistenceRequest is part of an experimental API and may change
@@ -9589,6 +9632,10 @@ type QueuePendingItems struct {
 // Experimental: QueuePendingItemsResult is part of an experimental API and may change or be
 // removed.
 type QueuePendingItemsResult struct {
+	// How many leading entries of `steeringMessages` have already been folded into the running
+	// turn (and so have an emitted `user.message`), as opposed to still waiting for one. Absent
+	// for hosts that do not distinguish the two.
+	InFlightSteeringCount *int64 `json:"inFlightSteeringCount,omitempty"`
 	// Pending queued items in submission order. Includes user messages, queued slash commands,
 	// and queued model changes; omits internal system items.
 	Items []QueuePendingItems `json:"items"`
@@ -10002,9 +10049,9 @@ type SandboxConfig struct {
 	// Whether to auto-grant read access to the tool directories discovered on PATH and in
 	// toolchain environment variables (GOROOT, CARGO_HOME, JAVA_HOME, VIRTUAL_ENV, and
 	// similar), and to common developer-tool caches, registries, and toolchains in their
-	// default home locations (cargo, go, npm, Maven, and more), plus read-write access to (and,
-	// on Unix, up-front creation of) the scratch caches builds write on every run (go-build,
-	// ccache, sccache, Gradle caches, Cargo lock/tracker files), so builds work without extra
+	// default home locations (cargo, go, npm, Maven, and more), plus read-write access to (and
+	// up-front creation of) the scratch caches builds write on every run (go-build, ccache,
+	// sccache, Gradle caches, Cargo lock/tracker files), so builds work without extra
 	// configuration; a relocated CARGO_HOME additionally gets its Cargo lock files granted
 	// read-write. Set to false to disable every grant listed above: user-installed toolchains
 	// (rustup, nvm, pyenv, conda, pipx) then need explicit userPolicy.filesystem entries —
@@ -11474,8 +11521,12 @@ type SessionManagedPermissions struct {
 	Ask []string `json:"ask,omitzero"`
 	// Permission rules that block matching operations. Deny has highest precedence.
 	Deny []string `json:"deny,omitzero"`
-	// When set to `disable`, prevents bypass/allow-all permission modes.
-	DisableBypassPermissionsMode *DisableBypassPermissionsMode `json:"disableBypassPermissionsMode,omitempty"`
+	// When set to `disable`, prevents bypass/allow-all permission modes. `allow-auto-only`
+	// blocks full allow-all but permits advisory auto-approval. Any other value is accepted
+	// rather than failing the session, but is enforced as `disable`: the key is only present to
+	// restrict something, so a mode this runtime cannot interpret fails closed to the most
+	// restrictive one it knows. Omit the key entirely to impose no restriction.
+	DisableBypassPermissionsMode *string `json:"disableBypassPermissionsMode,omitempty"`
 }
 
 // Managed settings an SDK host may inject at session startup. Only permissions are accepted
@@ -16016,14 +16067,6 @@ const (
 	DebugCollectLogsSourceProcessLog DebugCollectLogsSource = "process-log"
 	// Interactive shell log for the session.
 	DebugCollectLogsSourceShellLog DebugCollectLogsSource = "shell-log"
-)
-
-// Experimental: DisableBypassPermissionsMode is part of an experimental API and may change
-// or be removed.
-type DisableBypassPermissionsMode string
-
-const (
-	DisableBypassPermissionsModeDisable DisableBypassPermissionsMode = "disable"
 )
 
 // Effective extension loading and agent-management mode

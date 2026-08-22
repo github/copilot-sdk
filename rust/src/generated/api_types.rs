@@ -3822,6 +3822,31 @@ pub(crate) struct ConfigureSessionExtensionsParams {
     pub session_id: SessionId,
 }
 
+/// Identity of the integrating host, declared once on the `server.connect` handshake so telemetry from this connection is attributed to a single, consistent surface. All fields are optional; omit them to keep the default attribution.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ConnectClientInfo {
+    /// Name of the host editor, e.g. `"vscode"`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub editor_name: Option<String>,
+    /// Version of the host editor, e.g. `"1.124.2"`. Ignored unless it looks like a version string.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub editor_version: Option<String>,
+    /// Name of the Copilot extension within the host, e.g. `"copilot-chat"`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extension_name: Option<String>,
+    /// Version of the Copilot extension within the host, e.g. `"0.54.0"`. Ignored unless it looks like a version string.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extension_version: Option<String>,
+}
+
 /// Repository associated with the connected remote session.
 ///
 /// <div class="warning">
@@ -3908,6 +3933,10 @@ pub struct ConnectRemoteSessionParams {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct ConnectRequest {
+    /// Identity of the integrating host. Optional; omit it to keep the default attribution.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) client_info: Option<ConnectClientInfo>,
     /// Opt this connection in to GitHub telemetry forwarding for its lifetime. When set, the runtime forwards every internal telemetry event it emits — across all sessions, plus sessionless events — to this connection over the `gitHubTelemetry.event` notification. Regular events are also written to the runtime's normal GitHub/CTS path (dual-write); host-only compatibility events are forward-only and intentionally skip that path. Intended for first-party hosts that re-emit the events into their own telemetry stores. Both unrestricted and restricted events are forwarded, each tagged with a `restricted` discriminator; a backstop drops restricted events when restricted telemetry is disabled — using the process-global gate for ordinary events and an explicit session-scoped decision for host-only events.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_git_hub_telemetry_forwarding: Option<bool>,
@@ -9888,6 +9917,23 @@ pub struct ModelCapabilities {
     pub supports: Option<ModelCapabilitiesSupports>,
 }
 
+/// A service-published message about a model, carrying a stable machine-readable code alongside human-readable text.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelMessage {
+    /// Stable machine-readable identifier for the message, such as `client_version_deprecated`. Hosts can key custom presentation off this; unrecognized codes should fall back to displaying `message`.
+    pub code: String,
+    /// Human-readable message text intended for display to the user.
+    pub message: String,
+}
+
 /// Policy state (if applicable)
 ///
 /// <div class="warning">
@@ -9927,6 +9973,9 @@ pub struct Model {
     pub default_reasoning_effort: Option<String>,
     /// Model identifier (e.g., "claude-sonnet-4.5")
     pub id: String,
+    /// Informational notices the service published for this model, such as an upcoming change or a recommended alternative. Present only when the service published at least one notice. Hosts should surface these without implying anything is wrong with the model.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub info_messages: Option<Vec<ModelMessage>>,
     /// Model capability category for grouping in the model picker
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model_picker_category: Option<ModelPickerCategory>,
@@ -9944,6 +9993,9 @@ pub struct Model {
     /// Supported reasoning effort levels (only present if model supports reasoning effort)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub supported_reasoning_efforts: Option<Vec<String>>,
+    /// Warnings the service published for this model, such as a deprecated client version. Present only when the service published at least one warning. The model remains usable; hosts should surface these as advisory rather than blocking.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub warning_messages: Option<Vec<ModelMessage>>,
 }
 
 /// Managed, repository, and CLI model overrides to overlay onto the session at startup.
@@ -13726,6 +13778,9 @@ pub struct QueuePendingItems {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct QueuePendingItemsResult {
+    /// How many leading entries of `steeringMessages` have already been folded into the running turn (and so have an emitted `user.message`), as opposed to still waiting for one. Absent for hosts that do not distinguish the two.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub in_flight_steering_count: Option<i64>,
     /// Pending queued items in submission order. Includes user messages, queued slash commands, and queued model changes; omits internal system items.
     pub items: Vec<QueuePendingItems>,
     /// Display text for messages currently in the immediate steering queue (interjections sent during a running turn).
@@ -14500,7 +14555,7 @@ pub struct SandboxConfig {
     /// Whether to auto-add the current working directory to readwritePaths. Default: true.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub add_current_working_directory: Option<bool>,
-    /// Whether to auto-grant read access to the tool directories discovered on PATH and in toolchain environment variables (GOROOT, CARGO_HOME, JAVA_HOME, VIRTUAL_ENV, and similar), and to common developer-tool caches, registries, and toolchains in their default home locations (cargo, go, npm, Maven, and more), plus read-write access to (and, on Unix, up-front creation of) the scratch caches builds write on every run (go-build, ccache, sccache, Gradle caches, Cargo lock/tracker files), so builds work without extra configuration; a relocated CARGO_HOME additionally gets its Cargo lock files granted read-write. Set to false to disable every grant listed above: user-installed toolchains (rustup, nvm, pyenv, conda, pipx) then need explicit userPolicy.filesystem entries — readonlyPaths to read them, plus readwriteFiles for a relocated CARGO_HOME's .package-cache and .global-cache, which Cargo locks on every build. Only these developer-tool grants are affected: the working directory (see addCurrentWorkingDirectory), temporary storage, session log paths, and system locations follow their own rules and stay granted, so commands still run. Default: true (enabled by default; set to false to opt out).
+    /// Whether to auto-grant read access to the tool directories discovered on PATH and in toolchain environment variables (GOROOT, CARGO_HOME, JAVA_HOME, VIRTUAL_ENV, and similar), and to common developer-tool caches, registries, and toolchains in their default home locations (cargo, go, npm, Maven, and more), plus read-write access to (and up-front creation of) the scratch caches builds write on every run (go-build, ccache, sccache, Gradle caches, Cargo lock/tracker files), so builds work without extra configuration; a relocated CARGO_HOME additionally gets its Cargo lock files granted read-write. Set to false to disable every grant listed above: user-installed toolchains (rustup, nvm, pyenv, conda, pipx) then need explicit userPolicy.filesystem entries — readonlyPaths to read them, plus readwriteFiles for a relocated CARGO_HOME's .package-cache and .global-cache, which Cargo locks on every build. Only these developer-tool grants are affected: the working directory (see addCurrentWorkingDirectory), temporary storage, session log paths, and system locations follow their own rules and stay granted, so commands still run. Default: true (enabled by default; set to false to opt out).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub allow_dev_tool_access: Option<bool>,
     /// Credential-injection capability flags.
@@ -16106,9 +16161,9 @@ pub struct SessionManagedPermissions {
     /// Permission rules that block matching operations. Deny has highest precedence.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub deny: Option<Vec<String>>,
-    /// When set to `disable`, prevents bypass/allow-all permission modes.
+    /// When set to `disable`, prevents bypass/allow-all permission modes. `allow-auto-only` blocks full allow-all but permits advisory auto-approval. Any other value is accepted rather than failing the session, but is enforced as `disable`: the key is only present to restrict something, so a mode this runtime cannot interpret fails closed to the most restrictive one it knows. Omit the key entirely to impose no restriction.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub disable_bypass_permissions_mode: Option<DisableBypassPermissionsMode>,
+    pub disable_bypass_permissions_mode: Option<String>,
 }
 
 /// Managed settings an SDK host may inject at session startup. Only permissions are accepted in this initial contract.
@@ -25891,6 +25946,9 @@ pub struct SessionQueuePendingItemsParams {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionQueuePendingItemsResult {
+    /// How many leading entries of `steeringMessages` have already been folded into the running turn (and so have an emitted `user.message`), as opposed to still waiting for one. Absent for hosts that do not distinguish the two.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub in_flight_steering_count: Option<i64>,
     /// Pending queued items in submission order. Includes user messages, queued slash commands, and queued model changes; omits internal system items.
     pub items: Vec<QueuePendingItems>,
     /// Display text for messages currently in the immediate steering queue (interjections sent during a running turn).
@@ -28455,23 +28513,6 @@ pub enum DebugCollectLogsResultKind {
     /// A directory containing redacted files was written.
     #[serde(rename = "directory")]
     Directory,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum DisableBypassPermissionsMode {
-    #[serde(rename = "disable")]
-    Disable,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
