@@ -7,7 +7,7 @@ use github_copilot_sdk::rpc::{
     Extension, ExtensionList, ExtensionSource, ExtensionStatus, ExtensionsDisableRequest,
     ExtensionsEnableRequest, FleetStartRequest, FleetStartResult, ModelSwitchAutoTierRequest,
     ModelSwitchAutoTierResult, ModelSwitchAutoTierStatus, QueuePendingItems, QueuePendingItemsKind,
-    SendAgentMode, TasksStartAgentRequest,
+    SandboxConfig, SendAgentMode, TasksStartAgentRequest,
 };
 use github_copilot_sdk::session_events::{
     PermissionRequest, PermissionRequestedData, SessionEventData, TypedSessionEvent,
@@ -182,6 +182,32 @@ fn queue_pending_message_id_is_optional_for_older_hosts() {
             .unwrap()
             .get("messageId")
             .is_none()
+    );
+}
+
+#[test]
+fn sandbox_allow_bypass_serializes_as_optional_camel_case() {
+    let enabled = SandboxConfig {
+        enabled: true,
+        allow_bypass: Some(true),
+        ..Default::default()
+    };
+    assert_eq!(
+        serde_json::to_value(enabled).unwrap(),
+        serde_json::json!({
+            "allowBypass": true,
+            "enabled": true,
+        })
+    );
+
+    let omitted = SandboxConfig {
+        enabled: true,
+        allow_bypass: None,
+        ..Default::default()
+    };
+    assert_eq!(
+        serde_json::to_value(omitted).unwrap(),
+        serde_json::json!({ "enabled": true })
     );
 }
 
