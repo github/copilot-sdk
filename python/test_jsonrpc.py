@@ -5,6 +5,7 @@ Tests for the JSON-RPC client implementation, focusing on proper handling
 of large payloads and short reads from pipes.
 """
 
+import asyncio
 import io
 import json
 import os
@@ -13,7 +14,7 @@ import time
 
 import pytest
 
-from copilot._jsonrpc import JsonRpcClient
+from copilot._jsonrpc import JsonRpcClient, ProcessExitedError
 
 
 class MockProcess:
@@ -160,6 +161,28 @@ class TestReadExact:
 
         with pytest.raises(EOFError, match="Unexpected end of stream"):
             client._read_exact(100)
+
+
+@pytest.mark.asyncio
+async def test_process_exit_waits_for_stderr_reader():
+    process = MockProcess()
+    process.returncode = 1
+    client = JsonRpcClient(process)
+    future = asyncio.get_running_loop().create_future()
+    client.pending_requests["request-id"] = future
+
+    def capture_stderr():
+        time.sleep(0.01)
+        with client._stderr_lock:
+            client._stderr_output.append("unsupported argument\n")
+
+    client._stderr_thread = threading.Thread(target=capture_stderr)
+    client._stderr_thread.start()
+
+    client._fail_pending_requests()
+
+    with pytest.raises(ProcessExitedError, match=r"stderr: unsupported argument"):
+        await future
 
 
 class TestReadMessageWithLargePayloads:
