@@ -5,7 +5,8 @@
 
 use github_copilot_sdk::rpc::{
     Extension, ExtensionList, ExtensionSource, ExtensionStatus, ExtensionsDisableRequest,
-    ExtensionsEnableRequest, FleetStartRequest, FleetStartResult, TasksStartAgentRequest,
+    ExtensionsEnableRequest, FleetStartRequest, FleetStartResult, SandboxConfig,
+    TasksStartAgentRequest,
 };
 use github_copilot_sdk::session_events::{PermissionRequest, PermissionRequestedData};
 
@@ -102,6 +103,32 @@ fn permission_event_exposes_managed_approval_required() {
         panic!("expected read permission request");
     };
     assert_eq!(request.managed_approval_required, Some(true));
+}
+
+#[test]
+fn sandbox_allow_bypass_serializes_as_optional_camel_case() {
+    let enabled = SandboxConfig {
+        enabled: true,
+        allow_bypass: Some(true),
+        ..Default::default()
+    };
+    assert_eq!(
+        serde_json::to_value(enabled).unwrap(),
+        serde_json::json!({
+            "allowBypass": true,
+            "enabled": true,
+        })
+    );
+
+    let omitted = SandboxConfig {
+        enabled: true,
+        allow_bypass: None,
+        ..Default::default()
+    };
+    assert_eq!(
+        serde_json::to_value(omitted).unwrap(),
+        serde_json::json!({ "enabled": true })
+    );
 }
 
 fn running_extension(id: &str, name: &str) -> Extension {
