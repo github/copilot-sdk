@@ -518,6 +518,32 @@ export function addManagedApprovalRequiredToPermissionRequests<T extends JSONSch
     return cloned;
 }
 
+/**
+ * Add the sandbox bypass host capability until the pinned CLI schema includes the field.
+ */
+export function addSandboxAllowBypass<T extends JSONSchema7>(schema: T): T {
+    const cloned = cloneSchemaForCodegen(schema);
+    const property: JSONSchema7 = {
+        description:
+            "Host capability flag (not part of the sandbox policy): when true, exposes a per-command escape hatch so the model can request individual commands run outside the sandbox.",
+        type: "boolean",
+    };
+
+    for (const definitions of [cloned.definitions, cloned.$defs]) {
+        if (!definitions) continue;
+        const definition = definitions.SandboxConfig;
+        if (!definition || typeof definition !== "object") continue;
+        const objectDefinition = definition as JSONSchema7;
+        objectDefinition.properties = {
+            ...objectDefinition.properties,
+            allowBypass:
+                objectDefinition.properties?.allowBypass ?? cloneSchemaForCodegen(property),
+        };
+    }
+
+    return cloned;
+}
+
 export function getEnumValueDescriptions(schema: JSONSchema7 | null | undefined): EnumValueDescriptions | undefined {
     if (!schema || typeof schema !== "object") return undefined;
 
