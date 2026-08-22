@@ -135,6 +135,7 @@ export type {
     ProviderTokenArgs,
     RemoteSessionMode,
     ResumeSessionConfig,
+    SearchMessagesOptions,
     SectionOverride,
     SectionOverrideAction,
     SectionTransformFn,

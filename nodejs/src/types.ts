@@ -3263,6 +3263,28 @@ export type TypedSessionEventHandler<T extends SessionEventType> = (
 export type SessionEventHandler = (event: SessionEvent) => void;
 
 /**
+ * Options for {@link CopilotSession.searchMessages}.
+ */
+export interface SearchMessagesOptions {
+    /**
+     * Restrict the search to events of this exact type (for example
+     * `"assistant.message"` or `"user.message"`). When omitted, events of every
+     * type are searched. Known event-type literals are offered as autocomplete
+     * suggestions, but any string is accepted.
+     */
+    eventType?: SessionEventType | (string & {});
+
+    /**
+     * Whether string matching is case-sensitive. Defaults to `false`
+     * (case-insensitive).
+     *
+     * Ignored when `query` is a {@link RegExp}: a regular expression controls its
+     * own case sensitivity through the `i` flag.
+     */
+    caseSensitive?: boolean;
+}
+
+/**
  * Working directory context for a session
  */
 export interface SessionContext {

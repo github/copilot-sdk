@@ -47,6 +47,7 @@ import type {
     ReasoningEffort,
     ReasoningSummary,
     ModelCapabilitiesOverride,
+    SearchMessagesOptions,
     SectionTransformFn,
     SessionCapabilities,
     SessionEvent,
@@ -1962,6 +1963,61 @@ export class CopilotSession {
     }
 
     /**
+     * Searches this session's history for events whose textual content matches a query.
+     *
+     * This is a convenience wrapper over {@link getEvents}: it fetches the full
+     * conversation history and filters it in memory. The `query` is matched
+     * against the textual content of each event — every string value nested
+     * within the event's `data` payload (message text, tool output, error
+     * messages, and so on). Structural fields such as `type`, `id`, and
+     * `timestamp`, as well as object keys, are not searched; use
+     * {@link SearchMessagesOptions.eventType} to filter by event type instead.
+     *
+     * Matching events are returned in history order (the order {@link getEvents}
+     * returns them).
+     *
+     * @param query - A substring to look for, or a {@link RegExp} to test
+     *   against. A string matches case-insensitively by default; pass
+     *   `{ caseSensitive: true }` for exact-case matching. A RegExp is applied
+     *   as-is, so control its case sensitivity with the `i` flag. An empty
+     *   string matches every event (subject to the `eventType` filter).
+     * @param options - Optional filters. See {@link SearchMessagesOptions}.
+     * @returns A promise that resolves with the matching events.
+     * @throws Error if the session has been disconnected or the connection fails
+     *
+     * @example
+     * ```typescript
+     * // Case-insensitive substring search across all events
+     * const results = await session.searchMessages("authentication");
+     *
+     * // Only assistant messages mentioning "deploy"
+     * const deploys = await session.searchMessages("deploy", {
+     *   eventType: "assistant.message",
+     * });
+     *
+     * // Regular-expression search (case-insensitive via the i flag)
+     * const failures = await session.searchMessages(/timed out|refused/i, {
+     *   eventType: "session.error",
+     * });
+     * ```
+     */
+    async searchMessages(
+        query: string | RegExp,
+        options?: SearchMessagesOptions
+    ): Promise<SessionEvent[]> {
+        const events = await this.getEvents();
+        const eventType = options?.eventType;
+        const matches = createSearchMatcher(query, options?.caseSensitive === true);
+
+        return events.filter((event) => {
+            if (eventType !== undefined && event.type !== eventType) {
+                return false;
+            }
+            return matches(collectSearchableText(event));
+        });
+    }
+
+    /**
      * Disconnects this session and releases all in-memory resources (event handlers,
      * tool handlers, permission handlers).
      *
@@ -2101,6 +2157,56 @@ function isToolResultObject(value: unknown): value is ToolResultObject {
     ];
 
     return allowedResultTypes.includes((value as ToolResultObject).resultType);
+}
+
+/**
+ * Builds a predicate that tests whether a piece of text matches a search query,
+ * for {@link CopilotSession.searchMessages}.
+ *
+ * A RegExp query is cloned with its stateful global/sticky (`g`/`y`) flags
+ * removed, so repeated `.test()` calls never depend on a shared `lastIndex` and
+ * the caller's RegExp is never mutated; case sensitivity (the `i` flag) and all
+ * other flags are preserved. A string query is a substring match,
+ * case-insensitive unless `caseSensitive` is set.
+ */
+function createSearchMatcher(
+    query: string | RegExp,
+    caseSensitive: boolean
+): (text: string) => boolean {
+    if (query instanceof RegExp) {
+        const stablePattern = new RegExp(query.source, query.flags.replace(/[gy]/g, ""));
+        return (text: string): boolean => stablePattern.test(text);
+    }
+    if (caseSensitive) {
+        return (text: string): boolean => text.includes(query);
+    }
+    const needle = query.toLowerCase();
+    return (text: string): boolean => text.toLowerCase().includes(needle);
+}
+
+/**
+ * Collects every string value nested within a session event's `data` payload
+ * into a single newline-joined string for text searching. Object keys and
+ * non-string leaves (numbers, booleans, null) are ignored, so a search matches
+ * message content rather than structural field names or identifiers.
+ */
+function collectSearchableText(event: SessionEvent): string {
+    const parts: string[] = [];
+    const visit = (value: unknown): void => {
+        if (typeof value === "string") {
+            parts.push(value);
+        } else if (Array.isArray(value)) {
+            for (const item of value) {
+                visit(item);
+            }
+        } else if (value !== null && typeof value === "object") {
+            for (const nested of Object.values(value)) {
+                visit(nested);
+            }
+        }
+    };
+    visit((event as { data?: unknown }).data);
+    return parts.join("\n");
 }
 
 /** Convert a canvas handler error into a ResponseError with a structured data envelope. */
