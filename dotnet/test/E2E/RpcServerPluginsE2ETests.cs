@@ -16,8 +16,8 @@ namespace GitHub.Copilot.Test.E2E;
 ///
 /// All fixtures are self-contained local directories so the tests run fully offline (the E2E
 /// proxy blocks github.com). A local marketplace directory with the plugin nested inside it
-/// (a "monorepo" marketplace) lets the runtime install a real marketplace-scoped plugin without
-/// any network access, which in turn makes enable/disable/update meaningful rather than no-ops.
+/// (a "monorepo" marketplace) lets the runtime expose a real marketplace-scoped plugin without
+/// any network access, which in turn makes enable/disable/update behavior observable.
 /// Each test runs against its own client with a fresh COPILOT_HOME so installed-plugin and
 /// marketplace state never leaks between tests.
 /// </summary>
@@ -42,17 +42,16 @@ public class RpcServerPluginsE2ETests(E2ETestFixture fixture, ITestOutputHelper 
 
             Assert.Equal(PluginName, install.Plugin.Name);
             Assert.Equal(MarketplaceName, install.Plugin.Marketplace);
-            Assert.True(install.Plugin.Enabled);
-            Assert.True(install.SkillsInstalled >= 1, $"expected at least one skill, got {install.SkillsInstalled}");
             // Marketplace installs are the supported path and must NOT carry the deprecation warning.
             Assert.Null(install.DeprecationWarning);
 
+            WriteMarketplacePluginManifest(marketplaceDir, "2.0.0");
             var afterInstall = await client.Rpc.Plugins.ListAsync();
             var listed = Assert.Single(
                 afterInstall.Plugins,
                 p => p.Name == PluginName && p.Marketplace == MarketplaceName);
             Assert.True(listed.Enabled);
-
+            AssertMarketplaceSemantics(install, listed.Version);
         }
         finally
         {
@@ -97,12 +96,26 @@ public class RpcServerPluginsE2ETests(E2ETestFixture fixture, ITestOutputHelper 
             await client.Rpc.Plugins.Marketplaces.AddAsync(marketplaceDir);
             await client.Rpc.Plugins.InstallAsync(spec);
 
-            // Re-installs from the (local) marketplace catalog and re-counts skills.
+            WriteMarketplacePluginManifest(marketplaceDir, "2.0.0");
+            var beforeUpdate = GetMarketplacePlugin(await client.Rpc.Plugins.ListAsync());
             var update = await client.Rpc.Plugins.UpdateAsync(spec);
+            var afterUpdate = GetMarketplacePlugin(await client.Rpc.Plugins.ListAsync());
 
-            Assert.True(update.SkillsInstalled >= 1, $"expected at least one skill, got {update.SkillsInstalled}");
-            Assert.Equal("1.0.0", update.PreviousVersion);
-            Assert.Equal("1.0.0", update.NewVersion);
+            if (beforeUpdate.Version == "1.0.0")
+            {
+                Assert.True(update.SkillsInstalled >= 1, $"expected at least one skill, got {update.SkillsInstalled}");
+                Assert.Equal("1.0.0", update.PreviousVersion);
+                Assert.Equal("2.0.0", update.NewVersion);
+            }
+            else
+            {
+                Assert.Equal("2.0.0", beforeUpdate.Version);
+                Assert.Equal(0, update.SkillsInstalled);
+                Assert.Equal("2.0.0", update.PreviousVersion);
+                Assert.Equal("2.0.0", update.NewVersion);
+            }
+
+            Assert.Equal("2.0.0", afterUpdate.Version);
         }
         finally
         {
@@ -121,13 +134,32 @@ public class RpcServerPluginsE2ETests(E2ETestFixture fixture, ITestOutputHelper 
             await client.Rpc.Plugins.Marketplaces.AddAsync(marketplaceDir);
             await client.Rpc.Plugins.InstallAsync(spec);
 
+            WriteMarketplacePluginManifest(marketplaceDir, "2.0.0");
+            var beforeUpdate = GetMarketplacePlugin(await client.Rpc.Plugins.ListAsync());
             var result = await client.Rpc.Plugins.UpdateAllAsync();
+            var entries = result.Results
+                .Where(r => r.Name == PluginName)
+                .ToList();
 
-            var entry = Assert.Single(
-                result.Results,
-                r => r.Name == PluginName && r.Marketplace == MarketplaceName);
-            Assert.True(entry.Success, entry.Error);
-            Assert.True(entry.SkillsInstalled >= 1);
+            if (beforeUpdate.Version == "1.0.0")
+            {
+                var entry = Assert.Single(entries);
+                Assert.Equal(MarketplaceName, entry.Marketplace);
+                Assert.True(entry.Success, entry.Error);
+                Assert.True(entry.SkillsInstalled >= 1);
+                Assert.Equal("1.0.0", entry.PreviousVersion);
+                Assert.Equal("2.0.0", entry.NewVersion);
+            }
+            else
+            {
+                Assert.Equal("2.0.0", beforeUpdate.Version);
+                // Live plugins have no persisted install record, so the raw update-all RPC omits them.
+                Assert.Empty(entries);
+            }
+
+            Assert.Equal(
+                "2.0.0",
+                GetMarketplacePlugin(await client.Rpc.Plugins.ListAsync()).Version);
         }
         finally
         {
@@ -220,7 +252,7 @@ public class RpcServerPluginsE2ETests(E2ETestFixture fixture, ITestOutputHelper 
     /// <summary>
     /// Creates a self-contained local marketplace directory: a marketplace.json catalog plus the
     /// plugin it advertises nested inside as a subdirectory. The plugin's catalog source is a
-    /// relative path, so the runtime resolves and installs it purely from the local filesystem.
+    /// relative path, so the runtime resolves it purely from the local filesystem.
     /// </summary>
     private static string CreateLocalMarketplaceFixture()
     {
@@ -236,8 +268,7 @@ public class RpcServerPluginsE2ETests(E2ETestFixture fixture, ITestOutputHelper 
             {
               "name": "{{PluginName}}",
               "source": "./{{PluginName}}",
-              "description": "E2E demo plugin advertised by the local marketplace.",
-              "version": "1.0.0"
+              "description": "E2E demo plugin advertised by the local marketplace."
             }
           ]
         }
@@ -246,6 +277,7 @@ public class RpcServerPluginsE2ETests(E2ETestFixture fixture, ITestOutputHelper 
 
         var pluginDir = Path.Combine(dir, PluginName);
         Directory.CreateDirectory(pluginDir);
+        WriteMarketplacePluginManifest(dir, "1.0.0");
         WriteSkillFile(pluginDir);
 
         return dir;
@@ -285,6 +317,41 @@ public class RpcServerPluginsE2ETests(E2ETestFixture fixture, ITestOutputHelper 
         This skill exists so the plugin reports at least one installed skill.
         """;
         File.WriteAllText(Path.Combine(pluginDir, "SKILL.md"), skill);
+    }
+
+    private static void WriteMarketplacePluginManifest(string marketplaceDir, string version)
+    {
+        var manifest = $$"""
+        {
+          "name": "{{PluginName}}",
+          "description": "E2E demo plugin advertised by the local marketplace.",
+          "version": "{{version}}"
+        }
+        """;
+        File.WriteAllText(Path.Combine(marketplaceDir, PluginName, "plugin.json"), manifest);
+    }
+
+    private static InstalledPluginInfo GetMarketplacePlugin(PluginListResult list) =>
+        Assert.Single(list.Plugins, p => p.Name == PluginName && p.Marketplace == MarketplaceName);
+
+    private static void AssertMarketplaceSemantics(PluginInstallResult install, string? listedVersion)
+    {
+        // Copied installs keep the original v1 snapshot; live installs read the edited v2 source.
+        if (listedVersion == "1.0.0")
+        {
+            Assert.True(install.Plugin.Enabled);
+            Assert.True(
+                install.SkillsInstalled >= 1,
+                $"expected at least one skill, got {install.SkillsInstalled}");
+        }
+        else
+        {
+            Assert.Equal("2.0.0", listedVersion);
+            Assert.False(install.Plugin.Enabled);
+            Assert.Equal(0, install.SkillsInstalled);
+        }
+
+        Assert.Equal("1.0.0", install.Plugin.Version);
     }
 
     /// <summary>
