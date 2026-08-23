@@ -818,7 +818,8 @@ class GeneratedRpcRecordsCoverageTest {
         var policy = new ModelPolicy(ModelPolicyState.ENABLED, null);
         var promo = new ModelBillingPromo("summer-2026", 25.0, "2026-08-01T00:00:00Z", "Summer discount");
         var billing = new ModelBilling(1.0, null, null, promo);
-        var modelItem = new Model("gpt-5", "GPT-5", capabilities, policy, billing, null, null, null, null, null);
+        var modelItem = new Model("gpt-5", "GPT-5", capabilities, policy, billing, null, null, null, null, null, null,
+                null);
         var result = new ModelsListResult(List.of(modelItem));
 
         assertEquals(1, result.models().size());
