@@ -14,6 +14,7 @@ import inspect
 import logging
 import os
 import pathlib
+import re
 import threading
 import time
 from collections.abc import Awaitable, Callable
@@ -77,7 +78,9 @@ from .generated.session_events import (
     SessionCanvasOpenedData,
     SessionErrorData,
     SessionEvent,
+    SessionEventType,
     SessionIdleData,
+    UserMessageData,
     session_event_from_dict,
 )
 from .generated.session_events import (
@@ -104,6 +107,7 @@ if TYPE_CHECKING:
 
 # Re-export SessionEvent under an alias used internally
 SessionEventTypeAlias = SessionEvent
+SearchMessageEventType = Literal["user.message", "assistant.message"]
 
 # ============================================================================
 # Reasoning Effort
@@ -2939,6 +2943,46 @@ class CopilotSession:
         # Convert dict events to SessionEvent objects
         events_dicts = response["events"]
         return [session_event_from_dict(event_dict) for event_dict in events_dicts]
+
+    async def search_messages(
+        self,
+        query: str | re.Pattern[str],
+        *,
+        event_type: SearchMessageEventType | None = None,
+        case_sensitive: bool = False,
+    ) -> list[SessionEvent]:
+        """Search user and assistant message content in persisted session history.
+
+        String queries perform a case-insensitive substring match by default.
+        Compiled regular expressions use their own flags.
+        """
+        events = await self.get_events()
+        if isinstance(query, str):
+            search_query = query if case_sensitive else query.casefold()
+
+            def matches(content: str) -> bool:
+                candidate = content if case_sensitive else content.casefold()
+                return search_query in candidate
+
+        else:
+
+            def matches(content: str) -> bool:
+                return query.search(content) is not None
+
+        results: list[SessionEvent] = []
+        for event in events:
+            if event.type not in (
+                SessionEventType.USER_MESSAGE,
+                SessionEventType.ASSISTANT_MESSAGE,
+            ):
+                continue
+            if event_type is not None and event.type.value != event_type:
+                continue
+            if isinstance(event.data, (UserMessageData, AssistantMessageData)) and matches(
+                event.data.content
+            ):
+                results.append(event)
+        return results
 
     async def disconnect(self) -> None:
         """

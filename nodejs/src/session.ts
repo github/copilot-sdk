@@ -10,43 +10,56 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import type { MessageConnection } from "vscode-jsonrpc/node.js";
 import { ConnectionError, ErrorCodes, ResponseError } from "vscode-jsonrpc/node.js";
-import { createSessionRpc } from "./generated/rpc.js";
+import { CanvasError, type Canvas } from "./canvas.js";
+import {
+    FACTORY_AGENT_OPTION_KEYS,
+    FactoryResumeError,
+    getFactoryDefinition,
+    isFactoryRunTerminal,
+    type FactoryAgentOptions,
+    type FactoryContext,
+    type FactoryHandle,
+    type FactoryResumeErrorCode,
+    type FactoryRunResult,
+    type FactoryStepOptions,
+    type JsonValue,
+    type RunOptions,
+    type SessionFactoryApi,
+} from "./factory.js";
 import type {
-    ClientSessionApiHandlers,
     CanvasActionInvokeResult,
+    ClientSessionApiHandlers,
     CurrentToolMetadata,
-    McpOauthPendingRequestResponse,
     FactoryLogLine,
+    McpOauthPendingRequestResponse,
+    OpenCanvasInstance,
     FactoryRunResult as WireFactoryRunResult,
 } from "./generated/rpc.js";
-import { type Canvas, CanvasError } from "./canvas.js";
-import type { OpenCanvasInstance } from "./generated/rpc.js";
+import { createSessionRpc } from "./generated/rpc.js";
 import { getTraceContext } from "./telemetry.js";
-import { isAttributedPermissionResult } from "./types.js";
 import type {
-    CommandHandler,
     AutoModeSwitchHandler,
     AutoModeSwitchRequest,
     AutoModeSwitchResponse,
+    BearerTokenProvider,
+    CommandHandler,
+    ContextTier,
+    ElicitationContext,
     ElicitationHandler,
     ElicitationParams,
     ElicitationResult,
-    ElicitationContext,
     ExitPlanModeHandler,
     ExitPlanModeRequest,
     ExitPlanModeResult,
-    BearerTokenProvider,
-    UiInputOptions,
-    MessageOptions,
     McpAuthHandler,
     McpAuthRequest,
+    MessageOptions,
+    ModelCapabilitiesOverride,
     PermissionHandler,
     PermissionRequest,
     PermissionRequestResult,
-    ContextTier,
     ReasoningEffort,
     ReasoningSummary,
-    ModelCapabilitiesOverride,
     SectionTransformFn,
     SessionCapabilities,
     SessionEvent,
@@ -61,25 +74,12 @@ import type {
     ToolResultObject,
     TraceContextProvider,
     TypedSessionEventHandler,
+    UiInputOptions,
     UserInputHandler,
     UserInputRequest,
     UserInputResponse,
 } from "./types.js";
-import {
-    FACTORY_AGENT_OPTION_KEYS,
-    getFactoryDefinition,
-    FactoryResumeError,
-    isFactoryRunTerminal,
-    type FactoryResumeErrorCode,
-    type FactoryRunResult,
-    type FactoryAgentOptions,
-    type RunOptions,
-    type SessionFactoryApi,
-    type FactoryContext,
-    type FactoryHandle,
-    type JsonValue,
-    type FactoryStepOptions,
-} from "./factory.js";
+import { isAttributedPermissionResult } from "./types.js";
 
 function isFactoryResumeErrorCode(value: unknown): value is FactoryResumeErrorCode {
     return (
@@ -380,6 +380,17 @@ function isFactoryFatalError(error: unknown): boolean {
 
 /** Assistant message event - the final response from the assistant. */
 export type AssistantMessageEvent = Extract<SessionEvent, { type: "assistant.message" }>;
+
+/** Message event types supported by {@link CopilotSession.searchMessages}. */
+export type SearchMessageEventType = "user.message" | "assistant.message";
+
+/** Options for searching conversational messages in session history. */
+export interface SearchMessagesOptions {
+    /** Restrict results to user or assistant messages. */
+    eventType?: SearchMessageEventType;
+    /** Match string queries case-sensitively. Defaults to false. */
+    caseSensitive?: boolean;
+}
 
 const TOOL_SEARCH_TOOL_NAME = "tool_search_tool";
 
@@ -1959,6 +1970,43 @@ export class CopilotSession {
         });
 
         return (response as { events: SessionEvent[] }).events;
+    }
+
+    /**
+     * Searches user and assistant message content in this session's persisted history.
+     *
+     * String queries perform a case-insensitive substring match by default. Regular
+     * expressions use their own flags and are not mutated by the search.
+     */
+    async searchMessages(
+        query: string | RegExp,
+        options: SearchMessagesOptions = {}
+    ): Promise<SessionEvent[]> {
+        const events = await this.getEvents();
+        const pattern =
+            query instanceof RegExp
+                ? new RegExp(query.source, query.flags.replace(/[gy]/g, ""))
+                : undefined;
+        const stringQuery =
+            typeof query === "string" && !options.caseSensitive ? query.toLowerCase() : query;
+
+        return events.filter((event) => {
+            if (event.type !== "user.message" && event.type !== "assistant.message") {
+                return false;
+            }
+            if (options.eventType && event.type !== options.eventType) {
+                return false;
+            }
+
+            if (pattern) {
+                return pattern.test(event.data.content);
+            }
+
+            const content = options.caseSensitive
+                ? event.data.content
+                : event.data.content.toLowerCase();
+            return content.includes(stringQuery as string);
+        });
     }
 
     /**

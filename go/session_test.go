@@ -33,6 +33,49 @@ func newTestEvent() SessionEvent {
 	return SessionEvent{Data: &SessionIdleData{}}
 }
 
+func TestSearchMessageEvents(t *testing.T) {
+	events := []SessionEvent{
+		{Data: &UserMessageData{Content: "Configure Authentication"}},
+		{Data: &SessionErrorData{Message: "authentication failed"}},
+		{Data: &AssistantMessageData{Content: "Authentication is configured", MessageID: "message-1"}},
+		{Data: &AssistantMessageData{Content: "Deployment complete", MessageID: "message-2"}},
+	}
+
+	results, err := searchMessageEvents(events, "authentication", nil)
+	if err != nil {
+		t.Fatalf("SearchMessages failed: %v", err)
+	}
+	if len(results) != 2 || results[0].Type() != SessionEventTypeUserMessage || results[1].Type() != SessionEventTypeAssistantMessage {
+		t.Fatalf("expected ordered user and assistant matches, got %#v", results)
+	}
+
+	results, err = searchMessageEvents(events, "Authentication", &SearchMessagesOptions{
+		EventType:     SessionEventTypeAssistantMessage,
+		CaseSensitive: true,
+	})
+	if err != nil {
+		t.Fatalf("SearchMessages failed: %v", err)
+	}
+	if len(results) != 1 || results[0].Data.(*AssistantMessageData).MessageID != "message-1" {
+		t.Fatalf("expected one case-sensitive assistant match, got %#v", results)
+	}
+
+	results, err = searchMessageEvents(events, `auth\w+`, &SearchMessagesOptions{Regex: true})
+	if err != nil {
+		t.Fatalf("SearchMessages regex failed: %v", err)
+	}
+	if len(results) != 2 {
+		t.Fatalf("expected two regex matches, got %d", len(results))
+	}
+}
+
+func TestSearchMessageEventsRejectsInvalidRegex(t *testing.T) {
+	_, err := searchMessageEvents(nil, "[", &SearchMessagesOptions{Regex: true})
+	if err == nil {
+		t.Fatal("expected an invalid regex error")
+	}
+}
+
 func ptr[T any](value T) *T {
 	return &value
 }

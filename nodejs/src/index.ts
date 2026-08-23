@@ -11,7 +11,7 @@
 export { CopilotClient } from "./client.js";
 export { RuntimeConnection } from "./types.js";
 export { BuiltInTools, ToolSet } from "./toolSet.js";
-export { CopilotSession, type AssistantMessageEvent } from "./session.js";
+export { CopilotSession, type AssistantMessageEvent, type SearchMessageEventType, type SearchMessagesOptions } from "./session.js";
 export { defineFactory, FactoryResumeError, isFactoryRunTerminal } from "./factory.js";
 export {
     Canvas,

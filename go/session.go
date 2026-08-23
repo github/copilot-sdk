@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"regexp"
+	"strings"
 	"sync"
 	"time"
 
@@ -1696,6 +1698,81 @@ func (s *Session) GetEvents(ctx context.Context) ([]SessionEvent, error) {
 		return nil, fmt.Errorf("failed to unmarshal get events response: %w", err)
 	}
 	return response.Events, nil
+}
+
+// SearchMessagesOptions configures a session message search.
+type SearchMessagesOptions struct {
+	// EventType restricts results to user.message or assistant.message.
+	// The zero value searches both message types.
+	EventType SessionEventType
+	// Regex treats the query as a regular expression instead of a literal substring.
+	Regex bool
+	// CaseSensitive enables case-sensitive matching. The default is false.
+	CaseSensitive bool
+}
+
+// SearchMessages searches user and assistant message content in persisted session history.
+func (s *Session) SearchMessages(ctx context.Context, query string, opts *SearchMessagesOptions) ([]SessionEvent, error) {
+	events, err := s.GetEvents(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return searchMessageEvents(events, query, opts)
+}
+
+func searchMessageEvents(events []SessionEvent, query string, opts *SearchMessagesOptions) ([]SessionEvent, error) {
+	var eventType SessionEventType
+	caseSensitive := false
+	var pattern *regexp.Regexp
+	if opts != nil {
+		eventType = opts.EventType
+		caseSensitive = opts.CaseSensitive
+		if opts.Regex {
+			expression := query
+			if !caseSensitive {
+				expression = "(?i)" + expression
+			}
+			var err error
+			pattern, err = regexp.Compile(expression)
+			if err != nil {
+				return nil, fmt.Errorf("invalid message search regex: %w", err)
+			}
+		}
+	}
+
+	searchQuery := query
+	if !caseSensitive {
+		searchQuery = strings.ToLower(query)
+	}
+	results := make([]SessionEvent, 0)
+	for _, event := range events {
+		if eventType != "" && event.Type() != eventType {
+			continue
+		}
+
+		var content string
+		switch data := event.Data.(type) {
+		case *UserMessageData:
+			content = data.Content
+		case *AssistantMessageData:
+			content = data.Content
+		default:
+			continue
+		}
+
+		matched := false
+		if pattern != nil {
+			matched = pattern.MatchString(content)
+		} else if caseSensitive {
+			matched = strings.Contains(content, searchQuery)
+		} else {
+			matched = strings.Contains(strings.ToLower(content), searchQuery)
+		}
+		if matched {
+			results = append(results, event)
+		}
+	}
+	return results, nil
 }
 
 // Disconnect closes this session and releases all in-memory resources (event

@@ -3874,6 +3874,28 @@ public sealed class ResumeSessionConfig : SessionConfigBase
 }
 
 /// <summary>
+/// Options for searching message content in a Copilot session.
+/// </summary>
+public sealed class SearchMessagesOptions
+{
+    /// <summary>
+    /// Restricts results to <c>user.message</c> or <c>assistant.message</c>.
+    /// When unset, both message types are searched.
+    /// </summary>
+    public string? EventType { get; set; }
+
+    /// <summary>
+    /// Treats the query as a regular expression instead of a literal substring.
+    /// </summary>
+    public bool Regex { get; set; }
+
+    /// <summary>
+    /// Enables case-sensitive matching. The default is <see langword="false"/>.
+    /// </summary>
+    public bool CaseSensitive { get; set; }
+}
+
+/// <summary>
 /// Options for sending a message in a Copilot session.
 /// </summary>
 public sealed class MessageOptions

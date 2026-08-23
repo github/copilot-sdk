@@ -24,12 +24,14 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.regex.Pattern;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.copilot.generated.AssistantMessageEvent;
+import com.github.copilot.generated.UserMessageEvent;
 import com.github.copilot.generated.rpc.SessionCommandsHandlePendingCommandParams;
 import com.github.copilot.generated.rpc.SessionLogParams;
 import com.github.copilot.generated.rpc.SessionLogLevel;
@@ -97,6 +99,7 @@ import com.github.copilot.rpc.PreMcpToolCallHookInput;
 import com.github.copilot.rpc.PreToolUseHookInput;
 import com.github.copilot.rpc.SendMessageRequest;
 import com.github.copilot.rpc.SendMessageResponse;
+import com.github.copilot.rpc.SearchMessagesOptions;
 import com.github.copilot.rpc.SessionCapabilities;
 import com.github.copilot.rpc.SessionEndHookInput;
 import com.github.copilot.rpc.SessionHooks;
@@ -1954,6 +1957,59 @@ public final class CopilotSession implements AutoCloseable {
                     }
                     return events;
                 });
+    }
+
+    /**
+     * Searches user and assistant message content in persisted session history.
+     *
+     * @param query
+     *            the literal substring to search for
+     * @return a future containing matching message events in chronological order
+     */
+    public CompletableFuture<List<SessionEvent>> searchMessages(String query) {
+        return searchMessages(query, new SearchMessagesOptions());
+    }
+
+    /**
+     * Searches user and assistant message content in persisted session history.
+     *
+     * @param query
+     *            the literal substring or regular expression to search for
+     * @param options
+     *            search configuration
+     * @return a future containing matching message events in chronological order
+     */
+    public CompletableFuture<List<SessionEvent>> searchMessages(String query, SearchMessagesOptions options) {
+        if (query == null) {
+            throw new IllegalArgumentException("query must not be null");
+        }
+        SearchMessagesOptions searchOptions = options != null ? options : new SearchMessagesOptions();
+
+        return getMessages().thenApply(messages -> {
+            int flags = searchOptions.isCaseSensitive() ? 0 : Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE;
+            Pattern pattern = searchOptions.isRegex()
+                    ? Pattern.compile(query, flags)
+                    : Pattern.compile(Pattern.quote(query), flags);
+            List<SessionEvent> results = new ArrayList<>();
+            for (SessionEvent event : messages) {
+                if (searchOptions.getEventType() != null
+                        && !searchOptions.getEventType().equals(event.getType())) {
+                    continue;
+                }
+
+                String content = null;
+                if (event instanceof UserMessageEvent userMessage && userMessage.getData() != null) {
+                    content = userMessage.getData().content();
+                } else if (event instanceof AssistantMessageEvent assistantMessage
+                        && assistantMessage.getData() != null) {
+                    content = assistantMessage.getData().content();
+                }
+                if (content != null && pattern.matcher(content).find()) {
+                    results.add(event);
+                }
+            }
+            return results;
+        });
     }
 
     /**

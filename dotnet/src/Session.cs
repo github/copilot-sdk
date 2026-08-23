@@ -11,6 +11,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using System.Threading.Channels;
 
 namespace GitHub.Copilot;
@@ -1761,6 +1762,49 @@ public sealed partial class CopilotSession : IAsyncDisposable
             .Select(static e => SessionEvent.FromJson(e.ToJsonString()))
             .OfType<SessionEvent>()
             .ToList();
+    }
+
+    /// <summary>
+    /// Searches user and assistant message content in persisted session history.
+    /// </summary>
+    /// <param name="query">The literal substring or regular expression to search for.</param>
+    /// <param name="options">Optional search configuration.</param>
+    /// <param name="cancellationToken">A token that can cancel the history request.</param>
+    /// <returns>Matching message events in chronological order.</returns>
+    public async Task<IReadOnlyList<SessionEvent>> SearchMessagesAsync(
+        string query,
+        SearchMessagesOptions? options = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+
+        options ??= new SearchMessagesOptions();
+        Regex? pattern = options.Regex
+            ? new Regex(
+                query,
+                RegexOptions.CultureInvariant |
+                    (options.CaseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase))
+            : null;
+        var comparison = options.CaseSensitive
+            ? StringComparison.Ordinal
+            : StringComparison.OrdinalIgnoreCase;
+        var events = await GetEventsAsync(cancellationToken);
+
+        return events.Where(e =>
+        {
+            if (options.EventType is not null && e.Type != options.EventType)
+            {
+                return false;
+            }
+
+            string? content = e switch
+            {
+                UserMessageEvent userMessage => userMessage.Data.Content,
+                AssistantMessageEvent assistantMessage => assistantMessage.Data.Content,
+                _ => null,
+            };
+            return content is not null && (pattern?.IsMatch(content) ?? content.Contains(query, comparison));
+        }).ToList();
     }
 
     /// <summary>
