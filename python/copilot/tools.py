@@ -13,10 +13,14 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal, TypeVar, get_type_hints, overload
 
-from pydantic import BaseModel, ValidationError
-
 if TYPE_CHECKING:
+    from pydantic import BaseModel
+
     from .generated.rpc import CurrentToolMetadata
+
+    T = TypeVar("T", bound=BaseModel)
+else:
+    T = TypeVar("T")
 
 from .generated.rpc import (
     ExternalToolTextResultForLlm,
@@ -89,7 +93,6 @@ class Tool:
     is_terminal: bool = False
 
 
-T = TypeVar("T", bound=BaseModel)
 R = TypeVar("R")
 
 
@@ -144,7 +147,7 @@ def define_tool(
     *,
     description: str | None = None,
     handler: Callable[[Any, ToolInvocation], Any] | None = None,
-    params_type: type[BaseModel] | None = None,
+    params_type: type[Any] | None = None,
     overrides_built_in_tool: bool = False,
     skip_permission: bool = False,
     defer: Literal["auto", "never"] | None = None,
@@ -251,6 +254,8 @@ def define_tool(
                 if takes_params:
                     args = invocation.arguments or {}
                     if ptype is not None and _is_pydantic_model(ptype):
+                        from pydantic import ValidationError
+
                         try:
                             call_args.append(ptype.model_validate(args))
                         except ValidationError as exc:
@@ -332,7 +337,12 @@ def define_tool(
 def _is_pydantic_model(t: Any) -> bool:
     """Check if a type is a Pydantic BaseModel subclass."""
     try:
-        return isinstance(t, type) and issubclass(t, BaseModel)
+        from pydantic import BaseModel as PydanticBaseModel
+    except ImportError:
+        return False
+
+    try:
+        return isinstance(t, type) and issubclass(t, PydanticBaseModel)
     except TypeError:
         return False
 
@@ -365,8 +375,13 @@ def _normalize_result(result: Any) -> ToolResult:
 
     # Everything else gets JSON-serialized (with Pydantic model support)
     def default(obj: Any) -> Any:
-        if isinstance(obj, BaseModel):
-            return obj.model_dump(mode="json")
+        try:
+            from pydantic import BaseModel as PydanticBaseModel
+        except ImportError:
+            pass
+        else:
+            if isinstance(obj, PydanticBaseModel):
+                return obj.model_dump(mode="json")
         raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
 
     try:

@@ -1,6 +1,9 @@
 """Unit tests for define_tool"""
 
 import json
+import subprocess
+import sys
+import textwrap
 
 import pytest
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -15,6 +18,37 @@ from copilot.tools import (
     convert_mcp_call_tool_result,
     tool_result_to_external_tool_text_result_for_llm,
 )
+
+
+def test_low_level_tool_api_imports_without_pydantic():
+    script = textwrap.dedent(
+        """
+        import builtins
+
+        real_import = builtins.__import__
+
+        def import_without_pydantic(name, *args, **kwargs):
+            if name == "pydantic" or name.startswith("pydantic."):
+                raise ModuleNotFoundError("pydantic is intentionally unavailable")
+            return real_import(name, *args, **kwargs)
+
+        builtins.__import__ = import_without_pydantic
+
+        from copilot.tools import Tool
+
+        tool = Tool(name="low_level", description="No Pydantic required")
+        assert tool.name == "low_level"
+        """
+    )
+
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
 
 
 class TestDefineTool:
