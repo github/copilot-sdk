@@ -349,7 +349,7 @@ async with await client.create_session(
 
 > **Note:** When using `from __future__ import annotations`, define Pydantic models at module level (not inside functions).
 
-**Low-level API (without Pydantic):**
+#### Low-level API (without Pydantic)
 
 For users who prefer manual schema definition:
 
