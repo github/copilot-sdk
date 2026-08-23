@@ -25,7 +25,9 @@ public enum ManagedSettingsEnforcedEscalation {
     /** The {@code unrestricted_paths} variant. */
     UNRESTRICTED_PATHS("unrestricted_paths"),
     /** The {@code unrestricted_urls} variant. */
-    UNRESTRICTED_URLS("unrestricted_urls");
+    UNRESTRICTED_URLS("unrestricted_urls"),
+    /** The {@code server_wide_mcp_approval} variant. */
+    SERVER_WIDE_MCP_APPROVAL("server_wide_mcp_approval");
 
     private final String value;
     ManagedSettingsEnforcedEscalation(String value) { this.value = value; }

@@ -56,6 +56,7 @@ export type SessionEvent =
   | AssistantIdleEvent
   | AssistantUsageEvent
   | ModelCallFailureEvent
+  | ModelCallFinishedEvent
   | AbortEvent
   | ToolUserRequestedEvent
   | ToolExecutionStartEvent
@@ -434,6 +435,18 @@ export type ModelCallFailureTransport =
   | "http"
   /** WebSocket transport. */
   | "websocket";
+/**
+ * Final outcome of one logical model dispatch after response acceptance processing
+ */
+export type ModelCallFinishedOutcome =
+  /** The provider response was accepted for continued agent processing. */
+  | "success"
+  /** The dispatch ended with a provider or transport error. */
+  | "error"
+  /** The dispatch was cancelled before an accepted response was produced. */
+  | "cancelled"
+  /** The provider response was rejected during post-response acceptance processing. */
+  | "rejected";
 /**
  * Finite reason code describing why the current turn was aborted
  */
@@ -855,7 +868,9 @@ export type ManagedSettingsEnforcedEscalation =
   /** Unrestricted filesystem access outside the session's allowed directories. */
   | "unrestricted_paths"
   /** Unrestricted URL fetch access. */
-  | "unrestricted_urls";
+  | "unrestricted_urls"
+  /** A server-wide MCP "Always Allow" (or `--allow-tool <server>`) blanket that would auto-approve every tool from an MCP server. Capped to per-tool approval; each tool still prompts. */
+  | "server_wide_mcp_approval";
 /**
  * Exit plan mode action
  */
@@ -4391,6 +4406,10 @@ export interface AssistantUsageData {
    */
   outputTokens?: number;
   /**
+   * Time to first observable model output in milliseconds. Includes text, reasoning, and tool-call output; only available for streaming requests that produce observable output.
+   */
+  outputTtftMs?: number;
+  /**
    * @deprecated
    * Parent tool call ID when this usage originates from a sub-agent
    */
@@ -4705,6 +4724,62 @@ export interface ModelCallFailureRequestFingerprint {
    * Number of "tool" result messages in the request
    */
   toolResultMessageCount: number;
+}
+/**
+ * Session event "model.call_finished". Final lifecycle outcome for one logical model dispatch. A logical dispatch may include internal reconnect or fallback work, so event count is not provider HTTP-request count.
+ */
+export interface ModelCallFinishedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: ModelCallFinishedData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "model.call_finished".
+   */
+  type: "model.call_finished";
+}
+/**
+ * Final lifecycle outcome for one logical model dispatch. A logical dispatch may include internal reconnect or fallback work, so event count is not provider HTTP-request count.
+ */
+export interface ModelCallFinishedData {
+  /**
+   * Whether an accepted successful response requested the exact name and command semantics of a built-in file edit tool, including an external tool explicitly replacing that built-in name. Absent when the logical dispatch did not produce an accepted response.
+   */
+  containsBuiltInFileEditRequest?: boolean;
+  /**
+   * Monotonic elapsed time spent in the logical model dispatch, including any internal transport reconnect or fallback and excluding orchestrator retry backoff, tool execution, confirmations, and post-response processing
+   */
+  dispatchDurationMs: number;
+  /**
+   * Version of the built-in file-edit semantic classifier used for this event
+   */
+  editClassifierVersion: number;
+  /**
+   * Identifier of the user interaction that owns the model dispatch, matching assistant.turn_start.interactionId when available
+   */
+  interactionId?: string;
+  outcome: ModelCallFinishedOutcome;
+  /**
+   * Agent-loop iteration within the interaction that initiated the model dispatch
+   */
+  turnId: string;
 }
 /**
  * Session event "abort". Turn abort information including the reason for termination
@@ -7172,6 +7247,10 @@ export interface PermissionPromptRequestMcp {
    * @experimental
    */
   assistedApproval?: PermissionAssistedApproval;
+  /**
+   * Whether the host may offer a server-wide "approve all tools from this server" blanket. Absent is treated as true; the runtime sends false when managed policy disables bypass-permissions mode, which forbids the server-wide escalation while still allowing per-tool approval.
+   */
+  canOfferServerWideApproval?: boolean;
   /**
    * Prompt kind discriminator
    */
