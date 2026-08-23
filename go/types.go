@@ -1569,11 +1569,16 @@ type ManagedSettings struct {
 }
 
 // DisableBypassPermissionsMode is the managed bypass-permissions policy.
-type DisableBypassPermissionsMode = rpc.DisableBypassPermissionsMode
+//
+// The runtime may introduce additional fail-closed modes. Values are serialized
+// as strings so callers can use newer modes without waiting for an SDK release.
+type DisableBypassPermissionsMode string
 
 const (
 	// DisableBypassPermissionsModeDisable turns off bypass-permissions mode.
-	DisableBypassPermissionsModeDisable = rpc.DisableBypassPermissionsModeDisable
+	DisableBypassPermissionsModeDisable DisableBypassPermissionsMode = "disable"
+	// DisableBypassPermissionsModeAllowAutoOnly permits only automatic bypass.
+	DisableBypassPermissionsModeAllowAutoOnly DisableBypassPermissionsMode = "allow-auto-only"
 )
 
 // ManagedSettingsPermissions is the permissions-only managed policy injected
@@ -1581,9 +1586,8 @@ const (
 // accepts for fetched managed policy (e.g. "Read(**)", "Shell(git push *)");
 // malformed rules are rejected by the runtime at session creation.
 type ManagedSettingsPermissions struct {
-	// DisableBypassPermissionsMode, when set to "disable", turns off
-	// bypass-permissions ("yolo") mode for the session. Deny-wins: no other
-	// layer can re-enable it.
+	// DisableBypassPermissionsMode controls bypass-permissions ("yolo") mode for
+	// the session. Deny-wins: no other layer can grant broader bypass permissions.
 	DisableBypassPermissionsMode DisableBypassPermissionsMode `json:"disableBypassPermissionsMode,omitempty"`
 	// Deny lists operations that must always be denied. Unioned across layers.
 	Deny []string `json:"deny,omitzero"`

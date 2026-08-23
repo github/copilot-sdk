@@ -15,7 +15,7 @@ import java.util.List;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public final class ManagedSettingsPermissions {
     @JsonProperty("disableBypassPermissionsMode")
-    private DisableBypassPermissionsMode disableBypassPermissionsMode;
+    private String disableBypassPermissionsMode;
 
     @JsonProperty("deny")
     private List<String> deny;
@@ -27,19 +27,30 @@ public final class ManagedSettingsPermissions {
     private List<String> allow;
 
     /** @return the bypass-permissions policy, or {@code null} when unset */
-    public DisableBypassPermissionsMode getDisableBypassPermissionsMode() {
+    public String getDisableBypassPermissionsMode() {
         return disableBypassPermissionsMode;
     }
 
     /**
-     * Disables bypass/allow-all permission modes.
+     * @param value
+     *            bypass-permissions policy
+     * @return this policy
+     */
+    public ManagedSettingsPermissions setDisableBypassPermissionsMode(String value) {
+        this.disableBypassPermissionsMode = value;
+        return this;
+    }
+
+    /**
+     * Sets the bypass-permissions policy from the generated enum retained for
+     * source compatibility.
      *
      * @param value
      *            bypass-permissions policy
      * @return this policy
      */
     public ManagedSettingsPermissions setDisableBypassPermissionsMode(DisableBypassPermissionsMode value) {
-        this.disableBypassPermissionsMode = value;
+        this.disableBypassPermissionsMode = value == null ? null : value.getValue();
         return this;
     }
 

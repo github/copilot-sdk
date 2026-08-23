@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.copilot.generated.rpc.DisableBypassPermissionsMode;
+import com.github.copilot.rpc.DisableBypassPermissionsModes;
 import com.github.copilot.rpc.ManagedSettings;
 import com.github.copilot.rpc.ManagedSettingsPermissions;
 import com.github.copilot.rpc.PermissionRequestResult;
@@ -39,6 +40,25 @@ class ManagedSettingsTest {
         assertTrue(json.contains("\"enableManagedSettings\":true"));
         assertTrue(json.contains("\"managedSettings\":{\"permissions\""));
         assertTrue(json.contains("\"disableBypassPermissionsMode\":\"disable\""));
+    }
+
+    @Test
+    void serializesKnownBypassPermissionsModes() throws Exception {
+        var permissions = new ManagedSettingsPermissions()
+                .setDisableBypassPermissionsMode(DisableBypassPermissionsModes.ALLOW_AUTO_ONLY);
+        var json = new ObjectMapper().writeValueAsString(permissions);
+
+        assertEquals(DisableBypassPermissionsModes.ALLOW_AUTO_ONLY, permissions.getDisableBypassPermissionsMode());
+        assertTrue(json.contains("\"disableBypassPermissionsMode\":\"allow-auto-only\""));
+    }
+
+    @Test
+    void acceptsFutureBypassPermissionsModes() throws Exception {
+        var permissions = new ManagedSettingsPermissions().setDisableBypassPermissionsMode("future-fail-closed-mode");
+        var json = new ObjectMapper().writeValueAsString(permissions);
+
+        assertEquals("future-fail-closed-mode", permissions.getDisableBypassPermissionsMode());
+        assertTrue(json.contains("\"disableBypassPermissionsMode\":\"future-fail-closed-mode\""));
     }
 
     @Test

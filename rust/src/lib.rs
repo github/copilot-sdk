@@ -2155,15 +2155,15 @@ impl Client {
     /// auto-generated token for SDK-spawned TCP servers) as the `token`
     /// param. Server-side, the token is required when the server was
     /// started with `COPILOT_CONNECTION_TOKEN`.
+    #[expect(
+        clippy::field_reassign_with_default,
+        reason = "generated requests can gain optional fields without requiring SDK changes"
+    )]
     async fn connect_handshake(&self) -> Result<Option<u32>> {
-        let params = crate::generated::api_types::ConnectRequest {
-            token: self.inner.effective_connection_token.clone(),
-            enable_git_hub_telemetry_forwarding: self
-                .inner
-                .on_github_telemetry
-                .is_some()
-                .then_some(true),
-        };
+        let mut params = crate::generated::api_types::ConnectRequest::default();
+        params.token = self.inner.effective_connection_token.clone();
+        params.enable_git_hub_telemetry_forwarding =
+            self.inner.on_github_telemetry.is_some().then_some(true);
         let value = self
             .call(
                 crate::generated::api_types::rpc_methods::CONNECT,

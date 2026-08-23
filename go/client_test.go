@@ -3834,6 +3834,26 @@ func TestSessionRequests_ManagedSettings(t *testing.T) {
 		}
 	})
 
+	t.Run("accepts future bypass-permissions modes", func(t *testing.T) {
+		req := createSessionRequest{ManagedSettings: &ManagedSettings{
+			Permissions: &ManagedSettingsPermissions{
+				DisableBypassPermissionsMode: DisableBypassPermissionsMode("future-fail-closed-mode"),
+			},
+		}}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		perms := m["managedSettings"].(map[string]any)["permissions"].(map[string]any)
+		if perms["disableBypassPermissionsMode"] != "future-fail-closed-mode" {
+			t.Errorf("Expected future mode preserved, got %v", perms["disableBypassPermissionsMode"])
+		}
+	})
+
 	t.Run("omits managedSettings when nil", func(t *testing.T) {
 		req := createSessionRequest{}
 		data, _ := json.Marshal(req)
