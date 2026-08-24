@@ -61,10 +61,35 @@ internal sealed class ConnectResult
     public string Version { get; set; } = string.Empty;
 }
 
+/// <summary>Identity of the integrating host, declared once on the `server.connect` handshake so telemetry from this connection is attributed to a single, consistent surface. All fields are optional; omit them to keep the default attribution.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class ConnectClientInfo
+{
+    /// <summary>Name of the host editor, e.g. `"vscode"`.</summary>
+    [JsonPropertyName("editorName")]
+    public string? EditorName { get; set; }
+
+    /// <summary>Version of the host editor, e.g. `"1.124.2"`. Ignored unless it looks like a version string.</summary>
+    [JsonPropertyName("editorVersion")]
+    public string? EditorVersion { get; set; }
+
+    /// <summary>Name of the Copilot extension within the host, e.g. `"copilot-chat"`.</summary>
+    [JsonPropertyName("extensionName")]
+    public string? ExtensionName { get; set; }
+
+    /// <summary>Version of the Copilot extension within the host, e.g. `"0.54.0"`. Ignored unless it looks like a version string.</summary>
+    [JsonPropertyName("extensionVersion")]
+    public string? ExtensionVersion { get; set; }
+}
+
 /// <summary>Connection-level opt-ins for the `server.connect` handshake. Transport authentication is consumed by the native protocol boundary before dispatch.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class ConnectRequest
 {
+    /// <summary>Identity of the integrating host. Optional; omit it to keep the default attribution.</summary>
+    [JsonPropertyName("clientInfo")]
+    public ConnectClientInfo? ClientInfo { get; set; }
+
     /// <summary>Opt this connection in to GitHub telemetry forwarding for its lifetime. When set, the runtime forwards every internal telemetry event it emits — across all sessions, plus sessionless events — to this connection over the `gitHubTelemetry.event` notification. Regular events are also written to the runtime's normal GitHub/CTS path (dual-write); host-only compatibility events are forward-only and intentionally skip that path. Intended for first-party hosts that re-emit the events into their own telemetry stores. Both unrestricted and restricted events are forwarded, each tagged with a `restricted` discriminator; a backstop drops restricted events when restricted telemetry is disabled — using the process-global gate for ordinary events and an explicit session-scoped decision for host-only events.</summary>
     [JsonPropertyName("enableGitHubTelemetryForwarding")]
     public bool? EnableGitHubTelemetryForwarding { get; set; }
@@ -282,6 +307,19 @@ public sealed class ModelCapabilities
     public ModelCapabilitiesSupports? Supports { get; set; }
 }
 
+/// <summary>A service-published message about a model, carrying a stable machine-readable code alongside human-readable text.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ModelMessage
+{
+    /// <summary>Stable machine-readable identifier for the message, such as `client_version_deprecated`. Hosts can key custom presentation off this; unrecognized codes should fall back to displaying `message`.</summary>
+    [JsonPropertyName("code")]
+    public string Code { get; set; } = string.Empty;
+
+    /// <summary>Human-readable message text intended for display to the user.</summary>
+    [JsonPropertyName("message")]
+    public string Message { get; set; } = string.Empty;
+}
+
 /// <summary>Policy state (if applicable).</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class ModelPolicy
@@ -293,6 +331,15 @@ public sealed class ModelPolicy
     /// <summary>Usage terms or conditions for this model.</summary>
     [JsonPropertyName("terms")]
     public string? Terms { get; set; }
+}
+
+/// <summary>Service-published warning text that hosts should display when presenting a model.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ModelWarningText
+{
+    /// <summary>Data-retention warning for the model. The text may contain Markdown links and should be rendered as Markdown when supported.</summary>
+    [JsonPropertyName("dataRetention")]
+    public string? DataRetention { get; set; }
 }
 
 /// <summary>Copilot model metadata, including identifier, display name, capabilities, policy, billing, reasoning efforts, and picker categories.</summary>
@@ -314,6 +361,10 @@ public sealed class Model
     /// <summary>Model identifier (e.g., "claude-sonnet-4.5").</summary>
     [JsonPropertyName("id")]
     public string Id { get; set; } = string.Empty;
+
+    /// <summary>Informational notices the service published for this model, such as an upcoming change or a recommended alternative. Present only when the service published at least one notice. Hosts should surface these without implying anything is wrong with the model.</summary>
+    [JsonPropertyName("infoMessages")]
+    public IList<ModelMessage>? InfoMessages { get; set; }
 
     /// <summary>Model capability category for grouping in the model picker.</summary>
     [JsonPropertyName("modelPickerCategory")]
@@ -338,6 +389,14 @@ public sealed class Model
     /// <summary>Supported reasoning effort levels (only present if model supports reasoning effort).</summary>
     [JsonPropertyName("supportedReasoningEfforts")]
     public IList<string>? SupportedReasoningEfforts { get; set; }
+
+    /// <summary>Warnings the service published for this model, such as a deprecated client version. Present only when the service published at least one warning. The model remains usable; hosts should surface these as advisory rather than blocking.</summary>
+    [JsonPropertyName("warningMessages")]
+    public IList<ModelMessage>? WarningMessages { get; set; }
+
+    /// <summary>Warning text the service requires hosts to surface for this model. Present only when the service published at least one warning.</summary>
+    [JsonPropertyName("warningText")]
+    public ModelWarningText? WarningText { get; set; }
 }
 
 /// <summary>List of Copilot models available to the resolved user, including capabilities and billing metadata.</summary>
@@ -2695,6 +2754,10 @@ public sealed class InstalledPluginInfo
     [JsonPropertyName("enabled")]
     public bool Enabled { get; set; }
 
+    /// <summary>Absolute path of the marketplace directory a live plugin was resolved from. Present only on live, never-persisted records — a plugin belonging to a directory/local marketplace, which is loaded from its real directory on every pass instead of a copy under the installed-plugins cache. Its presence is what marks a listed plugin as live: such a plugin is always present on disk, so `enabled` is its only meaningful state and it is never "not installed".</summary>
+    [JsonPropertyName("installedFrom")]
+    public string? InstalledFrom { get; set; }
+
     /// <summary>Marketplace the plugin came from. Empty string ("") for direct repo / URL / local installs.</summary>
     [JsonPropertyName("marketplace")]
     public string Marketplace { get; set; } = string.Empty;
@@ -4461,6 +4524,10 @@ public sealed class InstalledPlugin
     /// <summary>Installation timestamp.</summary>
     [JsonPropertyName("installed_at")]
     public string InstalledAt { get; set; } = string.Empty;
+
+    /// <summary>Absolute path of the marketplace directory a live plugin was resolved from. Present only on live, never-persisted records — those synthesized at session start for a directory/local marketplace, whose cache_path points at the real plugin directory on disk rather than a copy under the installed-plugins cache. Its presence is what marks a record as live, and no record carrying it is ever written to the persisted installedPlugins key.</summary>
+    [JsonPropertyName("installed_from")]
+    public string? InstalledFrom { get; set; }
 
     /// <summary>Marketplace the plugin came from (empty string for direct repo installs).</summary>
     [JsonPropertyName("marketplace")]
@@ -10588,6 +10655,10 @@ public sealed class SessionInstalledPlugin
     [JsonPropertyName("installed_at")]
     public string InstalledAt { get; set; } = string.Empty;
 
+    /// <summary>Absolute path of the marketplace directory a live plugin was resolved from. Present only on live, never-persisted records — those synthesized at session start for a directory/local marketplace, whose cache_path points at the real plugin directory on disk rather than a copy under the installed-plugins cache. Its presence is what marks a record as live, and no record carrying it is ever written to the persisted installedPlugins key.</summary>
+    [JsonPropertyName("installed_from")]
+    public string? InstalledFrom { get; set; }
+
     /// <summary>Marketplace the plugin came from (empty string for direct repo installs).</summary>
     [JsonPropertyName("marketplace")]
     public string Marketplace { get; set; } = string.Empty;
@@ -10802,7 +10873,7 @@ public sealed class SandboxConfig
     [JsonPropertyName("addCurrentWorkingDirectory")]
     public bool? AddCurrentWorkingDirectory { get; set; }
 
-    /// <summary>Whether to auto-grant read access to the tool directories discovered on PATH and in toolchain environment variables (GOROOT, CARGO_HOME, JAVA_HOME, VIRTUAL_ENV, and similar), and to common developer-tool caches, registries, and toolchains in their default home locations (cargo, go, npm, Maven, and more), plus read-write access to (and, on Unix, up-front creation of) the scratch caches builds write on every run (go-build, ccache, sccache, Gradle caches, Cargo lock/tracker files), so builds work without extra configuration; a relocated CARGO_HOME additionally gets its Cargo lock files granted read-write. Set to false to disable every grant listed above: user-installed toolchains (rustup, nvm, pyenv, conda, pipx) then need explicit userPolicy.filesystem entries — readonlyPaths to read them, plus readwriteFiles for a relocated CARGO_HOME's .package-cache and .global-cache, which Cargo locks on every build. Only these developer-tool grants are affected: the working directory (see addCurrentWorkingDirectory), temporary storage, session log paths, and system locations follow their own rules and stay granted, so commands still run. Default: true (enabled by default; set to false to opt out).</summary>
+    /// <summary>Whether to auto-grant read access to the tool directories discovered on PATH and in toolchain environment variables (GOROOT, CARGO_HOME, JAVA_HOME, VIRTUAL_ENV, and similar), and to common developer-tool caches, registries, and toolchains in their default home locations (cargo, go, npm, Maven, and more), plus read-write access to (and up-front creation of) the scratch caches builds write on every run (go-build, ccache, sccache, Gradle caches, Cargo lock/tracker files), so builds work without extra configuration; a relocated CARGO_HOME additionally gets its Cargo lock files granted read-write. Set to false to disable every grant listed above: user-installed toolchains (rustup, nvm, pyenv, conda, pipx) then need explicit userPolicy.filesystem entries — readonlyPaths to read them, plus readwriteFiles for a relocated CARGO_HOME's .package-cache and .global-cache, which Cargo locks on every build. Only these developer-tool grants are affected: the working directory (see addCurrentWorkingDirectory), temporary storage, session log paths, and system locations follow their own rules and stay granted, so commands still run. Default: true (enabled by default; set to false to opt out).</summary>
     [JsonPropertyName("allowDevToolAccess")]
     public bool? AllowDevToolAccess { get; set; }
 
@@ -13485,7 +13556,7 @@ public sealed class PermissionsConfigureAdditionalContentExclusionPolicy
 [Experimental(Diagnostics.Experimental)]
 public sealed class PermissionPathsConfig
 {
-    /// <summary>Additional directories to allow tool access to (in addition to the session's working directory). When `unrestricted` is true, these are still pre-populated on the UnrestrictedPathManager so they remain visible via getDirectories() (e.g. for @-mention completion).</summary>
+    /// <summary>Additional directories to allow tool access to (in addition to the session's working directory). Conventional `.github/skills/` and `.github/agents/` definitions under them also join the session catalogs when their subsystem gates are enabled, so supplying a directory is a trust decision for configuration stored there. When `unrestricted` is true, these are still pre-populated on the UnrestrictedPathManager so they remain visible via getDirectories() (e.g. for @-mention completion).</summary>
     [JsonPropertyName("additionalDirectories")]
     public IList<string>? AdditionalDirectories { get; set; }
 
@@ -14466,7 +14537,7 @@ public sealed class PermissionsPathsAddResult
 [Experimental(Diagnostics.Experimental)]
 internal sealed class PermissionPathsAddParams
 {
-    /// <summary>Directory to add to the allow-list. The runtime resolves and validates the path before adding.</summary>
+    /// <summary>Directory to add to the allow-list. The runtime resolves and validates the path before adding, then loads conventional `.github/skills/` and `.github/agents/` definitions under it when their subsystem gates are enabled. Adding the directory is therefore also a trust decision for configuration stored there.</summary>
     [JsonPropertyName("path")]
     public string Path { get; set; } = string.Empty;
 
@@ -16233,6 +16304,10 @@ public sealed class QueuePendingItems
 [Experimental(Diagnostics.Experimental)]
 public sealed class QueuePendingItemsResult
 {
+    /// <summary>How many leading entries of `steeringMessages` have already been folded into the running turn (and so have an emitted `user.message`), as opposed to still waiting for one. Absent for hosts that do not distinguish the two.</summary>
+    [JsonPropertyName("inFlightSteeringCount")]
+    public long? InFlightSteeringCount { get; set; }
+
     /// <summary>Pending queued items in submission order. Includes user messages, queued slash commands, and queued model changes; omits internal system items.</summary>
     [JsonPropertyName("items")]
     public IList<QueuePendingItems> Items { get => field ??= []; set; }
@@ -28847,13 +28922,14 @@ public sealed class ServerRpc
 
     /// <summary>Performs the SDK server connection handshake and validates the optional connection token. Marked internal because this is JSON-RPC transport plumbing invoked automatically by an SDK client's own `connect()` wrapper, not a user-facing method. Stays internal as long as the SDK client owns the handshake; would only become public if the SDK ever exposed the raw schema surface to consumers without a connection wrapper.</summary>
     /// <param name="enableGitHubTelemetryForwarding">Opt this connection in to GitHub telemetry forwarding for its lifetime. When set, the runtime forwards every internal telemetry event it emits — across all sessions, plus sessionless events — to this connection over the `gitHubTelemetry.event` notification. Regular events are also written to the runtime's normal GitHub/CTS path (dual-write); host-only compatibility events are forward-only and intentionally skip that path. Intended for first-party hosts that re-emit the events into their own telemetry stores. Both unrestricted and restricted events are forwarded, each tagged with a `restricted` discriminator; a backstop drops restricted events when restricted telemetry is disabled — using the process-global gate for ordinary events and an explicit session-scoped decision for host-only events.</param>
+    /// <param name="clientInfo">Identity of the integrating host. Optional; omit it to keep the default attribution.</param>
     /// <param name="token">Connection token; required when the server was started with COPILOT_CONNECTION_TOKEN.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Handshake result reporting the server's protocol version and package version on success.</returns>
     [Experimental(Diagnostics.Experimental)]
-    internal async Task<ConnectResult> ConnectAsync(bool? enableGitHubTelemetryForwarding = null, string? token = null, CancellationToken cancellationToken = default)
+    internal async Task<ConnectResult> ConnectAsync(bool? enableGitHubTelemetryForwarding = null, ConnectClientInfo? clientInfo = null, string? token = null, CancellationToken cancellationToken = default)
     {
-        var request = new ConnectRequest { EnableGitHubTelemetryForwarding = enableGitHubTelemetryForwarding, Token = token };
+        var request = new ConnectRequest { EnableGitHubTelemetryForwarding = enableGitHubTelemetryForwarding, ClientInfo = clientInfo, Token = token };
         return await CopilotClient.InvokeRpcAsync<ConnectResult>(_rpc, "connect", [request], cancellationToken);
     }
 
@@ -33388,8 +33464,8 @@ public sealed class PermissionsPathsApi
         return await CopilotClient.InvokeRpcAsync<PermissionPathsList>(_session.Rpc, "session.permissions.paths.list", [request], cancellationToken);
     }
 
-    /// <summary>Adds a directory to the session's allow-list.</summary>
-    /// <param name="path">Directory to add to the allow-list. The runtime resolves and validates the path before adding.</param>
+    /// <summary>Adds a directory to the session's allow-list and activates conventional skill and agent definitions under it.</summary>
+    /// <param name="path">Directory to add to the allow-list. The runtime resolves and validates the path before adding, then loads conventional `.github/skills/` and `.github/agents/` definitions under it when their subsystem gates are enabled. Adding the directory is therefore also a trust decision for configuration stored there.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Indicates whether the operation succeeded.</returns>
     public async Task<PermissionsPathsAddResult> AddAsync(string path, CancellationToken cancellationToken = default)
@@ -35028,6 +35104,9 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.ModelCallFailureRequestFingerprint), TypeInfoPropertyName = "SessionEventsModelCallFailureRequestFingerprint")]
 [JsonSerializable(typeof(GitHub.Copilot.ModelCallFailureSource), TypeInfoPropertyName = "SessionEventsModelCallFailureSource")]
 [JsonSerializable(typeof(GitHub.Copilot.ModelCallFailureTransport), TypeInfoPropertyName = "SessionEventsModelCallFailureTransport")]
+[JsonSerializable(typeof(GitHub.Copilot.ModelCallFinishedData), TypeInfoPropertyName = "SessionEventsModelCallFinishedData")]
+[JsonSerializable(typeof(GitHub.Copilot.ModelCallFinishedEvent), TypeInfoPropertyName = "SessionEventsModelCallFinishedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.ModelCallFinishedOutcome), TypeInfoPropertyName = "SessionEventsModelCallFinishedOutcome")]
 [JsonSerializable(typeof(GitHub.Copilot.ModelCallStartData), TypeInfoPropertyName = "SessionEventsModelCallStartData")]
 [JsonSerializable(typeof(GitHub.Copilot.ModelCallStartEvent), TypeInfoPropertyName = "SessionEventsModelCallStartEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.ModelChangeSource), TypeInfoPropertyName = "SessionEventsModelChangeSource")]
@@ -35283,6 +35362,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(CompletionsRequestRequest))]
 [JsonSerializable(typeof(CompletionsRequestResult))]
 [JsonSerializable(typeof(ConfigureSessionExtensionsParams))]
+[JsonSerializable(typeof(ConnectClientInfo))]
 [JsonSerializable(typeof(ConnectRemoteSessionParams))]
 [JsonSerializable(typeof(ConnectRequest))]
 [JsonSerializable(typeof(ConnectResult))]
@@ -35560,6 +35640,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(ModelCapabilitiesOverrideSupports))]
 [JsonSerializable(typeof(ModelCapabilitiesSupports))]
 [JsonSerializable(typeof(ModelList))]
+[JsonSerializable(typeof(ModelMessage))]
 [JsonSerializable(typeof(ModelPickerPersistenceRequest))]
 [JsonSerializable(typeof(ModelPickerSettingsContext))]
 [JsonSerializable(typeof(ModelPickerSettingsContextEnvironment))]
@@ -35569,6 +35650,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(ModelSwitchConfirmation))]
 [JsonSerializable(typeof(ModelSwitchToRequest))]
 [JsonSerializable(typeof(ModelSwitchToResult))]
+[JsonSerializable(typeof(ModelWarningText))]
 [JsonSerializable(typeof(ModelsListRequest))]
 [JsonSerializable(typeof(MoveMcpLoadingToBackgroundResult))]
 [JsonSerializable(typeof(NameGetResult))]

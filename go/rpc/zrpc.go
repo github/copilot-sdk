@@ -1949,6 +1949,25 @@ type ConfigureSessionExtensionsParams struct {
 	SessionID string `json:"sessionId"`
 }
 
+// Identity of the integrating host, declared once on the `server.connect` handshake so
+// telemetry from this connection is attributed to a single, consistent surface. All fields
+// are optional; omit them to keep the default attribution.
+// Experimental: ConnectClientInfo is part of an experimental API and may change or be
+// removed.
+// Internal: ConnectClientInfo is an internal SDK API and is not part of the public surface.
+type ConnectClientInfo struct {
+	// Name of the host editor, e.g. `"vscode"`.
+	EditorName *string `json:"editorName,omitempty"`
+	// Version of the host editor, e.g. `"1.124.2"`. Ignored unless it looks like a version
+	// string.
+	EditorVersion *string `json:"editorVersion,omitempty"`
+	// Name of the Copilot extension within the host, e.g. `"copilot-chat"`.
+	ExtensionName *string `json:"extensionName,omitempty"`
+	// Version of the Copilot extension within the host, e.g. `"0.54.0"`. Ignored unless it
+	// looks like a version string.
+	ExtensionVersion *string `json:"extensionVersion,omitempty"`
+}
+
 // Metadata for a connected remote session.
 // Experimental: ConnectedRemoteSessionMetadata is part of an experimental API and may
 // change or be removed.
@@ -2002,6 +2021,10 @@ type ConnectRemoteSessionParams struct {
 // Experimental: ConnectRequest is part of an experimental API and may change or be removed.
 // Internal: ConnectRequest is an internal SDK API and is not part of the public surface.
 type ConnectRequest struct {
+	// Identity of the integrating host. Optional; omit it to keep the default attribution.
+	// Internal: ClientInfo is part of the SDK's internal API surface and is not intended for
+	// external use.
+	ClientInfo *ConnectClientInfo `json:"clientInfo,omitempty"`
 	// Opt this connection in to GitHub telemetry forwarding for its lifetime. When set, the
 	// runtime forwards every internal telemetry event it emits — across all sessions, plus
 	// sessionless events — to this connection over the `gitHubTelemetry.event` notification.
@@ -4074,6 +4097,12 @@ type InstalledPlugin struct {
 	Enabled bool `json:"enabled"`
 	// Installation timestamp
 	InstalledAt string `json:"installed_at"`
+	// Absolute path of the marketplace directory a live plugin was resolved from. Present only
+	// on live, never-persisted records — those synthesized at session start for a
+	// directory/local marketplace, whose cache_path points at the real plugin directory on disk
+	// rather than a copy under the installed-plugins cache. Its presence is what marks a record
+	// as live, and no record carrying it is ever written to the persisted installedPlugins key.
+	InstalledFrom *string `json:"installed_from,omitempty"`
 	// Marketplace the plugin came from (empty string for direct repo installs)
 	Marketplace string `json:"marketplace"`
 	// Plugin name
@@ -4100,6 +4129,13 @@ type InstalledPluginInfo struct {
 	DirectSourceID *string `json:"directSourceId,omitempty"`
 	// Whether the plugin is currently enabled for new sessions
 	Enabled bool `json:"enabled"`
+	// Absolute path of the marketplace directory a live plugin was resolved from. Present only
+	// on live, never-persisted records — a plugin belonging to a directory/local marketplace,
+	// which is loaded from its real directory on every pass instead of a copy under the
+	// installed-plugins cache. Its presence is what marks a listed plugin as live: such a
+	// plugin is always present on disk, so `enabled` is its only meaningful state and it is
+	// never "not installed".
+	InstalledFrom *string `json:"installedFrom,omitempty"`
 	// Marketplace the plugin came from. Empty string ("") for direct repo / URL / local
 	// installs.
 	Marketplace string `json:"marketplace"`
@@ -6669,6 +6705,10 @@ type Model struct {
 	DefaultReasoningEffort *string `json:"defaultReasoningEffort,omitempty"`
 	// Model identifier (e.g., "claude-sonnet-4.5")
 	ID string `json:"id"`
+	// Informational notices the service published for this model, such as an upcoming change or
+	// a recommended alternative. Present only when the service published at least one notice.
+	// Hosts should surface these without implying anything is wrong with the model.
+	InfoMessages []ModelMessage `json:"infoMessages,omitzero"`
 	// Model capability category for grouping in the model picker
 	ModelPickerCategory *ModelPickerCategory `json:"modelPickerCategory,omitempty"`
 	// Relative cost tier for token-based billing users
@@ -6684,6 +6724,13 @@ type Model struct {
 	SupportedContextTiers []string `json:"supportedContextTiers,omitzero"`
 	// Supported reasoning effort levels (only present if model supports reasoning effort)
 	SupportedReasoningEfforts []string `json:"supportedReasoningEfforts,omitzero"`
+	// Warnings the service published for this model, such as a deprecated client version.
+	// Present only when the service published at least one warning. The model remains usable;
+	// hosts should surface these as advisory rather than blocking.
+	WarningMessages []ModelMessage `json:"warningMessages,omitzero"`
+	// Warning text the service requires hosts to surface for this model. Present only when the
+	// service published at least one warning.
+	WarningText *ModelWarningText `json:"warningText,omitempty"`
 }
 
 // Managed, repository, and CLI model overrides to overlay onto the session at startup.
@@ -6906,6 +6953,18 @@ type ModelListRequest struct {
 	SkipCache *bool `json:"skipCache,omitempty"`
 }
 
+// A service-published message about a model, carrying a stable machine-readable code
+// alongside human-readable text.
+// Experimental: ModelMessage is part of an experimental API and may change or be removed.
+type ModelMessage struct {
+	// Stable machine-readable identifier for the message, such as `client_version_deprecated`.
+	// Hosts can key custom presentation off this; unrecognized codes should fall back to
+	// displaying `message`.
+	Code string `json:"code"`
+	// Human-readable message text intended for display to the user.
+	Message string `json:"message"`
+}
+
 // Experimental: ModelPickerPersistenceRequest is part of an experimental API and may change
 // or be removed.
 type ModelPickerPersistenceRequest struct {
@@ -7048,6 +7107,15 @@ type ModelSwitchToResult struct {
 	Status *string `json:"status,omitempty"`
 	// User-facing warning produced while applying the model switch.
 	Warning *string `json:"warning,omitempty"`
+}
+
+// Service-published warning text that hosts should display when presenting a model.
+// Experimental: ModelWarningText is part of an experimental API and may change or be
+// removed.
+type ModelWarningText struct {
+	// Data-retention warning for the model. The text may contain Markdown links and should be
+	// rendered as Markdown when supported.
+	DataRetention *string `json:"dataRetention,omitempty"`
 }
 
 // Agent interaction mode to apply to the session.
@@ -7926,7 +7994,9 @@ type PermissionLocationResolveResult struct {
 // be removed.
 type PermissionPathsAddParams struct {
 	// Directory to add to the allow-list. The runtime resolves and validates the path before
-	// adding.
+	// adding, then loads conventional `.github/skills/` and `.github/agents/` definitions under
+	// it when their subsystem gates are enabled. Adding the directory is therefore also a trust
+	// decision for configuration stored there.
 	Path string `json:"path"`
 }
 
@@ -7953,9 +8023,11 @@ type PermissionPathsAllowedCheckResult struct {
 // removed.
 type PermissionPathsConfig struct {
 	// Additional directories to allow tool access to (in addition to the session's working
-	// directory). When `unrestricted` is true, these are still pre-populated on the
-	// UnrestrictedPathManager so they remain visible via getDirectories() (e.g. for @-mention
-	// completion).
+	// directory). Conventional `.github/skills/` and `.github/agents/` definitions under them
+	// also join the session catalogs when their subsystem gates are enabled, so supplying a
+	// directory is a trust decision for configuration stored there. When `unrestricted` is
+	// true, these are still pre-populated on the UnrestrictedPathManager so they remain visible
+	// via getDirectories() (e.g. for @-mention completion).
 	AdditionalDirectories []string `json:"additionalDirectories,omitzero"`
 	// Whether to include the system temp directory in the allowed list (defaults to true).
 	// Ignored when `unrestricted` is true.
@@ -9589,6 +9661,10 @@ type QueuePendingItems struct {
 // Experimental: QueuePendingItemsResult is part of an experimental API and may change or be
 // removed.
 type QueuePendingItemsResult struct {
+	// How many leading entries of `steeringMessages` have already been folded into the running
+	// turn (and so have an emitted `user.message`), as opposed to still waiting for one. Absent
+	// for hosts that do not distinguish the two.
+	InFlightSteeringCount *int64 `json:"inFlightSteeringCount,omitempty"`
 	// Pending queued items in submission order. Includes user messages, queued slash commands,
 	// and queued model changes; omits internal system items.
 	Items []QueuePendingItems `json:"items"`
@@ -10002,9 +10078,9 @@ type SandboxConfig struct {
 	// Whether to auto-grant read access to the tool directories discovered on PATH and in
 	// toolchain environment variables (GOROOT, CARGO_HOME, JAVA_HOME, VIRTUAL_ENV, and
 	// similar), and to common developer-tool caches, registries, and toolchains in their
-	// default home locations (cargo, go, npm, Maven, and more), plus read-write access to (and,
-	// on Unix, up-front creation of) the scratch caches builds write on every run (go-build,
-	// ccache, sccache, Gradle caches, Cargo lock/tracker files), so builds work without extra
+	// default home locations (cargo, go, npm, Maven, and more), plus read-write access to (and
+	// up-front creation of) the scratch caches builds write on every run (go-build, ccache,
+	// sccache, Gradle caches, Cargo lock/tracker files), so builds work without extra
 	// configuration; a relocated CARGO_HOME additionally gets its Cargo lock files granted
 	// read-write. Set to false to disable every grant listed above: user-installed toolchains
 	// (rustup, nvm, pyenv, conda, pipx) then need explicit userPolicy.filesystem entries —
@@ -11187,6 +11263,12 @@ type SessionInstalledPlugin struct {
 	Enabled bool `json:"enabled"`
 	// Installation timestamp (ISO-8601)
 	InstalledAt string `json:"installed_at"`
+	// Absolute path of the marketplace directory a live plugin was resolved from. Present only
+	// on live, never-persisted records — those synthesized at session start for a
+	// directory/local marketplace, whose cache_path points at the real plugin directory on disk
+	// rather than a copy under the installed-plugins cache. Its presence is what marks a record
+	// as live, and no record carrying it is ever written to the persisted installedPlugins key.
+	InstalledFrom *string `json:"installed_from,omitempty"`
 	// Marketplace the plugin came from (empty string for direct repo installs)
 	Marketplace string `json:"marketplace"`
 	// Plugin name
@@ -11474,8 +11556,12 @@ type SessionManagedPermissions struct {
 	Ask []string `json:"ask,omitzero"`
 	// Permission rules that block matching operations. Deny has highest precedence.
 	Deny []string `json:"deny,omitzero"`
-	// When set to `disable`, prevents bypass/allow-all permission modes.
-	DisableBypassPermissionsMode *DisableBypassPermissionsMode `json:"disableBypassPermissionsMode,omitempty"`
+	// When set to `disable`, prevents bypass/allow-all permission modes. `allow-auto-only`
+	// blocks full allow-all but permits advisory auto-approval. Any other value is accepted
+	// rather than failing the session, but is enforced as `disable`: the key is only present to
+	// restrict something, so a mode this runtime cannot interpret fails closed to the most
+	// restrictive one it knows. Omit the key entirely to impose no restriction.
+	DisableBypassPermissionsMode *string `json:"disableBypassPermissionsMode,omitempty"`
 }
 
 // Managed settings an SDK host may inject at session startup. Only permissions are accepted
@@ -11636,11 +11722,15 @@ type SessionOpenOptions struct {
 	AdditionalContentExclusionPolicies []SessionOpenOptionsAdditionalContentExclusionPolicy `json:"additionalContentExclusionPolicies,omitzero"`
 	// Additional directories the agent may access beyond the working directory. Each entry is
 	// granted to the session's file-access allow-list and surfaced to the model (system prompt
-	// context and `@`-mention completion). Absolute paths are recommended; a relative path is
-	// resolved against the session's working directory. Nonexistent or unresolvable entries are
-	// skipped with a warning. This is applied on both session creation and resume, and is not
-	// persisted: a resumed session that omits this option does not retain previously supplied
-	// directories (re-supply them, exactly as the CLI re-passes `--add-dir`).
+	// context and `@`-mention completion). Conventional `.github/skills/` and `.github/agents/`
+	// definitions under each directory also join the session's project catalogs when their
+	// existing subsystem gates are enabled: added-root skills require both
+	// `enableConfigDiscovery` and effective `enableSkills`; added-root agents require
+	// `enableConfigDiscovery`. Supplying a directory therefore activates configuration from it
+	// and should be treated as a trust decision. Absolute paths are recommended; a relative
+	// path is resolved against the session's working directory. Nonexistent or unresolvable
+	// entries are skipped with a warning. This is applied during session creation and cold
+	// resume and is not persisted, so a cold resume must re-supply the directories.
 	AdditionalDirectories []string `json:"additionalDirectories,omitzero"`
 	// Runtime context discriminator for agent filtering.
 	AgentContext *string `json:"agentContext,omitempty"`
@@ -16016,14 +16106,6 @@ const (
 	DebugCollectLogsSourceProcessLog DebugCollectLogsSource = "process-log"
 	// Interactive shell log for the session.
 	DebugCollectLogsSourceShellLog DebugCollectLogsSource = "shell-log"
-)
-
-// Experimental: DisableBypassPermissionsMode is part of an experimental API and may change
-// or be removed.
-type DisableBypassPermissionsMode string
-
-const (
-	DisableBypassPermissionsModeDisable DisableBypassPermissionsMode = "disable"
 )
 
 // Effective extension loading and agent-management mode
@@ -23973,7 +24055,8 @@ func (s *PermissionsAPI) Locations() *PermissionsLocationsAPI {
 // removed.
 type PermissionsPathsAPI sessionAPI
 
-// Adds a directory to the session's allow-list.
+// Adds a directory to the session's allow-list and activates conventional skill and agent
+// definitions under it.
 //
 // RPC method: session.permissions.paths.add.
 //

@@ -173,6 +173,7 @@ class SessionEventType(Enum):
     ASSISTANT_USAGE = "assistant.usage"
     PROMPT_CACHE_BREAK = "prompt_cache_break"
     MODEL_CALL_FAILURE = "model.call_failure"
+    MODEL_CALL_FINISHED = "model.call_finished"
     MODEL_CALL_START = "model.call_start"
     ABORT = "abort"
     TOOL_USER_REQUESTED = "tool.user_requested"
@@ -2080,6 +2081,7 @@ class AssistantUsageData:
     # Internal: this field is an internal SDK API and is not part of the public surface.
     _num_tool_calls: int | None = None
     output_tokens: int | None = None
+    output_ttft: timedelta | None = None
     # Deprecated: this field is deprecated.
     parent_tool_call_id: str | None = None
     provider_call_id: str | None = None
@@ -2127,6 +2129,7 @@ class AssistantUsageData:
         max_prompt_tokens = from_union([from_none, from_int], obj.get("maxPromptTokens"))
         _num_tool_calls = from_union([from_none, from_int], obj.get("numToolCalls"))
         output_tokens = from_union([from_none, from_int], obj.get("outputTokens"))
+        output_ttft = from_union([from_none, from_timedelta], obj.get("outputTtftMs"))
         parent_tool_call_id = from_union([from_none, from_str], obj.get("parentToolCallId"))
         provider_call_id = from_union([from_none, from_str], obj.get("providerCallId"))
         _quota_snapshots = from_union([from_none, lambda x: from_dict(_AssistantUsageQuotaSnapshot.from_dict, x)], obj.get("quotaSnapshots"))
@@ -2167,6 +2170,7 @@ class AssistantUsageData:
             max_prompt_tokens=max_prompt_tokens,
             _num_tool_calls=_num_tool_calls,
             output_tokens=output_tokens,
+            output_ttft=output_ttft,
             parent_tool_call_id=parent_tool_call_id,
             provider_call_id=provider_call_id,
             _quota_snapshots=_quota_snapshots,
@@ -2235,6 +2239,8 @@ class AssistantUsageData:
             result["numToolCalls"] = from_union([from_none, to_int], self._num_tool_calls)
         if self.output_tokens is not None:
             result["outputTokens"] = from_union([from_none, to_int], self.output_tokens)
+        if self.output_ttft is not None:
+            result["outputTtftMs"] = from_union([from_none, to_timedelta], self.output_ttft)
         if self.parent_tool_call_id is not None:
             result["parentToolCallId"] = from_union([from_none, from_str], self.parent_tool_call_id)
         if self.provider_call_id is not None:
@@ -4614,6 +4620,47 @@ class ModelCallFailureRequestFingerprint:
 
 
 @dataclass
+class ModelCallFinishedData:
+    "Final lifecycle outcome for one logical model dispatch. A logical dispatch may include internal reconnect or fallback work, so event count is not provider HTTP-request count."
+    dispatch_duration: timedelta
+    edit_classifier_version: int
+    outcome: ModelCallFinishedOutcome
+    turn_id: str
+    contains_built_in_file_edit_request: bool | None = None
+    interaction_id: str | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "ModelCallFinishedData":
+        assert isinstance(obj, dict)
+        dispatch_duration = from_timedelta(obj.get("dispatchDurationMs"))
+        edit_classifier_version = from_int(obj.get("editClassifierVersion"))
+        outcome = parse_enum(ModelCallFinishedOutcome, obj.get("outcome"))
+        turn_id = from_str(obj.get("turnId"))
+        contains_built_in_file_edit_request = from_union([from_none, from_bool], obj.get("containsBuiltInFileEditRequest"))
+        interaction_id = from_union([from_none, from_str], obj.get("interactionId"))
+        return ModelCallFinishedData(
+            dispatch_duration=dispatch_duration,
+            edit_classifier_version=edit_classifier_version,
+            outcome=outcome,
+            turn_id=turn_id,
+            contains_built_in_file_edit_request=contains_built_in_file_edit_request,
+            interaction_id=interaction_id,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["dispatchDurationMs"] = to_timedelta(self.dispatch_duration)
+        result["editClassifierVersion"] = to_int(self.edit_classifier_version)
+        result["outcome"] = to_enum(ModelCallFinishedOutcome, self.outcome)
+        result["turnId"] = from_str(self.turn_id)
+        if self.contains_built_in_file_edit_request is not None:
+            result["containsBuiltInFileEditRequest"] = from_union([from_none, from_bool], self.contains_built_in_file_edit_request)
+        if self.interaction_id is not None:
+            result["interactionId"] = from_union([from_none, from_str], self.interaction_id)
+        return result
+
+
+@dataclass
 class ModelCallStartData:
     "Model API dispatch metadata for internal telemetry"
     turn_id: str
@@ -5253,6 +5300,7 @@ class PermissionPromptRequestMcp:
     args: Any = None
     # Experimental: this field is part of an experimental API and may change or be removed.
     assisted_approval: PermissionAssistedApproval | None = None
+    can_offer_server_wide_approval: bool | None = None
     # Experimental: this field is part of an experimental API and may change or be removed.
     permission_recommendation: PermissionRecommendation | None = None
     tool_call_id: str | None = None
@@ -5265,6 +5313,7 @@ class PermissionPromptRequestMcp:
         tool_title = from_str(obj.get("toolTitle"))
         args = obj.get("args")
         assisted_approval = from_union([from_none, PermissionAssistedApproval.from_dict], obj.get("assistedApproval"))
+        can_offer_server_wide_approval = from_union([from_none, from_bool], obj.get("canOfferServerWideApproval"))
         permission_recommendation = from_union([from_none, lambda x: parse_enum(PermissionRecommendation, x)], obj.get("permissionRecommendation"))
         tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
         return PermissionPromptRequestMcp(
@@ -5273,6 +5322,7 @@ class PermissionPromptRequestMcp:
             tool_title=tool_title,
             args=args,
             assisted_approval=assisted_approval,
+            can_offer_server_wide_approval=can_offer_server_wide_approval,
             permission_recommendation=permission_recommendation,
             tool_call_id=tool_call_id,
         )
@@ -5287,6 +5337,8 @@ class PermissionPromptRequestMcp:
             result["args"] = self.args
         if self.assisted_approval is not None:
             result["assistedApproval"] = from_union([from_none, lambda x: to_class(PermissionAssistedApproval, x)], self.assisted_approval)
+        if self.can_offer_server_wide_approval is not None:
+            result["canOfferServerWideApproval"] = from_union([from_none, from_bool], self.can_offer_server_wide_approval)
         if self.permission_recommendation is not None:
             result["permissionRecommendation"] = from_union([from_none, lambda x: to_enum(PermissionRecommendation, x)], self.permission_recommendation)
         if self.tool_call_id is not None:
@@ -10847,6 +10899,8 @@ class ManagedSettingsEnforcedEscalation(Enum):
     UNRESTRICTED_PATHS = "unrestricted_paths"
     # Unrestricted URL fetch access.
     UNRESTRICTED_URLS = "unrestricted_urls"
+    # A server-wide MCP "Always Allow" (or `--allow-tool <server>`) blanket that would auto-approve every tool from an MCP server. Capped to per-tool approval; each tool still prompts.
+    SERVER_WIDE_MCP_APPROVAL = "server_wide_mcp_approval"
 
 
 class ManagedSettingsResolvedSource(Enum):
@@ -10977,6 +11031,18 @@ class ModelCallFailureTransport(Enum):
     HTTP = "http"
     # WebSocket transport.
     WEBSOCKET = "websocket"
+
+
+class ModelCallFinishedOutcome(Enum):
+    "Final outcome of one logical model dispatch after response acceptance processing"
+    # The provider response was accepted for continued agent processing.
+    SUCCESS = "success"
+    # The dispatch ended with a provider or transport error.
+    ERROR = "error"
+    # The dispatch was cancelled before an accepted response was produced.
+    CANCELLED = "cancelled"
+    # The provider response was rejected during post-response acceptance processing.
+    REJECTED = "rejected"
 
 
 class ModelChangeSource(Enum):
@@ -11259,7 +11325,7 @@ class WorkspaceFileChangedOperation(Enum):
     UPDATE = "update"
 
 
-SessionEventData = SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionTitleChangedData | SessionScheduleCreatedData | SessionScheduleCancelledData | SessionScheduleRearmedData | SessionAutopilotObjectiveChangedData | SessionInfoData | SessionWarningData | SessionModelChangeData | SessionModeChangedData | SessionSessionLimitsChangedData | SessionPermissionsChangedData | SessionPlanChangedData | SessionTodosChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionUsageCheckpointData | SessionContextChangedData | SessionUsageInfoData | SessionContextClearedData | SessionCompactionStartData | SessionCompactionCompleteData | SessionTaskCompleteData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantTurnRetryData | AgentInterruptedData | AssistantIntentData | AssistantServerToolProgressData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantToolCallDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageStartData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantIdleData | AssistantUsageData | PromptCacheBreakData | ModelCallFailureData | ModelCallStartData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolExecutionProgressData | ToolExecutionCompleteData | ToolSearchActivatedData | SkillInvokedData | SandboxDecisionData | SubagentStartedData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | HookProgressData | SessionBinaryAssetData | SystemMessageData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | McpHeadersRefreshRequiredData | McpHeadersRefreshCompletedData | SessionCustomNotificationData | UiEphemeralQueryData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | AutoModeSwitchRequestedData | AutoModeSwitchCompletedData | SessionLimitsExhaustedRequestedData | SessionLimitsExhaustedCompletedData | SessionAutoModeResolvedData | SessionManagedSettingsResolvedData | SessionManagedSettingsEnforcedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | FactoryRunUpdatedData | FactoryRunStartedData | FactoryRunSettledData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | McpToolsListChangedData | McpResourcesListChangedData | McpPromptsListChangedData | SessionExtensionsLoadedData | SessionCanvasOpenedData | SessionCanvasRegistryChangedData | SessionCanvasClosedData | SessionCanvasUnavailableData | SessionCanvasRecordedData | SessionCanvasRemovedData | SessionExtensionsAttachmentsPushedData | McpAppToolCallCompleteData | RawSessionEventData | Data
+SessionEventData = SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionTitleChangedData | SessionScheduleCreatedData | SessionScheduleCancelledData | SessionScheduleRearmedData | SessionAutopilotObjectiveChangedData | SessionInfoData | SessionWarningData | SessionModelChangeData | SessionModeChangedData | SessionSessionLimitsChangedData | SessionPermissionsChangedData | SessionPlanChangedData | SessionTodosChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionUsageCheckpointData | SessionContextChangedData | SessionUsageInfoData | SessionContextClearedData | SessionCompactionStartData | SessionCompactionCompleteData | SessionTaskCompleteData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantTurnRetryData | AgentInterruptedData | AssistantIntentData | AssistantServerToolProgressData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantToolCallDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageStartData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantIdleData | AssistantUsageData | PromptCacheBreakData | ModelCallFailureData | ModelCallFinishedData | ModelCallStartData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolExecutionProgressData | ToolExecutionCompleteData | ToolSearchActivatedData | SkillInvokedData | SandboxDecisionData | SubagentStartedData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | HookProgressData | SessionBinaryAssetData | SystemMessageData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | McpHeadersRefreshRequiredData | McpHeadersRefreshCompletedData | SessionCustomNotificationData | UiEphemeralQueryData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | AutoModeSwitchRequestedData | AutoModeSwitchCompletedData | SessionLimitsExhaustedRequestedData | SessionLimitsExhaustedCompletedData | SessionAutoModeResolvedData | SessionManagedSettingsResolvedData | SessionManagedSettingsEnforcedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | FactoryRunUpdatedData | FactoryRunStartedData | FactoryRunSettledData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | McpToolsListChangedData | McpResourcesListChangedData | McpPromptsListChangedData | SessionExtensionsLoadedData | SessionCanvasOpenedData | SessionCanvasRegistryChangedData | SessionCanvasClosedData | SessionCanvasUnavailableData | SessionCanvasRecordedData | SessionCanvasRemovedData | SessionExtensionsAttachmentsPushedData | McpAppToolCallCompleteData | RawSessionEventData | Data
 
 
 @dataclass
@@ -11334,6 +11400,7 @@ class SessionEvent:
             case SessionEventType.ASSISTANT_USAGE: data = AssistantUsageData.from_dict(data_obj)
             case SessionEventType.PROMPT_CACHE_BREAK: data = PromptCacheBreakData.from_dict(data_obj)
             case SessionEventType.MODEL_CALL_FAILURE: data = ModelCallFailureData.from_dict(data_obj)
+            case SessionEventType.MODEL_CALL_FINISHED: data = ModelCallFinishedData.from_dict(data_obj)
             case SessionEventType.MODEL_CALL_START: data = ModelCallStartData.from_dict(data_obj)
             case SessionEventType.ABORT: data = AbortData.from_dict(data_obj)
             case SessionEventType.TOOL_USER_REQUESTED: data = ToolUserRequestedData.from_dict(data_obj)
@@ -11586,6 +11653,8 @@ __all__ = [
     "ModelCallFailureRequestFingerprint",
     "ModelCallFailureSource",
     "ModelCallFailureTransport",
+    "ModelCallFinishedData",
+    "ModelCallFinishedOutcome",
     "ModelCallStartData",
     "ModelChangeSource",
     "OmittedBinaryOmittedReason",

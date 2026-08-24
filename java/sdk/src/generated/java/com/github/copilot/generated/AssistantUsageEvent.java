@@ -56,6 +56,8 @@ public final class AssistantUsageEvent extends SessionEvent {
         @JsonProperty("duration") Long duration,
         /** Time to first token in milliseconds. Only available for streaming requests */
         @JsonProperty("timeToFirstTokenMs") Double timeToFirstTokenMs,
+        /** Time to first observable model output in milliseconds. Includes text, reasoning, and tool-call output; only available for streaming requests that produce observable output. */
+        @JsonProperty("outputTtftMs") Double outputTtftMs,
         /** Average inter-token latency in milliseconds. Only available for streaming requests */
         @JsonProperty("interTokenLatencyMs") Double interTokenLatencyMs,
         /** What initiated this API call (e.g., "sub-agent", "mcp-sampling"); absent for user-initiated calls */
