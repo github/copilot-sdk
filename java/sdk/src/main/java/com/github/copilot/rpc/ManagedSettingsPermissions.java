@@ -5,7 +5,6 @@ package com.github.copilot.rpc;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.github.copilot.generated.rpc.DisableBypassPermissionsMode;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -15,7 +14,7 @@ import java.util.List;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public final class ManagedSettingsPermissions {
     @JsonProperty("disableBypassPermissionsMode")
-    private DisableBypassPermissionsMode disableBypassPermissionsMode;
+    private String disableBypassPermissionsMode;
 
     @JsonProperty("deny")
     private List<String> deny;
@@ -27,7 +26,7 @@ public final class ManagedSettingsPermissions {
     private List<String> allow;
 
     /** @return the bypass-permissions policy, or {@code null} when unset */
-    public DisableBypassPermissionsMode getDisableBypassPermissionsMode() {
+    public String getDisableBypassPermissionsMode() {
         return disableBypassPermissionsMode;
     }
 
@@ -38,7 +37,7 @@ public final class ManagedSettingsPermissions {
      *            bypass-permissions policy
      * @return this policy
      */
-    public ManagedSettingsPermissions setDisableBypassPermissionsMode(DisableBypassPermissionsMode value) {
+    public ManagedSettingsPermissions setDisableBypassPermissionsMode(String value) {
         this.disableBypassPermissionsMode = value;
         return this;
     }

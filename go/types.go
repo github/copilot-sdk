@@ -1569,11 +1569,16 @@ type ManagedSettings struct {
 }
 
 // DisableBypassPermissionsMode is the managed bypass-permissions policy.
-type DisableBypassPermissionsMode = rpc.DisableBypassPermissionsMode
+//
+// The runtime may introduce additional fail-closed modes. Values are serialized
+// as strings so callers can use newer modes without waiting for an SDK release.
+type DisableBypassPermissionsMode string
 
 const (
 	// DisableBypassPermissionsModeDisable turns off bypass-permissions mode.
-	DisableBypassPermissionsModeDisable = rpc.DisableBypassPermissionsModeDisable
+	DisableBypassPermissionsModeDisable DisableBypassPermissionsMode = "disable"
+	// DisableBypassPermissionsModeAllowAutoOnly permits only automatic bypass.
+	DisableBypassPermissionsModeAllowAutoOnly DisableBypassPermissionsMode = "allow-auto-only"
 )
 
 // ManagedSettingsPermissions is the permissions-only managed policy injected
