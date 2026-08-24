@@ -2624,6 +2624,17 @@ export interface SessionConfigBase {
     mcpServers?: Record<string, MCPServerConfig>;
 
     /**
+     * Include instructions from every MCP server in the system prompt instead
+     * of only allowlisted servers.
+     *
+     * Enabling this broadens the session's instruction trust boundary. Only
+     * enable it when every configured MCP server is trusted.
+     *
+     * @default false
+     */
+    allowAllMcpServerInstructions?: boolean;
+
+    /**
      * Custom agent configurations for the session.
      */
     customAgents?: CustomAgentConfig[];

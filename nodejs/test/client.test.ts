@@ -3888,6 +3888,56 @@ describe("CopilotClient", () => {
     });
 });
 
+describe("allowAllMcpServerInstructions serialization", () => {
+    async function startCaptureClient() {
+        const client = new CopilotClient({
+            connection: RuntimeConnection.forUri("localhost:1234"),
+        });
+        const sendRequest = vi.fn(async (method: string, params: any) => {
+            if (method === "session.create") return { sessionId: params.sessionId };
+            if (method === "session.resume") return { sessionId: params.sessionId };
+            throw new Error(`Unexpected method: ${method}`);
+        });
+        vi.spyOn(client as any, "connectToServer").mockImplementation(async () => {
+            (client as any).connection = { sendRequest, dispose: vi.fn() };
+        });
+        vi.spyOn(client as any, "verifyProtocolVersion").mockResolvedValue(undefined);
+        await client.start();
+        onTestFinished(() => client.forceStop());
+        return { client, sendRequest };
+    }
+
+    it.each([true, false])("forwards %s on create and resume", async (value) => {
+        const { client, sendRequest } = await startCaptureClient();
+
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            allowAllMcpServerInstructions: value,
+        });
+        await client.resumeSession(session.sessionId, {
+            onPermissionRequest: approveAll,
+            allowAllMcpServerInstructions: value,
+        });
+
+        const createCall = sendRequest.mock.calls.find(([method]) => method === "session.create");
+        const resumeCall = sendRequest.mock.calls.find(([method]) => method === "session.resume");
+        expect(createCall![1].allowAllMcpServerInstructions).toBe(value);
+        expect(resumeCall![1].allowAllMcpServerInstructions).toBe(value);
+    });
+
+    it("omits the option on create and resume by default", async () => {
+        const { client, sendRequest } = await startCaptureClient();
+
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+        await client.resumeSession(session.sessionId, { onPermissionRequest: approveAll });
+
+        const createCall = sendRequest.mock.calls.find(([method]) => method === "session.create");
+        const resumeCall = sendRequest.mock.calls.find(([method]) => method === "session.resume");
+        expect(createCall![1]).not.toHaveProperty("allowAllMcpServerInstructions");
+        expect(resumeCall![1]).not.toHaveProperty("allowAllMcpServerInstructions");
+    });
+});
+
 describe("managedSettings serialization", () => {
     async function captureCreateParams(config: Record<string, unknown>): Promise<any> {
         const client = new CopilotClient();
