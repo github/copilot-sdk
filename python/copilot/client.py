@@ -2243,8 +2243,8 @@ class CopilotClient:
                 name is configured.
             session_limits: **Experimental.** Limits applied to this session's
                 current accounting window.
-            sandbox_config: Resolved sandbox configuration applied when the session is
-                created.
+            sandbox_config: **Experimental.** Resolved sandbox configuration applied
+                when the session is created.
             model_capabilities: Override individual model capabilities resolved by the runtime.
             streaming: Whether to enable streaming responses.
             include_sub_agent_streaming_events: Whether to include sub-agent streaming
@@ -2979,8 +2979,8 @@ class CopilotClient:
                 same name is configured.
             session_limits: **Experimental.** Limits applied to this session's
                 current accounting window.
-            sandbox_config: Resolved sandbox configuration applied when the session is
-                resumed.
+            sandbox_config: **Experimental.** Resolved sandbox configuration applied
+                when the session is resumed.
             model_capabilities: Override individual model capabilities resolved by the runtime.
             streaming: Whether to enable streaming responses.
             include_sub_agent_streaming_events: Whether to include sub-agent streaming

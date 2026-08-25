@@ -2263,7 +2263,11 @@ export interface SessionConfigBase {
     /** Per-property overrides for model capabilities, deep-merged over runtime defaults. */
     modelCapabilities?: ModelCapabilitiesOverride;
 
-    /** Resolved sandbox configuration applied when the session is created or resumed. */
+    /**
+     * Resolved sandbox configuration applied when the session is created or resumed.
+     *
+     * @experimental
+     */
     sandboxConfig?: SandboxConfig;
 
     /**

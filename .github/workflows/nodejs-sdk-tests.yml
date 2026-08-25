@@ -36,6 +36,9 @@ jobs:
           cache: "npm"
           cache-dependency-path: "./nodejs/package-lock.json"
           node-version: 22
+      - name: Install bubblewrap
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install --yes bubblewrap
       - name: Install dependencies
         run: npm ci --ignore-scripts
 

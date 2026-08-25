@@ -1213,8 +1213,6 @@ public final class CopilotClient implements AutoCloseable {
      *            caller-supplied value, or {@code null} if not set
      * @param manageScheduleEnabled
      *            caller-supplied value, or {@code null} if not set
-     * @param sandboxConfig
-     *            caller-supplied sandbox configuration, or {@code null} if not set
      * @return a future that completes when the patch has been applied
      */
     CompletableFuture<Void> updateSessionOptionsForMode(CopilotSession session, Boolean skipCustomInstructions,

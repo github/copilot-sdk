@@ -113,6 +113,10 @@ jobs:
           cache: "npm"
           cache-dependency-path: "./nodejs/package-lock.json"
 
+      - name: Install bubblewrap
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install --yes bubblewrap
+
       - name: Install Node.js dependencies (for CLI version extraction)
         working-directory: ./nodejs
         run: npm ci --ignore-scripts

@@ -1382,6 +1382,9 @@ type SessionConfig struct {
 	SessionLimits *rpc.SessionLimitsConfig
 	// SandboxConfig is the resolved sandbox configuration applied when the
 	// session is created.
+	//
+	// Experimental: SandboxConfig is part of an experimental runtime sandboxing
+	// surface and may change or be removed in future SDK or CLI releases.
 	SandboxConfig *rpc.SandboxConfig
 	// EnableExperimentalMode controls whether the session enables experimental
 	// features. When nil, it defaults to false in [ModeEmpty]; otherwise the
@@ -1853,6 +1856,9 @@ type ResumeSessionConfig struct {
 	SessionLimits *rpc.SessionLimitsConfig
 	// SandboxConfig is the resolved sandbox configuration applied when the
 	// session is resumed.
+	//
+	// Experimental: SandboxConfig is part of an experimental runtime sandboxing
+	// surface and may change or be removed in future SDK or CLI releases.
 	SandboxConfig *rpc.SandboxConfig
 	// EnableExperimentalMode controls whether the session enables experimental
 	// features. When nil, it defaults to false in [ModeEmpty]; otherwise the
