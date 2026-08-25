@@ -68,6 +68,7 @@ namespace GitHub.Copilot;
 [JsonDerivedType(typeof(McpResourcesListChangedEvent), "mcp.resources.list_changed")]
 [JsonDerivedType(typeof(McpToolsListChangedEvent), "mcp.tools.list_changed")]
 [JsonDerivedType(typeof(ModelCallFailureEvent), "model.call_failure")]
+[JsonDerivedType(typeof(ModelCallFinishedEvent), "model.call_finished")]
 [JsonDerivedType(typeof(ModelCallStartEvent), "model.call_start")]
 [JsonDerivedType(typeof(PendingMessagesModifiedEvent), "pending_messages.modified")]
 [JsonDerivedType(typeof(PermissionCompletedEvent), "permission.completed")]
@@ -823,6 +824,19 @@ public sealed partial class ModelCallFailureEvent : SessionEvent
     /// <summary>The <c>model.call_failure</c> event payload.</summary>
     [JsonPropertyName("data")]
     public required ModelCallFailureData Data { get; set; }
+}
+
+/// <summary>Final lifecycle outcome for one logical model dispatch. A logical dispatch may include internal reconnect or fallback work, so event count is not provider HTTP-request count.</summary>
+/// <remarks>Represents the <c>model.call_finished</c> event.</remarks>
+public sealed partial class ModelCallFinishedEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "model.call_finished";
+
+    /// <summary>The <c>model.call_finished</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required ModelCallFinishedData Data { get; set; }
 }
 
 /// <summary>Model API dispatch metadata for internal telemetry.</summary>
@@ -3039,6 +3053,11 @@ public sealed partial class AssistantMessageData
     [JsonPropertyName("phase")]
     public string? Phase { get; set; }
 
+    /// <summary>Neutral provider-tagged reasoning content blocks preserved verbatim for round-tripping. `reasoningText` and `reasoningOpaque` are a lossy derived view of these blocks, retained for display.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("reasoningBlocks")]
+    public AssistantMessageReasoningBlocks? ReasoningBlocks { get; set; }
+
     /// <summary>Opaque/encrypted extended thinking data from Anthropic models. Session-bound and stripped on resume.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("reasoningOpaque")]
@@ -3280,6 +3299,12 @@ public sealed partial class AssistantUsageData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("outputTokens")]
     public long? OutputTokens { get; set; }
+
+    /// <summary>Time to first observable model output in milliseconds. Includes text, reasoning, and tool-call output; only available for streaming requests that produce observable output.</summary>
+    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("outputTtftMs")]
+    public TimeSpan? OutputTtft { get; set; }
 
     /// <summary>Parent tool call ID when this usage originates from a sub-agent.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -3610,6 +3635,37 @@ public sealed partial class ModelCallFailureData
     public ModelCallFailureTransport? Transport { get; set; }
 }
 
+/// <summary>Final lifecycle outcome for one logical model dispatch. A logical dispatch may include internal reconnect or fallback work, so event count is not provider HTTP-request count.</summary>
+public sealed partial class ModelCallFinishedData
+{
+    /// <summary>Whether an accepted successful response requested the exact name and command semantics of a built-in file edit tool, including an external tool explicitly replacing that built-in name. Absent when the logical dispatch did not produce an accepted response.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("containsBuiltInFileEditRequest")]
+    public bool? ContainsBuiltInFileEditRequest { get; set; }
+
+    /// <summary>Monotonic elapsed time spent in the logical model dispatch, including any internal transport reconnect or fallback and excluding orchestrator retry backoff, tool execution, confirmations, and post-response processing.</summary>
+    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
+    [JsonPropertyName("dispatchDurationMs")]
+    public required TimeSpan DispatchDuration { get; set; }
+
+    /// <summary>Version of the built-in file-edit semantic classifier used for this event.</summary>
+    [JsonPropertyName("editClassifierVersion")]
+    public required long EditClassifierVersion { get; set; }
+
+    /// <summary>Identifier of the user interaction that owns the model dispatch, matching assistant.turn_start.interactionId when available.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("interactionId")]
+    public string? InteractionId { get; set; }
+
+    /// <summary>Final outcome after post-response acceptance processing.</summary>
+    [JsonPropertyName("outcome")]
+    public required ModelCallFinishedOutcome Outcome { get; set; }
+
+    /// <summary>Agent-loop iteration within the interaction that initiated the model dispatch.</summary>
+    [JsonPropertyName("turnId")]
+    public required string TurnId { get; set; }
+}
+
 /// <summary>Model API dispatch metadata for internal telemetry.</summary>
 public sealed partial class ModelCallStartData
 {
@@ -3933,11 +3989,36 @@ public sealed partial class SubagentCompletedData
     [JsonPropertyName("cancelled")]
     public bool? Cancelled { get; set; }
 
+    /// <summary>Whether the first model actually dispatched matched the user's configured preference.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("configuredModelMatchesActual")]
+    public bool? ConfiguredModelMatchesActual { get; set; }
+
+    /// <summary>Concrete model the user configured for this sub-agent via `/subagents`, when present.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("configuredModelPreference")]
+    public string? ConfiguredModelPreference { get; set; }
+
     /// <summary>Wall-clock duration of the sub-agent execution in milliseconds.</summary>
     [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("durationMs")]
     public TimeSpan? Duration { get; set; }
+
+    /// <summary>Whether the explicit task-call model matched the user's configured preference.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("explicitModelMatchesPreference")]
+    public bool? ExplicitModelMatchesPreference { get; set; }
+
+    /// <summary>Explicit model supplied by the parent agent on the task call, when present.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("explicitModelOverride")]
+    public string? ExplicitModelOverride { get; set; }
+
+    /// <summary>First model for which the sub-agent started an inference request, when one was dispatched.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("firstDispatchedModel")]
+    public string? FirstDispatchedModel { get; set; }
 
     /// <summary>Model used by the sub-agent.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -3970,6 +4051,16 @@ public sealed partial class SubagentFailedData
     [JsonPropertyName("agentName")]
     public required string AgentName { get; set; }
 
+    /// <summary>Whether the first model actually dispatched matched the user's configured preference.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("configuredModelMatchesActual")]
+    public bool? ConfiguredModelMatchesActual { get; set; }
+
+    /// <summary>Concrete model the user configured for this sub-agent via `/subagents`, when present.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("configuredModelPreference")]
+    public string? ConfiguredModelPreference { get; set; }
+
     /// <summary>Wall-clock duration of the sub-agent execution in milliseconds.</summary>
     [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -3979,6 +4070,21 @@ public sealed partial class SubagentFailedData
     /// <summary>Error message describing why the sub-agent failed.</summary>
     [JsonPropertyName("error")]
     public required string Error { get; set; }
+
+    /// <summary>Whether the explicit task-call model matched the user's configured preference.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("explicitModelMatchesPreference")]
+    public bool? ExplicitModelMatchesPreference { get; set; }
+
+    /// <summary>Explicit model supplied by the parent agent on the task call, when present.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("explicitModelOverride")]
+    public string? ExplicitModelOverride { get; set; }
+
+    /// <summary>First model for which the sub-agent started an inference request, when one was dispatched.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("firstDispatchedModel")]
+    public string? FirstDispatchedModel { get; set; }
 
     /// <summary>Model selected for the sub-agent, when known.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -4720,6 +4826,11 @@ public sealed partial class SessionManagedSettingsResolvedData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("permissionsAllowIntersected")]
     public bool? PermissionsAllowIntersected { get; set; }
+
+    /// <summary>Whether the effective sandbox policy forces the sandbox on *only* because managed policy could not be determined, rather than because the policy requires it. Lets clients tell a user whose `--no-sandbox` was overridden that the sandbox stayed on as a fail-closed fallback, instead of attributing it to an administrator who set no such policy.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("sandboxEnabledByUndeterminedPolicy")]
+    public bool? SandboxEnabledByUndeterminedPolicy { get; set; }
 
     /// <summary>Whether the server (account/org) managed-settings layer was present.</summary>
     [JsonPropertyName("serverManaged")]
@@ -6187,6 +6298,21 @@ public sealed partial class Citations
     /// <summary>Spans of generated text annotated with the sources that support them.</summary>
     [JsonPropertyName("spans")]
     public required CitationSpan[] Spans { get; set; }
+}
+
+/// <summary>Neutral provider-tagged reasoning content blocks preserved verbatim for round-tripping.</summary>
+/// <remarks>Nested data type for <c>AssistantMessageReasoningBlocks</c>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public sealed partial class AssistantMessageReasoningBlocks
+{
+    /// <summary>Provider-native reasoning content blocks (e.g. Anthropic `thinking` / `redacted_thinking`) preserved verbatim, in order. A single response can carry several, each signed over the content preceding it, so dropping or reordering any of them invalidates the rest.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("blocks")]
+    public JsonElement[]? Blocks { get; set; }
+
+    /// <summary>Model provider that produced these reasoning blocks.</summary>
+    [JsonPropertyName("provider")]
+    public required string Provider { get; set; }
 }
 
 /// <summary>Neutral provider-tagged server-side tool-use payload (tool search, advisor) for verbatim round-tripping.</summary>
@@ -8287,6 +8413,11 @@ public sealed partial class PermissionPromptRequestMcp : PermissionPromptRequest
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("assistedApproval")]
     public PermissionAssistedApproval? AssistedApproval { get; set; }
+
+    /// <summary>Whether the host may offer a server-wide "approve all tools from this server" blanket. Absent is treated as true; the runtime sends false when managed policy disables bypass-permissions mode, which forbids the server-wide escalation while still allowing per-tool approval.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("canOfferServerWideApproval")]
+    public bool? CanOfferServerWideApproval { get; set; }
 
     /// <summary>Advisory runtime permission recommendation. The host remains responsible for deciding the request and may reject it.</summary>
     [Experimental(Diagnostics.Experimental)]
@@ -11341,6 +11472,73 @@ public readonly struct ModelCallFailureSource : IEquatable<ModelCallFailureSourc
     }
 }
 
+/// <summary>Final outcome of one logical model dispatch after response acceptance processing.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ModelCallFinishedOutcome : IEquatable<ModelCallFinishedOutcome>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ModelCallFinishedOutcome"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ModelCallFinishedOutcome"/>.</param>
+    [JsonConstructor]
+    public ModelCallFinishedOutcome(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ModelCallFinishedOutcome"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The provider response was accepted for continued agent processing.</summary>
+    public static ModelCallFinishedOutcome Success { get; } = new("success");
+
+    /// <summary>The dispatch ended with a provider or transport error.</summary>
+    public static ModelCallFinishedOutcome Error { get; } = new("error");
+
+    /// <summary>The dispatch was cancelled before an accepted response was produced.</summary>
+    public static ModelCallFinishedOutcome Cancelled { get; } = new("cancelled");
+
+    /// <summary>The provider response was rejected during post-response acceptance processing.</summary>
+    public static ModelCallFinishedOutcome Rejected { get; } = new("rejected");
+
+    /// <summary>Returns a value indicating whether two <see cref="ModelCallFinishedOutcome"/> instances are equivalent.</summary>
+    public static bool operator ==(ModelCallFinishedOutcome left, ModelCallFinishedOutcome right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ModelCallFinishedOutcome"/> instances are not equivalent.</summary>
+    public static bool operator !=(ModelCallFinishedOutcome left, ModelCallFinishedOutcome right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ModelCallFinishedOutcome other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ModelCallFinishedOutcome other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ModelCallFinishedOutcome}"/> for serializing <see cref="ModelCallFinishedOutcome"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ModelCallFinishedOutcome>
+    {
+        /// <inheritdoc />
+        public override ModelCallFinishedOutcome Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ModelCallFinishedOutcome value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ModelCallFinishedOutcome));
+        }
+    }
+}
+
 /// <summary>Finite reason code describing why the current turn was aborted.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
@@ -13403,6 +13601,9 @@ public readonly struct ManagedSettingsEnforcedEscalation : IEquatable<ManagedSet
     /// <summary>Unrestricted URL fetch access.</summary>
     public static ManagedSettingsEnforcedEscalation UnrestrictedUrls { get; } = new("unrestricted_urls");
 
+    /// <summary>A server-wide MCP "Always Allow" (or `--allow-tool &lt;server&gt;`) blanket that would auto-approve every tool from an MCP server. Capped to per-tool approval; each tool still prompts.</summary>
+    public static ManagedSettingsEnforcedEscalation ServerWideMcpApproval { get; } = new("server_wide_mcp_approval");
+
     /// <summary>Returns a value indicating whether two <see cref="ManagedSettingsEnforcedEscalation"/> instances are equivalent.</summary>
     public static bool operator ==(ManagedSettingsEnforcedEscalation left, ManagedSettingsEnforcedEscalation right) => left.Equals(right);
 
@@ -14010,6 +14211,7 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(AssistantMessageDeltaData))]
 [JsonSerializable(typeof(AssistantMessageDeltaEvent))]
 [JsonSerializable(typeof(AssistantMessageEvent))]
+[JsonSerializable(typeof(AssistantMessageReasoningBlocks))]
 [JsonSerializable(typeof(AssistantMessageServerTools))]
 [JsonSerializable(typeof(AssistantMessageStartData))]
 [JsonSerializable(typeof(AssistantMessageStartEvent))]
@@ -14149,6 +14351,8 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(ModelCallFailureData))]
 [JsonSerializable(typeof(ModelCallFailureEvent))]
 [JsonSerializable(typeof(ModelCallFailureRequestFingerprint))]
+[JsonSerializable(typeof(ModelCallFinishedData))]
+[JsonSerializable(typeof(ModelCallFinishedEvent))]
 [JsonSerializable(typeof(ModelCallStartData))]
 [JsonSerializable(typeof(ModelCallStartEvent))]
 [JsonSerializable(typeof(OmittedBinaryResult))]

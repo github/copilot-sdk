@@ -44,6 +44,16 @@ public final class SubagentFailedEvent extends SessionEvent {
         @JsonProperty("error") String error,
         /** Model selected for the sub-agent, when known */
         @JsonProperty("model") String model,
+        /** First model for which the sub-agent started an inference request, when one was dispatched */
+        @JsonProperty("firstDispatchedModel") String firstDispatchedModel,
+        /** Concrete model the user configured for this sub-agent via `/subagents`, when present */
+        @JsonProperty("configuredModelPreference") String configuredModelPreference,
+        /** Explicit model supplied by the parent agent on the task call, when present */
+        @JsonProperty("explicitModelOverride") String explicitModelOverride,
+        /** Whether the explicit task-call model matched the user's configured preference */
+        @JsonProperty("explicitModelMatchesPreference") Boolean explicitModelMatchesPreference,
+        /** Whether the first model actually dispatched matched the user's configured preference */
+        @JsonProperty("configuredModelMatchesActual") Boolean configuredModelMatchesActual,
         /** Total number of tool calls made before the sub-agent failed */
         @JsonProperty("totalToolCalls") Long totalToolCalls,
         /** Total tokens (input + output) consumed before the sub-agent failed */

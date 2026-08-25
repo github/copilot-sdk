@@ -10,23 +10,20 @@ package com.github.copilot.generated.rpc;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * Directory path to add to the session's allowed directories.
+ * A service-published message about a model, carrying a stable machine-readable code alongside human-readable text.
  *
- * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
-@CopilotExperimental
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record SessionPermissionsPathsAddParams(
-    /** Target session identifier */
-    @JsonProperty("sessionId") String sessionId,
-    /** Directory to add to the allow-list. The runtime resolves and validates the path before adding, then loads conventional `.github/skills/` and `.github/agents/` definitions under it when their subsystem gates are enabled. Adding the directory is therefore also a trust decision for configuration stored there. */
-    @JsonProperty("path") String path
+public record ModelMessage(
+    /** Stable machine-readable identifier for the message, such as `client_version_deprecated`. Hosts can key custom presentation off this; unrecognized codes should fall back to displaying `message`. */
+    @JsonProperty("code") String code,
+    /** Human-readable message text intended for display to the user. */
+    @JsonProperty("message") String message
 ) {
 }

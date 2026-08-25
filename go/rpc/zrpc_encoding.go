@@ -57,6 +57,12 @@ func unmarshalAuthInfo(data []byte) (AuthInfo, error) {
 			return nil, err
 		}
 		return &d, nil
+	case AuthInfoTypeTokenProvider:
+		var d TokenProviderAuthInfo
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
 	case AuthInfoTypeUser:
 		var d UserAuthInfo
 		if err := json.Unmarshal(data, &d); err != nil {
@@ -136,6 +142,17 @@ func (r HMACAuthInfo) MarshalJSON() ([]byte, error) {
 
 func (r TokenAuthInfo) MarshalJSON() ([]byte, error) {
 	type alias TokenAuthInfo
+	return json.Marshal(struct {
+		Type AuthInfoType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func (r TokenProviderAuthInfo) MarshalJSON() ([]byte, error) {
+	type alias TokenProviderAuthInfo
 	return json.Marshal(struct {
 		Type AuthInfoType `json:"type"`
 		alias
@@ -1726,6 +1743,69 @@ func unmarshalFilterMapping(data []byte) (FilterMapping, error) {
 		}
 	}
 	return nil, errors.New("data did not match any union variant for FilterMapping")
+}
+
+func unmarshalGitHubTokenAcquireResult(data []byte) (GitHubTokenAcquireResult, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		Kind GitHubTokenAcquireResultKind `json:"kind"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.Kind {
+	case GitHubTokenAcquireResultKindCancelled:
+		var d GitHubTokenAcquireResultCancelled
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case GitHubTokenAcquireResultKindToken:
+		var d GitHubTokenAcquireResultToken
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	default:
+		return &RawGitHubTokenAcquireResultData{Discriminator: raw.Kind, Raw: data}, nil
+	}
+}
+
+func (r RawGitHubTokenAcquireResultData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		Kind GitHubTokenAcquireResultKind `json:"kind"`
+	}{
+		Kind: r.Discriminator,
+	})
+}
+
+func (r GitHubTokenAcquireResultCancelled) MarshalJSON() ([]byte, error) {
+	type alias GitHubTokenAcquireResultCancelled
+	return json.Marshal(struct {
+		Kind GitHubTokenAcquireResultKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r GitHubTokenAcquireResultToken) MarshalJSON() ([]byte, error) {
+	type alias GitHubTokenAcquireResultToken
+	return json.Marshal(struct {
+		Kind GitHubTokenAcquireResultKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
 }
 
 func (r *HandlePendingToolCallRequest) UnmarshalJSON(data []byte) error {
@@ -5311,6 +5391,7 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 		ExpAssignments                         any                                                  `json:"expAssignments,omitempty"`
 		FeatureFlags                           map[string]bool                                      `json:"featureFlags,omitzero"`
 		IncludedBuiltinAgents                  []string                                             `json:"includedBuiltinAgents,omitzero"`
+		IncludedBuiltinSkills                  []string                                             `json:"includedBuiltinSkills,omitzero"`
 		InstalledPlugins                       []InstalledPlugin                                    `json:"installedPlugins,omitzero"`
 		IntegrationID                          *string                                              `json:"integrationId,omitempty"`
 		IsExperimentalMode                     *bool                                                `json:"isExperimentalMode,omitempty"`
@@ -5332,6 +5413,7 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 		RemoteSteerable                        *bool                                                `json:"remoteSteerable,omitempty"`
 		RunningInInteractiveMode               *bool                                                `json:"runningInInteractiveMode,omitempty"`
 		SandboxConfig                          *SandboxConfig                                       `json:"sandboxConfig,omitempty"`
+		SandboxConfigSource                    *SandboxConfigSource                                 `json:"sandboxConfigSource,omitempty"`
 		SessionCapabilities                    []SessionCapability                                  `json:"sessionCapabilities,omitzero"`
 		SessionID                              *string                                              `json:"sessionId,omitempty"`
 		SessionLimits                          *SessionLimitsConfig                                 `json:"sessionLimits,omitempty"`
@@ -5389,6 +5471,7 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 	r.ExpAssignments = raw.ExpAssignments
 	r.FeatureFlags = raw.FeatureFlags
 	r.IncludedBuiltinAgents = raw.IncludedBuiltinAgents
+	r.IncludedBuiltinSkills = raw.IncludedBuiltinSkills
 	r.InstalledPlugins = raw.InstalledPlugins
 	r.IntegrationID = raw.IntegrationID
 	r.IsExperimentalMode = raw.IsExperimentalMode
@@ -5410,6 +5493,7 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 	r.RemoteSteerable = raw.RemoteSteerable
 	r.RunningInInteractiveMode = raw.RunningInInteractiveMode
 	r.SandboxConfig = raw.SandboxConfig
+	r.SandboxConfigSource = raw.SandboxConfigSource
 	r.SessionCapabilities = raw.SessionCapabilities
 	r.SessionID = raw.SessionID
 	r.SessionLimits = raw.SessionLimits
@@ -5573,6 +5657,88 @@ func (r SessionsOpenResumeLast) MarshalJSON() ([]byte, error) {
 	})
 }
 
+func unmarshalSettableAuthInfo(data []byte) (SettableAuthInfo, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		Type SettableAuthInfoType `json:"type"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.Type {
+	case SettableAuthInfoTypeAPIKey:
+		var d APIKeyAuthInfo
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case SettableAuthInfoTypeCopilotAPIToken:
+		var d CopilotAPITokenAuthInfo
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case SettableAuthInfoTypeEnv:
+		var d EnvAuthInfo
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case SettableAuthInfoTypeGhCLI:
+		var d GhCLIAuthInfo
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case SettableAuthInfoTypeHMAC:
+		var d HMACAuthInfo
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case SettableAuthInfoTypeToken:
+		var d SettableTokenAuthInfo
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case SettableAuthInfoTypeUser:
+		var d UserAuthInfo
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	default:
+		return &RawSettableAuthInfoData{Discriminator: raw.Type, Raw: data}, nil
+	}
+}
+
+func (r RawSettableAuthInfoData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		Type SettableAuthInfoType `json:"type"`
+	}{
+		Type: r.Discriminator,
+	})
+}
+
+func (r SettableTokenAuthInfo) MarshalJSON() ([]byte, error) {
+	type alias SettableTokenAuthInfo
+	return json.Marshal(struct {
+		Type SettableAuthInfoType `json:"type"`
+		alias
+	}{
+		Type:  r.settableAuthInfoType(),
+		alias: alias(r),
+	})
+}
+
 func (r *SessionSetCredentialsParams) UnmarshalJSON(data []byte) error {
 	type rawSessionSetCredentialsParams struct {
 		Credentials json.RawMessage `json:"credentials,omitempty"`
@@ -5582,7 +5748,7 @@ func (r *SessionSetCredentialsParams) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	if raw.Credentials != nil {
-		value, err := unmarshalAuthInfo(raw.Credentials)
+		value, err := unmarshalSettableAuthInfo(raw.Credentials)
 		if err != nil {
 			return err
 		}

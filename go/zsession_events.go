@@ -16,6 +16,7 @@ type (
 	AssistantIntentData                                            = rpc.AssistantIntentData
 	AssistantMessageData                                           = rpc.AssistantMessageData
 	AssistantMessageDeltaData                                      = rpc.AssistantMessageDeltaData
+	AssistantMessageReasoningBlocks                                = rpc.AssistantMessageReasoningBlocks
 	AssistantMessageServerTools                                    = rpc.AssistantMessageServerTools
 	AssistantMessageStartData                                      = rpc.AssistantMessageStartData
 	AssistantMessageToolRequest                                    = rpc.AssistantMessageToolRequest
@@ -155,6 +156,8 @@ type (
 	ModelCallFailureRequestFingerprint                             = rpc.ModelCallFailureRequestFingerprint
 	ModelCallFailureSource                                         = rpc.ModelCallFailureSource
 	ModelCallFailureTransport                                      = rpc.ModelCallFailureTransport
+	ModelCallFinishedData                                          = rpc.ModelCallFinishedData
+	ModelCallFinishedOutcome                                       = rpc.ModelCallFinishedOutcome
 	ModelCallStartData                                             = rpc.ModelCallStartData
 	ModelChangeSource                                              = rpc.ModelChangeSource
 	OmittedBinaryOmittedReason                                     = rpc.OmittedBinaryOmittedReason
@@ -498,6 +501,7 @@ const (
 	ManagedSettingsEnforcedEscalationAllowAll                          = rpc.ManagedSettingsEnforcedEscalationAllowAll
 	ManagedSettingsEnforcedEscalationApproveAll                        = rpc.ManagedSettingsEnforcedEscalationApproveAll
 	ManagedSettingsEnforcedEscalationAssistedApproval                  = rpc.ManagedSettingsEnforcedEscalationAssistedApproval
+	ManagedSettingsEnforcedEscalationServerWideMCPApproval             = rpc.ManagedSettingsEnforcedEscalationServerWideMCPApproval
 	ManagedSettingsEnforcedEscalationUnrestrictedPaths                 = rpc.ManagedSettingsEnforcedEscalationUnrestrictedPaths
 	ManagedSettingsEnforcedEscalationUnrestrictedURLs                  = rpc.ManagedSettingsEnforcedEscalationUnrestrictedURLs
 	ManagedSettingsResolvedSourceClient                                = rpc.ManagedSettingsResolvedSourceClient
@@ -542,6 +546,10 @@ const (
 	ModelCallFailureSourceTopLevel                                     = rpc.ModelCallFailureSourceTopLevel
 	ModelCallFailureTransportHTTP                                      = rpc.ModelCallFailureTransportHTTP
 	ModelCallFailureTransportWebsocket                                 = rpc.ModelCallFailureTransportWebsocket
+	ModelCallFinishedOutcomeCancelled                                  = rpc.ModelCallFinishedOutcomeCancelled
+	ModelCallFinishedOutcomeError                                      = rpc.ModelCallFinishedOutcomeError
+	ModelCallFinishedOutcomeRejected                                   = rpc.ModelCallFinishedOutcomeRejected
+	ModelCallFinishedOutcomeSuccess                                    = rpc.ModelCallFinishedOutcomeSuccess
 	ModelChangeSourceAgent                                             = rpc.ModelChangeSourceAgent
 	ModelChangeSourceAutomatic                                         = rpc.ModelChangeSourceAutomatic
 	ModelChangeSourceConfigCommand                                     = rpc.ModelChangeSourceConfigCommand
@@ -660,6 +668,7 @@ const (
 	SessionEventTypeMCPResourcesListChanged                            = rpc.SessionEventTypeMCPResourcesListChanged
 	SessionEventTypeMCPToolsListChanged                                = rpc.SessionEventTypeMCPToolsListChanged
 	SessionEventTypeModelCallFailure                                   = rpc.SessionEventTypeModelCallFailure
+	SessionEventTypeModelCallFinished                                  = rpc.SessionEventTypeModelCallFinished
 	SessionEventTypeModelCallStart                                     = rpc.SessionEventTypeModelCallStart
 	SessionEventTypePendingMessagesModified                            = rpc.SessionEventTypePendingMessagesModified
 	SessionEventTypePermissionCompleted                                = rpc.SessionEventTypePermissionCompleted

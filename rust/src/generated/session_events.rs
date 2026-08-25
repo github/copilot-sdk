@@ -116,6 +116,8 @@ pub enum SessionEventType {
     PromptCacheBreak,
     #[serde(rename = "model.call_failure")]
     ModelCallFailure,
+    #[serde(rename = "model.call_finished")]
+    ModelCallFinished,
     #[serde(rename = "model.call_start")]
     ModelCallStart,
     #[serde(rename = "abort")]
@@ -475,6 +477,8 @@ pub enum SessionEventData {
     PromptCacheBreak(PromptCacheBreakData),
     #[serde(rename = "model.call_failure")]
     ModelCallFailure(ModelCallFailureData),
+    #[serde(rename = "model.call_finished")]
+    ModelCallFinished(ModelCallFinishedData),
     #[serde(rename = "model.call_start")]
     ModelCallStart(ModelCallStartData),
     #[serde(rename = "abort")]
@@ -1940,6 +1944,24 @@ pub struct Citations {
     pub spans: Vec<CitationSpan>,
 }
 
+/// Neutral provider-tagged reasoning content blocks preserved verbatim for round-tripping
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssistantMessageReasoningBlocks {
+    /// Provider-native reasoning content blocks (e.g. Anthropic `thinking` / `redacted_thinking`) preserved verbatim, in order. A single response can carry several, each signed over the content preceding it, so dropping or reordering any of them invalidates the rest.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub blocks: Option<Vec<serde_json::Value>>,
+    /// Model provider that produced these reasoning blocks.
+    pub provider: String,
+}
+
 /// Neutral provider-tagged server-side tool-use payload (tool search, advisor) for verbatim round-tripping
 ///
 /// <div class="warning">
@@ -2045,6 +2067,9 @@ pub struct AssistantMessageData {
     /// Generation phase for phased-output models (e.g., thinking vs. response phases)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub phase: Option<String>,
+    /// Neutral provider-tagged reasoning content blocks preserved verbatim for round-tripping. `reasoningText` and `reasoningOpaque` are a lossy derived view of these blocks, retained for display.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_blocks: Option<AssistantMessageReasoningBlocks>,
     /// Opaque/encrypted extended thinking data from Anthropic models. Session-bound and stripped on resume.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_opaque: Option<String>,
@@ -2282,6 +2307,9 @@ pub struct AssistantUsageData {
     /// Number of output tokens produced
     #[serde(skip_serializing_if = "Option::is_none")]
     pub output_tokens: Option<i64>,
+    /// Time to first observable model output in milliseconds. Includes text, reasoning, and tool-call output; only available for streaming requests that produce observable output.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_ttft_ms: Option<f64>,
     /// Parent tool call ID when this usage originates from a sub-agent
     #[doc(hidden)]
     #[deprecated]
@@ -2511,6 +2539,26 @@ pub struct ModelCallFailureData {
     /// Transport used for the failed model call (http or websocket)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub transport: Option<ModelCallFailureTransport>,
+}
+
+/// Session event "model.call_finished". Final lifecycle outcome for one logical model dispatch. A logical dispatch may include internal reconnect or fallback work, so event count is not provider HTTP-request count.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelCallFinishedData {
+    /// Whether an accepted successful response requested the exact name and command semantics of a built-in file edit tool, including an external tool explicitly replacing that built-in name. Absent when the logical dispatch did not produce an accepted response.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub contains_built_in_file_edit_request: Option<bool>,
+    /// Monotonic elapsed time spent in the logical model dispatch, including any internal transport reconnect or fallback and excluding orchestrator retry backoff, tool execution, confirmations, and post-response processing
+    pub dispatch_duration_ms: f64,
+    /// Version of the built-in file-edit semantic classifier used for this event
+    pub edit_classifier_version: i64,
+    /// Identifier of the user interaction that owns the model dispatch, matching assistant.turn_start.interactionId when available
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub interaction_id: Option<String>,
+    /// Final outcome after post-response acceptance processing
+    pub outcome: ModelCallFinishedOutcome,
+    /// Agent-loop iteration within the interaction that initiated the model dispatch
+    pub turn_id: String,
 }
 
 /// Session event "model.call_start". Model API dispatch metadata for internal telemetry
@@ -3249,9 +3297,24 @@ pub struct SubagentCompletedData {
     /// Whether the sub-agent was torn down by cancellation - its own abort, or an ancestor being killed - instead of finishing its work. Cancellation is not a failure, so the run still reports completion; this distinguishes a torn-down sub-agent from one that ran to the end.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cancelled: Option<bool>,
+    /// Whether the first model actually dispatched matched the user's configured preference
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub configured_model_matches_actual: Option<bool>,
+    /// Concrete model the user configured for this sub-agent via `/subagents`, when present
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub configured_model_preference: Option<String>,
     /// Wall-clock duration of the sub-agent execution in milliseconds
     #[serde(skip_serializing_if = "Option::is_none")]
     pub duration_ms: Option<i64>,
+    /// Whether the explicit task-call model matched the user's configured preference
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub explicit_model_matches_preference: Option<bool>,
+    /// Explicit model supplied by the parent agent on the task call, when present
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub explicit_model_override: Option<String>,
+    /// First model for which the sub-agent started an inference request, when one was dispatched
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub first_dispatched_model: Option<String>,
     /// Model used by the sub-agent
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
@@ -3273,11 +3336,26 @@ pub struct SubagentFailedData {
     pub agent_display_name: String,
     /// Internal name of the sub-agent
     pub agent_name: String,
+    /// Whether the first model actually dispatched matched the user's configured preference
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub configured_model_matches_actual: Option<bool>,
+    /// Concrete model the user configured for this sub-agent via `/subagents`, when present
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub configured_model_preference: Option<String>,
     /// Wall-clock duration of the sub-agent execution in milliseconds
     #[serde(skip_serializing_if = "Option::is_none")]
     pub duration_ms: Option<i64>,
     /// Error message describing why the sub-agent failed
     pub error: String,
+    /// Whether the explicit task-call model matched the user's configured preference
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub explicit_model_matches_preference: Option<bool>,
+    /// Explicit model supplied by the parent agent on the task call, when present
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub explicit_model_override: Option<String>,
+    /// First model for which the sub-agent started an inference request, when one was dispatched
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub first_dispatched_model: Option<String>,
     /// Model selected for the sub-agent, when known
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
@@ -3960,6 +4038,9 @@ pub struct PermissionPromptRequestMcp {
     /// </div>
     #[serde(skip_serializing_if = "Option::is_none")]
     pub assisted_approval: Option<PermissionAssistedApproval>,
+    /// Whether the host may offer a server-wide "approve all tools from this server" blanket. Absent is treated as true; the runtime sends false when managed policy disables bypass-permissions mode, which forbids the server-wide escalation while still allowing per-tool approval.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub can_offer_server_wide_approval: Option<bool>,
     /// Prompt kind discriminator
     pub kind: PermissionPromptRequestMcpKind,
     /// Advisory runtime permission recommendation. The host remains responsible for deciding the request and may reject it.
@@ -5001,6 +5082,9 @@ pub struct SessionManagedSettingsResolvedData {
     /// Whether at least two managed sources supplied permission allowlists, so enforcement intersects them and the flattened settings payload omits `permissions.allow`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub permissions_allow_intersected: Option<bool>,
+    /// Whether the effective sandbox policy forces the sandbox on *only* because managed policy could not be determined, rather than because the policy requires it. Lets clients tell a user whose `--no-sandbox` was overridden that the sandbox stayed on as a fail-closed fallback, instead of attributing it to an administrator who set no such policy.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sandbox_enabled_by_undetermined_policy: Option<bool>,
     /// Whether the server (account/org) managed-settings layer was present
     pub server_managed: bool,
     /// The effective (resolved) managed settings values, so clients can render exactly what is enforced. Absent when no managed policy is in force.
@@ -6126,6 +6210,27 @@ pub enum ModelCallFailureSource {
     Unknown,
 }
 
+/// Final outcome of one logical model dispatch after response acceptance processing
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ModelCallFinishedOutcome {
+    /// The provider response was accepted for continued agent processing.
+    #[serde(rename = "success")]
+    Success,
+    /// The dispatch ended with a provider or transport error.
+    #[serde(rename = "error")]
+    Error,
+    /// The dispatch was cancelled before an accepted response was produced.
+    #[serde(rename = "cancelled")]
+    Cancelled,
+    /// The provider response was rejected during post-response acceptance processing.
+    #[serde(rename = "rejected")]
+    Rejected,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// Finite reason code describing why the current turn was aborted
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AbortReason {
@@ -7234,6 +7339,9 @@ pub enum ManagedSettingsEnforcedEscalation {
     /// Unrestricted URL fetch access.
     #[serde(rename = "unrestricted_urls")]
     UnrestrictedUrls,
+    /// A server-wide MCP "Always Allow" (or `--allow-tool <server>`) blanket that would auto-approve every tool from an MCP server. Capped to per-tool approval; each tool still prompts.
+    #[serde(rename = "server_wide_mcp_approval")]
+    ServerWideMcpApproval,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

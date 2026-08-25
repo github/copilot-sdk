@@ -42,6 +42,16 @@ public final class SubagentCompletedEvent extends SessionEvent {
         @JsonProperty("agentDisplayName") String agentDisplayName,
         /** Model used by the sub-agent */
         @JsonProperty("model") String model,
+        /** First model for which the sub-agent started an inference request, when one was dispatched */
+        @JsonProperty("firstDispatchedModel") String firstDispatchedModel,
+        /** Concrete model the user configured for this sub-agent via `/subagents`, when present */
+        @JsonProperty("configuredModelPreference") String configuredModelPreference,
+        /** Explicit model supplied by the parent agent on the task call, when present */
+        @JsonProperty("explicitModelOverride") String explicitModelOverride,
+        /** Whether the explicit task-call model matched the user's configured preference */
+        @JsonProperty("explicitModelMatchesPreference") Boolean explicitModelMatchesPreference,
+        /** Whether the first model actually dispatched matched the user's configured preference */
+        @JsonProperty("configuredModelMatchesActual") Boolean configuredModelMatchesActual,
         /** Total number of tool calls made by the sub-agent */
         @JsonProperty("totalToolCalls") Long totalToolCalls,
         /** Total tokens (input + output) consumed by the sub-agent */

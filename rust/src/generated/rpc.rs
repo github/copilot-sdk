@@ -8205,7 +8205,7 @@ impl<'a> SessionRpcPermissionsPaths<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Adds a directory to the session's allow-list.
+    /// Adds a directory to the session's allow-list and activates conventional skill and agent definitions under it.
     ///
     /// Wire method: `session.permissions.paths.add`.
     ///

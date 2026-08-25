@@ -10,23 +10,18 @@ package com.github.copilot.generated.rpc;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * Directory path to add to the session's allowed directories.
+ * Service-published warning text that hosts should display when presenting a model.
  *
- * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
-@CopilotExperimental
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record SessionPermissionsPathsAddParams(
-    /** Target session identifier */
-    @JsonProperty("sessionId") String sessionId,
-    /** Directory to add to the allow-list. The runtime resolves and validates the path before adding, then loads conventional `.github/skills/` and `.github/agents/` definitions under it when their subsystem gates are enabled. Adding the directory is therefore also a trust decision for configuration stored there. */
-    @JsonProperty("path") String path
+public record ModelWarningText(
+    /** Data-retention warning for the model. The text may contain Markdown links and should be rendered as Markdown when supported. */
+    @JsonProperty("dataRetention") String dataRetention
 ) {
 }

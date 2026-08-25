@@ -1205,10 +1205,35 @@ pub struct TokenAuthInfo {
     pub copilot_user: Option<CopilotUserResponse>,
     /// Authentication host.
     pub host: String,
+    /// Opaque native GitHub credential registration backing this token identity, when applicable.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub registration_id: Option<String>,
     /// The token value itself. Treat as a secret.
     pub token: String,
     /// SDK-side token authentication; the host configured the token directly via the SDK.
     pub r#type: TokenAuthInfoType,
+}
+
+/// Authentication-info variant backed by an SDK GitHub token callback. It carries routing metadata but never a plaintext token.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TokenProviderAuthInfo {
+    /// Snapshot of the authenticated user's Copilot subscription info, if known.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub copilot_user: Option<CopilotUserResponse>,
+    /// Authentication host.
+    pub host: String,
+    /// Opaque SDK callback registration identifier.
+    pub registration_id: String,
+    /// SDK callback-backed GitHub token authentication.
+    pub r#type: TokenProviderAuthInfoType,
 }
 
 /// Authentication-info variant for direct Copilot API token auth sourced from environment variables, with public GitHub host.
@@ -2435,6 +2460,9 @@ pub struct AuthIdentity {
     /// Authenticated login, when available
     #[serde(skip_serializing_if = "Option::is_none")]
     pub login: Option<String>,
+    /// Opaque SDK GitHub credential registration backing this identity. Routing metadata only; never a credential.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub registration_id: Option<String>,
     /// Authentication type
     pub r#type: AuthInfoType,
 }
@@ -3822,6 +3850,31 @@ pub(crate) struct ConfigureSessionExtensionsParams {
     pub session_id: SessionId,
 }
 
+/// Identity of the integrating host, declared once on the `server.connect` handshake so telemetry from this connection is attributed to a single, consistent surface. All fields are optional; omit them to keep the default attribution.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ConnectClientInfo {
+    /// Name of the host editor, e.g. `"vscode"`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub editor_name: Option<String>,
+    /// Version of the host editor, e.g. `"1.124.2"`. Ignored unless it looks like a version string.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub editor_version: Option<String>,
+    /// Name of the Copilot extension within the host, e.g. `"copilot-chat"`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extension_name: Option<String>,
+    /// Version of the Copilot extension within the host, e.g. `"0.54.0"`. Ignored unless it looks like a version string.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extension_version: Option<String>,
+}
+
 /// Repository associated with the connected remote session.
 ///
 /// <div class="warning">
@@ -3908,6 +3961,10 @@ pub struct ConnectRemoteSessionParams {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct ConnectRequest {
+    /// Identity of the integrating host. Optional; omit it to keep the default attribution.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) client_info: Option<ConnectClientInfo>,
     /// Opt this connection in to GitHub telemetry forwarding for its lifetime. When set, the runtime forwards every internal telemetry event it emits — across all sessions, plus sessionless events — to this connection over the `gitHubTelemetry.event` notification. Regular events are also written to the runtime's normal GitHub/CTS path (dual-write); host-only compatibility events are forward-only and intentionally skip that path. Intended for first-party hosts that re-emit the events into their own telemetry stores. Both unrestricted and restricted events are forwarded, each tagged with a `restricted` discriminator; a backstop drops restricted events when restricted telemetry is disabled — using the process-global gate for ordinary events and an explicit session-scoped decision for host-only events.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_git_hub_telemetry_forwarding: Option<bool>,
@@ -5861,6 +5918,49 @@ pub struct GitHubTelemetryNotification {
     pub session_id: Option<SessionId>,
 }
 
+/// Asks the SDK client to acquire a GitHub access token from an opaque callback registration.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitHubTokenAcquireRequest {
+    /// Effective GitHub host for which the callback must return a token.
+    pub host: String,
+    /// Why the runtime is requesting a GitHub credential.
+    pub reason: GitHubTokenAcquireReason,
+    /// Opaque identifier generated by the SDK for this callback registration.
+    pub registration_id: String,
+    /// Session receiving the token. Absent only before a cloud session has been assigned its id.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<SessionId>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitHubTokenAcquireResultToken {
+    /// GitHub access token acquired by the SDK host.
+    pub access_token: String,
+    /// Remaining token lifetime in seconds when callback execution completes. It must exceed the one-hour preflight refresh threshold.
+    pub expires_in: i64,
+    /// GitHub credential response variant discriminator.
+    pub kind: GitHubTokenAcquireResultTokenKind,
+    /// OAuth token type. Defaults to bearer when omitted.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token_type: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitHubTokenAcquireResultCancelled {
+    /// GitHub credential response variant discriminator.
+    pub kind: GitHubTokenAcquireResultCancelledKind,
+}
+
 /// Pending external tool call request ID, with the tool result or an error describing why it failed.
 ///
 /// <div class="warning">
@@ -6288,6 +6388,9 @@ pub struct InstalledPlugin {
     /// Installation timestamp
     #[serde(rename = "installed_at")]
     pub installed_at: String,
+    /// Absolute path of the marketplace directory a live plugin was resolved from. Present only on live, never-persisted records — those synthesized at session start for a directory/local marketplace, whose cache_path points at the real plugin directory on disk rather than a copy under the installed-plugins cache. Its presence is what marks a record as live, and no record carrying it is ever written to the persisted installedPlugins key.
+    #[serde(rename = "installed_from", skip_serializing_if = "Option::is_none")]
+    pub installed_from: Option<String>,
     /// Marketplace the plugin came from (empty string for direct repo installs)
     pub marketplace: String,
     /// Plugin name
@@ -6319,6 +6422,9 @@ pub struct InstalledPluginInfo {
     pub direct_source_id: Option<String>,
     /// Whether the plugin is currently enabled for new sessions
     pub enabled: bool,
+    /// Absolute path of the marketplace directory a live plugin was resolved from. Present only on live, never-persisted records — a plugin belonging to a directory/local marketplace, which is loaded from its real directory on every pass instead of a copy under the installed-plugins cache. Its presence is what marks a listed plugin as live: such a plugin is always present on disk, so `enabled` is its only meaningful state and it is never "not installed".
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub installed_from: Option<String>,
     /// Marketplace the plugin came from. Empty string ("") for direct repo / URL / local installs.
     pub marketplace: String,
     /// Plugin name
@@ -7992,7 +8098,7 @@ pub struct McpOauthPendingRequestResponseToken {
     pub expires_in: Option<i64>,
     /// OAuth response variant discriminator.
     pub kind: McpOauthPendingRequestResponseTokenKind,
-    /// OAuth token type. Defaults to Bearer when omitted.
+    /// OAuth token type. Defaults to bearer when omitted.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub token_type: Option<String>,
 }
@@ -9888,6 +9994,23 @@ pub struct ModelCapabilities {
     pub supports: Option<ModelCapabilitiesSupports>,
 }
 
+/// A service-published message about a model, carrying a stable machine-readable code alongside human-readable text.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelMessage {
+    /// Stable machine-readable identifier for the message, such as `client_version_deprecated`. Hosts can key custom presentation off this; unrecognized codes should fall back to displaying `message`.
+    pub code: String,
+    /// Human-readable message text intended for display to the user.
+    pub message: String,
+}
+
 /// Policy state (if applicable)
 ///
 /// <div class="warning">
@@ -9904,6 +10027,22 @@ pub struct ModelPolicy {
     /// Usage terms or conditions for this model
     #[serde(skip_serializing_if = "Option::is_none")]
     pub terms: Option<String>,
+}
+
+/// Service-published warning text that hosts should display when presenting a model.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelWarningText {
+    /// Data-retention warning for the model. The text may contain Markdown links and should be rendered as Markdown when supported.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub data_retention: Option<String>,
 }
 
 /// Copilot model metadata, including identifier, display name, capabilities, policy, billing, reasoning efforts, and picker categories.
@@ -9927,6 +10066,9 @@ pub struct Model {
     pub default_reasoning_effort: Option<String>,
     /// Model identifier (e.g., "claude-sonnet-4.5")
     pub id: String,
+    /// Informational notices the service published for this model, such as an upcoming change or a recommended alternative. Present only when the service published at least one notice. Hosts should surface these without implying anything is wrong with the model.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub info_messages: Option<Vec<ModelMessage>>,
     /// Model capability category for grouping in the model picker
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model_picker_category: Option<ModelPickerCategory>,
@@ -9944,6 +10086,12 @@ pub struct Model {
     /// Supported reasoning effort levels (only present if model supports reasoning effort)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub supported_reasoning_efforts: Option<Vec<String>>,
+    /// Warnings the service published for this model, such as a deprecated client version. Present only when the service published at least one warning. The model remains usable; hosts should surface these as advisory rather than blocking.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub warning_messages: Option<Vec<ModelMessage>>,
+    /// Warning text the service requires hosts to surface for this model. Present only when the service published at least one warning.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub warning_text: Option<ModelWarningText>,
 }
 
 /// Managed, repository, and CLI model overrides to overlay onto the session at startup.
@@ -11580,7 +11728,7 @@ pub struct PermissionLocationResolveResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionPathsAddParams {
-    /// Directory to add to the allow-list. The runtime resolves and validates the path before adding.
+    /// Directory to add to the allow-list. The runtime resolves and validates the path before adding, then loads conventional `.github/skills/` and `.github/agents/` definitions under it when their subsystem gates are enabled. Adding the directory is therefore also a trust decision for configuration stored there.
     pub path: String,
 }
 
@@ -11625,7 +11773,7 @@ pub struct PermissionPathsAllowedCheckResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionPathsConfig {
-    /// Additional directories to allow tool access to (in addition to the session's working directory). When `unrestricted` is true, these are still pre-populated on the UnrestrictedPathManager so they remain visible via getDirectories() (e.g. for @-mention completion).
+    /// Additional directories to allow tool access to (in addition to the session's working directory). Conventional `.github/skills/` and `.github/agents/` definitions under them also join the session catalogs when their subsystem gates are enabled, so supplying a directory is a trust decision for configuration stored there. When `unrestricted` is true, these are still pre-populated on the UnrestrictedPathManager so they remain visible via getDirectories() (e.g. for @-mention completion).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub additional_directories: Option<Vec<String>>,
     /// Whether to include the system temp directory in the allowed list (defaults to true). Ignored when `unrestricted` is true.
@@ -13726,6 +13874,9 @@ pub struct QueuePendingItems {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct QueuePendingItemsResult {
+    /// How many leading entries of `steeringMessages` have already been folded into the running turn (and so have an emitted `user.message`), as opposed to still waiting for one. Absent for hosts that do not distinguish the two.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub in_flight_steering_count: Option<i64>,
     /// Pending queued items in submission order. Includes user messages, queued slash commands, and queued model changes; omits internal system items.
     pub items: Vec<QueuePendingItems>,
     /// Display text for messages currently in the immediate steering queue (interjections sent during a running turn).
@@ -14500,7 +14651,7 @@ pub struct SandboxConfig {
     /// Whether to auto-add the current working directory to readwritePaths. Default: true.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub add_current_working_directory: Option<bool>,
-    /// Whether to auto-grant read access to the tool directories discovered on PATH and in toolchain environment variables (GOROOT, CARGO_HOME, JAVA_HOME, VIRTUAL_ENV, and similar), and to common developer-tool caches, registries, and toolchains in their default home locations (cargo, go, npm, Maven, and more), plus read-write access to (and, on Unix, up-front creation of) the scratch caches builds write on every run (go-build, ccache, sccache, Gradle caches, Cargo lock/tracker files), so builds work without extra configuration; a relocated CARGO_HOME additionally gets its Cargo lock files granted read-write. Set to false to disable every grant listed above: user-installed toolchains (rustup, nvm, pyenv, conda, pipx) then need explicit userPolicy.filesystem entries — readonlyPaths to read them, plus readwriteFiles for a relocated CARGO_HOME's .package-cache and .global-cache, which Cargo locks on every build. Only these developer-tool grants are affected: the working directory (see addCurrentWorkingDirectory), temporary storage, session log paths, and system locations follow their own rules and stay granted, so commands still run. Default: true (enabled by default; set to false to opt out).
+    /// Whether to auto-grant read access to the tool directories discovered on PATH and in toolchain environment variables (GOROOT, CARGO_HOME, JAVA_HOME, VIRTUAL_ENV, and similar), and to common developer-tool caches, registries, and toolchains in their default home locations (cargo, go, npm, Maven, and more), plus read-write access to (and up-front creation of) the scratch caches builds write on every run (go-build, ccache, sccache, Gradle caches, Cargo lock/tracker files), so builds work without extra configuration; a relocated CARGO_HOME additionally gets its Cargo lock files granted read-write. Set to false to disable every grant listed above: user-installed toolchains (rustup, nvm, pyenv, conda, pipx) then need explicit userPolicy.filesystem entries — readonlyPaths to read them, plus readwriteFiles for a relocated CARGO_HOME's .package-cache and .global-cache, which Cargo locks on every build. Only these developer-tool grants are affected: the working directory (see addCurrentWorkingDirectory), temporary storage, session log paths, and system locations follow their own rules and stay granted, so commands still run. Default: true (enabled by default; set to false to opt out).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub allow_dev_tool_access: Option<bool>,
     /// Credential-injection capability flags.
@@ -15080,6 +15231,9 @@ pub struct SessionAuthInfoResult {
     /// Authenticated login, when available
     #[serde(skip_serializing_if = "Option::is_none")]
     pub login: Option<String>,
+    /// Opaque SDK GitHub credential registration backing this identity. Routing metadata only; never a credential.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub registration_id: Option<String>,
     /// Authentication type
     pub r#type: AuthInfoType,
 }
@@ -15842,6 +15996,9 @@ pub struct SessionInstalledPlugin {
     /// Installation timestamp (ISO-8601)
     #[serde(rename = "installed_at")]
     pub installed_at: String,
+    /// Absolute path of the marketplace directory a live plugin was resolved from. Present only on live, never-persisted records — those synthesized at session start for a directory/local marketplace, whose cache_path points at the real plugin directory on disk rather than a copy under the installed-plugins cache. Its presence is what marks a record as live, and no record carrying it is ever written to the persisted installedPlugins key.
+    #[serde(rename = "installed_from", skip_serializing_if = "Option::is_none")]
+    pub installed_from: Option<String>,
     /// Marketplace the plugin came from (empty string for direct repo installs)
     pub marketplace: String,
     /// Plugin name
@@ -16106,9 +16263,9 @@ pub struct SessionManagedPermissions {
     /// Permission rules that block matching operations. Deny has highest precedence.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub deny: Option<Vec<String>>,
-    /// When set to `disable`, prevents bypass/allow-all permission modes.
+    /// When set to `disable`, prevents bypass/allow-all permission modes. `allow-auto-only` blocks full allow-all but permits advisory auto-approval. Any other value is accepted rather than failing the session, but is enforced as `disable`: the key is only present to restrict something, so a mode this runtime cannot interpret fails closed to the most restrictive one it knows. Omit the key entirely to impose no restriction.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub disable_bypass_permissions_mode: Option<DisableBypassPermissionsMode>,
+    pub disable_bypass_permissions_mode: Option<String>,
 }
 
 /// Managed settings an SDK host may inject at session startup. Only permissions are accepted in this initial contract.
@@ -16429,7 +16586,7 @@ pub struct SessionOpenOptions {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub additional_content_exclusion_policies:
         Option<Vec<SessionOpenOptionsAdditionalContentExclusionPolicy>>,
-    /// Additional directories the agent may access beyond the working directory. Each entry is granted to the session's file-access allow-list and surfaced to the model (system prompt context and `@`-mention completion). Absolute paths are recommended; a relative path is resolved against the session's working directory. Nonexistent or unresolvable entries are skipped with a warning. This is applied on both session creation and resume, and is not persisted: a resumed session that omits this option does not retain previously supplied directories (re-supply them, exactly as the CLI re-passes `--add-dir`).
+    /// Additional directories the agent may access beyond the working directory. Each entry is granted to the session's file-access allow-list and surfaced to the model (system prompt context and `@`-mention completion). Conventional `.github/skills/` and `.github/agents/` definitions under each directory also join the session's project catalogs when their existing subsystem gates are enabled: added-root skills require both `enableConfigDiscovery` and effective `enableSkills`; added-root agents require `enableConfigDiscovery`. Supplying a directory therefore activates configuration from it and should be treated as a trust decision. Absolute paths are recommended; a relative path is resolved against the session's working directory. Nonexistent or unresolvable entries are skipped with a warning. This is applied during session creation and cold resume and is not persisted, so a cold resume must re-supply the directories.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub additional_directories: Option<Vec<String>>,
     /// Runtime context discriminator for agent filtering.
@@ -16536,6 +16693,9 @@ pub struct SessionOpenOptions {
     /// Built-in subagent names to include in this session. When specified, only these built-ins are available, subject to runtime availability and exclusions. Custom agents with the same name remain available.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub included_builtin_agents: Option<Vec<String>>,
+    /// Built-in skill names to include in this session. When specified, only these runtime-bundled skills are available. Skills from other sources with the same name remain available.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub included_builtin_skills: Option<Vec<String>>,
     /// Installed plugins visible to the session.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub installed_plugins: Option<Vec<InstalledPlugin>>,
@@ -16613,6 +16773,10 @@ pub struct SessionOpenOptions {
     /// Resolved sandbox configuration.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sandbox_config: Option<SandboxConfig>,
+    /// Origin of the sandbox choice. The runtime uses this only for internal telemetry provenance; managed policy is derived independently.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) sandbox_config_source: Option<SandboxConfigSource>,
     /// Capabilities enabled for this session.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_capabilities: Option<Vec<SessionCapability>>,
@@ -17018,7 +17182,7 @@ pub struct SessionsEnrichMetadataRequest {
 pub struct SessionSetCredentialsParams {
     /// The new auth credentials to install on the session. When omitted or `undefined`, the call is a no-op and the session's existing credentials are preserved. The runtime installs the supplied value immediately for outbound model/API requests. When the credential carries a raw token (`token`, `env`, or `gh-cli`) but no `copilotUser`, the runtime additionally re-resolves `copilotUser` server-side (best-effort, asynchronously, after the synchronous install) so plan/quota/billing metadata regains fidelity; on resolution failure the verbatim credential remains installed. It does NOT otherwise validate the credential. Several variants carry secret material; treat this method's params as containing secrets at rest and in transit.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub credentials: Option<AuthInfo>,
+    pub credentials: Option<serde_json::Value>,
 }
 
 /// Indicates whether the credential update succeeded.
@@ -17952,6 +18116,9 @@ pub struct SessionUpdateOptionsParams {
     /// Built-in subagent names to include in this session. When specified, only these built-ins are available, subject to runtime availability and exclusions. Custom agents with the same name remain available. Set to null to remove the allowlist restriction.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub included_builtin_agents: Option<Vec<String>>,
+    /// Built-in skill names to include in this session. When specified, only these runtime-bundled skills are available. Skills from other sources with the same name remain available. Set to null to remove the allowlist restriction.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub included_builtin_skills: Option<Vec<String>>,
     /// Full set of installed plugins for the session. Replaces the existing list; the runtime invalidates the skills cache only when the list materially changes.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub installed_plugins: Option<Vec<SessionInstalledPlugin>>,
@@ -17997,6 +18164,10 @@ pub struct SessionUpdateOptionsParams {
     /// Resolved sandbox configuration.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sandbox_config: Option<SandboxConfig>,
+    /// Origin of the sandbox choice. The runtime uses this only for internal telemetry provenance; managed policy is derived independently.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) sandbox_config_source: Option<SandboxConfigSource>,
     /// Replaces the session's capability set with the given list. Use to enable or disable capabilities mid-session (e.g., remove `memory` for reproducible scripted runs). Omit the field to leave the existing capability set unchanged.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_capabilities: Option<Vec<SessionCapability>>,
@@ -18056,6 +18227,28 @@ pub struct SessionUpdateOptionsResult {
     pub plugin_hook_count: Option<i64>,
     /// Whether the operation succeeded
     pub success: bool,
+}
+
+/// Token authentication accepted by session.gitHubAuth.setCredentials.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SettableTokenAuthInfo {
+    /// Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this verbatim and does not re-fetch when set.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub copilot_user: Option<CopilotUserResponse>,
+    /// Authentication host.
+    pub host: String,
+    /// The token value itself. Treat as a secret.
+    pub token: String,
+    /// SDK-side token authentication; the host configured the token directly via the SDK.
+    pub r#type: SettableTokenAuthInfoType,
 }
 
 /// User-requested shell execution cancellation handle.
@@ -25891,6 +26084,9 @@ pub struct SessionQueuePendingItemsParams {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionQueuePendingItemsResult {
+    /// How many leading entries of `steeringMessages` have already been folded into the running turn (and so have an emitted `user.message`), as opposed to still waiting for one. Absent for hosts that do not distinguish the two.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub in_flight_steering_count: Option<i64>,
     /// Pending queued items in submission order. Includes user messages, queued slash commands, and queued model changes; omits internal system items.
     pub items: Vec<QueuePendingItems>,
     /// Display text for messages currently in the immediate steering queue (interjections sent during a running turn).
@@ -26853,6 +27049,14 @@ pub enum TokenAuthInfoType {
     Token,
 }
 
+/// SDK callback-backed GitHub token authentication.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TokenProviderAuthInfoType {
+    #[serde(rename = "token-provider")]
+    #[default]
+    TokenProvider,
+}
+
 /// Authentication host (always the public GitHub host).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CopilotApiTokenAuthInfoHost {
@@ -26907,6 +27111,7 @@ pub enum AuthInfo {
     Hmac(HMACAuthInfo),
     Env(EnvAuthInfo),
     Token(TokenAuthInfo),
+    TokenProvider(TokenProviderAuthInfo),
     CopilotApiToken(CopilotApiTokenAuthInfo),
     User(UserAuthInfo),
     GhCli(GhCliAuthInfo),
@@ -27423,6 +27628,9 @@ pub enum AuthInfoType {
     /// Authentication from a GitHub token.
     #[serde(rename = "token")]
     Token,
+    /// Authentication from an SDK GitHub token callback.
+    #[serde(rename = "token-provider")]
+    TokenProvider,
     /// Authentication from a Copilot API token.
     #[serde(rename = "copilot-api-token")]
     CopilotApiToken,
@@ -28461,23 +28669,6 @@ pub enum DebugCollectLogsResultKind {
     Unknown,
 }
 
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum DisableBypassPermissionsMode {
-    #[serde(rename = "disable")]
-    Disable,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
 /// Persisted extension discovery source
 ///
 /// <div class="warning">
@@ -28939,6 +29130,52 @@ pub enum FactoryRunFailureKind {
     #[default]
     #[serde(other)]
     Unknown,
+}
+
+/// Why the runtime is requesting a GitHub credential.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum GitHubTokenAcquireReason {
+    /// The runtime is acquiring the registration's first credential.
+    #[serde(rename = "initial")]
+    Initial,
+    /// The runtime is replacing a credential that is approaching expiry.
+    #[serde(rename = "refresh")]
+    Refresh,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// GitHub credential response variant discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum GitHubTokenAcquireResultTokenKind {
+    #[serde(rename = "token")]
+    #[default]
+    Token,
+}
+
+/// GitHub credential response variant discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum GitHubTokenAcquireResultCancelledKind {
+    #[serde(rename = "cancelled")]
+    #[default]
+    Cancelled,
+}
+
+/// SDK host response to a GitHub credential request.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum GitHubTokenAcquireResult {
+    Token(GitHubTokenAcquireResultToken),
+    Cancelled(GitHubTokenAcquireResultCancelled),
 }
 
 /// What initiated this compaction request, recorded as the `trigger` on the persisted `session.compaction_start` / `session.compaction_complete` events. When absent, the compaction is persisted without trigger attribution (initiator unknown).
@@ -31743,6 +31980,43 @@ pub enum RemoteSessionMetadataTaskType {
     Unknown,
 }
 
+/// Origin of the sandbox choice supplied by an internal client.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SandboxConfigSource {
+    /// The client applied the default because no sandbox preference was configured.
+    #[serde(rename = "never_configured")]
+    NeverConfigured,
+    /// The user's persisted settings enabled the sandbox.
+    #[serde(rename = "user_enabled")]
+    UserEnabled,
+    /// The user's persisted settings disabled the sandbox.
+    #[serde(rename = "user_disabled")]
+    UserDisabled,
+    /// A command-line flag selected the sandbox state for this session.
+    #[serde(rename = "session_flag")]
+    SessionFlag,
+    /// The user disabled the sandbox for the current session.
+    #[serde(rename = "session_disabled")]
+    SessionDisabled,
+    /// The client disabled the sandbox because the host cannot enforce it.
+    #[serde(rename = "unsupported_host")]
+    UnsupportedHost,
+    /// A repository policy selected the sandbox state.
+    #[serde(rename = "repository_policy")]
+    RepositoryPolicy,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// Session capability enabled for this session
 ///
 /// <div class="warning">
@@ -32496,6 +32770,14 @@ pub enum SessionVisibilityStatus {
     #[default]
     #[serde(other)]
     Unknown,
+}
+
+/// SDK-side token authentication; the host configured the token directly via the SDK.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SettableTokenAuthInfoType {
+    #[serde(rename = "token")]
+    #[default]
+    Token,
 }
 
 /// Signal to send (default: SIGTERM)

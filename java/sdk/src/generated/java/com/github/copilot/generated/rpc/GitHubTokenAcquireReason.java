@@ -9,20 +9,27 @@ package com.github.copilot.generated.rpc;
 
 import javax.annotation.processing.Generated;
 
+/**
+ * Why the runtime is requesting a GitHub credential.
+ *
+ * @since 1.0.0
+ */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
-public enum DisableBypassPermissionsMode {
-    /** The {@code disable} variant. */
-    DISABLE("disable");
+public enum GitHubTokenAcquireReason {
+    /** The {@code initial} variant. */
+    INITIAL("initial"),
+    /** The {@code refresh} variant. */
+    REFRESH("refresh");
 
     private final String value;
-    DisableBypassPermissionsMode(String value) { this.value = value; }
+    GitHubTokenAcquireReason(String value) { this.value = value; }
     @com.fasterxml.jackson.annotation.JsonValue
     public String getValue() { return value; }
     @com.fasterxml.jackson.annotation.JsonCreator
-    public static DisableBypassPermissionsMode fromValue(String value) {
-        for (DisableBypassPermissionsMode v : values()) {
+    public static GitHubTokenAcquireReason fromValue(String value) {
+        for (GitHubTokenAcquireReason v : values()) {
             if (v.value.equals(value)) return v;
         }
-        throw new IllegalArgumentException("Unknown DisableBypassPermissionsMode value: " + value);
+        throw new IllegalArgumentException("Unknown GitHubTokenAcquireReason value: " + value);
     }
 }
