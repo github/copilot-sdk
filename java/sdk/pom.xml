@@ -51,16 +51,6 @@
               mvn verify -Dcopilot.cli.path=/some/other/copilot/npm-loader.js
         -->
         <copilot.cli.path>${copilot.sdk.root}/nodejs/node_modules/@github/copilot/npm-loader.js</copilot.cli.path>
-        <!--
-            Path to the platform-specific Copilot CLI binary (not the
-            npm-loader.js dispatcher) used by the -Pinprocess profile: the
-            in-process FFI host loads runtime.node directly, so it needs the
-            real per-platform binary/prebuilds layout, not the thin loader
-            script. Override with -Dcopilot.inprocess.cli.path=... for other
-            platforms/architectures; Linux-x64 is the only supported platform
-            for InProcess E2E tests in this phase.
-        -->
-        <copilot.inprocess.cli.path>${copilot.sdk.root}/nodejs/node_modules/@github/copilot-linux-x64/copilot</copilot.inprocess.cli.path>
         <!-- Set to true (via -Pskip-test-harness) to skip npm install of test harness -->
         <skip.test.harness>false</skip.test.harness>
         <!--
@@ -604,10 +594,13 @@ did not produce the multi-release output. Re-build on JDK 25+ and verify the
             <id>inprocess</id>
             <properties>
                 <COPILOT_SDK_DEFAULT_CONNECTION>inprocess</COPILOT_SDK_DEFAULT_CONNECTION>
+                <copilot.native.classifier>linux-x64</copilot.native.classifier>
+                <!-- Force classpath resolution of runtime.node and the embedded CLI. -->
+                <copilot.inprocess.cli.path></copilot.inprocess.cli.path>
             </properties>
             <dependencies>
                 <!--
-                    Classpath resource native/linux-x64/runtime.node, resolved by
+                    Classpath resource native/<classifier>/runtime.node, resolved by
                     NativeRuntimeLoader when no runtime.node is found next to
                     COPILOT_CLI_PATH. Test-scoped: production consumers add the
                     classifier they need themselves.
@@ -616,7 +609,7 @@ did not produce the multi-release output. Re-build on JDK 25+ and verify the
                     <groupId>com.github</groupId>
                     <artifactId>copilot-sdk-java-runtime</artifactId>
                     <version>${project.version}</version>
-                    <classifier>linux-x64</classifier>
+                    <classifier>${copilot.native.classifier}</classifier>
                     <scope>test</scope>
                 </dependency>
             </dependencies>
@@ -660,6 +653,7 @@ did not produce the multi-release output. Re-build on JDK 25+ and verify the
                                 <exclude>**/ToolsTest.java</exclude>
                             </excludes>
                             <environmentVariables>
+                                <COPILOT_CLI_PATH>${copilot.inprocess.cli.path}</COPILOT_CLI_PATH>
                                 <COPILOT_SDK_DEFAULT_CONNECTION>inprocess</COPILOT_SDK_DEFAULT_CONNECTION>
                             </environmentVariables>
                         </configuration>
@@ -689,6 +683,18 @@ did not produce the multi-release output. Re-build on JDK 25+ and verify the
                     </plugin>
                 </plugins>
             </build>
+        </profile>
+        <profile>
+            <id>native-win32-x64</id>
+            <activation>
+                <os>
+                    <family>Windows</family>
+                    <arch>amd64</arch>
+                </os>
+            </activation>
+            <properties>
+                <copilot.native.classifier>win32-x64</copilot.native.classifier>
+            </properties>
         </profile>
         <!--
             Skip the install-nodejs-cli-dependencies (npm ci) execution when

@@ -18,12 +18,19 @@ permissions:
 
 jobs:
   java-sdk-inprocess:
-    name: "Java SDK InProcess Tests"
+    name: "Java SDK InProcess Tests (${{ matrix.classifier }})"
     if: github.event.repository.fork == false
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            classifier: linux-x64
+          - os: windows-latest
+            classifier: win32-x64
+    runs-on: ${{ matrix.os }}
     defaults:
       run:
-        shell: bash
         working-directory: ./java
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -41,7 +48,11 @@ jobs:
           node-version: 22
 
       - name: Install bubblewrap
+        if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install --yes bubblewrap
+
+      - name: Validate native host
+        run: node copilot-native/scripts/validate-native-host.mjs ${{ matrix.classifier }}
 
       - name: Run Java SDK tests (InProcess)
         env:
@@ -58,12 +69,127 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: java-test-results-inprocess
+          name: java-test-results-inprocess-${{ matrix.classifier }}
           path: |
             java/sdk/target/surefire-reports/
             java/sdk/target/surefire-reports-isolated/
             java/sdk/target/failsafe-reports/
           retention-days: 7
+
+  java-native-publication-windows:
+    name: "Java Native Publication Input (win32-x64)"
+    if: github.event.repository.fork == false
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    outputs:
+      source_sha: ${{ steps.build.outputs.source_sha }}
+      version: ${{ steps.build.outputs.version }}
+    defaults:
+      run:
+        shell: pwsh
+        working-directory: ./java
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5
+        with:
+          java-version: "25"
+          distribution: "microsoft"
+          cache: "maven"
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 22
+
+      - name: Build and validate win32-x64 classifier
+        id: build
+        run: |
+          node copilot-native/scripts/validate-native-host.mjs win32-x64
+          mvn -B -pl copilot-native package -DskipTests
+          $version = mvn help:evaluate "-Dexpression=project.version" -q "-DforceStdout"
+          $jar = "copilot-native/target/copilot-sdk-java-runtime-$version-win32-x64.jar"
+          $primaryJar = "copilot-native/target/copilot-sdk-java-runtime-$version.jar"
+          if (-not (Test-Path -LiteralPath $jar -PathType Leaf)) {
+            throw "Expected Windows classifier was not produced: $jar"
+          }
+          node copilot-native/scripts/validate-native-artifact.mjs classifier win32-x64 $jar ([IO.Path]::GetFileName($jar)) ..
+          node copilot-native/scripts/validate-native-artifact.mjs placeholder $primaryJar
+          $manifest = "copilot-native/target/win32-x64-$version.sha256"
+          $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $jar).Hash.ToLowerInvariant()
+          "$hash  $([IO.Path]::GetFileName($jar))" | Set-Content -NoNewline -Encoding ascii $manifest
+          node copilot-native/scripts/validate-native-artifact.mjs checksum $jar $manifest ([IO.Path]::GetFileName($jar))
+          echo "source_sha=$(git rev-parse HEAD)" >> $env:GITHUB_OUTPUT
+          echo "version=$version" >> $env:GITHUB_OUTPUT
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: java-native-publication-win32-x64-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            java/copilot-native/target/copilot-sdk-java-runtime-${{ steps.build.outputs.version }}-win32-x64.jar
+            java/copilot-native/target/win32-x64-${{ steps.build.outputs.version }}.sha256
+          if-no-files-found: error
+          retention-days: 1
+
+  java-native-publication-assembly:
+    name: "Java Native Publication Assembly"
+    if: github.event.repository.fork == false
+    needs: java-native-publication-windows
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./java
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5
+        with:
+          java-version: "25"
+          distribution: "microsoft"
+          cache: "maven"
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 22
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: java-native-publication-win32-x64-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ github.workspace }}/java/native-publication-input
+
+      - name: Verify Windows input and deploy the complete local release
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ needs.java-native-publication-windows.outputs.source_sha }}"
+          VERSION="${{ needs.java-native-publication-windows.outputs.version }}"
+          INPUT_DIRECTORY="$GITHUB_WORKSPACE/java/native-publication-input"
+          WINDOWS_JAR="$INPUT_DIRECTORY/copilot-sdk-java-runtime-$VERSION-win32-x64.jar"
+          WINDOWS_MANIFEST="$INPUT_DIRECTORY/win32-x64-$VERSION.sha256"
+          node copilot-native/scripts/validate-native-artifact.mjs \
+            checksum "$WINDOWS_JAR" "$WINDOWS_MANIFEST" "$(basename "$WINDOWS_JAR")"
+          node copilot-native/scripts/validate-native-artifact.mjs \
+            classifier win32-x64 "$WINDOWS_JAR" "$(basename "$WINDOWS_JAR")" ..
+          export GNUPGHOME="$GITHUB_WORKSPACE/java/copilot-native/target/local-publication-gpg"
+          rm -rf "$GNUPGHOME"
+          mkdir -p "$GNUPGHOME"
+          chmod 700 "$GNUPGHOME"
+          gpg --batch --pinentry-mode loopback --passphrase '' \
+            --quick-generate-key 'Copilot SDK local validation <local-validation@example.invalid>' rsa2048 sign 1d
+          LOCAL_REPOSITORY="$GITHUB_WORKSPACE/java/copilot-native/target/local-publication-repository"
+          rm -rf "$LOCAL_REPOSITORY"
+          mvn -B -pl copilot-native deploy -Prelease -DskipTests \
+            -Dcopilot.native.libc=glibc \
+            -Dcopilot.native.test.local.publication=true \
+            "-Dcopilot.native.external.win32.classifier.path=$WINDOWS_JAR" \
+            "-Dmaven.repo.local=$LOCAL_REPOSITORY"
+          node copilot-native/scripts/validate-local-publication.mjs \
+            "$LOCAL_REPOSITORY" copilot-sdk-java-runtime "$VERSION" .. --signatures
 
   java-sdk:
     name: "Java SDK Tests (JDK ${{ matrix.test-jdk }})"
@@ -131,7 +257,9 @@ jobs:
         if: matrix.test-jdk == '25'
         env:
           CI: "true"
-        run: mvn verify -Dskip.test.harness=true
+        run: |
+          node copilot-native/scripts/validate-native-host.mjs linux-x64
+          mvn verify -Dskip.test.harness=true -Dcopilot.native.libc=glibc -Dcopilot.native.skip.download=false
 
       - name: Switch to JDK 17
         if: matrix.test-jdk == '17'

@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import java.nio.channels.FileChannel;
+import java.nio.file.AccessDeniedException;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
@@ -77,8 +78,9 @@ public final class NativeRuntimeLoader {
         } catch (AtomicMoveNotSupportedException ex) {
             throw new IllegalStateException("Filesystem does not support atomic moves; cannot safely publish "
                     + RUNTIME_FILENAME + " to " + cached, ex);
-        } catch (FileAlreadyExistsException ex) {
-            // Another process won the race — accept the winner if it is a valid file.
+        } catch (FileAlreadyExistsException | AccessDeniedException ex) {
+            // Windows can report AccessDeniedException instead of
+            // FileAlreadyExistsException when another publisher wins the race.
             try {
                 if (isValidCachedFile(cached)) {
                     return;

@@ -72,7 +72,7 @@ implementation 'com.github:copilot-sdk-java:1.0.13-preview.0-SNAPSHOT'
 
 ## In-process mode (experimental)
 
-The SDK supports running the Copilot runtime **in-process** as a native library instead of spawning a separate CLI process. This eliminates process management overhead and simplifies deployment. In-process mode is currently experimental and only supported on **linux-x64**.
+The SDK supports running the Copilot runtime **in-process** as a native library instead of spawning a separate CLI process. This eliminates process management overhead and simplifies deployment. In-process mode is currently experimental and supported on **linux-x64** (glibc) and **win32-x64**.
 
 Because in-process mode is experimental, see the [Using experimental APIs](#using-experimental-apis) section for how to opt in.
 
@@ -88,13 +88,14 @@ Add both the SDK and the platform-specific native runtime to your project:
         <artifactId>copilot-sdk-java</artifactId>
         <version>${copilot.version}</version>
     </dependency>
-    <!-- Native runtime for linux-x64 (~20-26 MB) -->
+    <!-- Add the native runtime for the target platform -->
     <dependency>
         <groupId>com.github</groupId>
         <artifactId>copilot-sdk-java-runtime</artifactId>
         <version>${copilot.version}</version>
         <classifier>linux-x64</classifier>
     </dependency>
+    <!-- Use win32-x64 instead when the application runs on Windows x64 -->
     <!-- JNA (required for in-process mode) -->
     <dependency>
         <groupId>net.java.dev.jna</groupId>
@@ -486,6 +487,51 @@ mvn verify -Dskip.test.harness=true
 # Run the JDK 25 built jar with JDK 17 JVM for tests. Do not re-compile the jar.
 mvn jacoco:prepare-agent@wire-up-coverage-instrumentation antrun:run@print-test-jdk-banner surefire:test failsafe:integration-test failsafe:verify jacoco:report@build-coverage-report-from-tests -Denforcer.skip=true
 ```
+
+#### Development Setup for native embedding
+
+Run native-runtime Maven commands from the `java` directory. Native packaging requires Node.js and npm in addition to JDK 25 and Maven because `copilot-native/scripts/fetch-native.mjs` retrieves the pinned npm runtime package.
+
+On a native Linux x64 glibc host, Maven activates the `native-linux-x64` profile when `copilot.native.libc=glibc` is set. On Windows x64, Maven activates `native-win32-x64` automatically. The matching profile validates the host, runs the native script tests, fetches the pinned `@github/copilot-<classifier>` package during `generate-resources`, packages the classifier JAR during `package`, and verifies its native contents. Ensure npm can authenticate to the package registry before running the build.
+
+Before opting in, validate that Node.js reports glibc for the build host:
+
+```bash
+node copilot-native/scripts/validate-native-host.mjs linux-x64
+mvn -pl copilot-native clean verify -Dcopilot.native.libc=glibc
+```
+
+The `inprocess` test profile performs the same validation and native packaging automatically, so the full in-process test command remains:
+
+```bash
+mvn -Pinprocess clean verify
+```
+
+On Windows PowerShell, initialize Java and run the same profile:
+
+```powershell
+mvn -Pinprocess clean verify
+```
+
+On macOS, Linux ARM64, Linux x64 musl, and other unsupported hosts, do not set `copilot.native.libc=glibc`. A normal build produces only the OS-neutral primary, sources, and Javadoc JARs; it does not run native script tests, download or stage native files, or produce a platform classifier JAR.
+
+To build only the OS-neutral artifacts on any host, or override the glibc opt-in, disable native download and packaging:
+
+```bash
+mvn -pl copilot-native clean package -DskipTests -Dcopilot.native.libc=glibc -Dcopilot.native.skip.download=true
+```
+
+The verified Linux x64 checks are:
+
+```bash
+node --test copilot-native/scripts/fetch-native.test.mjs copilot-native/scripts/validate-native-host.test.mjs
+mvn -pl copilot-native help:active-profiles -Dcopilot.native.libc=glibc -Dcopilot.native.skip.download=false
+mvn -pl copilot-native test -Dcopilot.native.libc=glibc
+mvn clean verify -Dcopilot.native.libc=glibc
+mvn clean package -pl copilot-native -DskipTests -Dcopilot.native.libc=glibc -Dcopilot.native.skip.download=true
+```
+
+On Linux x64, the classifier JAR contains `native/linux-x64/runtime.node`, `native/linux-x64/platform.properties`, and `native/linux-x64/copilot`. On Windows x64, it contains `native/win32-x64/runtime.node`, `native/win32-x64/platform.properties`, and `native/win32-x64/copilot.exe`. The placeholder JAR remains OS-neutral and contains no native binaries. Unsupported hosts retain the placeholder-only behavior.
 
 ## License
 

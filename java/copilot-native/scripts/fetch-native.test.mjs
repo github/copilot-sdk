@@ -11,51 +11,52 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 
-const classifier = 'linux-x64';
 const version = '1.0.79';
 const integrity = 'sha512-test-integrity';
 const runtimeContent = 'runtime content';
 const cliContent = 'cli content';
 const scriptPath = fileURLToPath(new URL('./fetch-native.mjs', import.meta.url));
 
-test('missing CLI does not use incremental fast path', (t) => {
-  const fixture = createFixture(t);
-  fs.rmSync(fixture.cliPath);
+for (const classifier of ['linux-x64', 'win32-x64']) {
+  test(`${classifier}: missing CLI does not use incremental fast path`, (t) => {
+    const fixture = createFixture(t, classifier);
+    fs.rmSync(fixture.cliPath);
 
-  const result = runScript(fixture);
+    const result = runScript(fixture);
 
-  assertRestagingAttempted(fixture, result);
-});
+    assertRestagingAttempted(fixture, result);
+  });
 
-test('stale CLI does not use incremental fast path', (t) => {
-  const fixture = createFixture(t);
-  fs.writeFileSync(fixture.cliPath, 'stale CLI content');
+  test(`${classifier}: stale CLI does not use incremental fast path`, (t) => {
+    const fixture = createFixture(t, classifier);
+    fs.writeFileSync(fixture.cliPath, 'stale CLI content');
 
-  const result = runScript(fixture);
+    const result = runScript(fixture);
 
-  assertRestagingAttempted(fixture, result);
-});
+    assertRestagingAttempted(fixture, result);
+  });
 
-test('missing platform metadata does not use incremental fast path', (t) => {
-  const fixture = createFixture(t);
-  fs.rmSync(fixture.platformPropertiesPath);
+  test(`${classifier}: missing platform metadata does not use incremental fast path`, (t) => {
+    const fixture = createFixture(t, classifier);
+    fs.rmSync(fixture.platformPropertiesPath);
 
-  const result = runScript(fixture);
+    const result = runScript(fixture);
 
-  assertRestagingAttempted(fixture, result);
-});
+    assertRestagingAttempted(fixture, result);
+  });
 
-test('complete matching artifacts use incremental fast path', (t) => {
-  const fixture = createFixture(t);
+  test(`${classifier}: complete matching artifacts use incremental fast path`, (t) => {
+    const fixture = createFixture(t, classifier);
 
-  const result = runScript(fixture);
+    const result = runScript(fixture);
 
-  assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stdout, /already staged/);
-  assert.equal(fs.existsSync(fixture.npmMarkerPath), false);
-});
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /already staged/);
+    assert.equal(fs.existsSync(fixture.npmMarkerPath), false);
+  });
+}
 
-function createFixture(t) {
+function createFixture(t, classifier) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'fetch-native-test-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
 
@@ -78,7 +79,7 @@ function createFixture(t) {
   );
 
   const runtimePath = path.join(resourceDir, 'runtime.node');
-  const cliPath = path.join(resourceDir, 'copilot');
+  const cliPath = path.join(resourceDir, classifier.startsWith('win32') ? 'copilot.exe' : 'copilot');
   const platformPropertiesPath = path.join(resourceDir, 'platform.properties');
   fs.writeFileSync(runtimePath, runtimeContent);
   fs.writeFileSync(cliPath, cliContent);
@@ -88,11 +89,16 @@ function createFixture(t) {
     `${version}\n${integrity}\n${digest(runtimeContent)}\n${digest(cliContent)}\n`,
   );
 
-  const fakeNpmPath = path.join(fakeBinDir, 'npm');
-  fs.writeFileSync(fakeNpmPath, '#!/bin/sh\nprintf invoked > \"$FETCH_NATIVE_NPM_MARKER\"\nexit 42\n');
-  fs.chmodSync(fakeNpmPath, 0o755);
+  const fakeNpmPath = path.join(fakeBinDir, process.platform === 'win32' ? 'npm.cmd' : 'npm');
+  if (process.platform === 'win32') {
+    fs.writeFileSync(fakeNpmPath, '@echo off\r\n> "%FETCH_NATIVE_NPM_MARKER%" echo invoked\r\nexit /b 42\r\n');
+  } else {
+    fs.writeFileSync(fakeNpmPath, '#!/bin/sh\nprintf invoked > "$FETCH_NATIVE_NPM_MARKER"\nexit 42\n');
+    fs.chmodSync(fakeNpmPath, 0o755);
+  }
 
   return {
+    classifier,
     repoRoot,
     stagingDir,
     fakeBinDir,
@@ -104,7 +110,7 @@ function createFixture(t) {
 }
 
 function runScript(fixture) {
-  return spawnSync(process.execPath, [scriptPath, fixture.repoRoot, fixture.stagingDir, classifier], {
+  return spawnSync(process.execPath, [scriptPath, fixture.repoRoot, fixture.stagingDir, fixture.classifier], {
     encoding: 'utf8',
     env: {
       ...process.env,
@@ -116,7 +122,7 @@ function runScript(fixture) {
 
 function assertRestagingAttempted(fixture, result) {
   assert.notEqual(result.status, 0, 'The fake npm command should make restaging fail');
-  assert.equal(fs.readFileSync(fixture.npmMarkerPath, 'utf8'), 'invoked');
+  assert.equal(fs.readFileSync(fixture.npmMarkerPath, 'utf8').trim(), 'invoked');
 }
 
 function digest(content) {

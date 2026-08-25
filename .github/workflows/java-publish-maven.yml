@@ -1,9 +1,6 @@
 name: "Java Publish to Maven Central"
 
 env:
-  # Disable Husky Git hooks in CI to prevent local development hooks
-  # (e.g., pre-commit formatting checks) from running during automated
-  # workflows that perform git commits and pushes.
   HUSKY: 0
 
 on:
@@ -40,7 +37,7 @@ on:
     outputs:
       mavenPublished:
         description: "Whether the Java package was published to Maven Central"
-        value: ${{ jobs.publish-maven.outputs.published }}
+        value: ${{ jobs.deploy-maven.outputs.published }}
     secrets:
       JAVA_RELEASE_TOKEN:
         required: true
@@ -56,8 +53,7 @@ on:
         required: true
 
 permissions:
-  contents: write
-  id-token: write
+  contents: read
 
 concurrency:
   group: publish-maven
@@ -70,11 +66,6 @@ jobs:
     steps:
       - name: Verify JAVA_RELEASE_TOKEN can push to repository
         run: |
-          # JAVA_RELEASE_TOKEN is used by actions/checkout and for:
-          #   - git push origin main (doc updates)
-          #   - mvn release:prepare -DpushChanges=true (release commits + tags)
-          #   - git revert + push (rollback on failure)
-          # It must have push (contents:write) permission on this repo.
           PUSH=$(gh api repos/${{ github.repository }} --jq '.permissions.push // false')
           if [ "$PUSH" != "true" ]; then
             echo "::error::JAVA_RELEASE_TOKEN lacks push permission on ${{ github.repository }}. It is required for pushing release commits and tags to main."
@@ -84,17 +75,24 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.JAVA_RELEASE_TOKEN }}
 
-  publish-maven:
-    name: Publish Java SDK to Maven Central
+  prepare-release:
+    name: Prepare Java release
     needs: preflight
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     defaults:
       run:
         shell: bash
         working-directory: ./java
     outputs:
-      version: ${{ steps.versions.outputs.release_version }}
-      published: ${{ steps.publish-maven.outcome == 'success' }}
+      release_version: ${{ steps.versions.outputs.release_version }}
+      development_version: ${{ steps.versions.outputs.development_version }}
+      release_tag: ${{ steps.release-identity.outputs.release_tag }}
+      tag_commit: ${{ steps.release-identity.outputs.tag_commit }}
+      pre_prepare_commit: ${{ steps.pre-prepare.outputs.pre_prepare_commit }}
+      post_prepare_commit: ${{ steps.release-identity.outputs.post_prepare_commit }}
+      docs_commit: ${{ steps.update-docs.outputs.docs_commit_sha }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -108,8 +106,164 @@ jobs:
 
       - uses: ./.github/actions/setup-copilot
 
-      - name: Set up JDK 25
-        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5
+      - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5
+        with:
+          java-version: "25"
+          distribution: "microsoft"
+          cache: "maven"
+
+      - name: Determine versions
+        id: versions
+        run: |
+          CURRENT_VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+          echo "Current pom.xml version: $CURRENT_VERSION"
+
+          if [ -n "${{ inputs.releaseVersion }}" ]; then
+            RELEASE_VERSION="${{ inputs.releaseVersion }}"
+          else
+            RELEASE_VERSION="${CURRENT_VERSION%-SNAPSHOT}"
+          fi
+          echo "Release version: $RELEASE_VERSION"
+
+          if [ -n "${{ inputs.developmentVersion }}" ]; then
+            DEV_VERSION="${{ inputs.developmentVersion }}"
+            if [[ "$DEV_VERSION" != *-SNAPSHOT ]]; then
+              echo "::error::developmentVersion '${DEV_VERSION}' must end with '-SNAPSHOT'."
+              exit 1
+            fi
+          else
+            if ! echo "$RELEASE_VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-(preview|(beta-)?java(-preview)?)\.[0-9]+)?$'; then
+              echo "Error: RELEASE_VERSION '$RELEASE_VERSION' is invalid." >&2
+              exit 1
+            fi
+            BASE_VERSION=$(echo "$RELEASE_VERSION" | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+')
+            QUALIFIER=$(echo "$RELEASE_VERSION" | sed "s|^${BASE_VERSION}||")
+            IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE_VERSION"
+            DEV_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))${QUALIFIER}-SNAPSHOT"
+          fi
+
+          echo "release_version=$RELEASE_VERSION" >> "$GITHUB_OUTPUT"
+          echo "development_version=$DEV_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Update documentation with release version
+        id: update-docs
+        run: |
+          VERSION="${{ steps.versions.outputs.release_version }}"
+          DEV_VERSION="${{ steps.versions.outputs.development_version }}"
+          ./scripts/test-update-documentation-versions.sh
+          ./scripts/update-documentation-versions.sh "$VERSION" "$DEV_VERSION" README.md sdk/jbang-example.java
+          git add README.md sdk/jbang-example.java
+          git commit -m "docs: update version references to ${VERSION}"
+          echo "docs_commit_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          git push origin main
+
+      - name: Record rollback base
+        id: pre-prepare
+        run: echo "pre_prepare_commit=$(git rev-parse HEAD^)" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare Release
+        run: |
+          mvn -B release:prepare \
+            -DreleaseVersion=${{ steps.versions.outputs.release_version }} \
+            -DdevelopmentVersion=${{ steps.versions.outputs.development_version }} \
+            -DtagNameFormat=java/v@{project.version} \
+            -DpushChanges=true \
+            -Darguments="-DskipTests"
+        env:
+          MAVEN_USERNAME: ${{ secrets.JAVA_MAVEN_CENTRAL_USERNAME }}
+          MAVEN_PASSWORD: ${{ secrets.JAVA_MAVEN_CENTRAL_PASSWORD }}
+          JAVA_GPG_PASSPHRASE: ${{ secrets.JAVA_GPG_PASSPHRASE }}
+
+      - name: Record immutable release identity
+        id: release-identity
+        run: |
+          TAG="java/v${{ steps.versions.outputs.release_version }}"
+          TAG_COMMIT=$(git rev-parse "${TAG}^{commit}")
+          POST_PREPARE_COMMIT=$(git rev-parse HEAD)
+          echo "release_tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "tag_commit=$TAG_COMMIT" >> "$GITHUB_OUTPUT"
+          echo "post_prepare_commit=$POST_PREPARE_COMMIT" >> "$GITHUB_OUTPUT"
+
+  build-windows-classifier:
+    name: Build Windows native classifier
+    needs: prepare-release
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        shell: pwsh
+        working-directory: ./java
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ needs.prepare-release.outputs.release_tag }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5
+        with:
+          java-version: "25"
+          distribution: "microsoft"
+          cache: "maven"
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 22
+
+      - name: Build and validate win32-x64 classifier
+        run: |
+          $sourceCommit = git rev-parse HEAD
+          if ($sourceCommit -ne '${{ needs.prepare-release.outputs.tag_commit }}') {
+            throw "Checked out $sourceCommit instead of the prepared tag commit."
+          }
+          node copilot-native/scripts/validate-native-host.mjs win32-x64
+          mvn -B -pl copilot-native package -DskipTests
+          $version = '${{ needs.prepare-release.outputs.release_version }}'
+          $jar = "copilot-native/target/copilot-sdk-java-runtime-$version-win32-x64.jar"
+          $primaryJar = "copilot-native/target/copilot-sdk-java-runtime-$version.jar"
+          if (-not (Test-Path -LiteralPath $jar -PathType Leaf)) {
+            throw "Expected Windows classifier was not produced: $jar"
+          }
+          node copilot-native/scripts/validate-native-artifact.mjs classifier win32-x64 $jar ([IO.Path]::GetFileName($jar)) ..
+          node copilot-native/scripts/validate-native-artifact.mjs placeholder $primaryJar
+          $manifest = "copilot-native/target/win32-x64-$version.sha256"
+          $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $jar).Hash.ToLowerInvariant()
+          "$hash  $([IO.Path]::GetFileName($jar))" | Set-Content -NoNewline -Encoding ascii $manifest
+          node copilot-native/scripts/validate-native-artifact.mjs checksum $jar $manifest ([IO.Path]::GetFileName($jar))
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: java-native-win32-x64-release-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            java/copilot-native/target/copilot-sdk-java-runtime-${{ needs.prepare-release.outputs.release_version }}-win32-x64.jar
+            java/copilot-native/target/win32-x64-${{ needs.prepare-release.outputs.release_version }}.sha256
+          if-no-files-found: error
+          retention-days: 1
+
+  deploy-maven:
+    name: Deploy Java release to Maven Central
+    needs: [prepare-release, build-windows-classifier]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./java
+    outputs:
+      version: ${{ needs.prepare-release.outputs.release_version }}
+      published: ${{ steps.publish-maven.outcome == 'success' }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ needs.prepare-release.outputs.release_tag }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-copilot
+
+      - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5
         with:
           java-version: "25"
           distribution: "microsoft"
@@ -120,116 +274,203 @@ jobs:
           gpg-private-key: ${{ secrets.JAVA_GPG_SECRET_KEY }}
           gpg-passphrase: JAVA_GPG_PASSPHRASE
 
-      - name: Determine versions
-        id: versions
-        working-directory: ./java
-        run: |
-          CURRENT_VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
-          echo "Current pom.xml version: $CURRENT_VERSION"
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 22
 
-          # Determine release version
-          if [ -n "${{ inputs.releaseVersion }}" ]; then
-            RELEASE_VERSION="${{ inputs.releaseVersion }}"
-          else
-            # Remove -SNAPSHOT suffix if present
-            RELEASE_VERSION="${CURRENT_VERSION%-SNAPSHOT}"
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: java-native-win32-x64-release-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/java-native-win32-x64
+
+      - name: Verify immutable source and Windows classifier
+        id: windows-artifact
+        run: |
+          SOURCE_COMMIT=$(git rev-parse HEAD)
+          if [ "$SOURCE_COMMIT" != "${{ needs.prepare-release.outputs.tag_commit }}" ]; then
+            echo "::error::Checked out $SOURCE_COMMIT instead of the prepared tag commit."
+            exit 1
           fi
-          echo "Release version: $RELEASE_VERSION"
+          VERSION="${{ needs.prepare-release.outputs.release_version }}"
+          ARTIFACT_DIRECTORY="${{ runner.temp }}/java-native-win32-x64"
+          JAR="$ARTIFACT_DIRECTORY/copilot-sdk-java-runtime-$VERSION-win32-x64.jar"
+          MANIFEST="$ARTIFACT_DIRECTORY/win32-x64-$VERSION.sha256"
+          test -f "$JAR"
+          test -f "$MANIFEST"
+          node "$GITHUB_WORKSPACE/java/copilot-native/scripts/validate-native-artifact.mjs" \
+            checksum "$JAR" "$MANIFEST" "$(basename "$JAR")"
+          node "$GITHUB_WORKSPACE/java/copilot-native/scripts/validate-native-artifact.mjs" \
+            classifier win32-x64 "$JAR" "$(basename "$JAR")" "$GITHUB_WORKSPACE"
+          echo "windows_jar=$JAR" >> "$GITHUB_OUTPUT"
+          echo "windows_sha=$(cut -d ' ' -f 1 "$MANIFEST")" >> "$GITHUB_OUTPUT"
 
-          # Determine next development version
-          if [ -n "${{ inputs.developmentVersion }}" ]; then
-            DEV_VERSION="${{ inputs.developmentVersion }}"
-            if [[ "$DEV_VERSION" != *-SNAPSHOT ]]; then
-              echo "::error::developmentVersion '${DEV_VERSION}' must end with '-SNAPSHOT' (e.g., '${DEV_VERSION}-SNAPSHOT'). The maven-release-plugin requires the next development version to be a snapshot."
-              exit 1
-            fi
-          else
-            # Split version: supports "0.1.32", "0.1.32-preview.0", "0.1.32-java.0", and "0.1.32-java-preview.0" formats
-            # Validate RELEASE_VERSION format explicitly to provide clear errors
-            if ! echo "$RELEASE_VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-(preview|(beta-)?java(-preview)?)\.[0-9]+)?$'; then
-              echo "Error: RELEASE_VERSION '$RELEASE_VERSION' is invalid. Expected format: M.M.P, M.M.P-preview.N, M.M.P-java.N, M.M.P-java-preview.N, M.M.P-beta-java.N, or M.M.P-beta-java-preview.N (e.g., 1.2.3, 1.2.3-preview.0, 1.2.3-java.0, 1.2.3-java-preview.0, 1.2.3-beta-java.0, or 1.2.3-beta-java-preview.0)." >&2
-              exit 1
-            fi
-            # Extract the base M.M.P portion (before any qualifier)
-            BASE_VERSION=$(echo "$RELEASE_VERSION" | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+')
-            QUALIFIER=$(echo "$RELEASE_VERSION" | sed "s|^${BASE_VERSION}||")
-            IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE_VERSION"
-            NEXT_PATCH=$((PATCH + 1))
-            DEV_VERSION="${MAJOR}.${MINOR}.${NEXT_PATCH}${QUALIFIER}-SNAPSHOT"
-          fi
-          echo "Next development version: $DEV_VERSION"
-
-          echo "release_version=$RELEASE_VERSION" >> $GITHUB_OUTPUT
-          echo "dev_version=$DEV_VERSION" >> $GITHUB_OUTPUT
-
-          echo "### Version Summary" >> $GITHUB_STEP_SUMMARY
-          echo "- **Release version:** $RELEASE_VERSION" >> $GITHUB_STEP_SUMMARY
-          echo "- **Next development version:** $DEV_VERSION" >> $GITHUB_STEP_SUMMARY
-
-      - name: Update documentation with release version
-        id: update-docs
-        working-directory: ./java
-        run: |
-          VERSION="${{ steps.versions.outputs.release_version }}"
-          DEV_VERSION="${{ steps.versions.outputs.dev_version }}"
-          ./scripts/test-update-documentation-versions.sh
-          ./scripts/update-documentation-versions.sh "$VERSION" "$DEV_VERSION" README.md sdk/jbang-example.java
-
-          # Commit the documentation changes before release:prepare (requires clean working directory)
-          git add README.md sdk/jbang-example.java
-          git commit -m "docs: update version references to ${VERSION}"
-
-          # Save the commit SHA for potential rollback
-          echo "docs_commit_sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
-
-          git push origin main
-
-      - name: Prepare Release
-        working-directory: ./java
-        run: |
-          mvn -B release:prepare \
-            -DreleaseVersion=${{ steps.versions.outputs.release_version }} \
-            -DdevelopmentVersion=${{ steps.versions.outputs.dev_version }} \
-            -DtagNameFormat=java/v@{project.version} \
-            -DpushChanges=true \
-            -Darguments="-DskipTests"
-        env:
-          MAVEN_USERNAME: ${{ secrets.JAVA_MAVEN_CENTRAL_USERNAME }}
-          MAVEN_PASSWORD: ${{ secrets.JAVA_MAVEN_CENTRAL_PASSWORD }}
-          JAVA_GPG_PASSPHRASE: ${{ secrets.JAVA_GPG_PASSPHRASE }}
-
-      - name: Perform Release and Deploy to Maven Central
+      - name: Build Linux classifier and deploy complete release
         id: publish-maven
-        working-directory: ./java
         run: |
-          mvn -B release:perform \
-            -Dgoals="deploy" \
-            -Darguments="-DskipTests -Prelease"
+          VERSION="${{ needs.prepare-release.outputs.release_version }}"
+          mvn -B deploy -DskipTests -Prelease -Dcopilot.native.libc=glibc \
+            "-Dcopilot.native.external.win32.classifier.path=${{ steps.windows-artifact.outputs.windows_jar }}"
+          LINUX_JAR="copilot-native/target/copilot-sdk-java-runtime-$VERSION-linux-x64.jar"
+          test -f "$LINUX_JAR"
+          node copilot-native/scripts/validate-native-artifact.mjs \
+            classifier linux-x64 "$LINUX_JAR" "$(basename "$LINUX_JAR")" ..
+          LINUX_SHA=$(sha256sum "$LINUX_JAR" | cut -d ' ' -f 1)
+          {
+            echo "### Maven Central Release"
+            echo "- **Version:** $VERSION"
+            echo "- **Source tag:** \`${{ needs.prepare-release.outputs.release_tag }}\`"
+            echo "- **Source commit:** \`${{ needs.prepare-release.outputs.tag_commit }}\`"
+            echo "- **Next development version:** ${{ needs.prepare-release.outputs.development_version }}"
+            echo "- **Repository:** Maven Central"
+            echo ""
+            echo "#### Published Native Classifiers"
+            echo ""
+            echo "| Classifier | Build runner | Artifact | SHA-256 | Status |"
+            echo "| --- | --- | --- | --- | --- |"
+            echo "| \`linux-x64\` | \`ubuntu-latest\` | \`$(basename "$LINUX_JAR")\` | \`$LINUX_SHA\` | Published |"
+            echo "| \`win32-x64\` | \`windows-latest\` | \`$(basename "${{ steps.windows-artifact.outputs.windows_jar }}")\` | \`${{ steps.windows-artifact.outputs.windows_sha }}\` | Published |"
+          } >> "$GITHUB_STEP_SUMMARY"
         env:
           MAVEN_USERNAME: ${{ secrets.JAVA_MAVEN_CENTRAL_USERNAME }}
           MAVEN_PASSWORD: ${{ secrets.JAVA_MAVEN_CENTRAL_PASSWORD }}
           JAVA_GPG_PASSPHRASE: ${{ secrets.JAVA_GPG_PASSPHRASE }}
 
-      - name: Rollback documentation commit on failure
-        if: failure() && steps.update-docs.outputs.docs_commit_sha != ''
+  rollback-release:
+    name: Roll back failed Java release preparation
+    needs: [prepare-release, build-windows-classifier, deploy-maven]
+    if: ${{ failure() && needs.prepare-release.outputs.docs_commit != '' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    defaults:
+      run:
+        shell: bash
         working-directory: ./java
-        run: |
-          echo "Release failed, rolling back documentation commit..."
-          git revert --no-edit ${{ steps.update-docs.outputs.docs_commit_sha }}
-          git push origin main
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.JAVA_RELEASE_TOKEN }}
 
-          # Also run Maven release:rollback to clean up any partial release state
-          mvn -B release:rollback || true
+      - name: Safely revert release commits and tag
+        env:
+          DOCS_COMMIT: ${{ needs.prepare-release.outputs.docs_commit }}
+          PREPARE_RESULT: ${{ needs.prepare-release.result }}
+          PRE_PREPARE_COMMIT: ${{ needs.prepare-release.outputs.pre_prepare_commit }}
+          POST_PREPARE_COMMIT: ${{ needs.prepare-release.outputs.post_prepare_commit }}
+          RELEASE_TAG: java/v${{ needs.prepare-release.outputs.release_version }}
+          TAG_COMMIT: ${{ needs.prepare-release.outputs.tag_commit }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin main --tags
+          MAIN_COMMIT=$(git rev-parse origin/main)
+          echo "Rollback inspection: main=$MAIN_COMMIT docs=$DOCS_COMMIT pre=$PRE_PREPARE_COMMIT post=$POST_PREPARE_COMMIT tag=$RELEASE_TAG"
+
+          unsafe_rollback() {
+            echo "::error::Unsafe rollback state: $*" >&2
+            exit 1
+          }
+
+          if ! git cat-file -e "${PRE_PREPARE_COMMIT}^{commit}"; then
+            unsafe_rollback "Recorded pre-prepare commit does not exist: $PRE_PREPARE_COMMIT"
+          fi
+          if ! git cat-file -e "${DOCS_COMMIT}^{commit}"; then
+            unsafe_rollback "Recorded documentation commit does not exist: $DOCS_COMMIT"
+          fi
+          if ! git merge-base --is-ancestor "$PRE_PREPARE_COMMIT" "$MAIN_COMMIT"; then
+            unsafe_rollback "Recorded pre-prepare commit is not an ancestor of main."
+          fi
+          if [ "$(git rev-parse "${DOCS_COMMIT}^")" != "$PRE_PREPARE_COMMIT" ]; then
+            unsafe_rollback "Documentation commit is not immediately based on the recorded pre-prepare commit."
+          fi
+
+          mapfile -t ROLLBACK_COMMITS < <(git rev-list --reverse "$PRE_PREPARE_COMMIT..$MAIN_COMMIT")
+          FIRST_PARENT_COUNT=$(git rev-list --count --first-parent "$PRE_PREPARE_COMMIT..$MAIN_COMMIT")
+          if [ "${#ROLLBACK_COMMITS[@]}" -ne "$FIRST_PARENT_COUNT" ]; then
+            unsafe_rollback "Release range contains merged history."
+          fi
+          if [ "${#ROLLBACK_COMMITS[@]}" -lt 1 ] || [ "${#ROLLBACK_COMMITS[@]}" -gt 3 ]; then
+            unsafe_rollback "Expected one to three release-preparation commits after the recorded base; found ${#ROLLBACK_COMMITS[@]}."
+          fi
+          if [ "${ROLLBACK_COMMITS[0]}" != "$DOCS_COMMIT" ]; then
+            unsafe_rollback "The first commit after the recorded base is not the recorded documentation commit."
+          fi
+
+          EXPECTED_PARENT="$PRE_PREPARE_COMMIT"
+          for COMMIT in "${ROLLBACK_COMMITS[@]}"; do
+            if git rev-parse -q --verify "${COMMIT}^2" >/dev/null; then
+              unsafe_rollback "Release range contains merge commit $COMMIT."
+            fi
+            if [ "$(git rev-parse "${COMMIT}^")" != "$EXPECTED_PARENT" ]; then
+              unsafe_rollback "Release range is not a linear continuation of the recorded base."
+            fi
+            EXPECTED_PARENT="$COMMIT"
+          done
+
+          RELEASE_VERSION="${RELEASE_TAG#java/v}"
+          if [ "$(git log -1 --format=%s "$DOCS_COMMIT")" != "docs: update version references to $RELEASE_VERSION" ]; then
+            unsafe_rollback "Recorded documentation commit has an unexpected subject."
+          fi
+
+          RELEASE_PREPARE_COMMIT=""
+          if [ "${#ROLLBACK_COMMITS[@]}" -ge 2 ]; then
+            RELEASE_PREPARE_COMMIT="${ROLLBACK_COMMITS[1]}"
+            if [ "$(git log -1 --format=%s "$RELEASE_PREPARE_COMMIT")" != "[maven-release-plugin] prepare release $RELEASE_TAG" ]; then
+              unsafe_rollback "Release-version commit has an unexpected subject."
+            fi
+          fi
+          if [ "${#ROLLBACK_COMMITS[@]}" -eq 3 ] && [ "$(git log -1 --format=%s "${ROLLBACK_COMMITS[2]}")" != "[maven-release-plugin] prepare for next development iteration" ]; then
+            unsafe_rollback "Development-version commit has an unexpected subject."
+          fi
+
+          TAG_OBJECT=$(git ls-remote --refs origin "refs/tags/$RELEASE_TAG" | awk '{print $1}')
+          if [ -n "$TAG_OBJECT" ]; then
+            git fetch --no-tags origin "+refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
+            REMOTE_TAG_COMMIT=$(git rev-parse "${RELEASE_TAG}^{commit}")
+            if [ -z "$RELEASE_PREPARE_COMMIT" ] || [ "$REMOTE_TAG_COMMIT" != "$RELEASE_PREPARE_COMMIT" ]; then
+              unsafe_rollback "Release tag does not point to the guarded release-version commit."
+            fi
+          elif [ -n "$TAG_COMMIT" ]; then
+            unsafe_rollback "Recorded release tag is absent from the remote."
+          fi
+
+          if [ "$PREPARE_RESULT" = "success" ]; then
+            if [ -z "$POST_PREPARE_COMMIT" ] || [ -z "$TAG_COMMIT" ]; then
+              unsafe_rollback "Successful preparation did not record its immutable release identity."
+            fi
+            if [ "$MAIN_COMMIT" != "$POST_PREPARE_COMMIT" ]; then
+              unsafe_rollback "main has advanced beyond the recorded post-prepare commit."
+            fi
+            if [ -z "$TAG_OBJECT" ] || [ "$REMOTE_TAG_COMMIT" != "$TAG_COMMIT" ]; then
+              unsafe_rollback "Remote release tag does not match the recorded tag commit."
+            fi
+          fi
+
+          git checkout -B release-rollback "$MAIN_COMMIT"
+          git revert --no-edit "$PRE_PREPARE_COMMIT..$MAIN_COMMIT"
+          if [ -n "$TAG_OBJECT" ]; then
+            git push --atomic \
+              "--force-with-lease=refs/heads/main:$MAIN_COMMIT" \
+              "--force-with-lease=refs/tags/$RELEASE_TAG:$TAG_OBJECT" \
+              origin HEAD:refs/heads/main ":refs/tags/$RELEASE_TAG"
+          else
+            git push \
+              "--force-with-lease=refs/heads/main:$MAIN_COMMIT" \
+              origin HEAD:refs/heads/main
+          fi
+          echo "Release preparation rollback completed after guarded history inspection."
 
   deploy-site:
     name: Deploy Documentation Site
-    needs: [preflight, publish-maven]
-    if: github.ref == 'refs/heads/main'
+    needs: [preflight, deploy-maven]
+    if: github.ref == 'refs/heads/main' && needs.deploy-maven.outputs.published == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Trigger site deployment on standalone repo
         run: |
-          VERSION="${{ needs.publish-maven.outputs.version }}"
+          VERSION="${{ needs.deploy-maven.outputs.version }}"
           TAG="java/v${VERSION}"
           PUBLISH_AS_LATEST=true
           if [ "${{ inputs.prerelease }}" = "true" ]; then
@@ -241,7 +482,9 @@ jobs:
             -f version="${VERSION}" \
             -f publish_as_latest="${PUBLISH_AS_LATEST}" \
             -f monorepo_tag="${TAG}"
-          echo "### Site Deployment" >> $GITHUB_STEP_SUMMARY
-          echo "Triggered deploy-site.yml on github/copilot-sdk-java for version ${VERSION}" >> $GITHUB_STEP_SUMMARY
+          {
+            echo "### Site Deployment"
+            echo "Triggered deploy-site.yml on github/copilot-sdk-java for version ${VERSION}"
+          } >> "$GITHUB_STEP_SUMMARY"
         env:
           GITHUB_TOKEN: ${{ secrets.JAVA_RELEASE_GITHUB_TOKEN }}

@@ -106,13 +106,17 @@ class RewindIT {
         SessionHistoryListRewindPointsResult result;
         do {
             result = session.getRpc().history.listRewindPoints().get(10, TimeUnit.SECONDS);
-            if (result.unavailableReason() == null) {
+            if (result.unavailableReason() == null && !result.points().isEmpty()
+                    && Boolean.TRUE.equals(result.points().get(0).canRestoreFiles())) {
                 return result;
             }
             TimeUnit.MILLISECONDS.sleep(100);
         } while (System.nanoTime() < deadline);
 
         assertNull(result.unavailableReason(), "Timed out waiting for rewind points to become available");
+        assertFalse(result.points().isEmpty(), "Timed out waiting for a rewind point");
+        assertTrue(Boolean.TRUE.equals(result.points().get(0).canRestoreFiles()),
+                "Timed out waiting for rewind file restoration to become available");
         return result;
     }
 

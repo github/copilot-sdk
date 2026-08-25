@@ -16,8 +16,86 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  publish-snapshot:
+  resolve-source:
+    name: Resolve immutable snapshot source
+    runs-on: ubuntu-latest
+    outputs:
+      source_sha: ${{ steps.source.outputs.sha }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - id: source
+        shell: bash
+        run: |
+          SHA=$(git rev-parse HEAD)
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+
+  build-windows-classifier:
+    name: Build Windows snapshot classifier
+    needs: resolve-source
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        shell: pwsh
+        working-directory: ./java
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5
+        with:
+          java-version: "25"
+          distribution: "microsoft"
+          cache: "maven"
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 22
+
+      - name: Build and validate win32-x64 classifier
+        id: build
+        run: |
+          $sourceCommit = git rev-parse HEAD
+          if ($sourceCommit -ne '${{ needs.resolve-source.outputs.source_sha }}') {
+            throw "Checked out $sourceCommit instead of the resolved snapshot source."
+          }
+          node copilot-native/scripts/validate-native-host.mjs win32-x64
+          mvn -B -pl copilot-native package -DskipTests
+          $version = mvn help:evaluate "-Dexpression=project.version" -q "-DforceStdout"
+          $jar = "copilot-native/target/copilot-sdk-java-runtime-$version-win32-x64.jar"
+          $primaryJar = "copilot-native/target/copilot-sdk-java-runtime-$version.jar"
+          if (-not (Test-Path -LiteralPath $jar -PathType Leaf)) {
+            throw "Expected Windows classifier was not produced: $jar"
+          }
+          node copilot-native/scripts/validate-native-artifact.mjs classifier win32-x64 $jar ([IO.Path]::GetFileName($jar)) ..
+          node copilot-native/scripts/validate-native-artifact.mjs placeholder $primaryJar
+          $manifest = "copilot-native/target/win32-x64-$version.sha256"
+          $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $jar).Hash.ToLowerInvariant()
+          "$hash  $([IO.Path]::GetFileName($jar))" | Set-Content -NoNewline -Encoding ascii $manifest
+          node copilot-native/scripts/validate-native-artifact.mjs checksum $jar $manifest ([IO.Path]::GetFileName($jar))
+          "version=$version" | Add-Content $env:GITHUB_OUTPUT
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: java-native-win32-x64-snapshot-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            java/copilot-native/target/copilot-sdk-java-runtime-${{ steps.build.outputs.version }}-win32-x64.jar
+            java/copilot-native/target/win32-x64-${{ steps.build.outputs.version }}.sha256
+          if-no-files-found: error
+          retention-days: 1
+
+  deploy-snapshot:
     name: Publish SNAPSHOT to Maven Central
+    needs: [resolve-source, build-windows-classifier]
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -26,12 +104,13 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          fetch-depth: 0
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
 
       - uses: ./.github/actions/setup-copilot
 
-      - name: Set up JDK 25
-        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5
+      - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5
         with:
           java-version: "25"
           distribution: "microsoft"
@@ -40,22 +119,64 @@ jobs:
           server-username: MAVEN_USERNAME
           server-password: MAVEN_PASSWORD
 
-      - name: Verify version is a SNAPSHOT
-        working-directory: ./java
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 22
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: java-native-win32-x64-snapshot-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/java-native-win32-x64
+
+      - name: Verify version, source, and Windows classifier
+        id: windows-artifact
         run: |
-          VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
-          echo "Publishing version: $VERSION"
-          if [[ "$VERSION" != *"-SNAPSHOT" ]]; then
-            echo "ERROR: This workflow only publishes SNAPSHOT versions. Current version: $VERSION"
+          SOURCE_COMMIT=$(git rev-parse HEAD)
+          if [ "$SOURCE_COMMIT" != "${{ needs.resolve-source.outputs.source_sha }}" ]; then
+            echo "::error::Checked out $SOURCE_COMMIT instead of the resolved snapshot source."
             exit 1
           fi
-          echo "### Snapshot Publish" >> $GITHUB_STEP_SUMMARY
-          echo "- **Version:** $VERSION" >> $GITHUB_STEP_SUMMARY
-          echo "- **Repository:** Maven Central Snapshots" >> $GITHUB_STEP_SUMMARY
+          VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+          if [[ "$VERSION" != *"-SNAPSHOT" ]]; then
+            echo "::error::This workflow only publishes SNAPSHOT versions. Current version: $VERSION"
+            exit 1
+          fi
+          ARTIFACT_DIRECTORY="${{ runner.temp }}/java-native-win32-x64"
+          JAR="$ARTIFACT_DIRECTORY/copilot-sdk-java-runtime-$VERSION-win32-x64.jar"
+          MANIFEST="$ARTIFACT_DIRECTORY/win32-x64-$VERSION.sha256"
+          test -f "$JAR"
+          test -f "$MANIFEST"
+          node "$GITHUB_WORKSPACE/java/copilot-native/scripts/validate-native-artifact.mjs" \
+            checksum "$JAR" "$MANIFEST" "$(basename "$JAR")"
+          node "$GITHUB_WORKSPACE/java/copilot-native/scripts/validate-native-artifact.mjs" \
+            classifier win32-x64 "$JAR" "$(basename "$JAR")" "$GITHUB_WORKSPACE"
+          echo "windows_jar=$JAR" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "windows_sha=$(cut -d ' ' -f 1 "$MANIFEST")" >> "$GITHUB_OUTPUT"
 
-      - name: Deploy Snapshot
-        working-directory: ./java
-        run: mvn -B deploy -DskipTests
+      - name: Build Linux classifier and deploy complete snapshot
+        run: |
+          VERSION="${{ steps.windows-artifact.outputs.version }}"
+          mvn -B deploy -DskipTests -Dcopilot.native.libc=glibc \
+            "-Dcopilot.native.external.win32.classifier.path=${{ steps.windows-artifact.outputs.windows_jar }}"
+          LINUX_JAR="copilot-native/target/copilot-sdk-java-runtime-$VERSION-linux-x64.jar"
+          test -f "$LINUX_JAR"
+          node copilot-native/scripts/validate-native-artifact.mjs \
+            classifier linux-x64 "$LINUX_JAR" "$(basename "$LINUX_JAR")" ..
+          LINUX_SHA=$(sha256sum "$LINUX_JAR" | cut -d ' ' -f 1)
+          {
+            echo "### Snapshot Publish"
+            echo "- **Version:** $VERSION"
+            echo "- **Source commit:** \`${{ needs.resolve-source.outputs.source_sha }}\`"
+            echo "- **Repository:** Maven Central Snapshots"
+            echo ""
+            echo "#### Published Native Classifiers"
+            echo ""
+            echo "| Classifier | Build runner | Artifact | SHA-256 | Status |"
+            echo "| --- | --- | --- | --- | --- |"
+            echo "| \`linux-x64\` | \`ubuntu-latest\` | \`$(basename "$LINUX_JAR")\` | \`$LINUX_SHA\` | Published |"
+            echo "| \`win32-x64\` | \`windows-latest\` | \`$(basename "${{ steps.windows-artifact.outputs.windows_jar }}")\` | \`${{ steps.windows-artifact.outputs.windows_sha }}\` | Published |"
+          } >> "$GITHUB_STEP_SUMMARY"
         env:
           MAVEN_USERNAME: ${{ secrets.JAVA_MAVEN_CENTRAL_USERNAME }}
           MAVEN_PASSWORD: ${{ secrets.JAVA_MAVEN_CENTRAL_PASSWORD }}
