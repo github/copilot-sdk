@@ -539,6 +539,26 @@ class NativeRuntimeLoaderTest {
     }
 
     @Test
+    void resolveRuntimeWrapperExtractsRetainedRuntimeAssets(@TempDir Path tempDir) throws Exception {
+        Path resourceDir = tempDir.resolve("native").resolve(TEST_CLASSIFIER);
+        writeRuntimeResource(tempDir, TEST_CLASSIFIER, FAKE_BINARY_CONTENT);
+        Files.write(resourceDir.resolve(NativeRuntimeLoader.RUNTIME_WRAPPER_FILENAME), FAKE_WRAPPER_CONTENT);
+        Path ripgrep = resourceDir.resolve("ripgrep/bin/linux-x64/rg");
+        Files.createDirectories(ripgrep.getParent());
+        Files.writeString(ripgrep, "ripgrep");
+        Files.writeString(resourceDir.resolve(NativeRuntimeLoader.RUNTIME_ASSETS_FILENAME),
+                "644\truntime.node\n" + "755\tcopilot-runtime\n" + "755\tripgrep/bin/linux-x64/rg\n");
+        ClassLoader loader = new URLClassLoader(new URL[]{tempDir.toUri().toURL()}, null);
+
+        Path wrapper = NativeRuntimeLoader.resolveRuntimeWrapper(tempDir.resolve("cache"), loader, TEST_CLASSIFIER,
+                TEST_VERSION);
+
+        Path installedRipgrep = wrapper.getParent().resolve("ripgrep/bin/linux-x64/rg");
+        assertEquals("ripgrep", Files.readString(installedRipgrep));
+        assertTrue(Files.isExecutable(installedRipgrep));
+    }
+
+    @Test
     void resolveRuntimeWrapperRejectsClassifierWithoutWrapper(@TempDir Path tempDir) throws Exception {
         writeRuntimeResource(tempDir, TEST_CLASSIFIER, FAKE_BINARY_CONTENT);
         ClassLoader loader = new URLClassLoader(new URL[]{tempDir.toUri().toURL()}, null);

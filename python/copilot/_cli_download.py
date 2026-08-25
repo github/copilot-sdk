@@ -27,7 +27,7 @@ import tarfile
 import tempfile
 import time
 import zipfile
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from urllib.error import HTTPError, URLError
 from urllib.request import urlopen
 
@@ -387,8 +387,72 @@ def _extract_runtime_wrapper(data: bytes, npm_platform: str) -> bytes:
         raise RuntimeError(f"'{target}' not found in runtime package for {npm_platform}.")
 
 
+_HOSTLESS_EXCLUDED_TOP_LEVEL = {
+    "app.js",
+    "assets",
+    "changelog.json",
+    "copilot-sdk",
+    "foundry-local-sdk",
+    "index.js",
+    "napi-oop-runtime",
+    "npm-loader.js",
+    "package.json",
+    "preloads",
+    "pvrecorder",
+    "queries",
+    "sdk",
+    "sea-loader.js",
+    "webview",
+}
+
+
+def _hostless_runtime_path(member_name: str, npm_platform: str) -> Path | None:
+    parts = PurePosixPath(member_name).parts
+    if not parts or parts[0] != "package" or len(parts) < 2:
+        return None
+    relative = parts[1:]
+    top_level = relative[0]
+    file_name = relative[-1]
+    if (
+        top_level in _HOSTLESS_EXCLUDED_TOP_LEVEL
+        or (top_level.startswith("tree-sitter") and top_level.endswith(".wasm"))
+        or (top_level.startswith("voice-") and top_level.endswith(".js"))
+        or file_name == "cli-native.node"
+        or "mediaremote-adapter" in relative
+        or file_name.startswith("copilot-runtime-bin")
+    ):
+        return None
+    if top_level == "prebuilds":
+        if len(relative) < 3 or relative[1] != npm_platform:
+            return None
+        relative = relative[2:]
+    destination = Path(*relative)
+    if destination.is_absolute() or ".." in destination.parts:
+        raise RuntimeError(f"Unsafe runtime package path: {member_name}")
+    return destination
+
+
+def _extract_runtime_bundle(data: bytes, npm_platform: str, destination: Path) -> None:
+    """Extract the hostless runtime tree, retaining unknown package assets by default."""
+    with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as archive:
+        for member in archive:
+            relative = _hostless_runtime_path(member.name, npm_platform)
+            if relative is None or member.isdir():
+                continue
+            if not member.isfile():
+                raise RuntimeError(f"Unsupported runtime package entry: {member.name}")
+            extracted = archive.extractfile(member)
+            if extracted is None:
+                raise RuntimeError(f"Failed to read runtime package entry: {member.name}")
+            target = destination / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(extracted.read())
+            if sys.platform != "win32":
+                target.chmod(member.mode & 0o777)
+
+
 def ensure_runtime_wrapper(version: str | None = None, force: bool = False) -> str:
-    """Provision the adjacent ``copilot-runtime`` and ``runtime.node`` pair."""
+    """Provision the runtime pair and its retained npm package assets."""
     ver = version or CLI_VERSION
     if not ver:
         raise RuntimeError("No runtime version is pinned.")
@@ -397,12 +461,13 @@ def ensure_runtime_wrapper(version: str | None = None, force: bool = False) -> s
     pair_dir = get_cache_dir(ver) / "prebuilds" / npm_platform
     wrapper_path = pair_dir / wrapper_name
     runtime_path = pair_dir / "runtime.node"
+    assets_marker = pair_dir / ".hostless-runtime-assets-v1"
 
     wrapper_exists = wrapper_path.is_file() and wrapper_path.stat().st_size > 0
     runtime_exists = runtime_path.is_file() and runtime_path.stat().st_size > 0
-    if wrapper_exists and runtime_exists and not force:
+    if wrapper_exists and runtime_exists and assets_marker.is_file() and not force:
         return str(wrapper_path)
-    if not force and (wrapper_path.exists() or runtime_path.exists()):
+    if not force and wrapper_exists != runtime_exists:
         raise RuntimeError(
             f"Incomplete Copilot runtime bundle in {pair_dir}: "
             f"{wrapper_name} and runtime.node are required."
@@ -421,27 +486,29 @@ def ensure_runtime_wrapper(version: str | None = None, force: bool = False) -> s
             f"package ({npm_platform}@{ver}); refusing to stage unverified native code."
         )
     _verify_integrity(data, integrity)
-    wrapper_bytes = _extract_runtime_wrapper(data, npm_platform)
-    runtime_bytes = _extract_runtime_node(data, npm_platform)
-    if not wrapper_bytes or not runtime_bytes:
-        raise RuntimeError("Copilot runtime wrapper and runtime.node must both be non-empty.")
-
     import shutil
 
     pair_dir.parent.mkdir(parents=True, exist_ok=True)
-    staging_dir = Path(tempfile.mkdtemp(dir=pair_dir.parent, prefix=".runtime-pair-"))
+    staging_dir = Path(tempfile.mkdtemp(dir=pair_dir.parent, prefix=".runtime-bundle-"))
     try:
+        _extract_runtime_bundle(data, npm_platform, staging_dir)
         staged_wrapper = staging_dir / wrapper_name
         staged_runtime = staging_dir / "runtime.node"
-        staged_wrapper.write_bytes(wrapper_bytes)
-        staged_runtime.write_bytes(runtime_bytes)
+        if (
+            not staged_wrapper.is_file()
+            or staged_wrapper.stat().st_size == 0
+            or not staged_runtime.is_file()
+            or staged_runtime.stat().st_size == 0
+        ):
+            raise RuntimeError("Copilot runtime wrapper and runtime.node must both be non-empty.")
         if sys.platform != "win32":
             staged_wrapper.chmod(
                 staged_wrapper.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH
             )
+        (staging_dir / assets_marker.name).write_text("1\n", encoding="ascii")
         try:
-            if force and pair_dir.exists():
-                shutil.rmtree(pair_dir)
+            if pair_dir.exists() and (force or not assets_marker.is_file()):
+                shutil.rmtree(pair_dir, ignore_errors=True)
             staging_dir.replace(pair_dir)
         except OSError:
             if (
@@ -449,6 +516,7 @@ def ensure_runtime_wrapper(version: str | None = None, force: bool = False) -> s
                 and wrapper_path.stat().st_size > 0
                 and runtime_path.is_file()
                 and runtime_path.stat().st_size > 0
+                and assets_marker.is_file()
             ):
                 return str(wrapper_path)
             raise

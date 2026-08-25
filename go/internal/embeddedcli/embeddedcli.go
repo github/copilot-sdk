@@ -1,7 +1,9 @@
 package embeddedcli
 
 import (
+	"archive/tar"
 	"bytes"
+	"compress/gzip"
 	"crypto/sha256"
 	"fmt"
 	"io"
@@ -24,8 +26,9 @@ import (
 // when provided, is written next to the installed binary.
 //
 // RuntimeExecutable and RuntimeNode form the adjacent out-of-process runtime
-// pair. RuntimeLib is the same cdylib bytes installed under the natural platform
-// name for the optional in-process transport.
+// pair. RuntimeAssets is a filtered npm package archive containing auxiliary
+// binaries and resources. RuntimeLib is the same cdylib bytes installed under
+// the natural platform name for the optional in-process transport.
 type Config struct {
 	Cli     io.Reader
 	CliHash []byte
@@ -39,6 +42,8 @@ type Config struct {
 	RuntimeExecutableHash []byte
 	RuntimeNode           io.Reader
 	RuntimeNodeHash       []byte
+	RuntimeAssets         io.Reader
+	RuntimeAssetsHash     []byte
 
 	// LinuxMuslCli and LinuxMuslRuntimeLib are optional alternatives selected
 	// automatically when the application runs on a musl-based Linux system.
@@ -50,6 +55,8 @@ type Config struct {
 	LinuxMuslRuntimeExecutableHash []byte
 	LinuxMuslRuntimeNode           io.Reader
 	LinuxMuslRuntimeNodeHash       []byte
+	LinuxMuslRuntimeAssets         io.Reader
+	LinuxMuslRuntimeAssetsHash     []byte
 
 	Dir     string
 	Version string
@@ -70,6 +77,8 @@ func Setup(cfg Config) {
 	}
 	validateRuntimePairConfig(cfg.RuntimeExecutable, cfg.RuntimeExecutableHash, cfg.RuntimeNode, cfg.RuntimeNodeHash, "")
 	validateRuntimePairConfig(cfg.LinuxMuslRuntimeExecutable, cfg.LinuxMuslRuntimeExecutableHash, cfg.LinuxMuslRuntimeNode, cfg.LinuxMuslRuntimeNodeHash, "LinuxMusl")
+	validateOptionalHash(cfg.RuntimeAssets, cfg.RuntimeAssetsHash, "RuntimeAssetsHash")
+	validateOptionalHash(cfg.LinuxMuslRuntimeAssets, cfg.LinuxMuslRuntimeAssetsHash, "LinuxMuslRuntimeAssetsHash")
 	setupMu.Lock()
 	defer setupMu.Unlock()
 	if setupDone {
@@ -123,13 +132,14 @@ func RuntimePath() string {
 }
 
 var (
-	config          Config
-	setupMu         sync.Mutex
-	setupDone       bool
-	pathInitialized bool
-	runtimeLibPath  string
-	runtimePath     string
-	linuxMuslBundle bool
+	config                 Config
+	setupMu                sync.Mutex
+	setupDone              bool
+	pathInitialized        bool
+	runtimeLibPath         string
+	runtimePath            string
+	runtimeAssetsInstalled bool
+	linuxMuslBundle        bool
 )
 
 func install() (path string) {
@@ -213,6 +223,8 @@ func linuxMuslConfig(cfg Config) Config {
 	cfg.RuntimeExecutableHash = cfg.LinuxMuslRuntimeExecutableHash
 	cfg.RuntimeNode = cfg.LinuxMuslRuntimeNode
 	cfg.RuntimeNodeHash = cfg.LinuxMuslRuntimeNodeHash
+	cfg.RuntimeAssets = cfg.LinuxMuslRuntimeAssets
+	cfg.RuntimeAssetsHash = cfg.LinuxMuslRuntimeAssetsHash
 	return cfg
 }
 
@@ -259,6 +271,9 @@ func installAt(installDir string) (string, error) {
 			}
 			runtimeLibPath = libPath
 		}
+		if err := installRuntimeAssets(installDir); err != nil {
+			return "", err
+		}
 		return finalPath, nil
 	}
 
@@ -290,6 +305,9 @@ func installAt(installDir string) (string, error) {
 		if err != nil {
 			return "", err
 		}
+		if err := installRuntimeAssets(installDir); err != nil {
+			return "", err
+		}
 		runtimeLibPath = libPath
 	}
 
@@ -311,7 +329,74 @@ func installRuntimeAt(installDir string) (string, error) {
 	if release, _ := flock.Acquire(filepath.Join(installDir, ".copilot-cli.lock")); release != nil {
 		defer release()
 	}
-	return installRuntimePair(installDir)
+	path, err := installRuntimePair(installDir)
+	if err != nil {
+		return "", err
+	}
+	if err := installRuntimeAssets(installDir); err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
+func validateOptionalHash(reader io.Reader, hash []byte, name string) {
+	if reader != nil && len(hash) != sha256.Size {
+		panic(fmt.Sprintf("%s must be a SHA-256 hash (%d bytes), got %d bytes", name, sha256.Size, len(hash)))
+	}
+}
+
+func installRuntimeAssets(installDir string) error {
+	if config.RuntimeAssets == nil || runtimeAssetsInstalled {
+		return nil
+	}
+	archiveBytes, err := io.ReadAll(config.RuntimeAssets)
+	if closer, ok := config.RuntimeAssets.(io.Closer); ok {
+		closer.Close()
+	}
+	if err != nil {
+		return fmt.Errorf("reading runtime assets: %w", err)
+	}
+	actual := sha256.Sum256(archiveBytes)
+	if !bytes.Equal(actual[:], config.RuntimeAssetsHash) {
+		return fmt.Errorf("runtime assets hash mismatch")
+	}
+	gzipReader, err := gzip.NewReader(bytes.NewReader(archiveBytes))
+	if err != nil {
+		return fmt.Errorf("opening runtime assets: %w", err)
+	}
+	defer gzipReader.Close()
+	tarReader := tar.NewReader(gzipReader)
+	for {
+		header, err := tarReader.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return fmt.Errorf("reading runtime assets: %w", err)
+		}
+		if header.Typeflag != tar.TypeReg {
+			continue
+		}
+		clean := filepath.Clean(filepath.FromSlash(header.Name))
+		if filepath.IsAbs(clean) || clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
+			return fmt.Errorf("unsafe runtime asset path %q", header.Name)
+		}
+		content, err := io.ReadAll(tarReader)
+		if err != nil {
+			return fmt.Errorf("reading runtime asset %q: %w", header.Name, err)
+		}
+		path := filepath.Join(installDir, clean)
+		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+			return fmt.Errorf("creating runtime asset directory: %w", err)
+		}
+		hash := sha256.Sum256(content)
+		mode := os.FileMode(header.Mode & 0777)
+		if err := installVerifiedFile(path, bytes.NewReader(content), hash[:], mode, "runtime asset"); err != nil {
+			return err
+		}
+	}
+	runtimeAssetsInstalled = true
+	return nil
 }
 
 func validateRuntimePairConfig(wrapper io.Reader, wrapperHash []byte, node io.Reader, nodeHash []byte, prefix string) {

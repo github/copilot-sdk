@@ -428,16 +428,10 @@ function getBundledCliPath(): string {
     return join(getBundledCliPackage().root, "index.js");
 }
 
-function getRuntimeWrapperName(): string {
-    return process.platform === "win32" ? "copilot-runtime.exe" : "copilot-runtime";
-}
-
 function getBundledRuntimePath(): string {
     const bundled = getBundledCliPackage();
-    const prebuilds = join(bundled.root, "prebuilds", bundled.platform);
     return materializeRuntimeBundle({
-        wrapper: join(prebuilds, getRuntimeWrapperName()),
-        runtimeNode: join(prebuilds, "runtime.node"),
+        packageRoot: bundled.root,
         platform: bundled.platform,
     });
 }

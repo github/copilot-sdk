@@ -1,7 +1,9 @@
 package embeddedcli
 
 import (
+	"archive/tar"
 	"bytes"
+	"compress/gzip"
 	"crypto/sha256"
 	"os"
 	"path/filepath"
@@ -18,7 +20,76 @@ func resetGlobals() {
 	pathInitialized = false
 	runtimeLibPath = ""
 	runtimePath = ""
+	runtimeAssetsInstalled = false
 	linuxMuslBundle = false
+}
+
+func TestInstallRuntimeWritesRetainedAssets(t *testing.T) {
+	resetGlobals()
+	tempDir := t.TempDir()
+	cli := []byte("cli")
+	wrapper := []byte("wrapper")
+	node := []byte("runtime")
+	assets := runtimeAssetsArchive(t, map[string]assetFixture{
+		"ripgrep/bin/test-platform/rg": {content: []byte("ripgrep"), mode: 0755},
+		"definitions/future.json":      {content: []byte("{}"), mode: 0644},
+	})
+	cliHash := sha256.Sum256(cli)
+	wrapperHash := sha256.Sum256(wrapper)
+	nodeHash := sha256.Sum256(node)
+	assetsHash := sha256.Sum256(assets)
+	Setup(Config{
+		Cli:                   bytes.NewReader(cli),
+		CliHash:               cliHash[:],
+		RuntimeExecutable:     bytes.NewReader(wrapper),
+		RuntimeExecutableHash: wrapperHash[:],
+		RuntimeNode:           bytes.NewReader(node),
+		RuntimeNodeHash:       nodeHash[:],
+		RuntimeAssets:         bytes.NewReader(assets),
+		RuntimeAssetsHash:     assetsHash[:],
+		Version:               "1.2.3",
+		Dir:                   tempDir,
+	})
+
+	gotWrapper, err := installRuntimeAt(tempDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	installDir := filepath.Dir(gotWrapper)
+	if got, err := os.ReadFile(filepath.Join(installDir, "ripgrep", "bin", "test-platform", "rg")); err != nil || string(got) != "ripgrep" {
+		t.Fatalf("ripgrep content=%q err=%v", got, err)
+	}
+	if got, err := os.ReadFile(filepath.Join(installDir, "definitions", "future.json")); err != nil || string(got) != "{}" {
+		t.Fatalf("definition content=%q err=%v", got, err)
+	}
+}
+
+type assetFixture struct {
+	content []byte
+	mode    int64
+}
+
+func runtimeAssetsArchive(t *testing.T, files map[string]assetFixture) []byte {
+	t.Helper()
+	var buffer bytes.Buffer
+	gzipWriter := gzip.NewWriter(&buffer)
+	tarWriter := tar.NewWriter(gzipWriter)
+	for name, fixture := range files {
+		header := &tar.Header{Name: name, Mode: fixture.mode, Size: int64(len(fixture.content)), Typeflag: tar.TypeReg}
+		if err := tarWriter.WriteHeader(header); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := tarWriter.Write(fixture.content); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := tarWriter.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := gzipWriter.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return buffer.Bytes()
 }
 
 func TestInstallRuntimeWritesAdjacentPairWithoutCLI(t *testing.T) {

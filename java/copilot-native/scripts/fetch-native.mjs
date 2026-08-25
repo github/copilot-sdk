@@ -10,10 +10,9 @@
  *      `@github/copilot-<classifier>` from `nodejs/package-lock.json`.
  *   2. `npm pack` that exact version into the staging directory.
  *   3. Verify the downloaded tarball against the `integrity` value.
- *   4. Extract `package/prebuilds/<classifier>/runtime.node` to
- *      `<staging>/<classifier>/native/<classifier>/runtime.node`.
- *   5. Extract `package/copilot` (or `package/copilot.exe` on Windows) to
- *      `<staging>/<classifier>/native/<classifier>/copilot`.
+ *   4. Stage the hostless runtime tree, flattening the selected prebuild directory
+ *      beside the package's retained top-level runtime assets.
+ *   5. Write an inventory consumed by the SDK's generic classpath extractor.
  *   6. Write `<staging>/<classifier>/native/<classifier>/platform.properties`.
  *
  * Usage: node fetch-native.mjs <repoRoot> <stagingDir> <classifier>
@@ -23,6 +22,24 @@ import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+
+const excludedTopLevel = new Set([
+  'app.js',
+  'assets',
+  'changelog.json',
+  'copilot-sdk',
+  'foundry-local-sdk',
+  'index.js',
+  'napi-oop-runtime',
+  'npm-loader.js',
+  'package.json',
+  'preloads',
+  'pvrecorder',
+  'queries',
+  'sdk',
+  'sea-loader.js',
+  'webview',
+]);
 
 const [repoRoot, stagingDir, classifier] = process.argv.slice(2);
 
@@ -51,11 +68,11 @@ const outDir = path.join(stagingDir, classifier);
 const resourceDir = path.join(outDir, 'native', classifier);
 const runtimePath = path.join(resourceDir, 'runtime.node');
 const isWindows = classifier.startsWith('win32');
-const cliTarballMember = isWindows ? 'package/copilot.exe' : 'package/copilot';
 const cliFilename = isWindows ? 'copilot.exe' : 'copilot';
 const cliPath = path.join(resourceDir, cliFilename);
 const wrapperFilename = isWindows ? 'copilot-runtime.exe' : 'copilot-runtime';
 const wrapperPath = path.join(resourceDir, wrapperFilename);
+const inventoryPath = path.join(resourceDir, 'runtime-assets.list');
 const platformPropertiesPath = path.join(resourceDir, 'platform.properties');
 const expectedPlatformProperties = `classifier=${classifier}\nversion=${version}\n`;
 const stampPath = path.join(outDir, '.version');
@@ -66,25 +83,20 @@ if (
   fs.existsSync(runtimePath) &&
   fs.existsSync(wrapperPath) &&
   fs.existsSync(cliPath) &&
+  fs.existsSync(inventoryPath) &&
   fs.existsSync(platformPropertiesPath) &&
   fs.existsSync(stampPath)
 ) {
   const stampLines = fs.readFileSync(stampPath, 'utf8').trim().split('\n');
   const stampVersion = stampLines[0] || '';
   const stampIntegrity = stampLines[1] || '';
-  const stampRuntimeDigest = stampLines[2] || '';
-  const stampCliDigest = stampLines[3] || '';
-  const stampWrapperDigest = stampLines[4] || '';
-  const currentRuntimeDigest = digestFile(runtimePath);
-  const currentCliDigest = digestFile(cliPath);
-  const currentWrapperDigest = digestFile(wrapperPath);
+  const stampTreeDigest = stampLines[2] || '';
+  const currentTreeDigest = digestTree(resourceDir);
   const currentPlatformProperties = fs.readFileSync(platformPropertiesPath, 'utf8');
   if (
     stampVersion === version &&
     stampIntegrity === integrity &&
-    stampRuntimeDigest === currentRuntimeDigest &&
-    stampCliDigest === currentCliDigest &&
-    stampWrapperDigest === currentWrapperDigest &&
+    stampTreeDigest === currentTreeDigest &&
     currentPlatformProperties === expectedPlatformProperties
   ) {
     console.log(`${packageName}@${version} already staged at ${runtimePath}`);
@@ -112,35 +124,99 @@ if (actual !== integrity) {
 }
 console.log(`Integrity verified (${integrity.slice(0, 20)}...).`);
 
-const runtimeMemberPath = `package/prebuilds/${classifier}/runtime.node`;
-const wrapperMemberPath = `package/prebuilds/${classifier}/${wrapperFilename}`;
-execFileSync('tar', ['-xzf', tarballPath, '-C', outDir, runtimeMemberPath, wrapperMemberPath], {
-  stdio: 'inherit',
-});
-fs.renameSync(path.join(outDir, runtimeMemberPath), runtimePath);
-fs.renameSync(path.join(outDir, wrapperMemberPath), wrapperPath);
-if (!isWindows) {
-  fs.chmodSync(wrapperPath, 0o755);
+const inventory = [];
+const members = execFileSync('tar', ['-tzf', tarballPath], { encoding: 'utf8' })
+  .split('\n')
+  .filter(Boolean);
+for (const member of members) {
+  const destinationRelative = hostlessRuntimePath(member, classifier);
+  if (destinationRelative === null) {
+    continue;
+  }
+  const listing = execFileSync('tar', ['-tvzf', tarballPath, member], { encoding: 'utf8' }).trim();
+  if (listing.startsWith('d')) {
+    continue;
+  }
+  if (!listing.startsWith('-')) {
+    throw new Error(`Unsupported runtime package entry: ${member}`);
+  }
+  const content = execFileSync('tar', ['-xOzf', tarballPath, member], {
+    encoding: null,
+    maxBuffer: 512 * 1024 * 1024,
+  });
+  const destination = path.resolve(resourceDir, destinationRelative);
+  const resourceRoot = `${path.resolve(resourceDir)}${path.sep}`;
+  if (!destination.startsWith(resourceRoot)) {
+    throw new Error(`Runtime package entry escapes staging directory: ${member}`);
+  }
+  fs.mkdirSync(path.dirname(destination), { recursive: true });
+  fs.writeFileSync(destination, content);
+  const mode = listing.slice(0, 10).includes('x') ? 0o755 : 0o644;
+  fs.chmodSync(destination, mode);
+  inventory.push(`${mode.toString(8)}\t${destinationRelative.split(path.sep).join('/')}`);
 }
+inventory.sort();
+fs.writeFileSync(inventoryPath, `${inventory.join('\n')}\n`);
 
-// Preserve the existing CLI artifact used by direct and in-process launch modes.
-execFileSync('tar', ['-xzf', tarballPath, '-C', outDir, cliTarballMember], { stdio: 'inherit' });
-fs.renameSync(path.join(outDir, cliTarballMember), cliPath);
-if (!isWindows) {
-  fs.chmodSync(cliPath, 0o755);
-}
-
-fs.rmSync(path.join(outDir, 'package'), { recursive: true, force: true });
 fs.rmSync(tarballPath, { force: true });
 
-const runtimeDigest = digestFile(runtimePath);
-const cliDigest = digestFile(cliPath);
-const wrapperDigest = digestFile(wrapperPath);
+if (!fs.existsSync(runtimePath) || !fs.existsSync(wrapperPath) || !fs.existsSync(cliPath)) {
+  throw new Error(`Package ${packageName}@${version} is missing the CLI or runtime wrapper pair`);
+}
 fs.writeFileSync(platformPropertiesPath, expectedPlatformProperties);
-fs.writeFileSync(stampPath, `${version}\n${integrity}\n${runtimeDigest}\n${cliDigest}\n${wrapperDigest}\n`);
+const treeDigest = digestTree(resourceDir);
+fs.writeFileSync(stampPath, `${version}\n${integrity}\n${treeDigest}\n`);
 
 console.log(`Staged ${runtimePath}`);
 
-function digestFile(filePath) {
-  return `sha512-${createHash('sha512').update(fs.readFileSync(filePath)).digest('base64')}`;
+function hostlessRuntimePath(packageRelative, platform) {
+  if (packageRelative.includes('\\')) {
+    return null;
+  }
+  const parts = packageRelative.split('/');
+  if (parts[0] !== 'package' || parts.some((part) => !part || part === '..')) {
+    return null;
+  }
+  parts.shift();
+  const topLevel = parts[0];
+  const fileName = parts.at(-1);
+  if (
+    excludedTopLevel.has(topLevel) ||
+    (topLevel.startsWith('tree-sitter') && topLevel.endsWith('.wasm')) ||
+    (topLevel.startsWith('voice-') && topLevel.endsWith('.js')) ||
+    fileName === 'cli-native.node' ||
+    parts.includes('mediaremote-adapter') ||
+    fileName.startsWith('copilot-runtime-bin')
+  ) {
+    return null;
+  }
+  if (topLevel === 'prebuilds') {
+    if (parts[1] !== platform || parts.length < 3) {
+      return null;
+    }
+    return path.join(...parts.slice(2));
+  }
+  return path.join(...parts);
+}
+
+function walkFiles(directory) {
+  const files = [];
+  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+    const entryPath = path.join(directory, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...walkFiles(entryPath));
+    } else if (entry.isFile()) {
+      files.push(entryPath);
+    }
+  }
+  return files;
+}
+
+function digestTree(directory) {
+  const hash = createHash('sha512');
+  for (const file of walkFiles(directory).sort()) {
+    const relative = path.relative(directory, file).split(path.sep).join('/');
+    hash.update(relative).update('\0').update(fs.readFileSync(file)).update('\0');
+  }
+  return `sha512-${hash.digest('base64')}`;
 }

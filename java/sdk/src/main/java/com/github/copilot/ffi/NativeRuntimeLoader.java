@@ -5,9 +5,12 @@
 package com.github.copilot.ffi;
 
 import java.io.FileNotFoundException;
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.nio.channels.FileChannel;
 import java.nio.file.AccessDeniedException;
 import java.nio.file.AtomicMoveNotSupportedException;
@@ -45,6 +48,7 @@ public final class NativeRuntimeLoader {
     static final String RUNTIME_WRAPPER_FILENAME = "copilot-runtime";
     static final String RUNTIME_WRAPPER_FILENAME_WINDOWS = "copilot-runtime.exe";
     static final String PLATFORM_PROPERTIES_FILENAME = "platform.properties";
+    static final String RUNTIME_ASSETS_FILENAME = "runtime-assets.list";
     /** Environment variable that overrides where the runtime is loaded from. */
     public static final String COPILOT_CLI_PATH_ENV = "COPILOT_CLI_PATH";
     static final String VERSION_RESOURCE = "copilot-runtime.properties";
@@ -380,6 +384,7 @@ public final class NativeRuntimeLoader {
 
         // Step 1 — fast path: return an existing valid cache entry.
         if (isValidCachedFile(cached)) {
+            extractRuntimeAssetsToCache(cacheDir, loader, classifier, publisher);
             if (extractCli) {
                 extractCliToCache(cacheDir, loader, classifier, publisher);
             }
@@ -405,11 +410,66 @@ public final class NativeRuntimeLoader {
             tryDelete(temp);
         }
 
+        extractRuntimeAssetsToCache(cacheDir, loader, classifier, publisher);
         if (extractCli) {
             extractCliToCache(cacheDir, loader, classifier, publisher);
         }
 
         return cached;
+    }
+
+    private static void extractRuntimeAssetsToCache(Path cacheDir, ClassLoader loader, String classifier,
+            AtomicPublisher publisher) throws IOException {
+        String inventoryResourcePath = "native/" + classifier + "/" + RUNTIME_ASSETS_FILENAME;
+        URL inventoryResource = loader.getResource(inventoryResourcePath);
+        if (inventoryResource == null) {
+            return;
+        }
+
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(inventoryResource.openStream(), StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (line.isBlank()) {
+                    continue;
+                }
+                String[] fields = line.split("\\t", 2);
+                if (fields.length != 2) {
+                    throw new IOException("Invalid runtime asset inventory entry: " + line);
+                }
+                boolean executable = (Integer.parseInt(fields[0], 8) & 0111) != 0;
+                Path relative = Path.of(fields[1]).normalize();
+                if (relative.isAbsolute() || relative.startsWith("..")) {
+                    throw new IOException("Unsafe runtime asset inventory path: " + fields[1]);
+                }
+                Path cached = cacheDir.resolve(relative).normalize();
+                if (!cached.startsWith(cacheDir)) {
+                    throw new IOException("Runtime asset escapes cache directory: " + fields[1]);
+                }
+                if (isValidCachedFile(cached) && (!executable || isWindows() || Files.isExecutable(cached))) {
+                    continue;
+                }
+
+                String resourcePath = "native/" + classifier + "/" + fields[1];
+                URL resource = loader.getResource(resourcePath);
+                if (resource == null) {
+                    throw new FileNotFoundException("Runtime asset not found on classpath: " + resourcePath);
+                }
+                Files.createDirectories(cached.getParent());
+                Path temp = Files.createTempFile(cached.getParent(), "runtime-asset-tmp-", "");
+                try {
+                    copyResourceToTemp(resource, resourcePath, temp);
+                    if (executable) {
+                        makeExecutable(temp);
+                    }
+                    publisher.publish(temp, cached);
+                } finally {
+                    tryDelete(temp);
+                }
+            }
+        } catch (NumberFormatException ex) {
+            throw new IOException("Invalid runtime asset mode in " + inventoryResourcePath, ex);
+        }
     }
 
     /**

@@ -24,6 +24,9 @@ def _runtime_package(npm_platform: str) -> bytes:
     members = {
         f"package/prebuilds/{npm_platform}/{wrapper_name}": b"wrapper",
         f"package/prebuilds/{npm_platform}/runtime.node": b"runtime",
+        f"package/ripgrep/bin/{npm_platform}/rg": b"ripgrep",
+        "package/definitions/future.json": b"{}",
+        "package/app.js": b"excluded",
     }
     buffer = io.BytesIO()
     with tarfile.open(fileobj=buffer, mode="w:gz") as archive:
@@ -108,6 +111,10 @@ class TestEnsureRuntimeWrapper:
         assert wrapper == str(install_dir / wrapper_name)
         assert (install_dir / wrapper_name).read_bytes() == b"wrapper"
         assert (install_dir / "runtime.node").read_bytes() == b"runtime"
+        assert (install_dir / "ripgrep" / "bin" / npm_platform / "rg").read_bytes() == b"ripgrep"
+        assert (install_dir / "definitions" / "future.json").read_bytes() == b"{}"
+        assert not (install_dir / "app.js").exists()
+        assert (install_dir / ".hostless-runtime-assets-v1").is_file()
         if os.name != "nt":
             assert (install_dir / wrapper_name).stat().st_mode & 0o111
 
@@ -125,3 +132,27 @@ class TestEnsureRuntimeWrapper:
         ):
             with pytest.raises(RuntimeError, match="Incomplete Copilot runtime bundle"):
                 _cli_download.ensure_runtime_wrapper(version="1.2.3")
+
+    def test_upgrades_pair_only_cache_with_retained_assets(self, tmp_path):
+        npm_platform = "win32-x64" if os.name == "nt" else "linux-x64"
+        wrapper_name = "copilot-runtime.exe" if os.name == "nt" else "copilot-runtime"
+        cache_dir = tmp_path / "cache"
+        install_dir = cache_dir / "prebuilds" / npm_platform
+        install_dir.mkdir(parents=True)
+        (install_dir / wrapper_name).write_bytes(b"old-wrapper")
+        (install_dir / "runtime.node").write_bytes(b"old-runtime")
+        data = _runtime_package(npm_platform)
+
+        with (
+            patch.object(_cli_download, "get_cache_dir", return_value=cache_dir),
+            patch.object(_cli_download, "get_npm_platform", return_value=npm_platform),
+            patch.object(_cli_download, "_should_skip_download", return_value=False),
+            patch.object(_cli_download, "_fetch_url_bytes", return_value=data),
+            patch.object(_cli_download, "_fetch_runtime_integrity", return_value=_integrity(data)),
+        ):
+            wrapper = _cli_download.ensure_runtime_wrapper(version="1.2.3")
+
+        assert wrapper == str(install_dir / wrapper_name)
+        assert (install_dir / wrapper_name).read_bytes() == b"wrapper"
+        assert (install_dir / ".hostless-runtime-assets-v1").is_file()
+        assert (install_dir / "ripgrep" / "bin" / npm_platform / "rg").is_file()

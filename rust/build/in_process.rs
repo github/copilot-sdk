@@ -110,7 +110,9 @@ pub(crate) fn main() {
         let required_paths = [
             install_dir.join(platform.runtime_wrapper_name()),
             install_dir.join("runtime.node"),
+            install_dir.join(".hostless-runtime-assets-v1"),
         ];
+        let expected_marker = format!("{version}\n{expected_integrity}\n");
 
         // Invalidate build.rs whenever either cached artifact disappears (cache
         // GC, manual rm, OS reset, switching extract dir). Without this, cargo
@@ -121,11 +123,28 @@ pub(crate) fn main() {
             println!("cargo:rerun-if-changed={}", path.display());
         }
 
-        if !required_paths.iter().all(|path| path.is_file()) {
+        let cache_is_current = required_paths.iter().all(|path| path.is_file())
+            && std::fs::read_to_string(&required_paths[2]).ok().as_deref()
+                == Some(expected_marker.as_str());
+        if !cache_is_current {
+            if install_dir.exists() {
+                std::fs::remove_dir_all(&install_dir).unwrap_or_else(|e| {
+                    panic!(
+                        "failed to clear stale runtime bundle {}: {e}",
+                        install_dir.display()
+                    )
+                });
+            }
             let archive =
                 cached_download(&download_url, &cache_key, &expected_integrity, &cache_dir);
             verify_runtime_package(&archive, platform, &archive_name);
-            extract_to_cache(&archive, &install_dir, platform, include_runtime);
+            extract_to_cache(
+                &archive,
+                &install_dir,
+                platform,
+                include_runtime,
+                &expected_marker,
+            );
         }
 
         // Re-check after potential download+extract above; not an `else`
@@ -180,31 +199,7 @@ fn build_embedded_archive(package: &[u8], platform: Platform, include_runtime: b
         .mtime(0)
         .write(Vec::new(), flate2::Compression::default());
     let mut archive = tar::Builder::new(encoder);
-    append_archive_file(
-        &mut archive,
-        platform.binary_name,
-        &extract_binary_bytes(package, platform),
-        0o755,
-    );
-    let runtime = extract_runtime_library_bytes(package).unwrap_or_else(|| {
-        panic!(
-            "package `{}` does not contain prebuilds/<platform>/runtime.node",
-            platform.package_name
-        )
-    });
-    append_archive_file(&mut archive, "runtime.node", &runtime, 0o644);
-    append_archive_file(
-        &mut archive,
-        platform.runtime_wrapper_name(),
-        &extract_runtime_wrapper_bytes(package, platform).unwrap_or_else(|| {
-            panic!(
-                "package `{}` does not contain prebuilds/<platform>/{}",
-                platform.package_name,
-                platform.runtime_wrapper_name()
-            )
-        }),
-        0o755,
-    );
+    let runtime = append_hostless_runtime_tree(&mut archive, package, platform);
     if include_runtime {
         append_archive_file(
             &mut archive,
@@ -219,6 +214,101 @@ fn build_embedded_archive(package: &[u8], platform: Platform, include_runtime: b
     encoder
         .finish()
         .expect("failed to compress minimal embedded CLI archive")
+}
+
+fn append_hostless_runtime_tree<W: Write>(
+    archive: &mut tar::Builder<W>,
+    package: &[u8],
+    platform: Platform,
+) -> Vec<u8> {
+    let decoder = flate2::read::GzDecoder::new(package);
+    let mut source = tar::Archive::new(decoder);
+    let mut runtime = None;
+    for entry in source
+        .entries()
+        .unwrap_or_else(|e| panic!("failed to read npm package entries: {e}"))
+    {
+        let mut entry = entry.unwrap_or_else(|e| panic!("failed to read npm package entry: {e}"));
+        if !entry.header().entry_type().is_file() {
+            continue;
+        }
+        let source_path = entry
+            .path()
+            .unwrap_or_else(|e| panic!("failed to read npm package path: {e}"));
+        let Some(destination) = hostless_runtime_path(&source_path.to_string_lossy(), platform)
+        else {
+            continue;
+        };
+        let mut bytes = Vec::with_capacity(entry.size() as usize);
+        entry
+            .read_to_end(&mut bytes)
+            .unwrap_or_else(|e| panic!("failed to read npm package entry bytes: {e}"));
+        let mode = entry.header().mode().unwrap_or(0o644);
+        if destination == Path::new("runtime.node") {
+            runtime = Some(bytes.clone());
+        }
+        append_archive_file(
+            archive,
+            destination
+                .to_str()
+                .expect("npm package paths are valid UTF-8"),
+            &bytes,
+            mode,
+        );
+    }
+    runtime.unwrap_or_else(|| {
+        panic!(
+            "package `{}` does not contain prebuilds/<platform>/runtime.node",
+            platform.package_name
+        )
+    })
+}
+
+fn hostless_runtime_path(source: &str, platform: Platform) -> Option<PathBuf> {
+    let relative = source.strip_prefix("package/")?;
+    let parts: Vec<&str> = relative.split('/').collect();
+    if parts.iter().any(|part| part.is_empty() || *part == "..") {
+        return None;
+    }
+    let top_level = *parts.first()?;
+    let file_name = *parts.last()?;
+    const EXCLUDED_TOP_LEVEL: &[&str] = &[
+        "app.js",
+        "assets",
+        "changelog.json",
+        "copilot-sdk",
+        "foundry-local-sdk",
+        "index.js",
+        "napi-oop-runtime",
+        "npm-loader.js",
+        "package.json",
+        "preloads",
+        "pvrecorder",
+        "queries",
+        "sdk",
+        "sea-loader.js",
+        "webview",
+    ];
+    if EXCLUDED_TOP_LEVEL.contains(&top_level)
+        || (top_level.starts_with("tree-sitter") && top_level.ends_with(".wasm"))
+        || (top_level.starts_with("voice-") && top_level.ends_with(".js"))
+        || file_name == "cli-native.node"
+        || parts.contains(&"mediaremote-adapter")
+        || file_name.starts_with("copilot-runtime-bin")
+    {
+        return None;
+    }
+    if top_level == "prebuilds" {
+        let npm_platform = platform
+            .package_name
+            .strip_prefix("copilot-")
+            .expect("platform package name has copilot- prefix");
+        if parts.get(1) != Some(&npm_platform) || parts.len() < 3 {
+            return None;
+        }
+        return Some(parts[2..].iter().copied().collect());
+    }
+    Some(parts.iter().copied().collect())
 }
 
 fn append_archive_file<W: Write>(
@@ -408,6 +498,7 @@ fn extract_to_cache(
     install_dir: &Path,
     platform: Platform,
     include_runtime: bool,
+    marker: &str,
 ) -> PathBuf {
     std::fs::create_dir_all(install_dir).unwrap_or_else(|e| {
         panic!(
@@ -416,15 +507,38 @@ fn extract_to_cache(
         )
     });
 
-    let runtime = extract_runtime_library_bytes(archive).expect("verified runtime.node is present");
-    install_cached_file(install_dir, "runtime.node", &runtime, false);
-    install_cached_file(
-        install_dir,
-        platform.runtime_wrapper_name(),
-        &extract_runtime_wrapper_bytes(archive, platform)
-            .expect("verified runtime wrapper is present"),
-        true,
-    );
+    let decoder = flate2::read::GzDecoder::new(archive);
+    let mut source = tar::Archive::new(decoder);
+    let mut runtime = None;
+    for entry in source
+        .entries()
+        .unwrap_or_else(|e| panic!("failed to read npm package entries: {e}"))
+    {
+        let mut entry = entry.unwrap_or_else(|e| panic!("failed to read npm package entry: {e}"));
+        if !entry.header().entry_type().is_file() {
+            continue;
+        }
+        let source_path = entry
+            .path()
+            .unwrap_or_else(|e| panic!("failed to read npm package path: {e}"));
+        let Some(destination) = hostless_runtime_path(&source_path.to_string_lossy(), platform)
+        else {
+            continue;
+        };
+        if destination == Path::new(platform.binary_name) {
+            continue;
+        }
+        let mut bytes = Vec::with_capacity(entry.size() as usize);
+        entry
+            .read_to_end(&mut bytes)
+            .unwrap_or_else(|e| panic!("failed to read npm package entry bytes: {e}"));
+        let executable = entry.header().mode().unwrap_or(0o644) & 0o111 != 0;
+        if destination == Path::new("runtime.node") {
+            runtime = Some(bytes.clone());
+        }
+        install_cached_file_path(install_dir, &destination, &bytes, executable);
+    }
+    let runtime = runtime.expect("verified runtime.node is present");
     if include_runtime {
         install_cached_file(
             install_dir,
@@ -433,6 +547,12 @@ fn extract_to_cache(
             false,
         );
     }
+    install_cached_file(
+        install_dir,
+        ".hostless-runtime-assets-v1",
+        marker.as_bytes(),
+        false,
+    );
 
     let final_path = install_dir.join(platform.runtime_wrapper_name());
     println!(
@@ -443,10 +563,34 @@ fn extract_to_cache(
 }
 
 fn install_cached_file(install_dir: &Path, file_name: &str, bytes: &[u8], executable: bool) {
-    let final_path = install_dir.join(file_name);
+    install_cached_file_path(install_dir, Path::new(file_name), bytes, executable);
+}
+
+fn install_cached_file_path(
+    install_dir: &Path,
+    relative_path: &Path,
+    bytes: &[u8],
+    executable: bool,
+) {
+    assert!(
+        !relative_path.is_absolute()
+            && !relative_path.components().any(|component| {
+                matches!(
+                    component,
+                    std::path::Component::Prefix(_)
+                        | std::path::Component::RootDir
+                        | std::path::Component::ParentDir
+                )
+            }),
+        "unsafe runtime package path: {}",
+        relative_path.display()
+    );
+    let final_path = install_dir.join(relative_path);
     if final_path.is_file() {
         return;
     }
+    std::fs::create_dir_all(final_path.parent().expect("runtime asset has parent"))
+        .unwrap_or_else(|e| panic!("failed to create runtime asset directory: {e}"));
     // Staging file is a sibling of the final binary so the rename stays
     // on the same filesystem (cross-fs rename is not atomic). PID + nanos
     // disambiguate concurrent builds racing on the same cache.
@@ -456,7 +600,10 @@ fn install_cached_file(install_dir: &Path, file_name: &str, bytes: &[u8], execut
         .unwrap_or(0);
     let staging_path = install_dir.join(format!(
         ".{}.staging-{}-{nanos}",
-        file_name,
+        relative_path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("runtime-asset"),
         std::process::id(),
     ));
 
@@ -525,40 +672,6 @@ fn install_cached_file(install_dir: &Path, file_name: &str, bytes: &[u8], execut
     }
 }
 
-fn extract_runtime_library_bytes(archive: &[u8]) -> Option<Vec<u8>> {
-    let gz = flate2::read::GzDecoder::new(archive);
-    let mut tar = tar::Archive::new(gz);
-    for entry in tar.entries().ok()? {
-        let mut entry = entry.ok()?;
-        let name = entry.path().ok()?.to_string_lossy().into_owned();
-        if name == "runtime.node" || name.ends_with("/runtime.node") {
-            let mut bytes = Vec::with_capacity(entry.size() as usize);
-            entry.read_to_end(&mut bytes).ok()?;
-            return Some(bytes);
-        }
-    }
-    None
-}
-
-fn extract_runtime_wrapper_bytes(archive: &[u8], platform: Platform) -> Option<Vec<u8>> {
-    extract_named_file_bytes(archive, platform.runtime_wrapper_name())
-}
-
-fn extract_named_file_bytes(archive: &[u8], file_name: &str) -> Option<Vec<u8>> {
-    let gz = flate2::read::GzDecoder::new(archive);
-    let mut tar = tar::Archive::new(gz);
-    for entry in tar.entries().ok()? {
-        let mut entry = entry.ok()?;
-        let name = entry.path().ok()?.to_string_lossy().into_owned();
-        if name == file_name || name.ends_with(&format!("/{file_name}")) {
-            let mut bytes = Vec::with_capacity(entry.size() as usize);
-            entry.read_to_end(&mut bytes).ok()?;
-            return Some(bytes);
-        }
-    }
-    None
-}
-
 /// Replace characters outside `[a-zA-Z0-9._-]` with `_` so the version
 /// string is always safe to use as a path component. Kept in sync with
 /// `embeddedcli::sanitize_version` and `resolve::sanitize_version` so all
@@ -571,37 +684,6 @@ fn sanitize_version(version: &str) -> String {
             _ => '_',
         })
         .collect()
-}
-
-/// Extract the single `binary_name` entry from the npm package archive. Reused
-/// between embed mode's `verify_binary_present_in_archive` and the
-/// `extract_to_cache` path used when `bundled-cli` is off. Panics if the
-/// entry isn't found — callers have already invoked
-/// `verify_binary_present_in_archive`.
-fn extract_binary_bytes(archive: &[u8], platform: Platform) -> Vec<u8> {
-    let gz = flate2::read::GzDecoder::new(archive);
-    let mut tar = tar::Archive::new(gz);
-    for entry in tar
-        .entries()
-        .unwrap_or_else(|e| panic!("failed to read tar entries: {e}"))
-    {
-        let mut entry = entry.unwrap_or_else(|e| panic!("failed to read tar entry: {e}"));
-        let path = entry
-            .path()
-            .unwrap_or_else(|e| panic!("failed to read tar entry path: {e}"));
-        let name = path.to_string_lossy().into_owned();
-        if name == platform.binary_name || name.ends_with(&format!("/{}", platform.binary_name)) {
-            let mut bytes = Vec::with_capacity(entry.size() as usize);
-            entry
-                .read_to_end(&mut bytes)
-                .unwrap_or_else(|e| panic!("failed to read tar entry bytes: {e}"));
-            return bytes;
-        }
-    }
-    panic!(
-        "binary `{}` not found in package `{}`",
-        platform.binary_name, platform.package_name
-    );
 }
 
 /// Read a file from the download cache, or download it (with retries) and save
