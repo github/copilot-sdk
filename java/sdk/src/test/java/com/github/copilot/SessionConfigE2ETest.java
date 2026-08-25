@@ -8,6 +8,7 @@ import static com.github.copilot.CopilotRequestTestSupport.SYNTHETIC_TEXT;
 import static com.github.copilot.CopilotRequestTestSupport.newLlmClient;
 import static com.github.copilot.CopilotRequestTestSupport.setupCapiAuth;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -24,6 +25,7 @@ import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.copilot.generated.ToolExecutionCompleteEvent;
 import com.github.copilot.generated.rpc.SandboxConfig;
 import com.github.copilot.generated.rpc.SessionLimitsConfig;
 import com.github.copilot.rpc.BlobAttachment;
@@ -41,6 +43,18 @@ public class SessionConfigE2ETest {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private static E2ETestContext ctx;
+
+    private static void assertNextShellExecutionSandboxed(CopilotSession session, String prompt, boolean expected)
+            throws Exception {
+        int eventCount = session.getMessages().get(60, TimeUnit.SECONDS).size();
+        session.sendAndWait(new MessageOptions().setPrompt(prompt)).get(60, TimeUnit.SECONDS);
+        var events = session.getMessages().get(60, TimeUnit.SECONDS);
+        var completions = events.subList(eventCount, events.size()).stream()
+                .filter(ToolExecutionCompleteEvent.class::isInstance).map(ToolExecutionCompleteEvent.class::cast)
+                .toList();
+        assertEquals(1, completions.size(), "Expected one tool.execution_complete after sandbox shell prompt");
+        assertEquals(expected, Boolean.TRUE.equals(completions.get(0).getData().sandboxed()));
+    }
 
     @BeforeAll
     static void setup() throws Exception {
@@ -209,24 +223,37 @@ public class SessionConfigE2ETest {
     }
 
     @Test
-    void testShouldAcceptSandboxConfigOnCreateAndResume() throws Exception {
-        ctx.configureForTest("session_config", "should_accept_sandbox_config_on_create_and_resume");
+    void testShouldApplySandboxConfigOnCreateAndResume() throws Exception {
+        assumeFalse(System.getProperty("os.name", "").toLowerCase().contains("win"),
+                "Process sandboxing is not supported on Windows");
+        ctx.configureForTest("session_config", "should_apply_sandbox_config_on_create_and_resume");
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session1 = client.createSession(
+            CopilotSession enabledSession = client
+                    .createSession(new SessionConfig().setSandboxConfig(new SandboxConfig(true, null, null, null, null))
+                            .setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
+                    .get();
+            assertNextShellExecutionSandboxed(enabledSession,
+                    "Run 'echo sandbox-create-enabled' and report the output.", true);
+            CopilotSession disabledSession = client.createSession(
                     new SessionConfig().setSandboxConfig(new SandboxConfig(false, null, null, null, null))
                             .setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
                     .get();
-            CopilotSession session2 = client.resumeSession(session1.getSessionId(),
-                    new ResumeSessionConfig().setSandboxConfig(new SandboxConfig(false, null, null, null, null))
+            assertNextShellExecutionSandboxed(disabledSession,
+                    "Run 'echo sandbox-create-disabled' and report the output.", false);
+            CopilotSession resumedSession = client.resumeSession(disabledSession.getSessionId(),
+                    new ResumeSessionConfig().setSandboxConfig(new SandboxConfig(true, null, null, null, null))
                             .setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
                     .get();
 
             try {
-                assertEquals(session1.getSessionId(), session2.getSessionId());
+                assertNextShellExecutionSandboxed(resumedSession,
+                        "Run 'echo sandbox-resume-enabled' and report the output.", true);
+                assertEquals(disabledSession.getSessionId(), resumedSession.getSessionId());
             } finally {
-                session2.close();
-                session1.close();
+                resumedSession.close();
+                disabledSession.close();
+                enabledSession.close();
             }
         }
     }

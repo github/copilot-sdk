@@ -3,6 +3,7 @@
 import base64
 import json
 import os
+import sys
 import uuid
 
 import httpx
@@ -18,6 +19,7 @@ from copilot import (
 )
 from copilot.copilot_request_handler import CopilotRequestContext
 from copilot.session import PermissionHandler
+from copilot.session_events import ToolExecutionCompleteData
 
 from ._copilot_request_helpers import (
     build_inference_response,
@@ -99,6 +101,18 @@ def _get_tool_names(exchange: dict) -> list[str]:
             if isinstance(name, str):
                 names.append(name)
     return names
+
+
+async def _assert_next_shell_execution_sandboxed(session, prompt: str, expected: bool) -> None:
+    event_count = len(await session.get_events())
+    await session.send_and_wait(prompt)
+    completions = [
+        event.data
+        for event in (await session.get_events())[event_count:]
+        if isinstance(event.data, ToolExecutionCompleteData)
+    ]
+    assert completions, "Expected tool.execution_complete after sandbox shell prompt"
+    assert (completions[0].sandboxed is True) is expected
 
 
 async def _send_and_get_next_exchange(session, ctx: E2ETestContext, prompt: str) -> dict:
@@ -418,21 +432,39 @@ class TestSessionConfig:
         await session2.disconnect()
         await session1.disconnect()
 
-    async def test_should_accept_sandbox_config_on_create_and_resume(self, ctx: E2ETestContext):
-        session1 = await ctx.client.create_session(
+    @pytest.mark.skipif(
+        sys.platform == "win32", reason="process sandboxing is not supported on Windows"
+    )
+    async def test_should_apply_sandbox_config_on_create_and_resume(self, ctx: E2ETestContext):
+        enabled_session = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all,
+            sandbox_config=SandboxConfig(enabled=True),
+        )
+        await _assert_next_shell_execution_sandboxed(
+            enabled_session, "Run 'echo sandbox-create-enabled' and report the output.", True
+        )
+
+        disabled_session = await ctx.client.create_session(
             on_permission_request=PermissionHandler.approve_all,
             sandbox_config=SandboxConfig(enabled=False),
         )
-        session2 = await ctx.client.resume_session(
-            session1.session_id,
+        await _assert_next_shell_execution_sandboxed(
+            disabled_session, "Run 'echo sandbox-create-disabled' and report the output.", False
+        )
+        resumed_session = await ctx.client.resume_session(
+            disabled_session.session_id,
             on_permission_request=PermissionHandler.approve_all,
-            sandbox_config=SandboxConfig(enabled=False),
+            sandbox_config=SandboxConfig(enabled=True),
+        )
+        await _assert_next_shell_execution_sandboxed(
+            resumed_session, "Run 'echo sandbox-resume-enabled' and report the output.", True
         )
 
-        assert session2.session_id == session1.session_id
+        assert resumed_session.session_id == disabled_session.session_id
 
-        await session2.disconnect()
-        await session1.disconnect()
+        await resumed_session.disconnect()
+        await disabled_session.disconnect()
+        await enabled_session.disconnect()
 
     async def test_should_apply_excluded_built_in_agents_on_create(self, ctx: E2ETestContext):
         excluded_agent = "explore"

@@ -7,6 +7,7 @@ import {
     CopilotRequestHandler,
     RuntimeConnection,
     type CopilotRequestContext,
+    type CopilotSession,
 } from "../../src/index.js";
 import { createSdkTestContext, DEFAULT_GITHUB_TOKEN } from "./harness/sdkTestContext.js";
 import { retry } from "./harness/sdkTestHelper.js";
@@ -24,6 +25,19 @@ describe("Session Configuration", async () => {
             1_200
         );
         return openAiEndpoint.getExchanges();
+    }
+
+    async function expectNextShellExecutionSandboxed(
+        session: CopilotSession,
+        prompt: string,
+        expected: boolean
+    ) {
+        const eventCount = (await session.getEvents()).length;
+        await session.sendAndWait({ prompt });
+        const completion = (await session.getEvents())
+            .slice(eventCount)
+            .find((event) => event.type === "tool.execution_complete");
+        expect(completion?.data.sandboxed ?? false).toBe(expected);
     }
 
     it("should use workingDirectory for tool execution", async () => {
@@ -866,21 +880,45 @@ describe("Session Configuration", async () => {
         }
     });
 
-    it("should accept sandbox config on create and resume", async () => {
-        const session1 = await client.createSession({
-            onPermissionRequest: approveAll,
-            sandboxConfig: { enabled: false },
-        });
-        const session2 = await client.resumeSession(session1.sessionId, {
-            onPermissionRequest: approveAll,
-            sandboxConfig: { enabled: false },
-        });
+    it.skipIf(process.platform === "win32")(
+        "should apply sandbox config on create and resume",
+        async () => {
+            const enabledSession = await client.createSession({
+                onPermissionRequest: approveAll,
+                sandboxConfig: { enabled: true },
+            });
+            await expectNextShellExecutionSandboxed(
+                enabledSession,
+                "Run 'echo sandbox-create-enabled' and report the output.",
+                true
+            );
 
-        expect(session2.sessionId).toBe(session1.sessionId);
+            const disabledSession = await client.createSession({
+                onPermissionRequest: approveAll,
+                sandboxConfig: { enabled: false },
+            });
+            await expectNextShellExecutionSandboxed(
+                disabledSession,
+                "Run 'echo sandbox-create-disabled' and report the output.",
+                false
+            );
+            const resumedSession = await client.resumeSession(disabledSession.sessionId, {
+                onPermissionRequest: approveAll,
+                sandboxConfig: { enabled: true },
+            });
+            await expectNextShellExecutionSandboxed(
+                resumedSession,
+                "Run 'echo sandbox-resume-enabled' and report the output.",
+                true
+            );
 
-        await session2.disconnect();
-        await session1.disconnect();
-    });
+            expect(resumedSession.sessionId).toBe(disabledSession.sessionId);
+
+            await resumedSession.disconnect();
+            await disabledSession.disconnect();
+            await enabledSession.disconnect();
+        }
+    );
 
     it("should apply GitHub MCP tool config on create", async () => {
         const session = await client.createSession({

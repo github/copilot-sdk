@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -157,6 +158,35 @@ func assertAnthropicDocumentCitationsEnabled(t *testing.T, requestBody string) {
 
 func float64Ref(value float64) *float64 {
 	return &value
+}
+
+func assertNextShellExecutionSandboxed(t *testing.T, session *copilot.Session, prompt string, expected bool) {
+	t.Helper()
+
+	existingEvents, err := session.GetEvents(t.Context())
+	if err != nil {
+		t.Fatalf("GetEvents before shell execution failed: %v", err)
+	}
+	if _, err := session.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: prompt}); err != nil {
+		t.Fatalf("SendAndWait failed: %v", err)
+	}
+
+	events, err := session.GetEvents(t.Context())
+	if err != nil {
+		t.Fatalf("GetEvents failed: %v", err)
+	}
+	for _, event := range events[len(existingEvents):] {
+		completed, ok := event.Data.(*copilot.ToolExecutionCompleteData)
+		if !ok {
+			continue
+		}
+		actual := completed.Sandboxed != nil && *completed.Sandboxed
+		if actual != expected {
+			t.Fatalf("Expected tool call %q sandboxed=%v, got %v", completed.ToolCallID, expected, completed.Sandboxed)
+		}
+		return
+	}
+	t.Fatal("Expected tool.execution_complete after sandbox shell prompt")
 }
 
 func TestSessionConfigE2E(t *testing.T) {
@@ -337,29 +367,44 @@ func TestSessionConfigNewOptionsE2E(t *testing.T) {
 		assertSessionLimitsStatus(t, exchange, "30 AI credits")
 	})
 
-	t.Run("should accept sandbox config on create and resume", func(t *testing.T) {
+	t.Run("should apply sandbox config on create and resume", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("process sandboxing is not supported on Windows")
+		}
 		ctx.ConfigureForTest(t)
 
-		session1, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+		enabledSession, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			SandboxConfig:       &rpc.SandboxConfig{Enabled: true},
+		})
+		if err != nil {
+			t.Fatalf("CreateSession failed: %v", err)
+		}
+		defer enabledSession.Disconnect()
+		assertNextShellExecutionSandboxed(t, enabledSession, "Run 'echo sandbox-create-enabled' and report the output.", true)
+
+		disabledSession, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 			SandboxConfig:       &rpc.SandboxConfig{Enabled: false},
 		})
 		if err != nil {
 			t.Fatalf("CreateSession failed: %v", err)
 		}
-		defer session1.Disconnect()
+		defer disabledSession.Disconnect()
+		assertNextShellExecutionSandboxed(t, disabledSession, "Run 'echo sandbox-create-disabled' and report the output.", false)
 
-		session2, err := client.ResumeSessionWithOptions(t.Context(), session1.SessionID, &copilot.ResumeSessionConfig{
+		resumedSession, err := client.ResumeSessionWithOptions(t.Context(), disabledSession.SessionID, &copilot.ResumeSessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-			SandboxConfig:       &rpc.SandboxConfig{Enabled: false},
+			SandboxConfig:       &rpc.SandboxConfig{Enabled: true},
 		})
 		if err != nil {
 			t.Fatalf("ResumeSessionWithOptions failed: %v", err)
 		}
-		defer session2.Disconnect()
+		defer resumedSession.Disconnect()
+		assertNextShellExecutionSandboxed(t, resumedSession, "Run 'echo sandbox-resume-enabled' and report the output.", true)
 
-		if session2.SessionID != session1.SessionID {
-			t.Errorf("Expected resumed session ID %q, got %q", session1.SessionID, session2.SessionID)
+		if resumedSession.SessionID != disabledSession.SessionID {
+			t.Errorf("Expected resumed session ID %q, got %q", disabledSession.SessionID, resumedSession.SessionID)
 		}
 	})
 

@@ -21,6 +21,18 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     private static readonly byte[] Png1X1 = Convert.FromBase64String(
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==");
 
+    private static async Task AssertNextShellExecutionSandboxedAsync(
+        CopilotSession session,
+        string prompt,
+        bool expected)
+    {
+        var eventCount = (await session.GetEventsAsync()).Count;
+        await session.SendAndWaitAsync(new MessageOptions { Prompt = prompt });
+        var completion = Assert.Single(
+            (await session.GetEventsAsync()).Skip(eventCount).OfType<ToolExecutionCompleteEvent>());
+        Assert.Equal(expected, completion.Data.Sandboxed == true);
+    }
+
     [Fact]
     // TODO(BYOK): Anthropic Messages history diverged after enabling vision via SetModel. Verify
     // that model capability overrides work for provider-backed sessions before keeping this CAPI-only.
@@ -525,19 +537,41 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     }
 
     [Fact]
-    public async Task Should_Accept_Sandbox_Config_On_Create_And_Resume()
+    public async Task Should_Apply_Sandbox_Config_On_Create_And_Resume()
     {
-        await using var session1 = await CreateSessionAsync(new SessionConfig
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        await using var enabledSession = await CreateSessionAsync(new SessionConfig
+        {
+            SandboxConfig = new SandboxConfig { Enabled = true },
+        });
+        await AssertNextShellExecutionSandboxedAsync(
+            enabledSession,
+            "Run 'echo sandbox-create-enabled' and report the output.",
+            true);
+
+        await using var disabledSession = await CreateSessionAsync(new SessionConfig
         {
             SandboxConfig = new SandboxConfig { Enabled = false },
         });
-        var sessionId = session1.SessionId;
-        await SuspendAndUntrackSessionForResumeAsync(session1);
+        await AssertNextShellExecutionSandboxedAsync(
+            disabledSession,
+            "Run 'echo sandbox-create-disabled' and report the output.",
+            false);
+        var sessionId = disabledSession.SessionId;
+        await SuspendAndUntrackSessionForResumeAsync(disabledSession);
 
         var session2 = await ResumeSessionAsync(sessionId, new ResumeSessionConfig
         {
-            SandboxConfig = new SandboxConfig { Enabled = false },
+            SandboxConfig = new SandboxConfig { Enabled = true },
         });
+        await AssertNextShellExecutionSandboxedAsync(
+            session2,
+            "Run 'echo sandbox-resume-enabled' and report the output.",
+            true);
 
         Assert.Equal(sessionId, session2.SessionId);
         await session2.DisposeAsync();

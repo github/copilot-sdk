@@ -1,0 +1,128 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Run 'echo sandbox-create-enabled' and report the output.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: ${shell}
+              arguments: '{"command":"echo sandbox-create-enabled","description":"Verify enabled sandbox execution"}'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Run 'echo sandbox-create-enabled' and report the output.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: ${shell}
+              arguments: '{"command":"echo sandbox-create-enabled","description":"Verify enabled sandbox execution"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: |-
+          sandbox-create-enabled
+          <exited with exit code 0>
+      - role: assistant
+        content: sandbox-create-enabled
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Run 'echo sandbox-create-disabled' and report the output.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: ${shell}
+              arguments: '{"command":"echo sandbox-create-disabled","description":"Verify disabled sandbox execution"}'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Run 'echo sandbox-create-disabled' and report the output.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: ${shell}
+              arguments: '{"command":"echo sandbox-create-disabled","description":"Verify disabled sandbox execution"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: |-
+          sandbox-create-disabled
+          <exited with exit code 0>
+      - role: assistant
+        content: sandbox-create-disabled
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Run 'echo sandbox-create-disabled' and report the output.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: ${shell}
+              arguments: '{"command":"echo sandbox-create-disabled","description":"Verify disabled sandbox execution"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: |-
+          sandbox-create-disabled
+          <exited with exit code 0>
+      - role: assistant
+        content: sandbox-create-disabled
+      - role: user
+        content: Run 'echo sandbox-resume-enabled' and report the output.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_1
+            type: function
+            function:
+              name: ${shell}
+              arguments: '{"command":"echo sandbox-resume-enabled","description":"Verify resumed sandbox execution"}'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Run 'echo sandbox-create-disabled' and report the output.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: ${shell}
+              arguments: '{"command":"echo sandbox-create-disabled","description":"Verify disabled sandbox execution"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: |-
+          sandbox-create-disabled
+          <exited with exit code 0>
+      - role: assistant
+        content: sandbox-create-disabled
+      - role: user
+        content: Run 'echo sandbox-resume-enabled' and report the output.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_1
+            type: function
+            function:
+              name: ${shell}
+              arguments: '{"command":"echo sandbox-resume-enabled","description":"Verify resumed sandbox execution"}'
+      - role: tool
+        tool_call_id: toolcall_1
+        content: |-
+          sandbox-resume-enabled
+          <exited with exit code 0>
+      - role: assistant
+        content: sandbox-resume-enabled
