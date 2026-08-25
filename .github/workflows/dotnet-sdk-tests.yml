@@ -115,7 +115,11 @@ jobs:
 
       - name: Install bubblewrap
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install --yes bubblewrap
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes apparmor-profiles bubblewrap
+          sudo install -m 0644 /usr/share/apparmor/extra-profiles/bwrap-userns-restrict /etc/apparmor.d/bwrap-userns-restrict
+          sudo apparmor_parser --replace /etc/apparmor.d/bwrap-userns-restrict
 
       - name: Install Node.js dependencies (for CLI version extraction)
         working-directory: ./nodejs

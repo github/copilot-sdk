@@ -49,7 +49,11 @@ jobs:
 
       - name: Install bubblewrap
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install --yes bubblewrap
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes apparmor-profiles bubblewrap
+          sudo install -m 0644 /usr/share/apparmor/extra-profiles/bwrap-userns-restrict /etc/apparmor.d/bwrap-userns-restrict
+          sudo apparmor_parser --replace /etc/apparmor.d/bwrap-userns-restrict
 
       - name: Validate native host
         run: node copilot-native/scripts/validate-native-host.mjs ${{ matrix.classifier }}
@@ -220,7 +224,11 @@ jobs:
           node-version: 22
 
       - name: Install bubblewrap
-        run: sudo apt-get update && sudo apt-get install --yes bubblewrap
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes apparmor-profiles bubblewrap
+          sudo install -m 0644 /usr/share/apparmor/extra-profiles/bwrap-userns-restrict /etc/apparmor.d/bwrap-userns-restrict
+          sudo apparmor_parser --replace /etc/apparmor.d/bwrap-userns-restrict
 
       - name: Test documentation version updater
         if: matrix.test-jdk == '25'
