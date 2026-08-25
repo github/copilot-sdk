@@ -89,6 +89,8 @@ test('stages retained package assets and excludes CLI-only content', (t) => {
   fs.chmodSync(path.join(packageRoot, 'ripgrep', 'bin', classifier, 'rg'), 0o755);
   fs.writeFileSync(path.join(packageRoot, 'definitions', 'future.json'), '{}');
   fs.writeFileSync(path.join(packageRoot, 'app.js'), 'excluded');
+  fs.writeFileSync(path.join(packageRoot, 'LICENSE.md'), 'excluded');
+  fs.writeFileSync(path.join(packageRoot, 'README.md'), 'excluded');
   const tarball = path.join(fixture.repoRoot, 'fixture.tgz');
   execFileSync('tar', ['-czf', tarball, '-C', path.dirname(packageRoot), 'package']);
   const packageIntegrity = digest(fs.readFileSync(tarball));
@@ -114,6 +116,8 @@ test('stages retained package assets and excludes CLI-only content', (t) => {
   assert.equal(fs.readFileSync(path.join(resourceDir, 'ripgrep', 'bin', classifier, 'rg'), 'utf8'), 'ripgrep content');
   assert.equal(fs.readFileSync(path.join(resourceDir, 'definitions', 'future.json'), 'utf8'), '{}');
   assert.equal(fs.existsSync(path.join(resourceDir, 'app.js')), false);
+  assert.equal(fs.existsSync(path.join(resourceDir, 'LICENSE.md')), false);
+  assert.equal(fs.existsSync(path.join(resourceDir, 'README.md')), false);
   assert.match(fs.readFileSync(path.join(resourceDir, 'runtime-assets.list'), 'utf8'), /ripgrep\/bin\/linux-x64\/rg/);
 });
 

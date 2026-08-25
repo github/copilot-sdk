@@ -449,8 +449,8 @@ func runtimeWrapperName(binaryName string) string {
 var hostlessExcludedTopLevel = map[string]bool{
 	"app.js": true, "assets": true, "changelog.json": true, "copilot": true, "copilot.exe": true,
 	"copilot-sdk": true, "foundry-local-sdk": true, "index.js": true, "napi-oop-runtime": true,
-	"npm-loader.js": true, "package.json": true, "preloads": true, "pvrecorder": true,
-	"queries": true, "sdk": true, "sea-loader.js": true, "webview": true,
+	"LICENSE.md": true, "npm-loader.js": true, "package.json": true, "preloads": true, "pvrecorder": true,
+	"queries": true, "README.md": true, "sdk": true, "sea-loader.js": true, "webview": true,
 }
 
 func hostlessRuntimePath(name, npmPlatform, wrapperName string) (string, bool) {

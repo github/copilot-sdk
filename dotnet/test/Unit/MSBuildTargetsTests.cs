@@ -116,6 +116,8 @@ public class MSBuildTargetsTests
         sandbox.WriteRuntimeCacheAsset("ripgrep", "bin", GetNpmPlatform(), "rg", "ripgrep");
         sandbox.WriteRuntimeCacheAsset("definitions", "future.json", "{}");
         sandbox.WriteRuntimeCacheAsset("app.js", "excluded");
+        sandbox.WriteRuntimeCacheAsset("LICENSE.md", "excluded");
+        sandbox.WriteRuntimeCacheAsset("README.md", "excluded");
         sandbox.WriteStaleOutputRuntimeAsset("obsolete", "tool", "stale");
 
         var result = await sandbox.BuildAsync(new Dictionary<string, string>
@@ -127,6 +129,8 @@ public class MSBuildTargetsTests
         Assert.Equal("ripgrep", File.ReadAllText(sandbox.ExpectedRuntimeAsset("ripgrep", "bin", GetNpmPlatform(), "rg")));
         Assert.Equal("{}", File.ReadAllText(sandbox.ExpectedRuntimeAsset("definitions", "future.json")));
         Assert.False(File.Exists(sandbox.ExpectedRuntimeAsset("app.js")));
+        Assert.False(File.Exists(sandbox.ExpectedRuntimeAsset("LICENSE.md")));
+        Assert.False(File.Exists(sandbox.ExpectedRuntimeAsset("README.md")));
         Assert.False(File.Exists(sandbox.ExpectedRuntimeAsset("obsolete", "tool")));
     }
 

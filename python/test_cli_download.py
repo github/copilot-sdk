@@ -27,6 +27,8 @@ def _runtime_package(npm_platform: str) -> bytes:
         f"package/ripgrep/bin/{npm_platform}/rg": b"ripgrep",
         "package/definitions/future.json": b"{}",
         "package/app.js": b"excluded",
+        "package/LICENSE.md": b"excluded",
+        "package/README.md": b"excluded",
     }
     buffer = io.BytesIO()
     with tarfile.open(fileobj=buffer, mode="w:gz") as archive:

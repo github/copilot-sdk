@@ -26,6 +26,8 @@ describe("materializeRuntimeBundle", () => {
         mkdirSync(join(sourceDir, "definitions"), { recursive: true });
         writeFileSync(join(sourceDir, "definitions", "future.json"), "{}");
         writeFileSync(join(sourceDir, "app.js"), "excluded");
+        writeFileSync(join(sourceDir, "LICENSE.md"), "excluded");
+        writeFileSync(join(sourceDir, "README.md"), "excluded");
 
         vi.stubEnv("PATH", emptyPath);
         vi.stubEnv("COPILOT_CLI_PATH", undefined);
@@ -48,6 +50,8 @@ describe("materializeRuntimeBundle", () => {
             "ripgrep"
         );
         expect(existsSync(join(installDir, "app.js"))).toBe(false);
+        expect(existsSync(join(installDir, "LICENSE.md"))).toBe(false);
+        expect(existsSync(join(installDir, "README.md"))).toBe(false);
         if (process.platform !== "win32") {
             expect(statSync(installedWrapper).mode & 0o111).not.toBe(0);
         }

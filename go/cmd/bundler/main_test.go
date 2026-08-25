@@ -23,6 +23,8 @@ func TestCreateRuntimeAssetsArchiveRetainsUnknownAssetsAndFiltersCLIContent(t *t
 		"package/ripgrep/bin/linux-x64/rg":            "ripgrep",
 		"package/definitions/future.json":             "{}",
 		"package/app.js":                              "excluded",
+		"package/LICENSE.md":                          "excluded",
+		"package/README.md":                           "excluded",
 	})
 
 	if err := createRuntimeAssetsArchive(source, output, platformInfo{
@@ -36,7 +38,9 @@ func TestCreateRuntimeAssetsArchiveRetainsUnknownAssetsAndFiltersCLIContent(t *t
 	if files["ripgrep/bin/linux-x64/rg"] != "ripgrep" || files["definitions/future.json"] != "{}" {
 		t.Fatalf("retained assets = %#v", files)
 	}
-	for _, excluded := range []string{"runtime.node", "copilot-runtime", "app.js"} {
+	for _, excluded := range []string{
+		"runtime.node", "copilot-runtime", "app.js", "LICENSE.md", "README.md",
+	} {
 		if _, ok := files[excluded]; ok {
 			t.Fatalf("excluded asset %q was retained", excluded)
 		}
