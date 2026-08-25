@@ -34,11 +34,11 @@ from .generated.rpc import (
     CanvasProviderOpenResult,
     ClientSessionApiHandlers,
     CommandsHandlePendingCommandRequest,
+    GitHubTokenAcquireResultKind,
     HandlePendingToolCallRequest,
     LogRequest,
     MCPOauthHandlePendingRequest,
     MCPOauthPendingRequestResponse,
-    MCPOauthPendingRequestResponseKind,
     ModelSwitchToRequest,
     PermissionDecision,
     PermissionDecisionApproveOnce,
@@ -2279,14 +2279,14 @@ class CopilotSession:
 
             if result and result.get("kind", "token") == "token":
                 rpc_result = MCPOauthPendingRequestResponse(
-                    kind=MCPOauthPendingRequestResponseKind.TOKEN,
+                    kind=GitHubTokenAcquireResultKind.TOKEN,
                     access_token=result["accessToken"],
                     expires_in=result.get("expiresIn"),
                     token_type=result.get("tokenType"),
                 )
             else:
                 rpc_result = MCPOauthPendingRequestResponse(
-                    kind=MCPOauthPendingRequestResponseKind.CANCELLED
+                    kind=GitHubTokenAcquireResultKind.CANCELLED
                 )
             await self.rpc.mcp.oauth.handle_pending_request(
                 MCPOauthHandlePendingRequest(
@@ -2300,7 +2300,7 @@ class CopilotSession:
                     MCPOauthHandlePendingRequest(
                         request_id=request_id,
                         result=MCPOauthPendingRequestResponse(
-                            kind=MCPOauthPendingRequestResponseKind.CANCELLED
+                            kind=GitHubTokenAcquireResultKind.CANCELLED
                         ),
                     )
                 )
