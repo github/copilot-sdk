@@ -39,6 +39,7 @@ internal sealed partial class FfiRuntimeHost : IDisposable
 {
     /// <summary>Logical name the native interop layer binds the cdylib to.</summary>
     private const string LibraryName = "copilot_runtime";
+    private const uint ConnectionDrainTimeoutMilliseconds = 30_000;
 
     private readonly ILogger _logger;
     private readonly string _cliEntrypoint;
@@ -52,6 +53,10 @@ internal sealed partial class FfiRuntimeHost : IDisposable
     private uint _serverId;
     private uint _connectionId;
     private bool _disposed;
+
+    // Roots this host while native code can invoke its outbound callback. It is
+    // released only after connection_close_and_wait confirms callbacks drained.
+    private GCHandle _selfHandle;
 
     private FfiRuntimeHost(string libraryPath, string cliEntrypoint, IReadOnlyDictionary<string, string>? environment, IReadOnlyList<string> args, ILogger logger)
     {
@@ -224,7 +229,13 @@ internal sealed partial class FfiRuntimeHost : IDisposable
         _receiveStream.Feed(buffer);
     }
 
-    public void Dispose()
+    public void Dispose() =>
+        Dispose(ConnectionDrainTimeoutMilliseconds, throwOnDrainFailure: true);
+
+    internal void ForceDispose() =>
+        Dispose(timeoutMilliseconds: 0, throwOnDrainFailure: false);
+
+    private void Dispose(uint timeoutMilliseconds, bool throwOnDrainFailure)
     {
         if (_disposed)
         {
@@ -232,17 +243,31 @@ internal sealed partial class FfiRuntimeHost : IDisposable
         }
         _disposed = true;
 
+        Exception? connectionCloseError = null;
+        var callbackDrained = _connectionId == 0;
         try
         {
             if (_connectionId != 0)
             {
-                NativeConnectionClose(_connectionId);
+                callbackDrained = NativeConnectionCloseAndWait(
+                    _connectionId,
+                    timeoutMilliseconds);
+                if (!callbackDrained)
+                {
+                    connectionCloseError = new TimeoutException(
+                        $"FfiRuntimeHost timed out after {timeoutMilliseconds} ms "
+                        + "waiting for runtime callbacks to drain; callback state was retained.");
+                }
                 _connectionId = 0;
             }
         }
         catch (Exception ex)
         {
-            _logger.LogDebug(ex, "FfiRuntimeHost: connection_close failed");
+            connectionCloseError = new InvalidOperationException(
+                "FfiRuntimeHost failed to close and drain the runtime connection; "
+                + "callback state was retained.",
+                ex);
+            _connectionId = 0;
         }
 
         try
@@ -259,7 +284,21 @@ internal sealed partial class FfiRuntimeHost : IDisposable
         }
 
         _receiveStream.Complete();
-        DisposeNativeCallback();
+        if (callbackDrained)
+        {
+            DisposeNativeCallback();
+        }
+
+        if (connectionCloseError is not null)
+        {
+            if (throwOnDrainFailure)
+            {
+                throw connectionCloseError;
+            }
+            _logger.LogWarning(
+                connectionCloseError,
+                "FfiRuntimeHost force-closed before runtime callbacks drained; callback state was retained");
+        }
     }
 
     /// <summary>Length as the native pointer-sized unsigned integer the ABI expects.</summary>
@@ -271,10 +310,6 @@ internal sealed partial class FfiRuntimeHost : IDisposable
     private static readonly object ResolverLock = new();
     private static bool s_resolverRegistered;
     private static string? s_resolvedLibraryPath;
-
-    // A normal (non-pinned) handle to this instance, passed to the native side as
-    // the callback's user_data so the static outbound callback can route back here.
-    private GCHandle _selfHandle;
 
     /// <summary>
     /// Registers (once) a process-wide <see cref="NativeLibrary.SetDllImportResolver"/>
@@ -332,7 +367,8 @@ internal sealed partial class FfiRuntimeHost : IDisposable
 
     private static bool NativeConnectionWrite(uint connectionId, ReadOnlySpan<byte> frame) => ConnectionWrite(connectionId, frame, Len(frame.Length));
 
-    private static bool NativeConnectionClose(uint connectionId) => ConnectionClose(connectionId);
+    private static bool NativeConnectionCloseAndWait(uint connectionId, uint timeoutMilliseconds) =>
+        ConnectionCloseAndWait(connectionId, timeoutMilliseconds);
 
     private void DisposeNativeCallback()
     {
@@ -366,7 +402,7 @@ internal sealed partial class FfiRuntimeHost : IDisposable
     [return: MarshalAs(UnmanagedType.U1)]
     private static partial bool HostShutdown(uint serverId);
 
-    [LibraryImport(LibraryName, EntryPoint = "copilot_runtime_connection_open")]
+    [LibraryImport(LibraryName, EntryPoint = "copilot_runtime_connection_open_tracked")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
     private static unsafe partial uint ConnectionOpen(
         uint serverId,
@@ -381,10 +417,10 @@ internal sealed partial class FfiRuntimeHost : IDisposable
     [return: MarshalAs(UnmanagedType.U1)]
     private static partial bool ConnectionWrite(uint connectionId, ReadOnlySpan<byte> bytes, nuint bytesLen);
 
-    [LibraryImport(LibraryName, EntryPoint = "copilot_runtime_connection_close")]
+    [LibraryImport(LibraryName, EntryPoint = "copilot_runtime_connection_close_and_wait")]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
     [return: MarshalAs(UnmanagedType.U1)]
-    private static partial bool ConnectionClose(uint connectionId);
+    private static partial bool ConnectionCloseAndWait(uint connectionId, uint timeoutMilliseconds);
 #else
     // ---- Legacy interop: delegate-based P/Invoke for netstandard2.0 ----
     // netstandard2.0 has neither LibraryImport, NativeLibrary, nor UnmanagedCallersOnly,
@@ -416,7 +452,7 @@ internal sealed partial class FfiRuntimeHost : IDisposable
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     [return: MarshalAs(UnmanagedType.U1)]
-    private delegate bool ConnectionCloseDelegate(uint connectionId);
+    private delegate bool ConnectionCloseAndWaitDelegate(uint connectionId, uint timeoutMilliseconds);
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     private delegate void OutboundCallbackDelegate(IntPtr userData, IntPtr bytesPtr, UIntPtr bytesLen);
@@ -428,7 +464,7 @@ internal sealed partial class FfiRuntimeHost : IDisposable
     private static HostShutdownDelegate? s_hostShutdown;
     private static ConnectionOpenDelegate? s_connectionOpen;
     private static ConnectionWriteDelegate? s_connectionWrite;
-    private static ConnectionCloseDelegate? s_connectionClose;
+    private static ConnectionCloseAndWaitDelegate? s_connectionCloseAndWait;
 
     // Held for the connection's lifetime so the marshaled function pointer handed to the
     // native side is not collected while Rust may still invoke it.
@@ -457,9 +493,11 @@ internal sealed partial class FfiRuntimeHost : IDisposable
 
             s_hostStart = Bind<HostStartDelegate>(handle, "copilot_runtime_host_start");
             s_hostShutdown = Bind<HostShutdownDelegate>(handle, "copilot_runtime_host_shutdown");
-            s_connectionOpen = Bind<ConnectionOpenDelegate>(handle, "copilot_runtime_connection_open");
+            s_connectionOpen = Bind<ConnectionOpenDelegate>(handle, "copilot_runtime_connection_open_tracked");
             s_connectionWrite = Bind<ConnectionWriteDelegate>(handle, "copilot_runtime_connection_write");
-            s_connectionClose = Bind<ConnectionCloseDelegate>(handle, "copilot_runtime_connection_close");
+            s_connectionCloseAndWait = Bind<ConnectionCloseAndWaitDelegate>(
+                handle,
+                "copilot_runtime_connection_close_and_wait");
             s_loaded = true;
             s_loadedPath = libraryPath;
         }
@@ -480,11 +518,12 @@ internal sealed partial class FfiRuntimeHost : IDisposable
 
     private uint NativeOpenConnection(uint serverId)
     {
+        _selfHandle = GCHandle.Alloc(this);
         _outboundDelegate = OnOutbound;
         return s_connectionOpen!(
             serverId,
             _outboundDelegate,
-            IntPtr.Zero,
+            GCHandle.ToIntPtr(_selfHandle),
             null, UIntPtr.Zero,
             null, UIntPtr.Zero,
             null, UIntPtr.Zero);
@@ -500,17 +539,28 @@ internal sealed partial class FfiRuntimeHost : IDisposable
         }
     }
 
-    private static bool NativeConnectionClose(uint connectionId) => s_connectionClose!(connectionId);
+    private static bool NativeConnectionCloseAndWait(uint connectionId, uint timeoutMilliseconds) =>
+        s_connectionCloseAndWait!(connectionId, timeoutMilliseconds);
 
-    private void DisposeNativeCallback() => _outboundDelegate = null;
-
-    private void OnOutbound(IntPtr userData, IntPtr bytesPtr, UIntPtr bytesLen)
+    private void DisposeNativeCallback()
     {
-        if (bytesPtr == IntPtr.Zero || bytesLen == UIntPtr.Zero)
+        _outboundDelegate = null;
+        if (_selfHandle.IsAllocated)
+        {
+            _selfHandle.Free();
+        }
+    }
+
+    private static void OnOutbound(IntPtr userData, IntPtr bytesPtr, UIntPtr bytesLen)
+    {
+        if (userData == IntPtr.Zero || bytesPtr == IntPtr.Zero || bytesLen == UIntPtr.Zero)
         {
             return;
         }
-        FeedInbound(bytesPtr, bytesLen);
+        if (GCHandle.FromIntPtr(userData).Target is FfiRuntimeHost self)
+        {
+            self.FeedInbound(bytesPtr, bytesLen);
+        }
     }
 
     /// <summary>

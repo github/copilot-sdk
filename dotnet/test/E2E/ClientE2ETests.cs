@@ -64,6 +64,18 @@ public class ClientE2ETests(E2ETestFixture fixture) : IClassFixture<E2ETestFixtu
         }
     }
 
+    [Fact]
+    public async Task Should_Force_Stop_Over_InProcess_Ffi()
+    {
+        using var client = new CopilotClient(new CopilotClientOptions
+        {
+            Connection = RuntimeConnection.ForInProcess(),
+        });
+
+        await client.StartAsync();
+        await client.ForceStopAsync();
+    }
+
     [Theory]
     [InlineData(true)]   // stdio transport
     [InlineData(false)]  // TCP transport
