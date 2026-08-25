@@ -552,7 +552,7 @@ public sealed class ClientSessionLifetimeTests
             {
                 Permissions = new ManagedSettingsPermissions
                 {
-                    DisableBypassPermissionsMode = DisableBypassPermissionsMode.Disable,
+                    DisableBypassPermissionsMode = DisableBypassPermissionsModes.Disable,
                     Deny = ["shell(rm*)"],
                     Ask = ["write"],
                     Allow = []
@@ -583,6 +583,32 @@ public sealed class ClientSessionLifetimeTests
         });
         var invocation = await permissionInvocation.Task.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.True(invocation.ManagedSettingsEnabled);
+    }
+
+    [Fact]
+    public async Task CreateSessionAsync_Serializes_Future_ManagedSettings_Bypass_Mode()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await client.StartAsync();
+
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            ManagedSettings = new ManagedSettings
+            {
+                Permissions = new ManagedSettingsPermissions
+                {
+                    DisableBypassPermissionsMode = "future-fail-closed-mode"
+                }
+            },
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        var request = Assert.Single(server.Requests, request => request.Method == "session.create");
+        var permissions = request.Params.GetProperty("managedSettings").GetProperty("permissions");
+        Assert.Equal(
+            "future-fail-closed-mode",
+            permissions.GetProperty("disableBypassPermissionsMode").GetString());
     }
 
     [Fact]

@@ -3052,15 +3052,14 @@ public sealed class GitHubMcpToolConfig
     public bool? DisableFormDeferral { get; set; }
 }
 
-/// <summary>
-/// Controls whether bypass-permissions mode is available in a managed session.
-/// </summary>
-[JsonConverter(typeof(JsonStringEnumConverter<DisableBypassPermissionsMode>))]
-public enum DisableBypassPermissionsMode
+/// <summary>Well-known managed bypass-permissions policies.</summary>
+public static class DisableBypassPermissionsModes
 {
-    /// <summary>Turn off bypass-permissions mode.</summary>
-    [JsonStringEnumMemberName("disable")]
-    Disable
+    /// <summary>Turns off bypass-permissions mode entirely.</summary>
+    public const string Disable = "disable";
+
+    /// <summary>Permits automatic bypass but blocks full allow-all.</summary>
+    public const string AllowAutoOnly = "allow-auto-only";
 }
 
 /// <summary>
@@ -3077,12 +3076,13 @@ public enum DisableBypassPermissionsMode
 public sealed class ManagedSettingsPermissions
 {
     /// <summary>
-    /// When set to <c>"disable"</c>, bypass-permissions mode is turned off for the
-    /// session regardless of other layers. Serialized as
-    /// <c>disableBypassPermissionsMode</c>.
+    /// Restricts bypass-permissions mode for the session regardless of other
+    /// layers. See <see cref="DisableBypassPermissionsModes"/> for well-known
+    /// values. Unknown values are forwarded so newer runtime policies fail closed.
+    /// Serialized as <c>disableBypassPermissionsMode</c>.
     /// </summary>
     [JsonPropertyName("disableBypassPermissionsMode")]
-    public DisableBypassPermissionsMode? DisableBypassPermissionsMode { get; set; }
+    public string? DisableBypassPermissionsMode { get; set; }
 
     /// <summary>Tool-permission patterns that are always denied.</summary>
     [JsonPropertyName("deny")]
