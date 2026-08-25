@@ -10,8 +10,10 @@ import {
     createAttributedPermissionResult,
     CopilotClient,
     createCanvas,
+    DisableBypassPermissionsModes,
     RuntimeConnection,
     type GitHubTelemetryNotification,
+    type ManagedSettings,
     type ModelInfo,
 } from "../src/index.js";
 import { CopilotSession } from "../src/session.js";
@@ -3905,24 +3907,36 @@ describe("managedSettings serialization", () => {
     }
 
     it("forwards the full permissions object on session.create", async () => {
-        const params = await captureCreateParams({
-            managedSettings: {
-                permissions: {
-                    disableBypassPermissionsMode: "disable",
-                    deny: ["Shell(git push)"],
-                    ask: ["Domain(publish.example)"],
-                    allow: ["Read(**)"],
-                },
+        const managedSettings = {
+            permissions: {
+                disableBypassPermissionsMode: DisableBypassPermissionsModes.AllowAutoOnly,
+                deny: ["Shell(git push)"],
+                ask: ["Domain(publish.example)"],
+                allow: ["Read(**)"],
             },
+        } satisfies ManagedSettings;
+        const params = await captureCreateParams({
+            managedSettings,
         });
         expect(params.managedSettings).toEqual({
             permissions: {
-                disableBypassPermissionsMode: "disable",
+                disableBypassPermissionsMode: "allow-auto-only",
                 deny: ["Shell(git push)"],
                 ask: ["Domain(publish.example)"],
                 allow: ["Read(**)"],
             },
         });
+    });
+
+    it("forwards unknown bypass-permissions modes", async () => {
+        const managedSettings = {
+            permissions: {
+                disableBypassPermissionsMode: "future-fail-closed-mode",
+            },
+        } satisfies ManagedSettings;
+        const params = await captureCreateParams({ managedSettings });
+
+        expect(params.managedSettings).toEqual(managedSettings);
     });
 
     it("marks directly injected sessions as managed", async () => {

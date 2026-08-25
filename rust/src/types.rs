@@ -1767,6 +1767,9 @@ pub struct CopilotExpAssignmentResponse {
 pub enum DisableBypassPermissionsMode {
     /// Turn off bypass-permissions mode.
     Disable,
+    /// Permit automatic bypass but block full allow-all.
+    #[serde(rename = "allow-auto-only")]
+    AllowAutoOnly,
 }
 
 /// Permission rules injected as a managed-settings layer at session bootstrap.
@@ -1775,15 +1778,13 @@ pub enum DisableBypassPermissionsMode {
 /// layer. This layer composes restrictively with any server- or device-level
 /// managed settings: [`deny`](Self::deny) and [`ask`](Self::ask) rules are
 /// unioned across layers, every present [`allow`](Self::allow) list must admit a
-/// tool for it to be allowed, and
-/// [`disable_bypass_permissions_mode`](Self::disable_bypass_permissions_mode) is
-/// honored if any layer sets it (deny-wins).
+/// tool for it to be allowed, and bypass-mode restrictions compose to the most
+/// restrictive setting.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct ManagedSettingsPermissions {
-    /// When set to `"disable"`, bypass-permissions mode is turned off for the
-    /// session regardless of other layers. Serialized as
+    /// Restricts bypass-permissions mode for the session. Serialized as
     /// `disableBypassPermissionsMode`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub disable_bypass_permissions_mode: Option<DisableBypassPermissionsMode>,

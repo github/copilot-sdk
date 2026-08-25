@@ -2167,6 +2167,14 @@ export interface GitHubMcpToolConfig {
     disableFormDeferral?: boolean;
 }
 
+/** Well-known managed bypass-permissions policies. */
+export const DisableBypassPermissionsModes = {
+    /** Turn off bypass-permissions mode entirely. */
+    Disable: "disable",
+    /** Permit automatic bypass but block full allow-all. */
+    AllowAutoOnly: "allow-auto-only",
+} as const;
+
 /**
  * Permissions-only managed policy injected by the host via
  * {@link SessionConfigBase.managedSettings}.
@@ -2177,11 +2185,11 @@ export interface GitHubMcpToolConfig {
  */
 export interface ManagedSettingsPermissions {
     /**
-     * When set to `"disable"`, bypass-permissions ("yolo") mode is turned off
-     * for the session. This is deny-wins: it cannot be re-enabled by any other
-     * layer.
+     * Restricts bypass-permissions mode for the session. See
+     * {@link DisableBypassPermissionsModes} for well-known values. Unknown
+     * values are forwarded so newer runtime policies fail closed.
      */
-    disableBypassPermissionsMode?: "disable";
+    disableBypassPermissionsMode?: string;
     /** Operations that must always be denied. Unioned across managed layers. */
     deny?: string[];
     /**
@@ -2721,8 +2729,8 @@ export interface SessionConfigBase {
      * with the same managed-permission parser it uses for fetched policy and
      * composes it restrictively with any self-fetched (server) and
      * device-managed (MDM) layers: `deny`/`ask` rules are unioned, every
-     * declared `allow` list must admit an operation, and
-     * `disableBypassPermissionsMode: "disable"` is deny-wins.
+     * declared `allow` list must admit an operation, and bypass-mode
+     * restrictions are composed fail-closed.
      *
      * This is startup-only. It is **not** persisted: it must be re-supplied on
      * {@link CopilotClient.resumeSession | resume}, where it replaces the prior

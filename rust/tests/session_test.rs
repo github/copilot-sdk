@@ -788,6 +788,18 @@ async fn create_session_sends_canvas_wire_fields() {
     timeout(TIMEOUT, create_handle).await.unwrap().unwrap();
 }
 
+#[test]
+fn managed_bypass_permissions_modes_use_wire_values() {
+    assert_eq!(
+        serde_json::to_value(DisableBypassPermissionsMode::Disable).unwrap(),
+        serde_json::json!("disable")
+    );
+    assert_eq!(
+        serde_json::to_value(DisableBypassPermissionsMode::AllowAutoOnly).unwrap(),
+        serde_json::json!("allow-auto-only")
+    );
+}
+
 #[tokio::test]
 async fn create_and_resume_send_managed_settings_permissions() {
     use github_copilot_sdk::types::ResumeSessionConfig;
@@ -796,7 +808,7 @@ async fn create_and_resume_send_managed_settings_permissions() {
 
     let managed = ManagedSettings::default().with_permissions(
         ManagedSettingsPermissions::default()
-            .with_disable_bypass_permissions_mode(DisableBypassPermissionsMode::Disable)
+            .with_disable_bypass_permissions_mode(DisableBypassPermissionsMode::AllowAutoOnly)
             .with_deny(vec!["shell(rm*)".to_string()])
             .with_ask(vec!["write".to_string()])
             .with_allow(vec![]),
@@ -821,7 +833,7 @@ async fn create_and_resume_send_managed_settings_permissions() {
     assert_eq!(request["method"], "session.create");
     assert_eq!(request["params"]["enableManagedSettings"], true);
     let perms = &request["params"]["managedSettings"]["permissions"];
-    assert_eq!(perms["disableBypassPermissionsMode"], "disable");
+    assert_eq!(perms["disableBypassPermissionsMode"], "allow-auto-only");
     assert_eq!(perms["deny"][0], "shell(rm*)");
     assert_eq!(perms["ask"][0], "write");
     assert_eq!(perms["allow"], serde_json::json!([]));
