@@ -1070,7 +1070,7 @@ impl<'a> ClientRpcModels<'a> {
     ///
     /// # Parameters
     ///
-    /// * `params` - Optional GitHub token used to list models for a specific user instead of the global auth context.
+    /// * `params` - Optional account selection and pre-session context used to list models.
     ///
     /// # Returns
     ///
