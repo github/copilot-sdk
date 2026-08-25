@@ -14,7 +14,7 @@ use github_copilot_sdk::handler::{
 };
 use github_copilot_sdk::rpc::{
     CanvasProviderInvokeActionRequest, CanvasProviderOpenRequest, CanvasProviderOpenResult,
-    OpenCanvasInstance,
+    ModelPickerCategory, ModelsListResult, OpenCanvasInstance,
 };
 use github_copilot_sdk::session_events::{
     ManagedSettingsResolvedSource, McpOauthRequiredData, ReasoningSummary, SessionLimitsConfig,
@@ -4104,6 +4104,77 @@ async fn rpc_namespace_client_models_list_dispatches_correctly() {
 
     let result = timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
     assert!(result.models.is_empty());
+}
+
+#[tokio::test]
+async fn raw_client_call_supports_supplemental_model_compatibility() {
+    let (client, mut server_read, mut server_write) = make_client();
+
+    let supplemental_call = tokio::spawn({
+        let client = client.clone();
+        async move {
+            let value = client.call("models.listSupplemental", None).await.unwrap();
+            serde_json::from_value::<ModelsListResult>(value).unwrap()
+        }
+    });
+
+    let request = read_framed(&mut server_read).await;
+    assert_eq!(request["method"], "models.listSupplemental");
+    let response = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": request["id"],
+        "result": {
+            "models": [{
+                "id": "experimental-model",
+                "name": "Experimental Model",
+                "capabilities": {},
+                "modelPickerCategory": "experimental"
+            }, {
+                "id": "future-model",
+                "name": "Future Model",
+                "capabilities": {},
+                "modelPickerCategory": "future-category"
+            }, {
+                "id": "legacy-model",
+                "name": "Legacy Model",
+                "capabilities": {}
+            }]
+        }
+    });
+    write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
+
+    let result = timeout(TIMEOUT, supplemental_call).await.unwrap().unwrap();
+    assert_eq!(
+        result.models[0].model_picker_category,
+        Some(ModelPickerCategory::Experimental)
+    );
+    assert_eq!(
+        result.models[1].model_picker_category,
+        Some(ModelPickerCategory::Unknown)
+    );
+    assert_eq!(result.models[2].model_picker_category, None);
+
+    let unavailable_call = tokio::spawn(async move {
+        client
+            .call("models.listSupplemental", None)
+            .await
+            .unwrap_err()
+    });
+
+    let request = read_framed(&mut server_read).await;
+    let response = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": request["id"],
+        "error": {
+            "code": -32601,
+            "message": "Method not found"
+        }
+    });
+    write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
+
+    let error = timeout(TIMEOUT, unavailable_call).await.unwrap().unwrap();
+    assert_eq!(error.rpc_code(), Some(-32601));
+    assert!(!error.is_transport_failure());
 }
 
 #[tokio::test]

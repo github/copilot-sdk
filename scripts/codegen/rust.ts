@@ -85,6 +85,25 @@ const STRING_NEWTYPE_OVERRIDES: Record<string, string> = {
 	requestId: "RequestId",
 };
 
+/**
+ * Keep the Rust model metadata lossless while supplemental models roll out
+ * ahead of the next published CLI schema.
+ */
+function addExperimentalModelPickerCategory(schema: ApiSchema): ApiSchema {
+	const definition = collectDefinitions(
+		schema as unknown as Record<string, unknown>,
+	).ModelPickerCategory;
+	if (!definition || typeof definition !== "object" || !Array.isArray(definition.enum)) {
+		throw new Error("ModelPickerCategory enum is missing from api.schema.json");
+	}
+
+	if (!definition.enum.includes("experimental")) {
+		definition.enum.push("experimental");
+	}
+
+	return schema;
+}
+
 // ── Naming helpers ──────────────────────────────────────────────────────────
 
 function toPascalCase(s: string): string {
@@ -2235,7 +2254,7 @@ async function generate(): Promise<void> {
 	);
 	const apiSchema = propagateInternalVisibility(
 		postProcessSchema(
-			stripBooleanLiterals(apiRaw) as JSONSchema7,
+			stripBooleanLiterals(addExperimentalModelPickerCategory(apiRaw)) as JSONSchema7,
 		),
 	) as unknown as ApiSchema;
 

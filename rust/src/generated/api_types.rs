@@ -30406,6 +30406,8 @@ pub enum ModelPickerCategory {
     /// Powerful model category optimized for complex tasks.
     #[serde(rename = "powerful")]
     Powerful,
+    #[serde(rename = "experimental")]
+    Experimental,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
