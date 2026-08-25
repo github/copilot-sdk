@@ -544,10 +544,9 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
             return;
         }
 
-        var homeDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        var enabledProbe = Path.Join(homeDirectory, "sandbox-create-enabled.txt");
-        var disabledProbe = Path.Join(homeDirectory, "sandbox-create-disabled.txt");
-        var resumeProbe = Path.Join(homeDirectory, "sandbox-resume-enabled.txt");
+        var enabledProbe = "/var/tmp/sandbox-create-enabled.txt";
+        var disabledProbe = "/var/tmp/sandbox-create-disabled.txt";
+        var resumeProbe = "/var/tmp/sandbox-resume-enabled.txt";
         var probes = new[] { enabledProbe, disabledProbe, resumeProbe };
         foreach (var probe in probes) File.Delete(probe);
         await using var enabledSession = await CreateSessionAsync(new SessionConfig

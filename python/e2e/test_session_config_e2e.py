@@ -439,10 +439,9 @@ class TestSessionConfig:
         sys.platform == "win32", reason="process sandboxing is not supported on Windows"
     )
     async def test_should_apply_sandbox_config_on_create_and_resume(self, ctx: E2ETestContext):
-        home_dir = os.path.expanduser("~")
-        enabled_probe = os.path.join(home_dir, "sandbox-create-enabled.txt")
-        disabled_probe = os.path.join(home_dir, "sandbox-create-disabled.txt")
-        resume_probe = os.path.join(home_dir, "sandbox-resume-enabled.txt")
+        enabled_probe = "/var/tmp/sandbox-create-enabled.txt"
+        disabled_probe = "/var/tmp/sandbox-create-disabled.txt"
+        resume_probe = "/var/tmp/sandbox-resume-enabled.txt"
         probes = [enabled_probe, disabled_probe, resume_probe]
         for probe in probes:
             if os.path.exists(probe):

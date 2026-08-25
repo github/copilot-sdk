@@ -371,13 +371,9 @@ func TestSessionConfigNewOptionsE2E(t *testing.T) {
 			t.Skip("process sandboxing is not supported on Windows")
 		}
 		ctx.ConfigureForTest(t)
-		homeDir, err := os.UserHomeDir()
-		if err != nil {
-			t.Fatalf("UserHomeDir failed: %v", err)
-		}
-		enabledProbe := filepath.Join(homeDir, "sandbox-create-enabled.txt")
-		disabledProbe := filepath.Join(homeDir, "sandbox-create-disabled.txt")
-		resumeProbe := filepath.Join(homeDir, "sandbox-resume-enabled.txt")
+		enabledProbe := "/var/tmp/sandbox-create-enabled.txt"
+		disabledProbe := "/var/tmp/sandbox-create-disabled.txt"
+		resumeProbe := "/var/tmp/sandbox-resume-enabled.txt"
 		t.Cleanup(func() {
 			_ = os.Remove(enabledProbe)
 			_ = os.Remove(disabledProbe)

@@ -1,5 +1,4 @@
 import { mkdir, rm, writeFile } from "fs/promises";
-import { homedir } from "os";
 import { join } from "path";
 import { describe, expect, it } from "vitest";
 import {
@@ -884,9 +883,9 @@ describe("Session Configuration", async () => {
     it.skipIf(process.platform === "win32")(
         "should apply sandbox config on create and resume",
         async () => {
-            const enabledProbe = join(homedir(), "sandbox-create-enabled.txt");
-            const disabledProbe = join(homedir(), "sandbox-create-disabled.txt");
-            const resumeProbe = join(homedir(), "sandbox-resume-enabled.txt");
+            const enabledProbe = "/var/tmp/sandbox-create-enabled.txt";
+            const disabledProbe = "/var/tmp/sandbox-create-disabled.txt";
+            const resumeProbe = "/var/tmp/sandbox-resume-enabled.txt";
             const probes = [enabledProbe, disabledProbe, resumeProbe];
             await Promise.all(probes.map((probe) => rm(probe, { force: true })));
             try {

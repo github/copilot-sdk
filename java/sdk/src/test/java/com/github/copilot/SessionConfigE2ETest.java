@@ -231,10 +231,9 @@ public class SessionConfigE2ETest {
         ctx.configureForTest("session_config", "should_apply_sandbox_config_on_create_and_resume");
 
         try (CopilotClient client = ctx.createClient()) {
-            Path homeDir = Path.of(System.getProperty("user.home"));
-            Path enabledProbePath = homeDir.resolve("sandbox-create-enabled.txt");
-            Path disabledProbePath = homeDir.resolve("sandbox-create-disabled.txt");
-            Path resumeProbePath = homeDir.resolve("sandbox-resume-enabled.txt");
+            Path enabledProbePath = Path.of("/var/tmp/sandbox-create-enabled.txt");
+            Path disabledProbePath = Path.of("/var/tmp/sandbox-create-disabled.txt");
+            Path resumeProbePath = Path.of("/var/tmp/sandbox-resume-enabled.txt");
             List<Path> probes = List.of(enabledProbePath, disabledProbePath, resumeProbePath);
             for (Path probe : probes) {
                 Files.deleteIfExists(probe);
