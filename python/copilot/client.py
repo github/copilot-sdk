@@ -247,6 +247,16 @@ def _capi_session_options_to_wire(options: CapiSessionOptions) -> dict[str, Any]
     return wire
 
 
+class DisableBypassPermissionsModes:
+    """Well-known managed bypass-permissions policies."""
+
+    DISABLE: ClassVar[str] = "disable"
+    """Turn off bypass-permissions mode entirely."""
+
+    ALLOW_AUTO_ONLY: ClassVar[str] = "allow-auto-only"
+    """Permit automatic bypass but block full allow-all."""
+
+
 @dataclass
 class ManagedSettingsPermissions:
     """Permissions-only managed policy injected via :class:`ManagedSettings`.
@@ -256,9 +266,10 @@ class ManagedSettingsPermissions:
     rules are rejected by the runtime at session creation.
     """
 
-    disable_bypass_permissions_mode: Literal["disable"] | None = None
-    """When ``"disable"``, turns off bypass-permissions ("yolo") mode for the
-    session. Deny-wins: no other layer can re-enable it. Sent on the wire as
+    disable_bypass_permissions_mode: str | None = None
+    """Restricts bypass-permissions mode for the session. See
+    :class:`DisableBypassPermissionsModes` for well-known values. Unknown values
+    are forwarded so newer runtime policies fail closed. Sent on the wire as
     ``disableBypassPermissionsMode``."""
     deny: list[str] | None = None
     """Operations that must always be denied. Unioned across managed layers."""
