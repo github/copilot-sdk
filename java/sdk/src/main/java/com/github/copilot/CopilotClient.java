@@ -1277,10 +1277,12 @@ public final class CopilotClient implements AutoCloseable {
                 null, // shellInitProfile
                 null, // shellProcessFlags
                 null, // sandboxConfig
+                null, // sandboxConfigSource
                 null, // logInteractiveShells
                 null, // envValueMode
                 null, // allowAllMcpServerInstructions
                 null, // skillDirectories
+                null, // includedBuiltinSkills
                 null, // disabledSkills
                 null, // enableOnDemandInstructionDiscovery
                 null, // maxInlineBinaryBytes
