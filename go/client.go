@@ -1100,6 +1100,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 		CustomAgentsLocalOnly:  config.CustomAgentsLocalOnly,
 		CoauthorEnabled:        config.CoauthorEnabled,
 		ManageScheduleEnabled:  config.ManageScheduleEnabled,
+		SandboxConfig:          config.SandboxConfig,
 	}); err != nil {
 		return nil, err
 	}
@@ -1379,6 +1380,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 		CustomAgentsLocalOnly:  config.CustomAgentsLocalOnly,
 		CoauthorEnabled:        config.CoauthorEnabled,
 		ManageScheduleEnabled:  config.ManageScheduleEnabled,
+		SandboxConfig:          config.SandboxConfig,
 	}); err != nil {
 		return nil, err
 	}

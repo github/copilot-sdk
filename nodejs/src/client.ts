@@ -1408,6 +1408,9 @@ export class CopilotClient {
         config: SessionConfigBase
     ): Promise<void> {
         const patch: SessionUpdateOptionsParams = {};
+        if (config.sandboxConfig !== undefined) {
+            patch.sandboxConfig = config.sandboxConfig;
+        }
         if (this.options.mode === "empty") {
             patch.skipCustomInstructions = config.skipCustomInstructions ?? true;
             patch.customAgentsLocalOnly = config.customAgentsLocalOnly ?? true;

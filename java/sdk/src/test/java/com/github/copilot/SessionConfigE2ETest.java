@@ -27,6 +27,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.copilot.generated.ToolExecutionCompleteEvent;
 import com.github.copilot.generated.rpc.SandboxConfig;
+import com.github.copilot.generated.rpc.SandboxConfigUserPolicy;
+import com.github.copilot.generated.rpc.SandboxConfigUserPolicyFilesystem;
 import com.github.copilot.generated.rpc.SessionLimitsConfig;
 import com.github.copilot.rpc.BlobAttachment;
 import com.github.copilot.rpc.MessageOptions;
@@ -44,7 +46,7 @@ public class SessionConfigE2ETest {
 
     private static E2ETestContext ctx;
 
-    private static void assertNextShellExecutionSandboxed(CopilotSession session, String prompt, boolean expected)
+    private static void assertNextShellExecutionResult(CopilotSession session, String prompt, String expected)
             throws Exception {
         int eventCount = session.getMessages().get(60, TimeUnit.SECONDS).size();
         session.sendAndWait(new MessageOptions().setPrompt(prompt)).get(60, TimeUnit.SECONDS);
@@ -53,7 +55,7 @@ public class SessionConfigE2ETest {
                 .filter(ToolExecutionCompleteEvent.class::isInstance).map(ToolExecutionCompleteEvent.class::cast)
                 .toList();
         assertEquals(1, completions.size(), "Expected one tool.execution_complete after sandbox shell prompt");
-        assertEquals(expected, Boolean.TRUE.equals(completions.get(0).getData().sandboxed()));
+        assertTrue(completions.get(0).getData().result().content().contains(expected));
     }
 
     @BeforeAll
@@ -229,31 +231,57 @@ public class SessionConfigE2ETest {
         ctx.configureForTest("session_config", "should_apply_sandbox_config_on_create_and_resume");
 
         try (CopilotClient client = ctx.createClient()) {
+            Path homeDir = Path.of(System.getProperty("user.home"));
+            Path enabledProbePath = homeDir.resolve("sandbox-create-enabled.txt");
+            Path disabledProbePath = homeDir.resolve("sandbox-create-disabled.txt");
+            Path resumeProbePath = homeDir.resolve("sandbox-resume-enabled.txt");
+            List<Path> probes = List.of(enabledProbePath, disabledProbePath, resumeProbePath);
+            for (Path probe : probes) {
+                Files.deleteIfExists(probe);
+            }
+            String enabledProbe = enabledProbePath.toString();
+            String disabledProbe = disabledProbePath.toString();
+            String resumeProbe = resumeProbePath.toString();
             CopilotSession enabledSession = client
-                    .createSession(new SessionConfig().setSandboxConfig(new SandboxConfig(true, null, null, null, null))
+                    .createSession(new SessionConfig().setWorkingDirectory(ctx.getWorkDir().toString())
+                            .setSandboxConfig(new SandboxConfig(true,
+                                    new SandboxConfigUserPolicy(new SandboxConfigUserPolicyFilesystem(null, null,
+                                            List.of(enabledProbe), null), null, null, null),
+                                    null, null, null))
                             .setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
                     .get();
-            assertNextShellExecutionSandboxed(enabledSession,
-                    "Run 'echo sandbox-create-enabled' and report the output.", true);
-            CopilotSession disabledSession = client.createSession(
-                    new SessionConfig().setSandboxConfig(new SandboxConfig(false, null, null, null, null))
+            assertNextShellExecutionResult(enabledSession, "Check sandbox access for sandbox-create-enabled.txt.",
+                    "sandbox-blocked");
+            CopilotSession disabledSession = client
+                    .createSession(new SessionConfig().setWorkingDirectory(ctx.getWorkDir().toString())
+                            .setSandboxConfig(new SandboxConfig(false,
+                                    new SandboxConfigUserPolicy(new SandboxConfigUserPolicyFilesystem(null, null,
+                                            List.of(disabledProbe), null), null, null, null),
+                                    null, null, null))
                             .setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
                     .get();
-            assertNextShellExecutionSandboxed(disabledSession,
-                    "Run 'echo sandbox-create-disabled' and report the output.", false);
+            assertNextShellExecutionResult(disabledSession, "Check sandbox access for sandbox-create-disabled.txt.",
+                    "sandbox-accessible");
             CopilotSession resumedSession = client.resumeSession(disabledSession.getSessionId(),
-                    new ResumeSessionConfig().setSandboxConfig(new SandboxConfig(true, null, null, null, null))
+                    new ResumeSessionConfig().setWorkingDirectory(ctx.getWorkDir().toString())
+                            .setSandboxConfig(new SandboxConfig(true,
+                                    new SandboxConfigUserPolicy(new SandboxConfigUserPolicyFilesystem(null, null,
+                                            List.of(resumeProbe), null), null, null, null),
+                                    null, null, null))
                             .setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
                     .get();
 
             try {
-                assertNextShellExecutionSandboxed(resumedSession,
-                        "Run 'echo sandbox-resume-enabled' and report the output.", true);
+                assertNextShellExecutionResult(resumedSession, "Check sandbox access for sandbox-resume-enabled.txt.",
+                        "sandbox-blocked");
                 assertEquals(disabledSession.getSessionId(), resumedSession.getSessionId());
             } finally {
                 resumedSession.close();
                 disabledSession.close();
                 enabledSession.close();
+                for (Path probe : probes) {
+                    Files.deleteIfExists(probe);
+                }
             }
         }
     }

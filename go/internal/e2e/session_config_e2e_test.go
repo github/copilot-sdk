@@ -160,7 +160,7 @@ func float64Ref(value float64) *float64 {
 	return &value
 }
 
-func assertNextShellExecutionSandboxed(t *testing.T, session *copilot.Session, prompt string, expected bool) {
+func assertNextShellExecutionResult(t *testing.T, session *copilot.Session, prompt string, expected string) {
 	t.Helper()
 
 	existingEvents, err := session.GetEvents(t.Context())
@@ -180,9 +180,8 @@ func assertNextShellExecutionSandboxed(t *testing.T, session *copilot.Session, p
 		if !ok {
 			continue
 		}
-		actual := completed.Sandboxed != nil && *completed.Sandboxed
-		if actual != expected {
-			t.Fatalf("Expected tool call %q sandboxed=%v, got %v", completed.ToolCallID, expected, completed.Sandboxed)
+		if completed.Result == nil || !strings.Contains(completed.Result.Content, expected) {
+			t.Fatalf("Expected tool call %q result to contain %q, got %#v", completed.ToolCallID, expected, completed.Result)
 		}
 		return
 	}
@@ -372,36 +371,66 @@ func TestSessionConfigNewOptionsE2E(t *testing.T) {
 			t.Skip("process sandboxing is not supported on Windows")
 		}
 		ctx.ConfigureForTest(t)
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			t.Fatalf("UserHomeDir failed: %v", err)
+		}
+		enabledProbe := filepath.Join(homeDir, "sandbox-create-enabled.txt")
+		disabledProbe := filepath.Join(homeDir, "sandbox-create-disabled.txt")
+		resumeProbe := filepath.Join(homeDir, "sandbox-resume-enabled.txt")
+		t.Cleanup(func() {
+			_ = os.Remove(enabledProbe)
+			_ = os.Remove(disabledProbe)
+			_ = os.Remove(resumeProbe)
+		})
 
 		enabledSession, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-			SandboxConfig:       &rpc.SandboxConfig{Enabled: true},
+			WorkingDirectory:    ctx.WorkDir,
+			SandboxConfig: &rpc.SandboxConfig{
+				Enabled: true,
+				UserPolicy: &rpc.SandboxConfigUserPolicy{
+					Filesystem: &rpc.SandboxConfigUserPolicyFilesystem{DeniedPaths: []string{enabledProbe}},
+				},
+			},
 		})
 		if err != nil {
 			t.Fatalf("CreateSession failed: %v", err)
 		}
 		defer enabledSession.Disconnect()
-		assertNextShellExecutionSandboxed(t, enabledSession, "Run 'echo sandbox-create-enabled' and report the output.", true)
+		assertNextShellExecutionResult(t, enabledSession, "Check sandbox access for sandbox-create-enabled.txt.", "sandbox-blocked")
 
 		disabledSession, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-			SandboxConfig:       &rpc.SandboxConfig{Enabled: false},
+			WorkingDirectory:    ctx.WorkDir,
+			SandboxConfig: &rpc.SandboxConfig{
+				Enabled: false,
+				UserPolicy: &rpc.SandboxConfigUserPolicy{
+					Filesystem: &rpc.SandboxConfigUserPolicyFilesystem{DeniedPaths: []string{disabledProbe}},
+				},
+			},
 		})
 		if err != nil {
 			t.Fatalf("CreateSession failed: %v", err)
 		}
 		defer disabledSession.Disconnect()
-		assertNextShellExecutionSandboxed(t, disabledSession, "Run 'echo sandbox-create-disabled' and report the output.", false)
+		assertNextShellExecutionResult(t, disabledSession, "Check sandbox access for sandbox-create-disabled.txt.", "sandbox-accessible")
 
 		resumedSession, err := client.ResumeSessionWithOptions(t.Context(), disabledSession.SessionID, &copilot.ResumeSessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-			SandboxConfig:       &rpc.SandboxConfig{Enabled: true},
+			WorkingDirectory:    ctx.WorkDir,
+			SandboxConfig: &rpc.SandboxConfig{
+				Enabled: true,
+				UserPolicy: &rpc.SandboxConfigUserPolicy{
+					Filesystem: &rpc.SandboxConfigUserPolicyFilesystem{DeniedPaths: []string{resumeProbe}},
+				},
+			},
 		})
 		if err != nil {
 			t.Fatalf("ResumeSessionWithOptions failed: %v", err)
 		}
 		defer resumedSession.Disconnect()
-		assertNextShellExecutionSandboxed(t, resumedSession, "Run 'echo sandbox-resume-enabled' and report the output.", true)
+		assertNextShellExecutionResult(t, resumedSession, "Check sandbox access for sandbox-resume-enabled.txt.", "sandbox-blocked")
 
 		if resumedSession.SessionID != disabledSession.SessionID {
 			t.Errorf("Expected resumed session ID %q, got %q", disabledSession.SessionID, resumedSession.SessionID)

@@ -2095,7 +2095,7 @@ pub struct SessionConfig {
     pub enable_file_change_tracking: Option<bool>,
     /// **Experimental.** Limits applied to this session's current accounting window.
     pub session_limits: Option<SessionLimitsConfig>,
-    /// Resolved sandbox configuration applied before the session runtime starts.
+    /// Resolved sandbox configuration applied when the session is created.
     pub sandbox_config: Option<SandboxConfig>,
     /// Per-property overrides for model capabilities, deep-merged over
     /// runtime defaults.
@@ -3396,7 +3396,7 @@ pub struct ResumeSessionConfig {
     pub enable_file_change_tracking: Option<bool>,
     /// **Experimental.** Limits applied to this session's current accounting window.
     pub session_limits: Option<SessionLimitsConfig>,
-    /// Resolved sandbox configuration applied before the resumed runtime starts.
+    /// Resolved sandbox configuration applied when the session is resumed.
     pub sandbox_config: Option<SandboxConfig>,
     /// Per-property model capability overrides on resume.
     pub model_capabilities: Option<crate::generated::api_types::ModelCapabilitiesOverride>,

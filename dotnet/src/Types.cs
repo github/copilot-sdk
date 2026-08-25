@@ -3611,7 +3611,7 @@ public abstract class SessionConfigBase
     public SessionLimitsConfig? SessionLimits { get; set; }
 
     /// <summary>
-    /// Resolved sandbox configuration applied before the session runtime starts.
+    /// Resolved sandbox configuration applied when the session is created or resumed.
     /// </summary>
     [Experimental(Diagnostics.Experimental)]
     public SandboxConfig? SandboxConfig { get; set; }

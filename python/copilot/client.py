@@ -2243,8 +2243,8 @@ class CopilotClient:
                 name is configured.
             session_limits: **Experimental.** Limits applied to this session's
                 current accounting window.
-            sandbox_config: Resolved sandbox configuration applied before the session
-                runtime starts.
+            sandbox_config: Resolved sandbox configuration applied when the session is
+                created.
             model_capabilities: Override individual model capabilities resolved by the runtime.
             streaming: Whether to enable streaming responses.
             include_sub_agent_streaming_events: Whether to include sub-agent streaming
@@ -2813,6 +2813,7 @@ class CopilotClient:
             custom_agents_local_only,
             coauthor_enabled,
             manage_schedule_enabled,
+            sandbox_config,
         )
 
         log_timing(
@@ -2978,8 +2979,8 @@ class CopilotClient:
                 same name is configured.
             session_limits: **Experimental.** Limits applied to this session's
                 current accounting window.
-            sandbox_config: Resolved sandbox configuration applied before the resumed
-                runtime starts.
+            sandbox_config: Resolved sandbox configuration applied when the session is
+                resumed.
             model_capabilities: Override individual model capabilities resolved by the runtime.
             streaming: Whether to enable streaming responses.
             include_sub_agent_streaming_events: Whether to include sub-agent streaming
@@ -3460,6 +3461,7 @@ class CopilotClient:
             custom_agents_local_only,
             coauthor_enabled,
             manage_schedule_enabled,
+            sandbox_config,
         )
 
         log_timing(
@@ -4515,6 +4517,7 @@ class CopilotClient:
         custom_agents_local_only: bool | None,
         coauthor_enabled: bool | None,
         manage_schedule_enabled: bool | None,
+        sandbox_config: SandboxConfig | None,
     ) -> None:
         """Apply empty-mode safe defaults (or caller-supplied overrides in
         copilot-cli mode) via ``session.options.update`` after create/resume.
@@ -4531,8 +4534,9 @@ class CopilotClient:
             coauthor_enabled,
             manage_schedule_enabled,
         )
-        if patch is None:
+        if patch is None and sandbox_config is None:
             return
+        patch = patch or {}
 
         params = SessionUpdateOptionsParams()
         if "skipCustomInstructions" in patch:
@@ -4548,6 +4552,7 @@ class CopilotClient:
                 SessionInstalledPlugin.from_dict(p) if isinstance(p, dict) else p
                 for p in patch["installedPlugins"]
             ]
+        params.sandbox_config = sandbox_config
 
         try:
             await session.rpc.options.update(params)

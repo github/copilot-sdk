@@ -585,6 +585,11 @@ func TestClient_ForwardsNewSessionOptionsToSessionRequests(t *testing.T) {
 	}
 
 	createParams := make(chan json.RawMessage, 1)
+	updateParams := make(chan json.RawMessage, 2)
+	server.SetRequestHandler("session.options.update", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		updateParams <- append(json.RawMessage(nil), params...)
+		return []byte(`{"success":true}`), nil
+	})
 	server.SetRequestHandler("session.create", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
 		createParams <- append(json.RawMessage(nil), params...)
 		sessionID := sessionIDFromParams(t, params)
@@ -609,6 +614,7 @@ func TestClient_ForwardsNewSessionOptionsToSessionRequests(t *testing.T) {
 		t.Fatalf("CreateSession failed: %v", err)
 	}
 	assertNewSessionOptions(t, <-createParams, true, true, "explore", 30, "http://127.0.0.1:4321")
+	assertSandboxConfig(t, <-updateParams, "http://127.0.0.1:4321")
 
 	resumeParams := make(chan json.RawMessage, 1)
 	server.SetRequestHandler("session.resume", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
@@ -634,6 +640,7 @@ func TestClient_ForwardsNewSessionOptionsToSessionRequests(t *testing.T) {
 		t.Fatalf("ResumeSessionWithOptions failed: %v", err)
 	}
 	assertNewSessionOptions(t, <-resumeParams, false, false, "task", 15, "http://127.0.0.1:4322")
+	assertSandboxConfig(t, <-updateParams, "http://127.0.0.1:4322")
 }
 
 func assertCapiEnableWebSocketResponses(t *testing.T, params json.RawMessage) {
@@ -685,6 +692,22 @@ func assertNewSessionOptions(
 	if limits["maxAiCredits"] != expectedCredits {
 		t.Fatalf("expected sessionLimits.maxAiCredits=%v, got %v", expectedCredits, limits["maxAiCredits"])
 	}
+	assertDecodedSandboxConfig(t, decoded, expectedProxyURL)
+}
+
+func assertSandboxConfig(t *testing.T, params json.RawMessage, expectedProxyURL string) {
+	t.Helper()
+
+	var decoded map[string]any
+	if err := json.Unmarshal(params, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal request params: %v", err)
+	}
+	assertDecodedSandboxConfig(t, decoded, expectedProxyURL)
+}
+
+func assertDecodedSandboxConfig(t *testing.T, decoded map[string]any, expectedProxyURL string) {
+	t.Helper()
+
 	sandbox, ok := decoded["sandboxConfig"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected sandboxConfig object, got %T", decoded["sandboxConfig"])

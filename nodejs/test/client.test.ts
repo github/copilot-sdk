@@ -1,14 +1,14 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { EventEmitter } from "node:events";
-import { PassThrough } from "stream";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { PassThrough } from "stream";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import {
     approveAll,
-    createAttributedPermissionResult,
     CopilotClient,
+    createAttributedPermissionResult,
     createCanvas,
     RuntimeConnection,
     type GitHubTelemetryNotification,
@@ -1010,6 +1010,7 @@ describe("CopilotClient", () => {
             .mockImplementation(async (method: string, params: any) => {
                 if (method === "session.create") return { sessionId: params.sessionId };
                 if (method === "session.resume") return { sessionId: params.sessionId };
+                if (method === "session.options.update") return { success: true };
                 throw new Error(`Unexpected method: ${method}`);
             });
 
@@ -1039,6 +1040,9 @@ describe("CopilotClient", () => {
         const resumePayload = spy.mock.calls.find(
             ([method]) => method === "session.resume"
         )![1] as any;
+        const updatePayloads = spy.mock.calls
+            .filter(([method]) => method === "session.options.update")
+            .map(([, params]) => params as any);
         expect(createPayload.enableCitations).toBe(true);
         expect(createPayload.enableFileChangeTracking).toBe(true);
         expect(createPayload.excludedBuiltinAgents).toEqual(["explore"]);
@@ -1052,6 +1056,13 @@ describe("CopilotClient", () => {
         expect(resumePayload.excludedBuiltinAgents).toEqual(["task"]);
         expect(resumePayload.sessionLimits).toEqual({ maxAiCredits: 15 });
         expect(resumePayload.sandboxConfig).toEqual({ enabled: false });
+        expect(updatePayloads.map(({ sandboxConfig }) => sandboxConfig)).toEqual([
+            {
+                enabled: true,
+                userPolicy: { network: { allowOutbound: false } },
+            },
+            { enabled: false },
+        ]);
     });
 
     it("opts into GitHub telemetry forwarding when onGitHubTelemetry is provided", async () => {

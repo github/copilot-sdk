@@ -536,8 +536,7 @@ public class ResumeSessionConfig {
     }
 
     /**
-     * Sets the resolved sandbox configuration applied before the resumed runtime
-     * starts.
+     * Sets the resolved sandbox configuration applied when the session is resumed.
      *
      * @param sandboxConfig
      *            the sandbox configuration

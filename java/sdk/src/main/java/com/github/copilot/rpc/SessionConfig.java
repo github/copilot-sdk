@@ -638,8 +638,7 @@ public class SessionConfig {
     }
 
     /**
-     * Sets the resolved sandbox configuration applied before the session runtime
-     * starts.
+     * Sets the resolved sandbox configuration applied when the session is created.
      *
      * @param sandboxConfig
      *            the sandbox configuration

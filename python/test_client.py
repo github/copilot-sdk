@@ -1011,6 +1011,7 @@ class TestCreateSessionConfig:
         await client.start()
         try:
             captured = {}
+            options_updates = []
 
             async def mock_request(method, params, **kwargs):
                 captured[method] = params
@@ -1020,6 +1021,9 @@ class TestCreateSessionConfig:
                     if callback is not None:
                         callback(result)
                     return result
+                if method == "session.options.update":
+                    options_updates.append(params)
+                    return {"success": True}
                 return {}
 
             client._client.request = mock_request
@@ -1057,6 +1061,10 @@ class TestCreateSessionConfig:
             assert captured["session.resume"]["excludedBuiltinAgents"] == ["task"]
             assert captured["session.resume"]["sessionLimits"] == {"maxAiCredits": 15}
             assert captured["session.resume"]["sandboxConfig"] == {"enabled": False}
+            assert [update["sandboxConfig"] for update in options_updates] == [
+                {"enabled": True, "addCurrentWorkingDirectory": False},
+                {"enabled": False},
+            ]
         finally:
             await client.force_stop()
 

@@ -16,6 +16,8 @@ from copilot import (
     ModelSupportsOverride,
     RuntimeConnection,
     SandboxConfig,
+    SandboxConfigUserPolicy,
+    SandboxConfigUserPolicyFilesystem,
 )
 from copilot.copilot_request_handler import CopilotRequestContext
 from copilot.session import PermissionHandler
@@ -103,7 +105,7 @@ def _get_tool_names(exchange: dict) -> list[str]:
     return names
 
 
-async def _assert_next_shell_execution_sandboxed(session, prompt: str, expected: bool) -> None:
+async def _assert_next_shell_execution_result(session, prompt: str, expected: str) -> None:
     event_count = len(await session.get_events())
     await session.send_and_wait(prompt)
     completions = [
@@ -112,7 +114,8 @@ async def _assert_next_shell_execution_sandboxed(session, prompt: str, expected:
         if isinstance(event.data, ToolExecutionCompleteData)
     ]
     assert completions, "Expected tool.execution_complete after sandbox shell prompt"
-    assert (completions[0].sandboxed is True) is expected
+    assert completions[0].result is not None
+    assert expected in completions[0].result.content
 
 
 async def _send_and_get_next_exchange(session, ctx: E2ETestContext, prompt: str) -> dict:
@@ -436,35 +439,72 @@ class TestSessionConfig:
         sys.platform == "win32", reason="process sandboxing is not supported on Windows"
     )
     async def test_should_apply_sandbox_config_on_create_and_resume(self, ctx: E2ETestContext):
-        enabled_session = await ctx.client.create_session(
-            on_permission_request=PermissionHandler.approve_all,
-            sandbox_config=SandboxConfig(enabled=True),
-        )
-        await _assert_next_shell_execution_sandboxed(
-            enabled_session, "Run 'echo sandbox-create-enabled' and report the output.", True
-        )
+        home_dir = os.path.expanduser("~")
+        enabled_probe = os.path.join(home_dir, "sandbox-create-enabled.txt")
+        disabled_probe = os.path.join(home_dir, "sandbox-create-disabled.txt")
+        resume_probe = os.path.join(home_dir, "sandbox-resume-enabled.txt")
+        probes = [enabled_probe, disabled_probe, resume_probe]
+        for probe in probes:
+            if os.path.exists(probe):
+                os.remove(probe)
+        try:
+            enabled_session = await ctx.client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                working_directory=ctx.work_dir,
+                sandbox_config=SandboxConfig(
+                    enabled=True,
+                    user_policy=SandboxConfigUserPolicy(
+                        filesystem=SandboxConfigUserPolicyFilesystem(denied_paths=[enabled_probe])
+                    ),
+                ),
+            )
+            await _assert_next_shell_execution_result(
+                enabled_session,
+                "Check sandbox access for sandbox-create-enabled.txt.",
+                "sandbox-blocked",
+            )
 
-        disabled_session = await ctx.client.create_session(
-            on_permission_request=PermissionHandler.approve_all,
-            sandbox_config=SandboxConfig(enabled=False),
-        )
-        await _assert_next_shell_execution_sandboxed(
-            disabled_session, "Run 'echo sandbox-create-disabled' and report the output.", False
-        )
-        resumed_session = await ctx.client.resume_session(
-            disabled_session.session_id,
-            on_permission_request=PermissionHandler.approve_all,
-            sandbox_config=SandboxConfig(enabled=True),
-        )
-        await _assert_next_shell_execution_sandboxed(
-            resumed_session, "Run 'echo sandbox-resume-enabled' and report the output.", True
-        )
+            disabled_session = await ctx.client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                working_directory=ctx.work_dir,
+                sandbox_config=SandboxConfig(
+                    enabled=False,
+                    user_policy=SandboxConfigUserPolicy(
+                        filesystem=SandboxConfigUserPolicyFilesystem(denied_paths=[disabled_probe])
+                    ),
+                ),
+            )
+            await _assert_next_shell_execution_result(
+                disabled_session,
+                "Check sandbox access for sandbox-create-disabled.txt.",
+                "sandbox-accessible",
+            )
+            resumed_session = await ctx.client.resume_session(
+                disabled_session.session_id,
+                on_permission_request=PermissionHandler.approve_all,
+                working_directory=ctx.work_dir,
+                sandbox_config=SandboxConfig(
+                    enabled=True,
+                    user_policy=SandboxConfigUserPolicy(
+                        filesystem=SandboxConfigUserPolicyFilesystem(denied_paths=[resume_probe])
+                    ),
+                ),
+            )
+            await _assert_next_shell_execution_result(
+                resumed_session,
+                "Check sandbox access for sandbox-resume-enabled.txt.",
+                "sandbox-blocked",
+            )
 
-        assert resumed_session.session_id == disabled_session.session_id
+            assert resumed_session.session_id == disabled_session.session_id
 
-        await resumed_session.disconnect()
-        await disabled_session.disconnect()
-        await enabled_session.disconnect()
+            await resumed_session.disconnect()
+            await disabled_session.disconnect()
+            await enabled_session.disconnect()
+        finally:
+            for probe in probes:
+                if os.path.exists(probe):
+                    os.remove(probe)
 
     async def test_should_apply_excluded_built_in_agents_on_create(self, ctx: E2ETestContext):
         excluded_agent = "explore"

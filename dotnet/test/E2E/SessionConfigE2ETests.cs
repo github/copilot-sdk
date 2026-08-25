@@ -21,16 +21,16 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     private static readonly byte[] Png1X1 = Convert.FromBase64String(
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==");
 
-    private static async Task AssertNextShellExecutionSandboxedAsync(
+    private static async Task AssertNextShellExecutionResultAsync(
         CopilotSession session,
         string prompt,
-        bool expected)
+        string expected)
     {
         var eventCount = (await session.GetEventsAsync()).Count;
         await session.SendAndWaitAsync(new MessageOptions { Prompt = prompt });
         var completion = Assert.Single(
             (await session.GetEventsAsync()).Skip(eventCount).OfType<ToolExecutionCompleteEvent>());
-        Assert.Equal(expected, completion.Data.Sandboxed == true);
+        Assert.Contains(expected, completion.Data.Result?.Content ?? string.Empty, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -544,37 +544,68 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
             return;
         }
 
+        var homeDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var enabledProbe = Path.Join(homeDirectory, "sandbox-create-enabled.txt");
+        var disabledProbe = Path.Join(homeDirectory, "sandbox-create-disabled.txt");
+        var resumeProbe = Path.Join(homeDirectory, "sandbox-resume-enabled.txt");
+        var probes = new[] { enabledProbe, disabledProbe, resumeProbe };
+        foreach (var probe in probes) File.Delete(probe);
         await using var enabledSession = await CreateSessionAsync(new SessionConfig
         {
-            SandboxConfig = new SandboxConfig { Enabled = true },
+            WorkingDirectory = Ctx.WorkDir,
+            SandboxConfig = new SandboxConfig
+            {
+                Enabled = true,
+                UserPolicy = new SandboxConfigUserPolicy
+                {
+                    Filesystem = new SandboxConfigUserPolicyFilesystem { DeniedPaths = [enabledProbe] },
+                },
+            },
         });
-        await AssertNextShellExecutionSandboxedAsync(
+        await AssertNextShellExecutionResultAsync(
             enabledSession,
-            "Run 'echo sandbox-create-enabled' and report the output.",
-            true);
+            "Check sandbox access for sandbox-create-enabled.txt.",
+            "sandbox-blocked");
 
         await using var disabledSession = await CreateSessionAsync(new SessionConfig
         {
-            SandboxConfig = new SandboxConfig { Enabled = false },
+            WorkingDirectory = Ctx.WorkDir,
+            SandboxConfig = new SandboxConfig
+            {
+                Enabled = false,
+                UserPolicy = new SandboxConfigUserPolicy
+                {
+                    Filesystem = new SandboxConfigUserPolicyFilesystem { DeniedPaths = [disabledProbe] },
+                },
+            },
         });
-        await AssertNextShellExecutionSandboxedAsync(
+        await AssertNextShellExecutionResultAsync(
             disabledSession,
-            "Run 'echo sandbox-create-disabled' and report the output.",
-            false);
+            "Check sandbox access for sandbox-create-disabled.txt.",
+            "sandbox-accessible");
         var sessionId = disabledSession.SessionId;
         await SuspendAndUntrackSessionForResumeAsync(disabledSession);
 
         var session2 = await ResumeSessionAsync(sessionId, new ResumeSessionConfig
         {
-            SandboxConfig = new SandboxConfig { Enabled = true },
+            WorkingDirectory = Ctx.WorkDir,
+            SandboxConfig = new SandboxConfig
+            {
+                Enabled = true,
+                UserPolicy = new SandboxConfigUserPolicy
+                {
+                    Filesystem = new SandboxConfigUserPolicyFilesystem { DeniedPaths = [resumeProbe] },
+                },
+            },
         });
-        await AssertNextShellExecutionSandboxedAsync(
+        await AssertNextShellExecutionResultAsync(
             session2,
-            "Run 'echo sandbox-resume-enabled' and report the output.",
-            true);
+            "Check sandbox access for sandbox-resume-enabled.txt.",
+            "sandbox-blocked");
 
         Assert.Equal(sessionId, session2.SessionId);
         await session2.DisposeAsync();
+        foreach (var probe in probes) File.Delete(probe);
     }
 
     [Fact]

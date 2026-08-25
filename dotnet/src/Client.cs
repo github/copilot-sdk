@@ -1042,6 +1042,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         bool? manageScheduleEnabled = null;
         IList<SessionInstalledPlugin>? installedPlugins = null;
 
+        if (config.SandboxConfig is not null)
+        {
+            hasAnyPatch = true;
+        }
+
         if (_options.Mode == CopilotClientMode.Empty)
         {
             skipCustomInstructions = config.SkipCustomInstructions ?? true;
@@ -1070,6 +1075,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 coauthorEnabled: coauthorEnabled,
                 manageScheduleEnabled: manageScheduleEnabled,
                 installedPlugins: installedPlugins,
+                sandboxConfig: config.SandboxConfig,
                 cancellationToken: cancellationToken).ConfigureAwait(false);
 #pragma warning restore GHCP001
         }

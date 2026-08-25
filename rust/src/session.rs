@@ -903,6 +903,7 @@ impl Client {
         let opt_custom_agents_local_only = config.custom_agents_local_only;
         let opt_coauthor_enabled = config.coauthor_enabled;
         let opt_manage_schedule_enabled = config.manage_schedule_enabled;
+        let opt_sandbox_config = config.sandbox_config.clone();
         let (mut wire, mut runtime) = config.into_wire(local_session_id.clone())?;
         wire.enable_github_telemetry_forwarding =
             self.inner.on_github_telemetry.is_some().then_some(true);
@@ -1098,6 +1099,7 @@ impl Client {
             opt_custom_agents_local_only,
             opt_coauthor_enabled,
             opt_manage_schedule_enabled,
+            opt_sandbox_config,
         )
         .await?;
         Ok(session)
@@ -1176,6 +1178,7 @@ impl Client {
         let opt_custom_agents_local_only = config.custom_agents_local_only;
         let opt_coauthor_enabled = config.coauthor_enabled;
         let opt_manage_schedule_enabled = config.manage_schedule_enabled;
+        let opt_sandbox_config = config.sandbox_config.clone();
         let (mut wire, mut runtime) = config.into_wire()?;
         wire.enable_github_telemetry_forwarding =
             self.inner.on_github_telemetry.is_some().then_some(true);
@@ -1358,6 +1361,7 @@ impl Client {
             opt_custom_agents_local_only,
             opt_coauthor_enabled,
             opt_manage_schedule_enabled,
+            opt_sandbox_config,
         )
         .await?;
         Ok(session)
@@ -1373,9 +1377,11 @@ async fn apply_mode_post_create_patch(
     opt_custom_agents_local_only: Option<bool>,
     opt_coauthor_enabled: Option<bool>,
     opt_manage_schedule_enabled: Option<bool>,
+    opt_sandbox_config: Option<crate::SandboxConfig>,
 ) -> Result<(), Error> {
     use crate::generated::api_types::SessionUpdateOptionsParams;
     let mut patch = SessionUpdateOptionsParams::default();
+    patch.sandbox_config = opt_sandbox_config;
     let should_send = if mode == crate::ClientMode::Empty {
         patch.skip_custom_instructions = Some(opt_skip_custom_instructions.unwrap_or(true));
         patch.custom_agents_local_only = Some(opt_custom_agents_local_only.unwrap_or(true));
@@ -1384,7 +1390,7 @@ async fn apply_mode_post_create_patch(
         patch.installed_plugins = Some(Vec::new());
         true
     } else {
-        let mut any = false;
+        let mut any = patch.sandbox_config.is_some();
         if let Some(v) = opt_skip_custom_instructions {
             patch.skip_custom_instructions = Some(v);
             any = true;

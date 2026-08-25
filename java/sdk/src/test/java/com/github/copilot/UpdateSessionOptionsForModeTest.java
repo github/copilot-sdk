@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.copilot.generated.rpc.SandboxConfig;
 import com.github.copilot.rpc.CopilotClientMode;
 import com.github.copilot.rpc.CopilotClientOptions;
 
@@ -175,6 +176,21 @@ class UpdateSessionOptionsForModeTest {
 
             assertEquals("session.options.update", pair.lastMethod);
             assertTrue(pair.lastParams.get("coauthorEnabled").asBoolean());
+            client.close();
+        }
+    }
+
+    @Test
+    void copilotCliMode_sandboxConfigSet_patchContainsSandboxConfig() throws Exception {
+        try (var pair = new AutoReplyPair()) {
+            var session = new CopilotSession("sess-1", pair.rpcClient);
+            var client = new CopilotClient(new CopilotClientOptions().setAutoStart(false));
+            var sandboxConfig = new SandboxConfig(true, null, null, null, null);
+
+            client.updateSessionOptionsForMode(session, null, null, null, null, sandboxConfig).get();
+
+            assertEquals("session.options.update", pair.lastMethod);
+            assertTrue(pair.lastParams.get("sandboxConfig").get("enabled").asBoolean());
             client.close();
         }
     }
