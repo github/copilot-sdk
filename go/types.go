@@ -1380,6 +1380,9 @@ type SessionConfig struct {
 	// Experimental: SessionLimits is part of an experimental runtime accounting
 	// surface and may change or be removed in future SDK or CLI releases.
 	SessionLimits *rpc.SessionLimitsConfig
+	// SandboxConfig is the resolved sandbox configuration applied before the
+	// session runtime starts.
+	SandboxConfig *rpc.SandboxConfig
 	// EnableExperimentalMode controls whether the session enables experimental
 	// features. When nil, it defaults to false in [ModeEmpty]; otherwise the
 	// runtime decides.
@@ -1848,6 +1851,9 @@ type ResumeSessionConfig struct {
 	// Experimental: SessionLimits is part of an experimental runtime accounting
 	// surface and may change or be removed in future SDK or CLI releases.
 	SessionLimits *rpc.SessionLimitsConfig
+	// SandboxConfig is the resolved sandbox configuration applied before the
+	// resumed session runtime starts.
+	SandboxConfig *rpc.SandboxConfig
 	// EnableExperimentalMode controls whether the session enables experimental
 	// features. When nil, it defaults to false in [ModeEmpty]; otherwise the
 	// runtime decides.
@@ -2471,6 +2477,7 @@ type createSessionRequest struct {
 	EnableCitations                    *bool                                  `json:"enableCitations,omitempty"`
 	EnableFileChangeTracking           *bool                                  `json:"enableFileChangeTracking,omitempty"`
 	SessionLimits                      *rpc.SessionLimitsConfig               `json:"sessionLimits,omitempty"`
+	SandboxConfig                      *rpc.SandboxConfig                     `json:"sandboxConfig,omitempty"`
 	IsExperimentalMode                 *bool                                  `json:"isExperimentalMode,omitempty"`
 	SkipCustomInstructions             *bool                                  `json:"skipCustomInstructions,omitempty"`
 	CustomAgentsLocalOnly              *bool                                  `json:"customAgentsLocalOnly,omitempty"`
@@ -2567,6 +2574,7 @@ type resumeSessionRequest struct {
 	EnableCitations                    *bool                                  `json:"enableCitations,omitempty"`
 	EnableFileChangeTracking           *bool                                  `json:"enableFileChangeTracking,omitempty"`
 	SessionLimits                      *rpc.SessionLimitsConfig               `json:"sessionLimits,omitempty"`
+	SandboxConfig                      *rpc.SandboxConfig                     `json:"sandboxConfig,omitempty"`
 	IsExperimentalMode                 *bool                                  `json:"isExperimentalMode,omitempty"`
 	SkipCustomInstructions             *bool                                  `json:"skipCustomInstructions,omitempty"`
 	CustomAgentsLocalOnly              *bool                                  `json:"customAgentsLocalOnly,omitempty"`

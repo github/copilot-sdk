@@ -12,6 +12,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import com.github.copilot.CopilotExperimental;
+import com.github.copilot.generated.rpc.SandboxConfig;
 import com.github.copilot.generated.rpc.SessionLimitsConfig;
 
 /**
@@ -87,6 +88,9 @@ public final class ResumeSessionRequest {
 
     @JsonProperty("sessionLimits")
     private SessionLimitsConfig sessionLimits;
+
+    @JsonProperty("sandboxConfig")
+    private SandboxConfig sandboxConfig;
 
     @JsonProperty("requestPermission")
     private Boolean requestPermission;
@@ -465,6 +469,19 @@ public final class ResumeSessionRequest {
     /** Sets the session limits. @param sessionLimits the session limits */
     public void setSessionLimits(SessionLimitsConfig sessionLimits) {
         this.sessionLimits = sessionLimits;
+    }
+
+    /** Gets the sandbox configuration. @return the sandbox configuration */
+    public SandboxConfig getSandboxConfig() {
+        return sandboxConfig;
+    }
+
+    /**
+     * Sets the sandbox configuration. @param sandboxConfig the sandbox
+     * configuration
+     */
+    public void setSandboxConfig(SandboxConfig sandboxConfig) {
+        this.sandboxConfig = sandboxConfig;
     }
 
     /**

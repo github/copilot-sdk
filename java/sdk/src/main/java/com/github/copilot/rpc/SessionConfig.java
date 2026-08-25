@@ -16,6 +16,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import com.github.copilot.CopilotExperimental;
 import com.github.copilot.generated.SessionEvent;
+import com.github.copilot.generated.rpc.SandboxConfig;
 import com.github.copilot.generated.rpc.SessionLimitsConfig;
 
 /**
@@ -59,6 +60,7 @@ public class SessionConfig {
     private Boolean enableCitations;
     private Boolean enableFileChangeTracking;
     private SessionLimitsConfig sessionLimits;
+    private SandboxConfig sandboxConfig;
     private Boolean enableExperimentalMode;
     private Boolean skipCustomInstructions;
     private Boolean customAgentsLocalOnly;
@@ -622,6 +624,41 @@ public class SessionConfig {
     @CopilotExperimental
     public SessionConfig clearSessionLimits() {
         this.sessionLimits = null;
+        return this;
+    }
+
+    /**
+     * Gets the resolved sandbox configuration.
+     *
+     * @return the sandbox configuration, or {@code null} if not set
+     */
+    @CopilotExperimental
+    public SandboxConfig getSandboxConfig() {
+        return sandboxConfig;
+    }
+
+    /**
+     * Sets the resolved sandbox configuration applied before the session runtime
+     * starts.
+     *
+     * @param sandboxConfig
+     *            the sandbox configuration
+     * @return this config instance for method chaining
+     */
+    @CopilotExperimental
+    public SessionConfig setSandboxConfig(SandboxConfig sandboxConfig) {
+        this.sandboxConfig = sandboxConfig;
+        return this;
+    }
+
+    /**
+     * Clears the sandbox configuration, reverting to the default behavior.
+     *
+     * @return this instance for method chaining
+     */
+    @CopilotExperimental
+    public SessionConfig clearSandboxConfig() {
+        this.sandboxConfig = null;
         return this;
     }
 
@@ -2135,6 +2172,7 @@ public class SessionConfig {
         copy.enableCitations = this.enableCitations;
         copy.enableFileChangeTracking = this.enableFileChangeTracking;
         copy.sessionLimits = this.sessionLimits;
+        copy.sandboxConfig = this.sandboxConfig;
         copy.enableExperimentalMode = this.enableExperimentalMode;
         copy.skipCustomInstructions = this.skipCustomInstructions;
         copy.customAgentsLocalOnly = this.customAgentsLocalOnly;

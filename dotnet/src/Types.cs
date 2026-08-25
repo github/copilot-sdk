@@ -3223,6 +3223,7 @@ public abstract class SessionConfigBase
         PluginDirectories = other.PluginDirectories is not null ? [.. other.PluginDirectories] : null;
         InstructionDirectories = other.InstructionDirectories is not null ? [.. other.InstructionDirectories] : null;
         SessionLimits = other.SessionLimits;
+        SandboxConfig = other.SandboxConfig;
         Streaming = other.Streaming;
         IncludeSubAgentStreamingEvents = other.IncludeSubAgentStreamingEvents;
         SystemMessage = other.SystemMessage;
@@ -3608,6 +3609,12 @@ public abstract class SessionConfigBase
     /// </remarks>
     [Experimental(Diagnostics.Experimental)]
     public SessionLimitsConfig? SessionLimits { get; set; }
+
+    /// <summary>
+    /// Resolved sandbox configuration applied before the session runtime starts.
+    /// </summary>
+    [Experimental(Diagnostics.Experimental)]
+    public SandboxConfig? SandboxConfig { get; set; }
 
     /// <summary>
     /// Configuration for handling large tool outputs. When a tool produces

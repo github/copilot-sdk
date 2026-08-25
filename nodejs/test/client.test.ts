@@ -1019,6 +1019,10 @@ describe("CopilotClient", () => {
             enableFileChangeTracking: true,
             excludedBuiltinAgents: ["explore"],
             sessionLimits: { maxAiCredits: 30 },
+            sandboxConfig: {
+                enabled: true,
+                userPolicy: { network: { allowOutbound: false } },
+            },
         });
         await client.resumeSession(session.sessionId, {
             onPermissionRequest: approveAll,
@@ -1026,6 +1030,7 @@ describe("CopilotClient", () => {
             enableFileChangeTracking: false,
             excludedBuiltinAgents: ["task"],
             sessionLimits: { maxAiCredits: 15 },
+            sandboxConfig: { enabled: false },
         });
 
         const createPayload = spy.mock.calls.find(
@@ -1038,10 +1043,15 @@ describe("CopilotClient", () => {
         expect(createPayload.enableFileChangeTracking).toBe(true);
         expect(createPayload.excludedBuiltinAgents).toEqual(["explore"]);
         expect(createPayload.sessionLimits).toEqual({ maxAiCredits: 30 });
+        expect(createPayload.sandboxConfig).toEqual({
+            enabled: true,
+            userPolicy: { network: { allowOutbound: false } },
+        });
         expect(resumePayload.enableCitations).toBe(false);
         expect(resumePayload.enableFileChangeTracking).toBe(false);
         expect(resumePayload.excludedBuiltinAgents).toEqual(["task"]);
         expect(resumePayload.sessionLimits).toEqual({ maxAiCredits: 15 });
+        expect(resumePayload.sandboxConfig).toEqual({ enabled: false });
     });
 
     it("opts into GitHub telemetry forwarding when onGitHubTelemetry is provided", async () => {

@@ -21,6 +21,7 @@ from copilot import (
     ModelBillingTokenPrices,
     ModelBillingTokenPricesLongContext,
     RuntimeConnection,
+    SandboxConfig,
     StdioRuntimeConnection,
     define_tool,
 )
@@ -1028,6 +1029,10 @@ class TestCreateSessionConfig:
                 enable_file_change_tracking=True,
                 excluded_builtin_agents=["explore"],
                 session_limits={"max_ai_credits": 30},
+                sandbox_config=SandboxConfig(
+                    enabled=True,
+                    add_current_working_directory=False,
+                ),
             )
             await client.resume_session(
                 session.session_id,
@@ -1036,16 +1041,22 @@ class TestCreateSessionConfig:
                 enable_file_change_tracking=False,
                 excluded_builtin_agents=["task"],
                 session_limits={"max_ai_credits": 15},
+                sandbox_config=SandboxConfig(enabled=False),
             )
 
             assert captured["session.create"]["enableCitations"] is True
             assert captured["session.create"]["enableFileChangeTracking"] is True
             assert captured["session.create"]["excludedBuiltinAgents"] == ["explore"]
             assert captured["session.create"]["sessionLimits"] == {"maxAiCredits": 30}
+            assert captured["session.create"]["sandboxConfig"] == {
+                "enabled": True,
+                "addCurrentWorkingDirectory": False,
+            }
             assert captured["session.resume"]["enableCitations"] is False
             assert captured["session.resume"]["enableFileChangeTracking"] is False
             assert captured["session.resume"]["excludedBuiltinAgents"] == ["task"]
             assert captured["session.resume"]["sessionLimits"] == {"maxAiCredits": 15}
+            assert captured["session.resume"]["sandboxConfig"] == {"enabled": False}
         finally:
             await client.force_stop()
 

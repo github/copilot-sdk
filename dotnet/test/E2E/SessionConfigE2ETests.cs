@@ -525,6 +525,25 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     }
 
     [Fact]
+    public async Task Should_Accept_Sandbox_Config_On_Create_And_Resume()
+    {
+        await using var session1 = await CreateSessionAsync(new SessionConfig
+        {
+            SandboxConfig = new SandboxConfig { Enabled = false },
+        });
+        var sessionId = session1.SessionId;
+        await SuspendAndUntrackSessionForResumeAsync(session1);
+
+        var session2 = await ResumeSessionAsync(sessionId, new ResumeSessionConfig
+        {
+            SandboxConfig = new SandboxConfig { Enabled = false },
+        });
+
+        Assert.Equal(sessionId, session2.SessionId);
+        await session2.DisposeAsync();
+    }
+
+    [Fact]
     public async Task Should_Apply_Excluded_Built_In_Agents_On_Create()
     {
         const string excludedAgent = "explore";

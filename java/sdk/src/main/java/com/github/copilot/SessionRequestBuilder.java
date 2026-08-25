@@ -132,6 +132,7 @@ final class SessionRequestBuilder {
         config.getEnableCitations().ifPresent(request::setEnableCitations);
         config.getEnableFileChangeTracking().ifPresent(request::setEnableFileChangeTracking);
         request.setSessionLimits(config.getSessionLimits());
+        request.setSandboxConfig(config.getSandboxConfig());
         experimentalModeForMode(mode, config.getEnableExperimentalMode().orElse(null))
                 .ifPresent(request::setIsExperimentalMode);
         if (config.getOnUserInputRequest() != null) {
@@ -268,6 +269,7 @@ final class SessionRequestBuilder {
         config.getEnableCitations().ifPresent(request::setEnableCitations);
         config.getEnableFileChangeTracking().ifPresent(request::setEnableFileChangeTracking);
         request.setSessionLimits(config.getSessionLimits());
+        request.setSandboxConfig(config.getSandboxConfig());
         experimentalModeForMode(mode, config.getEnableExperimentalMode().orElse(null))
                 .ifPresent(request::setIsExperimentalMode);
         if (config.getOnUserInputRequest() != null) {

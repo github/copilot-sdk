@@ -1584,6 +1584,7 @@ export class CopilotClient {
                 enableCitations: config.enableCitations,
                 enableFileChangeTracking: config.enableFileChangeTracking,
                 sessionLimits: config.sessionLimits,
+                sandboxConfig: config.sandboxConfig,
                 modelCapabilities: config.modelCapabilities,
                 largeOutput: toWireLargeOutput(config.largeOutput),
                 requestPermission: !!config.onPermissionRequest,
@@ -1807,6 +1808,7 @@ export class CopilotClient {
                 enableCitations: config.enableCitations,
                 enableFileChangeTracking: config.enableFileChangeTracking,
                 sessionLimits: config.sessionLimits,
+                sandboxConfig: config.sandboxConfig,
                 tools: config.tools?.map((tool) => ({
                     name: tool.name,
                     description: tool.description,

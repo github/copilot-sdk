@@ -866,6 +866,22 @@ describe("Session Configuration", async () => {
         }
     });
 
+    it("should accept sandbox config on create and resume", async () => {
+        const session1 = await client.createSession({
+            onPermissionRequest: approveAll,
+            sandboxConfig: { enabled: false },
+        });
+        const session2 = await client.resumeSession(session1.sessionId, {
+            onPermissionRequest: approveAll,
+            sandboxConfig: { enabled: false },
+        });
+
+        expect(session2.sessionId).toBe(session1.sessionId);
+
+        await session2.disconnect();
+        await session1.disconnect();
+    });
+
     it("should apply GitHub MCP tool config on create", async () => {
         const session = await client.createSession({
             onPermissionRequest: approveAll,

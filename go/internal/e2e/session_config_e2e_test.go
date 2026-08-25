@@ -337,6 +337,32 @@ func TestSessionConfigNewOptionsE2E(t *testing.T) {
 		assertSessionLimitsStatus(t, exchange, "30 AI credits")
 	})
 
+	t.Run("should accept sandbox config on create and resume", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		session1, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			SandboxConfig:       &rpc.SandboxConfig{Enabled: false},
+		})
+		if err != nil {
+			t.Fatalf("CreateSession failed: %v", err)
+		}
+		defer session1.Disconnect()
+
+		session2, err := client.ResumeSessionWithOptions(t.Context(), session1.SessionID, &copilot.ResumeSessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			SandboxConfig:       &rpc.SandboxConfig{Enabled: false},
+		})
+		if err != nil {
+			t.Fatalf("ResumeSessionWithOptions failed: %v", err)
+		}
+		defer session2.Disconnect()
+
+		if session2.SessionID != session1.SessionID {
+			t.Errorf("Expected resumed session ID %q, got %q", session1.SessionID, session2.SessionID)
+		}
+	})
+
 	t.Run("should apply excluded built in agents on create", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
 

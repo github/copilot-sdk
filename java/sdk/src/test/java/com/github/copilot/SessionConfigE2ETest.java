@@ -24,6 +24,7 @@ import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.copilot.generated.rpc.SandboxConfig;
 import com.github.copilot.generated.rpc.SessionLimitsConfig;
 import com.github.copilot.rpc.BlobAttachment;
 import com.github.copilot.rpc.MessageOptions;
@@ -200,6 +201,29 @@ public class SessionConfigE2ETest {
                         "Acknowledge the current session limits.");
 
                 assertSessionLimitsStatus(exchange, "30 AI credits");
+            } finally {
+                session2.close();
+                session1.close();
+            }
+        }
+    }
+
+    @Test
+    void testShouldAcceptSandboxConfigOnCreateAndResume() throws Exception {
+        ctx.configureForTest("session_config", "should_accept_sandbox_config_on_create_and_resume");
+
+        try (CopilotClient client = ctx.createClient()) {
+            CopilotSession session1 = client.createSession(
+                    new SessionConfig().setSandboxConfig(new SandboxConfig(false, null, null, null, null))
+                            .setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
+                    .get();
+            CopilotSession session2 = client.resumeSession(session1.getSessionId(),
+                    new ResumeSessionConfig().setSandboxConfig(new SandboxConfig(false, null, null, null, null))
+                            .setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
+                    .get();
+
+            try {
+                assertEquals(session1.getSessionId(), session2.getSessionId());
             } finally {
                 session2.close();
                 session1.close();

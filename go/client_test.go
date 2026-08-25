@@ -596,11 +596,19 @@ func TestClient_ForwardsNewSessionOptionsToSessionRequests(t *testing.T) {
 		EnableCitations:          Bool(true),
 		EnableFileChangeTracking: Bool(true),
 		SessionLimits:            &rpc.SessionLimitsConfig{MaxAiCredits: float64Ptr(30)},
+		SandboxConfig: &rpc.SandboxConfig{
+			Enabled: true,
+			UserPolicy: &rpc.SandboxConfigUserPolicy{
+				Network: &rpc.SandboxConfigUserPolicyNetwork{
+					Proxy: &rpc.SandboxConfigUserPolicyNetworkProxy{URL: "http://127.0.0.1:4321"},
+				},
+			},
+		},
 	})
 	if err != nil {
 		t.Fatalf("CreateSession failed: %v", err)
 	}
-	assertNewSessionOptions(t, <-createParams, true, true, "explore", 30)
+	assertNewSessionOptions(t, <-createParams, true, true, "explore", 30, "http://127.0.0.1:4321")
 
 	resumeParams := make(chan json.RawMessage, 1)
 	server.SetRequestHandler("session.resume", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
@@ -613,11 +621,19 @@ func TestClient_ForwardsNewSessionOptionsToSessionRequests(t *testing.T) {
 		EnableCitations:          Bool(false),
 		EnableFileChangeTracking: Bool(false),
 		SessionLimits:            &rpc.SessionLimitsConfig{MaxAiCredits: float64Ptr(15)},
+		SandboxConfig: &rpc.SandboxConfig{
+			Enabled: true,
+			UserPolicy: &rpc.SandboxConfigUserPolicy{
+				Network: &rpc.SandboxConfigUserPolicyNetwork{
+					Proxy: &rpc.SandboxConfigUserPolicyNetworkProxy{URL: "http://127.0.0.1:4322"},
+				},
+			},
+		},
 	})
 	if err != nil {
 		t.Fatalf("ResumeSessionWithOptions failed: %v", err)
 	}
-	assertNewSessionOptions(t, <-resumeParams, false, false, "task", 15)
+	assertNewSessionOptions(t, <-resumeParams, false, false, "task", 15, "http://127.0.0.1:4322")
 }
 
 func assertCapiEnableWebSocketResponses(t *testing.T, params json.RawMessage) {
@@ -644,6 +660,7 @@ func assertNewSessionOptions(
 	expectedFileChangeTracking bool,
 	expectedAgent string,
 	expectedCredits float64,
+	expectedProxyURL string,
 ) {
 	t.Helper()
 
@@ -667,6 +684,22 @@ func assertNewSessionOptions(
 	}
 	if limits["maxAiCredits"] != expectedCredits {
 		t.Fatalf("expected sessionLimits.maxAiCredits=%v, got %v", expectedCredits, limits["maxAiCredits"])
+	}
+	sandbox, ok := decoded["sandboxConfig"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected sandboxConfig object, got %T", decoded["sandboxConfig"])
+	}
+	policy, ok := sandbox["userPolicy"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected sandboxConfig.userPolicy object, got %T", sandbox["userPolicy"])
+	}
+	network, ok := policy["network"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected sandboxConfig.userPolicy.network object, got %T", policy["network"])
+	}
+	proxy, ok := network["proxy"].(map[string]any)
+	if !ok || proxy["url"] != expectedProxyURL {
+		t.Fatalf("expected sandboxConfig proxy URL %q, got %#v", expectedProxyURL, network["proxy"])
 	}
 }
 

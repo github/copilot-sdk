@@ -73,6 +73,7 @@ from .generated.rpc import (
     ModelBillingTokenPricesLongContext,  # noqa: F401
     OpenCanvasInstance,
     RemoteSessionMode,
+    SandboxConfig,
     ServerRpc,
     _ConnectResult,
     _HookInvokeRequest,
@@ -2119,6 +2120,7 @@ class CopilotClient:
         enable_file_change_tracking: bool | None = None,
         excluded_builtin_agents: list[str] | None = None,
         session_limits: SessionLimitsConfig | None = None,
+        sandbox_config: SandboxConfig | None = None,
         skip_custom_instructions: bool | None = None,
         custom_agents_local_only: bool | None = None,
         coauthor_enabled: bool | None = None,
@@ -2241,6 +2243,8 @@ class CopilotClient:
                 name is configured.
             session_limits: **Experimental.** Limits applied to this session's
                 current accounting window.
+            sandbox_config: Resolved sandbox configuration applied before the session
+                runtime starts.
             model_capabilities: Override individual model capabilities resolved by the runtime.
             streaming: Whether to enable streaming responses.
             include_sub_agent_streaming_events: Whether to include sub-agent streaming
@@ -2531,6 +2535,8 @@ class CopilotClient:
             payload["excludedBuiltinAgents"] = excluded_builtin_agents
         if session_limits is not None:
             payload["sessionLimits"] = _session_limits_to_wire(session_limits)
+        if sandbox_config is not None:
+            payload["sandboxConfig"] = sandbox_config.to_dict()
 
         # Add model capabilities override if provided
         if model_capabilities:
@@ -2847,6 +2853,7 @@ class CopilotClient:
         enable_file_change_tracking: bool | None = None,
         excluded_builtin_agents: list[str] | None = None,
         session_limits: SessionLimitsConfig | None = None,
+        sandbox_config: SandboxConfig | None = None,
         skip_custom_instructions: bool | None = None,
         custom_agents_local_only: bool | None = None,
         coauthor_enabled: bool | None = None,
@@ -2971,6 +2978,8 @@ class CopilotClient:
                 same name is configured.
             session_limits: **Experimental.** Limits applied to this session's
                 current accounting window.
+            sandbox_config: Resolved sandbox configuration applied before the resumed
+                runtime starts.
             model_capabilities: Override individual model capabilities resolved by the runtime.
             streaming: Whether to enable streaming responses.
             include_sub_agent_streaming_events: Whether to include sub-agent streaming
@@ -3176,6 +3185,8 @@ class CopilotClient:
             payload["excludedBuiltinAgents"] = excluded_builtin_agents
         if session_limits is not None:
             payload["sessionLimits"] = _session_limits_to_wire(session_limits)
+        if sandbox_config is not None:
+            payload["sandboxConfig"] = sandbox_config.to_dict()
         if model_capabilities:
             payload["modelCapabilities"] = _capabilities_to_dict(model_capabilities)
         if streaming is not None:

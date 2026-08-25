@@ -12,6 +12,7 @@ import java.util.concurrent.CompletableFuture;
 
 import org.junit.jupiter.api.Test;
 
+import com.github.copilot.generated.rpc.SandboxConfig;
 import com.github.copilot.generated.rpc.SessionLimitsConfig;
 import com.github.copilot.rpc.AutoModeSwitchResponse;
 import com.github.copilot.rpc.CloudSessionOptions;
@@ -1073,5 +1074,25 @@ public class SessionRequestBuilderTest {
         assertFalse(
                 mapper.writeValueAsString(SessionRequestBuilder.buildCreateRequest(new SessionConfig(), "session-2"))
                         .contains("\"githubMcpToolConfig\""));
+    }
+
+    @Test
+    void sandboxConfigIsMappedAndSerializedForCreateAndResume() throws Exception {
+        var createSandbox = new SandboxConfig(true, null, false, null, null);
+        var resumeSandbox = new SandboxConfig(false, null, null, null, null);
+        var createRequest = SessionRequestBuilder
+                .buildCreateRequest(new SessionConfig().setSandboxConfig(createSandbox), "session-1");
+        var resumeRequest = SessionRequestBuilder.buildResumeRequest("session-1",
+                new ResumeSessionConfig().setSandboxConfig(resumeSandbox));
+
+        assertSame(createSandbox, createRequest.getSandboxConfig());
+        assertSame(resumeSandbox, resumeRequest.getSandboxConfig());
+        var mapper = JsonRpcClient.getObjectMapper();
+        assertTrue(mapper.writeValueAsString(createRequest)
+                .contains("\"sandboxConfig\":{\"enabled\":true,\"addCurrentWorkingDirectory\":false}"));
+        assertTrue(mapper.writeValueAsString(resumeRequest).contains("\"sandboxConfig\":{\"enabled\":false}"));
+        assertFalse(
+                mapper.writeValueAsString(SessionRequestBuilder.buildCreateRequest(new SessionConfig(), "session-2"))
+                        .contains("\"sandboxConfig\""));
     }
 }

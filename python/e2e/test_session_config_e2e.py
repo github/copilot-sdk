@@ -14,6 +14,7 @@ from copilot import (
     ModelCapabilitiesOverride,
     ModelSupportsOverride,
     RuntimeConnection,
+    SandboxConfig,
 )
 from copilot.copilot_request_handler import CopilotRequestContext
 from copilot.session import PermissionHandler
@@ -413,6 +414,22 @@ class TestSessionConfig:
             session2, ctx, "Acknowledge the current session limits."
         )
         _assert_session_limits_status(exchange, "30 AI credits")
+
+        await session2.disconnect()
+        await session1.disconnect()
+
+    async def test_should_accept_sandbox_config_on_create_and_resume(self, ctx: E2ETestContext):
+        session1 = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all,
+            sandbox_config=SandboxConfig(enabled=False),
+        )
+        session2 = await ctx.client.resume_session(
+            session1.session_id,
+            on_permission_request=PermissionHandler.approve_all,
+            sandbox_config=SandboxConfig(enabled=False),
+        )
+
+        assert session2.session_id == session1.session_id
 
         await session2.disconnect()
         await session1.disconnect()
