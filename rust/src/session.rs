@@ -1380,8 +1380,10 @@ async fn apply_mode_post_create_patch(
     opt_sandbox_config: Option<crate::SandboxConfig>,
 ) -> Result<(), Error> {
     use crate::generated::api_types::SessionUpdateOptionsParams;
-    let mut patch = SessionUpdateOptionsParams::default();
-    patch.sandbox_config = opt_sandbox_config;
+    let mut patch = SessionUpdateOptionsParams {
+        sandbox_config: opt_sandbox_config,
+        ..SessionUpdateOptionsParams::default()
+    };
     let should_send = if mode == crate::ClientMode::Empty {
         patch.skip_custom_instructions = Some(opt_skip_custom_instructions.unwrap_or(true));
         patch.custom_agents_local_only = Some(opt_custom_agents_local_only.unwrap_or(true));
