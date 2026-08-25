@@ -92,7 +92,8 @@ describe("User-requested shell RPC", async () => {
         const session = await client.createSession({ onPermissionRequest: approveAll });
         const markerPath = join(homeDir, `shell-cancel-${compactUuid()}.txt`);
         let executeTask:
-            Promise<Awaited<ReturnType<typeof session.rpc.shell.executeUserRequested>>> | undefined;
+            | Promise<Awaited<ReturnType<typeof session.rpc.shell.executeUserRequested>>>
+            | undefined;
         let executeSettled = false;
         try {
             const missing = await session.rpc.shell.cancelUserRequested({

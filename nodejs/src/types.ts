@@ -40,7 +40,8 @@ export type {
     ModelBillingTokenPricesLongContext,
 } from "./generated/rpc.js";
 export type SessionEvent =
-    Exclude<GeneratedSessionEvent, { type: "permission.requested" }> | PermissionRequestedEvent;
+    | Exclude<GeneratedSessionEvent, { type: "permission.requested" }>
+    | PermissionRequestedEvent;
 export type { ReasoningSummary } from "./generated/session-events.js";
 export type { SessionFsProvider } from "./sessionFsProvider.js";
 export { createSessionFsAdapter } from "./sessionFsProvider.js";
@@ -526,7 +527,9 @@ type McpCallToolResultResourceContent = {
 };
 
 type McpCallToolResultContent =
-    McpCallToolResultTextContent | McpCallToolResultImageContent | McpCallToolResultResourceContent;
+    | McpCallToolResultTextContent
+    | McpCallToolResultImageContent
+    | McpCallToolResultResourceContent;
 
 /**
  * MCP-compatible CallToolResult type. Can be passed to
@@ -1039,7 +1042,12 @@ export type SectionTransformFn = (currentContent: string) => string | Promise<st
  * - `function`: Transform callback — receives current section content, returns new content
  */
 export type SectionOverrideAction =
-    "replace" | "remove" | "append" | "prepend" | "preserve" | SectionTransformFn;
+    | "replace"
+    | "remove"
+    | "append"
+    | "prepend"
+    | "preserve"
+    | SectionTransformFn;
 
 /**
  * Override operation for a single system message section.
@@ -1114,7 +1122,9 @@ export interface SystemMessageCustomizeConfig {
  * - Customize mode: Section-level overrides with graceful fallback
  */
 export type SystemMessageConfig =
-    SystemMessageAppendConfig | SystemMessageReplaceConfig | SystemMessageCustomizeConfig;
+    | SystemMessageAppendConfig
+    | SystemMessageReplaceConfig
+    | SystemMessageCustomizeConfig;
 
 import type { PermissionDecisionRequest, PermissionDecisionContext } from "./generated/rpc.js";
 

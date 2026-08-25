@@ -862,7 +862,8 @@ describe("Sessions", () => {
 
         const messages = await session.getEvents();
         const userMessage = messages.filter((m) => m.type === "user.message").at(-1) as
-            { data: { content: string; agentMode?: string | null } } | undefined;
+            | { data: { content: string; agentMode?: string | null } }
+            | undefined;
         expect(userMessage).toBeDefined();
         expect(userMessage!.data.content).toBe("Say mode ok.");
         expect(userMessage!.data.agentMode).toBe("plan");
@@ -893,7 +894,8 @@ describe("Sessions", () => {
 
 function getSystemMessage(exchange: ParsedHttpExchange): string | undefined {
     const systemMessage = exchange.request.messages.find((m) => m.role === "system") as
-        { role: "system"; content: string } | undefined;
+        | { role: "system"; content: string }
+        | undefined;
     return systemMessage?.content;
 }
 
