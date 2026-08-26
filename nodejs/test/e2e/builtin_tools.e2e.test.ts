@@ -130,9 +130,16 @@ describe("Built-in Tools", async () => {
             async () => {
                 await writeFile(join(workDir, "data.txt"), "apple\nbanana\napricot\ncherry\n");
                 const session = await client.createSession({ onPermissionRequest: approveAll });
+                let grepToolCallId: string | undefined;
                 let grepCompletedSuccessfully = false;
                 session.on((event) => {
-                    if (event.type === "tool.execution_complete" && event.data.success) {
+                    if (event.type === "tool.execution_start" && event.data.toolName === "grep") {
+                        grepToolCallId = event.data.toolCallId;
+                    } else if (
+                        event.type === "tool.execution_complete" &&
+                        event.data.toolCallId === grepToolCallId &&
+                        event.data.success
+                    ) {
                         grepCompletedSuccessfully = true;
                     }
                 });
