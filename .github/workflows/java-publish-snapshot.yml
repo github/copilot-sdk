@@ -264,11 +264,28 @@ jobs:
           node copilot-native/scripts/validate-native-artifact.mjs \
             classifier linux-x64 "$LINUX_JAR" "$(basename "$LINUX_JAR")" ..
           LINUX_SHA=$(sha256sum "$LINUX_JAR" | cut -d ' ' -f 1)
+          GROUP_ID=$(mvn -q -pl copilot-native help:evaluate -Dexpression=project.groupId -DforceStdout)
+          ARTIFACT_ID=$(mvn -q -pl copilot-native help:evaluate -Dexpression=project.artifactId -DforceStdout)
+          POM_VERSION=$(mvn -q -pl copilot-native help:evaluate -Dexpression=project.version -DforceStdout)
+          if [ -z "$GROUP_ID" ] || [ -z "$ARTIFACT_ID" ] || [ "$POM_VERSION" != "$VERSION" ]; then
+            echo "::error::Unexpected copilot-native Maven coordinates: $GROUP_ID:$ARTIFACT_ID:$POM_VERSION (expected version $VERSION)"
+            exit 1
+          fi
           {
             echo "### Snapshot Publish"
             echo "- **Version:** $VERSION"
             echo "- **Source commit:** \`${{ needs.resolve-source.outputs.source_sha }}\`"
             echo "- **Repository:** Maven Central Snapshots"
+            echo ""
+            echo "#### Maven Coordinates"
+            echo ""
+            echo '```xml'
+            echo "<dependency>"
+            echo "    <groupId>$GROUP_ID</groupId>"
+            echo "    <artifactId>$ARTIFACT_ID</artifactId>"
+            echo "    <version>$POM_VERSION</version>"
+            echo "</dependency>"
+            echo '```'
             echo ""
             echo "#### Published Native Classifiers"
             echo ""
