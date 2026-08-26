@@ -1193,6 +1193,12 @@ public final class CopilotClient implements AutoCloseable {
         });
     }
 
+    CompletableFuture<Void> updateSessionOptionsForMode(CopilotSession session, Boolean skipCustomInstructions,
+            Boolean customAgentsLocalOnly, Boolean coauthorEnabled, Boolean manageScheduleEnabled) {
+        return updateSessionOptionsForMode(session, skipCustomInstructions, customAgentsLocalOnly, coauthorEnabled,
+                manageScheduleEnabled, null);
+    }
+
     /**
      * Applies the post-create / post-resume {@code session.options.update} patch.
      * <p>
@@ -1219,12 +1225,6 @@ public final class CopilotClient implements AutoCloseable {
      *            set
      * @return a future that completes when the patch has been applied
      */
-    CompletableFuture<Void> updateSessionOptionsForMode(CopilotSession session, Boolean skipCustomInstructions,
-            Boolean customAgentsLocalOnly, Boolean coauthorEnabled, Boolean manageScheduleEnabled) {
-        return updateSessionOptionsForMode(session, skipCustomInstructions, customAgentsLocalOnly, coauthorEnabled,
-                manageScheduleEnabled, null);
-    }
-
     CompletableFuture<Void> updateSessionOptionsForMode(CopilotSession session, Boolean skipCustomInstructions,
             Boolean customAgentsLocalOnly, Boolean coauthorEnabled, Boolean manageScheduleEnabled,
             List<String> includedBuiltinSkills) {
