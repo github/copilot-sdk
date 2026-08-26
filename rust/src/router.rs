@@ -24,16 +24,17 @@ struct SessionSenders {
 /// Routes notifications and requests by sessionId to per-session channels.
 ///
 /// Internal to the SDK — consumers interact via `Client::register_session()`.
+#[derive(Clone)]
 pub(crate) struct SessionRouter {
     sessions: Arc<Mutex<HashMap<SessionId, SessionSenders>>>,
-    started: Mutex<bool>,
+    started: Arc<Mutex<bool>>,
 }
 
 impl SessionRouter {
     pub(crate) fn new() -> Self {
         Self {
             sessions: Arc::new(Mutex::new(HashMap::new())),
-            started: Mutex::new(false),
+            started: Arc::new(Mutex::new(false)),
         }
     }
 

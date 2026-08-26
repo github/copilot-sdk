@@ -77,6 +77,9 @@ pub enum SessionLifecycleEventType {
     /// A session moved into the background.
     #[serde(rename = "session.background")]
     Background,
+    /// A session connection was terminally lost.
+    #[serde(rename = "session.disconnected")]
+    Disconnected,
 }
 
 /// Optional metadata attached to a [`SessionLifecycleEvent`].
@@ -104,6 +107,7 @@ pub struct SessionLifecycleEvent {
     #[serde(rename = "sessionId")]
     pub session_id: SessionId,
     /// Optional metadata describing the session at the time of the event.
+    /// Absent for deleted and disconnected events.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<SessionLifecycleEventMetadata>,
 }

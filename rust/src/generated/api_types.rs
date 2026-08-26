@@ -137,6 +137,8 @@ pub mod rpc_methods {
     pub const SESSIONS_FORK: &str = "sessions.fork";
     /// `sessions.connect`
     pub const SESSIONS_CONNECT: &str = "sessions.connect";
+    /// `sessions.watch`
+    pub const SESSIONS_WATCH: &str = "sessions.watch";
     /// `sessions.list`
     pub const SESSIONS_LIST: &str = "sessions.list";
     /// `sessions.getMetadata`
@@ -4879,6 +4881,9 @@ pub struct ExternalToolTextResultForLlmContentShellExit {
     pub cwd: Option<String>,
     /// Exit code from the completed shell command
     pub exit_code: i64,
+    /// Path reported in the shell session's filesystem namespace when shell output exceeded the configured large-output threshold.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_file_path: Option<String>,
     /// Output associated with this shell command, if available. May be partial, truncated, or a preview; not guaranteed to be full output.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub output_preview: Option<String>,
@@ -5832,6 +5837,12 @@ pub struct GitHubTelemetryClientInfo {
     /// Copilot subscription plan, when known.
     #[serde(rename = "copilot_plan", skip_serializing_if = "Option::is_none")]
     pub copilot_plan: Option<String>,
+    /// Number of logical CPU cores on the host.
+    #[serde(rename = "cpu_count", skip_serializing_if = "Option::is_none")]
+    pub cpu_count: Option<i64>,
+    /// Distinct CPU model names for the host, comma-separated.
+    #[serde(rename = "cpu_model", skip_serializing_if = "Option::is_none")]
+    pub cpu_model: Option<String>,
     /// Stable machine identifier for the device.
     #[serde(rename = "dev_device_id", skip_serializing_if = "Option::is_none")]
     pub dev_device_id: Option<String>,
@@ -11415,6 +11426,9 @@ pub struct PermissionDecisionDeniedByPermissionRequestHook {
 pub struct PermissionDecisionContext {
     /// Disposition of the permission request as observed by the responding client.
     pub outcome: PermissionDecisionOutcome,
+    /// Whether the responding client could ask a user interactively, was running headlessly, or had no response path. Omit when the client cannot determine this authoritatively.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response_capability: Option<PermissionResponseCapability>,
     /// Controlled reason or actor responsible for the response.
     pub source: PermissionDecisionSource,
     /// Client surface that submitted the response.
@@ -19614,15 +19628,9 @@ pub struct ToolsGetBuiltinDescriptorsRequest {
     /// Whether tool descriptors should include authoring metadata.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub include_author: Option<bool>,
-    /// Whether line numbers should be omitted from the view tool descriptor.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub no_view_line_numbers: Option<bool>,
     /// Whether descriptors should favor fewer user-intervention prompts.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reduce_user_intervention: Option<bool>,
-    /// Whether shell commands may only run asynchronously.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub shell_async_only_enabled: Option<bool>,
     /// Shell-specific names and description lines for shell tools.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub shell_config: Option<ToolsShellDescriptorConfig>,
@@ -20746,6 +20754,40 @@ pub struct VisibilitySetResult {
     pub synced: bool,
 }
 
+/// Parameters for watching a session another user has shared with the authenticated user.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WatchSharedSessionParams {
+    /// Session ID to watch. The session belongs to another user and must already be shared with the authenticated user. The watcher's own identity is deliberately not accepted here: it is resolved from the connection's authenticated credential, so a caller cannot ask to watch as somebody else.
+    pub session_id: SessionId,
+}
+
+/// Result of attaching to a shared session as a read-only watcher. History replays as ordered `session.event` notifications after this result is delivered, not inside it.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WatchSharedSessionResult {
+    /// Metadata for the watched session.
+    pub metadata: ConnectedRemoteSessionMetadata,
+    /// Always true. A watched session observes and replays only: it cannot send or queue input, steer, answer prompts, approve tools, change session configuration or cancel turns. Server-side denial remains the authority; this flag lets a client refuse the interaction up front rather than surfacing a late failure.
+    pub read_only: bool,
+    /// SDK session ID for the watched session.
+    pub session_id: SessionId,
+}
+
 /// A single changed file and its unified diff.
 ///
 /// <div class="warning">
@@ -21647,6 +21689,25 @@ pub struct SessionsConnectResult {
     /// Metadata for a connected remote session.
     pub metadata: ConnectedRemoteSessionMetadata,
     /// SDK session ID for the connected remote session.
+    pub session_id: SessionId,
+}
+
+/// Result of attaching to a shared session as a read-only watcher. History replays as ordered `session.event` notifications after this result is delivered, not inside it.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionsWatchResult {
+    /// Metadata for the watched session.
+    pub metadata: ConnectedRemoteSessionMetadata,
+    /// Always true. A watched session observes and replays only: it cannot send or queue input, steer, answer prompts, approve tools, change session configuration or cancel turns. Server-side denial remains the authority; this flag lets a client refuse the interaction up front rather than surfacing a late failure.
+    pub read_only: bool,
+    /// SDK session ID for the watched session.
     pub session_id: SessionId,
 }
 
@@ -31285,6 +31346,31 @@ pub enum PermissionDecisionOutcome {
     Unknown,
 }
 
+/// Response capability available to the client when it settled a permission request.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionResponseCapability {
+    /// The client could ask a user for this decision.
+    #[serde(rename = "interactive")]
+    Interactive,
+    /// The client could return an automated response but could not ask a user.
+    #[serde(rename = "headless")]
+    Headless,
+    /// The client had no response path available.
+    #[serde(rename = "none")]
+    None,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// Controlled reason or actor responsible for a permission response.
 ///
 /// <div class="warning">
@@ -31332,6 +31418,9 @@ pub enum PermissionDecisionSurface {
     /// The Copilot App client.
     #[serde(rename = "copilot_app")]
     CopilotApp,
+    /// An Agent Client Protocol host.
+    #[serde(rename = "acp")]
+    Acp,
     /// A generic Copilot SDK client.
     #[serde(rename = "sdk")]
     Sdk,

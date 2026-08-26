@@ -2548,8 +2548,24 @@ export type PermissionDecisionSurface =
   | "prompt_mode"
   /** The Copilot App client. */
   | "copilot_app"
+  /** An Agent Client Protocol host. */
+  | "acp"
   /** A generic Copilot SDK client. */
   | "sdk";
+/**
+ * Response capability available to the client when it settled a permission request.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "PermissionResponseCapability".
+ */
+/** @experimental */
+export type PermissionResponseCapability =
+  /** The client could ask a user for this decision. */
+  | "interactive"
+  /** The client could return an automated response but could not ask a user. */
+  | "headless"
+  /** The client had no response path available. */
+  | "none";
 /**
  * Tool approval to persist and apply
  *
@@ -7252,6 +7268,10 @@ export interface ExternalToolTextResultForLlmContentShellExit {
    * Whether outputPreview is known to be incomplete or truncated
    */
   outputTruncated?: boolean;
+  /**
+   * Path reported in the shell session's filesystem namespace when shell output exceeded the configured large-output threshold.
+   */
+  outputFilePath?: string;
 }
 /**
  * Image content block with base64-encoded data
@@ -8372,6 +8392,14 @@ export interface GitHubTelemetryClientInfo {
    * Stable machine identifier for the device.
    */
   dev_device_id?: string;
+  /**
+   * Distinct CPU model names for the host, comma-separated.
+   */
+  cpu_model?: string;
+  /**
+   * Number of logical CPU cores on the host.
+   */
+  cpu_count?: number;
 }
 /**
  * A single telemetry event in the runtime's native GitHub-shaped telemetry format, forwarded verbatim to opted-in hosts. The `restricted` flag on the enclosing GitHubTelemetryNotification distinguishes standard from restricted events; the payload shape is identical for both.
@@ -13498,6 +13526,7 @@ export interface PermissionDecisionContext {
   outcome: PermissionDecisionOutcome;
   source: PermissionDecisionSource;
   surface: PermissionDecisionSurface;
+  responseCapability?: PermissionResponseCapability;
 }
 /**
  * Pending permission request ID and the decision to apply (approve/reject and scope).
@@ -20981,10 +21010,6 @@ export interface ToolsExecuteRequest {
 /** @experimental */
 export interface ToolsGetBuiltinDescriptorsRequest {
   /**
-   * Whether line numbers should be omitted from the view tool descriptor.
-   */
-  noViewLineNumbers?: boolean;
-  /**
    * Whether descriptors should favor fewer user-intervention prompts.
    */
   reduceUserIntervention?: boolean;
@@ -20997,10 +21022,6 @@ export interface ToolsGetBuiltinDescriptorsRequest {
    */
   skillEmbeddingEnabled?: boolean;
   shellConfig?: ToolsShellDescriptorConfig;
-  /**
-   * Whether shell commands may only run asynchronously.
-   */
-  shellAsyncOnlyEnabled?: boolean;
   /**
    * Whether the configured shell supports PowerShell 7 syntax.
    */
@@ -22120,6 +22141,37 @@ export interface VisibilitySetResult {
   shareUrl?: string;
 }
 /**
+ * Parameters for watching a session another user has shared with the authenticated user.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WatchSharedSessionParams".
+ */
+/** @experimental */
+export interface WatchSharedSessionParams {
+  /**
+   * Session ID to watch. The session belongs to another user and must already be shared with the authenticated user. The watcher's own identity is deliberately not accepted here: it is resolved from the connection's authenticated credential, so a caller cannot ask to watch as somebody else.
+   */
+  sessionId: string;
+}
+/**
+ * Result of attaching to a shared session as a read-only watcher. History replays as ordered `session.event` notifications after this result is delivered, not inside it.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WatchSharedSessionResult".
+ */
+/** @experimental */
+export interface WatchSharedSessionResult {
+  /**
+   * SDK session ID for the watched session.
+   */
+  sessionId: string;
+  /**
+   * Always true. A watched session observes and replays only: it cannot send or queue input, steer, answer prompts, approve tools, change session configuration or cancel turns. Server-side denial remains the authority; this flag lets a client refuse the interaction up front rather than surfacing a late failure.
+   */
+  readOnly: true;
+  metadata: ConnectedRemoteSessionMetadata;
+}
+/**
  * A single changed file and its unified diff.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -23215,6 +23267,15 @@ export function createServerRpc(connection: MessageConnection) {
              */
             connect: async (params: ConnectRemoteSessionParams): Promise<RemoteSessionConnectionResult> =>
                 connection.sendRequest("sessions.connect", params),
+            /**
+             * Attaches to a session another user has shared with the authenticated user, as a read-only watcher, and exposes it as an SDK session. The watched session replays and streams over the ordinary `session.event` notification channel, but cannot be driven: sending, steering, answering prompts, approving tools, changing session configuration and cancelling turns are all refused. The watcher's own identity is resolved from the connection's credential, never from the caller.
+             *
+             * @param params Parameters for watching a session another user has shared with the authenticated user.
+             *
+             * @returns Result of attaching to a shared session as a read-only watcher. History replays as ordered `session.event` notifications after this result is delivered, not inside it.
+             */
+            watch: async (params: WatchSharedSessionParams): Promise<WatchSharedSessionResult> =>
+                connection.sendRequest("sessions.watch", params),
             /**
              * Lists sessions, optionally filtered by source and working-directory context. Returned entries are discriminated by `isRemote`: local entries carry only the lightweight `LocalSessionMetadataValue` shape; remote entries carry the full `RemoteSessionMetadataValue` shape (repository, PR number, taskType, etc.).
              *

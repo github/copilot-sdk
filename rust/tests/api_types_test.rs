@@ -6,6 +6,7 @@
 use github_copilot_sdk::rpc::{
     Extension, ExtensionList, ExtensionSource, ExtensionStatus, ExtensionsDisableRequest,
     ExtensionsEnableRequest, FleetStartRequest, FleetStartResult, TasksStartAgentRequest,
+    WatchSharedSessionParams, WatchSharedSessionResult,
 };
 use github_copilot_sdk::session_events::{PermissionRequest, PermissionRequestedData};
 
@@ -102,6 +103,50 @@ fn permission_event_exposes_managed_approval_required() {
         panic!("expected read permission request");
     };
     assert_eq!(request.managed_approval_required, Some(true));
+}
+
+#[test]
+fn shared_session_watch_payloads_are_generated_without_credentials() {
+    let params = WatchSharedSessionParams {
+        session_id: "shared-session".into(),
+    };
+    assert_eq!(
+        serde_json::to_value(params).unwrap(),
+        serde_json::json!({ "sessionId": "shared-session" })
+    );
+
+    let result: WatchSharedSessionResult = serde_json::from_value(serde_json::json!({
+        "sessionId": "watch-session",
+        "readOnly": true,
+        "metadata": {
+            "sessionId": "watch-session",
+            "startTime": "2025-01-01T00:00:00Z",
+            "modifiedTime": "2025-01-01T00:01:00Z",
+            "repository": {
+                "owner": "github",
+                "name": "copilot-sdk",
+                "branch": "main"
+            },
+            "kind": "remote-session"
+        }
+    }))
+    .unwrap();
+    let serialized = serde_json::to_value(result).unwrap();
+
+    assert_eq!(serialized["readOnly"], true);
+    assert_eq!(serialized["sessionId"], "watch-session");
+    let debug = serialized.to_string().to_ascii_lowercase();
+    for forbidden in [
+        "viewerid",
+        "baseurl",
+        "wps",
+        "lane",
+        "channel",
+        "credential",
+        "token",
+    ] {
+        assert!(!debug.contains(forbidden), "unexpected field: {forbidden}");
+    }
 }
 
 fn running_extension(id: &str, name: &str) -> Extension {

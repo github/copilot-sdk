@@ -52,6 +52,7 @@ pub mod trace_context;
 pub mod transforms;
 /// Protocol types shared between the SDK and the GitHub Copilot CLI.
 pub mod types;
+mod watch;
 mod wire;
 
 /// Session event payload types — auto-generated from the protocol schema.
@@ -71,6 +72,7 @@ pub(crate) mod generated;
 /// source-qualified tool filter patterns.
 pub mod mode;
 
+use std::collections::HashSet;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
@@ -89,6 +91,7 @@ pub(crate) use jsonrpc::{
 };
 pub use mode::{BUILTIN_TOOLS_ISOLATED, ClientMode, ToolSet};
 pub use provider_token::{BearerTokenError, BearerTokenProvider, ProviderTokenArgs};
+pub use watch::{SharedSessionWatch, SharedSessionWatchEvents};
 
 /// Re-exported JSON-RPC internals for integration tests (requires `test-support` feature).
 #[cfg(feature = "test-support")]
@@ -1020,6 +1023,7 @@ struct ClientInner {
     request_rx: parking_lot::Mutex<Option<mpsc::UnboundedReceiver<JsonRpcRequest>>>,
     notification_tx: broadcast::Sender<JsonRpcNotification>,
     router: router::SessionRouter,
+    watch_sessions: Arc<parking_lot::Mutex<HashSet<SessionId>>>,
     negotiated_protocol_version: OnceLock<u32>,
     state: parking_lot::Mutex<ConnectionState>,
     lifecycle_tx: broadcast::Sender<SessionLifecycleEvent>,
@@ -1613,6 +1617,7 @@ impl Client {
                 request_rx: parking_lot::Mutex::new(Some(request_rx)),
                 notification_tx: notification_broadcast_tx,
                 router: router::SessionRouter::new(),
+                watch_sessions: Arc::new(parking_lot::Mutex::new(HashSet::new())),
                 negotiated_protocol_version: OnceLock::new(),
                 state: parking_lot::Mutex::new(ConnectionState::Connected),
                 lifecycle_tx: broadcast::channel(256).0,
@@ -1643,6 +1648,8 @@ impl Client {
     fn spawn_lifecycle_dispatcher(&self) {
         let mut notif_rx = self.inner.notification_tx.subscribe();
         let lifecycle_tx = self.inner.lifecycle_tx.clone();
+        let router = self.inner.router.clone();
+        let watch_sessions = self.inner.watch_sessions.clone();
         tokio::spawn(async move {
             loop {
                 match notif_rx.recv().await {
@@ -1666,7 +1673,12 @@ impl Client {
                             };
                         // `send` only errors when there are no subscribers — that's
                         // the normal case before any consumer calls subscribe_lifecycle.
-                        let _ = lifecycle_tx.send(event);
+                        let _ = lifecycle_tx.send(event.clone());
+                        if event.event_type == SessionLifecycleEventType::Disconnected
+                            && watch_sessions.lock().remove(&event.session_id)
+                        {
+                            router.unregister(&event.session_id);
+                        }
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
                         warn!(missed = n, "lifecycle dispatcher lagged");
@@ -2055,6 +2067,15 @@ impl Client {
         self.inner.router.unregister(session_id);
     }
 
+    pub(crate) fn register_watch_session(&self, session_id: &SessionId) {
+        self.inner.watch_sessions.lock().insert(session_id.clone());
+    }
+
+    pub(crate) fn unregister_watch_session(&self, session_id: &SessionId) {
+        self.inner.watch_sessions.lock().remove(session_id);
+        self.inner.router.unregister(session_id);
+    }
+
     /// Returns the protocol version negotiated with the CLI server, if any.
     ///
     /// Set during [`start`](Self::start). Returns `None` if the server didn't
@@ -2274,11 +2295,13 @@ impl Client {
         let mut first_error = None;
 
         for session_id in self.inner.router.session_ids() {
+            let method = if self.inner.watch_sessions.lock().remove(&session_id) {
+                generated::api_types::rpc_methods::SESSIONS_CLOSE
+            } else {
+                "session.destroy"
+            };
             if let Err(error) = self
-                .call(
-                    "session.destroy",
-                    Some(serde_json::json!({ "sessionId": session_id })),
-                )
+                .call(method, Some(serde_json::json!({ "sessionId": session_id })))
                 .await
                 && first_error.is_none()
             {
@@ -2436,11 +2459,13 @@ impl Client {
         // Snapshot the registered session IDs without holding the router
         // lock across the destroy RPCs.
         for session_id in self.inner.router.session_ids() {
+            let method = if self.inner.watch_sessions.lock().remove(&session_id) {
+                generated::api_types::rpc_methods::SESSIONS_CLOSE
+            } else {
+                "session.destroy"
+            };
             match self
-                .call(
-                    "session.destroy",
-                    Some(serde_json::json!({ "sessionId": session_id })),
-                )
+                .call(method, Some(serde_json::json!({ "sessionId": session_id })))
                 .await
             {
                 Ok(_) => {}
@@ -2448,7 +2473,8 @@ impl Client {
                     warn!(
                         session_id = %session_id,
                         error = %e,
-                        "session.destroy failed during Client::stop",
+                        method,
+                        "session cleanup failed during Client::stop",
                     );
                     errors.push(e);
                 }
@@ -2581,6 +2607,7 @@ impl Client {
         // Drop all session channels so any awaiters see a closed channel
         // instead of waiting for responses that will never arrive.
         self.inner.router.clear();
+        self.inner.watch_sessions.lock().clear();
         *self.inner.state.lock() = ConnectionState::Disconnected;
         *self.inner.models_cache.lock() = Arc::new(tokio::sync::OnceCell::new());
     }
@@ -3388,6 +3415,7 @@ mod tests {
                 request_rx: parking_lot::Mutex::new(None),
                 notification_tx: broadcast::channel(16).0,
                 router: router::SessionRouter::new(),
+                watch_sessions: Arc::new(parking_lot::Mutex::new(HashSet::new())),
                 negotiated_protocol_version: OnceLock::new(),
                 state: parking_lot::Mutex::new(ConnectionState::Connected),
                 lifecycle_tx: broadcast::channel(16).0,

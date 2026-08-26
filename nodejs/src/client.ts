@@ -39,7 +39,7 @@ import type {
     SessionUpdateOptionsParams,
 } from "./generated/rpc.js";
 import { getSdkProtocolVersion } from "./sdkProtocolVersion.js";
-import { CopilotSession } from "./session.js";
+import { CopilotSession, SharedSessionWatch } from "./session.js";
 import type { FfiRuntimeHost } from "./ffiRuntimeHost.js";
 import { createSessionFsAdapter, type SessionFsProvider } from "./sessionFsProvider.js";
 import { createCopilotRequestAdapter } from "./copilotRequestHandler.js";
@@ -483,6 +483,7 @@ export class CopilotClient {
     private actualHost: string = "localhost";
     private state: "disconnected" | "connecting" | "connected" | "error" = "disconnected";
     private sessions: Map<string, CopilotSession> = new Map();
+    private sharedSessionWatches: Map<string, SharedSessionWatch> = new Map();
     private stderrBuffer: string = ""; // Captures CLI stderr for error messages
     /** Resolved connection mode chosen in the constructor. */
     private connectionConfig: InternalRuntimeConnection;
@@ -966,6 +967,19 @@ export class CopilotClient {
     async stop(): Promise<Error[]> {
         const errors: Error[] = [];
 
+        const activeWatches = [...this.sharedSessionWatches.values()];
+        for (const watch of activeWatches) {
+            try {
+                await watch.close();
+            } catch (error) {
+                errors.push(
+                    new Error(
+                        `Failed to close shared-session watch ${watch.sessionId}: ${error instanceof Error ? error.message : String(error)}`
+                    )
+                );
+            }
+        }
+
         // Disconnect all active sessions with retry logic
         const activeSessions = [...this.sessions.values()];
         // TEMPORARY: over the in-process (FFI) transport the runtime shares this
@@ -1015,6 +1029,7 @@ export class CopilotClient {
             session._markDisconnected();
         }
         this.sessions.clear();
+        this.sharedSessionWatches.clear();
 
         // Ask SDK-owned runtimes to flush and clean up before we tear down
         // their transport/process. External runtimes may be shared, so only
@@ -1197,6 +1212,7 @@ export class CopilotClient {
             session._markDisconnected();
         }
         this.sessions.clear();
+        this.sharedSessionWatches.clear();
 
         // Force close connection. Suppress writer failures first so teardown
         // write rejections don't surface as unhandled rejections.
@@ -1680,6 +1696,54 @@ export class CopilotClient {
         }
 
         return session;
+    }
+
+    /**
+     * Watch a session shared with the authenticated user.
+     *
+     * The returned handle exposes canonical history and live events but no
+     * interactive session operations. Authentication and lane routing remain
+     * entirely inside the runtime. Register a `session.disconnected` lifecycle
+     * handler before calling this method if terminal connection loss must not
+     * be missed.
+     *
+     * @param sessionId - The owner's shared session ID.
+     */
+    async watchSharedSession(sessionId: string): Promise<SharedSessionWatch> {
+        if (!this.connection) {
+            await this.start();
+        }
+
+        const result = await this.rpc.sessions.watch({ sessionId });
+        if (result.readOnly !== true) {
+            await this.rpc.sessions.close({ sessionId: result.sessionId });
+            throw new Error("Runtime returned an interactive shared-session watch");
+        }
+
+        const routedSession = new CopilotSession(
+            result.sessionId,
+            this.connection!,
+            undefined,
+            this.onGetTraceContext
+        );
+        const closeWatch = async (): Promise<void> => {
+            try {
+                await this.rpc.sessions.close({ sessionId: result.sessionId });
+            } finally {
+                routedSession._markDisconnected();
+                this.sessions.delete(result.sessionId);
+                this.sharedSessionWatches.delete(result.sessionId);
+            }
+        };
+        const watch = new SharedSessionWatch(
+            result.sessionId,
+            result.metadata,
+            routedSession,
+            closeWatch
+        );
+        this.sessions.set(result.sessionId, routedSession);
+        this.sharedSessionWatches.set(result.sessionId, watch);
+        return watch;
     }
 
     /**
@@ -2992,11 +3056,18 @@ export class CopilotClient {
             };
         }
 
-        const event = {
-            type: raw.type,
-            sessionId: raw.sessionId,
-            metadata,
-        } as SessionLifecycleEvent;
+        const event = (
+            raw.type === "session.disconnected"
+                ? {
+                      type: raw.type,
+                      sessionId: raw.sessionId,
+                  }
+                : {
+                      type: raw.type,
+                      sessionId: raw.sessionId,
+                      metadata,
+                  }
+        ) as SessionLifecycleEvent;
 
         // Dispatch to typed handlers for this specific event type
         const typedHandlers = this.typedLifecycleHandlers.get(event.type);
@@ -3017,6 +3088,12 @@ export class CopilotClient {
             } catch {
                 // Ignore handler errors
             }
+        }
+
+        if (event.type === "session.disconnected" && this.sharedSessionWatches.has(event.sessionId)) {
+            this.sessions.get(event.sessionId)?._markDisconnected();
+            this.sessions.delete(event.sessionId);
+            this.sharedSessionWatches.delete(event.sessionId);
         }
     }
 

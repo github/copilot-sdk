@@ -40,10 +40,17 @@ export type SessionEvent =
   | CompactionStartEvent
   | CompactionCompleteEvent
   | TaskCompleteEvent
+  | FusionRouteStartedEvent
+  | FusionRouteFailedEvent
+  | FusionResolvedEvent
+  | FusionCompletedEvent
   | UserMessageEvent
   | PendingMessagesModifiedEvent
   | AssistantTurnStartEvent
   | AssistantIntentEvent
+  | AssistantFusionPhaseStartedEvent
+  | AssistantFusionPhaseCompletedEvent
+  | AssistantFusionPhaseFailedEvent
   | AssistantServerToolProgressEvent
   | AssistantReasoningEvent
   | AssistantReasoningDeltaEvent
@@ -164,6 +171,16 @@ export type Verbosity =
   /** A more detailed response was requested. */
   | "high";
 /**
+ * The session mode the agent is operating in
+ */
+export type SessionMode =
+  /** The agent is responding interactively to the user. */
+  | "interactive"
+  /** The agent is preparing a plan before making changes. */
+  | "plan"
+  /** The agent is working autonomously toward task completion. */
+  | "autopilot";
+/**
  * Who created the schedule: `user` (an explicit user action such as `/every` or `/after`) or `model` (the agent via the `manage_schedule` tool). Gates whether a scheduled skill that opted out of model invocation may fire: only user-created schedules may.
  */
 export type ScheduleOrigin =
@@ -219,16 +236,6 @@ export type ModelChangeSource =
   | "automatic"
   /** An SDK or RPC caller selected the model. */
   | "sdk";
-/**
- * The session mode the agent is operating in
- */
-export type SessionMode =
-  /** The agent is responding interactively to the user. */
-  | "interactive"
-  /** The agent is preparing a plan before making changes. */
-  | "plan"
-  /** The agent is working autonomously toward task completion. */
-  | "autopilot";
 /**
  * Permission mode for the session.
  */
@@ -299,6 +306,35 @@ export type TaskCompletionOutcome =
   /** Completion cannot proceed without intervention; the active objective is paused when one is identified. */
   | "blocked";
 /**
+ * Kind of turn for which HydraFusion routing is running.
+ */
+/** @experimental */
+export type FusionTurnKind =
+  /** A user-message turn. */
+  | "user"
+  /** A conversation-compaction turn. */
+  | "compaction";
+/**
+ * Server-recommended routing behavior for a later HydraFusion turn.
+ */
+/** @experimental */
+export type FusionFollowUpAction =
+  /** Reuse the durable primary model without routing. */
+  | "reuse_primary"
+  /** Request a new routing decision. */
+  | "reroute";
+/**
+ * Validated HydraFusion execution pattern.
+ */
+/** @experimental */
+export type FusionPattern =
+  /** Run one primary solver phase. */
+  | "single"
+  /** Run a primary phase, a judge, and an optional repair. */
+  | "cascade"
+  /** Run a primary draft, a read-only critique, and a revision. */
+  | "critique";
+/**
  * The agent mode that was active when this message was sent
  */
 export type UserMessageAgentMode =
@@ -357,6 +393,57 @@ export type UserMessageDelivery =
   | "steering"
   /** Enqueued while the agent was busy; processed as its own run afterward. */
   | "queued";
+/**
+ * Conversation scope in which a HydraFusion phase executes.
+ */
+/** @experimental */
+export type FusionConversationScope =
+  /** Canonical root conversation history. */
+  | "root"
+  /** Isolated read-only review history that does not enter the root conversation. */
+  | "review";
+/**
+ * HydraFusion phase kind.
+ */
+/** @experimental */
+export type FusionPhaseKind =
+  /** Primary solver phase. */
+  | "primary"
+  /** Read-only cascade judge phase. */
+  | "judge"
+  /** Cascade repair phase. */
+  | "repair"
+  /** Initial critique-pattern draft phase. */
+  | "draft"
+  /** Read-only critique phase. */
+  | "critic"
+  /** Critique-pattern revision phase. */
+  | "revision"
+  /** Follow-up phase continuing from the resolved model. */
+  | "follow_up";
+/**
+ * How a durable phase checkpoint contributes its exact message to canonical root history.
+ */
+/** @experimental */
+/** @internal */
+export type FusionProjectionMode =
+  /** Append the exact root message immediately. */
+  | "append"
+  /** Hold a terminal message outside canonical history until the final commit selects it. */
+  | "staged"
+  /** Do not project the checkpoint into root history. */
+  | "none";
+/**
+ * Durable outcome status of a HydraFusion phase.
+ */
+/** @experimental */
+export type FusionPhaseStatus =
+  /** The phase completed successfully. */
+  | "succeeded"
+  /** The phase failed. */
+  | "failed"
+  /** The phase was cancelled. */
+  | "cancelled";
 /**
  * Tool call type: "function" for standard tool calls, "custom" for grammar-based tool calls. Defaults to "function" when absent.
  */
@@ -1362,6 +1449,7 @@ export interface IdleData {
    * True when the preceding agentic loop was cancelled via abort signal
    */
   aborted?: boolean;
+  mode?: SessionMode;
 }
 /**
  * Session event "session.title_changed". Session title change payload containing the new display title
@@ -2917,6 +3005,365 @@ export interface TaskCompleteData {
   summary?: string;
 }
 /**
+ * Session event "session.fusion_route_started". Experimental transient signal that HydraFusion routing has started for an eligible turn.
+ */
+/** @experimental */
+export interface FusionRouteStartedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: FusionRouteStartedData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "session.fusion_route_started".
+   */
+  type: "session.fusion_route_started";
+}
+/**
+ * Experimental transient signal that HydraFusion routing has started for an eligible turn.
+ */
+/** @experimental */
+export interface FusionRouteStartedData {
+  /**
+   * Identifier for this routing attempt before a durable Fusion turn exists.
+   */
+  attemptId: string;
+  /**
+   * HydraFusion routing policy requested for the turn.
+   */
+  policy?: string;
+  /**
+   * Synthetic HydraFusion model selected for the session.
+   */
+  syntheticModel?: string;
+  turnKind: FusionTurnKind;
+}
+/**
+ * Session event "session.fusion_route_failed". Experimental durable HydraFusion routing failure and the deterministic concrete fallback selected for the turn.
+ */
+/** @experimental */
+export interface FusionRouteFailedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: FusionRouteFailedData;
+  /**
+   * When true, the event is transient and not persisted to the session event log on disk
+   */
+  ephemeral?: boolean;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "session.fusion_route_failed".
+   */
+  type: "session.fusion_route_failed";
+}
+/**
+ * Experimental durable HydraFusion routing failure and the deterministic concrete fallback selected for the turn.
+ */
+/** @experimental */
+export interface FusionRouteFailedData {
+  /**
+   * Identifier of the routing attempt that failed.
+   */
+  attemptId: string;
+  /**
+   * Provider or validation error detail, when available.
+   */
+  errorMessage?: string;
+  /**
+   * Concrete model selected as the deterministic fallback.
+   */
+  fallbackModel: string;
+  /**
+   * HydraFusion routing policy requested for the turn.
+   */
+  policy: string;
+  /**
+   * Stable machine-readable reason for the routing failure.
+   */
+  reason: string;
+  /**
+   * Elapsed routing time in milliseconds before the failure.
+   */
+  routingLatencyMs?: number;
+  /**
+   * Synthetic HydraFusion model selected for the session.
+   */
+  syntheticModel: string;
+}
+/**
+ * Session event "session.fusion_resolved". Experimental durable validated HydraFusion route and turn policy.
+ */
+/** @experimental */
+export interface FusionResolvedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: FusionResolvedData;
+  /**
+   * When true, the event is transient and not persisted to the session event log on disk
+   */
+  ephemeral?: boolean;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "session.fusion_resolved".
+   */
+  type: "session.fusion_resolved";
+}
+/**
+ * Experimental durable validated HydraFusion route and turn policy.
+ */
+/** @experimental */
+export interface FusionResolvedData {
+  /**
+   * Version of the validated HydraFusion event contract.
+   */
+  contractVersion: number;
+  /**
+   * Concrete model used when the planned primary model cannot execute.
+   */
+  fallbackModel: string;
+  followUp?: FusionFollowUpRecommendation;
+  /**
+   * Concrete model recommended for eligible follow-up turns.
+   */
+  followUpModel: string;
+  /**
+   * Stable identifier for the resolved HydraFusion turn.
+   */
+  fusionId: string;
+  /**
+   * Version of the executable model universe used for selection.
+   */
+  modelUniverseVersion?: string;
+  pattern: FusionPattern;
+  /**
+   * Version of the validated execution-plan format.
+   */
+  planVersion?: string;
+  /**
+   * HydraFusion routing policy used to resolve the plan.
+   */
+  policy: string;
+  /**
+   * Version of the local routing policy.
+   */
+  policyVersion?: string;
+  /**
+   * Concrete model selected for the primary solver phase.
+   */
+  primaryModel: string;
+  /**
+   * Router implementation that supplied the plan.
+   */
+  routeSource?: string;
+  /**
+   * Elapsed time in milliseconds required to resolve and validate the route.
+   */
+  routingLatencyMs?: number;
+  /**
+   * Identifier of the local policy rule that matched.
+   */
+  ruleId?: string;
+  /**
+   * Zero-based index of the local policy rule that matched.
+   */
+  ruleIndex?: number;
+  /**
+   * Human-readable name of the local policy rule that matched.
+   */
+  ruleName?: string;
+  scores?: FusionScores;
+  /**
+   * Concrete model selected for the review or judge phase, when required.
+   */
+  secondaryModel: string | null;
+  /**
+   * Synthetic HydraFusion model selected for the session.
+   */
+  syntheticModel: string;
+  /**
+   * Identifier of the session turn associated with the route.
+   */
+  turnId: string;
+}
+/**
+ * Durable server recommendation for subsequent HydraFusion turns.
+ */
+/** @experimental */
+export interface FusionFollowUpRecommendation {
+  compactionTurn: FusionFollowUpAction;
+  userTurn: FusionFollowUpAction;
+}
+/**
+ * Validated HydraFusion routing capability scores.
+ */
+/** @experimental */
+export interface FusionScores {
+  /**
+   * Code-generation capability score returned by the authenticated router.
+   */
+  codeGen: number;
+  /**
+   * Debugging capability score returned by the authenticated router.
+   */
+  debugging: number;
+  /**
+   * Reasoning capability score returned by the authenticated router.
+   */
+  reasoning: number;
+  /**
+   * Tool-use capability score returned by the authenticated router.
+   */
+  toolUse: number;
+}
+/**
+ * Session event "session.fusion_completed". Experimental durable aggregate outcome of a HydraFusion turn.
+ */
+/** @experimental */
+export interface FusionCompletedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: FusionCompletedData;
+  /**
+   * When true, the event is transient and not persisted to the session event log on disk
+   */
+  ephemeral?: boolean;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "session.fusion_completed".
+   */
+  type: "session.fusion_completed";
+}
+/**
+ * Experimental durable aggregate outcome of a HydraFusion turn.
+ */
+/** @experimental */
+export interface FusionCompletedData {
+  /**
+   * Total cached input tokens reported across all phases.
+   */
+  cachedTokens: number;
+  /**
+   * Total tokens written to prompt cache across all phases.
+   */
+  cacheWriteTokens?: number;
+  /**
+   * Idempotency identifier for the authoritative final commit.
+   */
+  commitId: string;
+  /**
+   * Reason the turn used a degraded route, when applicable.
+   */
+  degradedReason: string | null;
+  /**
+   * Total elapsed execution time for the HydraFusion turn in milliseconds.
+   */
+  durationMs: number;
+  /**
+   * Concrete model that supplied the authoritative final content.
+   */
+  finalSourceModel: string | null;
+  /**
+   * Phase whose output supplied the authoritative final content.
+   */
+  finalSourcePhaseId: string | null;
+  /**
+   * Concrete model recommended for eligible follow-up turns.
+   */
+  followUpModel: string;
+  /**
+   * Stable identifier for the completed HydraFusion turn.
+   */
+  fusionId: string;
+  /**
+   * Total input tokens consumed across all phases.
+   */
+  inputTokens: number;
+  /**
+   * Stable aggregate outcome of the HydraFusion turn.
+   */
+  outcome: string;
+  /**
+   * Total output tokens produced across all phases.
+   */
+  outputTokens: number;
+  pattern: FusionPattern;
+  /**
+   * Number of concrete phases attempted by the turn.
+   */
+  phaseCount: number;
+  /**
+   * Total concrete model requests made across all phases.
+   */
+  requestCount: number;
+  /**
+   * Synthetic HydraFusion model selected for the session.
+   */
+  syntheticModel: string;
+  /**
+   * Total normalized AI-unit cost reported across all phases, in nano-AIU.
+   */
+  totalNanoAiu: number;
+  /**
+   * Identifier of the session turn associated with the completion.
+   */
+  turnId: string;
+}
+/**
  * Session event "user.message". Payload of `user.message` with displayed and model-transformed content, attachments, source/delivery metadata, mode, and telemetry IDs.
  */
 export interface UserMessageEvent {
@@ -3552,6 +3999,264 @@ export interface AssistantIntentData {
   intent: string;
 }
 /**
+ * Session event "assistant.fusion_phase_started". Experimental transient HydraFusion phase/model/role signal.
+ */
+/** @experimental */
+export interface AssistantFusionPhaseStartedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: FusionPhaseStartedData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "assistant.fusion_phase_started".
+   */
+  type: "assistant.fusion_phase_started";
+}
+/**
+ * Experimental transient HydraFusion phase/model/role signal.
+ */
+/** @experimental */
+export interface FusionPhaseStartedData {
+  conversationScope: FusionConversationScope;
+  /**
+   * Identifier of the HydraFusion turn containing the phase.
+   */
+  fusionId: string;
+  /**
+   * Concrete model executing the phase.
+   */
+  model: string;
+  pattern: FusionPattern;
+  /**
+   * Stable identifier for the concrete phase.
+   */
+  phaseId: string;
+  phaseKind: FusionPhaseKind;
+  /**
+   * Semantic role assigned to the phase.
+   */
+  role: string;
+}
+/**
+ * Session event "assistant.fusion_phase_completed". Experimental durable HydraFusion phase output and lossless replay checkpoint.
+ */
+/** @experimental */
+export interface AssistantFusionPhaseCompletedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: FusionPhaseCompletedData;
+  /**
+   * When true, the event is transient and not persisted to the session event log on disk
+   */
+  ephemeral?: boolean;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "assistant.fusion_phase_completed".
+   */
+  type: "assistant.fusion_phase_completed";
+}
+/**
+ * Experimental durable HydraFusion phase output and lossless replay checkpoint.
+ */
+/** @experimental */
+export interface FusionPhaseCompletedData {
+  /**
+   * Provider-normalized textual output produced by the phase.
+   */
+  content: string;
+  conversationScope: FusionConversationScope;
+  /**
+   * Elapsed execution time for the phase in milliseconds.
+   */
+  durationMs: number;
+  /**
+   * Identifier of the HydraFusion turn containing the phase.
+   */
+  fusionId: string;
+  /**
+   * Concrete model that executed the phase.
+   */
+  model: string;
+  /**
+   * Stable identifier for the completed phase.
+   */
+  phaseId: string;
+  phaseKind: FusionPhaseKind;
+  /**
+   * Exact provider-normalized message used to reconstruct canonical model history.
+   *
+   * @internal
+   */
+  projectionMessage?: JsonValue;
+  /**
+   * Projection action for the exact internal message.
+   *
+   * @internal
+   */
+  projectionMode?: FusionProjectionMode;
+  /**
+   * Semantic role assigned to the completed phase.
+   */
+  role: string;
+  /**
+   * Terminal request held outside canonical state until selected by the final commit.
+   *
+   * @internal
+   */
+  stagedTerminal?: FusionStagedTerminal;
+  status: FusionPhaseStatus;
+  usage: FusionPhaseUsage;
+  /**
+   * Structured judge or critic verdict, when the phase produces one.
+   */
+  verdict: string | null;
+}
+/**
+ * Internal durable terminal request staged by a HydraFusion phase until an idempotent final commit selects it.
+ */
+/** @experimental */
+/** @internal */
+export interface FusionStagedTerminal {
+  arguments: string;
+  assistantMessage: JsonValue;
+  phaseId: string;
+  toolCallId: string;
+  toolName: string;
+}
+/**
+ * Aggregate concrete-model usage for one HydraFusion phase.
+ */
+/** @experimental */
+export interface FusionPhaseUsage {
+  /**
+   * Total cached input tokens reported for the phase.
+   */
+  cachedTokens: number;
+  /**
+   * Total tokens written to prompt cache during the phase.
+   */
+  cacheWriteTokens?: number;
+  /**
+   * Total input tokens consumed by the phase.
+   */
+  inputTokens: number;
+  /**
+   * Total output tokens produced by the phase.
+   */
+  outputTokens: number;
+  /**
+   * Number of concrete model requests made by the phase.
+   */
+  requestCount: number;
+  /**
+   * Total normalized AI-unit cost reported for the phase, in nano-AIU.
+   */
+  totalNanoAiu: number;
+}
+/**
+ * Session event "assistant.fusion_phase_failed". Experimental durable typed HydraFusion phase failure and degradation transition.
+ */
+/** @experimental */
+export interface AssistantFusionPhaseFailedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: FusionPhaseFailedData;
+  /**
+   * When true, the event is transient and not persisted to the session event log on disk
+   */
+  ephemeral?: boolean;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "assistant.fusion_phase_failed".
+   */
+  type: "assistant.fusion_phase_failed";
+}
+/**
+ * Experimental durable typed HydraFusion phase failure and degradation transition.
+ */
+/** @experimental */
+export interface FusionPhaseFailedData {
+  conversationScope: FusionConversationScope;
+  /**
+   * Identifier of the fallback phase used to continue the turn after degradation.
+   */
+  degradedToPhaseId?: string;
+  /**
+   * Elapsed execution time before the phase failed, in milliseconds.
+   */
+  durationMs: number;
+  /**
+   * Provider or execution error detail, when available.
+   */
+  errorMessage?: string;
+  /**
+   * Identifier of the HydraFusion turn containing the phase.
+   */
+  fusionId: string;
+  /**
+   * Concrete model that attempted the phase.
+   */
+  model: string;
+  /**
+   * Stable identifier for the failed phase.
+   */
+  phaseId: string;
+  phaseKind: FusionPhaseKind;
+  /**
+   * Stable machine-readable reason for the phase failure.
+   */
+  reason: string;
+  /**
+   * Semantic role assigned to the failed phase.
+   */
+  role: string;
+  status: FusionPhaseStatus;
+  usage: FusionPhaseUsage;
+}
+/**
  * Session event "assistant.server_tool_progress". Live progress signal for a provider-hosted server tool (e.g. hosted web search) while it runs, before the finalized serverTools envelope lands on the terminal assistant.message
  */
 export interface AssistantServerToolProgressEvent {
@@ -3840,6 +4545,12 @@ export interface AssistantMessageData {
    */
   encryptedContent?: string;
   /**
+   * Experimental HydraFusion source attribution for this ordinary authoritative assistant message.
+   *
+   * @experimental
+   */
+  fusion?: FusionAttribution;
+  /**
    * CAPI interaction ID for correlating this message with upstream telemetry
    */
   interactionId?: string;
@@ -4026,6 +4737,56 @@ export interface CitationLocationBlock {
    * Citation location type discriminator
    */
   type: "block";
+}
+/**
+ * Experimental attribution linking an ordinary event to the HydraFusion turn, phase, and concrete source that produced it.
+ */
+/** @experimental */
+export interface FusionAttribution {
+  /**
+   * Idempotency identifier for the authoritative commit, when the event belongs to the selected output.
+   */
+  commitId?: string;
+  /**
+   * Conversation scope in which the concrete phase executed.
+   */
+  conversationScope?: string;
+  /**
+   * Stable identifier for the HydraFusion turn that produced the event.
+   */
+  fusionId: string;
+  /**
+   * HydraFusion orchestration pattern selected for the turn.
+   */
+  pattern: string;
+  /**
+   * Identifier of the concrete phase that produced the event.
+   */
+  phaseId?: string;
+  /**
+   * Kind of concrete phase that produced the event.
+   */
+  phaseKind?: string;
+  /**
+   * HydraFusion routing policy used for the turn.
+   */
+  policy: string;
+  /**
+   * Semantic role assigned to the concrete phase.
+   */
+  role?: string;
+  /**
+   * Concrete model that produced the attributed event.
+   */
+  sourceModel?: string;
+  /**
+   * Phase whose output supplied the authoritative content, when different from the executing phase.
+   */
+  sourcePhaseId?: string;
+  /**
+   * Synthetic HydraFusion model selected for the session.
+   */
+  syntheticModel: string;
 }
 /**
  * Neutral provider-tagged reasoning content blocks preserved verbatim for round-tripping
@@ -4375,6 +5136,12 @@ export interface AssistantUsageData {
    */
   frontierSource?: string;
   /**
+   * Experimental HydraFusion attribution for this concrete model call's usage.
+   *
+   * @experimental
+   */
+  fusion?: FusionAttribution;
+  /**
    * What initiated this API call (e.g., "sub-agent", "mcp-sampling"); absent for user-initiated calls
    */
   initiator?: string;
@@ -4647,6 +5414,12 @@ export interface ModelCallFailureData {
    */
   errorType?: string;
   failureKind?: ModelCallFailureKind;
+  /**
+   * Experimental HydraFusion attribution for this failed concrete model call.
+   *
+   * @experimental
+   */
+  fusion?: FusionAttribution;
   /**
    * What initiated this API call (e.g., "sub-agent", "mcp-sampling"); absent for user-initiated calls
    */
@@ -4922,6 +5695,12 @@ export interface ToolExecutionStartData {
    */
   displayVerbatim?: boolean;
   /**
+   * Experimental HydraFusion attribution for this tool execution.
+   *
+   * @experimental
+   */
+  fusion?: FusionAttribution;
+  /**
    * Name of the MCP server hosting this tool, when the tool is an MCP tool
    */
   mcpServerName?: string;
@@ -5130,6 +5909,12 @@ export interface ToolExecutionCompleteEvent {
  */
 export interface ToolExecutionCompleteData {
   error?: ToolExecutionCompleteError;
+  /**
+   * Experimental HydraFusion attribution for this tool completion.
+   *
+   * @experimental
+   */
+  fusion?: FusionAttribution;
   /**
    * CAPI interaction ID for correlating this tool execution with upstream telemetry
    */
@@ -5387,6 +6172,10 @@ export interface ToolExecutionCompleteContentShellExit {
    * Exit code from the completed shell command
    */
   exitCode: number;
+  /**
+   * Path reported in the shell session's filesystem namespace when shell output exceeded the configured large-output threshold.
+   */
+  outputFilePath?: string;
   /**
    * Output associated with this shell command, if available. May be partial, truncated, or a preview; not guaranteed to be full output.
    */

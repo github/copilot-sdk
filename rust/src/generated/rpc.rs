@@ -1800,6 +1800,37 @@ impl<'a> ClientRpcSessions<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
+    /// Attaches to a session another user has shared with the authenticated user, as a read-only watcher, and exposes it as an SDK session. The watched session replays and streams over the ordinary `session.event` notification channel, but cannot be driven: sending, steering, answering prompts, approving tools, changing session configuration and cancelling turns are all refused. The watcher's own identity is resolved from the connection's credential, never from the caller.
+    ///
+    /// Wire method: `sessions.watch`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Parameters for watching a session another user has shared with the authenticated user.
+    ///
+    /// # Returns
+    ///
+    /// Result of attaching to a shared session as a read-only watcher. History replays as ordered `session.event` notifications after this result is delivered, not inside it.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn watch(
+        &self,
+        params: WatchSharedSessionParams,
+    ) -> Result<WatchSharedSessionResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::SESSIONS_WATCH, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
     /// Lists sessions, optionally filtered by source and working-directory context. Returned entries are discriminated by `isRemote`: local entries carry only the lightweight `LocalSessionMetadataValue` shape; remote entries carry the full `RemoteSessionMetadataValue` shape (repository, PR number, taskType, etc.).
     ///
     /// Wire method: `sessions.list`.
