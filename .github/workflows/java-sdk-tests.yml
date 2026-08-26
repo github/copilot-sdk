@@ -28,6 +28,7 @@ jobs:
             classifier: linux-x64
           - os: ubuntu-24.04-arm
             classifier: linux-arm64
+            maven-args: -Dcopilot.native.libc=glibc
           - os: windows-latest
             classifier: win32-x64
           - os: macos-26
@@ -57,7 +58,7 @@ jobs:
       - name: Run Java SDK tests (InProcess)
         env:
           CI: "true"
-        run: mvn clean verify -Pinprocess -Dcopilot.native.libc=glibc
+        run: mvn clean verify -Pinprocess ${{ matrix.maven-args }}
 
       - name: Generate Test Report Summary
         if: always()
