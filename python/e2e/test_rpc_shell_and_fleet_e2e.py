@@ -37,10 +37,9 @@ pytestmark = pytest.mark.asyncio(loop_scope="module")
 
 def _write_file_command(marker_path: Path, marker: str) -> str:
     if sys.platform == "win32":
-        return (
-            f"powershell -NoLogo -NoProfile -Command "
-            f"\"Set-Content -LiteralPath '{marker_path}' -Value '{marker}'\""
-        )
+        # shell.exec already runs through cmd.exe on Windows. Use its built-in echo
+        # instead of spawning a nested PowerShell process just to write the marker.
+        return f'echo {marker}>"{marker_path.name}"'
     return f"sh -c \"printf '%s' '{marker}' > '{marker_path}'\""
 
 
@@ -57,19 +56,17 @@ async def _wait_for_file_text(path: Path, expected: str, *, timeout: float = 30.
 
 class TestRpcShellAndFleet:
     async def test_should_execute_shell_command(self, ctx: E2ETestContext):
-        session = await ctx.client.create_session(
+        async with await ctx.client.create_session(
             on_permission_request=PermissionHandler.approve_all,
-        )
-        marker_path = Path(ctx.work_dir) / f"shell-rpc-{uuid.uuid4().hex}.txt"
-        marker = "copilot-sdk-shell-rpc"
+        ) as session:
+            marker_path = Path(ctx.work_dir) / f"shell-rpc-{uuid.uuid4().hex}.txt"
+            marker = "copilot-sdk-shell-rpc"
 
-        result = await session.rpc.shell.exec(
-            ShellExecRequest(command=_write_file_command(marker_path, marker), cwd=ctx.work_dir)
-        )
-        assert (result.process_id or "").strip()
-        await _wait_for_file_text(marker_path, marker)
-
-        await session.disconnect()
+            result = await session.rpc.shell.exec(
+                ShellExecRequest(command=_write_file_command(marker_path, marker), cwd=ctx.work_dir)
+            )
+            assert (result.process_id or "").strip()
+            await _wait_for_file_text(marker_path, marker)
 
     async def test_should_kill_shell_process(self, ctx: E2ETestContext):
         session = await ctx.client.create_session(
