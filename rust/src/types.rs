@@ -3118,6 +3118,12 @@ impl SessionConfig {
         self
     }
 
+    /// **Experimental.** Set the sandbox configuration for this session.
+    pub fn with_sandbox_config(mut self, config: SandboxConfig) -> Self {
+        self.sandbox_config = Some(config);
+        self
+    }
+
     /// Set per-property overrides for model capabilities.
     pub fn with_model_capabilities(
         mut self,
@@ -4358,6 +4364,12 @@ impl ResumeSessionConfig {
     /// **Experimental.** Set limits for this session's current accounting window.
     pub fn with_session_limits(mut self, limits: SessionLimitsConfig) -> Self {
         self.session_limits = Some(limits);
+        self
+    }
+
+    /// **Experimental.** Set the sandbox configuration for this resumed session.
+    pub fn with_sandbox_config(mut self, config: SandboxConfig) -> Self {
+        self.sandbox_config = Some(config);
         self
     }
 
@@ -6258,10 +6270,7 @@ mod tests {
             ..Default::default()
         };
 
-        let create_config = SessionConfig {
-            sandbox_config: Some(sandbox_config.clone()),
-            ..Default::default()
-        };
+        let create_config = SessionConfig::default().with_sandbox_config(sandbox_config.clone());
         let (create_wire, _) = create_config
             .into_wire(Some(SessionId::from("create-sandbox")))
             .expect("create config has no duplicate handlers");
@@ -6271,8 +6280,8 @@ mod tests {
             "http://127.0.0.1:4321"
         );
 
-        let mut resume_config = ResumeSessionConfig::new(SessionId::from("resume-sandbox"));
-        resume_config.sandbox_config = Some(sandbox_config);
+        let resume_config = ResumeSessionConfig::new(SessionId::from("resume-sandbox"))
+            .with_sandbox_config(sandbox_config);
         let (resume_wire, _) = resume_config
             .into_wire()
             .expect("resume config has no duplicate handlers");
