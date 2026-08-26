@@ -790,6 +790,13 @@ async fn create_session_sends_canvas_wire_fields() {
 
 #[test]
 fn managed_bypass_permissions_modes_use_wire_values() {
+    let disabled = ManagedSettingsPermissions::default()
+        .with_disable_bypass_permissions_mode(DisableBypassPermissionsModes::DISABLE);
+    assert_eq!(
+        serde_json::to_value(disabled).unwrap()["disableBypassPermissionsMode"],
+        "disable"
+    );
+
     let known = ManagedSettingsPermissions::default()
         .with_disable_bypass_permissions_mode(DisableBypassPermissionsModes::ALLOW_AUTO_ONLY);
     assert_eq!(

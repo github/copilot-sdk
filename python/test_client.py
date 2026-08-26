@@ -757,6 +757,20 @@ class TestCreateSessionConfig:
                     "ask": ["Domain(publish.example)"],
                 }
             }
+
+            await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                managed_settings=ManagedSettings(
+                    permissions=ManagedSettingsPermissions(
+                        disable_bypass_permissions_mode=DisableBypassPermissionsModes.DISABLE,
+                    )
+                ),
+            )
+            assert captured["session.create"]["managedSettings"] == {
+                "permissions": {
+                    "disableBypassPermissionsMode": "disable",
+                }
+            }
         finally:
             await client.force_stop()
 

@@ -3928,6 +3928,21 @@ describe("managedSettings serialization", () => {
         });
     });
 
+    it("forwards the disable bypass-permissions mode", async () => {
+        const managedSettings = {
+            permissions: {
+                disableBypassPermissionsMode: DisableBypassPermissionsModes.Disable,
+            },
+        } satisfies ManagedSettings;
+        const params = await captureCreateParams({ managedSettings });
+
+        expect(params.managedSettings).toEqual({
+            permissions: {
+                disableBypassPermissionsMode: "disable",
+            },
+        });
+    });
+
     it("forwards unknown bypass-permissions modes", async () => {
         const managedSettings = {
             permissions: {
