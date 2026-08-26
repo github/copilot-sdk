@@ -5860,7 +5860,7 @@ pub use crate::generated::api_types::{
     ModelCapabilitiesSupports, ModelList, ModelPolicy, PermissionDecision,
     PermissionDecisionApproveOnce, PermissionDecisionContext, PermissionDecisionOutcome,
     PermissionDecisionReject, PermissionDecisionSource, PermissionDecisionSurface,
-    PermissionDecisionUserNotAvailable,
+    PermissionDecisionUserNotAvailable, PermissionResponseCapability,
 };
 
 /// Permission categories the CLI may request approval for.
@@ -5970,12 +5970,20 @@ mod tests {
         CopilotExpAssignmentResponse, CustomAgentConfig, DeliveryMode, ExpConfigEntry,
         ExpFlagValue, ExtensionInfo, GitHubMcpToolConfig, GitHubReferenceType,
         InfiniteSessionConfig, LargeToolOutputConfig, McpServerConfig, McpStdioServerConfig,
-        MemoryConfiguration, NamedProviderConfig, ProviderConfig, ProviderModelConfig,
-        ReasoningSummary, ResumeSessionConfig, SessionConfig, SessionEvent, SessionId,
-        SystemMessageConfig, Tool, ToolBinaryResult, ToolResult, ToolResultExpanded,
+        MemoryConfiguration, NamedProviderConfig, PermissionResponseCapability, ProviderConfig,
+        ProviderModelConfig, ReasoningSummary, ResumeSessionConfig, SessionConfig, SessionEvent,
+        SessionId, SystemMessageConfig, Tool, ToolBinaryResult, ToolResult, ToolResultExpanded,
         ToolResultResponse, ensure_attachment_display_names,
     };
     use crate::generated::session_events::TypedSessionEvent;
+
+    #[test]
+    fn permission_response_capability_is_publicly_exported() {
+        assert_eq!(
+            serde_json::to_value(PermissionResponseCapability::Interactive).unwrap(),
+            json!("interactive")
+        );
+    }
 
     #[test]
     fn tool_builder_composes() {
