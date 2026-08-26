@@ -764,7 +764,7 @@ export class CopilotSession {
         const unsubscribe = this.on((event) => {
             if (event.type === "assistant.message") {
                 lastAssistantMessage = event;
-            } else if (event.type === "session.idle") {
+            } else if (event.type === "session.idle" && event.data.mode !== "autopilot") {
                 resolveOutcome({ kind: "idle" });
             } else if (event.type === "session.error") {
                 const error = new Error(event.data.message);

@@ -78,6 +78,7 @@ from .generated.session_events import (
     SessionErrorData,
     SessionEvent,
     SessionIdleData,
+    SessionMode,
     session_event_from_dict,
 )
 from .generated.session_events import (
@@ -1793,7 +1794,7 @@ class CopilotSession:
                             total_start,
                             session_id=self.session_id,
                         )
-                case SessionIdleData():
+                case SessionIdleData() as data if data.mode != SessionMode.AUTOPILOT:
                     log_timing(
                         logger,
                         logging.DEBUG,

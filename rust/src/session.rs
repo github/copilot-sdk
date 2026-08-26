@@ -17,7 +17,7 @@ use crate::generated::api_types::{
 };
 use crate::generated::session_events::{
     CommandExecuteData, ElicitationRequestedData, ExternalToolRequestedData, McpOauthRequiredData,
-    SessionCanvasClosedData, SessionErrorData, SessionEventType,
+    SessionCanvasClosedData, SessionErrorData, SessionEventType, SessionIdleData, SessionMode,
 };
 use crate::handler::{
     AutoModeSwitchHandler, AutoModeSwitchResponse, ElicitationHandler, ExitPlanModeHandler,
@@ -1701,6 +1701,12 @@ fn tool_failure_result(message: impl Into<String>) -> ToolResult {
     })
 }
 
+fn is_autopilot_continuation_idle(event: &SessionEvent) -> bool {
+    event
+        .typed_data::<SessionIdleData>()
+        .is_some_and(|data| data.mode == Some(SessionMode::Autopilot))
+}
+
 /// Process a notification from the CLI's broadcast channel.
 #[allow(clippy::too_many_arguments)]
 async fn handle_notification(
@@ -1745,6 +1751,7 @@ async fn handle_notification(
                         }
                         waiter.last_assistant_message = Some(event.clone());
                     }
+                    SessionEventType::SessionIdle if is_autopilot_continuation_idle(&event) => {}
                     SessionEventType::SessionIdle | SessionEventType::SessionError => {
                         if let Some(waiter) = guard.take() {
                             if event_type == SessionEventType::SessionIdle {
@@ -2652,14 +2659,37 @@ mod tests {
     use serde_json::json;
 
     use super::{
-        build_mode_post_create_patch, has_managed_settings, permission_request_data,
-        permission_response_params,
+        build_mode_post_create_patch, has_managed_settings, is_autopilot_continuation_idle,
+        permission_request_data, permission_response_params,
     };
     use crate::handler::PermissionResult;
     use crate::types::{
         PermissionDecisionContext, PermissionDecisionOutcome, PermissionDecisionSource,
-        PermissionDecisionSurface, RequestId, SessionId,
+        PermissionDecisionSurface, RequestId, SessionEvent, SessionId,
     };
+
+    #[test]
+    fn identifies_only_autopilot_continuation_idles() {
+        let mut event = SessionEvent {
+            id: "event-1".to_string(),
+            timestamp: "2026-01-01T00:00:00Z".to_string(),
+            parent_id: None,
+            ephemeral: None,
+            agent_id: None,
+            debug_cli_received_at_ms: None,
+            debug_ws_forwarded_at_ms: None,
+            event_type: "session.idle".to_string(),
+            data: json!({ "mode": "autopilot" }),
+        };
+
+        assert!(is_autopilot_continuation_idle(&event));
+
+        event.data = json!({ "mode": "interactive" });
+        assert!(!is_autopilot_continuation_idle(&event));
+
+        event.data = json!({});
+        assert!(!is_autopilot_continuation_idle(&event));
+    }
 
     #[test]
     fn empty_mode_post_patch_sets_empty_included_builtin_skills() {
