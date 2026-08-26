@@ -218,6 +218,8 @@ pub enum ErrorKind {
     },
     /// Invalid combination of options or configuration.
     InvalidConfig,
+    /// A session-scoped GitHub token provider failed or returned invalid data.
+    GitHubTokenProvider,
 }
 
 impl fmt::Display for ErrorKind {
@@ -238,6 +240,7 @@ impl fmt::Display for ErrorKind {
                 write!(f, "binary not found: {name}")
             }
             ErrorKind::InvalidConfig => write!(f, "invalid configuration"),
+            ErrorKind::GitHubTokenProvider => write!(f, "GitHub token provider error"),
         }
     }
 }

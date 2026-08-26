@@ -21,6 +21,8 @@ import type {
 import type { CopilotSession } from "./session.js";
 import type { FactoryJsonSchema, JsonValue } from "./factory.js";
 import type {
+    GitHubTokenAcquireRequest,
+    GitHubTokenAcquireResult,
     GitHubTelemetryNotification,
     ModelBillingTokenPrices,
     OpenCanvasInstance,
@@ -43,10 +45,38 @@ export type {
 } from "./generated/rpc.js";
 export type { CurrentToolMetadata } from "./generated/rpc.js";
 export type {
+    GitHubTokenAcquireReason,
+    GitHubTokenAcquireResult,
     GitHubTelemetryNotification,
     GitHubTelemetryEvent,
     GitHubTelemetryClientInfo,
 } from "./generated/rpc.js";
+
+/**
+ * Arguments passed to a session's {@link GitHubTokenProvider}.
+ *
+ * The callback registration identifier is intentionally kept inside the SDK.
+ */
+export type GitHubTokenProviderArgs = Pick<
+    GitHubTokenAcquireRequest,
+    "host" | "sessionId" | "reason"
+>;
+
+/** Tagged token or cancellation returned by a {@link GitHubTokenProvider}. */
+export type GitHubTokenProviderResult = GitHubTokenAcquireResult;
+
+/**
+ * Acquires a GitHub token for one session.
+ *
+ * A token result must include `expiresIn`: the positive number of seconds of
+ * remaining lifetime when the callback completes. Production GitHub tokens
+ * typically last eight hours. Initial cancellation, callback errors, and
+ * invalid token responses reject session creation or resume instead of falling
+ * back to ambient authentication.
+ */
+export type GitHubTokenProvider = (
+    args: GitHubTokenProviderArgs
+) => GitHubTokenProviderResult | Promise<GitHubTokenProviderResult>;
 export type {
     ModelBillingTokenPrices,
     ModelBillingTokenPricesLongContext,
@@ -70,6 +100,7 @@ export type {
     PermissionDecisionOutcome,
     PermissionDecisionSource,
     PermissionDecisionSurface,
+    PermissionResponseCapability,
 } from "./generated/rpc.js";
 export type { CopilotRequestContext } from "./copilotRequestHandler.js";
 export {
@@ -2737,6 +2768,16 @@ export interface SessionConfigBase {
      * the identity used for content exclusion, model routing, and quota checks.
      */
     gitHubToken?: string;
+
+    /**
+     * Acquires short-lived GitHub credentials for this session on demand.
+     *
+     * Mutually exclusive with {@link SessionConfigBase.gitHubToken}. The
+     * callback receives the effective GitHub host, the session ID when known,
+     * and whether this is the initial acquisition or a refresh. Its opaque
+     * registration ID remains internal to the SDK.
+     */
+    gitHubTokenProvider?: GitHubTokenProvider;
 
     /**
      * Opt-in: when true, the runtime self-fetches enterprise managed settings

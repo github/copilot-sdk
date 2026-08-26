@@ -108,6 +108,8 @@ public class ResumeSessionConfig {
     private boolean enableMcpApps;
     private GitHubMcpToolConfig githubMcpToolConfig;
     private String gitHubToken;
+    @JsonIgnore
+    private GitHubTokenProvider gitHubTokenProvider;
     private String remoteSession;
     private CopilotExpAssignmentResponse expAssignments;
     private Boolean enableManagedSettings;
@@ -1924,6 +1926,33 @@ public class ResumeSessionConfig {
     }
 
     /**
+     * Gets the rotating GitHub token provider for the resumed session.
+     *
+     * @return the provider, or {@code null} when a static token is used
+     */
+    public GitHubTokenProvider getGitHubTokenProvider() {
+        return gitHubTokenProvider;
+    }
+
+    /**
+     * Sets the rotating GitHub token provider for the resumed session.
+     * <p>
+     * The provider receives only the effective host, optional assigned session ID,
+     * and acquisition reason. It must return a positive remaining lifetime in
+     * seconds when its callback completes. Production GitHub tokens typically last
+     * eight hours. This option is mutually exclusive with
+     * {@link #setGitHubToken(String)}.
+     *
+     * @param gitHubTokenProvider
+     *            provider used for initial acquisition and refresh
+     * @return this config instance for method chaining
+     */
+    public ResumeSessionConfig setGitHubTokenProvider(GitHubTokenProvider gitHubTokenProvider) {
+        this.gitHubTokenProvider = gitHubTokenProvider;
+        return this;
+    }
+
+    /**
      * Gets the per-session remote behavior control.
      * <p>
      * See {@link SessionConfig#getRemoteSession()} for details on possible values.
@@ -2108,6 +2137,7 @@ public class ResumeSessionConfig {
         copy.enableMcpApps = this.enableMcpApps;
         copy.githubMcpToolConfig = this.githubMcpToolConfig;
         copy.gitHubToken = this.gitHubToken;
+        copy.gitHubTokenProvider = this.gitHubTokenProvider;
         copy.remoteSession = this.remoteSession;
         copy.expAssignments = this.expAssignments;
         copy.enableManagedSettings = this.enableManagedSettings;

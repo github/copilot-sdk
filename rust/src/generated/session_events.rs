@@ -943,6 +943,9 @@ pub struct SessionIdleData {
     /// True when the preceding agentic loop was cancelled via abort signal
     #[serde(skip_serializing_if = "Option::is_none")]
     pub aborted: Option<bool>,
+    /// The session mode the agent was operating in when it went idle, when the mode is known. Lets turn-scoped consumers distinguish an autopilot continuation boundary (where the agent keeps working after this idle) from a genuine turn completion.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mode: Option<SessionMode>,
 }
 
 /// Session event "session.title_changed". Session title change payload containing the new display title
@@ -5752,6 +5755,24 @@ pub enum Verbosity {
     Unknown,
 }
 
+/// The session mode the agent is operating in
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SessionMode {
+    /// The agent is responding interactively to the user.
+    #[serde(rename = "interactive")]
+    Interactive,
+    /// The agent is preparing a plan before making changes.
+    #[serde(rename = "plan")]
+    Plan,
+    /// The agent is working autonomously toward task completion.
+    #[serde(rename = "autopilot")]
+    Autopilot,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// Who created the schedule: `user` (an explicit user action such as `/every` or `/after`) or `model` (the agent via the `manage_schedule` tool). Gates whether a scheduled skill that opted out of model invocation may fire: only user-created schedules may.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ScheduleOrigin {
@@ -5842,24 +5863,6 @@ pub enum ModelChangeSource {
     /// An SDK or RPC caller selected the model.
     #[serde(rename = "sdk")]
     Sdk,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// The session mode the agent is operating in
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum SessionMode {
-    /// The agent is responding interactively to the user.
-    #[serde(rename = "interactive")]
-    Interactive,
-    /// The agent is preparing a plan before making changes.
-    #[serde(rename = "plan")]
-    Plan,
-    /// The agent is working autonomously toward task completion.
-    #[serde(rename = "autopilot")]
-    Autopilot,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

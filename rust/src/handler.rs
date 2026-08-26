@@ -114,6 +114,7 @@ impl PermissionResult {
     ///
     /// let result = PermissionResult::approve_once().with_context(PermissionDecisionContext {
     ///     outcome: PermissionDecisionOutcome::AutoApproved,
+    ///     response_capability: None,
     ///     source: PermissionDecisionSource::HostPolicy,
     ///     surface: PermissionDecisionSurface::Sdk,
     /// });

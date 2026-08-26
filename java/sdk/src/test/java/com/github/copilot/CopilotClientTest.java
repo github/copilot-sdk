@@ -8,6 +8,8 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import com.github.copilot.rpc.CopilotClientOptions;
+import com.github.copilot.rpc.DeleteSessionResponse;
+import com.github.copilot.rpc.GitHubTokenProviderResult;
 import com.github.copilot.rpc.PermissionHandler;
 import com.github.copilot.rpc.PingResponse;
 import com.github.copilot.rpc.SessionConfig;
@@ -109,6 +111,35 @@ public class CopilotClientTest {
         externalClient.stop().get();
 
         verify(externalRpc, never()).invoke(eq("runtime.shutdown"), any(), eq(Void.class));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void testDeleteSessionReleasesGitHubTokenProvider() throws Exception {
+        var client = new CopilotClient(new CopilotClientOptions().setAutoStart(false));
+        var rpc = mock(JsonRpcClient.class);
+        when(rpc.invoke(eq("session.delete"), any(), eq(DeleteSessionResponse.class)))
+                .thenReturn(CompletableFuture.completedFuture(new DeleteSessionResponse(true, null)));
+        when(rpc.invoke(eq("session.destroy"), any(), eq(Void.class)))
+                .thenReturn(CompletableFuture.completedFuture(null));
+        setConnectionFuture(client, rpc, null);
+
+        var registry = new GitHubTokenProviderRegistry();
+        var registration = registry
+                .register(args -> CompletableFuture.completedFuture(GitHubTokenProviderResult.cancelled()));
+        var session = new CopilotSession("delete-session", rpc);
+        session.setGitHubTokenProviderRegistration(registration);
+        Field sessionsField = CopilotClient.class.getDeclaredField("sessions");
+        sessionsField.setAccessible(true);
+        ((Map<String, CopilotSession>) sessionsField.get(client)).put(session.getSessionId(), session);
+
+        try {
+            client.deleteSession(session.getSessionId()).join();
+            assertNull(registry.get(registration.id()));
+        } finally {
+            session.close();
+            client.close();
+        }
     }
 
     @Test

@@ -3207,6 +3207,7 @@ public abstract class SessionConfigBase
         ContextTier = other.ContextTier;
         CreateSessionFsProvider = other.CreateSessionFsProvider;
         GitHubToken = other.GitHubToken;
+        GitHubTokenProvider = other.GitHubTokenProvider;
         RemoteSession = other.RemoteSession;
         ExpAssignments = other.ExpAssignments;
         EnableManagedSettings = other.EnableManagedSettings;
@@ -3664,6 +3665,16 @@ public abstract class SessionConfigBase
     /// and stores it on the session for content exclusion, model routing, and quota checks.
     /// </summary>
     public string? GitHubToken { get; set; }
+
+    /// <summary>
+    /// Gets or sets a callback that acquires session-scoped GitHub tokens on
+    /// demand. Initial cancellation, callback errors, and invalid token responses
+    /// reject session creation or resume instead of falling back to ambient
+    /// authentication. This cannot be combined with <see cref="GitHubToken"/>.
+    /// </summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonIgnore]
+    public Func<GitHubTokenProviderArgs, Task<GitHubTokenProviderResult>>? GitHubTokenProvider { get; set; }
 
     /// <summary>
     /// Per-session remote behavior control:

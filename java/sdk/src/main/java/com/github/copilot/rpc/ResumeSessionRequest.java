@@ -233,6 +233,9 @@ public final class ResumeSessionRequest {
     @JsonProperty("gitHubToken")
     private String gitHubToken;
 
+    @JsonProperty("gitHubTokenProviderRegistrationId")
+    private String gitHubTokenProviderRegistrationId;
+
     @JsonProperty("remoteSession")
     private String remoteSession;
 
@@ -1101,6 +1104,21 @@ public final class ResumeSessionRequest {
      */
     public void setGitHubToken(String gitHubToken) {
         this.gitHubToken = gitHubToken;
+    }
+
+    /**
+     * Gets the token-provider registration ID. @return the opaque registration ID
+     */
+    public String getGitHubTokenProviderRegistrationId() {
+        return gitHubTokenProviderRegistrationId;
+    }
+
+    /**
+     * Sets the token-provider registration ID. @param registrationId the opaque
+     * registration ID
+     */
+    public void setGitHubTokenProviderRegistrationId(String registrationId) {
+        this.gitHubTokenProviderRegistrationId = registrationId;
     }
 
     /** Gets the remote session mode. @return the remote session mode */

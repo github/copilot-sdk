@@ -115,6 +115,22 @@ class JsonRpcClientTest {
         }
     }
 
+    @Test
+    void testCredentialValuesAreRedactedOnlyFromDiagnosticRendering() throws Exception {
+        String json = """
+                {"jsonrpc":"2.0","result":{"accessToken":"secret","nested":{"gitHubToken":"static"}},
+                "metadata":{"tokenType":"Bearer"}}
+                """;
+
+        String rendered = JsonRpcClient.redactCredentialsForLogging(json);
+
+        assertFalse(rendered.contains("secret"));
+        assertFalse(rendered.contains("static"));
+        assertEquals("<redacted>", MAPPER.readTree(rendered).at("/result/accessToken").asText());
+        assertEquals("<redacted>", MAPPER.readTree(rendered).at("/result/nested/gitHubToken").asText());
+        assertEquals("Bearer", MAPPER.readTree(rendered).at("/metadata/tokenType").asText());
+    }
+
     // ---- isConnected() ----
 
     @Test
