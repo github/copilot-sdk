@@ -1322,6 +1322,9 @@ type SessionConfig struct {
 	// When provided, the SDK can satisfy MCP server OAuth requests with host-provided
 	// token data or cancellation.
 	OnMCPAuthRequest MCPAuthHandler
+	// GitHubTokenProvider acquires session-scoped GitHub tokens on demand. It
+	// cannot be combined with GitHubToken.
+	GitHubTokenProvider GitHubTokenProvider
 	// OnUserInputRequest is a handler for user input requests from the agent (enables ask_user tool)
 	OnUserInputRequest UserInputHandler
 	// Hooks configures hook handlers for session lifecycle events
@@ -1798,6 +1801,9 @@ type ResumeSessionConfig struct {
 	// ClientName identifies the application using the SDK.
 	// Included in the User-Agent header for API requests.
 	ClientName string
+	// GitHubTokenProvider acquires session-scoped GitHub tokens on demand. It
+	// cannot be combined with GitHubToken.
+	GitHubTokenProvider GitHubTokenProvider
 	// Model to use for this session. Can change the model when resuming.
 	Model string
 	// Tools exposes caller-implemented tools to the CLI. A Tool with a nil Handler
@@ -2522,6 +2528,7 @@ type createSessionRequest struct {
 	RequestMCPApps                     *bool                                  `json:"requestMcpApps,omitempty"`
 	GitHubMCPToolConfig                *GitHubMCPToolConfig                   `json:"githubMcpToolConfig,omitempty"`
 	GitHubToken                        string                                 `json:"gitHubToken,omitempty"`
+	GitHubTokenProviderRegistrationID  string                                 `json:"gitHubTokenProviderRegistrationId,omitempty"`
 	RemoteSession                      rpc.RemoteSessionMode                  `json:"remoteSession,omitempty"`
 	Cloud                              *CloudSessionOptions                   `json:"cloud,omitempty"`
 	Canvases                           []CanvasDeclaration                    `json:"canvases,omitempty"`
@@ -2620,6 +2627,7 @@ type resumeSessionRequest struct {
 	RequestMCPApps                     *bool                                  `json:"requestMcpApps,omitempty"`
 	GitHubMCPToolConfig                *GitHubMCPToolConfig                   `json:"githubMcpToolConfig,omitempty"`
 	GitHubToken                        string                                 `json:"gitHubToken,omitempty"`
+	GitHubTokenProviderRegistrationID  string                                 `json:"gitHubTokenProviderRegistrationId,omitempty"`
 	RemoteSession                      rpc.RemoteSessionMode                  `json:"remoteSession,omitempty"`
 	Canvases                           []CanvasDeclaration                    `json:"canvases,omitempty"`
 	OpenCanvases                       []rpc.OpenCanvasInstance               `json:"openCanvases,omitempty"`

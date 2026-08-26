@@ -24,6 +24,7 @@ use crate::generated::api_types::{CurrentToolMetadata, OpenCanvasInstance};
 use crate::generated::session_events::ReasoningSummary;
 /// Context window tier for models that support tiered context windows.
 pub use crate::generated::session_events::{ContextTier, SessionLimitsConfig};
+use crate::github_token::GitHubTokenProvider;
 use crate::handler::{
     AutoModeSwitchHandler, ElicitationHandler, ExitPlanModeHandler, McpAuthHandler,
     PermissionHandler, UserInputHandler,
@@ -2113,6 +2114,12 @@ pub struct SessionConfig {
     /// the GitHub identity used for content exclusion, model routing, and
     /// quota checks for *this session*.
     pub github_token: Option<String>,
+    /// Provider used to acquire rotating GitHub tokens for this session.
+    ///
+    /// Mutually exclusive with [`github_token`](Self::github_token). The callback
+    /// receives the effective host, optional assigned session ID, and acquisition
+    /// reason; its opaque registration ID is never exposed.
+    pub github_token_provider: Option<Arc<dyn GitHubTokenProvider>>,
     /// Per-session remote behavior control:
     /// - `Off` — local only, no remote export (default)
     /// - `Export` — export session events to GitHub without
@@ -2140,9 +2147,10 @@ pub struct SessionConfig {
     pub exp_assignments: Option<CopilotExpAssignmentResponse>,
     /// Opt-in: when `Some(true)`, the runtime self-fetches enterprise managed
     /// settings (bypass-permissions policy) at session bootstrap using the
-    /// session's [`github_token`](Self::github_token). Requires `github_token`
-    /// to be set; if omitted, the runtime is expected to reject session creation
-    /// (fail-closed). When `None`, behaves exactly as before. Set via
+    /// session's static [`github_token`](Self::github_token) or
+    /// [`github_token_provider`](Self::github_token_provider). Requires one of
+    /// those credentials; if both are omitted, the runtime is expected to reject
+    /// session creation (fail-closed). When `None`, behaves exactly as before. Set via
     /// [`with_enable_managed_settings`](Self::with_enable_managed_settings).
     pub enable_managed_settings: Option<bool>,
     /// Optional managed-settings layer injected at session bootstrap. Currently
@@ -2294,6 +2302,10 @@ impl std::fmt::Debug for SessionConfig {
                 "github_token",
                 &self.github_token.as_ref().map(|_| "<redacted>"),
             )
+            .field(
+                "github_token_provider",
+                &self.github_token_provider.as_ref().map(|_| "<set>"),
+            )
             .field("remote_session", &self.remote_session)
             .field("cloud", &self.cloud)
             .field(
@@ -2411,6 +2423,7 @@ impl Default for SessionConfig {
             working_directory: None,
             additional_directories: None,
             github_token: None,
+            github_token_provider: None,
             remote_session: None,
             cloud: None,
             include_sub_agent_streaming_events: None,
@@ -2456,6 +2469,7 @@ pub(crate) struct SessionConfigRuntime {
     pub canvas_handler: Option<Arc<dyn CanvasHandler>>,
     pub session_fs_provider: Option<Arc<dyn SessionFsProvider>>,
     pub bearer_token_providers: HashMap<String, Arc<dyn BearerTokenProvider>>,
+    pub github_token_provider: Option<Arc<dyn GitHubTokenProvider>>,
     pub commands: Option<Vec<CommandDefinition>>,
 }
 
@@ -2475,6 +2489,12 @@ impl SessionConfig {
         mut self,
         session_id: Option<SessionId>,
     ) -> Result<(crate::wire::SessionCreateWire, SessionConfigRuntime), crate::Error> {
+        if self.github_token.is_some() && self.github_token_provider.is_some() {
+            return Err(crate::Error::with_message(
+                crate::ErrorKind::InvalidConfig,
+                "github_token and github_token_provider are mutually exclusive",
+            ));
+        }
         let permission_active =
             self.permission_handler.is_some() || self.permission_policy.is_some();
         let request_user_input = self.user_input_handler.is_some();
@@ -2576,6 +2596,7 @@ impl SessionConfig {
             working_directory: self.working_directory,
             additional_directories: self.additional_directories,
             github_token: self.github_token,
+            github_token_provider_registration_id: None,
             remote_session: self.remote_session,
             cloud: self.cloud,
             include_sub_agent_streaming_events: self.include_sub_agent_streaming_events,
@@ -2601,6 +2622,7 @@ impl SessionConfig {
             canvas_handler,
             session_fs_provider: self.session_fs_provider,
             bearer_token_providers,
+            github_token_provider: self.github_token_provider,
             commands: self.commands,
         };
 
@@ -3141,6 +3163,16 @@ impl SessionConfig {
         self
     }
 
+    /// Install a rotating GitHub token provider for this session.
+    ///
+    /// The provider must return a positive remaining lifetime in seconds when
+    /// its callback completes. Production GitHub tokens typically last eight
+    /// hours. This option is mutually exclusive with [`with_github_token`](Self::with_github_token).
+    pub fn with_github_token_provider(mut self, provider: Arc<dyn GitHubTokenProvider>) -> Self {
+        self.github_token_provider = Some(provider);
+        self
+    }
+
     /// Forward sub-agent streaming events to this connection. Defaults
     /// to true on the CLI when unset.
     pub fn with_include_sub_agent_streaming_events(mut self, include: bool) -> Self {
@@ -3208,9 +3240,10 @@ impl SessionConfig {
 
     /// Opt the runtime into self-fetching enterprise managed settings
     /// (bypass-permissions policy) at session bootstrap using the session's
-    /// [`github_token`](Self::github_token). Requires `github_token` to be set;
-    /// if omitted, the runtime is expected to reject session creation
-    /// (fail-closed).
+    /// static [`github_token`](Self::github_token) or
+    /// [`github_token_provider`](Self::github_token_provider). Requires one of
+    /// those credentials; if both are omitted, the runtime is expected to reject
+    /// session creation (fail-closed).
     pub fn with_enable_managed_settings(mut self, enabled: bool) -> Self {
         self.enable_managed_settings = Some(enabled);
         self
@@ -3399,6 +3432,9 @@ pub struct ResumeSessionConfig {
     /// Per-session GitHub token on resume. See
     /// [`SessionConfig::github_token`].
     pub github_token: Option<String>,
+    /// Rotating GitHub token provider on resume. See
+    /// [`SessionConfig::github_token_provider`].
+    pub github_token_provider: Option<Arc<dyn GitHubTokenProvider>>,
     /// Per-session remote behavior control on resume. See
     /// [`SessionConfig::remote_session`].
     pub remote_session: Option<crate::generated::api_types::RemoteSessionMode>,
@@ -3560,6 +3596,10 @@ impl std::fmt::Debug for ResumeSessionConfig {
                 "github_token",
                 &self.github_token.as_ref().map(|_| "<redacted>"),
             )
+            .field(
+                "github_token_provider",
+                &self.github_token_provider.as_ref().map(|_| "<set>"),
+            )
             .field("remote_session", &self.remote_session)
             .field(
                 "include_sub_agent_streaming_events",
@@ -3619,6 +3659,12 @@ impl ResumeSessionConfig {
     pub(crate) fn into_wire(
         mut self,
     ) -> Result<(crate::wire::SessionResumeWire, SessionConfigRuntime), crate::Error> {
+        if self.github_token.is_some() && self.github_token_provider.is_some() {
+            return Err(crate::Error::with_message(
+                crate::ErrorKind::InvalidConfig,
+                "github_token and github_token_provider are mutually exclusive",
+            ));
+        }
         let permission_active =
             self.permission_handler.is_some() || self.permission_policy.is_some();
         let request_user_input = self.user_input_handler.is_some();
@@ -3721,6 +3767,7 @@ impl ResumeSessionConfig {
             working_directory: self.working_directory,
             additional_directories: self.additional_directories,
             github_token: self.github_token,
+            github_token_provider_registration_id: None,
             remote_session: self.remote_session,
             include_sub_agent_streaming_events: self.include_sub_agent_streaming_events,
             enable_github_telemetry_forwarding: None,
@@ -3747,6 +3794,7 @@ impl ResumeSessionConfig {
             canvas_handler,
             session_fs_provider: self.session_fs_provider,
             bearer_token_providers,
+            github_token_provider: self.github_token_provider,
             commands: self.commands,
         };
 
@@ -3818,6 +3866,7 @@ impl ResumeSessionConfig {
             working_directory: None,
             additional_directories: None,
             github_token: None,
+            github_token_provider: None,
             remote_session: None,
             include_sub_agent_streaming_events: None,
             commands: None,
@@ -4355,6 +4404,16 @@ impl ResumeSessionConfig {
     /// client-level token.
     pub fn with_github_token(mut self, token: impl Into<String>) -> Self {
         self.github_token = Some(token.into());
+        self
+    }
+
+    /// Install a rotating GitHub token provider for the resumed session.
+    ///
+    /// The provider must return a positive remaining lifetime in seconds when
+    /// its callback completes. Production GitHub tokens typically last eight
+    /// hours. Mutually exclusive with [`with_github_token`](Self::with_github_token).
+    pub fn with_github_token_provider(mut self, provider: Arc<dyn GitHubTokenProvider>) -> Self {
+        self.github_token_provider = Some(provider);
         self
     }
 

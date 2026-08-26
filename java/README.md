@@ -176,6 +176,20 @@ directly.
 
 `CopilotClientOptions.setCwd(...)` sets the runtime process working directory, which otherwise inherits the current process working directory. `SessionConfig.setWorkingDirectory(...)` sets the session working directory, which otherwise defaults to the runtime process working directory.
 
+For rotating per-session GitHub credentials, use
+`SessionConfig.setGitHubTokenProvider(...)` (or the equivalent
+`ResumeSessionConfig` setter) instead of `setGitHubToken(...)`:
+
+```java
+var config = new SessionConfig().setGitHubTokenProvider(args ->
+    acquireForHost(args.host()).thenApply(token ->
+        GitHubTokenProviderResult.token(token, 8 * 60 * 60)));
+```
+
+The remaining lifetime is required and must be positive when the callback
+completes; production GitHub tokens typically last eight hours. A static token
+and a provider are mutually exclusive.
+
 ## Permission Handling
 
 `PermissionHandler.APPROVE_ALL` approves requests when managed settings are disabled. When `enableManagedSettings` is true, it completes exceptionally. Custom handlers can inspect `request.getManagedApprovalRequired()` for human-facing confirmation logic.

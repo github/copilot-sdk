@@ -274,6 +274,29 @@ let config = SessionConfig {
 let session = client.create_session(config).await?;
 ```
 
+For rotating per-session GitHub credentials, install a `GitHubTokenProvider`
+instead of setting `github_token`:
+
+```rust,ignore
+use github_copilot_sdk::{
+    GitHubToken, GitHubTokenProviderArgs, GitHubTokenProviderResult, SessionConfig,
+};
+
+let provider = Arc::new(|args: GitHubTokenProviderArgs| async move {
+    let access_token = acquire_for_host(&args.host).await?;
+    Ok(GitHubTokenProviderResult::Token(GitHubToken::new(
+        access_token,
+        8 * 60 * 60,
+    )))
+});
+let config = SessionConfig::default().with_github_token_provider(provider);
+```
+
+The remaining lifetime is required and must be positive when the callback
+completes; production GitHub tokens typically last eight hours. Static
+`github_token` and a provider are mutually exclusive. The same provider API is
+available on `ResumeSessionConfig`.
+
 ### Session Hooks
 
 Hooks intercept CLI behavior at lifecycle points — tool use, prompt submission, session start/end, and errors. Install a `SessionHooks` impl with [`SessionConfig::with_hooks`] — the SDK auto-enables `hooks` in `SessionConfig` when one is set.

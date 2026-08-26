@@ -1548,6 +1548,7 @@ class CopilotSession:
         client: Any,
         workspace_path: os.PathLike[str] | str | None = None,
         managed_settings_enabled: bool = False,
+        on_disconnect: Callable[[], None] | None = None,
     ):
         """
         Initialize a new CopilotSession.
@@ -1600,6 +1601,11 @@ class CopilotSession:
         self._open_canvases_lock = threading.Lock()
         self._rpc: SessionRpc | None = None
         self._destroyed = False
+        self._on_disconnect = on_disconnect
+
+    def _set_disconnect_callback(self, callback: Callable[[], None]) -> None:
+        """Set the client-owned cleanup callback before the session becomes active."""
+        self._on_disconnect = callback
 
     @property
     def rpc(self) -> SessionRpc:
@@ -2973,6 +2979,9 @@ class CopilotSession:
         try:
             await self._client.request("session.destroy", {"sessionId": self.session_id})
         finally:
+            if self._on_disconnect is not None:
+                self._on_disconnect()
+                self._on_disconnect = None
             # Clear handlers even if the request fails.
             with self._event_handlers_lock:
                 self._event_handlers.clear()

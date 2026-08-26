@@ -82,6 +82,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     private IReadOnlyList<OpenCanvasInstance> _openCanvases = Array.Empty<OpenCanvasInstance>();
 
     private int _isDisposed;
+    private string? _gitHubTokenProviderRegistrationId;
 
     /// <summary>
     /// Channel that serializes event dispatch. <see cref="DispatchEvent"/> enqueues;
@@ -201,6 +202,19 @@ public sealed partial class CopilotSession : IAsyncDisposable
     internal void RemoveFromClient()
     {
         ((ICollection<KeyValuePair<string, CopilotSession>>)_parentClient._sessions).Remove(new(SessionId, this));
+    }
+
+    internal void SetGitHubTokenProviderRegistration(string registrationId)
+    {
+        _gitHubTokenProviderRegistrationId = registrationId;
+    }
+
+    internal void ReleaseGitHubTokenProviderRegistration()
+    {
+        if (Interlocked.Exchange(ref _gitHubTokenProviderRegistrationId, null) is { } registrationId)
+        {
+            _parentClient.UnregisterGitHubTokenProvider(registrationId);
+        }
     }
 
     internal void StartProcessingEvents()
@@ -1936,6 +1950,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
         }
         finally
         {
+            ReleaseGitHubTokenProviderRegistration();
             RemoveFromClient();
             GC.SuppressFinalize(this);
         }

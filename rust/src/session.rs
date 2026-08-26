@@ -190,6 +190,8 @@ pub struct Session {
     open_canvases: Arc<parking_lot::RwLock<Vec<OpenCanvasInstance>>>,
     /// Broadcast channel for runtime event subscribers — see [`Session::subscribe`].
     event_tx: tokio::sync::broadcast::Sender<SessionEvent>,
+    github_token_registration:
+        ParkingLotMutex<Option<crate::github_token::GitHubTokenRegistration>>,
 }
 
 impl Session {
@@ -584,6 +586,7 @@ impl Session {
             .await?;
         self.stop_event_loop().await;
         self.client.unregister_session(&self.id);
+        self.github_token_registration.lock().take();
         Ok(())
     }
 
@@ -661,6 +664,7 @@ impl Drop for Session {
         // it here because Drop is sync.
         self.shutdown.cancel();
         self.client.unregister_session(&self.id);
+        self.github_token_registration.lock().take();
     }
 }
 
@@ -933,6 +937,13 @@ impl Client {
         let canvas_handler = runtime.canvas_handler.take();
         let session_fs_provider = runtime.session_fs_provider.take();
         let bearer_token_providers = std::mem::take(&mut runtime.bearer_token_providers);
+        let github_token_registration = runtime
+            .github_token_provider
+            .take()
+            .map(|provider| self.register_github_token_provider(provider));
+        wire.github_token_provider_registration_id = github_token_registration
+            .as_ref()
+            .map(|registration| registration.id().to_string());
         let has_mcp_auth_handler = handlers.mcp_auth.is_some();
         if self.inner.session_fs_configured && session_fs_provider.is_none() {
             return Err(ErrorKind::Session(SessionErrorKind::SessionFsProviderRequired).into());
@@ -1090,6 +1101,7 @@ impl Client {
             capabilities,
             open_canvases,
             event_tx,
+            github_token_registration: ParkingLotMutex::new(github_token_registration),
         };
         apply_mode_post_create_patch(
             &session,
@@ -1100,6 +1112,11 @@ impl Client {
             opt_manage_schedule_enabled,
         )
         .await?;
+        if let Some(registration) = session.github_token_registration.lock().as_ref() {
+            registration.claim(session.id.clone());
+        } else {
+            self.retire_github_token_provider(&session.id);
+        }
         Ok(session)
     }
 
@@ -1206,6 +1223,13 @@ impl Client {
         let canvas_handler = runtime.canvas_handler.take();
         let session_fs_provider = runtime.session_fs_provider.take();
         let bearer_token_providers = std::mem::take(&mut runtime.bearer_token_providers);
+        let github_token_registration = runtime
+            .github_token_provider
+            .take()
+            .map(|provider| self.register_github_token_provider(provider));
+        wire.github_token_provider_registration_id = github_token_registration
+            .as_ref()
+            .map(|registration| registration.id().to_string());
         let has_mcp_auth_handler = handlers.mcp_auth.is_some();
         if self.inner.session_fs_configured && session_fs_provider.is_none() {
             return Err(ErrorKind::Session(SessionErrorKind::SessionFsProviderRequired).into());
@@ -1350,6 +1374,7 @@ impl Client {
             capabilities,
             open_canvases,
             event_tx,
+            github_token_registration: ParkingLotMutex::new(github_token_registration),
         };
         apply_mode_post_create_patch(
             &session,
@@ -1360,6 +1385,11 @@ impl Client {
             opt_manage_schedule_enabled,
         )
         .await?;
+        if let Some(registration) = session.github_token_registration.lock().as_ref() {
+            registration.claim(session.id.clone());
+        } else {
+            self.retire_github_token_provider(&session.id);
+        }
         Ok(session)
     }
 }

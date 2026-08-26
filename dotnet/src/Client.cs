@@ -70,6 +70,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// <see cref="CopilotClient"/> that has not been explicitly disposed or removed.
     /// </remarks>
     internal readonly ConcurrentDictionary<string, CopilotSession> _sessions = new();
+    private readonly ConcurrentDictionary<string, Func<GitHubTokenProviderArgs, Task<GitHubTokenProviderResult>>> _gitHubTokenProviders = new();
 
     private readonly CopilotClientOptions _options;
     private readonly RuntimeConnection _connection;
@@ -91,8 +92,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
     /// <summary>
     /// Client-global RPC handlers (e.g. the LLM inference provider adapter),
-    /// built once at construction when the corresponding option is configured and
-    /// registered on every connection. Null when no client-global API is enabled.
+    /// built once at construction and registered on every connection.
     /// </summary>
     private readonly ClientGlobalApiHandlers? _clientGlobalApis;
 
@@ -541,6 +541,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         }
 
         _sessions.Clear();
+        ClearGitHubTokenProviders();
 
         await CleanupConnectionAsync(errors, gracefulRuntimeShutdown: true);
 
@@ -572,6 +573,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     public async Task ForceStopAsync()
     {
         _sessions.Clear();
+        ClearGitHubTokenProviders();
 
         var errors = new List<Exception>();
         await CleanupConnectionAsync(errors, gracefulRuntimeShutdown: false);
@@ -1119,6 +1121,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     public async Task<CopilotSession> CreateSessionAsync(SessionConfig config, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(config);
+        ValidateGitHubTokenConfig(config);
 
         var connection = await EnsureConnectedAsync(cancellationToken);
         var totalTimestamp = Stopwatch.GetTimestamp();
@@ -1153,19 +1156,22 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             ? null
             : (string.IsNullOrEmpty(config.SessionId) ? Guid.NewGuid().ToString() : config.SessionId);
 
+        var registrationId = RegisterGitHubTokenProvider(config.GitHubTokenProvider);
+        var registrationTransferred = false;
         CopilotSession? session = null;
-        if (localSessionId != null)
-        {
-            session = InitializeSession(
-                localSessionId,
-                connection.Rpc,
-                config,
-                transformCallbacks,
-                hasHooks,
-                "CopilotClient.CreateSessionAsync");
-        }
         try
         {
+            if (localSessionId != null)
+            {
+                session = InitializeSession(
+                    localSessionId,
+                    connection.Rpc,
+                    config,
+                    transformCallbacks,
+                    hasHooks,
+                    "CopilotClient.CreateSessionAsync");
+            }
+
             var (traceparent, tracestate) = TelemetryHelpers.GetTraceContext();
 
             var request = new CreateSessionRequest(
@@ -1222,6 +1228,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 Tracestate: tracestate,
                 ModelCapabilities: config.ModelCapabilities,
                 GitHubToken: config.GitHubToken,
+                GitHubTokenProviderRegistrationId: registrationId,
                 RemoteSession: config.RemoteSession,
                 Cloud: config.Cloud,
                 InstructionDirectories: config.InstructionDirectories,
@@ -1301,6 +1308,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             session.SetOpenCanvases(response.OpenCanvases);
 
             await UpdateSessionOptionsForModeAsync(session, config, cancellationToken).ConfigureAwait(false);
+            if (registrationId is not null)
+            {
+                session.SetGitHubTokenProviderRegistration(registrationId);
+                registrationTransferred = true;
+            }
         }
         catch (Exception ex)
         {
@@ -1315,6 +1327,13 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             }
 
             throw;
+        }
+        finally
+        {
+            if (!registrationTransferred && registrationId is not null)
+            {
+                UnregisterGitHubTokenProvider(registrationId);
+            }
         }
 
         LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
@@ -1353,6 +1372,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     {
         ArgumentNullException.ThrowIfNull(sessionId);
         ArgumentNullException.ThrowIfNull(config);
+        ValidateGitHubTokenConfig(config);
 
         var connection = await EnsureConnectedAsync(cancellationToken);
         var totalTimestamp = Stopwatch.GetTimestamp();
@@ -1375,17 +1395,21 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
         var (wireSystemMessage, transformCallbacks) = ExtractTransformCallbacks(config.SystemMessage);
 
-        // Create and register the session before issuing the RPC so that
-        // events emitted by the CLI (e.g. session.start) are not dropped.
-        var session = InitializeSession(
-            sessionId,
-            connection.Rpc,
-            config,
-            transformCallbacks,
-            hasHooks,
-            "CopilotClient.ResumeSessionAsync");
+        var registrationId = RegisterGitHubTokenProvider(config.GitHubTokenProvider);
+        var registrationTransferred = false;
+        CopilotSession? session = null;
         try
         {
+            // Create and register the session before issuing the RPC so that
+            // events emitted by the CLI (e.g. session.start) are not dropped.
+            session = InitializeSession(
+                sessionId,
+                connection.Rpc,
+                config,
+                transformCallbacks,
+                hasHooks,
+                "CopilotClient.ResumeSessionAsync");
+
             var (traceparent, tracestate) = TelemetryHelpers.GetTraceContext();
 
             var request = new ResumeSessionRequest(
@@ -1443,6 +1467,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 Tracestate: tracestate,
                 ModelCapabilities: config.ModelCapabilities,
                 GitHubToken: config.GitHubToken,
+                GitHubTokenProviderRegistrationId: registrationId,
                 RemoteSession: config.RemoteSession,
                 ContinuePendingWork: config.ContinuePendingWork,
                 InstructionDirectories: config.InstructionDirectories,
@@ -1486,10 +1511,15 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             }
 
             await UpdateSessionOptionsForModeAsync(session, config, cancellationToken).ConfigureAwait(false);
+            if (registrationId is not null)
+            {
+                session.SetGitHubTokenProviderRegistration(registrationId);
+                registrationTransferred = true;
+            }
         }
         catch (Exception ex)
         {
-            session.RemoveFromClient();
+            session?.RemoveFromClient();
             if (ex is not OperationCanceledException)
             {
                 LoggingHelpers.LogTiming(_logger, LogLevel.Warning, ex,
@@ -1499,12 +1529,19 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             }
             throw;
         }
+        finally
+        {
+            if (!registrationTransferred && registrationId is not null)
+            {
+                UnregisterGitHubTokenProvider(registrationId);
+            }
+        }
 
         LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
             "CopilotClient.ResumeSessionAsync complete. Elapsed={Elapsed}, SessionId={SessionId}",
             totalTimestamp,
             sessionId);
-        return session;
+        return session!;
     }
 
     /// <summary>
@@ -1946,23 +1983,92 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// <summary>
     /// Builds the client-global RPC handler bag at construction time. Registers
     /// the LLM inference provider adapter and/or the GitHub telemetry adapter
-    /// depending on which options are configured; returns null when no
-    /// client-global API is configured so the registration is skipped entirely.
+    /// depending on which options are configured. The GitHub token dispatcher is
+    /// always registered because providers are configured per session.
     /// </summary>
     private ClientGlobalApiHandlers? BuildClientGlobalApis()
     {
         var handler = _options.RequestHandler;
         var onGitHubTelemetry = _options.OnGitHubTelemetry;
-        if (handler is null && onGitHubTelemetry is null)
-        {
-            return null;
-        }
-
         return new ClientGlobalApiHandlers
         {
             LlmInference = handler is null ? null : new LlmInferenceAdapter(handler, () => _serverRpc),
             GitHubTelemetry = onGitHubTelemetry is null ? null : new GitHubTelemetryAdapter(onGitHubTelemetry, _logger),
+            GitHubToken = new GitHubTokenAdapter(this),
         };
+    }
+
+    private static void ValidateGitHubTokenConfig(SessionConfigBase config)
+    {
+        if (!string.IsNullOrEmpty(config.GitHubToken) && config.GitHubTokenProvider is not null)
+        {
+            throw new ArgumentException(
+                $"{nameof(SessionConfigBase.GitHubToken)} and {nameof(SessionConfigBase.GitHubTokenProvider)} cannot be used together.",
+                nameof(config));
+        }
+    }
+
+    private string? RegisterGitHubTokenProvider(
+        Func<GitHubTokenProviderArgs, Task<GitHubTokenProviderResult>>? provider)
+    {
+        if (provider is null)
+        {
+            return null;
+        }
+
+        var registrationId = Guid.NewGuid().ToString();
+        if (!_gitHubTokenProviders.TryAdd(registrationId, provider))
+        {
+            throw new InvalidOperationException("Failed to register GitHub token provider.");
+        }
+        return registrationId;
+    }
+
+    internal void UnregisterGitHubTokenProvider(string registrationId)
+        => _gitHubTokenProviders.TryRemove(registrationId, out _);
+
+    private void ClearGitHubTokenProviders() => _gitHubTokenProviders.Clear();
+
+    private sealed class GitHubTokenAdapter(CopilotClient client) : IGitHubTokenHandler
+    {
+        public async Task<GitHubTokenAcquireResult> GetTokenAsync(
+            GitHubTokenAcquireRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            if (!client._gitHubTokenProviders.TryGetValue(request.RegistrationId, out var provider))
+            {
+                throw new InvalidOperationException(
+                    $"Unknown GitHub token provider registration ID '{request.RegistrationId}'.");
+            }
+
+            var reason = request.Reason == GitHubTokenAcquireReason.Initial
+                ? GitHubTokenRequestReason.Initial
+                : request.Reason == GitHubTokenAcquireReason.Refresh
+                    ? GitHubTokenRequestReason.Refresh
+                    : throw new InvalidOperationException($"Unknown GitHub token request reason '{request.Reason}'.");
+            var result = await provider(new GitHubTokenProviderArgs
+            {
+                Host = request.Host,
+                SessionId = request.SessionId,
+                Reason = reason,
+            }).ConfigureAwait(false);
+
+            if (result is { Cancelled: true })
+            {
+                return new GitHubTokenAcquireResultCancelled();
+            }
+            if (result?.Token is not { } token)
+            {
+                throw new InvalidOperationException(
+                    "GitHub token provider returned neither a token nor cancellation.");
+            }
+            return new GitHubTokenAcquireResultToken
+            {
+                AccessToken = token.AccessToken,
+                TokenType = token.TokenType,
+                ExpiresIn = token.ExpiresIn,
+            };
+        }
     }
 
     /// <summary>
@@ -2802,6 +2908,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         string? Tracestate = null,
         ModelCapabilitiesOverride? ModelCapabilities = null,
         string? GitHubToken = null,
+        [property: JsonPropertyName("gitHubTokenProviderRegistrationId")] string? GitHubTokenProviderRegistrationId = null,
         RemoteSessionMode? RemoteSession = null,
         CloudSessionOptions? Cloud = null,
         IList<string>? InstructionDirectories = null,
@@ -2917,6 +3024,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         string? Tracestate = null,
         ModelCapabilitiesOverride? ModelCapabilities = null,
         string? GitHubToken = null,
+        [property: JsonPropertyName("gitHubTokenProviderRegistrationId")] string? GitHubTokenProviderRegistrationId = null,
         RemoteSessionMode? RemoteSession = null,
         bool? ContinuePendingWork = null,
         IList<string>? InstructionDirectories = null,

@@ -22,6 +22,8 @@ pub mod copilot_request_handler;
 /// `#[doc(hidden)]` — re-exports the generated telemetry payload types.
 #[doc(hidden)]
 pub mod github_telemetry;
+/// Session-scoped GitHub token provider callbacks.
+pub mod github_token;
 /// Event handler traits for session lifecycle.
 pub mod handler;
 /// Lifecycle hook callbacks (pre/post tool use, prompt submission, session start/end).
@@ -84,6 +86,10 @@ use async_trait::async_trait;
 pub use indexmap::IndexMap;
 // JSON-RPC wire types are internal transport details.
 // External callers interact via Client/Session methods, not raw RPC.
+pub use github_token::{
+    GitHubToken, GitHubTokenProvider, GitHubTokenProviderArgs, GitHubTokenProviderResult,
+    GitHubTokenRequestReason,
+};
 pub(crate) use jsonrpc::{
     JsonRpcClient, JsonRpcError, JsonRpcNotification, JsonRpcRequest, JsonRpcResponse, error_codes,
 };
@@ -1020,6 +1026,7 @@ struct ClientInner {
     request_rx: parking_lot::Mutex<Option<mpsc::UnboundedReceiver<JsonRpcRequest>>>,
     notification_tx: broadcast::Sender<JsonRpcNotification>,
     router: router::SessionRouter,
+    github_token_registry: Arc<github_token::GitHubTokenRegistry>,
     negotiated_protocol_version: OnceLock<u32>,
     state: parking_lot::Mutex<ConnectionState>,
     lifecycle_tx: broadcast::Sender<SessionLifecycleEvent>,
@@ -1423,6 +1430,7 @@ impl Client {
                 &client.inner.request_rx,
                 Some(dispatcher.clone()),
                 client.inner.on_github_telemetry.clone(),
+                client.inner.github_token_registry.clone(),
             );
             client.rpc().llm_inference().set_provider().await?;
             let llm_inference_elapsed = llm_inference_start.elapsed();
@@ -1603,6 +1611,7 @@ impl Client {
         let pid = child.as_ref().and_then(|c| c.id());
         info!(pid = ?pid, "copilot CLI client ready");
 
+        let github_token_registry = Arc::new(github_token::GitHubTokenRegistry::new());
         let client = Self {
             inner: Arc::new(ClientInner {
                 child: parking_lot::Mutex::new(child),
@@ -1613,6 +1622,7 @@ impl Client {
                 request_rx: parking_lot::Mutex::new(Some(request_rx)),
                 notification_tx: notification_broadcast_tx,
                 router: router::SessionRouter::new(),
+                github_token_registry: github_token_registry.clone(),
                 negotiated_protocol_version: OnceLock::new(),
                 state: parking_lot::Mutex::new(ConnectionState::Connected),
                 lifecycle_tx: broadcast::channel(256).0,
@@ -1628,6 +1638,7 @@ impl Client {
                 startup_timings: OnceLock::new(),
             }),
         };
+        github_token_registry.set_client(Arc::downgrade(&client.inner));
         client.spawn_lifecycle_dispatcher();
         debug!(
             elapsed_ms = setup_start.elapsed().as_millis(),
@@ -2046,6 +2057,7 @@ impl Client {
             &self.inner.request_rx,
             self.inner.llm_inference.get().cloned(),
             self.inner.on_github_telemetry.clone(),
+            self.inner.github_token_registry.clone(),
         );
         self.inner.router.register(session_id)
     }
@@ -2053,6 +2065,25 @@ impl Client {
     /// Unregister a session, dropping its per-session channels.
     pub(crate) fn unregister_session(&self, session_id: &SessionId) {
         self.inner.router.unregister(session_id);
+    }
+
+    pub(crate) fn register_github_token_provider(
+        &self,
+        provider: Arc<dyn GitHubTokenProvider>,
+    ) -> github_token::GitHubTokenRegistration {
+        self.inner.router.ensure_started(
+            &self.inner.notification_tx,
+            &self.inner.request_rx,
+            self.inner.llm_inference.get().cloned(),
+            self.inner.on_github_telemetry.clone(),
+            self.inner.github_token_registry.clone(),
+        );
+        let id = self.inner.github_token_registry.register(provider);
+        github_token::GitHubTokenRegistration::new(self.inner.github_token_registry.clone(), id)
+    }
+
+    pub(crate) fn retire_github_token_provider(&self, session_id: &SessionId) {
+        self.inner.github_token_registry.retire_session(session_id);
     }
 
     /// Returns the protocol version negotiated with the CLI server, if any.
@@ -2263,6 +2294,7 @@ impl Client {
             &self.inner.request_rx,
             self.inner.llm_inference.get().cloned(),
             self.inner.on_github_telemetry.clone(),
+            self.inner.github_token_registry.clone(),
         );
     }
 
@@ -2286,6 +2318,7 @@ impl Client {
             }
             self.inner.router.unregister(&session_id);
         }
+        self.inner.github_token_registry.clear();
 
         match self.list_sessions(None).await {
             Ok(sessions) => {
@@ -2455,6 +2488,7 @@ impl Client {
             }
             self.inner.router.unregister(&session_id);
         }
+        self.inner.github_token_registry.clear();
 
         let should_shutdown_runtime = self.inner.child.lock().is_some();
         #[cfg(feature = "bundled-in-process")]
@@ -2581,6 +2615,7 @@ impl Client {
         // Drop all session channels so any awaiters see a closed channel
         // instead of waiting for responses that will never arrive.
         self.inner.router.clear();
+        self.inner.github_token_registry.clear();
         *self.inner.state.lock() = ConnectionState::Disconnected;
         *self.inner.models_cache.lock() = Arc::new(tokio::sync::OnceCell::new());
     }
@@ -3388,6 +3423,7 @@ mod tests {
                 request_rx: parking_lot::Mutex::new(None),
                 notification_tx: broadcast::channel(16).0,
                 router: router::SessionRouter::new(),
+                github_token_registry: Arc::new(github_token::GitHubTokenRegistry::new()),
                 negotiated_protocol_version: OnceLock::new(),
                 state: parking_lot::Mutex::new(ConnectionState::Connected),
                 lifecycle_tx: broadcast::channel(16).0,
