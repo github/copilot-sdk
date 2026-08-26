@@ -56,7 +56,7 @@ conversations:
               arguments: '{"path":"${workdir}/subagent-test.txt"}'
       - role: tool
         tool_call_id: toolcall_0
-        content: 1. Hello from subagent test!
+        content: Hello from subagent test!
       - role: assistant
         content: |-
           The complete contents of the file "subagent-test.txt" are:
