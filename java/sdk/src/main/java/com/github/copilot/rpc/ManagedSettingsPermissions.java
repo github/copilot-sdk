@@ -31,7 +31,9 @@ public final class ManagedSettingsPermissions {
     }
 
     /**
-     * Disables bypass/allow-all permission modes.
+     * Restricts bypass/allow-all permission modes. See
+     * {@link DisableBypassPermissionsModes} for known values. Newer values are
+     * forwarded unchanged so runtime policies remain fail-closed.
      *
      * @param value
      *            bypass-permissions policy

@@ -1586,9 +1586,9 @@ const (
 // accepts for fetched managed policy (e.g. "Read(**)", "Shell(git push *)");
 // malformed rules are rejected by the runtime at session creation.
 type ManagedSettingsPermissions struct {
-	// DisableBypassPermissionsMode, when set to "disable", turns off
-	// bypass-permissions ("yolo") mode for the session. Deny-wins: no other
-	// layer can re-enable it.
+	// DisableBypassPermissionsMode restricts bypass-permissions mode for the
+	// session. See the DisableBypassPermissionsMode constants for known values.
+	// Newer values are forwarded unchanged so runtime policies remain fail-closed.
 	DisableBypassPermissionsMode DisableBypassPermissionsMode `json:"disableBypassPermissionsMode,omitempty"`
 	// Deny lists operations that must always be denied. Unioned across layers.
 	Deny []string `json:"deny,omitzero"`

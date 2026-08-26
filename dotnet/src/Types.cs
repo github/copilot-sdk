@@ -3070,8 +3070,8 @@ public static class DisableBypassPermissionsModes
 /// This layer composes restrictively with any server- or device-level managed
 /// settings: <see cref="Deny"/> and <see cref="Ask"/> rules are unioned across
 /// layers, every present <see cref="Allow"/> list must admit a tool for it to be
-/// allowed, and <see cref="DisableBypassPermissionsMode"/> is honored if any
-/// layer sets it (deny-wins).
+/// allowed, and <see cref="DisableBypassPermissionsMode"/> policies compose to
+/// the most restrictive setting.
 /// </remarks>
 public sealed class ManagedSettingsPermissions
 {
