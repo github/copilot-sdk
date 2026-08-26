@@ -41,6 +41,10 @@ public record Model(
     /** Model capability category for grouping in the model picker */
     @JsonProperty("modelPickerCategory") ModelPickerCategory modelPickerCategory,
     /** Relative cost tier for token-based billing users */
-    @JsonProperty("modelPickerPriceCategory") ModelPickerPriceCategory modelPickerPriceCategory
+    @JsonProperty("modelPickerPriceCategory") ModelPickerPriceCategory modelPickerPriceCategory,
+    /** Informational notices the service published for this model, such as an upcoming change or a recommended alternative. Present only when the service published at least one notice. Hosts should surface these without implying anything is wrong with the model. */
+    @JsonProperty("infoMessages") List<ModelMessage> infoMessages,
+    /** Warnings the service published for this model, such as a deprecated client version. Present only when the service published at least one warning. The model remains usable; hosts should surface these as advisory rather than blocking. */
+    @JsonProperty("warningMessages") List<ModelMessage> warningMessages
 ) {
 }
