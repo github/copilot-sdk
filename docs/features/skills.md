@@ -361,8 +361,8 @@ the post-create and post-resume options patch, alongside the empty
 `installedPlugins` list.
 
 This exclusion is fail-closed and cannot be weakened by the caller. You can still
-opt into your **own** custom skills under `mode: "empty"` — enable skills and pass
-your own `skillDirectories` — and those remain fully usable, including a custom
+opt into your **own** custom skills under `mode: "empty"`—enable skills and pass
+your own `skillDirectories`—and those remain fully usable, including a custom
 skill that shares a name with a built-in. But there is no way to opt back into the
 runtime-bundled built-ins through `mode: "empty"`; switch to `mode: "copilot-cli"`
 if you need them. Under `mode: "copilot-cli"` the field is omitted entirely, so all
