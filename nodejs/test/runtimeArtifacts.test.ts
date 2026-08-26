@@ -3,7 +3,23 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { materializeRuntimeBundle } from "../src/runtimeArtifacts.js";
+import { defaultRuntimeCacheRoot, materializeRuntimeBundle } from "../src/runtimeArtifacts.js";
+
+describe("defaultRuntimeCacheRoot", () => {
+    it.each([
+        ["darwin", "/home/test", {}, "/home/test/Library/Caches/github-copilot-sdk/runtime"],
+        ["linux", "/home/test", {}, "/home/test/.cache/github-copilot-sdk/runtime"],
+        ["linux", "/home/test", { XDG_CACHE_HOME: "/cache" }, "/cache/github-copilot-sdk/runtime"],
+        [
+            "win32",
+            "C:\\Users\\test",
+            { LOCALAPPDATA: "C:\\Users\\test\\AppData\\Local" },
+            join("C:\\Users\\test\\AppData\\Local", "github-copilot-sdk", "runtime"),
+        ],
+    ])("uses the %s user cache directory", (platform, home, environment, expected) => {
+        expect(defaultRuntimeCacheRoot(platform, home, environment)).toBe(expected);
+    });
+});
 
 describe("materializeRuntimeBundle", () => {
     afterEach(() => vi.unstubAllEnvs());

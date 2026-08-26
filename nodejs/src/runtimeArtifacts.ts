@@ -11,7 +11,7 @@ import {
     rmSync,
     statSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir } from "node:os";
 import { dirname, join, relative, sep } from "node:path";
 
 export interface RuntimeArtifactSources {
@@ -124,9 +124,23 @@ function makeExecutable(path: string): void {
     }
 }
 
+export function defaultRuntimeCacheRoot(
+    platform = process.platform,
+    home = homedir(),
+    environment: NodeJS.ProcessEnv = process.env
+): string {
+    const cacheDirectory =
+        platform === "win32"
+            ? (environment.LOCALAPPDATA ?? join(home, "AppData", "Local"))
+            : platform === "darwin"
+              ? join(home, "Library", "Caches")
+              : (environment.XDG_CACHE_HOME ?? join(home, ".cache"));
+    return join(cacheDirectory, "github-copilot-sdk", "runtime");
+}
+
 export function materializeRuntimeBundle(
     sources: RuntimeArtifactSources,
-    cacheRoot = join(tmpdir(), "github-copilot-sdk", "runtime")
+    cacheRoot = defaultRuntimeCacheRoot()
 ): string {
     const assets = collectRuntimeAssets(sources);
     const wrapperName = process.platform === "win32" ? "copilot-runtime.exe" : "copilot-runtime";
