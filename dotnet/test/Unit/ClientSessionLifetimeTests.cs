@@ -829,6 +829,66 @@ public sealed class ClientSessionLifetimeTests
         await Assert.ThrowsAsync<ObjectDisposedException>(() => session.Rpc.Model.GetCurrentAsync());
     }
 
+    [Fact]
+    public async Task SendAndWaitAsync_Skips_Autopilot_Continuation_Idle()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        var sendTask = session.SendAndWaitAsync(new MessageOptions { Prompt = "keep going" });
+        await WaitForRequestAsync(server, "session.send");
+
+        var continuationIdleProcessed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var subscription = session.On<SessionIdleEvent>(idle =>
+        {
+            if (idle.Data.Mode == SessionMode.Autopilot)
+            {
+                continuationIdleProcessed.TrySetResult();
+            }
+        });
+
+        DispatchEvent(session, new AssistantMessageEvent
+        {
+            Id = Guid.NewGuid(),
+            Data = new AssistantMessageData
+            {
+                Content = "intermediate",
+                MessageId = "assistant-1"
+            }
+        });
+        DispatchEvent(session, new SessionIdleEvent
+        {
+            Id = Guid.NewGuid(),
+            Data = new SessionIdleData { Mode = SessionMode.Autopilot }
+        });
+
+        await continuationIdleProcessed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.False(sendTask.IsCompleted);
+
+        DispatchEvent(session, new AssistantMessageEvent
+        {
+            Id = Guid.NewGuid(),
+            Data = new AssistantMessageData
+            {
+                Content = "final",
+                MessageId = "assistant-2"
+            }
+        });
+        DispatchEvent(session, new SessionIdleEvent
+        {
+            Id = Guid.NewGuid(),
+            Data = new SessionIdleData { Mode = SessionMode.Interactive }
+        });
+
+        var result = await sendTask.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.NotNull(result);
+        Assert.Equal("final", result.Data.Content);
+    }
+
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static async Task<WeakReference<CopilotSession>> CreateDroppedSessionAsync(CopilotClient client)
     {

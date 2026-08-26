@@ -393,6 +393,16 @@ type PermissionInvocation struct {
 // may change or be removed.
 type PermissionDecisionContext = rpc.PermissionDecisionContext
 
+// PermissionResponseCapability describes whether the responding client could
+// ask a user for a permission decision.
+type PermissionResponseCapability = rpc.PermissionResponseCapability
+
+const (
+	PermissionResponseCapabilityHeadless    = rpc.PermissionResponseCapabilityHeadless
+	PermissionResponseCapabilityInteractive = rpc.PermissionResponseCapabilityInteractive
+	PermissionResponseCapabilityNone        = rpc.PermissionResponseCapabilityNone
+)
+
 // PermissionDecisionOutcome describes the disposition of a permission request
 // as observed by the responding client.
 type PermissionDecisionOutcome = rpc.PermissionDecisionOutcome
@@ -419,6 +429,7 @@ const (
 type PermissionDecisionSurface = rpc.PermissionDecisionSurface
 
 const (
+	PermissionDecisionSurfaceAcp        = rpc.PermissionDecisionSurfaceAcp
 	PermissionDecisionSurfaceCopilotApp = rpc.PermissionDecisionSurfaceCopilotApp
 	PermissionDecisionSurfacePromptMode = rpc.PermissionDecisionSurfacePromptMode
 	PermissionDecisionSurfaceSDK        = rpc.PermissionDecisionSurfaceSDK

@@ -498,6 +498,9 @@ func (s *Session) SendAndWait(ctx context.Context, options MessageOptions) (*Ses
 			lastAssistantMessage = &eventCopy
 			mu.Unlock()
 		case *SessionIdleData:
+			if d.Mode != nil && *d.Mode == SessionModeAutopilot {
+				break
+			}
 			select {
 			case idleCh <- struct{}{}:
 			default:

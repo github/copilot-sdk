@@ -371,7 +371,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
                     }
                     break;
 
-                case SessionIdleEvent:
+                case SessionIdleEvent idleEvent when idleEvent.Data.Mode != SessionMode.Autopilot:
                     LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
                         "CopilotSession.SendAndWaitAsync idle received. Elapsed={Elapsed}, SessionId={SessionId}",
                         totalTimestamp,
