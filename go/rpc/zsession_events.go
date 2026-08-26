@@ -53,8 +53,17 @@ func (r RawSessionEventData) Type() SessionEventType {
 type SessionEventType string
 
 const (
-	SessionEventTypeAbort                       SessionEventType = "abort"
-	SessionEventTypeAgentInterrupted            SessionEventType = "agent.interrupted"
+	SessionEventTypeAbort            SessionEventType = "abort"
+	SessionEventTypeAgentInterrupted SessionEventType = "agent.interrupted"
+	// Experimental: SessionEventTypeAssistantFusionPhaseCompleted identifies an experimental
+	// event that may change or be removed.
+	SessionEventTypeAssistantFusionPhaseCompleted SessionEventType = "assistant.fusion_phase_completed"
+	// Experimental: SessionEventTypeAssistantFusionPhaseFailed identifies an experimental event
+	// that may change or be removed.
+	SessionEventTypeAssistantFusionPhaseFailed SessionEventType = "assistant.fusion_phase_failed"
+	// Experimental: SessionEventTypeAssistantFusionPhaseStarted identifies an experimental
+	// event that may change or be removed.
+	SessionEventTypeAssistantFusionPhaseStarted SessionEventType = "assistant.fusion_phase_started"
 	SessionEventTypeAssistantIdle               SessionEventType = "assistant.idle"
 	SessionEventTypeAssistantIntent             SessionEventType = "assistant.intent"
 	SessionEventTypeAssistantMessage            SessionEventType = "assistant.message"
@@ -147,11 +156,23 @@ const (
 	SessionEventTypeSessionError                       SessionEventType = "session.error"
 	SessionEventTypeSessionExtensionsAttachmentsPushed SessionEventType = "session.extensions.attachments_pushed"
 	SessionEventTypeSessionExtensionsLoaded            SessionEventType = "session.extensions_loaded"
-	SessionEventTypeSessionHandoff                     SessionEventType = "session.handoff"
-	SessionEventTypeSessionIdle                        SessionEventType = "session.idle"
-	SessionEventTypeSessionInfo                        SessionEventType = "session.info"
-	SessionEventTypeSessionLimitsExhaustedCompleted    SessionEventType = "session_limits_exhausted.completed"
-	SessionEventTypeSessionLimitsExhaustedRequested    SessionEventType = "session_limits_exhausted.requested"
+	// Experimental: SessionEventTypeSessionFusionCompleted identifies an experimental event
+	// that may change or be removed.
+	SessionEventTypeSessionFusionCompleted SessionEventType = "session.fusion_completed"
+	// Experimental: SessionEventTypeSessionFusionResolved identifies an experimental event that
+	// may change or be removed.
+	SessionEventTypeSessionFusionResolved SessionEventType = "session.fusion_resolved"
+	// Experimental: SessionEventTypeSessionFusionRouteFailed identifies an experimental event
+	// that may change or be removed.
+	SessionEventTypeSessionFusionRouteFailed SessionEventType = "session.fusion_route_failed"
+	// Experimental: SessionEventTypeSessionFusionRouteStarted identifies an experimental event
+	// that may change or be removed.
+	SessionEventTypeSessionFusionRouteStarted       SessionEventType = "session.fusion_route_started"
+	SessionEventTypeSessionHandoff                  SessionEventType = "session.handoff"
+	SessionEventTypeSessionIdle                     SessionEventType = "session.idle"
+	SessionEventTypeSessionInfo                     SessionEventType = "session.info"
+	SessionEventTypeSessionLimitsExhaustedCompleted SessionEventType = "session_limits_exhausted.completed"
+	SessionEventTypeSessionLimitsExhaustedRequested SessionEventType = "session_limits_exhausted.requested"
 	// Experimental: SessionEventTypeSessionManagedSettingsEnforced identifies an experimental
 	// event that may change or be removed.
 	SessionEventTypeSessionManagedSettingsEnforced SessionEventType = "session.managed_settings_enforced"
@@ -327,6 +348,9 @@ type AssistantMessageData struct {
 	Content string `json:"content"`
 	// Encrypted reasoning content from OpenAI models. Session-bound and stripped on resume.
 	EncryptedContent *string `json:"encryptedContent,omitempty"`
+	// Experimental HydraFusion source attribution for this ordinary authoritative assistant message.
+	// Experimental: Fusion is part of an experimental API and may change or be removed.
+	Fusion *FusionAttribution `json:"fusion,omitempty"`
 	// CAPI interaction ID for correlating this message with upstream telemetry
 	InteractionID *string `json:"interactionId,omitempty"`
 	// Unique identifier for this assistant message
@@ -853,6 +877,243 @@ type SessionErrorData struct {
 func (*SessionErrorData) sessionEventData()      {}
 func (*SessionErrorData) Type() SessionEventType { return SessionEventTypeSessionError }
 
+// Experimental durable HydraFusion phase output and lossless replay checkpoint.
+// Experimental: AssistantFusionPhaseCompletedData is part of an experimental API and may change or be removed.
+type AssistantFusionPhaseCompletedData struct {
+	// Provider-normalized textual output produced by the phase.
+	Content string `json:"content"`
+	// Conversation scope in which the phase executed.
+	ConversationScope FusionConversationScope `json:"conversationScope"`
+	// Elapsed execution time for the phase in milliseconds.
+	DurationMs float64 `json:"durationMs"`
+	// Identifier of the HydraFusion turn containing the phase.
+	FusionID string `json:"fusionId"`
+	// Concrete model that executed the phase.
+	Model string `json:"model"`
+	// Stable identifier for the completed phase.
+	PhaseID string `json:"phaseId"`
+	// Kind of phase that completed.
+	PhaseKind FusionPhaseKind `json:"phaseKind"`
+	// Exact provider-normalized message used to reconstruct canonical model history.
+	// Internal: ProjectionMessage is part of the SDK's internal API surface and is not intended for external use.
+	ProjectionMessage any `json:"projectionMessage,omitempty"`
+	// Projection action for the exact internal message.
+	// Internal: ProjectionMode is part of the SDK's internal API surface and is not intended for external use.
+	ProjectionMode *FusionProjectionMode `json:"projectionMode,omitempty"`
+	// Semantic role assigned to the completed phase.
+	Role string `json:"role"`
+	// Terminal request held outside canonical state until selected by the final commit.
+	// Internal: StagedTerminal is part of the SDK's internal API surface and is not intended for external use.
+	StagedTerminal *FusionStagedTerminal `json:"stagedTerminal,omitempty"`
+	// Durable outcome status of the phase.
+	Status FusionPhaseStatus `json:"status"`
+	// Aggregate concrete-model usage consumed by the phase.
+	Usage FusionPhaseUsage `json:"usage"`
+	// Structured judge or critic verdict, when the phase produces one.
+	Verdict *string `json:"verdict"`
+}
+
+func (*AssistantFusionPhaseCompletedData) sessionEventData() {}
+func (*AssistantFusionPhaseCompletedData) Type() SessionEventType {
+	return SessionEventTypeAssistantFusionPhaseCompleted
+}
+
+// Experimental durable HydraFusion routing failure and the deterministic concrete fallback selected for the turn.
+// Experimental: SessionFusionRouteFailedData is part of an experimental API and may change or be removed.
+type SessionFusionRouteFailedData struct {
+	// Identifier of the routing attempt that failed.
+	AttemptID string `json:"attemptId"`
+	// Provider or validation error detail, when available.
+	ErrorMessage *string `json:"errorMessage,omitempty"`
+	// Concrete model selected as the deterministic fallback.
+	FallbackModel string `json:"fallbackModel"`
+	// HydraFusion routing policy requested for the turn.
+	Policy string `json:"policy"`
+	// Stable machine-readable reason for the routing failure.
+	Reason string `json:"reason"`
+	// Elapsed routing time in milliseconds before the failure.
+	RoutingLatencyMs *float64 `json:"routingLatencyMs,omitempty"`
+	// Synthetic HydraFusion model selected for the session.
+	SyntheticModel string `json:"syntheticModel"`
+}
+
+func (*SessionFusionRouteFailedData) sessionEventData() {}
+func (*SessionFusionRouteFailedData) Type() SessionEventType {
+	return SessionEventTypeSessionFusionRouteFailed
+}
+
+// Experimental durable aggregate outcome of a HydraFusion turn.
+// Experimental: SessionFusionCompletedData is part of an experimental API and may change or be removed.
+type SessionFusionCompletedData struct {
+	// Total cached input tokens reported across all phases.
+	CachedTokens int64 `json:"cachedTokens"`
+	// Total tokens written to prompt cache across all phases.
+	CacheWriteTokens *int64 `json:"cacheWriteTokens,omitempty"`
+	// Idempotency identifier for the authoritative final commit.
+	CommitID string `json:"commitId"`
+	// Reason the turn used a degraded route, when applicable.
+	DegradedReason *string `json:"degradedReason"`
+	// Total elapsed execution time for the HydraFusion turn in milliseconds.
+	DurationMs float64 `json:"durationMs"`
+	// Concrete model that supplied the authoritative final content.
+	FinalSourceModel *string `json:"finalSourceModel"`
+	// Phase whose output supplied the authoritative final content.
+	FinalSourcePhaseID *string `json:"finalSourcePhaseId"`
+	// Concrete model recommended for eligible follow-up turns.
+	FollowUpModel string `json:"followUpModel"`
+	// Stable identifier for the completed HydraFusion turn.
+	FusionID string `json:"fusionId"`
+	// Total input tokens consumed across all phases.
+	InputTokens int64 `json:"inputTokens"`
+	// Stable aggregate outcome of the HydraFusion turn.
+	Outcome string `json:"outcome"`
+	// Total output tokens produced across all phases.
+	OutputTokens int64 `json:"outputTokens"`
+	// HydraFusion orchestration pattern executed for the turn.
+	Pattern FusionPattern `json:"pattern"`
+	// Number of concrete phases attempted by the turn.
+	PhaseCount int64 `json:"phaseCount"`
+	// Total concrete model requests made across all phases.
+	RequestCount int64 `json:"requestCount"`
+	// Synthetic HydraFusion model selected for the session.
+	SyntheticModel string `json:"syntheticModel"`
+	// Total normalized AI-unit cost reported across all phases, in nano-AIU.
+	TotalNanoAiu float64 `json:"totalNanoAiu"`
+	// Identifier of the session turn associated with the completion.
+	TurnID string `json:"turnId"`
+}
+
+func (*SessionFusionCompletedData) sessionEventData() {}
+func (*SessionFusionCompletedData) Type() SessionEventType {
+	return SessionEventTypeSessionFusionCompleted
+}
+
+// Experimental durable typed HydraFusion phase failure and degradation transition.
+// Experimental: AssistantFusionPhaseFailedData is part of an experimental API and may change or be removed.
+type AssistantFusionPhaseFailedData struct {
+	// Conversation scope in which the phase executed.
+	ConversationScope FusionConversationScope `json:"conversationScope"`
+	// Identifier of the fallback phase used to continue the turn after degradation.
+	DegradedToPhaseID *string `json:"degradedToPhaseId,omitempty"`
+	// Elapsed execution time before the phase failed, in milliseconds.
+	DurationMs float64 `json:"durationMs"`
+	// Provider or execution error detail, when available.
+	ErrorMessage *string `json:"errorMessage,omitempty"`
+	// Identifier of the HydraFusion turn containing the phase.
+	FusionID string `json:"fusionId"`
+	// Concrete model that attempted the phase.
+	Model string `json:"model"`
+	// Stable identifier for the failed phase.
+	PhaseID string `json:"phaseId"`
+	// Kind of phase that failed.
+	PhaseKind FusionPhaseKind `json:"phaseKind"`
+	// Stable machine-readable reason for the phase failure.
+	Reason string `json:"reason"`
+	// Semantic role assigned to the failed phase.
+	Role string `json:"role"`
+	// Durable outcome status of the phase.
+	Status FusionPhaseStatus `json:"status"`
+	// Aggregate concrete-model usage consumed before the failure.
+	Usage FusionPhaseUsage `json:"usage"`
+}
+
+func (*AssistantFusionPhaseFailedData) sessionEventData() {}
+func (*AssistantFusionPhaseFailedData) Type() SessionEventType {
+	return SessionEventTypeAssistantFusionPhaseFailed
+}
+
+// Experimental durable validated HydraFusion route and turn policy.
+// Experimental: SessionFusionResolvedData is part of an experimental API and may change or be removed.
+type SessionFusionResolvedData struct {
+	// Version of the validated HydraFusion event contract.
+	ContractVersion int64 `json:"contractVersion"`
+	// Concrete model used when the planned primary model cannot execute.
+	FallbackModel string `json:"fallbackModel"`
+	// Router recommendation controlling reuse or rerouting on later turns.
+	FollowUp *FusionFollowUpRecommendation `json:"followUp,omitempty"`
+	// Concrete model recommended for eligible follow-up turns.
+	FollowUpModel string `json:"followUpModel"`
+	// Stable identifier for the resolved HydraFusion turn.
+	FusionID string `json:"fusionId"`
+	// Version of the executable model universe used for selection.
+	ModelUniverseVersion *string `json:"modelUniverseVersion,omitempty"`
+	// Validated orchestration pattern selected for the turn.
+	Pattern FusionPattern `json:"pattern"`
+	// Version of the validated execution-plan format.
+	PlanVersion *string `json:"planVersion,omitempty"`
+	// HydraFusion routing policy used to resolve the plan.
+	Policy string `json:"policy"`
+	// Version of the local routing policy.
+	PolicyVersion *string `json:"policyVersion,omitempty"`
+	// Concrete model selected for the primary solver phase.
+	PrimaryModel string `json:"primaryModel"`
+	// Router implementation that supplied the plan.
+	RouteSource *string `json:"routeSource,omitempty"`
+	// Elapsed time in milliseconds required to resolve and validate the route.
+	RoutingLatencyMs *float64 `json:"routingLatencyMs,omitempty"`
+	// Identifier of the local policy rule that matched.
+	RuleID *string `json:"ruleId,omitempty"`
+	// Zero-based index of the local policy rule that matched.
+	RuleIndex *int64 `json:"ruleIndex,omitempty"`
+	// Human-readable name of the local policy rule that matched.
+	RuleName *string `json:"ruleName,omitempty"`
+	// Validated capability scores used to select the route.
+	Scores *FusionScores `json:"scores,omitempty"`
+	// Concrete model selected for the review or judge phase, when required.
+	SecondaryModel *string `json:"secondaryModel"`
+	// Synthetic HydraFusion model selected for the session.
+	SyntheticModel string `json:"syntheticModel"`
+	// Identifier of the session turn associated with the route.
+	TurnID string `json:"turnId"`
+}
+
+func (*SessionFusionResolvedData) sessionEventData() {}
+func (*SessionFusionResolvedData) Type() SessionEventType {
+	return SessionEventTypeSessionFusionResolved
+}
+
+// Experimental transient HydraFusion phase/model/role signal.
+// Experimental: AssistantFusionPhaseStartedData is part of an experimental API and may change or be removed.
+type AssistantFusionPhaseStartedData struct {
+	// Conversation scope in which the phase executes.
+	ConversationScope FusionConversationScope `json:"conversationScope"`
+	// Identifier of the HydraFusion turn containing the phase.
+	FusionID string `json:"fusionId"`
+	// Concrete model executing the phase.
+	Model string `json:"model"`
+	// HydraFusion orchestration pattern containing the phase.
+	Pattern FusionPattern `json:"pattern"`
+	// Stable identifier for the concrete phase.
+	PhaseID string `json:"phaseId"`
+	// Kind of phase being executed.
+	PhaseKind FusionPhaseKind `json:"phaseKind"`
+	// Semantic role assigned to the phase.
+	Role string `json:"role"`
+}
+
+func (*AssistantFusionPhaseStartedData) sessionEventData() {}
+func (*AssistantFusionPhaseStartedData) Type() SessionEventType {
+	return SessionEventTypeAssistantFusionPhaseStarted
+}
+
+// Experimental transient signal that HydraFusion routing has started for an eligible turn.
+// Experimental: SessionFusionRouteStartedData is part of an experimental API and may change or be removed.
+type SessionFusionRouteStartedData struct {
+	// Identifier for this routing attempt before a durable Fusion turn exists.
+	AttemptID string `json:"attemptId"`
+	// HydraFusion routing policy requested for the turn.
+	Policy *string `json:"policy,omitempty"`
+	// Synthetic HydraFusion model selected for the session.
+	SyntheticModel *string `json:"syntheticModel,omitempty"`
+	// Kind of turn being routed.
+	TurnKind FusionTurnKind `json:"turnKind"`
+}
+
+func (*SessionFusionRouteStartedData) sessionEventData() {}
+func (*SessionFusionRouteStartedData) Type() SessionEventType {
+	return SessionEventTypeSessionFusionRouteStarted
+}
+
 // External tool completion notification signaling UI dismissal
 type ExternalToolCompletedData struct {
 	// Request ID of the resolved external tool request; clients should dismiss any UI for this request
@@ -909,6 +1170,9 @@ type ModelCallFailureData struct {
 	ErrorType *string `json:"errorType,omitempty"`
 	// Whether the failure originated from an API response or the request transport
 	FailureKind *ModelCallFailureKind `json:"failureKind,omitempty"`
+	// Experimental HydraFusion attribution for this failed concrete model call.
+	// Experimental: Fusion is part of an experimental API and may change or be removed.
+	Fusion *FusionAttribution `json:"fusion,omitempty"`
 	// What initiated this API call (e.g., "sub-agent", "mcp-sampling"); absent for user-initiated calls
 	Initiator *string `json:"initiator,omitempty"`
 	// Authoritative interaction classification for the failed call, matching `assistant.usage.interactionType` (for example `conversation-agent`, `conversation-subagent`, or `conversation-sampling`). Absent when the producer cannot classify the interaction.
@@ -1048,6 +1312,9 @@ type AssistantUsageData struct {
 	// How the prompt-cache frontier was determined for this call
 	// Internal: FrontierSource is part of the SDK's internal API surface and is not intended for external use.
 	FrontierSource *string `json:"frontierSource,omitempty"`
+	// Experimental HydraFusion attribution for this concrete model call's usage.
+	// Experimental: Fusion is part of an experimental API and may change or be removed.
+	Fusion *FusionAttribution `json:"fusion,omitempty"`
 	// What initiated this API call (e.g., "sub-agent", "mcp-sampling"); absent for user-initiated calls
 	Initiator *string `json:"initiator,omitempty"`
 	// Number of input tokens consumed
@@ -1220,6 +1487,9 @@ func (*AgentInterruptedData) Type() SessionEventType { return SessionEventTypeAg
 
 // Model API dispatch metadata for internal telemetry
 type ModelCallStartData struct {
+	// Experimental HydraFusion attribution for this concrete model call.
+	// Experimental: Fusion is part of an experimental API and may change or be removed.
+	Fusion *FusionAttribution `json:"fusion,omitempty"`
 	// Model identifier used for this API call, when known
 	Model *string `json:"model,omitempty"`
 	// Previous response or interaction identifier included in the model request, when present
@@ -2249,6 +2519,9 @@ func (*SessionTaskCompleteData) Type() SessionEventType { return SessionEventTyp
 type ToolExecutionCompleteData struct {
 	// Error details when the tool execution failed
 	Error *ToolExecutionCompleteError `json:"error,omitempty"`
+	// Experimental HydraFusion attribution for this tool completion.
+	// Experimental: Fusion is part of an experimental API and may change or be removed.
+	Fusion *FusionAttribution `json:"fusion,omitempty"`
 	// CAPI interaction ID for correlating this tool execution with upstream telemetry
 	InteractionID *string `json:"interactionId,omitempty"`
 	// Whether this tool call was explicitly requested by the user rather than the assistant
@@ -2303,6 +2576,9 @@ type ToolExecutionStartData struct {
 	Arguments any `json:"arguments,omitempty"`
 	// When true, the tool output should be displayed expanded (verbatim) in the CLI timeline
 	DisplayVerbatim *bool `json:"displayVerbatim,omitempty"`
+	// Experimental HydraFusion attribution for this tool execution.
+	// Experimental: Fusion is part of an experimental API and may change or be removed.
+	Fusion *FusionAttribution `json:"fusion,omitempty"`
 	// Name of the MCP server hosting this tool, when the tool is an MCP tool
 	MCPServerName *string `json:"mcpServerName,omitempty"`
 	// Original tool name on the MCP server, when the tool is an MCP tool
@@ -2835,6 +3111,83 @@ type FactoryPermissionPhase struct {
 	Detail *string `json:"detail,omitempty"`
 	// Phase title
 	Title string `json:"title"`
+}
+
+// Experimental attribution linking an ordinary event to the HydraFusion turn, phase, and concrete source that produced it.
+// Experimental: FusionAttribution is part of an experimental API and may change or be removed.
+type FusionAttribution struct {
+	// Idempotency identifier for the authoritative commit, when the event belongs to the selected output.
+	CommitID *string `json:"commitId,omitempty"`
+	// Conversation scope in which the concrete phase executed.
+	ConversationScope *string `json:"conversationScope,omitempty"`
+	// Stable identifier for the HydraFusion turn that produced the event.
+	FusionID string `json:"fusionId"`
+	// HydraFusion orchestration pattern selected for the turn.
+	Pattern string `json:"pattern"`
+	// Identifier of the concrete phase that produced the event.
+	PhaseID *string `json:"phaseId,omitempty"`
+	// Kind of concrete phase that produced the event.
+	PhaseKind *string `json:"phaseKind,omitempty"`
+	// HydraFusion routing policy used for the turn.
+	Policy string `json:"policy"`
+	// Semantic role assigned to the concrete phase.
+	Role *string `json:"role,omitempty"`
+	// Concrete model that produced the attributed event.
+	SourceModel *string `json:"sourceModel,omitempty"`
+	// Phase whose output supplied the authoritative content, when different from the executing phase.
+	SourcePhaseID *string `json:"sourcePhaseId,omitempty"`
+	// Synthetic HydraFusion model selected for the session.
+	SyntheticModel string `json:"syntheticModel"`
+}
+
+// Durable server recommendation for subsequent HydraFusion turns.
+// Experimental: FusionFollowUpRecommendation is part of an experimental API and may change or be removed.
+type FusionFollowUpRecommendation struct {
+	// Recommended routing action for the next compaction turn.
+	CompactionTurn FusionFollowUpAction `json:"compactionTurn"`
+	// Recommended routing action for the next user-message turn.
+	UserTurn FusionFollowUpAction `json:"userTurn"`
+}
+
+// Aggregate concrete-model usage for one HydraFusion phase.
+// Experimental: FusionPhaseUsage is part of an experimental API and may change or be removed.
+type FusionPhaseUsage struct {
+	// Total cached input tokens reported for the phase.
+	CachedTokens int64 `json:"cachedTokens"`
+	// Total tokens written to prompt cache during the phase.
+	CacheWriteTokens *int64 `json:"cacheWriteTokens,omitempty"`
+	// Total input tokens consumed by the phase.
+	InputTokens int64 `json:"inputTokens"`
+	// Total output tokens produced by the phase.
+	OutputTokens int64 `json:"outputTokens"`
+	// Number of concrete model requests made by the phase.
+	RequestCount int64 `json:"requestCount"`
+	// Total normalized AI-unit cost reported for the phase, in nano-AIU.
+	TotalNanoAiu float64 `json:"totalNanoAiu"`
+}
+
+// Validated HydraFusion routing capability scores.
+// Experimental: FusionScores is part of an experimental API and may change or be removed.
+type FusionScores struct {
+	// Code-generation capability score returned by the authenticated router.
+	CodeGen float64 `json:"codeGen"`
+	// Debugging capability score returned by the authenticated router.
+	Debugging float64 `json:"debugging"`
+	// Reasoning capability score returned by the authenticated router.
+	Reasoning float64 `json:"reasoning"`
+	// Tool-use capability score returned by the authenticated router.
+	ToolUse float64 `json:"toolUse"`
+}
+
+// Internal durable terminal request staged by a HydraFusion phase until an idempotent final commit selects it.
+// Experimental: FusionStagedTerminal is part of an experimental API and may change or be removed.
+// Internal: FusionStagedTerminal is an internal SDK API and is not part of the public surface.
+type FusionStagedTerminal struct {
+	Arguments        string `json:"arguments"`
+	AssistantMessage any    `json:"assistantMessage"`
+	PhaseID          string `json:"phaseId"`
+	ToolCallID       string `json:"toolCallId"`
+	ToolName         string `json:"toolName"`
 }
 
 // Per-session configuration for the built-in GitHub MCP server
@@ -4194,6 +4547,8 @@ type ToolExecutionCompleteContentShellExit struct {
 	Cwd *string `json:"cwd,omitempty"`
 	// Exit code from the completed shell command
 	ExitCode int64 `json:"exitCode"`
+	// Path reported in the shell session's filesystem namespace when shell output exceeded the configured large-output threshold.
+	OutputFilePath *string `json:"outputFilePath,omitempty"`
 	// Output associated with this shell command, if available. May be partial, truncated, or a preview; not guaranteed to be full output.
 	OutputPreview *string `json:"outputPreview,omitempty"`
 	// Whether outputPreview is known to be incomplete or truncated
@@ -4739,6 +5094,99 @@ const (
 	FactoryRunSettledStatusError FactoryRunSettledStatus = "error"
 	// The run was stopped by a limit, an approval refusal or another policy decision.
 	FactoryRunSettledStatusHalted FactoryRunSettledStatus = "halted"
+)
+
+// Conversation scope in which a HydraFusion phase executes.
+// Experimental: FusionConversationScope is part of an experimental API and may change or be removed.
+type FusionConversationScope string
+
+const (
+	// Isolated read-only review history that does not enter the root conversation.
+	FusionConversationScopeReview FusionConversationScope = "review"
+	// Canonical root conversation history.
+	FusionConversationScopeRoot FusionConversationScope = "root"
+)
+
+// Server-recommended routing behavior for a later HydraFusion turn.
+// Experimental: FusionFollowUpAction is part of an experimental API and may change or be removed.
+type FusionFollowUpAction string
+
+const (
+	// Request a new routing decision.
+	FusionFollowUpActionReroute FusionFollowUpAction = "reroute"
+	// Reuse the durable primary model without routing.
+	FusionFollowUpActionReusePrimary FusionFollowUpAction = "reuse_primary"
+)
+
+// Validated HydraFusion execution pattern.
+// Experimental: FusionPattern is part of an experimental API and may change or be removed.
+type FusionPattern string
+
+const (
+	// Run a primary phase, a judge, and an optional repair.
+	FusionPatternCascade FusionPattern = "cascade"
+	// Run a primary draft, a read-only critique, and a revision.
+	FusionPatternCritique FusionPattern = "critique"
+	// Run one primary solver phase.
+	FusionPatternSingle FusionPattern = "single"
+)
+
+// HydraFusion phase kind.
+// Experimental: FusionPhaseKind is part of an experimental API and may change or be removed.
+type FusionPhaseKind string
+
+const (
+	// Read-only critique phase.
+	FusionPhaseKindCritic FusionPhaseKind = "critic"
+	// Initial critique-pattern draft phase.
+	FusionPhaseKindDraft FusionPhaseKind = "draft"
+	// Follow-up phase continuing from the resolved model.
+	FusionPhaseKindFollowUp FusionPhaseKind = "follow_up"
+	// Read-only cascade judge phase.
+	FusionPhaseKindJudge FusionPhaseKind = "judge"
+	// Primary solver phase.
+	FusionPhaseKindPrimary FusionPhaseKind = "primary"
+	// Cascade repair phase.
+	FusionPhaseKindRepair FusionPhaseKind = "repair"
+	// Critique-pattern revision phase.
+	FusionPhaseKindRevision FusionPhaseKind = "revision"
+)
+
+// Durable outcome status of a HydraFusion phase.
+// Experimental: FusionPhaseStatus is part of an experimental API and may change or be removed.
+type FusionPhaseStatus string
+
+const (
+	// The phase was cancelled.
+	FusionPhaseStatusCancelled FusionPhaseStatus = "cancelled"
+	// The phase failed.
+	FusionPhaseStatusFailed FusionPhaseStatus = "failed"
+	// The phase completed successfully.
+	FusionPhaseStatusSucceeded FusionPhaseStatus = "succeeded"
+)
+
+// How a durable phase checkpoint contributes its exact message to canonical root history.
+// Experimental: FusionProjectionMode is part of an experimental API and may change or be removed.
+type FusionProjectionMode string
+
+const (
+	// Append the exact root message immediately.
+	FusionProjectionModeAppend FusionProjectionMode = "append"
+	// Do not project the checkpoint into root history.
+	FusionProjectionModeNone FusionProjectionMode = "none"
+	// Hold a terminal message outside canonical history until the final commit selects it.
+	FusionProjectionModeStaged FusionProjectionMode = "staged"
+)
+
+// Kind of turn for which HydraFusion routing is running.
+// Experimental: FusionTurnKind is part of an experimental API and may change or be removed.
+type FusionTurnKind string
+
+const (
+	// A conversation-compaction turn.
+	FusionTurnKindCompaction FusionTurnKind = "compaction"
+	// A user-message turn.
+	FusionTurnKindUser FusionTurnKind = "user"
 )
 
 // Origin type of the session being handed off

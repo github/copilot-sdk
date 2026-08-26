@@ -2980,6 +2980,9 @@ type ExternalToolTextResultForLlmContentShellExit struct {
 	Cwd *string `json:"cwd,omitempty"`
 	// Exit code from the completed shell command
 	ExitCode int64 `json:"exitCode"`
+	// Path reported in the shell session's filesystem namespace when shell output exceeded the
+	// configured large-output threshold.
+	OutputFilePath *string `json:"outputFilePath,omitempty"`
 	// Output associated with this shell command, if available. May be partial, truncated, or a
 	// preview; not guaranteed to be full output.
 	OutputPreview *string `json:"outputPreview,omitempty"`
@@ -14284,12 +14287,8 @@ type ToolsGetBuiltinDescriptorsRequest struct {
 	BackgroundTaskNotificationsEnabled *bool `json:"backgroundTaskNotificationsEnabled,omitempty"`
 	// Whether tool descriptors should include authoring metadata.
 	IncludeAuthor *bool `json:"includeAuthor,omitempty"`
-	// Whether line numbers should be omitted from the view tool descriptor.
-	NoViewLineNumbers *bool `json:"noViewLineNumbers,omitempty"`
 	// Whether descriptors should favor fewer user-intervention prompts.
 	ReduceUserIntervention *bool `json:"reduceUserIntervention,omitempty"`
-	// Whether shell commands may only run asynchronously.
-	ShellAsyncOnlyEnabled *bool `json:"shellAsyncOnlyEnabled,omitempty"`
 	// Shell-specific names and description lines for shell tools.
 	ShellConfig *ToolsShellDescriptorConfig `json:"shellConfig,omitempty"`
 	// Whether the configured shell supports PowerShell 7 syntax.
@@ -25617,14 +25616,8 @@ func (a *ToolsAPI) GetBuiltinDescriptors(ctx context.Context, params *ToolsGetBu
 		if params.IncludeAuthor != nil {
 			req["includeAuthor"] = *params.IncludeAuthor
 		}
-		if params.NoViewLineNumbers != nil {
-			req["noViewLineNumbers"] = *params.NoViewLineNumbers
-		}
 		if params.ReduceUserIntervention != nil {
 			req["reduceUserIntervention"] = *params.ReduceUserIntervention
-		}
-		if params.ShellAsyncOnlyEnabled != nil {
-			req["shellAsyncOnlyEnabled"] = *params.ShellAsyncOnlyEnabled
 		}
 		if params.ShellConfig != nil {
 			req["shellConfig"] = *params.ShellConfig

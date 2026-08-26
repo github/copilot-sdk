@@ -4879,6 +4879,9 @@ pub struct ExternalToolTextResultForLlmContentShellExit {
     pub cwd: Option<String>,
     /// Exit code from the completed shell command
     pub exit_code: i64,
+    /// Path reported in the shell session's filesystem namespace when shell output exceeded the configured large-output threshold.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_file_path: Option<String>,
     /// Output associated with this shell command, if available. May be partial, truncated, or a preview; not guaranteed to be full output.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub output_preview: Option<String>,
@@ -19623,15 +19626,9 @@ pub struct ToolsGetBuiltinDescriptorsRequest {
     /// Whether tool descriptors should include authoring metadata.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub include_author: Option<bool>,
-    /// Whether line numbers should be omitted from the view tool descriptor.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub no_view_line_numbers: Option<bool>,
     /// Whether descriptors should favor fewer user-intervention prompts.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reduce_user_intervention: Option<bool>,
-    /// Whether shell commands may only run asynchronously.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub shell_async_only_enabled: Option<bool>,
     /// Shell-specific names and description lines for shell tools.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub shell_config: Option<ToolsShellDescriptorConfig>,

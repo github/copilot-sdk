@@ -16715,6 +16715,10 @@ class ExternalToolTextResultForLlmContentShellExit:
     cwd: str | None = None
     """Working directory where the shell command was executed"""
 
+    output_file_path: str | None = None
+    """Path reported in the shell session's filesystem namespace when shell output exceeded the
+    configured large-output threshold.
+    """
     output_preview: str | None = None
     """Output associated with this shell command, if available. May be partial, truncated, or a
     preview; not guaranteed to be full output.
@@ -16728,9 +16732,10 @@ class ExternalToolTextResultForLlmContentShellExit:
         exit_code = from_int(obj.get("exitCode"))
         shell_id = from_str(obj.get("shellId"))
         cwd = from_union([from_str, from_none], obj.get("cwd"))
+        output_file_path = from_union([from_str, from_none], obj.get("outputFilePath"))
         output_preview = from_union([from_str, from_none], obj.get("outputPreview"))
         output_truncated = from_union([from_bool, from_none], obj.get("outputTruncated"))
-        return ExternalToolTextResultForLlmContentShellExit(exit_code, shell_id, cwd, output_preview, output_truncated)
+        return ExternalToolTextResultForLlmContentShellExit(exit_code, shell_id, cwd, output_file_path, output_preview, output_truncated)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -16739,6 +16744,8 @@ class ExternalToolTextResultForLlmContentShellExit:
         result["type"] = self.type
         if self.cwd is not None:
             result["cwd"] = from_union([from_str, from_none], self.cwd)
+        if self.output_file_path is not None:
+            result["outputFilePath"] = from_union([from_str, from_none], self.output_file_path)
         if self.output_preview is not None:
             result["outputPreview"] = from_union([from_str, from_none], self.output_preview)
         if self.output_truncated is not None:
@@ -28609,14 +28616,8 @@ class ToolsGetBuiltinDescriptorsRequest:
     include_author: bool | None = None
     """Whether tool descriptors should include authoring metadata."""
 
-    no_view_line_numbers: bool | None = None
-    """Whether line numbers should be omitted from the view tool descriptor."""
-
     reduce_user_intervention: bool | None = None
     """Whether descriptors should favor fewer user-intervention prompts."""
-
-    shell_async_only_enabled: bool | None = None
-    """Whether shell commands may only run asynchronously."""
 
     shell_config: ToolsShellDescriptorConfig | None = None
     """Shell-specific names and description lines for shell tools."""
@@ -28635,14 +28636,12 @@ class ToolsGetBuiltinDescriptorsRequest:
         assert isinstance(obj, dict)
         background_task_notifications_enabled = from_union([from_bool, from_none], obj.get("backgroundTaskNotificationsEnabled"))
         include_author = from_union([from_bool, from_none], obj.get("includeAuthor"))
-        no_view_line_numbers = from_union([from_bool, from_none], obj.get("noViewLineNumbers"))
         reduce_user_intervention = from_union([from_bool, from_none], obj.get("reduceUserIntervention"))
-        shell_async_only_enabled = from_union([from_bool, from_none], obj.get("shellAsyncOnlyEnabled"))
         shell_config = from_union([ToolsShellDescriptorConfig.from_dict, from_none], obj.get("shellConfig"))
         shell_supports_power_shell7_syntax = from_union([from_bool, from_none], obj.get("shellSupportsPowerShell7Syntax"))
         shell_timeout_ms = from_union([from_float, from_none], obj.get("shellTimeoutMs"))
         skill_embedding_enabled = from_union([from_bool, from_none], obj.get("skillEmbeddingEnabled"))
-        return ToolsGetBuiltinDescriptorsRequest(background_task_notifications_enabled, include_author, no_view_line_numbers, reduce_user_intervention, shell_async_only_enabled, shell_config, shell_supports_power_shell7_syntax, shell_timeout_ms, skill_embedding_enabled)
+        return ToolsGetBuiltinDescriptorsRequest(background_task_notifications_enabled, include_author, reduce_user_intervention, shell_config, shell_supports_power_shell7_syntax, shell_timeout_ms, skill_embedding_enabled)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -28650,12 +28649,8 @@ class ToolsGetBuiltinDescriptorsRequest:
             result["backgroundTaskNotificationsEnabled"] = from_union([from_bool, from_none], self.background_task_notifications_enabled)
         if self.include_author is not None:
             result["includeAuthor"] = from_union([from_bool, from_none], self.include_author)
-        if self.no_view_line_numbers is not None:
-            result["noViewLineNumbers"] = from_union([from_bool, from_none], self.no_view_line_numbers)
         if self.reduce_user_intervention is not None:
             result["reduceUserIntervention"] = from_union([from_bool, from_none], self.reduce_user_intervention)
-        if self.shell_async_only_enabled is not None:
-            result["shellAsyncOnlyEnabled"] = from_union([from_bool, from_none], self.shell_async_only_enabled)
         if self.shell_config is not None:
             result["shellConfig"] = from_union([lambda x: to_class(ToolsShellDescriptorConfig, x), from_none], self.shell_config)
         if self.shell_supports_power_shell7_syntax is not None:

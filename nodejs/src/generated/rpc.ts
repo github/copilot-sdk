@@ -7268,6 +7268,10 @@ export interface ExternalToolTextResultForLlmContentShellExit {
    * Whether outputPreview is known to be incomplete or truncated
    */
   outputTruncated?: boolean;
+  /**
+   * Path reported in the shell session's filesystem namespace when shell output exceeded the configured large-output threshold.
+   */
+  outputFilePath?: string;
 }
 /**
  * Image content block with base64-encoded data
@@ -21006,10 +21010,6 @@ export interface ToolsExecuteRequest {
 /** @experimental */
 export interface ToolsGetBuiltinDescriptorsRequest {
   /**
-   * Whether line numbers should be omitted from the view tool descriptor.
-   */
-  noViewLineNumbers?: boolean;
-  /**
    * Whether descriptors should favor fewer user-intervention prompts.
    */
   reduceUserIntervention?: boolean;
@@ -21022,10 +21022,6 @@ export interface ToolsGetBuiltinDescriptorsRequest {
    */
   skillEmbeddingEnabled?: boolean;
   shellConfig?: ToolsShellDescriptorConfig;
-  /**
-   * Whether shell commands may only run asynchronously.
-   */
-  shellAsyncOnlyEnabled?: boolean;
   /**
    * Whether the configured shell supports PowerShell 7 syntax.
    */

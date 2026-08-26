@@ -12222,10 +12222,6 @@ internal sealed class ToolsGetBuiltinDescriptorsRequest
     [JsonPropertyName("includeAuthor")]
     public bool? IncludeAuthor { get; set; }
 
-    /// <summary>Whether line numbers should be omitted from the view tool descriptor.</summary>
-    [JsonPropertyName("noViewLineNumbers")]
-    public bool? NoViewLineNumbers { get; set; }
-
     /// <summary>Whether descriptors should favor fewer user-intervention prompts.</summary>
     [JsonPropertyName("reduceUserIntervention")]
     public bool? ReduceUserIntervention { get; set; }
@@ -12233,10 +12229,6 @@ internal sealed class ToolsGetBuiltinDescriptorsRequest
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
-
-    /// <summary>Whether shell commands may only run asynchronously.</summary>
-    [JsonPropertyName("shellAsyncOnlyEnabled")]
-    public bool? ShellAsyncOnlyEnabled { get; set; }
 
     /// <summary>Shell-specific names and description lines for shell tools.</summary>
     [JsonPropertyName("shellConfig")]
@@ -12382,6 +12374,11 @@ public partial class ExternalToolTextResultForLlmContentShellExit : ExternalTool
     /// <summary>Exit code from the completed shell command.</summary>
     [JsonPropertyName("exitCode")]
     public required long ExitCode { get; set; }
+
+    /// <summary>Path reported in the shell session's filesystem namespace when shell output exceeded the configured large-output threshold.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("outputFilePath")]
+    public string? OutputFilePath { get; set; }
 
     /// <summary>Output associated with this shell command, if available. May be partial, truncated, or a preview; not guaranteed to be full output.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -33403,22 +33400,20 @@ public sealed class ToolsApi
     }
 
     /// <summary>Returns the Rust-owned built-in tool descriptors used to construct the session's offered tool set.</summary>
-    /// <param name="noViewLineNumbers">Whether line numbers should be omitted from the view tool descriptor.</param>
     /// <param name="reduceUserIntervention">Whether descriptors should favor fewer user-intervention prompts.</param>
     /// <param name="includeAuthor">Whether tool descriptors should include authoring metadata.</param>
     /// <param name="skillEmbeddingEnabled">Whether semantic skill lookup is available.</param>
     /// <param name="shellConfig">Shell-specific names and description lines for shell tools.</param>
-    /// <param name="shellAsyncOnlyEnabled">Whether shell commands may only run asynchronously.</param>
     /// <param name="shellSupportsPowerShell7Syntax">Whether the configured shell supports PowerShell 7 syntax.</param>
     /// <param name="shellTimeoutMs">Default shell timeout in milliseconds.</param>
     /// <param name="backgroundTaskNotificationsEnabled">Whether background task completion notifications are enabled.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Rust-owned built-in tool descriptors for the session.</returns>
-    public async Task<ToolsGetBuiltinDescriptorsResult> GetBuiltinDescriptorsAsync(bool? noViewLineNumbers = null, bool? reduceUserIntervention = null, bool? includeAuthor = null, bool? skillEmbeddingEnabled = null, ToolsShellDescriptorConfig? shellConfig = null, bool? shellAsyncOnlyEnabled = null, bool? shellSupportsPowerShell7Syntax = null, double? shellTimeoutMs = null, bool? backgroundTaskNotificationsEnabled = null, CancellationToken cancellationToken = default)
+    public async Task<ToolsGetBuiltinDescriptorsResult> GetBuiltinDescriptorsAsync(bool? reduceUserIntervention = null, bool? includeAuthor = null, bool? skillEmbeddingEnabled = null, ToolsShellDescriptorConfig? shellConfig = null, bool? shellSupportsPowerShell7Syntax = null, double? shellTimeoutMs = null, bool? backgroundTaskNotificationsEnabled = null, CancellationToken cancellationToken = default)
     {
         _session.ThrowIfDisposed();
 
-        var request = new ToolsGetBuiltinDescriptorsRequest { SessionId = _session.SessionId, NoViewLineNumbers = noViewLineNumbers, ReduceUserIntervention = reduceUserIntervention, IncludeAuthor = includeAuthor, SkillEmbeddingEnabled = skillEmbeddingEnabled, ShellConfig = shellConfig, ShellAsyncOnlyEnabled = shellAsyncOnlyEnabled, ShellSupportsPowerShell7Syntax = shellSupportsPowerShell7Syntax, ShellTimeoutMs = shellTimeoutMs, BackgroundTaskNotificationsEnabled = backgroundTaskNotificationsEnabled };
+        var request = new ToolsGetBuiltinDescriptorsRequest { SessionId = _session.SessionId, ReduceUserIntervention = reduceUserIntervention, IncludeAuthor = includeAuthor, SkillEmbeddingEnabled = skillEmbeddingEnabled, ShellConfig = shellConfig, ShellSupportsPowerShell7Syntax = shellSupportsPowerShell7Syntax, ShellTimeoutMs = shellTimeoutMs, BackgroundTaskNotificationsEnabled = backgroundTaskNotificationsEnabled };
         return await CopilotClient.InvokeRpcAsync<ToolsGetBuiltinDescriptorsResult>(_session.Rpc, "session.tools.getBuiltinDescriptors", [request], cancellationToken);
     }
 
@@ -35472,6 +35467,9 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.AgentInterruptedCancelPhase), TypeInfoPropertyName = "SessionEventsAgentInterruptedCancelPhase")]
 [JsonSerializable(typeof(GitHub.Copilot.AgentInterruptedData), TypeInfoPropertyName = "SessionEventsAgentInterruptedData")]
 [JsonSerializable(typeof(GitHub.Copilot.AgentInterruptedEvent), TypeInfoPropertyName = "SessionEventsAgentInterruptedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantFusionPhaseCompletedEvent), TypeInfoPropertyName = "SessionEventsAssistantFusionPhaseCompletedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantFusionPhaseFailedEvent), TypeInfoPropertyName = "SessionEventsAssistantFusionPhaseFailedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantFusionPhaseStartedEvent), TypeInfoPropertyName = "SessionEventsAssistantFusionPhaseStartedEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.AssistantIdleData), TypeInfoPropertyName = "SessionEventsAssistantIdleData")]
 [JsonSerializable(typeof(GitHub.Copilot.AssistantIdleEvent), TypeInfoPropertyName = "SessionEventsAssistantIdleEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.AssistantIntentData), TypeInfoPropertyName = "SessionEventsAssistantIntentData")]
@@ -35603,6 +35601,17 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.FactoryRunStartedEvent), TypeInfoPropertyName = "SessionEventsFactoryRunStartedEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.FactoryRunUpdatedData), TypeInfoPropertyName = "SessionEventsFactoryRunUpdatedData")]
 [JsonSerializable(typeof(GitHub.Copilot.FactoryRunUpdatedEvent), TypeInfoPropertyName = "SessionEventsFactoryRunUpdatedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.FusionAttribution), TypeInfoPropertyName = "SessionEventsFusionAttribution")]
+[JsonSerializable(typeof(GitHub.Copilot.FusionConversationScope), TypeInfoPropertyName = "SessionEventsFusionConversationScope")]
+[JsonSerializable(typeof(GitHub.Copilot.FusionFollowUpAction), TypeInfoPropertyName = "SessionEventsFusionFollowUpAction")]
+[JsonSerializable(typeof(GitHub.Copilot.FusionFollowUpRecommendation), TypeInfoPropertyName = "SessionEventsFusionFollowUpRecommendation")]
+[JsonSerializable(typeof(GitHub.Copilot.FusionPattern), TypeInfoPropertyName = "SessionEventsFusionPattern")]
+[JsonSerializable(typeof(GitHub.Copilot.FusionPhaseKind), TypeInfoPropertyName = "SessionEventsFusionPhaseKind")]
+[JsonSerializable(typeof(GitHub.Copilot.FusionPhaseStatus), TypeInfoPropertyName = "SessionEventsFusionPhaseStatus")]
+[JsonSerializable(typeof(GitHub.Copilot.FusionPhaseUsage), TypeInfoPropertyName = "SessionEventsFusionPhaseUsage")]
+[JsonSerializable(typeof(GitHub.Copilot.FusionProjectionMode), TypeInfoPropertyName = "SessionEventsFusionProjectionMode")]
+[JsonSerializable(typeof(GitHub.Copilot.FusionScores), TypeInfoPropertyName = "SessionEventsFusionScores")]
+[JsonSerializable(typeof(GitHub.Copilot.FusionTurnKind), TypeInfoPropertyName = "SessionEventsFusionTurnKind")]
 [JsonSerializable(typeof(GitHub.Copilot.GitHubMcpToolConfig), TypeInfoPropertyName = "SessionEventsGitHubMcpToolConfig")]
 [JsonSerializable(typeof(GitHub.Copilot.GitHubRepoRef), TypeInfoPropertyName = "SessionEventsGitHubRepoRef")]
 [JsonSerializable(typeof(GitHub.Copilot.HandoffRepository), TypeInfoPropertyName = "SessionEventsHandoffRepository")]
