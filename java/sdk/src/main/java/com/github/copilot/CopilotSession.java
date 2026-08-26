@@ -257,6 +257,14 @@ public final class CopilotSession implements AutoCloseable {
         this.gitHubTokenProviderRegistration = registration;
     }
 
+    synchronized void releaseGitHubTokenProviderRegistration() {
+        GitHubTokenProviderRegistry.Registration registration = gitHubTokenProviderRegistration;
+        gitHubTokenProviderRegistration = null;
+        if (registration != null) {
+            registration.close();
+        }
+    }
+
     /**
      * Gets the unique identifier for this session.
      *
@@ -2306,11 +2314,7 @@ public final class CopilotSession implements AutoCloseable {
         }
 
         timeoutScheduler.shutdownNow();
-        GitHubTokenProviderRegistry.Registration tokenRegistration = gitHubTokenProviderRegistration;
-        gitHubTokenProviderRegistration = null;
-        if (tokenRegistration != null) {
-            tokenRegistration.close();
-        }
+        releaseGitHubTokenProviderRegistration();
 
         try {
             rpc.invoke("session.destroy", Map.of("sessionId", sessionId), Void.class).get(5, TimeUnit.SECONDS);

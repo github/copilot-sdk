@@ -1607,6 +1607,12 @@ class CopilotSession:
         """Set the client-owned cleanup callback before the session becomes active."""
         self._on_disconnect = callback
 
+    def _run_disconnect_callback(self) -> None:
+        callback = self._on_disconnect
+        self._on_disconnect = None
+        if callback is not None:
+            callback()
+
     @property
     def rpc(self) -> SessionRpc:
         """Typed session-scoped RPC methods."""
@@ -2979,9 +2985,7 @@ class CopilotSession:
         try:
             await self._client.request("session.destroy", {"sessionId": self.session_id})
         finally:
-            if self._on_disconnect is not None:
-                self._on_disconnect()
-                self._on_disconnect = None
+            self._run_disconnect_callback()
             # Clear handlers even if the request fails.
             with self._event_handlers_lock:
                 self._event_handlers.clear()

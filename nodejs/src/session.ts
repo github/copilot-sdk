@@ -808,8 +808,7 @@ export class CopilotSession {
             return;
         }
         this.disconnected = true;
-        this.onDisconnected?.();
-        this.onDisconnected = undefined;
+        this._runOnDisconnected();
         this.eventHandlers.clear();
         this.typedEventHandlers.clear();
         this.toolHandlers.clear();
@@ -828,6 +827,12 @@ export class CopilotSession {
         }
         this.factoryAbortControllers.clear();
         this.transformCallbacks?.clear();
+    }
+
+    /** @internal */
+    _runOnDisconnected(): void {
+        this.onDisconnected?.();
+        this.onDisconnected = undefined;
     }
 
     /** @internal */

@@ -2280,8 +2280,9 @@ export class CopilotClient {
             throw new Error(`Failed to delete session ${sessionId}: ${error || "Unknown error"}`);
         }
 
-        // Remove from local sessions map if present
+        const session = this.sessions.get(sessionId);
         this.sessions.delete(sessionId);
+        session?._runOnDisconnected();
     }
 
     /**

@@ -33,6 +33,8 @@ class FakeJsonRpcClient:
             return response
         if method == "session.destroy":
             return {}
+        if method == "session.delete":
+            return {"success": True}
         raise RuntimeError(f"Unexpected method: {method}")
 
     async def stop(self) -> None:
@@ -199,6 +201,8 @@ class TestGitHubTokenProvider:
 
         await first.disconnect()
         assert len(client._github_token_providers) == 1
+        await client.delete_session("second")
+        assert client._github_token_providers == {}
         await client.force_stop()
         assert client._github_token_providers == {}
 

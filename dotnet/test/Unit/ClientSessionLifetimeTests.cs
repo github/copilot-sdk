@@ -20,19 +20,41 @@ public sealed class ClientSessionLifetimeTests
 {
     private sealed record RpcRequestRecord(string Method, JsonElement Params);
 
-    [Fact]
-    public async Task GitHubTokenProvider_Is_Mutually_Exclusive_With_Static_Token()
+    [Theory]
+    [InlineData("static")]
+    [InlineData("")]
+    public async Task GitHubTokenProvider_Is_Mutually_Exclusive_With_Static_Token(string staticToken)
     {
         await using var client = new CopilotClient();
         var config = new SessionConfig
         {
-            GitHubToken = "static",
+            GitHubToken = staticToken,
             GitHubTokenProvider = _ => Task.FromResult(GitHubTokenProviderResult.Cancel())
         };
 
         var error = await Assert.ThrowsAsync<ArgumentException>(() => client.CreateSessionAsync(config));
 
         Assert.Contains("cannot be used together", error.Message);
+    }
+
+    [Fact]
+    public async Task GitHubTokenProvider_Is_Released_When_Session_Is_Deleted()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            GitHubTokenProvider = _ => Task.FromResult(GitHubTokenProviderResult.Cancel())
+        });
+        var registrationId = Assert.Single(server.Requests, request => request.Method == "session.create")
+            .Params.GetProperty("gitHubTokenProviderRegistrationId").GetString();
+
+        await client.DeleteSessionAsync(session.SessionId);
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            server.SendRequestAsync("gitHubToken.getToken", TokenRequest(registrationId)));
+        Assert.Contains("Unknown GitHub token provider registration ID", error.Message);
+        await session.DisposeAsync();
     }
 
     [Fact]

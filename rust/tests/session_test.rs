@@ -370,7 +370,23 @@ async fn github_token_provider_uses_global_registration_and_maps_results() {
         )
         .await;
     let session = timeout(TIMEOUT, create_handle).await.unwrap().unwrap();
-    drop(session);
+
+    let delete_handle = tokio::spawn({
+        let client = client.clone();
+        async move {
+            client
+                .delete_session(&SessionId::new("github-token-session"))
+                .await
+        }
+    });
+    let delete_request = server.read_request().await;
+    assert_eq!(delete_request["method"], "session.delete");
+    server.respond(&delete_request, serde_json::json!({})).await;
+    timeout(TIMEOUT, delete_handle)
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap();
 
     server
         .send_request(
@@ -391,6 +407,7 @@ async fn github_token_provider_uses_global_registration_and_maps_results() {
             .unwrap()
             .contains("unknown GitHub token provider registration")
     );
+    drop(session);
 }
 
 #[tokio::test]

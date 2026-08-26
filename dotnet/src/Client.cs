@@ -1701,7 +1701,10 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             throw new InvalidOperationException($"Failed to delete session {sessionId}: {response.Error}");
         }
 
-        RemoveSession(sessionId);
+        if (_sessions.TryRemove(sessionId, out var session))
+        {
+            session.ReleaseGitHubTokenProviderRegistration();
+        }
     }
 
     /// <summary>
@@ -2000,7 +2003,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
     private static void ValidateGitHubTokenConfig(SessionConfigBase config)
     {
-        if (!string.IsNullOrEmpty(config.GitHubToken) && config.GitHubTokenProvider is not null)
+        if (config.GitHubToken is not null && config.GitHubTokenProvider is not null)
         {
             throw new ArgumentException(
                 $"{nameof(SessionConfigBase.GitHubToken)} and {nameof(SessionConfigBase.GitHubTokenProvider)} cannot be used together.",
@@ -2646,11 +2649,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         {
             throw new InvalidOperationException($"Session '{session.SessionId}' is already tracked by this client.");
         }
-    }
-
-    private void RemoveSession(string sessionId)
-    {
-        _sessions.TryRemove(sessionId, out _);
     }
 
     /// <summary>

@@ -3821,8 +3821,9 @@ class CopilotClient:
 
         # Remove from local sessions map if present
         with self._sessions_lock:
-            if session_id in self._sessions:
-                del self._sessions[session_id]
+            session = self._sessions.pop(session_id, None)
+        if session is not None:
+            session._run_disconnect_callback()
 
     async def get_last_session_id(self) -> str | None:
         """

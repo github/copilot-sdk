@@ -1557,7 +1557,10 @@ public final class CopilotClient implements AutoCloseable {
                     if (!response.success()) {
                         throw new RuntimeException("Failed to delete session " + sessionId + ": " + response.error());
                     }
-                    sessions.remove(sessionId);
+                    CopilotSession session = sessions.remove(sessionId);
+                    if (session != null) {
+                        session.releaseGitHubTokenProviderRegistration();
+                    }
                 }));
     }
 

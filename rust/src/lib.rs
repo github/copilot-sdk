@@ -2281,6 +2281,7 @@ impl Client {
             Some(serde_json::json!({ "sessionId": session_id })),
         )
         .await?;
+        self.retire_github_token_provider(session_id);
         Ok(())
     }
 

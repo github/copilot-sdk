@@ -178,6 +178,7 @@ describe("session GitHub token providers", () => {
         const client = createMockClient(async (method, params) => {
             if (method === "session.create") return { sessionId: params.sessionId };
             if (method === "session.destroy") return {};
+            if (method === "session.delete") return { success: true };
             throw new Error(`Unexpected method: ${method}`);
         });
         const first = await client.createSession({
@@ -197,6 +198,8 @@ describe("session GitHub token providers", () => {
 
         await first.disconnect();
         expect(registrations).toHaveLength(1);
+        await client.deleteSession("second");
+        expect(registrations).toHaveLength(0);
         await client.forceStop();
         expect(registrations).toHaveLength(0);
     });
