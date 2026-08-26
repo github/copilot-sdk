@@ -2548,24 +2548,8 @@ export type PermissionDecisionSurface =
   | "prompt_mode"
   /** The Copilot App client. */
   | "copilot_app"
-  /** An Agent Client Protocol host. */
-  | "acp"
   /** A generic Copilot SDK client. */
   | "sdk";
-/**
- * Response capability available to the client when it settled a permission request.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "PermissionResponseCapability".
- */
-/** @experimental */
-export type PermissionResponseCapability =
-  /** The client could ask a user for this decision. */
-  | "interactive"
-  /** The client could return an automated response but could not ask a user. */
-  | "headless"
-  /** The client had no response path available. */
-  | "none";
 /**
  * Tool approval to persist and apply
  *
@@ -7268,10 +7252,6 @@ export interface ExternalToolTextResultForLlmContentShellExit {
    * Whether outputPreview is known to be incomplete or truncated
    */
   outputTruncated?: boolean;
-  /**
-   * Path reported in the shell session's filesystem namespace when shell output exceeded the configured large-output threshold.
-   */
-  outputFilePath?: string;
 }
 /**
  * Image content block with base64-encoded data
@@ -8392,14 +8372,6 @@ export interface GitHubTelemetryClientInfo {
    * Stable machine identifier for the device.
    */
   dev_device_id?: string;
-  /**
-   * Distinct CPU model names for the host, comma-separated.
-   */
-  cpu_model?: string;
-  /**
-   * Number of logical CPU cores on the host.
-   */
-  cpu_count?: number;
 }
 /**
  * A single telemetry event in the runtime's native GitHub-shaped telemetry format, forwarded verbatim to opted-in hosts. The `restricted` flag on the enclosing GitHubTelemetryNotification distinguishes standard from restricted events; the payload shape is identical for both.
@@ -13526,7 +13498,6 @@ export interface PermissionDecisionContext {
   outcome: PermissionDecisionOutcome;
   source: PermissionDecisionSource;
   surface: PermissionDecisionSurface;
-  responseCapability?: PermissionResponseCapability;
 }
 /**
  * Pending permission request ID and the decision to apply (approve/reject and scope).
@@ -18161,6 +18132,10 @@ export interface SessionOpenOptions {
    */
   includedBuiltinAgents?: string[];
   /**
+   * Built-in skill names to include in this session. When specified, only these runtime-bundled skills are available. Skills from other sources with the same name remain available.
+   */
+  includedBuiltinSkills?: string[];
+  /**
    * Built-in subagent names to exclude from this session. Excluded built-ins are hidden from agent discovery and cannot be dispatched unless a custom agent with the same name is available.
    */
   excludedBuiltinAgents?: string[];
@@ -18202,10 +18177,6 @@ export interface SessionOpenOptions {
    * Additional directories to search for skills.
    */
   skillDirectories?: string[];
-  /**
-   * Built-in skill names to include in this session. When specified, only these runtime-bundled skills are available. Skills from other sources with the same name remain available.
-   */
-  includedBuiltinSkills?: string[];
   /**
    * Skill IDs disabled for this session.
    */
@@ -19582,6 +19553,10 @@ export interface SessionUpdateOptionsParams {
    */
   includedBuiltinAgents?: string[] | null;
   /**
+   * Built-in skill names to include in this session. When specified, only these runtime-bundled skills are available. Skills from other sources with the same name remain available. Set to null to remove the allowlist restriction.
+   */
+  includedBuiltinSkills?: string[] | null;
+  /**
    * Built-in subagent names to exclude from this session. Excluded built-ins are hidden from agent discovery and cannot be dispatched unless a custom agent with the same name is available.
    */
   excludedBuiltinAgents?: string[];
@@ -19620,10 +19595,6 @@ export interface SessionUpdateOptionsParams {
    * Additional directories to search for skills.
    */
   skillDirectories?: string[];
-  /**
-   * Built-in skill names to include in this session. When specified, only these runtime-bundled skills are available. Skills from other sources with the same name remain available. Set to null to remove the allowlist restriction.
-   */
-  includedBuiltinSkills?: string[] | null;
   /**
    * Skill IDs that should be excluded from this session.
    */
@@ -21010,6 +20981,10 @@ export interface ToolsExecuteRequest {
 /** @experimental */
 export interface ToolsGetBuiltinDescriptorsRequest {
   /**
+   * Whether line numbers should be omitted from the view tool descriptor.
+   */
+  noViewLineNumbers?: boolean;
+  /**
    * Whether descriptors should favor fewer user-intervention prompts.
    */
   reduceUserIntervention?: boolean;
@@ -21022,6 +20997,10 @@ export interface ToolsGetBuiltinDescriptorsRequest {
    */
   skillEmbeddingEnabled?: boolean;
   shellConfig?: ToolsShellDescriptorConfig;
+  /**
+   * Whether shell commands may only run asynchronously.
+   */
+  shellAsyncOnlyEnabled?: boolean;
   /**
    * Whether the configured shell supports PowerShell 7 syntax.
    */
