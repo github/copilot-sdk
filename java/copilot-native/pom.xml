@@ -235,9 +235,9 @@
     <profiles>
         <!--
             The explicit in-process test profile defaults to Linux x64. A later
-            host profile overrides these properties on Windows x64 or Apple
-            Silicon macOS. Unsupported hosts fail validation before downloading
-            or packaging native files.
+            host profile overrides these properties on Linux ARM64, Windows x64,
+            or Apple Silicon macOS. Unsupported hosts fail validation before
+            downloading or packaging native files.
         -->
         <profile>
             <id>inprocess</id>
@@ -306,6 +306,65 @@
             </activation>
             <properties>
                 <copilot.native.classifier>linux-x64</copilot.native.classifier>
+                <copilot.native.cli.filename>copilot</copilot.native.cli.filename>
+            </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>validate-native-host</id>
+                                <phase>validate</phase>
+                            </execution>
+                            <execution>
+                                <id>fetch-native</id>
+                                <phase>generate-resources</phase>
+                            </execution>
+                            <execution>
+                                <id>test-fetch-native</id>
+                                <phase>test</phase>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-jar-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>jar-native</id>
+                                <phase>package</phase>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-antrun-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>verify-native-jars</id>
+                                <phase>package</phase>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <profile>
+            <id>native-linux-arm64</id>
+            <activation>
+                <os>
+                    <name>Linux</name>
+                    <arch>aarch64</arch>
+                </os>
+                <property>
+                    <name>copilot.native.libc</name>
+                    <value>glibc</value>
+                </property>
+            </activation>
+            <properties>
+                <copilot.native.classifier>linux-arm64</copilot.native.classifier>
                 <copilot.native.cli.filename>copilot</copilot.native.cli.filename>
             </properties>
             <build>
@@ -455,6 +514,68 @@
                             <execution>
                                 <id>verify-native-jars</id>
                                 <phase>package</phase>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <!--
+            The Linux ARM64 classifier is assembled on an ARM64 Ubuntu runner
+            and passed to the sole Ubuntu x64 publisher.
+        -->
+        <profile>
+            <id>attach-external-linux-arm64-classifier</id>
+            <activation>
+                <property>
+                    <name>copilot.native.external.linux.arm64.classifier.path</name>
+                </property>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>validate-external-linux-arm64-classifier</id>
+                                <phase>validate</phase>
+                                <goals>
+                                    <goal>exec</goal>
+                                </goals>
+                                <configuration>
+                                    <executable>node</executable>
+                                    <arguments>
+                                        <argument>${project.basedir}/scripts/validate-native-artifact.mjs</argument>
+                                        <argument>classifier</argument>
+                                        <argument>linux-arm64</argument>
+                                        <argument>${copilot.native.external.linux.arm64.classifier.path}</argument>
+                                        <argument>${project.build.finalName}-linux-arm64.jar</argument>
+                                        <argument>${copilot.sdk.root}</argument>
+                                    </arguments>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>build-helper-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>attach-external-linux-arm64-classifier</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>attach-artifact</goal>
+                                </goals>
+                                <configuration>
+                                    <artifacts>
+                                        <artifact>
+                                            <file>${copilot.native.external.linux.arm64.classifier.path}</file>
+                                            <type>jar</type>
+                                            <classifier>linux-arm64</classifier>
+                                        </artifact>
+                                    </artifacts>
+                                </configuration>
                             </execution>
                         </executions>
                     </plugin>

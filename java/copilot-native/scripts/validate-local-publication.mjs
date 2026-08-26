@@ -31,6 +31,7 @@ export function validateLocalPublication({
     `${artifactId}-${version}-sources.jar`,
     `${artifactId}-${version}-javadoc.jar`,
     `${artifactId}-${version}-linux-x64.jar`,
+    `${artifactId}-${version}-linux-arm64.jar`,
     `${artifactId}-${version}-win32-x64.jar`,
     `${artifactId}-${version}-darwin-arm64.jar`,
   ];
@@ -62,7 +63,12 @@ export function validateLocalPublication({
   validatePlaceholderJar(
     path.join(artifactDirectory, `${artifactId}-${version}.jar`),
   );
-  for (const classifier of ["linux-x64", "win32-x64", "darwin-arm64"]) {
+  for (const classifier of [
+    "linux-x64",
+    "linux-arm64",
+    "win32-x64",
+    "darwin-arm64",
+  ]) {
     const filename = `${artifactId}-${version}-${classifier}.jar`;
     validateNativeClassifierJar({
       classifier,
