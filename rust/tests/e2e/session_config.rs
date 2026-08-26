@@ -10,17 +10,16 @@ use github_copilot_sdk::session_events::{SessionEventType, ToolExecutionComplete
 use github_copilot_sdk::{
     Attachment, Client, CopilotHttpRequest, CopilotHttpResponse, CopilotRequestContext,
     CopilotRequestError, CopilotRequestHandler, MessageOptions, ProviderConfig,
-    ResumeSessionConfig, SessionConfig, SessionLimitsConfig, Transport,
-};
-use github_copilot_sdk::{
-    SandboxConfig, SandboxConfigUserPolicy, SandboxConfigUserPolicyFilesystem,
+    ResumeSessionConfig, SandboxConfig, SandboxConfigUserPolicy, SandboxConfigUserPolicyFilesystem,
+    SessionConfig, SessionLimitsConfig, Transport,
 };
 use http::{HeaderMap, HeaderValue};
 use parking_lot::Mutex;
 use serde_json::{Value, json};
 
-use super::support::collect_until_idle;
-use super::support::{DEFAULT_TEST_TOKEN, E2eContext, with_e2e_context_no_snapshot};
+use super::support::{
+    DEFAULT_TEST_TOKEN, E2eContext, collect_until_idle, with_e2e_context_no_snapshot,
+};
 
 static E2E: super::support::SharedE2eGroup =
     super::support::SharedE2eGroup::standard("session_config", if cfg!(windows) { 4 } else { 5 });
