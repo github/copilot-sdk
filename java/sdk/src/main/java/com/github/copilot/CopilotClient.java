@@ -1276,7 +1276,6 @@ public final class CopilotClient implements AutoCloseable {
                 null, // excludedTools
                 null, // includedBuiltinAgents
                 null, // excludedBuiltinAgents
-                patchSkills, // includedBuiltinSkills
                 null, // toolFilterPrecedence
                 null, // enableScriptSafety
                 null, // shell
@@ -1288,7 +1287,7 @@ public final class CopilotClient implements AutoCloseable {
                 null, // envValueMode
                 null, // allowAllMcpServerInstructions
                 null, // skillDirectories
-                null, // includedBuiltinSkills
+                patchSkills, // includedBuiltinSkills
                 null, // disabledSkills
                 null, // enableOnDemandInstructionDiscovery
                 null, // maxInlineBinaryBytes
