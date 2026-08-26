@@ -154,8 +154,7 @@ impl Client {
                         )
                     })?;
                     let result: WatchSharedSessionResult = serde_json::from_value(value.clone())?;
-                    let channels = client.register_session(&result.session_id);
-                    client.register_watch_session(&result.session_id);
+                    let channels = client.register_watch_session(&result.session_id);
                     *registration_for_callback.lock() = Some(channels);
                     Ok(())
                 })),

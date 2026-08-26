@@ -6,7 +6,9 @@ use tokio::sync::{broadcast, mpsc};
 use tracing::warn;
 
 use crate::jsonrpc::{JsonRpcNotification, JsonRpcRequest};
-use crate::types::{SessionEventNotification, SessionId};
+use crate::types::{
+    SessionEventNotification, SessionId, SessionLifecycleEvent, SessionLifecycleEventType,
+};
 
 /// Per-session channels created by the router during session registration.
 pub(crate) struct SessionChannels {
@@ -19,6 +21,7 @@ pub(crate) struct SessionChannels {
 struct SessionSenders {
     notifications: mpsc::UnboundedSender<SessionEventNotification>,
     requests: mpsc::UnboundedSender<JsonRpcRequest>,
+    is_watch: bool,
 }
 
 /// Routes notifications and requests by sessionId to per-session channels.
@@ -40,6 +43,15 @@ impl SessionRouter {
 
     /// Register a session to receive filtered events and requests.
     pub(crate) fn register(&self, session_id: &SessionId) -> SessionChannels {
+        self.register_with_kind(session_id, false)
+    }
+
+    /// Register a passive shared-session watch.
+    pub(crate) fn register_watch(&self, session_id: &SessionId) -> SessionChannels {
+        self.register_with_kind(session_id, true)
+    }
+
+    fn register_with_kind(&self, session_id: &SessionId, is_watch: bool) -> SessionChannels {
         let (notif_tx, notif_rx) = mpsc::unbounded_channel();
         let (req_tx, req_rx) = mpsc::unbounded_channel();
         self.sessions.lock().insert(
@@ -47,6 +59,7 @@ impl SessionRouter {
             SessionSenders {
                 notifications: notif_tx,
                 requests: req_tx,
+                is_watch,
             },
         );
         SessionChannels {
@@ -60,13 +73,13 @@ impl SessionRouter {
         self.sessions.lock().remove(session_id.as_str());
     }
 
-    /// Snapshot every currently-registered session ID.
-    ///
-    /// Used by [`Client::stop`](crate::Client::stop) to iterate active
-    /// sessions for cooperative shutdown without holding the router lock
-    /// across `.await`.
-    pub(crate) fn session_ids(&self) -> Vec<SessionId> {
-        self.sessions.lock().keys().cloned().collect()
+    /// Snapshot registered session IDs with their cleanup classification.
+    pub(crate) fn session_entries(&self) -> Vec<(SessionId, bool)> {
+        self.sessions
+            .lock()
+            .iter()
+            .map(|(session_id, senders)| (session_id.clone(), senders.is_watch))
+            .collect()
     }
 
     /// Drop all registered session channels.
@@ -132,6 +145,33 @@ impl SessionRouter {
                                             "failed to deserialize gitHubTelemetry.event notification"
                                         );
                                     }
+                                }
+                            }
+                            continue;
+                        }
+                        if notification.method == "session.lifecycle" {
+                            let Some(ref params) = notification.params else {
+                                continue;
+                            };
+                            match serde_json::from_value::<SessionLifecycleEvent>(params.clone()) {
+                                Ok(event)
+                                    if event.event_type
+                                        == SessionLifecycleEventType::Disconnected =>
+                                {
+                                    let mut guard = sessions.lock();
+                                    if guard
+                                        .get(&event.session_id)
+                                        .is_some_and(|senders| senders.is_watch)
+                                    {
+                                        guard.remove(&event.session_id);
+                                    }
+                                }
+                                Ok(_) => {}
+                                Err(e) => {
+                                    warn!(
+                                        error = %e,
+                                        "failed to deserialize session.lifecycle notification"
+                                    );
                                 }
                             }
                             continue;

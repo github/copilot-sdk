@@ -345,6 +345,56 @@ async fn shared_session_watch_retains_replay_and_closes_once() {
     timeout(TIMEOUT, close_handle).await.unwrap().unwrap();
 }
 
+#[tokio::test]
+async fn client_stop_closes_shared_session_watches() {
+    let (client, server_read, server_write) = make_client();
+    let mut server = FakeServer {
+        read: server_read,
+        write: server_write,
+        session_id: "watch-session".to_string(),
+    };
+
+    let watch_handle = tokio::spawn({
+        let client = client.clone();
+        async move { client.watch_shared_session("shared-session").await.unwrap() }
+    });
+    let watch_request = server.read_request().await;
+    server
+        .respond(
+            &watch_request,
+            serde_json::json!({
+                "sessionId": "watch-session",
+                "readOnly": true,
+                "metadata": {
+                    "sessionId": "watch-session",
+                    "startTime": "2025-01-01T00:00:00Z",
+                    "modifiedTime": "2025-01-01T00:01:00Z",
+                    "repository": {
+                        "owner": "github",
+                        "name": "copilot-sdk",
+                        "branch": "main"
+                    },
+                    "kind": "remote-session"
+                }
+            }),
+        )
+        .await;
+    let _watch = timeout(TIMEOUT, watch_handle).await.unwrap().unwrap();
+
+    let stop_handle = tokio::spawn({
+        let client = client.clone();
+        async move { client.stop().await.unwrap() }
+    });
+    let close_request = server.read_request().await;
+    assert_eq!(close_request["method"], "sessions.close");
+    assert_eq!(
+        close_request["params"],
+        serde_json::json!({ "sessionId": "watch-session" })
+    );
+    server.respond(&close_request, serde_json::json!({})).await;
+    timeout(TIMEOUT, stop_handle).await.unwrap().unwrap();
+}
+
 fn rand_id() -> u64 {
     static COUNTER: AtomicUsize = AtomicUsize::new(0);
     COUNTER.fetch_add(1, Ordering::Relaxed) as u64

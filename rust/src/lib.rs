@@ -72,7 +72,6 @@ pub(crate) mod generated;
 /// source-qualified tool filter patterns.
 pub mod mode;
 
-use std::collections::HashSet;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
@@ -1023,7 +1022,6 @@ struct ClientInner {
     request_rx: parking_lot::Mutex<Option<mpsc::UnboundedReceiver<JsonRpcRequest>>>,
     notification_tx: broadcast::Sender<JsonRpcNotification>,
     router: router::SessionRouter,
-    watch_sessions: Arc<parking_lot::Mutex<HashSet<SessionId>>>,
     negotiated_protocol_version: OnceLock<u32>,
     state: parking_lot::Mutex<ConnectionState>,
     lifecycle_tx: broadcast::Sender<SessionLifecycleEvent>,
@@ -1617,7 +1615,6 @@ impl Client {
                 request_rx: parking_lot::Mutex::new(Some(request_rx)),
                 notification_tx: notification_broadcast_tx,
                 router: router::SessionRouter::new(),
-                watch_sessions: Arc::new(parking_lot::Mutex::new(HashSet::new())),
                 negotiated_protocol_version: OnceLock::new(),
                 state: parking_lot::Mutex::new(ConnectionState::Connected),
                 lifecycle_tx: broadcast::channel(256).0,
@@ -1648,8 +1645,6 @@ impl Client {
     fn spawn_lifecycle_dispatcher(&self) {
         let mut notif_rx = self.inner.notification_tx.subscribe();
         let lifecycle_tx = self.inner.lifecycle_tx.clone();
-        let router = self.inner.router.clone();
-        let watch_sessions = self.inner.watch_sessions.clone();
         tokio::spawn(async move {
             loop {
                 match notif_rx.recv().await {
@@ -1673,12 +1668,7 @@ impl Client {
                             };
                         // `send` only errors when there are no subscribers — that's
                         // the normal case before any consumer calls subscribe_lifecycle.
-                        let _ = lifecycle_tx.send(event.clone());
-                        if event.event_type == SessionLifecycleEventType::Disconnected
-                            && watch_sessions.lock().remove(&event.session_id)
-                        {
-                            router.unregister(&event.session_id);
-                        }
+                        let _ = lifecycle_tx.send(event);
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
                         warn!(missed = n, "lifecycle dispatcher lagged");
@@ -2067,12 +2057,20 @@ impl Client {
         self.inner.router.unregister(session_id);
     }
 
-    pub(crate) fn register_watch_session(&self, session_id: &SessionId) {
-        self.inner.watch_sessions.lock().insert(session_id.clone());
+    pub(crate) fn register_watch_session(
+        &self,
+        session_id: &SessionId,
+    ) -> crate::router::SessionChannels {
+        self.inner.router.ensure_started(
+            &self.inner.notification_tx,
+            &self.inner.request_rx,
+            self.inner.llm_inference.get().cloned(),
+            self.inner.on_github_telemetry.clone(),
+        );
+        self.inner.router.register_watch(session_id)
     }
 
     pub(crate) fn unregister_watch_session(&self, session_id: &SessionId) {
-        self.inner.watch_sessions.lock().remove(session_id);
         self.inner.router.unregister(session_id);
     }
 
@@ -2294,8 +2292,8 @@ impl Client {
     pub async fn cleanup_sessions_for_test(&self) -> Result<()> {
         let mut first_error = None;
 
-        for session_id in self.inner.router.session_ids() {
-            let method = if self.inner.watch_sessions.lock().remove(&session_id) {
+        for (session_id, is_watch) in self.inner.router.session_entries() {
+            let method = if is_watch {
                 generated::api_types::rpc_methods::SESSIONS_CLOSE
             } else {
                 "session.destroy"
@@ -2458,8 +2456,8 @@ impl Client {
 
         // Snapshot the registered session IDs without holding the router
         // lock across the destroy RPCs.
-        for session_id in self.inner.router.session_ids() {
-            let method = if self.inner.watch_sessions.lock().remove(&session_id) {
+        for (session_id, is_watch) in self.inner.router.session_entries() {
+            let method = if is_watch {
                 generated::api_types::rpc_methods::SESSIONS_CLOSE
             } else {
                 "session.destroy"
@@ -2607,7 +2605,7 @@ impl Client {
         // Drop all session channels so any awaiters see a closed channel
         // instead of waiting for responses that will never arrive.
         self.inner.router.clear();
-        self.inner.watch_sessions.lock().clear();
+
         *self.inner.state.lock() = ConnectionState::Disconnected;
         *self.inner.models_cache.lock() = Arc::new(tokio::sync::OnceCell::new());
     }
@@ -3295,7 +3293,7 @@ mod tests {
         handle.abort();
         let _ = handle.await;
 
-        assert!(client.inner.router.session_ids().is_empty());
+        assert!(client.inner.router.session_entries().is_empty());
         client.force_stop();
     }
 
@@ -3415,7 +3413,6 @@ mod tests {
                 request_rx: parking_lot::Mutex::new(None),
                 notification_tx: broadcast::channel(16).0,
                 router: router::SessionRouter::new(),
-                watch_sessions: Arc::new(parking_lot::Mutex::new(HashSet::new())),
                 negotiated_protocol_version: OnceLock::new(),
                 state: parking_lot::Mutex::new(ConnectionState::Connected),
                 lifecycle_tx: broadcast::channel(16).0,
@@ -3435,7 +3432,7 @@ mod tests {
 
     async fn wait_for_pending_session_registration(client: &Client) {
         let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(1);
-        while client.inner.router.session_ids().is_empty() {
+        while client.inner.router.session_entries().is_empty() {
             assert!(
                 tokio::time::Instant::now() < deadline,
                 "session was not registered"
