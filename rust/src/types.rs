@@ -1764,10 +1764,10 @@ pub struct CopilotExpAssignmentResponse {
 pub struct DisableBypassPermissionsModes;
 
 impl DisableBypassPermissionsModes {
-    /// Turn off bypass-permissions mode entirely.
-    pub const DISABLE: &'static str = "disable";
     /// Permit automatic bypass but block full allow-all.
     pub const ALLOW_AUTO_ONLY: &'static str = "allow-auto-only";
+    /// Turn off bypass-permissions mode entirely.
+    pub const DISABLE: &'static str = "disable";
 }
 
 /// Permission rules injected as a managed-settings layer at session bootstrap.
