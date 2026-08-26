@@ -101,6 +101,9 @@ impl std::fmt::Debug for GitHubTokenProviderResult {
 #[async_trait]
 pub trait GitHubTokenProvider: Send + Sync {
     /// Acquire a token or explicitly cancel the request.
+    ///
+    /// Initial cancellation, errors, and invalid token responses reject session
+    /// creation or resume instead of falling back to ambient authentication.
     async fn get_token(
         &self,
         args: GitHubTokenProviderArgs,

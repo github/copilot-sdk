@@ -190,6 +190,11 @@ The remaining lifetime is required and must be positive when the callback
 completes; production GitHub tokens typically last eight hours. A static token
 and a provider are mutually exclusive.
 
+Initial acquisition runs during session creation or resume. Cancellation,
+provider errors, and invalid token responses reject that operation instead of
+falling back to ambient authentication. Idle sessions refresh only before their
+next credential-consuming operation; there is no background refresh timer.
+
 ## Permission Handling
 
 `PermissionHandler.APPROVE_ALL` approves requests when managed settings are disabled. When `enableManagedSettings` is true, it completes exceptionally. Custom handlers can inspect `request.getManagedApprovalRequired()` for human-facing confirmation logic.

@@ -76,7 +76,9 @@ func GitHubTokenCancelled() *GitHubTokenProviderResult {
 	return &GitHubTokenProviderResult{Cancelled: true}
 }
 
-// GitHubTokenProvider acquires session-scoped GitHub tokens on demand.
+// GitHubTokenProvider acquires session-scoped GitHub tokens on demand. Initial
+// cancellation, errors, and invalid token responses reject session creation or
+// resume instead of falling back to ambient authentication.
 //
 // Experimental: GitHubTokenProvider may change or be removed.
 type GitHubTokenProvider func(args GitHubTokenProviderArgs) (*GitHubTokenProviderResult, error)

@@ -165,8 +165,9 @@ GitHubTokenProvider = Callable[
 
 Token results require ``expiresIn`` to be the positive number of seconds of
 remaining lifetime when the callback completes. Production GitHub tokens
-typically last eight hours. Return ``{"kind": "cancelled"}`` to cancel;
-exceptions raised by the callback are returned to the runtime unchanged.
+typically last eight hours. Initial cancellation, callback errors, and invalid
+token responses reject session creation or resume instead of falling back to
+ambient authentication.
 """
 
 # ============================================================================

@@ -297,6 +297,11 @@ completes; production GitHub tokens typically last eight hours. Static
 `github_token` and a provider are mutually exclusive. The same provider API is
 available on `ResumeSessionConfig`.
 
+Initial acquisition runs during session creation or resume. Cancellation,
+provider errors, and invalid token responses reject that operation instead of
+falling back to ambient authentication. Idle sessions refresh only before their
+next credential-consuming operation; there is no background refresh timer.
+
 ### Session Hooks
 
 Hooks intercept CLI behavior at lifecycle points — tool use, prompt submission, session start/end, and errors. Install a `SessionHooks` impl with [`SessionConfig::with_hooks`] — the SDK auto-enables `hooks` in `SessionConfig` when one is set.

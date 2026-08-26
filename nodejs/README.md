@@ -154,6 +154,8 @@ const session = await client.createSession({
 });
 ```
 
+Initial acquisition runs during session creation or resume. Cancellation, provider errors, and invalid token responses reject that operation instead of falling back to ambient authentication. Idle sessions refresh only before their next credential-consuming operation; there is no background refresh timer.
+
 ##### `resumeSession(sessionId: string, config?: ResumeSessionConfig): Promise<CopilotSession>`
 
 Resume an existing session. Returns the session with `workspacePath` populated if infinite sessions were enabled.

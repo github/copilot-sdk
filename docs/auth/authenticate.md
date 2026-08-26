@@ -383,7 +383,9 @@ let session = client
 
 </details>
 
-Return the language's cancelled result when the user or credential broker cancels acquisition. Provider exceptions follow the SDK's normal callback error behavior. The runtime refreshes during async preflight when one hour or less remains; it does not use background timers, rejection-driven replay, 401/403 challenge propagation, or upscope for this callback.
+The runtime performs the `initial` acquisition as part of session creation or resume. A cancelled acquisition, provider error, invalid response, or token without a stable account identity rejects the create or resume operation. The runtime does not fall back to ambient authentication.
+
+After the session is established, the runtime performs async preflight before each credential-consuming operation. It requests a `refresh` when the current token has one hour or less remaining. Idle sessions are not refreshed until their next credential-consuming operation. The runtime does not use background timers, rejection-driven replay, 401/403 challenge propagation, or upscope for this callback.
 
 ## Environment variables
 

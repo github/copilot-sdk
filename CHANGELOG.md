@@ -13,6 +13,8 @@ All six SDKs can now acquire short-lived GitHub credentials through a session-sc
 
 Token responses use the shared tagged token/cancelled shape and require `expiresIn`, expressed as the positive number of seconds remaining when the callback completes. See [github/copilot-agent-runtime#16381](https://github.com/github/copilot-agent-runtime/pull/16381) for the runtime credential-authority implementation.
 
+Initial acquisition occurs during create or resume; cancellation, callback errors, and invalid credentials reject that operation instead of falling back to ambient authentication. Idle sessions refresh only before their next credential-consuming operation.
+
 ### Feature: extensions can request sensitive environment variables
 
 Copilot CLI extensions can now ask for named sensitive environment variables when they join a session. `joinSession()` accepts a `requestedEnvironmentVariables` option listing the variable names the extension needs. The CLI shows a permission prompt naming the extension and the exact variables requested. On approval, only those variables reach that extension and their values are written into the extension process's `process.env` before `joinSession()` resolves. On denial, `joinSession()` rejects, the extension does not load, and its tools never reach the model.

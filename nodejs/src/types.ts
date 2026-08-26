@@ -58,8 +58,9 @@ export type GitHubTokenProviderResult = GitHubTokenAcquireResult;
  *
  * A token result must include `expiresIn`: the positive number of seconds of
  * remaining lifetime when the callback completes. Production GitHub tokens
- * typically last eight hours. Return `{ kind: "cancelled" }` to cancel the
- * acquisition; thrown errors are returned to the runtime as callback errors.
+ * typically last eight hours. Initial cancellation, callback errors, and
+ * invalid token responses reject session creation or resume instead of falling
+ * back to ambient authentication.
  */
 export type GitHubTokenProvider = (
     args: GitHubTokenProviderArgs

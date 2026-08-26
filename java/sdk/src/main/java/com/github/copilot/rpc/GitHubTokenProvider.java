@@ -11,7 +11,9 @@ import java.util.concurrent.CompletableFuture;
  * <p>
  * Implementations return either a token with a positive remaining lifetime or
  * an explicit cancellation. Production GitHub tokens typically last eight
- * hours.
+ * hours. Initial cancellation, callback errors, and invalid token responses
+ * reject session creation or resume instead of falling back to ambient
+ * authentication.
  *
  * @since 1.0.0
  */

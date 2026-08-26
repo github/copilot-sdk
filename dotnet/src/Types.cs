@@ -3652,7 +3652,9 @@ public abstract class SessionConfigBase
 
     /// <summary>
     /// Gets or sets a callback that acquires session-scoped GitHub tokens on
-    /// demand. This cannot be combined with <see cref="GitHubToken"/>.
+    /// demand. Initial cancellation, callback errors, and invalid token responses
+    /// reject session creation or resume instead of falling back to ambient
+    /// authentication. This cannot be combined with <see cref="GitHubToken"/>.
     /// </summary>
     [Experimental(Diagnostics.Experimental)]
     [JsonIgnore]

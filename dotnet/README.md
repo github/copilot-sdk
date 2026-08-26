@@ -162,6 +162,8 @@ await using var session = await client.CreateSessionAsync(new SessionConfig
 });
 ```
 
+Initial acquisition runs during session creation or resume. Cancellation, provider errors, and invalid token responses reject that operation instead of falling back to ambient authentication. Idle sessions refresh only before their next credential-consuming operation; there is no background refresh timer.
+
 ##### `PingAsync(string? message = null): Task<PingResponse>`
 
 Ping the server to check connectivity.
