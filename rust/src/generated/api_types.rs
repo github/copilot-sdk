@@ -17169,6 +17169,28 @@ pub struct SessionsEnrichMetadataRequest {
     pub sessions: Vec<LocalSessionMetadataValue>,
 }
 
+/// Token authentication accepted by session.gitHubAuth.setCredentials.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SettableTokenAuthInfo {
+    /// Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this verbatim and does not re-fetch when set.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub copilot_user: Option<CopilotUserResponse>,
+    /// Authentication host.
+    pub host: String,
+    /// The token value itself. Treat as a secret.
+    pub token: String,
+    /// SDK-side token authentication; the host configured the token directly via the SDK.
+    pub r#type: SettableTokenAuthInfoType,
+}
+
 /// New auth credentials to install on the session. Omit to leave credentials unchanged.
 ///
 /// <div class="warning">
@@ -17182,7 +17204,7 @@ pub struct SessionsEnrichMetadataRequest {
 pub struct SessionSetCredentialsParams {
     /// The new auth credentials to install on the session. When omitted or `undefined`, the call is a no-op and the session's existing credentials are preserved. The runtime installs the supplied value immediately for outbound model/API requests. When the credential carries a raw token (`token`, `env`, or `gh-cli`) but no `copilotUser`, the runtime additionally re-resolves `copilotUser` server-side (best-effort, asynchronously, after the synchronous install) so plan/quota/billing metadata regains fidelity; on resolution failure the verbatim credential remains installed. It does NOT otherwise validate the credential. Several variants carry secret material; treat this method's params as containing secrets at rest and in transit.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub credentials: Option<serde_json::Value>,
+    pub credentials: Option<SettableAuthInfo>,
 }
 
 /// Indicates whether the credential update succeeded.
@@ -18227,28 +18249,6 @@ pub struct SessionUpdateOptionsResult {
     pub plugin_hook_count: Option<i64>,
     /// Whether the operation succeeded
     pub success: bool,
-}
-
-/// Token authentication accepted by session.gitHubAuth.setCredentials.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SettableTokenAuthInfo {
-    /// Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this verbatim and does not re-fetch when set.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub copilot_user: Option<CopilotUserResponse>,
-    /// Authentication host.
-    pub host: String,
-    /// The token value itself. Treat as a secret.
-    pub token: String,
-    /// SDK-side token authentication; the host configured the token directly via the SDK.
-    pub r#type: SettableTokenAuthInfoType,
 }
 
 /// User-requested shell execution cancellation handle.
@@ -32652,6 +32652,34 @@ pub enum SessionsOpenStatus {
     Unknown,
 }
 
+/// SDK-side token authentication; the host configured the token directly via the SDK.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SettableTokenAuthInfoType {
+    #[serde(rename = "token")]
+    #[default]
+    Token,
+}
+
+/// Authentication credentials accepted by session.gitHubAuth.setCredentials. Session-owned token-provider identities cannot be installed through this method.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum SettableAuthInfo {
+    Hmac(HMACAuthInfo),
+    Env(EnvAuthInfo),
+    Token(SettableTokenAuthInfo),
+    CopilotApiToken(CopilotApiTokenAuthInfo),
+    User(UserAuthInfo),
+    GhCli(GhCliAuthInfo),
+    ApiKey(ApiKeyAuthInfo),
+}
+
 /// Rust-owned settings predicates exposed across the SDK boundary. Raw feature-flag names are intentionally not part of the contract.
 ///
 /// <div class="warning">
@@ -32770,14 +32798,6 @@ pub enum SessionVisibilityStatus {
     #[default]
     #[serde(other)]
     Unknown,
-}
-
-/// SDK-side token authentication; the host configured the token directly via the SDK.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum SettableTokenAuthInfoType {
-    #[serde(rename = "token")]
-    #[default]
-    Token,
 }
 
 /// Signal to send (default: SIGTERM)

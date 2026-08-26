@@ -1,14 +1,13 @@
 use std::collections::HashMap;
 
 use github_copilot_sdk::rpc::{
-    AuthInfo, AuthInfoType, HistoryTruncateRequest, LspInitializeRequest,
-    MetadataContextInfoRequest, MetadataRecomputeContextTokensRequest,
-    MetadataRecordContextChangeRequest, MetadataSetWorkingDirectoryRequest,
-    MetadataSnapshotCurrentMode, ModeSetRequest, ModelSetReasoningEffortRequest,
-    ModelSwitchToRequest, NameSetAutoRequest, NameSetRequest,
+    AuthInfoType, HistoryTruncateRequest, LspInitializeRequest, MetadataContextInfoRequest,
+    MetadataRecomputeContextTokensRequest, MetadataRecordContextChangeRequest,
+    MetadataSetWorkingDirectoryRequest, MetadataSnapshotCurrentMode, ModeSetRequest,
+    ModelSetReasoningEffortRequest, ModelSwitchToRequest, NameSetAutoRequest, NameSetRequest,
     PermissionsResetSessionApprovalsRequest, PermissionsSetApproveAllRequest, PlanUpdateRequest,
     SessionSetCredentialsParams, SessionUpdateOptionsParams, SessionWorkingDirectoryContext,
-    SessionWorkingDirectoryContextHostType, SessionsForkRequest, ShutdownRequest,
+    SessionWorkingDirectoryContextHostType, SessionsForkRequest, SettableAuthInfo, ShutdownRequest,
     TelemetrySetFeatureOverridesRequest, UserAuthInfo, WorkspacesCreateFileRequest,
     WorkspacesReadFileRequest,
 };
@@ -893,14 +892,11 @@ async fn should_set_auth_credentials() {
                     .rpc()
                     .git_hub_auth()
                     .set_credentials(SessionSetCredentialsParams {
-                        credentials: Some(
-                            serde_json::to_value(AuthInfo::User(UserAuthInfo {
-                                host: "github.com".to_string(),
-                                login: "rpc-session-user".to_string(),
-                                ..Default::default()
-                            }))
-                            .expect("serialize auth credentials"),
-                        ),
+                        credentials: Some(SettableAuthInfo::User(UserAuthInfo {
+                            host: "github.com".to_string(),
+                            login: "rpc-session-user".to_string(),
+                            ..Default::default()
+                        })),
                     })
                     .await
                     .expect("set credentials");
