@@ -3142,6 +3142,7 @@ public abstract class SessionConfigBase
         DefaultAgent = other.DefaultAgent;
         Agent = other.Agent;
         DisabledSkills = other.DisabledSkills is not null ? [.. other.DisabledSkills] : null;
+        IncludedBuiltinSkills = other.IncludedBuiltinSkills is not null ? [.. other.IncludedBuiltinSkills] : null;
         DisabledMcpServers = other.DisabledMcpServers is not null ? [.. other.DisabledMcpServers] : null;
         EnableCitations = other.EnableCitations;
         EnableFileChangeTracking = other.EnableFileChangeTracking;
@@ -3351,6 +3352,14 @@ public abstract class SessionConfigBase
     /// <see cref="EnableConfigDiscovery"/>.
     /// </summary>
     public bool? EnableSkills { get; set; }
+
+    /// <summary>
+    /// Built-in skill names to include in the session. In
+    /// <see cref="CopilotClientMode.Empty"/>, omitting this option excludes all
+    /// runtime-bundled skills; specifying names opts those built-ins back in.
+    /// Skills from other sources remain eligible.
+    /// </summary>
+    public IList<string>? IncludedBuiltinSkills { get; set; }
 
     /// <summary>
     /// Custom tool declarations available to the language model during the session.

@@ -2152,6 +2152,7 @@ class CopilotClient:
         enable_host_git_operations: bool | None = None,
         enable_session_store: bool | None = None,
         enable_skills: bool | None = None,
+        included_builtin_skills: list[str] | None = None,
         skill_directories: list[str] | None = None,
         plugin_directories: list[str] | None = None,
         instruction_directories: list[str] | None = None,
@@ -2818,6 +2819,7 @@ class CopilotClient:
             custom_agents_local_only,
             coauthor_enabled,
             manage_schedule_enabled,
+            included_builtin_skills,
         )
 
         log_timing(
@@ -2880,6 +2882,7 @@ class CopilotClient:
         enable_host_git_operations: bool | None = None,
         enable_session_store: bool | None = None,
         enable_skills: bool | None = None,
+        included_builtin_skills: list[str] | None = None,
         skill_directories: list[str] | None = None,
         plugin_directories: list[str] | None = None,
         instruction_directories: list[str] | None = None,
@@ -3460,6 +3463,7 @@ class CopilotClient:
             custom_agents_local_only,
             coauthor_enabled,
             manage_schedule_enabled,
+            included_builtin_skills,
         )
 
         log_timing(
@@ -4515,6 +4519,7 @@ class CopilotClient:
         custom_agents_local_only: bool | None,
         coauthor_enabled: bool | None,
         manage_schedule_enabled: bool | None,
+        included_builtin_skills: list[str] | None = None,
     ) -> None:
         """Apply empty-mode safe defaults (or caller-supplied overrides in
         copilot-cli mode) via ``session.options.update`` after create/resume.
@@ -4530,6 +4535,7 @@ class CopilotClient:
             custom_agents_local_only,
             coauthor_enabled,
             manage_schedule_enabled,
+            included_builtin_skills,
         )
         if patch is None:
             return

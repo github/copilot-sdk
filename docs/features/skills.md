@@ -360,13 +360,12 @@ runtime-bundled built-in skill: it sends an empty `includedBuiltinSkills` list o
 the post-create and post-resume options patch, alongside the empty
 `installedPlugins` list.
 
-This exclusion is fail-closed and cannot be weakened by the caller. You can still
-opt into your **own** custom skills under `mode: "empty"`—enable skills and pass
-your own `skillDirectories`—and those remain fully usable, including a custom
-skill that shares a name with a built-in. But there is no way to opt back into the
-runtime-bundled built-ins through `mode: "empty"`; switch to `mode: "copilot-cli"`
-if you need them. Under `mode: "copilot-cli"` the field is omitted entirely, so all
-bundled skills stay eligible unless you set the general session option yourself.
+This exclusion is the default, not a permanent restriction. To allow selected
+runtime-bundled skills, set `includedBuiltinSkills` (or the language-specific
+casing) to their names. You can also opt into your **own** custom skills under
+`mode: "empty"`—enable skills and pass your own `skillDirectories`—and those
+remain fully usable, including a custom skill that shares a name with a built-in.
+Under `mode: "copilot-cli"` the field is omitted unless you set the option.
 
 ## Best practices
 

@@ -2395,6 +2395,13 @@ export interface SessionConfigBase {
     excludedBuiltinAgents?: string[];
 
     /**
+     * Built-in skill names to include in the session. In `mode: "empty"`,
+     * omitting this option excludes all runtime-bundled skills; specifying names
+     * opts those built-ins back in. Skills from other sources remain eligible.
+     */
+    includedBuiltinSkills?: string[];
+
+    /**
      * Custom provider configuration (BYOK - Bring Your Own Key).
      * When specified, uses the provided API endpoint instead of the Copilot API.
      */

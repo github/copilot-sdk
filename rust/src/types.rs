@@ -1955,6 +1955,10 @@ pub struct SessionConfig {
     /// selected or invoked unless a custom agent with the same name is
     /// configured.
     pub excluded_builtin_agents: Option<Vec<String>>,
+    /// Built-in skill names to include in the session. In
+    /// [`ClientMode::Empty`](crate::ClientMode::Empty), `None` excludes all
+    /// runtime-bundled skills; `Some` opts the named built-ins back in.
+    pub included_builtin_skills: Option<Vec<String>>,
     /// MCP server configurations passed through to the CLI.
     pub mcp_servers: Option<IndexMap<String, McpServerConfig>>,
     /// Controls how MCP OAuth tokens are stored for this session.
@@ -2240,6 +2244,7 @@ impl std::fmt::Debug for SessionConfig {
             .field("available_tools", &self.available_tools)
             .field("excluded_tools", &self.excluded_tools)
             .field("excluded_builtin_agents", &self.excluded_builtin_agents)
+            .field("included_builtin_skills", &self.included_builtin_skills)
             .field("mcp_servers", &self.mcp_servers)
             .field("mcp_oauth_token_storage", &self.mcp_oauth_token_storage)
             .field("embedding_cache_storage", &self.embedding_cache_storage)
@@ -2372,6 +2377,7 @@ impl Default for SessionConfig {
             available_tools: None,
             excluded_tools: None,
             excluded_builtin_agents: None,
+            included_builtin_skills: None,
             mcp_servers: None,
             mcp_oauth_token_storage: None,
             enable_config_discovery: None,
@@ -2951,6 +2957,16 @@ impl SessionConfig {
         self
     }
 
+    /// Set the runtime-bundled skill allowlist.
+    pub fn with_included_builtin_skills<I, S>(mut self, names: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.included_builtin_skills = Some(names.into_iter().map(Into::into).collect());
+        self
+    }
+
     /// Set additional directories to search for custom instruction files.
     /// Forwarded to the CLI on session create; not the same as
     /// [`with_skill_directories`](Self::with_skill_directories).
@@ -3287,6 +3303,10 @@ pub struct ResumeSessionConfig {
     /// selected or invoked unless a custom agent with the same name is
     /// configured.
     pub excluded_builtin_agents: Option<Vec<String>>,
+    /// Built-in skill names to include in the resumed session. In
+    /// [`ClientMode::Empty`](crate::ClientMode::Empty), `None` excludes all
+    /// runtime-bundled skills; `Some` opts the named built-ins back in.
+    pub included_builtin_skills: Option<Vec<String>>,
     /// Re-supply MCP servers so they remain available after app restart.
     pub mcp_servers: Option<IndexMap<String, McpServerConfig>>,
     /// Controls how MCP OAuth tokens are stored for this session.
@@ -3506,6 +3526,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("available_tools", &self.available_tools)
             .field("excluded_tools", &self.excluded_tools)
             .field("excluded_builtin_agents", &self.excluded_builtin_agents)
+            .field("included_builtin_skills", &self.included_builtin_skills)
             .field("mcp_servers", &self.mcp_servers)
             .field("mcp_oauth_token_storage", &self.mcp_oauth_token_storage)
             .field("embedding_cache_storage", &self.embedding_cache_storage)
@@ -3779,6 +3800,7 @@ impl ResumeSessionConfig {
             available_tools: None,
             excluded_tools: None,
             excluded_builtin_agents: None,
+            included_builtin_skills: None,
             mcp_servers: None,
             mcp_oauth_token_storage: None,
             enable_config_discovery: None,
@@ -4169,6 +4191,16 @@ impl ResumeSessionConfig {
         P: Into<PathBuf>,
     {
         self.skill_directories = Some(paths.into_iter().map(Into::into).collect());
+        self
+    }
+
+    /// Set the runtime-bundled skill allowlist on resume.
+    pub fn with_included_builtin_skills<I, S>(mut self, names: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.included_builtin_skills = Some(names.into_iter().map(Into::into).collect());
         self
     }
 

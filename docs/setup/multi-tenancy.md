@@ -396,12 +396,12 @@ Session-level isolation means the runtime keeps user-specific model and state in
 | Session state | Per session ID under `COPILOT_HOME/session-state/{sessionId}`. |
 | GitHub identity | Per-session when `gitHubToken` is set on the session. |
 | Tools | Explicit in `mode: "empty"`; ambient in `mode: "copilot-cli"`. |
-| Skills | In `mode: "empty"` no runtime-bundled built-in skills are eligible; callers may still opt into their own custom skills. Ambient in `mode: "copilot-cli"`. |
+| Skills | In `mode: "empty"` no runtime-bundled built-in skills are eligible by default; callers can allow selected built-ins or opt into their own custom skills. Ambient in `mode: "copilot-cli"`. |
 | Host filesystem | Shared by the runtime process if host tools are available. |
 
 `mode: "empty"` is what makes shared runtime patterns viable: no ambient OS tools are exposed unless your application registers or allows them. With `mode: "copilot-cli"`, OS filesystem access is shared through the host process, so do not use that mode for multi-user server mode.
 
-Under `mode: "empty"` the SDK unconditionally excludes every runtime-bundled built-in skill (it sends an empty `includedBuiltinSkills` list on the post-create/post-resume options patch, alongside the empty `installedPlugins` list). A caller can still opt into its **own** custom skills—for example by enabling skills and pointing at its own skill directories—and those remain usable. But a caller cannot opt back into the runtime-bundled built-in skills through `mode: "empty"`; switch modes if you need them. This restriction is stricter than the tool model: Empty callers can explicitly allow runtime-bundled tools through `availableTools`, but cannot re-enable runtime-bundled skills.
+Under `mode: "empty"` the SDK excludes every runtime-bundled built-in skill by default (it sends an empty `includedBuiltinSkills` list on the post-create/post-resume options patch, alongside the empty `installedPlugins` list). Set `includedBuiltinSkills` (or the language-specific casing) to explicitly allow selected built-ins, just as `availableTools` allows selected runtime-bundled tools. A caller can also opt into its **own** custom skills—for example by enabling skills and pointing at its own skill directories—and those remain usable.
 
 Session state is stored under `COPILOT_HOME/session-state/{sessionId}` unless you route it through `sessionFs`. Use unique session IDs that include your own tenant or user boundary, and enforce access control before resuming or deleting sessions.
 

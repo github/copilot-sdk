@@ -392,6 +392,29 @@ public sealed class ClientSessionLifetimeTests
     }
 
     [Fact]
+    public async Task EmptyMode_Resume_Preserves_Explicit_IncludedBuiltinSkills()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions
+        {
+            Connection = RuntimeConnection.ForUri(server.Url),
+            Mode = CopilotClientMode.Empty,
+            BaseDirectory = Path.GetTempPath(),
+        });
+
+        await using var resumed = await client.ResumeSessionAsync("resume-selected-skills", new ResumeSessionConfig
+        {
+            AvailableTools = [],
+            IncludedBuiltinSkills = ["code-review"],
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        var update = Assert.Single(server.Requests, request => request.Method == "session.options.update");
+        var skills = update.Params.GetProperty("includedBuiltinSkills");
+        Assert.Equal(["code-review"], skills.EnumerateArray().Select(value => value.GetString()));
+    }
+
+    [Fact]
     public async Task EmptyMode_Create_With_EnableSkills_Still_Sends_Empty_IncludedBuiltinSkills()
     {
         await using var server = await FakeCopilotServer.StartAsync();
@@ -416,6 +439,29 @@ public sealed class ClientSessionLifetimeTests
         Assert.True(update.Params.TryGetProperty("includedBuiltinSkills", out var skills));
         Assert.Equal(JsonValueKind.Array, skills.ValueKind);
         Assert.Equal(0, skills.GetArrayLength());
+    }
+
+    [Fact]
+    public async Task EmptyMode_Create_Preserves_Explicit_IncludedBuiltinSkills()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions
+        {
+            Connection = RuntimeConnection.ForUri(server.Url),
+            Mode = CopilotClientMode.Empty,
+            BaseDirectory = Path.GetTempPath(),
+        });
+
+        await using var created = await client.CreateSessionAsync(new SessionConfig
+        {
+            AvailableTools = [],
+            IncludedBuiltinSkills = ["code-review"],
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        var update = Assert.Single(server.Requests, request => request.Method == "session.options.update");
+        var skills = update.Params.GetProperty("includedBuiltinSkills");
+        Assert.Equal(["code-review"], skills.EnumerateArray().Select(value => value.GetString()));
     }
 
     [Fact]

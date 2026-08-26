@@ -1010,7 +1010,7 @@ public final class CopilotClient implements AutoCloseable {
                             return updateSessionOptionsForMode(session, config.getSkipCustomInstructions().orElse(null),
                                     config.getCustomAgentsLocalOnly().orElse(null),
                                     config.getCoauthorEnabled().orElse(null),
-                                    config.getManageScheduleEnabled().orElse(null));
+                                    config.getManageScheduleEnabled().orElse(null), config.getIncludedBuiltinSkills());
                         }).thenApply(v -> {
                             LoggingHelpers.logTiming(LOG, Level.FINE,
                                     "CopilotClient.createSession complete. Elapsed={Elapsed}, SessionId="
@@ -1170,7 +1170,8 @@ public final class CopilotClient implements AutoCloseable {
                         return updateSessionOptionsForMode(session, config.getSkipCustomInstructions().orElse(null),
                                 config.getCustomAgentsLocalOnly().orElse(null),
                                 config.getCoauthorEnabled().orElse(null),
-                                config.getManageScheduleEnabled().orElse(null)).thenApply(v -> {
+                                config.getManageScheduleEnabled().orElse(null), config.getIncludedBuiltinSkills())
+                                .thenApply(v -> {
                                     LoggingHelpers.logTiming(LOG, Level.FINE,
                                             "CopilotClient.resumeSession complete. Elapsed={Elapsed}, SessionId="
                                                     + sessionId,
@@ -1197,12 +1198,11 @@ public final class CopilotClient implements AutoCloseable {
      * <p>
      * In {@link CopilotClientMode#EMPTY EMPTY} mode this defaults the four
      * overridable feature flags to safe values (caller values from the config win);
-     * {@code installedPlugins=[]} and {@code includedBuiltinSkills=[]} are
-     * unconditional under empty mode so apps that need plugins must switch modes,
-     * while callers may still opt into their own custom skills (via
-     * {@code enableSkills}/{@code skillDirectories}) without re-enabling
-     * runtime-bundled built-in skills. In {@link CopilotClientMode#COPILOT_CLI
-     * COPILOT_CLI} mode only explicitly-set fields are forwarded.
+     * {@code installedPlugins=[]} is unconditional under empty mode.
+     * {@code includedBuiltinSkills} defaults to an empty list, but callers can
+     * explicitly allow selected runtime-bundled skills. In
+     * {@link CopilotClientMode#COPILOT_CLI COPILOT_CLI} mode only explicitly-set
+     * fields are forwarded.
      *
      * @param session
      *            the session to patch
@@ -1214,10 +1214,20 @@ public final class CopilotClient implements AutoCloseable {
      *            caller-supplied value, or {@code null} if not set
      * @param manageScheduleEnabled
      *            caller-supplied value, or {@code null} if not set
+     * @param includedBuiltinSkills
+     *            caller-supplied built-in skill allowlist, or {@code null} if not
+     *            set
      * @return a future that completes when the patch has been applied
      */
     CompletableFuture<Void> updateSessionOptionsForMode(CopilotSession session, Boolean skipCustomInstructions,
             Boolean customAgentsLocalOnly, Boolean coauthorEnabled, Boolean manageScheduleEnabled) {
+        return updateSessionOptionsForMode(session, skipCustomInstructions, customAgentsLocalOnly, coauthorEnabled,
+                manageScheduleEnabled, null);
+    }
+
+    CompletableFuture<Void> updateSessionOptionsForMode(CopilotSession session, Boolean skipCustomInstructions,
+            Boolean customAgentsLocalOnly, Boolean coauthorEnabled, Boolean manageScheduleEnabled,
+            List<String> includedBuiltinSkills) {
 
         Boolean patchSkip = null;
         Boolean patchAgents = null;
@@ -1233,7 +1243,7 @@ public final class CopilotClient implements AutoCloseable {
             patchCoauthor = coauthorEnabled != null ? coauthorEnabled : false;
             patchSchedule = manageScheduleEnabled != null ? manageScheduleEnabled : false;
             patchPlugins = List.of();
-            patchSkills = List.of();
+            patchSkills = includedBuiltinSkills != null ? includedBuiltinSkills : List.of();
             hasAnyPatch = true;
         } else {
             if (skipCustomInstructions != null) {
@@ -1250,6 +1260,10 @@ public final class CopilotClient implements AutoCloseable {
             }
             if (manageScheduleEnabled != null) {
                 patchSchedule = manageScheduleEnabled;
+                hasAnyPatch = true;
+            }
+            if (includedBuiltinSkills != null) {
+                patchSkills = includedBuiltinSkills;
                 hasAnyPatch = true;
             }
         }

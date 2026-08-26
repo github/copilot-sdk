@@ -903,6 +903,7 @@ impl Client {
         let opt_custom_agents_local_only = config.custom_agents_local_only;
         let opt_coauthor_enabled = config.coauthor_enabled;
         let opt_manage_schedule_enabled = config.manage_schedule_enabled;
+        let opt_included_builtin_skills = config.included_builtin_skills.take();
         let (mut wire, mut runtime) = config.into_wire(local_session_id.clone())?;
         wire.enable_github_telemetry_forwarding =
             self.inner.on_github_telemetry.is_some().then_some(true);
@@ -1098,6 +1099,7 @@ impl Client {
             opt_custom_agents_local_only,
             opt_coauthor_enabled,
             opt_manage_schedule_enabled,
+            opt_included_builtin_skills,
         )
         .await?;
         Ok(session)
@@ -1176,6 +1178,7 @@ impl Client {
         let opt_custom_agents_local_only = config.custom_agents_local_only;
         let opt_coauthor_enabled = config.coauthor_enabled;
         let opt_manage_schedule_enabled = config.manage_schedule_enabled;
+        let opt_included_builtin_skills = config.included_builtin_skills.take();
         let (mut wire, mut runtime) = config.into_wire()?;
         wire.enable_github_telemetry_forwarding =
             self.inner.on_github_telemetry.is_some().then_some(true);
@@ -1358,6 +1361,7 @@ impl Client {
             opt_custom_agents_local_only,
             opt_coauthor_enabled,
             opt_manage_schedule_enabled,
+            opt_included_builtin_skills,
         )
         .await?;
         Ok(session)
@@ -1373,6 +1377,7 @@ async fn apply_mode_post_create_patch(
     opt_custom_agents_local_only: Option<bool>,
     opt_coauthor_enabled: Option<bool>,
     opt_manage_schedule_enabled: Option<bool>,
+    opt_included_builtin_skills: Option<Vec<String>>,
 ) -> Result<(), Error> {
     let Some(patch) = build_mode_post_create_patch(
         mode,
@@ -1380,6 +1385,7 @@ async fn apply_mode_post_create_patch(
         opt_custom_agents_local_only,
         opt_coauthor_enabled,
         opt_manage_schedule_enabled,
+        opt_included_builtin_skills,
     ) else {
         return Ok(());
     };
@@ -1394,19 +1400,18 @@ async fn apply_mode_post_create_patch(
 /// is created or resumed, or returns `None` when no patch should be sent.
 ///
 /// Under [`ClientMode::Empty`](crate::ClientMode::Empty) the overridable feature
-/// flags fall back to safe defaults (caller values win) and both
-/// `installed_plugins` and `included_builtin_skills` are unconditionally set to
-/// empty lists. Setting `included_builtin_skills = []` excludes every
-/// runtime-bundled built-in skill: callers may still opt into their own custom
-/// skills (via `enable_skills`/`skill_directories`) but cannot re-enable
-/// runtime-bundled built-ins. Under other modes only explicitly-set fields are
-/// forwarded and the field is never injected.
+/// flags fall back to safe defaults (caller values win), while
+/// `installed_plugins` is unconditionally empty. `included_builtin_skills`
+/// defaults to an empty list, but callers can explicitly allow selected
+/// runtime-bundled skills. Under other modes only explicitly-set fields are
+/// forwarded.
 fn build_mode_post_create_patch(
     mode: crate::ClientMode,
     opt_skip_custom_instructions: Option<bool>,
     opt_custom_agents_local_only: Option<bool>,
     opt_coauthor_enabled: Option<bool>,
     opt_manage_schedule_enabled: Option<bool>,
+    opt_included_builtin_skills: Option<Vec<String>>,
 ) -> Option<crate::generated::api_types::SessionUpdateOptionsParams> {
     use crate::generated::api_types::SessionUpdateOptionsParams;
     let mut patch = SessionUpdateOptionsParams::default();
@@ -1416,7 +1421,7 @@ fn build_mode_post_create_patch(
         patch.coauthor_enabled = Some(opt_coauthor_enabled.unwrap_or(false));
         patch.manage_schedule_enabled = Some(opt_manage_schedule_enabled.unwrap_or(false));
         patch.installed_plugins = Some(Vec::new());
-        patch.included_builtin_skills = Some(Vec::new());
+        patch.included_builtin_skills = Some(opt_included_builtin_skills.unwrap_or_default());
         true
     } else {
         let mut any = false;
@@ -1434,6 +1439,10 @@ fn build_mode_post_create_patch(
         }
         if let Some(v) = opt_manage_schedule_enabled {
             patch.manage_schedule_enabled = Some(v);
+            any = true;
+        }
+        if let Some(v) = opt_included_builtin_skills {
+            patch.included_builtin_skills = Some(v);
             any = true;
         }
         any
@@ -2624,8 +2633,9 @@ mod tests {
 
     #[test]
     fn empty_mode_post_patch_sets_empty_included_builtin_skills() {
-        let patch = build_mode_post_create_patch(crate::ClientMode::Empty, None, None, None, None)
-            .expect("empty mode always sends a patch");
+        let patch =
+            build_mode_post_create_patch(crate::ClientMode::Empty, None, None, None, None, None)
+                .expect("empty mode always sends a patch");
         assert_eq!(
             patch.included_builtin_skills,
             Some(Vec::new()),
@@ -2638,32 +2648,41 @@ mod tests {
     }
 
     #[test]
-    fn empty_mode_post_patch_keeps_skills_empty_even_with_caller_overrides() {
-        // Caller opting into their own custom skills (enable_skills / skill_directories
-        // live on SessionConfig) must not weaken the empty post-patch: runtime-bundled
-        // built-ins stay excluded regardless of the overridable flags below.
+    fn empty_mode_post_patch_preserves_explicit_builtin_skill_allowlist() {
         let patch = build_mode_post_create_patch(
             crate::ClientMode::Empty,
             Some(false),
             Some(false),
             Some(true),
             Some(true),
+            Some(vec!["code-review".to_string()]),
         )
         .expect("empty mode always sends a patch");
-        assert_eq!(patch.included_builtin_skills, Some(Vec::new()));
+        assert_eq!(
+            patch.included_builtin_skills,
+            Some(vec!["code-review".to_string()])
+        );
     }
 
     #[test]
     fn copilot_cli_mode_does_not_inject_included_builtin_skills() {
         // No fields set -> no patch at all.
         assert!(
-            build_mode_post_create_patch(crate::ClientMode::CopilotCli, None, None, None, None)
-                .is_none()
+            build_mode_post_create_patch(
+                crate::ClientMode::CopilotCli,
+                None,
+                None,
+                None,
+                None,
+                None
+            )
+            .is_none()
         );
         // A field set -> patch sent, but skills field stays absent.
         let patch = build_mode_post_create_patch(
             crate::ClientMode::CopilotCli,
             Some(true),
+            None,
             None,
             None,
             None,
@@ -2673,6 +2692,20 @@ mod tests {
         assert!(patch.installed_plugins.is_none());
         let value = serde_json::to_value(&patch).expect("serialize patch");
         assert!(value.get("includedBuiltinSkills").is_none());
+
+        let patch = build_mode_post_create_patch(
+            crate::ClientMode::CopilotCli,
+            None,
+            None,
+            None,
+            None,
+            Some(vec!["code-review".to_string()]),
+        )
+        .expect("an explicit allowlist triggers a patch");
+        assert_eq!(
+            patch.included_builtin_skills,
+            Some(vec!["code-review".to_string()])
+        );
     }
 
     #[test]

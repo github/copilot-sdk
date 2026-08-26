@@ -1998,6 +1998,28 @@ describe("CopilotClient", () => {
         expect(patch.includedBuiltinSkills).toEqual([]);
     });
 
+    it("preserves an explicit built-in skill allowlist after empty-mode resume", async () => {
+        const client = new CopilotClient({ mode: "empty", baseDirectory: "/tmp/copilot-test" });
+        await client.start();
+        onTestFinished(() => stopClient(client));
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string) => {
+                if (method === "session.resume") return { sessionId: "s1" };
+                if (method === "session.options.update") return { success: true };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+        await client.resumeSession("s1", {
+            onPermissionRequest: approveAll,
+            availableTools: [],
+            includedBuiltinSkills: ["code-review"],
+        });
+
+        const patch = spy.mock.calls.find((c) => c[0] === "session.options.update")![1] as any;
+        expect(patch.includedBuiltinSkills).toEqual(["code-review"]);
+    });
+
     it("keeps includedBuiltinSkills=[] even when the caller opts into custom skills in empty mode", async () => {
         const client = new CopilotClient({ mode: "empty", baseDirectory: "/tmp/copilot-test" });
         await client.start();
@@ -2022,6 +2044,28 @@ describe("CopilotClient", () => {
         expect(createPayload.skillDirectories).toEqual(["/tmp/custom-skills"]);
         const patch = spy.mock.calls.find((c) => c[0] === "session.options.update")![1] as any;
         expect(patch.includedBuiltinSkills).toEqual([]);
+    });
+
+    it("preserves an explicit built-in skill allowlist in empty mode", async () => {
+        const client = new CopilotClient({ mode: "empty", baseDirectory: "/tmp/copilot-test" });
+        await client.start();
+        onTestFinished(() => stopClient(client));
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId };
+                if (method === "session.options.update") return { success: true };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+        await client.createSession({
+            onPermissionRequest: approveAll,
+            availableTools: [],
+            includedBuiltinSkills: ["code-review"],
+        });
+
+        const patch = spy.mock.calls.find((c) => c[0] === "session.options.update")![1] as any;
+        expect(patch.includedBuiltinSkills).toEqual(["code-review"]);
     });
 
     it("does not send includedBuiltinSkills in copilot-cli mode", async () => {

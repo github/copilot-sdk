@@ -298,14 +298,14 @@ def _post_create_options_patch(
     custom_agents_local_only: bool | None,
     coauthor_enabled: bool | None,
     manage_schedule_enabled: bool | None,
+    included_builtin_skills: list[str] | None = None,
 ) -> dict[str, Any] | None:
     """Build the patch sent via ``session.options.update`` after create/resume.
 
     In empty mode the four overridable flags default to safe values
-    (caller-supplied values win); ``installedPlugins=[]`` and
-    ``includedBuiltinSkills=[]`` are unconditional. Callers may still opt into
-    their own custom skills (via ``enable_skills``/``skill_directories``)
-    without re-enabling runtime-bundled built-in skills.
+    (caller-supplied values win); ``installedPlugins=[]`` is unconditional.
+    ``includedBuiltinSkills`` defaults to an empty list, but callers can
+    explicitly allow selected runtime-bundled skills.
     Returns ``None`` if no patch should be sent.
     """
     if mode == "empty":
@@ -321,7 +321,9 @@ def _post_create_options_patch(
                 manage_schedule_enabled if manage_schedule_enabled is not None else False
             ),
             "installedPlugins": [],
-            "includedBuiltinSkills": [],
+            "includedBuiltinSkills": (
+                included_builtin_skills if included_builtin_skills is not None else []
+            ),
         }
         return patch
     patch = {}
@@ -333,6 +335,8 @@ def _post_create_options_patch(
         patch["coauthorEnabled"] = coauthor_enabled
     if manage_schedule_enabled is not None:
         patch["manageScheduleEnabled"] = manage_schedule_enabled
+    if included_builtin_skills is not None:
+        patch["includedBuiltinSkills"] = included_builtin_skills
     return patch or None
 
 

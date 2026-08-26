@@ -1400,11 +1400,9 @@ export class CopilotClient {
      * Mode-specific options applied via session.options.update after create/resume.
      *
      * In empty mode, defaults the four overridable feature flags to safe values
-     * (caller values from `config` win). `installedPlugins=[]` and
-     * `includedBuiltinSkills=[]` are unconditional in empty mode — apps that
-     * need custom plugins should switch modes, and callers may still opt into
-     * their own custom skills (via `enableSkills`/`skillDirectories`) without
-     * re-enabling runtime-bundled built-in skills.
+     * (caller values from `config` win). `installedPlugins=[]` is unconditional
+     * in empty mode. `includedBuiltinSkills` defaults to `[]`, but callers can
+     * explicitly allow selected runtime-bundled skills.
      */
     private async updateSessionOptionsForMode(
         session: CopilotSession,
@@ -1417,7 +1415,7 @@ export class CopilotClient {
             patch.coauthorEnabled = config.coauthorEnabled ?? false;
             patch.manageScheduleEnabled = config.manageScheduleEnabled ?? false;
             patch.installedPlugins = [];
-            patch.includedBuiltinSkills = [];
+            patch.includedBuiltinSkills = config.includedBuiltinSkills ?? [];
         } else {
             if (config.skipCustomInstructions !== undefined)
                 patch.skipCustomInstructions = config.skipCustomInstructions;
@@ -1427,6 +1425,8 @@ export class CopilotClient {
                 patch.coauthorEnabled = config.coauthorEnabled;
             if (config.manageScheduleEnabled !== undefined)
                 patch.manageScheduleEnabled = config.manageScheduleEnabled;
+            if (config.includedBuiltinSkills !== undefined)
+                patch.includedBuiltinSkills = config.includedBuiltinSkills;
         }
         if (Object.keys(patch).length === 0) {
             return;

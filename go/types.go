@@ -1298,6 +1298,10 @@ type SessionConfig struct {
 	// and discovered skill directories). When false, no skills are loaded regardless
 	// of SkillDirectories or EnableConfigDiscovery settings.
 	EnableSkills *bool
+	// IncludedBuiltinSkills is the allowlist of runtime-bundled skill names.
+	// In ModeEmpty, nil excludes all built-in skills; a non-nil list opts the
+	// named built-ins back in. Skills from other sources remain eligible.
+	IncludedBuiltinSkills []string
 	// Tools exposes caller-implemented tools to the CLI. A Tool with a nil Handler
 	// is declaration-only; the consumer must resolve its calls via pending tool RPCs.
 	Tools []Tool
@@ -1816,6 +1820,10 @@ type ResumeSessionConfig struct {
 	// be selected or invoked unless a custom agent with the same name is
 	// configured.
 	ExcludedBuiltInAgents []string
+	// IncludedBuiltinSkills is the allowlist of runtime-bundled skill names.
+	// In ModeEmpty, nil excludes all built-in skills; a non-nil list opts the
+	// named built-ins back in. Skills from other sources remain eligible.
+	IncludedBuiltinSkills []string
 	// Provider configures a custom model provider
 	Provider *ProviderConfig
 	// Capi configures provider-scoped CAPI (Copilot API) session options.

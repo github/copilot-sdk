@@ -2205,6 +2205,33 @@ func TestClient_EmptyModeIncludedBuiltinSkills(t *testing.T) {
 		}
 	})
 
+	t.Run("resume preserves explicit built-in skill allowlist", func(t *testing.T) {
+		client, requests, cleanup := newInMemoryClientWithOptions(t, &ClientOptions{
+			Mode:          ModeEmpty,
+			BaseDirectory: "/tmp/copilot-test",
+		})
+		defer cleanup()
+
+		session, err := client.ResumeSessionWithOptions(t.Context(), "resume-skills", &ResumeSessionConfig{
+			OnPermissionRequest:   PermissionHandler.ApproveAll,
+			AvailableTools:        []string{},
+			IncludedBuiltinSkills: []string{"code-review"},
+		})
+		if err != nil {
+			t.Fatalf("ResumeSessionWithOptions failed: %v", err)
+		}
+		defer session.Disconnect()
+
+		update, ok := findRequest(requests.snapshot(), "session.options.update")
+		if !ok {
+			t.Fatalf("expected session.options.update in %+v", requests.snapshot())
+		}
+		skills, ok := update.Params["includedBuiltinSkills"].([]any)
+		if !ok || len(skills) != 1 || skills[0] != "code-review" {
+			t.Fatalf("expected includedBuiltinSkills=[code-review], got %#v", update.Params["includedBuiltinSkills"])
+		}
+	})
+
 	t.Run("caller opting into custom skills keeps includedBuiltinSkills empty", func(t *testing.T) {
 		client, requests, cleanup := newInMemoryClientWithOptions(t, &ClientOptions{
 			Mode:          ModeEmpty,
@@ -2230,6 +2257,33 @@ func TestClient_EmptyModeIncludedBuiltinSkills(t *testing.T) {
 		}
 		if arr, isArr := update.Params["includedBuiltinSkills"].([]any); !isArr || len(arr) != 0 {
 			t.Fatalf("expected includedBuiltinSkills=[], got %#v", update.Params["includedBuiltinSkills"])
+		}
+	})
+
+	t.Run("explicit built-in skill allowlist is preserved in empty mode", func(t *testing.T) {
+		client, requests, cleanup := newInMemoryClientWithOptions(t, &ClientOptions{
+			Mode:          ModeEmpty,
+			BaseDirectory: "/tmp/copilot-test",
+		})
+		defer cleanup()
+
+		session, err := client.CreateSession(t.Context(), &SessionConfig{
+			OnPermissionRequest:   PermissionHandler.ApproveAll,
+			AvailableTools:        []string{},
+			IncludedBuiltinSkills: []string{"code-review"},
+		})
+		if err != nil {
+			t.Fatalf("CreateSession failed: %v", err)
+		}
+		defer session.Disconnect()
+
+		update, ok := findRequest(requests.snapshot(), "session.options.update")
+		if !ok {
+			t.Fatalf("expected session.options.update in %+v", requests.snapshot())
+		}
+		skills, ok := update.Params["includedBuiltinSkills"].([]any)
+		if !ok || len(skills) != 1 || skills[0] != "code-review" {
+			t.Fatalf("expected includedBuiltinSkills=[code-review], got %#v", update.Params["includedBuiltinSkills"])
 		}
 	})
 

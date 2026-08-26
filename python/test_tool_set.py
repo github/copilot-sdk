@@ -262,13 +262,10 @@ class TestPostCreatePatch:
             "includedBuiltinSkills": [],
         }
 
-    def test_empty_mode_included_builtin_skills_always_empty(self):
-        # The Empty post-patch must always exclude runtime-bundled built-in
-        # skills, regardless of the caller-overridable flags.
-        for args in ((None, None, None, None), (False, False, True, True)):
-            patch = _post_create_options_patch("empty", *args)
-            assert patch is not None
-            assert patch["includedBuiltinSkills"] == []
+    def test_empty_mode_preserves_explicit_builtin_skill_allowlist(self):
+        patch = _post_create_options_patch("empty", None, None, None, None, ["code-review"])
+        assert patch is not None
+        assert patch["includedBuiltinSkills"] == ["code-review"]
 
     def test_copilot_cli_returns_none_when_unset(self):
         assert _post_create_options_patch("copilot-cli", None, None, None, None) is None
@@ -278,8 +275,12 @@ class TestPostCreatePatch:
         )
 
     def test_copilot_cli_passes_through_explicit_values(self):
-        patch = _post_create_options_patch("copilot-cli", True, None, False, None)
-        assert patch == {"skipCustomInstructions": True, "coauthorEnabled": False}
+        patch = _post_create_options_patch("copilot-cli", True, None, False, None, ["code-review"])
+        assert patch == {
+            "skipCustomInstructions": True,
+            "coauthorEnabled": False,
+            "includedBuiltinSkills": ["code-review"],
+        }
 
 
 class _CapturingOptions:
@@ -330,13 +331,14 @@ class TestApplyPostCreateOptionsPatch:
         assert params.included_builtin_skills == []
         assert params.installed_plugins == []
 
-    async def test_empty_mode_caller_flags_still_send_empty_skills(self):
+    async def test_empty_mode_explicit_allowlist_reaches_wire(self):
         client = self._make_client()
         session = _FakeSession()
-        # Caller-overridable flags must not weaken the built-in skill isolation.
-        await client._apply_post_create_options_patch(session, "empty", False, False, True, True)
+        await client._apply_post_create_options_patch(
+            session, "empty", False, False, True, True, ["code-review"]
+        )
         params = session.rpc.options.captured[0]
-        assert params.included_builtin_skills == []
+        assert params.included_builtin_skills == ["code-review"]
 
     async def test_copilot_cli_mode_omits_included_builtin_skills(self):
         client = self._make_client()
