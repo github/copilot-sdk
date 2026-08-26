@@ -40,7 +40,7 @@ def _write_file_command(marker_path: Path, marker: str) -> str:
         # shell.exec already runs through cmd.exe on Windows. Use its built-in echo
         # instead of spawning a nested PowerShell process just to write the marker.
         return f'echo {marker}>"{marker_path.name}"'
-    return f"sh -c \"printf '%s' '{marker}' > '{marker_path}'\""
+    return f"sh -c \"printf '%s' '{marker}' > '{marker_path.name}'\""
 
 
 async def _wait_for_file_text(path: Path, expected: str, *, timeout: float = 30.0) -> None:
@@ -59,11 +59,15 @@ class TestRpcShellAndFleet:
         async with await ctx.client.create_session(
             on_permission_request=PermissionHandler.approve_all,
         ) as session:
-            marker_path = Path(ctx.work_dir) / f"shell-rpc-{uuid.uuid4().hex}.txt"
+            command_dir = Path(ctx.work_dir) / f"shell-rpc-{uuid.uuid4().hex}"
+            command_dir.mkdir()
+            marker_path = command_dir / "marker.txt"
             marker = "copilot-sdk-shell-rpc"
 
             result = await session.rpc.shell.exec(
-                ShellExecRequest(command=_write_file_command(marker_path, marker), cwd=ctx.work_dir)
+                ShellExecRequest(
+                    command=_write_file_command(marker_path, marker), cwd=str(command_dir)
+                )
             )
             assert (result.process_id or "").strip()
             await _wait_for_file_text(marker_path, marker)
