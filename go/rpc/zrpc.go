@@ -3746,6 +3746,10 @@ type GitHubTelemetryClientInfo struct {
 	CLIVersion string `json:"cli_version"`
 	// Copilot subscription plan, when known.
 	CopilotPlan *string `json:"copilot_plan,omitempty"`
+	// Number of logical CPU cores on the host.
+	CpuCount *int64 `json:"cpu_count,omitempty"`
+	// Distinct CPU model names for the host, comma-separated.
+	CpuModel *string `json:"cpu_model,omitempty"`
 	// Stable machine identifier for the device.
 	DevDeviceID *string `json:"dev_device_id,omitempty"`
 	// Whether the user is a GitHub/Microsoft staff member.
@@ -7994,6 +7998,9 @@ func (PermissionDecisionApproveForSessionApprovalWrite) Kind() PermissionDecisio
 type PermissionDecisionContext struct {
 	// Disposition of the permission request as observed by the responding client.
 	Outcome PermissionDecisionOutcome `json:"outcome"`
+	// Whether the responding client could ask a user interactively, was running headlessly, or
+	// had no response path. Omit when the client cannot determine this authoritatively.
+	ResponseCapability *PermissionResponseCapability `json:"responseCapability,omitempty"`
 	// Controlled reason or actor responsible for the response.
 	Source PermissionDecisionSource `json:"source"`
 	// Client surface that submitted the response.
@@ -17675,6 +17682,8 @@ const (
 type PermissionDecisionSurface string
 
 const (
+	// An Agent Client Protocol host.
+	PermissionDecisionSurfaceAcp PermissionDecisionSurface = "acp"
 	// The Copilot App client.
 	PermissionDecisionSurfaceCopilotApp PermissionDecisionSurface = "copilot_app"
 	// The non-interactive Copilot CLI prompt mode.
@@ -17728,6 +17737,20 @@ const (
 	PermissionModeSourceSlashCommand PermissionModeSource = "slash_command"
 	// The mode was set at startup by the `defaultPermissionMode` user setting.
 	PermissionModeSourceUserSetting PermissionModeSource = "user_setting"
+)
+
+// Response capability available to the client when it settled a permission request.
+// Experimental: PermissionResponseCapability is part of an experimental API and may change
+// or be removed.
+type PermissionResponseCapability string
+
+const (
+	// The client could return an automated response but could not ask a user.
+	PermissionResponseCapabilityHeadless PermissionResponseCapability = "headless"
+	// The client could ask a user for this decision.
+	PermissionResponseCapabilityInteractive PermissionResponseCapability = "interactive"
+	// The client had no response path available.
+	PermissionResponseCapabilityNone PermissionResponseCapability = "none"
 )
 
 // Allowed values for the `PermissionsConfigureAdditionalContentExclusionPolicyScope`

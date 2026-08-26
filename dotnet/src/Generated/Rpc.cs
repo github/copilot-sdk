@@ -13882,6 +13882,10 @@ public sealed class PermissionDecisionContext
     [JsonPropertyName("outcome")]
     public PermissionDecisionOutcome Outcome { get; set; }
 
+    /// <summary>Whether the responding client could ask a user interactively, was running headlessly, or had no response path. Omit when the client cannot determine this authoritatively.</summary>
+    [JsonPropertyName("responseCapability")]
+    public PermissionResponseCapability? ResponseCapability { get; set; }
+
     /// <summary>Controlled reason or actor responsible for the response.</summary>
     [JsonPropertyName("source")]
     public PermissionDecisionSource Source { get; set; }
@@ -18521,6 +18525,14 @@ public sealed class GitHubTelemetryClientInfo
     /// <summary>Copilot subscription plan, when known.</summary>
     [JsonPropertyName("copilot_plan")]
     public string? CopilotPlan { get; set; }
+
+    /// <summary>Number of logical CPU cores on the host.</summary>
+    [JsonPropertyName("cpu_count")]
+    public long? CpuCount { get; set; }
+
+    /// <summary>Distinct CPU model names for the host, comma-separated.</summary>
+    [JsonPropertyName("cpu_model")]
+    public string? CpuModel { get; set; }
 
     /// <summary>Stable machine identifier for the device.</summary>
     [JsonPropertyName("dev_device_id")]
@@ -27137,6 +27149,72 @@ public readonly struct PermissionDecisionOutcome : IEquatable<PermissionDecision
 }
 
 
+/// <summary>Response capability available to the client when it settled a permission request.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct PermissionResponseCapability : IEquatable<PermissionResponseCapability>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="PermissionResponseCapability"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="PermissionResponseCapability"/>.</param>
+    [JsonConstructor]
+    public PermissionResponseCapability(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="PermissionResponseCapability"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The client could ask a user for this decision.</summary>
+    public static PermissionResponseCapability Interactive { get; } = new("interactive");
+
+    /// <summary>The client could return an automated response but could not ask a user.</summary>
+    public static PermissionResponseCapability Headless { get; } = new("headless");
+
+    /// <summary>The client had no response path available.</summary>
+    public static PermissionResponseCapability None { get; } = new("none");
+
+    /// <summary>Returns a value indicating whether two <see cref="PermissionResponseCapability"/> instances are equivalent.</summary>
+    public static bool operator ==(PermissionResponseCapability left, PermissionResponseCapability right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="PermissionResponseCapability"/> instances are not equivalent.</summary>
+    public static bool operator !=(PermissionResponseCapability left, PermissionResponseCapability right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is PermissionResponseCapability other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(PermissionResponseCapability other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{PermissionResponseCapability}"/> for serializing <see cref="PermissionResponseCapability"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<PermissionResponseCapability>
+    {
+        /// <inheritdoc />
+        public override PermissionResponseCapability Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, PermissionResponseCapability value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PermissionResponseCapability));
+        }
+    }
+}
+
+
 /// <summary>Controlled reason or actor responsible for a permission response.</summary>
 [Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -27234,6 +27312,9 @@ public readonly struct PermissionDecisionSurface : IEquatable<PermissionDecision
 
     /// <summary>The Copilot App client.</summary>
     public static PermissionDecisionSurface CopilotApp { get; } = new("copilot_app");
+
+    /// <summary>An Agent Client Protocol host.</summary>
+    public static PermissionDecisionSurface Acp { get; } = new("acp");
 
     /// <summary>A generic Copilot SDK client.</summary>
     public static PermissionDecisionSurface Sdk { get; } = new("sdk");

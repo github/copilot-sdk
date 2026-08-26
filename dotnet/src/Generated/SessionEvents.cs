@@ -2002,6 +2002,11 @@ public sealed partial class SessionIdleData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("aborted")]
     public bool? Aborted { get; set; }
+
+    /// <summary>The session mode the agent was operating in when it went idle, when the mode is known. Lets turn-scoped consumers distinguish an autopilot continuation boundary (where the agent keeps working after this idle) from a genuine turn completion.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("mode")]
+    public SessionMode? Mode { get; set; }
 }
 
 /// <summary>Session title change payload containing the new display title.</summary>
@@ -9797,6 +9802,70 @@ public readonly struct Verbosity : IEquatable<Verbosity>
     }
 }
 
+/// <summary>The session mode the agent is operating in.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct SessionMode : IEquatable<SessionMode>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="SessionMode"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="SessionMode"/>.</param>
+    [JsonConstructor]
+    public SessionMode(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="SessionMode"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The agent is responding interactively to the user.</summary>
+    public static SessionMode Interactive { get; } = new("interactive");
+
+    /// <summary>The agent is preparing a plan before making changes.</summary>
+    public static SessionMode Plan { get; } = new("plan");
+
+    /// <summary>The agent is working autonomously toward task completion.</summary>
+    public static SessionMode Autopilot { get; } = new("autopilot");
+
+    /// <summary>Returns a value indicating whether two <see cref="SessionMode"/> instances are equivalent.</summary>
+    public static bool operator ==(SessionMode left, SessionMode right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="SessionMode"/> instances are not equivalent.</summary>
+    public static bool operator !=(SessionMode left, SessionMode right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is SessionMode other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(SessionMode other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{SessionMode}"/> for serializing <see cref="SessionMode"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<SessionMode>
+    {
+        /// <inheritdoc />
+        public override SessionMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, SessionMode value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionMode));
+        }
+    }
+}
+
 /// <summary>Who created the schedule: `user` (an explicit user action such as `/every` or `/after`) or `model` (the agent via the `manage_schedule` tool). Gates whether a scheduled skill that opted out of model invocation may fire: only user-created schedules may.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
@@ -10073,70 +10142,6 @@ public readonly struct ModelChangeSource : IEquatable<ModelChangeSource>
         public override void Write(Utf8JsonWriter writer, ModelChangeSource value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ModelChangeSource));
-        }
-    }
-}
-
-/// <summary>The session mode the agent is operating in.</summary>
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct SessionMode : IEquatable<SessionMode>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="SessionMode"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="SessionMode"/>.</param>
-    [JsonConstructor]
-    public SessionMode(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="SessionMode"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>The agent is responding interactively to the user.</summary>
-    public static SessionMode Interactive { get; } = new("interactive");
-
-    /// <summary>The agent is preparing a plan before making changes.</summary>
-    public static SessionMode Plan { get; } = new("plan");
-
-    /// <summary>The agent is working autonomously toward task completion.</summary>
-    public static SessionMode Autopilot { get; } = new("autopilot");
-
-    /// <summary>Returns a value indicating whether two <see cref="SessionMode"/> instances are equivalent.</summary>
-    public static bool operator ==(SessionMode left, SessionMode right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="SessionMode"/> instances are not equivalent.</summary>
-    public static bool operator !=(SessionMode left, SessionMode right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is SessionMode other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(SessionMode other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{SessionMode}"/> for serializing <see cref="SessionMode"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<SessionMode>
-    {
-        /// <inheritdoc />
-        public override SessionMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, SessionMode value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionMode));
         }
     }
 }

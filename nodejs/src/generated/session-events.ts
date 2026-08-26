@@ -164,6 +164,16 @@ export type Verbosity =
   /** A more detailed response was requested. */
   | "high";
 /**
+ * The session mode the agent is operating in
+ */
+export type SessionMode =
+  /** The agent is responding interactively to the user. */
+  | "interactive"
+  /** The agent is preparing a plan before making changes. */
+  | "plan"
+  /** The agent is working autonomously toward task completion. */
+  | "autopilot";
+/**
  * Who created the schedule: `user` (an explicit user action such as `/every` or `/after`) or `model` (the agent via the `manage_schedule` tool). Gates whether a scheduled skill that opted out of model invocation may fire: only user-created schedules may.
  */
 export type ScheduleOrigin =
@@ -219,16 +229,6 @@ export type ModelChangeSource =
   | "automatic"
   /** An SDK or RPC caller selected the model. */
   | "sdk";
-/**
- * The session mode the agent is operating in
- */
-export type SessionMode =
-  /** The agent is responding interactively to the user. */
-  | "interactive"
-  /** The agent is preparing a plan before making changes. */
-  | "plan"
-  /** The agent is working autonomously toward task completion. */
-  | "autopilot";
 /**
  * Permission mode for the session.
  */
@@ -1362,6 +1362,7 @@ export interface IdleData {
    * True when the preceding agentic loop was cancelled via abort signal
    */
   aborted?: boolean;
+  mode?: SessionMode;
 }
 /**
  * Session event "session.title_changed". Session title change payload containing the new display title

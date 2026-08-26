@@ -7169,19 +7169,24 @@ class SessionHandoffData:
 class SessionIdleData:
     "Payload indicating the session is idle with no background agents or attached shell commands in flight"
     aborted: bool | None = None
+    mode: SessionMode | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "SessionIdleData":
         assert isinstance(obj, dict)
         aborted = from_union([from_none, from_bool], obj.get("aborted"))
+        mode = from_union([from_none, lambda x: parse_enum(SessionMode, x)], obj.get("mode"))
         return SessionIdleData(
             aborted=aborted,
+            mode=mode,
         )
 
     def to_dict(self) -> dict:
         result: dict = {}
         if self.aborted is not None:
             result["aborted"] = from_union([from_none, from_bool], self.aborted)
+        if self.mode is not None:
+            result["mode"] = from_union([from_none, lambda x: to_enum(SessionMode, x)], self.mode)
         return result
 
 
