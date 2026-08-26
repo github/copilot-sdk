@@ -1172,9 +1172,8 @@ public final class CopilotClient implements AutoCloseable {
                         return updateSessionOptionsForMode(session, config.getSkipCustomInstructions().orElse(null),
                                 config.getCustomAgentsLocalOnly().orElse(null),
                                 config.getCoauthorEnabled().orElse(null),
-                            config.getManageScheduleEnabled().orElse(null), config.getSandboxConfig(),
-                            config.getIncludedBuiltinSkills())
-                                .thenApply(v -> {
+                                config.getManageScheduleEnabled().orElse(null), config.getSandboxConfig(),
+                                config.getIncludedBuiltinSkills()).thenApply(v -> {
                                     LoggingHelpers.logTiming(LOG, Level.FINE,
                                             "CopilotClient.resumeSession complete. Elapsed={Elapsed}, SessionId="
                                                     + sessionId,
@@ -1199,21 +1198,21 @@ public final class CopilotClient implements AutoCloseable {
     CompletableFuture<Void> updateSessionOptionsForMode(CopilotSession session, Boolean skipCustomInstructions,
             Boolean customAgentsLocalOnly, Boolean coauthorEnabled, Boolean manageScheduleEnabled) {
         return updateSessionOptionsForMode(session, skipCustomInstructions, customAgentsLocalOnly, coauthorEnabled,
-            manageScheduleEnabled, null, null);
-        }
+                manageScheduleEnabled, null, null);
+    }
 
-        CompletableFuture<Void> updateSessionOptionsForMode(CopilotSession session, Boolean skipCustomInstructions,
+    CompletableFuture<Void> updateSessionOptionsForMode(CopilotSession session, Boolean skipCustomInstructions,
             Boolean customAgentsLocalOnly, Boolean coauthorEnabled, Boolean manageScheduleEnabled,
             SandboxConfig sandboxConfig) {
         return updateSessionOptionsForMode(session, skipCustomInstructions, customAgentsLocalOnly, coauthorEnabled,
-            manageScheduleEnabled, sandboxConfig, null);
-        }
+                manageScheduleEnabled, sandboxConfig, null);
+    }
 
-        CompletableFuture<Void> updateSessionOptionsForMode(CopilotSession session, Boolean skipCustomInstructions,
+    CompletableFuture<Void> updateSessionOptionsForMode(CopilotSession session, Boolean skipCustomInstructions,
             Boolean customAgentsLocalOnly, Boolean coauthorEnabled, Boolean manageScheduleEnabled,
             List<String> includedBuiltinSkills) {
         return updateSessionOptionsForMode(session, skipCustomInstructions, customAgentsLocalOnly, coauthorEnabled,
-            manageScheduleEnabled, null, includedBuiltinSkills);
+                manageScheduleEnabled, null, includedBuiltinSkills);
     }
 
     /**
@@ -1237,8 +1236,8 @@ public final class CopilotClient implements AutoCloseable {
      *            caller-supplied value, or {@code null} if not set
      * @param manageScheduleEnabled
      *            caller-supplied value, or {@code null} if not set
-    * @param sandboxConfig
-    *            caller-supplied sandbox configuration, or {@code null} if not set
+     * @param sandboxConfig
+     *            caller-supplied sandbox configuration, or {@code null} if not set
      * @param includedBuiltinSkills
      *            caller-supplied built-in skill allowlist, or {@code null} if not
      *            set

@@ -2825,8 +2825,8 @@ class CopilotClient:
             custom_agents_local_only,
             coauthor_enabled,
             manage_schedule_enabled,
-            sandbox_config,
-            included_builtin_skills,
+            included_builtin_skills=included_builtin_skills,
+            sandbox_config=sandbox_config,
         )
 
         log_timing(
@@ -3475,8 +3475,8 @@ class CopilotClient:
             custom_agents_local_only,
             coauthor_enabled,
             manage_schedule_enabled,
-            sandbox_config,
-            included_builtin_skills,
+            included_builtin_skills=included_builtin_skills,
+            sandbox_config=sandbox_config,
         )
 
         log_timing(
@@ -4532,8 +4532,8 @@ class CopilotClient:
         custom_agents_local_only: bool | None,
         coauthor_enabled: bool | None,
         manage_schedule_enabled: bool | None,
-        sandbox_config: SandboxConfig | None,
         included_builtin_skills: list[str] | None = None,
+        sandbox_config: SandboxConfig | None = None,
     ) -> None:
         """Apply empty-mode safe defaults (or caller-supplied overrides in
         copilot-cli mode) via ``session.options.update`` after create/resume.
