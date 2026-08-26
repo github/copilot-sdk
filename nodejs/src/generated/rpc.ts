@@ -18132,10 +18132,6 @@ export interface SessionOpenOptions {
    */
   includedBuiltinAgents?: string[];
   /**
-   * Built-in skill names to include in this session. When specified, only these runtime-bundled skills are available. Skills from other sources with the same name remain available.
-   */
-  includedBuiltinSkills?: string[];
-  /**
    * Built-in subagent names to exclude from this session. Excluded built-ins are hidden from agent discovery and cannot be dispatched unless a custom agent with the same name is available.
    */
   excludedBuiltinAgents?: string[];
@@ -18177,6 +18173,10 @@ export interface SessionOpenOptions {
    * Additional directories to search for skills.
    */
   skillDirectories?: string[];
+  /**
+   * Built-in skill names to include in this session. When specified, only these runtime-bundled skills are available. Skills from other sources with the same name remain available.
+   */
+  includedBuiltinSkills?: string[];
   /**
    * Skill IDs disabled for this session.
    */
@@ -19553,10 +19553,6 @@ export interface SessionUpdateOptionsParams {
    */
   includedBuiltinAgents?: string[] | null;
   /**
-   * Built-in skill names to include in this session. When specified, only these runtime-bundled skills are available. Skills from other sources with the same name remain available. Set to null to remove the allowlist restriction.
-   */
-  includedBuiltinSkills?: string[] | null;
-  /**
    * Built-in subagent names to exclude from this session. Excluded built-ins are hidden from agent discovery and cannot be dispatched unless a custom agent with the same name is available.
    */
   excludedBuiltinAgents?: string[];
@@ -19595,6 +19591,10 @@ export interface SessionUpdateOptionsParams {
    * Additional directories to search for skills.
    */
   skillDirectories?: string[];
+  /**
+   * Built-in skill names to include in this session. When specified, only these runtime-bundled skills are available. Skills from other sources with the same name remain available. Set to null to remove the allowlist restriction.
+   */
+  includedBuiltinSkills?: string[] | null;
   /**
    * Skill IDs that should be excluded from this session.
    */
