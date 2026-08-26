@@ -22,7 +22,7 @@ use github_copilot_sdk::session_events::{
 };
 use github_copilot_sdk::types::{
     CanvasProviderIdentity, CloudSessionOptions, CloudSessionRepository, CommandContext,
-    CommandDefinition, CommandHandler, DeliveryMode, DisableBypassPermissionsMode,
+    CommandDefinition, CommandHandler, DeliveryMode, DisableBypassPermissionsModes,
     ElicitationRequest, ElicitationResult, ExitPlanModeData, ExtensionInfo, ManagedSettings,
     ManagedSettingsPermissions, MessageOptions, PermissionDecisionContext,
     PermissionDecisionOutcome, PermissionDecisionSource, PermissionDecisionSurface, RequestId,
@@ -790,13 +790,18 @@ async fn create_session_sends_canvas_wire_fields() {
 
 #[test]
 fn managed_bypass_permissions_modes_use_wire_values() {
+    let known = ManagedSettingsPermissions::default()
+        .with_disable_bypass_permissions_mode(DisableBypassPermissionsModes::ALLOW_AUTO_ONLY);
     assert_eq!(
-        serde_json::to_value(DisableBypassPermissionsMode::Disable).unwrap(),
-        serde_json::json!("disable")
+        serde_json::to_value(known).unwrap()["disableBypassPermissionsMode"],
+        "allow-auto-only"
     );
+
+    let future = ManagedSettingsPermissions::default()
+        .with_disable_bypass_permissions_mode("future-fail-closed-mode");
     assert_eq!(
-        serde_json::to_value(DisableBypassPermissionsMode::AllowAutoOnly).unwrap(),
-        serde_json::json!("allow-auto-only")
+        serde_json::to_value(future).unwrap()["disableBypassPermissionsMode"],
+        "future-fail-closed-mode"
     );
 }
 
@@ -808,7 +813,7 @@ async fn create_and_resume_send_managed_settings_permissions() {
 
     let managed = ManagedSettings::default().with_permissions(
         ManagedSettingsPermissions::default()
-            .with_disable_bypass_permissions_mode(DisableBypassPermissionsMode::AllowAutoOnly)
+            .with_disable_bypass_permissions_mode(DisableBypassPermissionsModes::ALLOW_AUTO_ONLY)
             .with_deny(vec!["shell(rm*)".to_string()])
             .with_ask(vec!["write".to_string()])
             .with_allow(vec![]),

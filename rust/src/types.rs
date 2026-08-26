@@ -1760,16 +1760,14 @@ pub struct CopilotExpAssignmentResponse {
     pub assignment_context: String,
 }
 
-/// Controls whether bypass-permissions mode is available in a managed session.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-#[non_exhaustive]
-pub enum DisableBypassPermissionsMode {
-    /// Turn off bypass-permissions mode.
-    Disable,
+/// Well-known managed bypass-permissions policies.
+pub struct DisableBypassPermissionsModes;
+
+impl DisableBypassPermissionsModes {
+    /// Turn off bypass-permissions mode entirely.
+    pub const DISABLE: &'static str = "disable";
     /// Permit automatic bypass but block full allow-all.
-    #[serde(rename = "allow-auto-only")]
-    AllowAutoOnly,
+    pub const ALLOW_AUTO_ONLY: &'static str = "allow-auto-only";
 }
 
 /// Permission rules injected as a managed-settings layer at session bootstrap.
@@ -1784,10 +1782,11 @@ pub enum DisableBypassPermissionsMode {
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct ManagedSettingsPermissions {
-    /// Restricts bypass-permissions mode for the session. Serialized as
-    /// `disableBypassPermissionsMode`.
+    /// Restricts bypass-permissions mode for the session. See
+    /// [`DisableBypassPermissionsModes`] for well-known values. Unknown values
+    /// are forwarded so newer runtime policies fail closed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub disable_bypass_permissions_mode: Option<DisableBypassPermissionsMode>,
+    pub disable_bypass_permissions_mode: Option<String>,
     /// Tool-permission patterns that are always denied.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub deny: Option<Vec<String>>,
@@ -1801,11 +1800,8 @@ pub struct ManagedSettingsPermissions {
 
 impl ManagedSettingsPermissions {
     /// Sets the bypass-permissions policy for this managed layer.
-    pub fn with_disable_bypass_permissions_mode(
-        mut self,
-        value: DisableBypassPermissionsMode,
-    ) -> Self {
-        self.disable_bypass_permissions_mode = Some(value);
+    pub fn with_disable_bypass_permissions_mode(mut self, value: impl Into<String>) -> Self {
+        self.disable_bypass_permissions_mode = Some(value.into());
         self
     }
 
