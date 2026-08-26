@@ -8,7 +8,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.github.copilot.generated.rpc.DisableBypassPermissionsMode;
 import com.github.copilot.rpc.ManagedSettings;
 import com.github.copilot.rpc.ManagedSettingsPermissions;
 import com.github.copilot.rpc.PermissionRequestResult;
@@ -23,7 +22,7 @@ class ManagedSettingsTest {
     @Test
     void forwardsManagedSettingsOnCreateAndResume() throws Exception {
         var permissions = new ManagedSettingsPermissions()
-                .setDisableBypassPermissionsMode(DisableBypassPermissionsMode.DISABLE).setDeny(List.of("Shell(rm *)"))
+                .setDisableBypassPermissionsMode("disable").setDeny(List.of("Shell(rm *)"))
                 .setAsk(List.of("Domain(publish.example)")).setAllow(List.of("Read(**)"));
         var managedSettings = new ManagedSettings().setPermissions(permissions);
 
