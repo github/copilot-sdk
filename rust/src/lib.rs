@@ -2157,13 +2157,13 @@ impl Client {
     /// started with `COPILOT_CONNECTION_TOKEN`.
     async fn connect_handshake(&self) -> Result<Option<u32>> {
         let params = crate::generated::api_types::ConnectRequest {
-            client_info: None,
             token: self.inner.effective_connection_token.clone(),
             enable_git_hub_telemetry_forwarding: self
                 .inner
                 .on_github_telemetry
                 .is_some()
                 .then_some(true),
+            ..Default::default()
         };
         let value = self
             .call(
