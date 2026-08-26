@@ -54,6 +54,6 @@ conversations:
               arguments: '{"path":"${workdir}/new_file.txt"}'
       - role: tool
         tool_call_id: toolcall_2
-        content: 1. Created by test
+        content: Created by test
       - role: assistant
         content: ✓ Done! Created `new_file.txt` with content "Created by test" and confirmed the content matches.

@@ -56,10 +56,7 @@ conversations:
               arguments: '{"path":"${workdir}/edit_me.txt"}'
       - role: tool
         tool_call_id: toolcall_2
-        content: |-
-          1. Hi Universe
-          2. Goodbye World
-          3.
+        content: "Hi Universe\nGoodbye World\n"
       - role: assistant
         content: |-
           Done! The file now contains:
