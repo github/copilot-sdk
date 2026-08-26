@@ -6,19 +6,24 @@ use async_trait::async_trait;
 use base64::Engine;
 use bytes::Bytes;
 use github_copilot_sdk::handler::ApproveAllHandler;
+use github_copilot_sdk::session_events::{SessionEventType, ToolExecutionCompleteData};
 use github_copilot_sdk::{
     Attachment, Client, CopilotHttpRequest, CopilotHttpResponse, CopilotRequestContext,
     CopilotRequestError, CopilotRequestHandler, MessageOptions, ProviderConfig,
     ResumeSessionConfig, SessionConfig, SessionLimitsConfig, Transport,
 };
+use github_copilot_sdk::{
+    SandboxConfig, SandboxConfigUserPolicy, SandboxConfigUserPolicyFilesystem,
+};
 use http::{HeaderMap, HeaderValue};
 use parking_lot::Mutex;
 use serde_json::{Value, json};
 
+use super::support::collect_until_idle;
 use super::support::{DEFAULT_TEST_TOKEN, E2eContext, with_e2e_context_no_snapshot};
 
 static E2E: super::support::SharedE2eGroup =
-    super::support::SharedE2eGroup::standard("session_config", 4);
+    super::support::SharedE2eGroup::standard("session_config", if cfg!(windows) { 4 } else { 5 });
 
 const SYNTHETIC_TEXT: &str = "OK from the synthetic stream.";
 const CITATION_PROMPT: &str = "Summarize the attached PDF with citations enabled.";
@@ -87,6 +92,141 @@ fn task_agent_types(exchange: &Value) -> Vec<String> {
             .collect();
     }
     panic!("expected task tool in request");
+}
+
+fn sandbox_config(enabled: bool, denied_path: &str) -> SandboxConfig {
+    SandboxConfig {
+        enabled,
+        user_policy: Some(SandboxConfigUserPolicy {
+            filesystem: Some(SandboxConfigUserPolicyFilesystem {
+                denied_paths: Some(vec![denied_path.to_string()]),
+                ..Default::default()
+            }),
+            ..Default::default()
+        }),
+        ..Default::default()
+    }
+}
+
+async fn assert_next_shell_execution_result(
+    session: &github_copilot_sdk::session::Session,
+    prompt: &str,
+    expected: &str,
+) {
+    let events = session.subscribe();
+    session
+        .send_and_wait(MessageOptions::new(prompt).with_wait_timeout(Duration::from_secs(120)))
+        .await
+        .expect("send_and_wait");
+
+    let observed = collect_until_idle(events).await;
+    let completion = observed
+        .iter()
+        .find(|event| event.parsed_type() == SessionEventType::ToolExecutionComplete)
+        .and_then(|event| event.typed_data::<ToolExecutionCompleteData>())
+        .expect("tool.execution_complete after sandbox shell prompt");
+    let content = &completion
+        .result
+        .as_ref()
+        .expect("sandbox shell result")
+        .content;
+    assert!(
+        content.contains(expected),
+        "expected sandbox shell result to contain {expected:?}, got {content:?}"
+    );
+}
+
+#[tokio::test]
+async fn should_apply_sandbox_config_on_create_and_resume() {
+    if cfg!(windows) {
+        return;
+    }
+
+    super::support::with_shared_e2e_context(
+        &E2E,
+        "session_config",
+        "should_apply_sandbox_config_on_create_and_resume",
+        |ctx| {
+            Box::pin(async move {
+                const ENABLED_PROBE: &str = "/var/tmp/sandbox-create-enabled.txt";
+                const DISABLED_PROBE: &str = "/var/tmp/sandbox-create-disabled.txt";
+                const RESUME_PROBE: &str = "/var/tmp/sandbox-resume-enabled.txt";
+                const PROBES: [&str; 3] = [ENABLED_PROBE, DISABLED_PROBE, RESUME_PROBE];
+
+                for probe in PROBES {
+                    let _ = std::fs::remove_file(probe);
+                }
+
+                ctx.set_default_copilot_user();
+                let client = ctx.start_client().await;
+                let mut enabled_config = ctx
+                    .approve_all_session_config()
+                    .with_working_directory(ctx.work_dir());
+                enabled_config.sandbox_config = Some(sandbox_config(true, ENABLED_PROBE));
+                let enabled_session = client
+                    .create_session(enabled_config)
+                    .await
+                    .expect("create sandbox-enabled session");
+                assert_next_shell_execution_result(
+                    &enabled_session,
+                    "Check sandbox access for sandbox-create-enabled.txt.",
+                    "sandbox-blocked",
+                )
+                .await;
+
+                let mut disabled_config = ctx
+                    .approve_all_session_config()
+                    .with_working_directory(ctx.work_dir());
+                disabled_config.sandbox_config = Some(sandbox_config(false, DISABLED_PROBE));
+                let disabled_session = client
+                    .create_session(disabled_config)
+                    .await
+                    .expect("create sandbox-disabled session");
+                assert_next_shell_execution_result(
+                    &disabled_session,
+                    "Check sandbox access for sandbox-create-disabled.txt.",
+                    "sandbox-accessible",
+                )
+                .await;
+
+                let mut resume_config = ResumeSessionConfig::new(disabled_session.id().clone())
+                    .with_permission_handler(Arc::new(ApproveAllHandler))
+                    .with_github_token(DEFAULT_TEST_TOKEN)
+                    .with_working_directory(ctx.work_dir());
+                resume_config.sandbox_config = Some(sandbox_config(true, RESUME_PROBE));
+                let resumed_session = client
+                    .resume_session(resume_config)
+                    .await
+                    .expect("resume sandbox-enabled session");
+                assert_next_shell_execution_result(
+                    &resumed_session,
+                    "Check sandbox access for sandbox-resume-enabled.txt.",
+                    "sandbox-blocked",
+                )
+                .await;
+                assert_eq!(resumed_session.id(), disabled_session.id());
+
+                resumed_session
+                    .disconnect()
+                    .await
+                    .expect("disconnect resumed session");
+                disabled_session
+                    .disconnect()
+                    .await
+                    .expect("disconnect disabled session");
+                enabled_session
+                    .disconnect()
+                    .await
+                    .expect("disconnect enabled session");
+                client.stop().await.expect("stop client");
+
+                for probe in PROBES {
+                    let _ = std::fs::remove_file(probe);
+                }
+            })
+        },
+    )
+    .await;
 }
 
 #[tokio::test]
