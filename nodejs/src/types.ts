@@ -88,6 +88,7 @@ export type {
     PermissionDecisionOutcome,
     PermissionDecisionSource,
     PermissionDecisionSurface,
+    PermissionResponseCapability,
 } from "./generated/rpc.js";
 export type { CopilotRequestContext } from "./copilotRequestHandler.js";
 export {

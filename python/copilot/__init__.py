@@ -100,6 +100,7 @@ from .generated.rpc import (
     PermissionDecisionOutcome,
     PermissionDecisionSource,
     PermissionDecisionSurface,
+    PermissionResponseCapability,
 )
 from .generated.session_events import (
     PermissionRequest,
@@ -324,6 +325,7 @@ __all__ = [
     "PermissionDecisionOutcome",
     "PermissionDecisionSource",
     "PermissionDecisionSurface",
+    "PermissionResponseCapability",
     "PingResponse",
     "PostToolUseHandler",
     "PostToolUseFailureHandler",

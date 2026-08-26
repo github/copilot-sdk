@@ -135,6 +135,7 @@ export type {
     PermissionDecisionOutcome,
     PermissionDecisionSource,
     PermissionDecisionSurface,
+    PermissionResponseCapability,
     ProviderConfig,
     ProviderModelConfig,
     ProviderTokenArgs,

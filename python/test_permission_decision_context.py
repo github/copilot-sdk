@@ -1,5 +1,6 @@
 from unittest.mock import AsyncMock, MagicMock
 
+from copilot import PermissionResponseCapability
 from copilot.rpc import (
     PermissionDecisionApproveOnce,
     PermissionDecisionContext,
@@ -14,6 +15,10 @@ from copilot.session import (
     create_attributed_permission_result,
 )
 from copilot.session_events import PermissionRequestRead
+
+
+def test_permission_response_capability_is_exported_from_package_root() -> None:
+    assert PermissionResponseCapability.INTERACTIVE.value == "interactive"
 
 
 def _context() -> PermissionDecisionContext:
