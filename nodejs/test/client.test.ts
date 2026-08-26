@@ -15,6 +15,7 @@ import {
     type GitHubTelemetryNotification,
     type ManagedSettings,
     type ModelInfo,
+    type SessionLifecycleEventType,
 } from "../src/index.js";
 import { CopilotSession } from "../src/session.js";
 import type { WatchSharedSessionParams, WatchSharedSessionResult } from "../src/generated/rpc.js";
@@ -1312,6 +1313,26 @@ describe("CopilotClient", () => {
         expect(JSON.stringify(result)).not.toMatch(
             /viewerId|baseUrl|wps|lane|channel|credential|token/i
         );
+    });
+
+    it("pins the complete runtime lifecycle event type set", () => {
+        const eventTypes = {
+            "session.created": true,
+            "session.deleted": true,
+            "session.updated": true,
+            "session.foreground": true,
+            "session.background": true,
+            "session.disconnected": true,
+        } satisfies Record<SessionLifecycleEventType, true>;
+
+        expect(Object.keys(eventTypes)).toEqual([
+            "session.created",
+            "session.deleted",
+            "session.updated",
+            "session.foreground",
+            "session.background",
+            "session.disconnected",
+        ]);
     });
 
     it("registers no gitHubTelemetry handler when onGitHubTelemetry is omitted", () => {

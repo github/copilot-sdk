@@ -5917,8 +5917,8 @@ mod tests {
         InfiniteSessionConfig, LargeToolOutputConfig, McpServerConfig, McpStdioServerConfig,
         MemoryConfiguration, NamedProviderConfig, ProviderConfig, ProviderModelConfig,
         ReasoningSummary, ResumeSessionConfig, SessionConfig, SessionEvent, SessionId,
-        SystemMessageConfig, Tool, ToolBinaryResult, ToolResult, ToolResultExpanded,
-        ToolResultResponse, ensure_attachment_display_names,
+        SessionLifecycleEventType, SystemMessageConfig, Tool, ToolBinaryResult, ToolResult,
+        ToolResultExpanded, ToolResultResponse, ensure_attachment_display_names,
     };
     use crate::generated::session_events::TypedSessionEvent;
 
@@ -7306,6 +7306,38 @@ mod tests {
         let _ = ConnectionState::Connecting;
         let _ = ConnectionState::Connected;
         let _ = ConnectionState::Error;
+    }
+
+    #[test]
+    fn session_lifecycle_event_types_match_runtime_contract() {
+        let event_types = [
+            SessionLifecycleEventType::Created,
+            SessionLifecycleEventType::Deleted,
+            SessionLifecycleEventType::Updated,
+            SessionLifecycleEventType::Foreground,
+            SessionLifecycleEventType::Background,
+            SessionLifecycleEventType::Disconnected,
+        ];
+        let wire_names = event_types.map(|event_type| match event_type {
+            SessionLifecycleEventType::Created => "session.created",
+            SessionLifecycleEventType::Deleted => "session.deleted",
+            SessionLifecycleEventType::Updated => "session.updated",
+            SessionLifecycleEventType::Foreground => "session.foreground",
+            SessionLifecycleEventType::Background => "session.background",
+            SessionLifecycleEventType::Disconnected => "session.disconnected",
+        });
+
+        assert_eq!(
+            wire_names,
+            [
+                "session.created",
+                "session.deleted",
+                "session.updated",
+                "session.foreground",
+                "session.background",
+                "session.disconnected",
+            ]
+        );
     }
 
     #[test]
