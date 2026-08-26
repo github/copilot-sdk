@@ -80,16 +80,16 @@ use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
+pub use github_token::{
+    GitHubToken, GitHubTokenProvider, GitHubTokenProviderArgs, GitHubTokenProviderResult,
+    GitHubTokenRequestReason,
+};
 /// Re-export of [`indexmap::IndexMap`], used for order-preserving maps in the
 /// public API (e.g. [`Tool::parameters`](types::Tool::parameters) and
 /// `SessionConfig::mcp_servers`) so serialized key order stays deterministic.
 pub use indexmap::IndexMap;
 // JSON-RPC wire types are internal transport details.
 // External callers interact via Client/Session methods, not raw RPC.
-pub use github_token::{
-    GitHubToken, GitHubTokenProvider, GitHubTokenProviderArgs, GitHubTokenProviderResult,
-    GitHubTokenRequestReason,
-};
 pub(crate) use jsonrpc::{
     JsonRpcClient, JsonRpcError, JsonRpcNotification, JsonRpcRequest, JsonRpcResponse, error_codes,
 };
