@@ -94,7 +94,7 @@ jobs:
       post_prepare_commit: ${{ steps.release-identity.outputs.post_prepare_commit }}
       docs_commit: ${{ steps.update-docs.outputs.docs_commit_sha }}
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           token: ${{ secrets.JAVA_RELEASE_TOKEN }}
@@ -106,7 +106,7 @@ jobs:
 
       - uses: ./.github/actions/setup-copilot
 
-      - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
           java-version: "25"
           distribution: "microsoft"
@@ -195,19 +195,19 @@ jobs:
         shell: pwsh
         working-directory: ./java
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.prepare-release.outputs.release_tag }}
           fetch-depth: 1
           persist-credentials: false
 
-      - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
           java-version: "25"
           distribution: "microsoft"
           cache: "maven"
 
-      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
         with:
           node-version: 22
 
@@ -252,19 +252,19 @@ jobs:
         shell: bash
         working-directory: ./java
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.prepare-release.outputs.release_tag }}
           fetch-depth: 1
           persist-credentials: false
 
-      - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
           java-version: "25"
           distribution: "microsoft"
           cache: "maven"
 
-      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
         with:
           node-version: 22
 
@@ -314,7 +314,7 @@ jobs:
       version: ${{ needs.prepare-release.outputs.release_version }}
       published: ${{ steps.publish-maven.outcome == 'success' }}
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.prepare-release.outputs.release_tag }}
           fetch-depth: 1
@@ -322,7 +322,7 @@ jobs:
 
       - uses: ./.github/actions/setup-copilot
 
-      - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
           java-version: "25"
           distribution: "microsoft"
@@ -333,16 +333,16 @@ jobs:
           gpg-private-key: ${{ secrets.JAVA_GPG_SECRET_KEY }}
           gpg-passphrase: JAVA_GPG_PASSPHRASE
 
-      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
         with:
           node-version: 22
 
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: java-native-win32-x64-release-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/java-native-win32-x64
 
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: java-native-darwin-arm64-release-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/java-native-darwin-arm64
@@ -434,7 +434,7 @@ jobs:
         shell: bash
         working-directory: ./java
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           token: ${{ secrets.JAVA_RELEASE_TOKEN }}
