@@ -54,6 +54,7 @@ impl PermissionHandler for ContextualApproveHandler {
     ) -> PermissionResult {
         PermissionResult::approve_once().with_context(PermissionDecisionContext {
             outcome: PermissionDecisionOutcome::PromptedUser,
+            response_capability: None,
             source: PermissionDecisionSource::HumanResponse,
             surface: PermissionDecisionSurface::CopilotApp,
         })

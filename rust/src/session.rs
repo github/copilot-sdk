@@ -2748,6 +2748,7 @@ mod tests {
     fn attribution_context() -> PermissionDecisionContext {
         PermissionDecisionContext {
             outcome: PermissionDecisionOutcome::AutoApproved,
+            response_capability: None,
             source: PermissionDecisionSource::AssistedApproval,
             surface: PermissionDecisionSurface::CopilotApp,
         }
@@ -2836,6 +2837,7 @@ mod tests {
             .with_context(attribution_context())
             .with_context(PermissionDecisionContext {
                 outcome: PermissionDecisionOutcome::PromptedUser,
+                response_capability: None,
                 source: PermissionDecisionSource::HumanResponse,
                 surface: PermissionDecisionSurface::Sdk,
             });
