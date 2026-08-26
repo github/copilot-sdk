@@ -208,9 +208,9 @@ If none succeeds, startup fails. The PATH fallback does not claim to support eve
 
 ### Current platform scope
 
-The platform detector recognizes the 8 classifiers listed in this ADR. The Maven build binds native packaging only for a host matching an implemented classifier. Windows x64 hosts package `win32-x64` automatically. Linux x64 glibc hosts can opt in with `copilot.native.libc=glibc`. The `inprocess` test profile selects the matching implemented classifier automatically on both hosts. Every path validates the host before downloading or packaging native files. Linux x64 musl and other unsupported hosts build only the OS-neutral placeholder, sources, and Javadoc artifacts unless they explicitly request in-process tests, which fail during host validation. Additional classifier artifacts remain follow-up work.
+The platform detector recognizes the 8 classifiers listed in this ADR. The Maven build binds native packaging only for a host matching an implemented classifier. Windows x64 hosts package `win32-x64` automatically, Apple Silicon macOS hosts package `darwin-arm64` automatically, and Linux x64 glibc hosts can opt in with `copilot.native.libc=glibc`. The `inprocess` test profile selects the matching implemented classifier automatically on all three hosts. Every path validates the host before downloading or packaging native files. Linux x64 musl and other unsupported hosts build only the OS-neutral placeholder, sources, and Javadoc artifacts unless they explicitly request in-process tests, which fail during host validation. Additional classifier artifacts remain follow-up work.
 
-Maven Central release and snapshot workflows build the Windows classifier on Windows and the Linux classifier on Ubuntu from the same immutable source. The Windows job uploads only a verified `win32-x64` classifier and checksum manifest. The Ubuntu job verifies and attaches that classifier, builds `linux-x64` with the glibc opt-in, and performs the only Maven deployment. Release signing therefore covers the neutral artifacts and both classifiers in one deployment.
+Maven Central release and snapshot workflows build the Windows classifier on Windows, the Darwin classifier on Apple Silicon macOS, and the Linux classifier on Ubuntu from the same immutable source. The Windows and macOS jobs each upload only their verified classifier and checksum manifest. The Ubuntu job verifies and attaches both classifiers, builds `linux-x64` with the glibc opt-in, and performs the only Maven deployment. Release signing therefore covers the neutral artifacts and all three classifiers in one deployment.
 
 ## Binding technology: JNA over Panama FFM
 
@@ -362,7 +362,7 @@ The pattern follows DJL's `LibUtils.loadLibrary()` approach: detect the platform
   3. Extracts `runtime.node` and the transitional CLI entrypoint into `~/.copilot/runtime-cache/` if valid cached files are not already present.
   4. Loads it via [JNA](#references) using the C ABI entry points, per the [binding technology decision](#binding-technology-jna-over-panama-ffm) above. The JNA-specific code is confined behind an internal binding interface to preserve a future FFM migration path.
 * A validated supported-host profile fetches the pinned matching `@github/copilot-<classifier>` npm package, verifies its SHA-512 integrity from `nodejs/package-lock.json`, and packages the version-matched runtime and CLI files.
-* The current release work publishes the `linux-x64` and `win32-x64` classifiers. The planned classifier set expands to the other detected platforms.
+* The current release work publishes the `linux-x64`, `win32-x64`, and `darwin-arm64` classifiers. The planned classifier set expands to the other detected platforms.
 * Adding an implemented platform requires validated host activation, a profile that supplies the classifier and platform CLI filename, and lifecycle bindings for the shared host validation, fetch, script test, package, and verification executions.
 * `cli-native.node` is not bundled. It provides terminal UI features that are irrelevant to the Java SDK's programmatic API surface.
 

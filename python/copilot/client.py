@@ -248,6 +248,16 @@ def _capi_session_options_to_wire(options: CapiSessionOptions) -> dict[str, Any]
     return wire
 
 
+class DisableBypassPermissionsModes:
+    """Well-known managed bypass-permissions policies."""
+
+    DISABLE: ClassVar[str] = "disable"
+    """Turn off bypass-permissions mode entirely."""
+
+    ALLOW_AUTO_ONLY: ClassVar[str] = "allow-auto-only"
+    """Permit automatic bypass but block full allow-all."""
+
+
 @dataclass
 class ManagedSettingsPermissions:
     """Permissions-only managed policy injected via :class:`ManagedSettings`.
@@ -257,9 +267,10 @@ class ManagedSettingsPermissions:
     rules are rejected by the runtime at session creation.
     """
 
-    disable_bypass_permissions_mode: Literal["disable"] | None = None
-    """When ``"disable"``, turns off bypass-permissions ("yolo") mode for the
-    session. Deny-wins: no other layer can re-enable it. Sent on the wire as
+    disable_bypass_permissions_mode: str | None = None
+    """Restricts bypass-permissions mode for the session. See
+    :class:`DisableBypassPermissionsModes` for well-known values. Unknown values
+    are forwarded so newer runtime policies fail closed. Sent on the wire as
     ``disableBypassPermissionsMode``."""
     deny: list[str] | None = None
     """Operations that must always be denied. Unioned across managed layers."""
@@ -2143,6 +2154,7 @@ class CopilotClient:
         enable_host_git_operations: bool | None = None,
         enable_session_store: bool | None = None,
         enable_skills: bool | None = None,
+        included_builtin_skills: list[str] | None = None,
         skill_directories: list[str] | None = None,
         plugin_directories: list[str] | None = None,
         instruction_directories: list[str] | None = None,
@@ -2814,6 +2826,7 @@ class CopilotClient:
             coauthor_enabled,
             manage_schedule_enabled,
             sandbox_config,
+            included_builtin_skills,
         )
 
         log_timing(
@@ -2877,6 +2890,7 @@ class CopilotClient:
         enable_host_git_operations: bool | None = None,
         enable_session_store: bool | None = None,
         enable_skills: bool | None = None,
+        included_builtin_skills: list[str] | None = None,
         skill_directories: list[str] | None = None,
         plugin_directories: list[str] | None = None,
         instruction_directories: list[str] | None = None,
@@ -3462,6 +3476,7 @@ class CopilotClient:
             coauthor_enabled,
             manage_schedule_enabled,
             sandbox_config,
+            included_builtin_skills,
         )
 
         log_timing(
@@ -4518,6 +4533,7 @@ class CopilotClient:
         coauthor_enabled: bool | None,
         manage_schedule_enabled: bool | None,
         sandbox_config: SandboxConfig | None,
+        included_builtin_skills: list[str] | None = None,
     ) -> None:
         """Apply empty-mode safe defaults (or caller-supplied overrides in
         copilot-cli mode) via ``session.options.update`` after create/resume.
@@ -4533,6 +4549,7 @@ class CopilotClient:
             custom_agents_local_only,
             coauthor_enabled,
             manage_schedule_enabled,
+            included_builtin_skills,
         )
         if patch is None and sandbox_config is None:
             return
@@ -4553,6 +4570,9 @@ class CopilotClient:
                 for p in patch["installedPlugins"]
             ]
         params.sandbox_config = sandbox_config
+        if "includedBuiltinSkills" in patch:
+            skills = patch["includedBuiltinSkills"]
+            params.included_builtin_skills = list(skills) if skills is not None else None
 
         try:
             await session.rpc.options.update(params)

@@ -17,7 +17,7 @@ const runtimeContent = 'runtime content';
 const cliContent = 'cli content';
 const scriptPath = fileURLToPath(new URL('./fetch-native.mjs', import.meta.url));
 
-for (const classifier of ['linux-x64', 'win32-x64']) {
+for (const classifier of ['linux-x64', 'win32-x64', 'darwin-arm64']) {
   test(`${classifier}: missing CLI does not use incremental fast path`, (t) => {
     const fixture = createFixture(t, classifier);
     fs.rmSync(fixture.cliPath);

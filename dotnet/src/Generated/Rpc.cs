@@ -61,10 +61,35 @@ internal sealed class ConnectResult
     public string Version { get; set; } = string.Empty;
 }
 
+/// <summary>Identity of the integrating host, declared once on the `server.connect` handshake so telemetry from this connection is attributed to a single, consistent surface. All fields are optional; omit them to keep the default attribution.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class ConnectClientInfo
+{
+    /// <summary>Name of the host editor, e.g. `"vscode"`.</summary>
+    [JsonPropertyName("editorName")]
+    public string? EditorName { get; set; }
+
+    /// <summary>Version of the host editor, e.g. `"1.124.2"`. Ignored unless it looks like a version string.</summary>
+    [JsonPropertyName("editorVersion")]
+    public string? EditorVersion { get; set; }
+
+    /// <summary>Name of the Copilot extension within the host, e.g. `"copilot-chat"`.</summary>
+    [JsonPropertyName("extensionName")]
+    public string? ExtensionName { get; set; }
+
+    /// <summary>Version of the Copilot extension within the host, e.g. `"0.54.0"`. Ignored unless it looks like a version string.</summary>
+    [JsonPropertyName("extensionVersion")]
+    public string? ExtensionVersion { get; set; }
+}
+
 /// <summary>Connection-level opt-ins for the `server.connect` handshake. Transport authentication is consumed by the native protocol boundary before dispatch.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class ConnectRequest
 {
+    /// <summary>Identity of the integrating host. Optional; omit it to keep the default attribution.</summary>
+    [JsonPropertyName("clientInfo")]
+    public ConnectClientInfo? ClientInfo { get; set; }
+
     /// <summary>Opt this connection in to GitHub telemetry forwarding for its lifetime. When set, the runtime forwards every internal telemetry event it emits — across all sessions, plus sessionless events — to this connection over the `gitHubTelemetry.event` notification. Regular events are also written to the runtime's normal GitHub/CTS path (dual-write); host-only compatibility events are forward-only and intentionally skip that path. Intended for first-party hosts that re-emit the events into their own telemetry stores. Both unrestricted and restricted events are forwarded, each tagged with a `restricted` discriminator; a backstop drops restricted events when restricted telemetry is disabled — using the process-global gate for ordinary events and an explicit session-scoped decision for host-only events.</summary>
     [JsonPropertyName("enableGitHubTelemetryForwarding")]
     public bool? EnableGitHubTelemetryForwarding { get; set; }
@@ -282,6 +307,19 @@ public sealed class ModelCapabilities
     public ModelCapabilitiesSupports? Supports { get; set; }
 }
 
+/// <summary>A service-published message about a model, carrying a stable machine-readable code alongside human-readable text.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ModelMessage
+{
+    /// <summary>Stable machine-readable identifier for the message, such as `client_version_deprecated`. Hosts can key custom presentation off this; unrecognized codes should fall back to displaying `message`.</summary>
+    [JsonPropertyName("code")]
+    public string Code { get; set; } = string.Empty;
+
+    /// <summary>Human-readable message text intended for display to the user.</summary>
+    [JsonPropertyName("message")]
+    public string Message { get; set; } = string.Empty;
+}
+
 /// <summary>Policy state (if applicable).</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class ModelPolicy
@@ -293,6 +331,15 @@ public sealed class ModelPolicy
     /// <summary>Usage terms or conditions for this model.</summary>
     [JsonPropertyName("terms")]
     public string? Terms { get; set; }
+}
+
+/// <summary>Service-published warning text that hosts should display when presenting a model.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ModelWarningText
+{
+    /// <summary>Data-retention warning for the model. The text may contain Markdown links and should be rendered as Markdown when supported.</summary>
+    [JsonPropertyName("dataRetention")]
+    public string? DataRetention { get; set; }
 }
 
 /// <summary>Copilot model metadata, including identifier, display name, capabilities, policy, billing, reasoning efforts, and picker categories.</summary>
@@ -314,6 +361,10 @@ public sealed class Model
     /// <summary>Model identifier (e.g., "claude-sonnet-4.5").</summary>
     [JsonPropertyName("id")]
     public string Id { get; set; } = string.Empty;
+
+    /// <summary>Informational notices the service published for this model, such as an upcoming change or a recommended alternative. Present only when the service published at least one notice. Hosts should surface these without implying anything is wrong with the model.</summary>
+    [JsonPropertyName("infoMessages")]
+    public IList<ModelMessage>? InfoMessages { get; set; }
 
     /// <summary>Model capability category for grouping in the model picker.</summary>
     [JsonPropertyName("modelPickerCategory")]
@@ -338,6 +389,14 @@ public sealed class Model
     /// <summary>Supported reasoning effort levels (only present if model supports reasoning effort).</summary>
     [JsonPropertyName("supportedReasoningEfforts")]
     public IList<string>? SupportedReasoningEfforts { get; set; }
+
+    /// <summary>Warnings the service published for this model, such as a deprecated client version. Present only when the service published at least one warning. The model remains usable; hosts should surface these as advisory rather than blocking.</summary>
+    [JsonPropertyName("warningMessages")]
+    public IList<ModelMessage>? WarningMessages { get; set; }
+
+    /// <summary>Warning text the service requires hosts to surface for this model. Present only when the service published at least one warning.</summary>
+    [JsonPropertyName("warningText")]
+    public ModelWarningText? WarningText { get; set; }
 }
 
 /// <summary>List of Copilot models available to the resolved user, including capabilities and billing metadata.</summary>
@@ -491,6 +550,7 @@ internal sealed class AccountGetQuotaRequest
 [JsonDerivedType(typeof(AuthInfoHmac), "hmac")]
 [JsonDerivedType(typeof(AuthInfoEnv), "env")]
 [JsonDerivedType(typeof(AuthInfoToken), "token")]
+[JsonDerivedType(typeof(AuthInfoTokenProvider), "token-provider")]
 [JsonDerivedType(typeof(AuthInfoCopilotApiToken), "copilot-api-token")]
 [JsonDerivedType(typeof(AuthInfoUser), "user")]
 [JsonDerivedType(typeof(AuthInfoGhCli), "gh-cli")]
@@ -898,9 +958,37 @@ public partial class AuthInfoToken : AuthInfo
     [JsonPropertyName("host")]
     public required string Host { get; set; }
 
+    /// <summary>Opaque native GitHub credential registration backing this token identity, when applicable.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("registrationId")]
+    public string? RegistrationId { get; set; }
+
     /// <summary>The token value itself. Treat as a secret.</summary>
     [JsonPropertyName("token")]
     public required string Token { get; set; }
+}
+
+/// <summary>Authentication-info variant backed by an SDK GitHub token callback. It carries routing metadata but never a plaintext token.</summary>
+/// <remarks>The <c>token-provider</c> variant of <see cref="AuthInfo"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class AuthInfoTokenProvider : AuthInfo
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "token-provider";
+
+    /// <summary>Snapshot of the authenticated user's Copilot subscription info, if known.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("copilotUser")]
+    public CopilotUserResponse? CopilotUser { get; set; }
+
+    /// <summary>Authentication host.</summary>
+    [JsonPropertyName("host")]
+    public required string Host { get; set; }
+
+    /// <summary>Opaque SDK callback registration identifier.</summary>
+    [JsonPropertyName("registrationId")]
+    public required string RegistrationId { get; set; }
 }
 
 /// <summary>Authentication-info variant for direct Copilot API token auth sourced from environment variables, with public GitHub host.</summary>
@@ -2695,6 +2783,10 @@ public sealed class InstalledPluginInfo
     [JsonPropertyName("enabled")]
     public bool Enabled { get; set; }
 
+    /// <summary>Absolute path of the marketplace directory a live plugin was resolved from. Present only on live, never-persisted records — a plugin belonging to a directory/local marketplace, which is loaded from its real directory on every pass instead of a copy under the installed-plugins cache. Its presence is what marks a listed plugin as live: such a plugin is always present on disk, so `enabled` is its only meaningful state and it is never "not installed".</summary>
+    [JsonPropertyName("installedFrom")]
+    public string? InstalledFrom { get; set; }
+
     /// <summary>Marketplace the plugin came from. Empty string ("") for direct repo / URL / local installs.</summary>
     [JsonPropertyName("marketplace")]
     public string Marketplace { get; set; } = string.Empty;
@@ -4462,6 +4554,10 @@ public sealed class InstalledPlugin
     [JsonPropertyName("installed_at")]
     public string InstalledAt { get; set; } = string.Empty;
 
+    /// <summary>Absolute path of the marketplace directory a live plugin was resolved from. Present only on live, never-persisted records — those synthesized at session start for a directory/local marketplace, whose cache_path points at the real plugin directory on disk rather than a copy under the installed-plugins cache. Its presence is what marks a record as live, and no record carrying it is ever written to the persisted installedPlugins key.</summary>
+    [JsonPropertyName("installed_from")]
+    public string? InstalledFrom { get; set; }
+
     /// <summary>Marketplace the plugin came from (empty string for direct repo installs).</summary>
     [JsonPropertyName("marketplace")]
     public string Marketplace { get; set; } = string.Empty;
@@ -5350,13 +5446,204 @@ public sealed class SessionSetCredentialsResult
     public bool Success { get; set; }
 }
 
+/// <summary>Authentication credentials accepted by session.gitHubAuth.setCredentials. Session-owned token-provider identities cannot be installed through this method.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>type</c>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "type",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(SettableAuthInfoHmac), "hmac")]
+[JsonDerivedType(typeof(SettableAuthInfoEnv), "env")]
+[JsonDerivedType(typeof(SettableAuthInfoToken), "token")]
+[JsonDerivedType(typeof(SettableAuthInfoCopilotApiToken), "copilot-api-token")]
+[JsonDerivedType(typeof(SettableAuthInfoUser), "user")]
+[JsonDerivedType(typeof(SettableAuthInfoGhCli), "gh-cli")]
+[JsonDerivedType(typeof(SettableAuthInfoApiKey), "api-key")]
+public partial class SettableAuthInfo
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("type")]
+    public virtual string Type { get; set; } = string.Empty;
+}
+
+
+/// <summary>Authentication-info input variant for GitHub-internal HMAC auth, carrying the public GitHub host and HMAC secret.</summary>
+/// <remarks>The <c>hmac</c> variant of <see cref="SettableAuthInfo"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class SettableAuthInfoHmac : SettableAuthInfo
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "hmac";
+
+    /// <summary>Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this verbatim and does not re-fetch when set.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("copilotUser")]
+    public CopilotUserResponse? CopilotUser { get; set; }
+
+    /// <summary>HMAC secret used to sign requests.</summary>
+    [JsonPropertyName("hmac")]
+    public required string Hmac { get; set; }
+
+    /// <summary>Authentication host. HMAC auth always targets the public GitHub host.</summary>
+    [JsonPropertyName("host")]
+    public required string Host { get; set; }
+}
+
+/// <summary>Authentication-info input variant for a token sourced from an environment variable, with host, optional login, token, and env var name.</summary>
+/// <remarks>The <c>env</c> variant of <see cref="SettableAuthInfo"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class SettableAuthInfoEnv : SettableAuthInfo
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "env";
+
+    /// <summary>Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this verbatim and does not re-fetch when set.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("copilotUser")]
+    public CopilotUserResponse? CopilotUser { get; set; }
+
+    /// <summary>Name of the environment variable the token was sourced from.</summary>
+    [JsonPropertyName("envVar")]
+    public required string EnvVar { get; set; }
+
+    /// <summary>Authentication host (e.g. https://github.com or a GHES host).</summary>
+    [JsonPropertyName("host")]
+    public required string Host { get; set; }
+
+    /// <summary>User login associated with the token. Undefined for server-to-server tokens (those starting with `ghs_`).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("login")]
+    public string? Login { get; set; }
+
+    /// <summary>The token value itself. Treat as a secret.</summary>
+    [JsonPropertyName("token")]
+    public required string Token { get; set; }
+}
+
+/// <summary>Token authentication accepted by session.gitHubAuth.setCredentials.</summary>
+/// <remarks>The <c>token</c> variant of <see cref="SettableAuthInfo"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class SettableAuthInfoToken : SettableAuthInfo
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "token";
+
+    /// <summary>Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this verbatim and does not re-fetch when set.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("copilotUser")]
+    public CopilotUserResponse? CopilotUser { get; set; }
+
+    /// <summary>Authentication host.</summary>
+    [JsonPropertyName("host")]
+    public required string Host { get; set; }
+
+    /// <summary>The token value itself. Treat as a secret.</summary>
+    [JsonPropertyName("token")]
+    public required string Token { get; set; }
+}
+
+/// <summary>Authentication-info variant for direct Copilot API token auth sourced from environment variables, with public GitHub host.</summary>
+/// <remarks>The <c>copilot-api-token</c> variant of <see cref="SettableAuthInfo"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class SettableAuthInfoCopilotApiToken : SettableAuthInfo
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "copilot-api-token";
+
+    /// <summary>Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this verbatim and does not re-fetch when set.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("copilotUser")]
+    public CopilotUserResponse? CopilotUser { get; set; }
+
+    /// <summary>Authentication host (always the public GitHub host).</summary>
+    [JsonPropertyName("host")]
+    public required string Host { get; set; }
+}
+
+/// <summary>Authentication-info variant for OAuth user auth, with host and login; the token remains in the runtime secret store.</summary>
+/// <remarks>The <c>user</c> variant of <see cref="SettableAuthInfo"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class SettableAuthInfoUser : SettableAuthInfo
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "user";
+
+    /// <summary>Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this verbatim and does not re-fetch when set.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("copilotUser")]
+    public CopilotUserResponse? CopilotUser { get; set; }
+
+    /// <summary>Authentication host.</summary>
+    [JsonPropertyName("host")]
+    public required string Host { get; set; }
+
+    /// <summary>OAuth user login.</summary>
+    [JsonPropertyName("login")]
+    public required string Login { get; set; }
+}
+
+/// <summary>Authentication-info input variant for GitHub CLI credentials, carrying host, login, and the `gh auth token` value.</summary>
+/// <remarks>The <c>gh-cli</c> variant of <see cref="SettableAuthInfo"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class SettableAuthInfoGhCli : SettableAuthInfo
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "gh-cli";
+
+    /// <summary>Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this verbatim and does not re-fetch when set.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("copilotUser")]
+    public CopilotUserResponse? CopilotUser { get; set; }
+
+    /// <summary>Authentication host.</summary>
+    [JsonPropertyName("host")]
+    public required string Host { get; set; }
+
+    /// <summary>User login as reported by `gh auth status`.</summary>
+    [JsonPropertyName("login")]
+    public required string Login { get; set; }
+
+    /// <summary>The token returned by `gh auth token`. Treat as a secret.</summary>
+    [JsonPropertyName("token")]
+    public required string Token { get; set; }
+}
+
+/// <summary>Authentication-info input variant for API-key authentication to a non-GitHub LLM provider, carrying the secret `apiKey` and host.</summary>
+/// <remarks>The <c>api-key</c> variant of <see cref="SettableAuthInfo"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class SettableAuthInfoApiKey : SettableAuthInfo
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "api-key";
+
+    /// <summary>The API key. Treat as a secret.</summary>
+    [JsonPropertyName("apiKey")]
+    public required string ApiKey { get; set; }
+
+    /// <summary>Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this verbatim and does not re-fetch when set.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("copilotUser")]
+    public CopilotUserResponse? CopilotUser { get; set; }
+
+    /// <summary>Authentication host.</summary>
+    [JsonPropertyName("host")]
+    public required string Host { get; set; }
+}
+
 /// <summary>New auth credentials to install on the session. Omit to leave credentials unchanged.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class SessionSetCredentialsParams
 {
     /// <summary>The new auth credentials to install on the session. When omitted or `undefined`, the call is a no-op and the session's existing credentials are preserved. The runtime installs the supplied value immediately for outbound model/API requests. When the credential carries a raw token (`token`, `env`, or `gh-cli`) but no `copilotUser`, the runtime additionally re-resolves `copilotUser` server-side (best-effort, asynchronously, after the synchronous install) so plan/quota/billing metadata regains fidelity; on resolution failure the verbatim credential remains installed. It does NOT otherwise validate the credential. Several variants carry secret material; treat this method's params as containing secrets at rest and in transit.</summary>
     [JsonPropertyName("credentials")]
-    public AuthInfo? Credentials { get; set; }
+    public SettableAuthInfo? Credentials { get; set; }
 
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -5382,6 +5669,10 @@ public sealed class AuthIdentity
     /// <summary>Authenticated login, when available.</summary>
     [JsonPropertyName("login")]
     public string? Login { get; set; }
+
+    /// <summary>Opaque SDK GitHub credential registration backing this identity. Routing metadata only; never a credential.</summary>
+    [JsonPropertyName("registrationId")]
+    public string? RegistrationId { get; set; }
 
     /// <summary>Authentication type.</summary>
     [JsonPropertyName("type")]
@@ -9384,7 +9675,7 @@ public partial class McpOauthPendingRequestResponseToken : McpOauthPendingReques
     [JsonPropertyName("expiresIn")]
     public long? ExpiresIn { get; set; }
 
-    /// <summary>OAuth token type. Defaults to Bearer when omitted.</summary>
+    /// <summary>OAuth token type. Defaults to bearer when omitted.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("tokenType")]
     public string? TokenType { get; set; }
@@ -10588,6 +10879,10 @@ public sealed class SessionInstalledPlugin
     [JsonPropertyName("installed_at")]
     public string InstalledAt { get; set; } = string.Empty;
 
+    /// <summary>Absolute path of the marketplace directory a live plugin was resolved from. Present only on live, never-persisted records — those synthesized at session start for a directory/local marketplace, whose cache_path points at the real plugin directory on disk rather than a copy under the installed-plugins cache. Its presence is what marks a record as live, and no record carrying it is ever written to the persisted installedPlugins key.</summary>
+    [JsonPropertyName("installed_from")]
+    public string? InstalledFrom { get; set; }
+
     /// <summary>Marketplace the plugin came from (empty string for direct repo installs).</summary>
     [JsonPropertyName("marketplace")]
     public string Marketplace { get; set; } = string.Empty;
@@ -10802,7 +11097,7 @@ public sealed class SandboxConfig
     [JsonPropertyName("addCurrentWorkingDirectory")]
     public bool? AddCurrentWorkingDirectory { get; set; }
 
-    /// <summary>Whether to auto-grant read access to the tool directories discovered on PATH and in toolchain environment variables (GOROOT, CARGO_HOME, JAVA_HOME, VIRTUAL_ENV, and similar), and to common developer-tool caches, registries, and toolchains in their default home locations (cargo, go, npm, Maven, and more), plus read-write access to (and, on Unix, up-front creation of) the scratch caches builds write on every run (go-build, ccache, sccache, Gradle caches, Cargo lock/tracker files), so builds work without extra configuration; a relocated CARGO_HOME additionally gets its Cargo lock files granted read-write. Set to false to disable every grant listed above: user-installed toolchains (rustup, nvm, pyenv, conda, pipx) then need explicit userPolicy.filesystem entries — readonlyPaths to read them, plus readwriteFiles for a relocated CARGO_HOME's .package-cache and .global-cache, which Cargo locks on every build. Only these developer-tool grants are affected: the working directory (see addCurrentWorkingDirectory), temporary storage, session log paths, and system locations follow their own rules and stay granted, so commands still run. Default: true (enabled by default; set to false to opt out).</summary>
+    /// <summary>Whether to auto-grant read access to the tool directories discovered on PATH and in toolchain environment variables (GOROOT, CARGO_HOME, JAVA_HOME, VIRTUAL_ENV, and similar), and to common developer-tool caches, registries, and toolchains in their default home locations (cargo, go, npm, Maven, and more), plus read-write access to (and up-front creation of) the scratch caches builds write on every run (go-build, ccache, sccache, Gradle caches, Cargo lock/tracker files), so builds work without extra configuration; a relocated CARGO_HOME additionally gets its Cargo lock files granted read-write. Set to false to disable every grant listed above: user-installed toolchains (rustup, nvm, pyenv, conda, pipx) then need explicit userPolicy.filesystem entries — readonlyPaths to read them, plus readwriteFiles for a relocated CARGO_HOME's .package-cache and .global-cache, which Cargo locks on every build. Only these developer-tool grants are affected: the working directory (see addCurrentWorkingDirectory), temporary storage, session log paths, and system locations follow their own rules and stay granted, so commands still run. Default: true (enabled by default; set to false to opt out).</summary>
     [JsonPropertyName("allowDevToolAccess")]
     public bool? AllowDevToolAccess { get; set; }
 
@@ -11035,6 +11330,10 @@ internal sealed class SessionUpdateOptionsParams
     [JsonPropertyName("includedBuiltinAgents")]
     public IList<string>? IncludedBuiltinAgents { get; set; }
 
+    /// <summary>Built-in skill names to include in this session. When specified, only these runtime-bundled skills are available. Skills from other sources with the same name remain available. Set to null to remove the allowlist restriction.</summary>
+    [JsonPropertyName("includedBuiltinSkills")]
+    public IList<string>? IncludedBuiltinSkills { get; set; }
+
     /// <summary>Full set of installed plugins for the session. Replaces the existing list; the runtime invalidates the skills cache only when the list materially changes.</summary>
     [JsonPropertyName("installedPlugins")]
     public IList<SessionInstalledPlugin>? InstalledPlugins { get; set; }
@@ -11094,6 +11393,11 @@ internal sealed class SessionUpdateOptionsParams
     /// <summary>Resolved sandbox configuration.</summary>
     [JsonPropertyName("sandboxConfig")]
     public SandboxConfig? SandboxConfig { get; set; }
+
+    /// <summary>Origin of the sandbox choice. The runtime uses this only for internal telemetry provenance; managed policy is derived independently.</summary>
+    [JsonInclude]
+    [JsonPropertyName("sandboxConfigSource")]
+    internal SandboxConfigSource? SandboxConfigSource { get; set; }
 
     /// <summary>Replaces the session's capability set with the given list. Use to enable or disable capabilities mid-session (e.g., remove `memory` for reproducible scripted runs). Omit the field to leave the existing capability set unchanged.</summary>
     [JsonPropertyName("sessionCapabilities")]
@@ -13485,7 +13789,7 @@ public sealed class PermissionsConfigureAdditionalContentExclusionPolicy
 [Experimental(Diagnostics.Experimental)]
 public sealed class PermissionPathsConfig
 {
-    /// <summary>Additional directories to allow tool access to (in addition to the session's working directory). When `unrestricted` is true, these are still pre-populated on the UnrestrictedPathManager so they remain visible via getDirectories() (e.g. for @-mention completion).</summary>
+    /// <summary>Additional directories to allow tool access to (in addition to the session's working directory). Conventional `.github/skills/` and `.github/agents/` definitions under them also join the session catalogs when their subsystem gates are enabled, so supplying a directory is a trust decision for configuration stored there. When `unrestricted` is true, these are still pre-populated on the UnrestrictedPathManager so they remain visible via getDirectories() (e.g. for @-mention completion).</summary>
     [JsonPropertyName("additionalDirectories")]
     public IList<string>? AdditionalDirectories { get; set; }
 
@@ -14466,7 +14770,7 @@ public sealed class PermissionsPathsAddResult
 [Experimental(Diagnostics.Experimental)]
 internal sealed class PermissionPathsAddParams
 {
-    /// <summary>Directory to add to the allow-list. The runtime resolves and validates the path before adding.</summary>
+    /// <summary>Directory to add to the allow-list. The runtime resolves and validates the path before adding, then loads conventional `.github/skills/` and `.github/agents/` definitions under it when their subsystem gates are enabled. Adding the directory is therefore also a trust decision for configuration stored there.</summary>
     [JsonPropertyName("path")]
     public string Path { get; set; } = string.Empty;
 
@@ -16233,6 +16537,10 @@ public sealed class QueuePendingItems
 [Experimental(Diagnostics.Experimental)]
 public sealed class QueuePendingItemsResult
 {
+    /// <summary>How many leading entries of `steeringMessages` have already been folded into the running turn (and so have an emitted `user.message`), as opposed to still waiting for one. Absent for hosts that do not distinguish the two.</summary>
+    [JsonPropertyName("inFlightSteeringCount")]
+    public long? InFlightSteeringCount { get; set; }
+
     /// <summary>Pending queued items in submission order. Includes user messages, queued slash commands, and queued model changes; omits internal system items.</summary>
     [JsonPropertyName("items")]
     public IList<QueuePendingItems> Items { get => field ??= []; set; }
@@ -18297,6 +18605,74 @@ public sealed class GitHubTelemetryNotification
     public bool Restricted { get; set; }
 
     /// <summary>Session the telemetry event belongs to, when it is session-scoped. Omitted for sessionless events (for example, `server.sendTelemetry` calls with no session id), which are still forwarded to opted-in connections.</summary>
+    [JsonPropertyName("sessionId")]
+    public string? SessionId { get; set; }
+}
+
+/// <summary>SDK host response to a GitHub credential request.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>kind</c>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "kind",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(GitHubTokenAcquireResultToken), "token")]
+[JsonDerivedType(typeof(GitHubTokenAcquireResultCancelled), "cancelled")]
+public partial class GitHubTokenAcquireResult
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("kind")]
+    public virtual string Kind { get; set; } = string.Empty;
+}
+
+
+/// <summary>The <c>token</c> variant of <see cref="GitHubTokenAcquireResult"/>.</summary>
+[Experimental(Diagnostics.Experimental)]
+public partial class GitHubTokenAcquireResultToken : GitHubTokenAcquireResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "token";
+
+    /// <summary>GitHub access token acquired by the SDK host.</summary>
+    [JsonPropertyName("accessToken")]
+    public required string AccessToken { get; set; }
+
+    /// <summary>Remaining token lifetime in seconds when callback execution completes. It must exceed the one-hour preflight refresh threshold.</summary>
+    [JsonPropertyName("expiresIn")]
+    public required long ExpiresIn { get; set; }
+
+    /// <summary>OAuth token type. Defaults to bearer when omitted.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("tokenType")]
+    public string? TokenType { get; set; }
+}
+
+/// <summary>The <c>cancelled</c> variant of <see cref="GitHubTokenAcquireResult"/>.</summary>
+[Experimental(Diagnostics.Experimental)]
+public partial class GitHubTokenAcquireResultCancelled : GitHubTokenAcquireResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "cancelled";
+}
+
+/// <summary>Asks the SDK client to acquire a GitHub access token from an opaque callback registration.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class GitHubTokenAcquireRequest
+{
+    /// <summary>Effective GitHub host for which the callback must return a token.</summary>
+    [JsonPropertyName("host")]
+    public string Host { get; set; } = string.Empty;
+
+    /// <summary>Why the runtime is requesting a GitHub credential.</summary>
+    [JsonPropertyName("reason")]
+    public GitHubTokenAcquireReason Reason { get; set; }
+
+    /// <summary>Opaque identifier generated by the SDK for this callback registration.</summary>
+    [JsonPropertyName("registrationId")]
+    public string RegistrationId { get; set; } = string.Empty;
+
+    /// <summary>Session receiving the token. Absent only before a cloud session has been assigned its id.</summary>
     [JsonPropertyName("sessionId")]
     public string? SessionId { get; set; }
 }
@@ -22563,6 +22939,9 @@ public readonly struct AuthInfoType : IEquatable<AuthInfoType>
     /// <summary>Authentication from a GitHub token.</summary>
     public static AuthInfoType Token { get; } = new("token");
 
+    /// <summary>Authentication from an SDK GitHub token callback.</summary>
+    public static AuthInfoType TokenProvider { get; } = new("token-provider");
+
     /// <summary>Authentication from a Copilot API token.</summary>
     public static AuthInfoType CopilotApiToken { get; } = new("copilot-api-token");
 
@@ -25163,6 +25542,84 @@ public readonly struct OptionsUpdateReasoningSummary : IEquatable<OptionsUpdateR
         public override void Write(Utf8JsonWriter writer, OptionsUpdateReasoningSummary value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(OptionsUpdateReasoningSummary));
+        }
+    }
+}
+
+
+/// <summary>Origin of the sandbox choice supplied by an internal client.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct SandboxConfigSource : IEquatable<SandboxConfigSource>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="SandboxConfigSource"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="SandboxConfigSource"/>.</param>
+    [JsonConstructor]
+    public SandboxConfigSource(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="SandboxConfigSource"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The client applied the default because no sandbox preference was configured.</summary>
+    public static SandboxConfigSource NeverConfigured { get; } = new("never_configured");
+
+    /// <summary>The user's persisted settings enabled the sandbox.</summary>
+    public static SandboxConfigSource UserEnabled { get; } = new("user_enabled");
+
+    /// <summary>The user's persisted settings disabled the sandbox.</summary>
+    public static SandboxConfigSource UserDisabled { get; } = new("user_disabled");
+
+    /// <summary>A command-line flag selected the sandbox state for this session.</summary>
+    public static SandboxConfigSource SessionFlag { get; } = new("session_flag");
+
+    /// <summary>The user disabled the sandbox for the current session.</summary>
+    public static SandboxConfigSource SessionDisabled { get; } = new("session_disabled");
+
+    /// <summary>The client disabled the sandbox because the host cannot enforce it.</summary>
+    public static SandboxConfigSource UnsupportedHost { get; } = new("unsupported_host");
+
+    /// <summary>A repository policy selected the sandbox state.</summary>
+    public static SandboxConfigSource RepositoryPolicy { get; } = new("repository_policy");
+
+    /// <summary>Returns a value indicating whether two <see cref="SandboxConfigSource"/> instances are equivalent.</summary>
+    public static bool operator ==(SandboxConfigSource left, SandboxConfigSource right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="SandboxConfigSource"/> instances are not equivalent.</summary>
+    public static bool operator !=(SandboxConfigSource left, SandboxConfigSource right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is SandboxConfigSource other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(SandboxConfigSource other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{SandboxConfigSource}"/> for serializing <see cref="SandboxConfigSource"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<SandboxConfigSource>
+    {
+        /// <inheritdoc />
+        public override SandboxConfigSource Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, SandboxConfigSource value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SandboxConfigSource));
         }
     }
 }
@@ -28824,6 +29281,69 @@ public readonly struct LlmInferenceHttpRequestStartTransport : IEquatable<LlmInf
 }
 
 
+/// <summary>Why the runtime is requesting a GitHub credential.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct GitHubTokenAcquireReason : IEquatable<GitHubTokenAcquireReason>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="GitHubTokenAcquireReason"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="GitHubTokenAcquireReason"/>.</param>
+    [JsonConstructor]
+    public GitHubTokenAcquireReason(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="GitHubTokenAcquireReason"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The runtime is acquiring the registration's first credential.</summary>
+    public static GitHubTokenAcquireReason Initial { get; } = new("initial");
+
+    /// <summary>The runtime is replacing a credential that is approaching expiry.</summary>
+    public static GitHubTokenAcquireReason Refresh { get; } = new("refresh");
+
+    /// <summary>Returns a value indicating whether two <see cref="GitHubTokenAcquireReason"/> instances are equivalent.</summary>
+    public static bool operator ==(GitHubTokenAcquireReason left, GitHubTokenAcquireReason right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="GitHubTokenAcquireReason"/> instances are not equivalent.</summary>
+    public static bool operator !=(GitHubTokenAcquireReason left, GitHubTokenAcquireReason right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is GitHubTokenAcquireReason other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(GitHubTokenAcquireReason other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{GitHubTokenAcquireReason}"/> for serializing <see cref="GitHubTokenAcquireReason"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<GitHubTokenAcquireReason>
+    {
+        /// <inheritdoc />
+        public override GitHubTokenAcquireReason Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, GitHubTokenAcquireReason value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(GitHubTokenAcquireReason));
+        }
+    }
+}
+
+
 /// <summary>Provides server-scoped RPC methods (no session required).</summary>
 public sealed class ServerRpc
 {
@@ -28847,13 +29367,14 @@ public sealed class ServerRpc
 
     /// <summary>Performs the SDK server connection handshake and validates the optional connection token. Marked internal because this is JSON-RPC transport plumbing invoked automatically by an SDK client's own `connect()` wrapper, not a user-facing method. Stays internal as long as the SDK client owns the handshake; would only become public if the SDK ever exposed the raw schema surface to consumers without a connection wrapper.</summary>
     /// <param name="enableGitHubTelemetryForwarding">Opt this connection in to GitHub telemetry forwarding for its lifetime. When set, the runtime forwards every internal telemetry event it emits — across all sessions, plus sessionless events — to this connection over the `gitHubTelemetry.event` notification. Regular events are also written to the runtime's normal GitHub/CTS path (dual-write); host-only compatibility events are forward-only and intentionally skip that path. Intended for first-party hosts that re-emit the events into their own telemetry stores. Both unrestricted and restricted events are forwarded, each tagged with a `restricted` discriminator; a backstop drops restricted events when restricted telemetry is disabled — using the process-global gate for ordinary events and an explicit session-scoped decision for host-only events.</param>
+    /// <param name="clientInfo">Identity of the integrating host. Optional; omit it to keep the default attribution.</param>
     /// <param name="token">Connection token; required when the server was started with COPILOT_CONNECTION_TOKEN.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Handshake result reporting the server's protocol version and package version on success.</returns>
     [Experimental(Diagnostics.Experimental)]
-    internal async Task<ConnectResult> ConnectAsync(bool? enableGitHubTelemetryForwarding = null, string? token = null, CancellationToken cancellationToken = default)
+    internal async Task<ConnectResult> ConnectAsync(bool? enableGitHubTelemetryForwarding = null, ConnectClientInfo? clientInfo = null, string? token = null, CancellationToken cancellationToken = default)
     {
-        var request = new ConnectRequest { EnableGitHubTelemetryForwarding = enableGitHubTelemetryForwarding, Token = token };
+        var request = new ConnectRequest { EnableGitHubTelemetryForwarding = enableGitHubTelemetryForwarding, ClientInfo = clientInfo, Token = token };
         return await CopilotClient.InvokeRpcAsync<ConnectResult>(_rpc, "connect", [request], cancellationToken);
     }
 
@@ -30665,7 +31186,7 @@ public sealed class GitHubAuthApi
     /// <param name="credentials">The new auth credentials to install on the session. When omitted or `undefined`, the call is a no-op and the session's existing credentials are preserved. The runtime installs the supplied value immediately for outbound model/API requests. When the credential carries a raw token (`token`, `env`, or `gh-cli`) but no `copilotUser`, the runtime additionally re-resolves `copilotUser` server-side (best-effort, asynchronously, after the synchronous install) so plan/quota/billing metadata regains fidelity; on resolution failure the verbatim credential remains installed. It does NOT otherwise validate the credential. Several variants carry secret material; treat this method's params as containing secrets at rest and in transit.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Indicates whether the credential update succeeded.</returns>
-    public async Task<SessionSetCredentialsResult> SetCredentialsAsync(AuthInfo? credentials = null, CancellationToken cancellationToken = default)
+    public async Task<SessionSetCredentialsResult> SetCredentialsAsync(SettableAuthInfo? credentials = null, CancellationToken cancellationToken = default)
     {
         _session.ThrowIfDisposed();
 
@@ -32631,10 +33152,12 @@ public sealed class OptionsApi
     /// <param name="shellInitProfile">Use shell.initProfile instead. Shell init profile (`None` or `NonInteractive`).</param>
     /// <param name="shellProcessFlags">PowerShell process flags applied to built-in and user-requested shell commands.</param>
     /// <param name="sandboxConfig">Resolved sandbox configuration.</param>
+    /// <param name="sandboxConfigSource">Origin of the sandbox choice. The runtime uses this only for internal telemetry provenance; managed policy is derived independently.</param>
     /// <param name="logInteractiveShells">Whether interactive shell sessions are logged.</param>
     /// <param name="envValueMode">How env values are passed to MCP servers (`direct` inlines literal values; `indirect` resolves at launch).</param>
     /// <param name="allowAllMcpServerInstructions">Whether to include instructions from every MCP server in the system prompt instead of only allowlisted servers.</param>
     /// <param name="skillDirectories">Additional directories to search for skills.</param>
+    /// <param name="includedBuiltinSkills">Built-in skill names to include in this session. When specified, only these runtime-bundled skills are available. Skills from other sources with the same name remain available. Set to null to remove the allowlist restriction.</param>
     /// <param name="disabledSkills">Skill IDs that should be excluded from this session.</param>
     /// <param name="enableOnDemandInstructionDiscovery">Whether to discover custom instructions on demand after successful file views (AGENTS.md / CLAUDE.md / .github/copilot-instructions.md surfacing). Combined with `skipCustomInstructions`.</param>
     /// <param name="maxInlineBinaryBytes">Maximum decoded byte size of a single model-facing binary tool result (e.g. an image) persisted inline in session events and re-presented to the model on later turns / resume. Larger results are persisted as a metadata-only marker and shown to the model as a short text note. Defaults to 10 MB.</param>
@@ -32667,11 +33190,11 @@ public sealed class OptionsApi
     /// <param name="sessionLimits">Optional session limits. Pass null to clear the session limits.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Indicates whether the session options patch was applied successfully.</returns>
-    public async Task<SessionUpdateOptionsResult> UpdateAsync(string? model = null, ModelCapabilitiesOverride? modelCapabilitiesOverrides = null, string? reasoningEffort = null, OptionsUpdateReasoningSummary? reasoningSummary = null, Verbosity? verbosity = null, string? clientName = null, string? lspClientName = null, string? integrationId = null, IDictionary<string, bool>? featureFlags = null, bool? isExperimentalMode = null, ProviderConfig? provider = null, CapiSessionOptions? capi = null, string? workingDirectory = null, IList<string>? availableTools = null, IList<string>? excludedTools = null, IList<string>? includedBuiltinAgents = null, IList<string>? excludedBuiltinAgents = null, OptionsUpdateToolFilterPrecedence? toolFilterPrecedence = null, bool? enableScriptSafety = null, ShellOptions? shell = null, string? shellInitProfile = null, IList<string>? shellProcessFlags = null, SandboxConfig? sandboxConfig = null, bool? logInteractiveShells = null, OptionsUpdateEnvValueMode? envValueMode = null, bool? allowAllMcpServerInstructions = null, IList<string>? skillDirectories = null, IList<string>? disabledSkills = null, bool? enableOnDemandInstructionDiscovery = null, long? maxInlineBinaryBytes = null, IList<SessionInstalledPlugin>? installedPlugins = null, bool? customAgentsLocalOnly = null, bool? suppressCustomAgentPrompt = null, bool? skipCustomInstructions = null, IList<string>? disabledInstructionSources = null, bool? coauthorEnabled = null, string? trajectoryFile = null, bool? enableStreaming = null, string? copilotUrl = null, bool? askUserDisabled = null, bool? continueOnAutoMode = null, bool? runningInInteractiveMode = null, bool? enableReasoningSummaries = null, string? agentContext = null, string? eventsLogDirectory = null, bool? eventsLogIncludesSubagents = null, IList<OptionsUpdateAdditionalContentExclusionPolicy>? additionalContentExclusionPolicies = null, bool? manageScheduleEnabled = null, IList<SessionCapability>? sessionCapabilities = null, bool? skipEmbeddingRetrieval = null, string? organizationCustomInstructions = null, bool? enableFileHooks = null, bool? enableHostGitOperations = null, bool? enableSessionStore = null, bool? enableSkills = null, OptionsUpdateContextTier? contextTier = null, SessionLimitsConfig? sessionLimits = null, CancellationToken cancellationToken = default)
+    public async Task<SessionUpdateOptionsResult> UpdateAsync(string? model = null, ModelCapabilitiesOverride? modelCapabilitiesOverrides = null, string? reasoningEffort = null, OptionsUpdateReasoningSummary? reasoningSummary = null, Verbosity? verbosity = null, string? clientName = null, string? lspClientName = null, string? integrationId = null, IDictionary<string, bool>? featureFlags = null, bool? isExperimentalMode = null, ProviderConfig? provider = null, CapiSessionOptions? capi = null, string? workingDirectory = null, IList<string>? availableTools = null, IList<string>? excludedTools = null, IList<string>? includedBuiltinAgents = null, IList<string>? excludedBuiltinAgents = null, OptionsUpdateToolFilterPrecedence? toolFilterPrecedence = null, bool? enableScriptSafety = null, ShellOptions? shell = null, string? shellInitProfile = null, IList<string>? shellProcessFlags = null, SandboxConfig? sandboxConfig = null, SandboxConfigSource? sandboxConfigSource = null, bool? logInteractiveShells = null, OptionsUpdateEnvValueMode? envValueMode = null, bool? allowAllMcpServerInstructions = null, IList<string>? skillDirectories = null, IList<string>? includedBuiltinSkills = null, IList<string>? disabledSkills = null, bool? enableOnDemandInstructionDiscovery = null, long? maxInlineBinaryBytes = null, IList<SessionInstalledPlugin>? installedPlugins = null, bool? customAgentsLocalOnly = null, bool? suppressCustomAgentPrompt = null, bool? skipCustomInstructions = null, IList<string>? disabledInstructionSources = null, bool? coauthorEnabled = null, string? trajectoryFile = null, bool? enableStreaming = null, string? copilotUrl = null, bool? askUserDisabled = null, bool? continueOnAutoMode = null, bool? runningInInteractiveMode = null, bool? enableReasoningSummaries = null, string? agentContext = null, string? eventsLogDirectory = null, bool? eventsLogIncludesSubagents = null, IList<OptionsUpdateAdditionalContentExclusionPolicy>? additionalContentExclusionPolicies = null, bool? manageScheduleEnabled = null, IList<SessionCapability>? sessionCapabilities = null, bool? skipEmbeddingRetrieval = null, string? organizationCustomInstructions = null, bool? enableFileHooks = null, bool? enableHostGitOperations = null, bool? enableSessionStore = null, bool? enableSkills = null, OptionsUpdateContextTier? contextTier = null, SessionLimitsConfig? sessionLimits = null, CancellationToken cancellationToken = default)
     {
         _session.ThrowIfDisposed();
 
-        var request = new SessionUpdateOptionsParams { SessionId = _session.SessionId, Model = model, ModelCapabilitiesOverrides = modelCapabilitiesOverrides, ReasoningEffort = reasoningEffort, ReasoningSummary = reasoningSummary, Verbosity = verbosity, ClientName = clientName, LspClientName = lspClientName, IntegrationId = integrationId, FeatureFlags = featureFlags, IsExperimentalMode = isExperimentalMode, Provider = provider, Capi = capi, WorkingDirectory = workingDirectory, AvailableTools = availableTools, ExcludedTools = excludedTools, IncludedBuiltinAgents = includedBuiltinAgents, ExcludedBuiltinAgents = excludedBuiltinAgents, ToolFilterPrecedence = toolFilterPrecedence, EnableScriptSafety = enableScriptSafety, Shell = shell, ShellInitProfile = shellInitProfile, ShellProcessFlags = shellProcessFlags, SandboxConfig = sandboxConfig, LogInteractiveShells = logInteractiveShells, EnvValueMode = envValueMode, AllowAllMcpServerInstructions = allowAllMcpServerInstructions, SkillDirectories = skillDirectories, DisabledSkills = disabledSkills, EnableOnDemandInstructionDiscovery = enableOnDemandInstructionDiscovery, MaxInlineBinaryBytes = maxInlineBinaryBytes, InstalledPlugins = installedPlugins, CustomAgentsLocalOnly = customAgentsLocalOnly, SuppressCustomAgentPrompt = suppressCustomAgentPrompt, SkipCustomInstructions = skipCustomInstructions, DisabledInstructionSources = disabledInstructionSources, CoauthorEnabled = coauthorEnabled, TrajectoryFile = trajectoryFile, EnableStreaming = enableStreaming, CopilotUrl = copilotUrl, AskUserDisabled = askUserDisabled, ContinueOnAutoMode = continueOnAutoMode, RunningInInteractiveMode = runningInInteractiveMode, EnableReasoningSummaries = enableReasoningSummaries, AgentContext = agentContext, EventsLogDirectory = eventsLogDirectory, EventsLogIncludesSubagents = eventsLogIncludesSubagents, AdditionalContentExclusionPolicies = additionalContentExclusionPolicies, ManageScheduleEnabled = manageScheduleEnabled, SessionCapabilities = sessionCapabilities, SkipEmbeddingRetrieval = skipEmbeddingRetrieval, OrganizationCustomInstructions = organizationCustomInstructions, EnableFileHooks = enableFileHooks, EnableHostGitOperations = enableHostGitOperations, EnableSessionStore = enableSessionStore, EnableSkills = enableSkills, ContextTier = contextTier, SessionLimits = sessionLimits };
+        var request = new SessionUpdateOptionsParams { SessionId = _session.SessionId, Model = model, ModelCapabilitiesOverrides = modelCapabilitiesOverrides, ReasoningEffort = reasoningEffort, ReasoningSummary = reasoningSummary, Verbosity = verbosity, ClientName = clientName, LspClientName = lspClientName, IntegrationId = integrationId, FeatureFlags = featureFlags, IsExperimentalMode = isExperimentalMode, Provider = provider, Capi = capi, WorkingDirectory = workingDirectory, AvailableTools = availableTools, ExcludedTools = excludedTools, IncludedBuiltinAgents = includedBuiltinAgents, ExcludedBuiltinAgents = excludedBuiltinAgents, ToolFilterPrecedence = toolFilterPrecedence, EnableScriptSafety = enableScriptSafety, Shell = shell, ShellInitProfile = shellInitProfile, ShellProcessFlags = shellProcessFlags, SandboxConfig = sandboxConfig, SandboxConfigSource = sandboxConfigSource, LogInteractiveShells = logInteractiveShells, EnvValueMode = envValueMode, AllowAllMcpServerInstructions = allowAllMcpServerInstructions, SkillDirectories = skillDirectories, IncludedBuiltinSkills = includedBuiltinSkills, DisabledSkills = disabledSkills, EnableOnDemandInstructionDiscovery = enableOnDemandInstructionDiscovery, MaxInlineBinaryBytes = maxInlineBinaryBytes, InstalledPlugins = installedPlugins, CustomAgentsLocalOnly = customAgentsLocalOnly, SuppressCustomAgentPrompt = suppressCustomAgentPrompt, SkipCustomInstructions = skipCustomInstructions, DisabledInstructionSources = disabledInstructionSources, CoauthorEnabled = coauthorEnabled, TrajectoryFile = trajectoryFile, EnableStreaming = enableStreaming, CopilotUrl = copilotUrl, AskUserDisabled = askUserDisabled, ContinueOnAutoMode = continueOnAutoMode, RunningInInteractiveMode = runningInInteractiveMode, EnableReasoningSummaries = enableReasoningSummaries, AgentContext = agentContext, EventsLogDirectory = eventsLogDirectory, EventsLogIncludesSubagents = eventsLogIncludesSubagents, AdditionalContentExclusionPolicies = additionalContentExclusionPolicies, ManageScheduleEnabled = manageScheduleEnabled, SessionCapabilities = sessionCapabilities, SkipEmbeddingRetrieval = skipEmbeddingRetrieval, OrganizationCustomInstructions = organizationCustomInstructions, EnableFileHooks = enableFileHooks, EnableHostGitOperations = enableHostGitOperations, EnableSessionStore = enableSessionStore, EnableSkills = enableSkills, ContextTier = contextTier, SessionLimits = sessionLimits };
         return await CopilotClient.InvokeRpcAsync<SessionUpdateOptionsResult>(_session.Rpc, "session.options.update", [request], cancellationToken);
     }
 }
@@ -33388,8 +33911,8 @@ public sealed class PermissionsPathsApi
         return await CopilotClient.InvokeRpcAsync<PermissionPathsList>(_session.Rpc, "session.permissions.paths.list", [request], cancellationToken);
     }
 
-    /// <summary>Adds a directory to the session's allow-list.</summary>
-    /// <param name="path">Directory to add to the allow-list. The runtime resolves and validates the path before adding.</param>
+    /// <summary>Adds a directory to the session's allow-list and activates conventional skill and agent definitions under it.</summary>
+    /// <param name="path">Directory to add to the allow-list. The runtime resolves and validates the path before adding, then loads conventional `.github/skills/` and `.github/agents/` definitions under it when their subsystem gates are enabled. Adding the directory is therefore also a trust decision for configuration stored there.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Indicates whether the operation succeeded.</returns>
     public async Task<PermissionsPathsAddResult> AddAsync(string path, CancellationToken cancellationToken = default)
@@ -34786,6 +35309,17 @@ public interface IGitHubTelemetryHandler
     Task EventAsync(GitHubTelemetryNotification request, CancellationToken cancellationToken = default);
 }
 
+/// <summary>Handles `gitHubToken` client global API methods.</summary>
+[Experimental(Diagnostics.Experimental)]
+public interface IGitHubTokenHandler
+{
+    /// <summary>Asks the SDK client to mint a GitHub access token for a session whose configuration supplied a GitHub token provider. The runtime acquires the initial token during bootstrap and refreshes it during expiry preflight when one hour or less remains.</summary>
+    /// <param name="request">Asks the SDK client to acquire a GitHub access token from an opaque callback registration.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>SDK host response to a GitHub credential request.</returns>
+    Task<GitHubTokenAcquireResult> GetTokenAsync(GitHubTokenAcquireRequest request, CancellationToken cancellationToken = default);
+}
+
 /// <summary>Provides all client global API handler groups for a connection.</summary>
 public sealed class ClientGlobalApiHandlers
 {
@@ -34797,6 +35331,9 @@ public sealed class ClientGlobalApiHandlers
 
     /// <summary>Optional handler for GitHubTelemetry client global API methods.</summary>
     public IGitHubTelemetryHandler? GitHubTelemetry { get; set; }
+
+    /// <summary>Optional handler for GitHubToken client global API methods.</summary>
+    public IGitHubTokenHandler? GitHubToken { get; set; }
 }
 
 /// <summary>Registers client global API handlers on a JSON-RPC connection.</summary>
@@ -34830,6 +35367,11 @@ internal static class ClientGlobalApiRegistration
             var handler = handlers.GitHubTelemetry ?? throw new InvalidOperationException("No gitHubTelemetry client-global handler registered");
             await handler.EventAsync(request, cancellationToken);
         }), singleObjectParam: true);
+        rpc.SetLocalRpcMethod("gitHubToken.getToken", (Func<GitHubTokenAcquireRequest, CancellationToken, ValueTask<GitHubTokenAcquireResult>>)(async (request, cancellationToken) =>
+        {
+            var handler = handlers.GitHubToken ?? throw new InvalidOperationException("No gitHubToken client-global handler registered");
+            return await handler.GetTokenAsync(request, cancellationToken);
+        }), singleObjectParam: true);
     }
 }
 
@@ -34857,6 +35399,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.AssistantMessageDeltaData), TypeInfoPropertyName = "SessionEventsAssistantMessageDeltaData")]
 [JsonSerializable(typeof(GitHub.Copilot.AssistantMessageDeltaEvent), TypeInfoPropertyName = "SessionEventsAssistantMessageDeltaEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.AssistantMessageEvent), TypeInfoPropertyName = "SessionEventsAssistantMessageEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantMessageReasoningBlocks), TypeInfoPropertyName = "SessionEventsAssistantMessageReasoningBlocks")]
 [JsonSerializable(typeof(GitHub.Copilot.AssistantMessageServerTools), TypeInfoPropertyName = "SessionEventsAssistantMessageServerTools")]
 [JsonSerializable(typeof(GitHub.Copilot.AssistantMessageStartData), TypeInfoPropertyName = "SessionEventsAssistantMessageStartData")]
 [JsonSerializable(typeof(GitHub.Copilot.AssistantMessageStartEvent), TypeInfoPropertyName = "SessionEventsAssistantMessageStartEvent")]
@@ -35028,6 +35571,9 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.ModelCallFailureRequestFingerprint), TypeInfoPropertyName = "SessionEventsModelCallFailureRequestFingerprint")]
 [JsonSerializable(typeof(GitHub.Copilot.ModelCallFailureSource), TypeInfoPropertyName = "SessionEventsModelCallFailureSource")]
 [JsonSerializable(typeof(GitHub.Copilot.ModelCallFailureTransport), TypeInfoPropertyName = "SessionEventsModelCallFailureTransport")]
+[JsonSerializable(typeof(GitHub.Copilot.ModelCallFinishedData), TypeInfoPropertyName = "SessionEventsModelCallFinishedData")]
+[JsonSerializable(typeof(GitHub.Copilot.ModelCallFinishedEvent), TypeInfoPropertyName = "SessionEventsModelCallFinishedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.ModelCallFinishedOutcome), TypeInfoPropertyName = "SessionEventsModelCallFinishedOutcome")]
 [JsonSerializable(typeof(GitHub.Copilot.ModelCallStartData), TypeInfoPropertyName = "SessionEventsModelCallStartData")]
 [JsonSerializable(typeof(GitHub.Copilot.ModelCallStartEvent), TypeInfoPropertyName = "SessionEventsModelCallStartEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.ModelChangeSource), TypeInfoPropertyName = "SessionEventsModelChangeSource")]
@@ -35283,6 +35829,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(CompletionsRequestRequest))]
 [JsonSerializable(typeof(CompletionsRequestResult))]
 [JsonSerializable(typeof(ConfigureSessionExtensionsParams))]
+[JsonSerializable(typeof(ConnectClientInfo))]
 [JsonSerializable(typeof(ConnectRemoteSessionParams))]
 [JsonSerializable(typeof(ConnectRequest))]
 [JsonSerializable(typeof(ConnectResult))]
@@ -35374,6 +35921,8 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHubTelemetryClientInfo))]
 [JsonSerializable(typeof(GitHubTelemetryEvent))]
 [JsonSerializable(typeof(GitHubTelemetryNotification))]
+[JsonSerializable(typeof(GitHubTokenAcquireRequest))]
+[JsonSerializable(typeof(GitHubTokenAcquireResult))]
 [JsonSerializable(typeof(HandlePendingToolCallRequest))]
 [JsonSerializable(typeof(HandlePendingToolCallResult))]
 [JsonSerializable(typeof(HistoryAbortManualCompactionResult))]
@@ -35560,6 +36109,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(ModelCapabilitiesOverrideSupports))]
 [JsonSerializable(typeof(ModelCapabilitiesSupports))]
 [JsonSerializable(typeof(ModelList))]
+[JsonSerializable(typeof(ModelMessage))]
 [JsonSerializable(typeof(ModelPickerPersistenceRequest))]
 [JsonSerializable(typeof(ModelPickerSettingsContext))]
 [JsonSerializable(typeof(ModelPickerSettingsContextEnvironment))]
@@ -35569,6 +36119,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(ModelSwitchConfirmation))]
 [JsonSerializable(typeof(ModelSwitchToRequest))]
 [JsonSerializable(typeof(ModelSwitchToResult))]
+[JsonSerializable(typeof(ModelWarningText))]
 [JsonSerializable(typeof(ModelsListRequest))]
 [JsonSerializable(typeof(MoveMcpLoadingToBackgroundResult))]
 [JsonSerializable(typeof(NameGetResult))]
@@ -35949,6 +36500,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SessionsStartRemoteControlRequest))]
 [JsonSerializable(typeof(SessionsStopRemoteControlRequest))]
 [JsonSerializable(typeof(SessionsTransferRemoteControlRequest))]
+[JsonSerializable(typeof(SettableAuthInfo))]
 [JsonSerializable(typeof(ShellCancelUserRequestedRequest))]
 [JsonSerializable(typeof(ShellCredentials))]
 [JsonSerializable(typeof(ShellExecRequest))]

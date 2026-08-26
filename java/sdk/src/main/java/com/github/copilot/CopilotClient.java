@@ -1011,7 +1011,8 @@ public final class CopilotClient implements AutoCloseable {
                             return updateSessionOptionsForMode(session, config.getSkipCustomInstructions().orElse(null),
                                     config.getCustomAgentsLocalOnly().orElse(null),
                                     config.getCoauthorEnabled().orElse(null),
-                                    config.getManageScheduleEnabled().orElse(null), config.getSandboxConfig());
+                                    config.getManageScheduleEnabled().orElse(null), config.getSandboxConfig(),
+                                    config.getIncludedBuiltinSkills());
                         }).thenApply(v -> {
                             LoggingHelpers.logTiming(LOG, Level.FINE,
                                     "CopilotClient.createSession complete. Elapsed={Elapsed}, SessionId="
@@ -1171,7 +1172,8 @@ public final class CopilotClient implements AutoCloseable {
                         return updateSessionOptionsForMode(session, config.getSkipCustomInstructions().orElse(null),
                                 config.getCustomAgentsLocalOnly().orElse(null),
                                 config.getCoauthorEnabled().orElse(null),
-                                config.getManageScheduleEnabled().orElse(null), config.getSandboxConfig())
+                            config.getManageScheduleEnabled().orElse(null), config.getSandboxConfig(),
+                            config.getIncludedBuiltinSkills())
                                 .thenApply(v -> {
                                     LoggingHelpers.logTiming(LOG, Level.FINE,
                                             "CopilotClient.resumeSession complete. Elapsed={Elapsed}, SessionId="
@@ -1194,14 +1196,36 @@ public final class CopilotClient implements AutoCloseable {
         });
     }
 
+    CompletableFuture<Void> updateSessionOptionsForMode(CopilotSession session, Boolean skipCustomInstructions,
+            Boolean customAgentsLocalOnly, Boolean coauthorEnabled, Boolean manageScheduleEnabled) {
+        return updateSessionOptionsForMode(session, skipCustomInstructions, customAgentsLocalOnly, coauthorEnabled,
+            manageScheduleEnabled, null, null);
+        }
+
+        CompletableFuture<Void> updateSessionOptionsForMode(CopilotSession session, Boolean skipCustomInstructions,
+            Boolean customAgentsLocalOnly, Boolean coauthorEnabled, Boolean manageScheduleEnabled,
+            SandboxConfig sandboxConfig) {
+        return updateSessionOptionsForMode(session, skipCustomInstructions, customAgentsLocalOnly, coauthorEnabled,
+            manageScheduleEnabled, sandboxConfig, null);
+        }
+
+        CompletableFuture<Void> updateSessionOptionsForMode(CopilotSession session, Boolean skipCustomInstructions,
+            Boolean customAgentsLocalOnly, Boolean coauthorEnabled, Boolean manageScheduleEnabled,
+            List<String> includedBuiltinSkills) {
+        return updateSessionOptionsForMode(session, skipCustomInstructions, customAgentsLocalOnly, coauthorEnabled,
+            manageScheduleEnabled, null, includedBuiltinSkills);
+    }
+
     /**
      * Applies the post-create / post-resume {@code session.options.update} patch.
      * <p>
      * In {@link CopilotClientMode#EMPTY EMPTY} mode this defaults the four
      * overridable feature flags to safe values (caller values from the config win);
-     * {@code installedPlugins=[]} is unconditional under empty mode so apps that
-     * need plugins must switch modes. In {@link CopilotClientMode#COPILOT_CLI
-     * COPILOT_CLI} mode only explicitly-set fields are forwarded.
+     * {@code installedPlugins=[]} is unconditional under empty mode.
+     * {@code includedBuiltinSkills} defaults to an empty list, but callers can
+     * explicitly allow selected runtime-bundled skills. In
+     * {@link CopilotClientMode#COPILOT_CLI COPILOT_CLI} mode only explicitly-set
+     * fields are forwarded.
      *
      * @param session
      *            the session to patch
@@ -1213,23 +1237,23 @@ public final class CopilotClient implements AutoCloseable {
      *            caller-supplied value, or {@code null} if not set
      * @param manageScheduleEnabled
      *            caller-supplied value, or {@code null} if not set
+    * @param sandboxConfig
+    *            caller-supplied sandbox configuration, or {@code null} if not set
+     * @param includedBuiltinSkills
+     *            caller-supplied built-in skill allowlist, or {@code null} if not
+     *            set
      * @return a future that completes when the patch has been applied
      */
     CompletableFuture<Void> updateSessionOptionsForMode(CopilotSession session, Boolean skipCustomInstructions,
-            Boolean customAgentsLocalOnly, Boolean coauthorEnabled, Boolean manageScheduleEnabled) {
-        return updateSessionOptionsForMode(session, skipCustomInstructions, customAgentsLocalOnly, coauthorEnabled,
-                manageScheduleEnabled, null);
-    }
-
-    CompletableFuture<Void> updateSessionOptionsForMode(CopilotSession session, Boolean skipCustomInstructions,
             Boolean customAgentsLocalOnly, Boolean coauthorEnabled, Boolean manageScheduleEnabled,
-            SandboxConfig sandboxConfig) {
+            SandboxConfig sandboxConfig, List<String> includedBuiltinSkills) {
 
         Boolean patchSkip = null;
         Boolean patchAgents = null;
         Boolean patchCoauthor = null;
         Boolean patchSchedule = null;
         List<SessionInstalledPlugin> patchPlugins = null;
+        List<String> patchSkills = null;
         boolean hasAnyPatch = sandboxConfig != null;
 
         if (options.getMode() == CopilotClientMode.EMPTY) {
@@ -1238,6 +1262,7 @@ public final class CopilotClient implements AutoCloseable {
             patchCoauthor = coauthorEnabled != null ? coauthorEnabled : false;
             patchSchedule = manageScheduleEnabled != null ? manageScheduleEnabled : false;
             patchPlugins = List.of();
+            patchSkills = includedBuiltinSkills != null ? includedBuiltinSkills : List.of();
             hasAnyPatch = true;
         } else {
             if (skipCustomInstructions != null) {
@@ -1254,6 +1279,10 @@ public final class CopilotClient implements AutoCloseable {
             }
             if (manageScheduleEnabled != null) {
                 patchSchedule = manageScheduleEnabled;
+                hasAnyPatch = true;
+            }
+            if (includedBuiltinSkills != null) {
+                patchSkills = includedBuiltinSkills;
                 hasAnyPatch = true;
             }
         }
@@ -1285,10 +1314,13 @@ public final class CopilotClient implements AutoCloseable {
                 null, // shell
                 null, // shellInitProfile
                 null, // shellProcessFlags
-                sandboxConfig, null, // logInteractiveShells
+                sandboxConfig, // sandboxConfig
+                null, // sandboxConfigSource
+                null, // logInteractiveShells
                 null, // envValueMode
                 null, // allowAllMcpServerInstructions
                 null, // skillDirectories
+                patchSkills, // includedBuiltinSkills
                 null, // disabledSkills
                 null, // enableOnDemandInstructionDiscovery
                 null, // maxInlineBinaryBytes

@@ -1030,8 +1030,9 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// patch for the current mode. In empty mode this defaults the four
     /// overridable feature flags to safe values (caller values from
     /// <paramref name="config"/> win); <c>installedPlugins=[]</c> is
-    /// unconditional under empty mode so apps that need plugins must switch
-    /// modes. In copilot-cli mode only explicitly-set fields are forwarded.
+    /// unconditional under empty mode. <c>includedBuiltinSkills</c> defaults to
+    /// an empty list, but callers can explicitly allow selected runtime-bundled
+    /// skills. In copilot-cli mode only explicitly-set fields are forwarded.
     /// </summary>
     private async Task UpdateSessionOptionsForModeAsync(CopilotSession session, SessionConfigBase config, CancellationToken cancellationToken)
     {
@@ -1041,6 +1042,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         bool? coauthorEnabled = null;
         bool? manageScheduleEnabled = null;
         IList<SessionInstalledPlugin>? installedPlugins = null;
+        IList<string>? includedBuiltinSkills = null;
 
         if (config.SandboxConfig is not null)
         {
@@ -1054,6 +1056,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             coauthorEnabled = config.CoauthorEnabled ?? false;
             manageScheduleEnabled = config.ManageScheduleEnabled ?? false;
             installedPlugins = [];
+            includedBuiltinSkills = config.IncludedBuiltinSkills ?? [];
             hasAnyPatch = true;
         }
         else
@@ -1062,6 +1065,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             if (config.CustomAgentsLocalOnly is not null) { customAgentsLocalOnly = config.CustomAgentsLocalOnly; hasAnyPatch = true; }
             if (config.CoauthorEnabled is not null) { coauthorEnabled = config.CoauthorEnabled; hasAnyPatch = true; }
             if (config.ManageScheduleEnabled is not null) { manageScheduleEnabled = config.ManageScheduleEnabled; hasAnyPatch = true; }
+            if (config.IncludedBuiltinSkills is not null) { includedBuiltinSkills = config.IncludedBuiltinSkills; hasAnyPatch = true; }
         }
 
         if (!hasAnyPatch) return;
@@ -1076,6 +1080,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 manageScheduleEnabled: manageScheduleEnabled,
                 installedPlugins: installedPlugins,
                 sandboxConfig: config.SandboxConfig,
+                includedBuiltinSkills: includedBuiltinSkills,
                 cancellationToken: cancellationToken).ConfigureAwait(false);
 #pragma warning restore GHCP001
         }

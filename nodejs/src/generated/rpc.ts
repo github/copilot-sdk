@@ -28,6 +28,7 @@ export type AuthInfo =
   | HMACAuthInfo
   | EnvAuthInfo
   | TokenAuthInfo
+  | TokenProviderAuthInfo
   | CopilotApiTokenAuthInfo
   | UserAuthInfo
   | GhCliAuthInfo
@@ -263,6 +264,8 @@ export type AuthInfoType =
   | "api-key"
   /** Authentication from a GitHub token. */
   | "token"
+  /** Authentication from an SDK GitHub token callback. */
+  | "token-provider"
   /** Authentication from a Copilot API token. */
   | "copilot-api-token";
 /**
@@ -834,9 +837,6 @@ export type DebugCollectLogsResultKind =
   | "archive"
   /** A directory containing redacted files was written. */
   | "directory";
-
-/** @experimental */
-export type DisableBypassPermissionsMode = "disable";
 /**
  * Persisted extension discovery source
  *
@@ -1182,6 +1182,50 @@ export type FilterMapping =
       [k: string]: ContentFilterMode;
     }
   | ContentFilterMode;
+/**
+ * Why the runtime is requesting a GitHub credential.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "GitHubTokenAcquireReason".
+ */
+/** @experimental */
+export type GitHubTokenAcquireReason =
+  /** The runtime is acquiring the registration's first credential. */
+  | "initial"
+  /** The runtime is replacing a credential that is approaching expiry. */
+  | "refresh";
+/**
+ * SDK host response to a GitHub credential request.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "GitHubTokenAcquireResult".
+ */
+/** @experimental */
+export type GitHubTokenAcquireResult =
+  | {
+      /**
+       * GitHub access token acquired by the SDK host.
+       */
+      accessToken: string;
+      /**
+       * OAuth token type. Defaults to bearer when omitted.
+       */
+      tokenType?: string;
+      /**
+       * Remaining token lifetime in seconds when callback execution completes. It must exceed the one-hour preflight refresh threshold.
+       */
+      expiresIn: number;
+      /**
+       * GitHub credential response variant discriminator.
+       */
+      kind: "token";
+    }
+  | {
+      /**
+       * GitHub credential response variant discriminator.
+       */
+      kind: "cancelled";
+    };
 /**
  * Optional compaction parameters.
  *
@@ -1843,7 +1887,7 @@ export type McpOauthPendingRequestResponse =
        */
       accessToken: string;
       /**
-       * OAuth token type. Defaults to Bearer when omitted.
+       * OAuth token type. Defaults to bearer when omitted.
        */
       tokenType?: string;
       /**
@@ -2829,6 +2873,29 @@ export type RemoteSessionMetadataTaskType =
   /** CLI remote task. */
   | "cli";
 /**
+ * Origin of the sandbox choice supplied by an internal client.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SandboxConfigSource".
+ */
+/** @experimental */
+/** @internal */
+export type SandboxConfigSource =
+  /** The client applied the default because no sandbox preference was configured. */
+  | "never_configured"
+  /** The user's persisted settings enabled the sandbox. */
+  | "user_enabled"
+  /** The user's persisted settings disabled the sandbox. */
+  | "user_disabled"
+  /** A command-line flag selected the sandbox state for this session. */
+  | "session_flag"
+  /** The user disabled the sandbox for the current session. */
+  | "session_disabled"
+  /** The client disabled the sandbox because the host cannot enforce it. */
+  | "unsupported_host"
+  /** A repository policy selected the sandbox state. */
+  | "repository_policy";
+/**
  * Current authentication information, or null when no authentication is active.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -3241,6 +3308,21 @@ export type SessionsOpenProgressStatus =
   | "in-progress"
   /** The step has completed successfully. */
   | "complete";
+/**
+ * Authentication credentials accepted by session.gitHubAuth.setCredentials. Session-owned token-provider identities cannot be installed through this method.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SettableAuthInfo".
+ */
+/** @experimental */
+export type SettableAuthInfo =
+  | HMACAuthInfo
+  | EnvAuthInfo
+  | SettableTokenAuthInfo
+  | CopilotApiTokenAuthInfo
+  | UserAuthInfo
+  | GhCliAuthInfo
+  | ApiKeyAuthInfo;
 /**
  * Rust-owned settings predicates exposed across the SDK boundary. Raw feature-flag names are intentionally not part of the contract.
  *
@@ -4181,6 +4263,32 @@ export interface TokenAuthInfo {
    * The token value itself. Treat as a secret.
    */
   token: string;
+  /**
+   * Opaque native GitHub credential registration backing this token identity, when applicable.
+   */
+  registrationId?: string;
+  copilotUser?: CopilotUserResponse;
+}
+/**
+ * Authentication-info variant backed by an SDK GitHub token callback. It carries routing metadata but never a plaintext token.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "TokenProviderAuthInfo".
+ */
+/** @experimental */
+export interface TokenProviderAuthInfo {
+  /**
+   * SDK callback-backed GitHub token authentication.
+   */
+  type: "token-provider";
+  /**
+   * Authentication host.
+   */
+  host: string;
+  /**
+   * Opaque SDK callback registration identifier.
+   */
+  registrationId: string;
   copilotUser?: CopilotUserResponse;
 }
 /**
@@ -4831,6 +4939,10 @@ export interface AuthIdentity {
    * Name of the environment variable that supplied the credential, when applicable
    */
   envVar?: string;
+  /**
+   * Opaque SDK GitHub credential registration backing this identity. Routing metadata only; never a credential.
+   */
+  registrationId?: string;
   copilotUser?: CopilotUserResponse;
 }
 /**
@@ -6200,6 +6312,32 @@ export interface ConfigureSessionExtensionsParams {
   controller?: OpaqueInProcessValue;
 }
 /**
+ * Identity of the integrating host, declared once on the `server.connect` handshake so telemetry from this connection is attributed to a single, consistent surface. All fields are optional; omit them to keep the default attribution.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ConnectClientInfo".
+ */
+/** @experimental */
+/** @internal */
+export interface ConnectClientInfo {
+  /**
+   * Name of the host editor, e.g. `"vscode"`.
+   */
+  editorName?: string;
+  /**
+   * Version of the host editor, e.g. `"1.124.2"`. Ignored unless it looks like a version string.
+   */
+  editorVersion?: string;
+  /**
+   * Name of the Copilot extension within the host, e.g. `"copilot-chat"`.
+   */
+  extensionName?: string;
+  /**
+   * Version of the Copilot extension within the host, e.g. `"0.54.0"`. Ignored unless it looks like a version string.
+   */
+  extensionVersion?: string;
+}
+/**
  * Metadata for a connected remote session.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -6293,6 +6431,7 @@ export interface ConnectRequest {
    * Opt this connection in to GitHub telemetry forwarding for its lifetime. When set, the runtime forwards every internal telemetry event it emits — across all sessions, plus sessionless events — to this connection over the `gitHubTelemetry.event` notification. Regular events are also written to the runtime's normal GitHub/CTS path (dual-write); host-only compatibility events are forward-only and intentionally skip that path. Intended for first-party hosts that re-emit the events into their own telemetry stores. Both unrestricted and restricted events are forwarded, each tagged with a `restricted` discriminator; a backstop drops restricted events when restricted telemetry is disabled — using the process-global gate for ordinary events and an explicit session-scoped decision for host-only events.
    */
   enableGitHubTelemetryForwarding?: boolean;
+  clientInfo?: ConnectClientInfo;
   /**
    * Connection token; required when the server was started with COPILOT_CONNECTION_TOKEN
    */
@@ -8305,6 +8444,28 @@ export interface GitHubTelemetryNotification {
   event: GitHubTelemetryEvent;
 }
 /**
+ * Asks the SDK client to acquire a GitHub access token from an opaque callback registration.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "GitHubTokenAcquireRequest".
+ */
+/** @experimental */
+export interface GitHubTokenAcquireRequest {
+  /**
+   * Opaque identifier generated by the SDK for this callback registration.
+   */
+  registrationId: string;
+  /**
+   * Effective GitHub host for which the callback must return a token.
+   */
+  host: string;
+  /**
+   * Session receiving the token. Absent only before a cloud session has been assigned its id.
+   */
+  sessionId?: string;
+  reason: GitHubTokenAcquireReason;
+}
+/**
  * Pending external tool call request ID, with the tool result or an error describing why it failed.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -8728,6 +8889,10 @@ export interface InstalledPlugin {
    * Per-plugin source fingerprint (a SHA-256 hash of the plugin's catalog source spec plus its resolved source subtree — NOT a Git commit SHA) captured at marketplace install/update time. Auto-update compares it against the freshly recomputed fingerprint to detect a content change that does not bump the version. Absent for pre-existing installs and for direct (non-marketplace) installs.
    */
   source_sha?: string;
+  /**
+   * Absolute path of the marketplace directory a live plugin was resolved from. Present only on live, never-persisted records — those synthesized at session start for a directory/local marketplace, whose cache_path points at the real plugin directory on disk rather than a copy under the installed-plugins cache. Its presence is what marks a record as live, and no record carrying it is ever written to the persisted installedPlugins key.
+   */
+  installed_from?: string;
 }
 /**
  * Source descriptor for a direct GitHub plugin install, with `owner/repo`, optional ref or full commit SHA, and optional subpath.
@@ -8832,6 +8997,10 @@ export interface InstalledPluginInfo {
    * Whether the plugin is currently enabled for new sessions
    */
   enabled: boolean;
+  /**
+   * Absolute path of the marketplace directory a live plugin was resolved from. Present only on live, never-persisted records — a plugin belonging to a directory/local marketplace, which is loaded from its real directory on every pass instead of a copy under the installed-plugins cache. Its presence is what marks a listed plugin as live: such a plugin is always present on disk, so `enabled` is its only meaningful state and it is never "not installed".
+   */
+  installedFrom?: string;
 }
 /**
  * Canonical file or directory where custom instructions can be discovered or created, with location, kind, preference, and project path.
@@ -11851,6 +12020,15 @@ export interface Model {
   supportedContextTiers?: string[];
   modelPickerCategory?: ModelPickerCategory;
   modelPickerPriceCategory?: ModelPickerPriceCategory;
+  warningText?: ModelWarningText;
+  /**
+   * Informational notices the service published for this model, such as an upcoming change or a recommended alternative. Present only when the service published at least one notice. Hosts should surface these without implying anything is wrong with the model.
+   */
+  infoMessages?: ModelMessage[];
+  /**
+   * Warnings the service published for this model, such as a deprecated client version. Present only when the service published at least one warning. The model remains usable; hosts should surface these as advisory rather than blocking.
+   */
+  warningMessages?: ModelMessage[];
 }
 /**
  * Model capabilities and limits
@@ -12072,6 +12250,36 @@ export interface ModelBillingPromo {
    * Human-readable promotion message. Does not include the expiry timestamp; consumers may format endsAt and append it when present.
    */
   message?: string;
+}
+/**
+ * Service-published warning text that hosts should display when presenting a model.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ModelWarningText".
+ */
+/** @experimental */
+export interface ModelWarningText {
+  /**
+   * Data-retention warning for the model. The text may contain Markdown links and should be rendered as Markdown when supported.
+   */
+  dataRetention?: string;
+}
+/**
+ * A service-published message about a model, carrying a stable machine-readable code alongside human-readable text.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ModelMessage".
+ */
+/** @experimental */
+export interface ModelMessage {
+  /**
+   * Stable machine-readable identifier for the message, such as `client_version_deprecated`. Hosts can key custom presentation off this; unrecognized codes should fall back to displaying `message`.
+   */
+  code: string;
+  /**
+   * Human-readable message text intended for display to the user.
+   */
+  message: string;
 }
 /**
  * Managed, repository, and CLI model overrides to overlay onto the session at startup.
@@ -13584,7 +13792,7 @@ export interface PermissionLocationResolveResult {
 /** @experimental */
 export interface PermissionPathsAddParams {
   /**
-   * Directory to add to the allow-list. The runtime resolves and validates the path before adding.
+   * Directory to add to the allow-list. The runtime resolves and validates the path before adding, then loads conventional `.github/skills/` and `.github/agents/` definitions under it when their subsystem gates are enabled. Adding the directory is therefore also a trust decision for configuration stored there.
    */
   path: string;
 }
@@ -13627,7 +13835,7 @@ export interface PermissionPathsConfig {
    */
   unrestricted?: boolean;
   /**
-   * Additional directories to allow tool access to (in addition to the session's working directory). When `unrestricted` is true, these are still pre-populated on the UnrestrictedPathManager so they remain visible via getDirectories() (e.g. for @-mention completion).
+   * Additional directories to allow tool access to (in addition to the session's working directory). Conventional `.github/skills/` and `.github/agents/` definitions under them also join the session catalogs when their subsystem gates are enabled, so supplying a directory is a trust decision for configuration stored there. When `unrestricted` is true, these are still pre-populated on the UnrestrictedPathManager so they remain visible via getDirectories() (e.g. for @-mention completion).
    */
   additionalDirectories?: string[];
   /**
@@ -15550,6 +15758,10 @@ export interface QueuePendingItemsResult {
    * Display text for messages currently in the immediate steering queue (interjections sent during a running turn).
    */
   steeringMessages: string[];
+  /**
+   * How many leading entries of `steeringMessages` have already been folded into the running turn (and so have an emitted `user.message`), as opposed to still waiting for one. Absent for hosts that do not distinguish the two.
+   */
+  inFlightSteeringCount?: number;
 }
 /**
  * Parameters for removing a queued item by stable id.
@@ -16140,7 +16352,7 @@ export interface SandboxConfig {
   addCurrentWorkingDirectory?: boolean;
   auth?: SandboxConfigAuth;
   /**
-   * Whether to auto-grant read access to the tool directories discovered on PATH and in toolchain environment variables (GOROOT, CARGO_HOME, JAVA_HOME, VIRTUAL_ENV, and similar), and to common developer-tool caches, registries, and toolchains in their default home locations (cargo, go, npm, Maven, and more), plus read-write access to (and, on Unix, up-front creation of) the scratch caches builds write on every run (go-build, ccache, sccache, Gradle caches, Cargo lock/tracker files), so builds work without extra configuration; a relocated CARGO_HOME additionally gets its Cargo lock files granted read-write. Set to false to disable every grant listed above: user-installed toolchains (rustup, nvm, pyenv, conda, pipx) then need explicit userPolicy.filesystem entries — readonlyPaths to read them, plus readwriteFiles for a relocated CARGO_HOME's .package-cache and .global-cache, which Cargo locks on every build. Only these developer-tool grants are affected: the working directory (see addCurrentWorkingDirectory), temporary storage, session log paths, and system locations follow their own rules and stay granted, so commands still run. Default: true (enabled by default; set to false to opt out).
+   * Whether to auto-grant read access to the tool directories discovered on PATH and in toolchain environment variables (GOROOT, CARGO_HOME, JAVA_HOME, VIRTUAL_ENV, and similar), and to common developer-tool caches, registries, and toolchains in their default home locations (cargo, go, npm, Maven, and more), plus read-write access to (and up-front creation of) the scratch caches builds write on every run (go-build, ccache, sccache, Gradle caches, Cargo lock/tracker files), so builds work without extra configuration; a relocated CARGO_HOME additionally gets its Cargo lock files granted read-write. Set to false to disable every grant listed above: user-installed toolchains (rustup, nvm, pyenv, conda, pipx) then need explicit userPolicy.filesystem entries — readonlyPaths to read them, plus readwriteFiles for a relocated CARGO_HOME's .package-cache and .global-cache, which Cargo locks on every build. Only these developer-tool grants are affected: the working directory (see addCurrentWorkingDirectory), temporary storage, session log paths, and system locations follow their own rules and stay granted, so commands still run. Default: true (enabled by default; set to false to opt out).
    */
   allowDevToolAccess?: boolean;
 }
@@ -17462,6 +17674,10 @@ export interface SessionInstalledPlugin {
    * Per-plugin source fingerprint (a SHA-256 hash of the plugin's catalog source spec plus its resolved source subtree — NOT a Git commit SHA) captured at marketplace install/update time. Auto-update compares it against the freshly recomputed fingerprint to detect a content change that does not bump the version. Absent for pre-existing installs and for direct (non-marketplace) installs.
    */
   source_sha?: string;
+  /**
+   * Absolute path of the marketplace directory a live plugin was resolved from. Present only on live, never-persisted records — those synthesized at session start for a directory/local marketplace, whose cache_path points at the real plugin directory on disk rather than a copy under the installed-plugins cache. Its presence is what marks a record as live, and no record carrying it is ever written to the persisted installedPlugins key.
+   */
+  installed_from?: string;
 }
 /**
  * Source descriptor for a direct GitHub plugin install, with `owner/repo`, optional ref or full commit SHA, and optional subpath.
@@ -17665,7 +17881,10 @@ export interface SessionLoadDeferredRepoHooksResult {
  */
 /** @experimental */
 export interface SessionManagedPermissions {
-  disableBypassPermissionsMode?: DisableBypassPermissionsMode;
+  /**
+   * When set to `disable`, prevents bypass/allow-all permission modes. `allow-auto-only` blocks full allow-all but permits advisory auto-approval. Any other value is accepted rather than failing the session, but is enforced as `disable`: the key is only present to restrict something, so a mode this runtime cannot interpret fails closed to the most restrictive one it knows. Omit the key entirely to impose no restriction.
+   */
+  disableBypassPermissionsMode?: string;
   /**
    * Permission rules that block matching operations. Deny has highest precedence.
    */
@@ -17876,7 +18095,7 @@ export interface SessionOpenOptions {
    */
   workingDirectory?: string;
   /**
-   * Additional directories the agent may access beyond the working directory. Each entry is granted to the session's file-access allow-list and surfaced to the model (system prompt context and `@`-mention completion). Absolute paths are recommended; a relative path is resolved against the session's working directory. Nonexistent or unresolvable entries are skipped with a warning. This is applied on both session creation and resume, and is not persisted: a resumed session that omits this option does not retain previously supplied directories (re-supply them, exactly as the CLI re-passes `--add-dir`).
+   * Additional directories the agent may access beyond the working directory. Each entry is granted to the session's file-access allow-list and surfaced to the model (system prompt context and `@`-mention completion). Conventional `.github/skills/` and `.github/agents/` definitions under each directory also join the session's project catalogs when their existing subsystem gates are enabled: added-root skills require both `enableConfigDiscovery` and effective `enableSkills`; added-root agents require `enableConfigDiscovery`. Supplying a directory therefore activates configuration from it and should be treated as a trust decision. Absolute paths are recommended; a relative path is resolved against the session's working directory. Nonexistent or unresolvable entries are skipped with a warning. This is applied during session creation and cold resume and is not persisted, so a cold resume must re-supply the directories.
    */
   additionalDirectories?: string[];
   workingDirectoryContext?: SessionContext;
@@ -17932,6 +18151,12 @@ export interface SessionOpenOptions {
   shellProcessFlags?: string[];
   sandboxConfig?: SandboxConfig;
   /**
+   * Origin of the sandbox choice. The runtime uses this only for internal telemetry provenance; managed policy is derived independently.
+   *
+   * @internal
+   */
+  sandboxConfigSource?: SandboxConfigSource;
+  /**
    * Whether interactive shell sessions are logged.
    */
   logInteractiveShells?: boolean;
@@ -17948,6 +18173,10 @@ export interface SessionOpenOptions {
    * Additional directories to search for skills.
    */
   skillDirectories?: string[];
+  /**
+   * Built-in skill names to include in this session. When specified, only these runtime-bundled skills are available. Skills from other sources with the same name remain available.
+   */
+  includedBuiltinSkills?: string[];
   /**
    * Skill IDs disabled for this session.
    */
@@ -18514,7 +18743,29 @@ export interface SessionsEnrichMetadataRequest {
  */
 /** @experimental */
 export interface SessionSetCredentialsParams {
-  credentials?: AuthInfo;
+  credentials?: SettableAuthInfo;
+}
+/**
+ * Token authentication accepted by session.gitHubAuth.setCredentials.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SettableTokenAuthInfo".
+ */
+/** @experimental */
+export interface SettableTokenAuthInfo {
+  /**
+   * SDK-side token authentication; the host configured the token directly via the SDK.
+   */
+  type: "token";
+  /**
+   * Authentication host.
+   */
+  host: string;
+  /**
+   * The token value itself. Treat as a secret.
+   */
+  token: string;
+  copilotUser?: CopilotUserResponse;
 }
 /**
  * Indicates whether the credential update succeeded.
@@ -19322,6 +19573,12 @@ export interface SessionUpdateOptionsParams {
   shellProcessFlags?: string[];
   sandboxConfig?: SandboxConfig;
   /**
+   * Origin of the sandbox choice. The runtime uses this only for internal telemetry provenance; managed policy is derived independently.
+   *
+   * @internal
+   */
+  sandboxConfigSource?: SandboxConfigSource;
+  /**
    * Whether interactive shell sessions are logged.
    */
   logInteractiveShells?: boolean;
@@ -19334,6 +19591,10 @@ export interface SessionUpdateOptionsParams {
    * Additional directories to search for skills.
    */
   skillDirectories?: string[];
+  /**
+   * Built-in skill names to include in this session. When specified, only these runtime-bundled skills are available. Skills from other sources with the same name remain available. Set to null to remove the allowlist restriction.
+   */
+  includedBuiltinSkills?: string[] | null;
   /**
    * Skill IDs that should be excluded from this session.
    */
@@ -24645,7 +24906,7 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
                 list: async (): Promise<PermissionPathsList> =>
                     connection.sendRequest("session.permissions.paths.list", { sessionId }),
                 /**
-                 * Adds a directory to the session's allow-list.
+                 * Adds a directory to the session's allow-list and activates conventional skill and agent definitions under it.
                  *
                  * @param params Directory path to add to the session's allowed directories.
                  *
@@ -25801,11 +26062,25 @@ export interface GitHubTelemetryHandler {
     event(params: GitHubTelemetryNotification): Promise<void>;
 }
 
+/** Handler for `gitHubToken` client global API methods. */
+/** @experimental */
+export interface GitHubTokenHandler {
+    /**
+     * Asks the SDK client to mint a GitHub access token for a session whose configuration supplied a GitHub token provider. The runtime acquires the initial token during bootstrap and refreshes it during expiry preflight when one hour or less remains.
+     *
+     * @param params Asks the SDK client to acquire a GitHub access token from an opaque callback registration.
+     *
+     * @returns SDK host response to a GitHub credential request.
+     */
+    getToken(params: GitHubTokenAcquireRequest): Promise<GitHubTokenAcquireResult>;
+}
+
 /** All client global API handler groups. */
 export interface ClientGlobalApiHandlers {
     extensionLaunchProvider?: ExtensionLaunchProviderHandler;
     llmInference?: LlmInferenceHandler;
     gitHubTelemetry?: GitHubTelemetryHandler;
+    gitHubToken?: GitHubTokenHandler;
 }
 
 /**
@@ -25838,5 +26113,10 @@ export function registerClientGlobalApiHandlers(
         const handler = handlers.gitHubTelemetry;
         if (!handler) return;
         await handler.event(params);
+    });
+    connection.onRequest("gitHubToken.getToken", async (params: GitHubTokenAcquireRequest) => {
+        const handler = handlers.gitHubToken;
+        if (!handler) throw new Error("No gitHubToken client-global handler registered");
+        return handler.getToken(params);
     });
 }

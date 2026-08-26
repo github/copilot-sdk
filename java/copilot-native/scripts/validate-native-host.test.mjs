@@ -29,6 +29,17 @@ test("accepts Windows x64 without a libc requirement", () => {
   );
 });
 
+test("accepts macOS ARM64 without a libc requirement", () => {
+  assert.equal(
+    validateNativeHost("darwin-arm64", {
+      platform: "darwin",
+      arch: "arm64",
+      glibcVersionRuntime: undefined,
+    }),
+    "Validated native build host: darwin-arm64",
+  );
+});
+
 test("rejects Linux x64 with musl or unknown libc", () => {
   assert.throws(
     () =>
@@ -86,6 +97,30 @@ test("rejects Windows ARM64 for the Windows x64 classifier", () => {
         glibcVersionRuntime: undefined,
       }),
     /requires Windows x64/,
+  );
+});
+
+test("rejects a non-macOS host for the macOS classifier", () => {
+  assert.throws(
+    () =>
+      validateNativeHost("darwin-arm64", {
+        platform: "linux",
+        arch: "arm64",
+        glibcVersionRuntime: "2.39",
+      }),
+    /requires macOS ARM64/,
+  );
+});
+
+test("rejects macOS x64 for the macOS ARM64 classifier", () => {
+  assert.throws(
+    () =>
+      validateNativeHost("darwin-arm64", {
+        platform: "darwin",
+        arch: "x64",
+        glibcVersionRuntime: undefined,
+      }),
+    /requires macOS ARM64/,
   );
 });
 

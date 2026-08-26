@@ -103,6 +103,7 @@ const (
 	SessionEventTypeMCPResourcesListChanged    SessionEventType = "mcp.resources.list_changed"
 	SessionEventTypeMCPToolsListChanged        SessionEventType = "mcp.tools.list_changed"
 	SessionEventTypeModelCallFailure           SessionEventType = "model.call_failure"
+	SessionEventTypeModelCallFinished          SessionEventType = "model.call_finished"
 	SessionEventTypeModelCallStart             SessionEventType = "model.call_start"
 	SessionEventTypePendingMessagesModified    SessionEventType = "pending_messages.modified"
 	SessionEventTypePermissionCompleted        SessionEventType = "permission.completed"
@@ -339,6 +340,8 @@ type AssistantMessageData struct {
 	ParentToolCallID *string `json:"parentToolCallId,omitempty"`
 	// Generation phase for phased-output models (e.g., thinking vs. response phases)
 	Phase *string `json:"phase,omitempty"`
+	// Neutral provider-tagged reasoning content blocks preserved verbatim for round-tripping. `reasoningText` and `reasoningOpaque` are a lossy derived view of these blocks, retained for display.
+	ReasoningBlocks *AssistantMessageReasoningBlocks `json:"reasoningBlocks,omitempty"`
 	// Opaque/encrypted extended thinking data from Anthropic models. Session-bound and stripped on resume.
 	ReasoningOpaque *string `json:"reasoningOpaque,omitempty"`
 	// Readable reasoning text from the model's extended thinking
@@ -753,6 +756,8 @@ type SessionManagedSettingsResolvedData struct {
 	ManagedKeys []string `json:"managedKeys"`
 	// Whether at least two managed sources supplied permission allowlists, so enforcement intersects them and the flattened settings payload omits `permissions.allow`.
 	PermissionsAllowIntersected *bool `json:"permissionsAllowIntersected,omitempty"`
+	// Whether the effective sandbox policy forces the sandbox on *only* because managed policy could not be determined, rather than because the policy requires it. Lets clients tell a user whose `--no-sandbox` was overridden that the sandbox stayed on as a fail-closed fallback, instead of attributing it to an administrator who set no such policy.
+	SandboxEnabledByUndeterminedPolicy *bool `json:"sandboxEnabledByUndeterminedPolicy,omitempty"`
 	// Whether the server (account/org) managed-settings layer was present
 	ServerManaged bool `json:"serverManaged"`
 	// The effective (resolved) managed settings values, so clients can render exactly what is enforced. Absent when no managed policy is in force.
@@ -942,6 +947,25 @@ type ModelCallFailureData struct {
 func (*ModelCallFailureData) sessionEventData()      {}
 func (*ModelCallFailureData) Type() SessionEventType { return SessionEventTypeModelCallFailure }
 
+// Final lifecycle outcome for one logical model dispatch. A logical dispatch may include internal reconnect or fallback work, so event count is not provider HTTP-request count.
+type ModelCallFinishedData struct {
+	// Whether an accepted successful response requested the exact name and command semantics of a built-in file edit tool, including an external tool explicitly replacing that built-in name. Absent when the logical dispatch did not produce an accepted response.
+	ContainsBuiltInFileEditRequest *bool `json:"containsBuiltInFileEditRequest,omitempty"`
+	// Monotonic elapsed time spent in the logical model dispatch, including any internal transport reconnect or fallback and excluding orchestrator retry backoff, tool execution, confirmations, and post-response processing
+	DispatchDurationMs float64 `json:"dispatchDurationMs"`
+	// Version of the built-in file-edit semantic classifier used for this event
+	EditClassifierVersion int64 `json:"editClassifierVersion"`
+	// Identifier of the user interaction that owns the model dispatch, matching assistant.turn_start.interactionId when available
+	InteractionID *string `json:"interactionId,omitempty"`
+	// Final outcome after post-response acceptance processing
+	Outcome ModelCallFinishedOutcome `json:"outcome"`
+	// Agent-loop iteration within the interaction that initiated the model dispatch
+	TurnID string `json:"turnId"`
+}
+
+func (*ModelCallFinishedData) sessionEventData()      {}
+func (*ModelCallFinishedData) Type() SessionEventType { return SessionEventTypeModelCallFinished }
+
 // Hook invocation completion details including output, success status, and error information
 type HookEndData struct {
 	// Error details when the hook failed
@@ -1047,6 +1071,8 @@ type AssistantUsageData struct {
 	NumToolCalls *int64 `json:"numToolCalls,omitempty"`
 	// Number of output tokens produced
 	OutputTokens *int64 `json:"outputTokens,omitempty"`
+	// Time to first observable model output in milliseconds. Includes text, reasoning, and tool-call output; only available for streaming requests that produce observable output.
+	OutputTtftMs *float64 `json:"outputTtftMs,omitempty"`
 	// Parent tool call ID when this usage originates from a sub-agent
 	// Deprecated: ParentToolCallID is deprecated.
 	ParentToolCallID *string `json:"parentToolCallId,omitempty"`
@@ -2105,8 +2131,18 @@ type SubagentCompletedData struct {
 	AgentName string `json:"agentName"`
 	// Whether the sub-agent was torn down by cancellation - its own abort, or an ancestor being killed - instead of finishing its work. Cancellation is not a failure, so the run still reports completion; this distinguishes a torn-down sub-agent from one that ran to the end.
 	Cancelled *bool `json:"cancelled,omitempty"`
+	// Whether the first model actually dispatched matched the user's configured preference
+	ConfiguredModelMatchesActual *bool `json:"configuredModelMatchesActual,omitempty"`
+	// Concrete model the user configured for this sub-agent via `/subagents`, when present
+	ConfiguredModelPreference *string `json:"configuredModelPreference,omitempty"`
 	// Wall-clock duration of the sub-agent execution in milliseconds
 	DurationMs *int64 `json:"durationMs,omitempty"`
+	// Whether the explicit task-call model matched the user's configured preference
+	ExplicitModelMatchesPreference *bool `json:"explicitModelMatchesPreference,omitempty"`
+	// Explicit model supplied by the parent agent on the task call, when present
+	ExplicitModelOverride *string `json:"explicitModelOverride,omitempty"`
+	// First model for which the sub-agent started an inference request, when one was dispatched
+	FirstDispatchedModel *string `json:"firstDispatchedModel,omitempty"`
 	// Model used by the sub-agent
 	Model *string `json:"model,omitempty"`
 	// Tool call ID of the parent tool invocation that spawned this sub-agent
@@ -2126,10 +2162,20 @@ type SubagentFailedData struct {
 	AgentDisplayName string `json:"agentDisplayName"`
 	// Internal name of the sub-agent
 	AgentName string `json:"agentName"`
+	// Whether the first model actually dispatched matched the user's configured preference
+	ConfiguredModelMatchesActual *bool `json:"configuredModelMatchesActual,omitempty"`
+	// Concrete model the user configured for this sub-agent via `/subagents`, when present
+	ConfiguredModelPreference *string `json:"configuredModelPreference,omitempty"`
 	// Wall-clock duration of the sub-agent execution in milliseconds
 	DurationMs *int64 `json:"durationMs,omitempty"`
 	// Error message describing why the sub-agent failed
 	Error string `json:"error"`
+	// Whether the explicit task-call model matched the user's configured preference
+	ExplicitModelMatchesPreference *bool `json:"explicitModelMatchesPreference,omitempty"`
+	// Explicit model supplied by the parent agent on the task call, when present
+	ExplicitModelOverride *string `json:"explicitModelOverride,omitempty"`
+	// First model for which the sub-agent started an inference request, when one was dispatched
+	FirstDispatchedModel *string `json:"firstDispatchedModel,omitempty"`
 	// Model selected for the sub-agent, when known
 	Model *string `json:"model,omitempty"`
 	// Tool call ID of the parent tool invocation that spawned this sub-agent
@@ -2424,6 +2470,15 @@ type SessionWorkspaceFileChangedData struct {
 func (*SessionWorkspaceFileChangedData) sessionEventData() {}
 func (*SessionWorkspaceFileChangedData) Type() SessionEventType {
 	return SessionEventTypeSessionWorkspaceFileChanged
+}
+
+// Neutral provider-tagged reasoning content blocks preserved verbatim for round-tripping
+// Experimental: AssistantMessageReasoningBlocks is part of an experimental API and may change or be removed.
+type AssistantMessageReasoningBlocks struct {
+	// Provider-native reasoning content blocks (e.g. Anthropic `thinking` / `redacted_thinking`) preserved verbatim, in order. A single response can carry several, each signed over the content preceding it, so dropping or reordering any of them invalidates the rest.
+	Blocks []any `json:"blocks,omitzero"`
+	// Model provider that produced these reasoning blocks.
+	Provider string `json:"provider"`
 }
 
 // Neutral provider-tagged server-side tool-use payload (tool search, advisor) for verbatim round-tripping
@@ -3108,6 +3163,8 @@ type PermissionPromptRequestMCP struct {
 	// Assisted-approval judge information for this request; present only in assisted mode.
 	// Experimental: AssistedApproval is part of an experimental API and may change or be removed.
 	AssistedApproval *PermissionAssistedApproval `json:"assistedApproval,omitempty"`
+	// Whether the host may offer a server-wide "approve all tools from this server" blanket. Absent is treated as true; the runtime sends false when managed policy disables bypass-permissions mode, which forbids the server-wide escalation while still allowing per-tool approval.
+	CanOfferServerWideApproval *bool `json:"canOfferServerWideApproval,omitempty"`
 	// Advisory runtime permission recommendation. The host remains responsible for deciding the request and may reject it.
 	// Experimental: PermissionRecommendation is part of an experimental API and may change or be removed.
 	PermissionRecommendation *PermissionRecommendation `json:"permissionRecommendation,omitempty"`
@@ -4710,6 +4767,8 @@ const (
 	ManagedSettingsEnforcedEscalationApproveAll ManagedSettingsEnforcedEscalation = "approve_all"
 	// Assisted mode — keeps normal prompt paths and adds an LLM recommendation, distinct from allow-all.
 	ManagedSettingsEnforcedEscalationAssistedApproval ManagedSettingsEnforcedEscalation = "assisted_approval"
+	// A server-wide MCP "Always Allow" (or `--allow-tool <server>`) blanket that would auto-approve every tool from an MCP server. Capped to per-tool approval; each tool still prompts.
+	ManagedSettingsEnforcedEscalationServerWideMCPApproval ManagedSettingsEnforcedEscalation = "server_wide_mcp_approval"
 	// Unrestricted filesystem access outside the session's allowed directories.
 	ManagedSettingsEnforcedEscalationUnrestrictedPaths ManagedSettingsEnforcedEscalation = "unrestricted_paths"
 	// Unrestricted URL fetch access.
@@ -4841,6 +4900,20 @@ const (
 	ModelCallFailureTransportHTTP ModelCallFailureTransport = "http"
 	// WebSocket transport.
 	ModelCallFailureTransportWebsocket ModelCallFailureTransport = "websocket"
+)
+
+// Final outcome of one logical model dispatch after response acceptance processing
+type ModelCallFinishedOutcome string
+
+const (
+	// The dispatch was cancelled before an accepted response was produced.
+	ModelCallFinishedOutcomeCancelled ModelCallFinishedOutcome = "cancelled"
+	// The dispatch ended with a provider or transport error.
+	ModelCallFinishedOutcomeError ModelCallFinishedOutcome = "error"
+	// The provider response was rejected during post-response acceptance processing.
+	ModelCallFinishedOutcomeRejected ModelCallFinishedOutcome = "rejected"
+	// The provider response was accepted for continued agent processing.
+	ModelCallFinishedOutcomeSuccess ModelCallFinishedOutcome = "success"
 )
 
 // Binary result type discriminator. Use "image" for images and "resource" for other binary data.

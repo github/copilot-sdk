@@ -899,11 +899,14 @@ impl Client {
         }
         config.custom_agents_local_only =
             crate::mode::resolve_custom_agents_local_only(mode, config.custom_agents_local_only);
-        let opt_skip_custom_instructions = config.skip_custom_instructions;
-        let opt_custom_agents_local_only = config.custom_agents_local_only;
-        let opt_coauthor_enabled = config.coauthor_enabled;
-        let opt_manage_schedule_enabled = config.manage_schedule_enabled;
-        let opt_sandbox_config = config.sandbox_config.clone();
+        let post_create_options = ModePostCreateOptions {
+            skip_custom_instructions: config.skip_custom_instructions,
+            custom_agents_local_only: config.custom_agents_local_only,
+            coauthor_enabled: config.coauthor_enabled,
+            manage_schedule_enabled: config.manage_schedule_enabled,
+            sandbox_config: config.sandbox_config.clone(),
+            included_builtin_skills: config.included_builtin_skills.take(),
+        };
         let (mut wire, mut runtime) = config.into_wire(local_session_id.clone())?;
         wire.enable_github_telemetry_forwarding =
             self.inner.on_github_telemetry.is_some().then_some(true);
@@ -1092,16 +1095,7 @@ impl Client {
             open_canvases,
             event_tx,
         };
-        apply_mode_post_create_patch(
-            &session,
-            mode,
-            opt_skip_custom_instructions,
-            opt_custom_agents_local_only,
-            opt_coauthor_enabled,
-            opt_manage_schedule_enabled,
-            opt_sandbox_config,
-        )
-        .await?;
+        apply_mode_post_create_patch(&session, mode, post_create_options).await?;
         Ok(session)
     }
 
@@ -1174,11 +1168,14 @@ impl Client {
         }
         config.custom_agents_local_only =
             crate::mode::resolve_custom_agents_local_only(mode, config.custom_agents_local_only);
-        let opt_skip_custom_instructions = config.skip_custom_instructions;
-        let opt_custom_agents_local_only = config.custom_agents_local_only;
-        let opt_coauthor_enabled = config.coauthor_enabled;
-        let opt_manage_schedule_enabled = config.manage_schedule_enabled;
-        let opt_sandbox_config = config.sandbox_config.clone();
+        let post_create_options = ModePostCreateOptions {
+            skip_custom_instructions: config.skip_custom_instructions,
+            custom_agents_local_only: config.custom_agents_local_only,
+            coauthor_enabled: config.coauthor_enabled,
+            manage_schedule_enabled: config.manage_schedule_enabled,
+            sandbox_config: config.sandbox_config.clone(),
+            included_builtin_skills: config.included_builtin_skills.take(),
+        };
         let (mut wire, mut runtime) = config.into_wire()?;
         wire.enable_github_telemetry_forwarding =
             self.inner.on_github_telemetry.is_some().then_some(true);
@@ -1354,71 +1351,100 @@ impl Client {
             open_canvases,
             event_tx,
         };
-        apply_mode_post_create_patch(
-            &session,
-            mode,
-            opt_skip_custom_instructions,
-            opt_custom_agents_local_only,
-            opt_coauthor_enabled,
-            opt_manage_schedule_enabled,
-            opt_sandbox_config,
-        )
-        .await?;
+        apply_mode_post_create_patch(&session, mode, post_create_options).await?;
         Ok(session)
     }
 }
 
 type CommandHandlerMap = HashMap<String, Arc<dyn CommandHandler>>;
 
+#[derive(Default)]
+struct ModePostCreateOptions {
+    skip_custom_instructions: Option<bool>,
+    custom_agents_local_only: Option<bool>,
+    coauthor_enabled: Option<bool>,
+    manage_schedule_enabled: Option<bool>,
+    sandbox_config: Option<crate::SandboxConfig>,
+    included_builtin_skills: Option<Vec<String>>,
+}
+
 async fn apply_mode_post_create_patch(
     session: &Session,
     mode: crate::ClientMode,
-    opt_skip_custom_instructions: Option<bool>,
-    opt_custom_agents_local_only: Option<bool>,
-    opt_coauthor_enabled: Option<bool>,
-    opt_manage_schedule_enabled: Option<bool>,
-    opt_sandbox_config: Option<crate::SandboxConfig>,
+    options: ModePostCreateOptions,
 ) -> Result<(), Error> {
-    use crate::generated::api_types::SessionUpdateOptionsParams;
-    let mut patch = SessionUpdateOptionsParams {
-        sandbox_config: opt_sandbox_config,
-        ..SessionUpdateOptionsParams::default()
-    };
-    let should_send = if mode == crate::ClientMode::Empty {
-        patch.skip_custom_instructions = Some(opt_skip_custom_instructions.unwrap_or(true));
-        patch.custom_agents_local_only = Some(opt_custom_agents_local_only.unwrap_or(true));
-        patch.coauthor_enabled = Some(opt_coauthor_enabled.unwrap_or(false));
-        patch.manage_schedule_enabled = Some(opt_manage_schedule_enabled.unwrap_or(false));
-        patch.installed_plugins = Some(Vec::new());
-        true
-    } else {
-        let mut any = patch.sandbox_config.is_some();
-        if let Some(v) = opt_skip_custom_instructions {
-            patch.skip_custom_instructions = Some(v);
-            any = true;
-        }
-        if let Some(v) = opt_custom_agents_local_only {
-            patch.custom_agents_local_only = Some(v);
-            any = true;
-        }
-        if let Some(v) = opt_coauthor_enabled {
-            patch.coauthor_enabled = Some(v);
-            any = true;
-        }
-        if let Some(v) = opt_manage_schedule_enabled {
-            patch.manage_schedule_enabled = Some(v);
-            any = true;
-        }
-        any
-    };
-    if !should_send {
+    let Some(patch) = build_mode_post_create_patch(mode, options) else {
         return Ok(());
-    }
+    };
     if let Err(error) = session.rpc().options().update(patch).await {
         let _ = session.disconnect().await;
         return Err(error);
     }
     Ok(())
+}
+
+/// Builds the `session.options.update` patch applied immediately after a session
+/// is created or resumed, or returns `None` when no patch should be sent.
+///
+/// Under [`ClientMode::Empty`](crate::ClientMode::Empty) the overridable feature
+/// flags fall back to safe defaults (caller values win), while
+/// `installed_plugins` is unconditionally empty. `included_builtin_skills`
+/// defaults to an empty list, but callers can explicitly allow selected
+/// runtime-bundled skills. Under other modes only explicitly-set fields are
+/// forwarded.
+fn build_mode_post_create_patch(
+    mode: crate::ClientMode,
+    options: ModePostCreateOptions,
+) -> Option<crate::generated::api_types::SessionUpdateOptionsParams> {
+    use crate::generated::api_types::SessionUpdateOptionsParams;
+    let ModePostCreateOptions {
+        skip_custom_instructions,
+        custom_agents_local_only,
+        coauthor_enabled,
+        manage_schedule_enabled,
+        sandbox_config,
+        included_builtin_skills,
+    } = options;
+    let mut patch = SessionUpdateOptionsParams {
+        sandbox_config,
+        ..SessionUpdateOptionsParams::default()
+    };
+    let should_send = if mode == crate::ClientMode::Empty {
+        patch.skip_custom_instructions = Some(skip_custom_instructions.unwrap_or(true));
+        patch.custom_agents_local_only = Some(custom_agents_local_only.unwrap_or(true));
+        patch.coauthor_enabled = Some(coauthor_enabled.unwrap_or(false));
+        patch.manage_schedule_enabled = Some(manage_schedule_enabled.unwrap_or(false));
+        patch.installed_plugins = Some(Vec::new());
+        patch.included_builtin_skills = Some(included_builtin_skills.unwrap_or_default());
+        true
+    } else {
+        let mut any = patch.sandbox_config.is_some();
+        if let Some(v) = skip_custom_instructions {
+            patch.skip_custom_instructions = Some(v);
+            any = true;
+        }
+        if let Some(v) = custom_agents_local_only {
+            patch.custom_agents_local_only = Some(v);
+            any = true;
+        }
+        if let Some(v) = coauthor_enabled {
+            patch.coauthor_enabled = Some(v);
+            any = true;
+        }
+        if let Some(v) = manage_schedule_enabled {
+            patch.manage_schedule_enabled = Some(v);
+            any = true;
+        }
+        if let Some(v) = included_builtin_skills {
+            patch.included_builtin_skills = Some(v);
+            any = true;
+        }
+        any
+    };
+    if !should_send {
+        return None;
+    }
+    Some(patch)
 }
 
 fn build_command_handler_map(commands: Option<&[CommandDefinition]>) -> Arc<CommandHandlerMap> {
@@ -2589,12 +2615,91 @@ fn inject_transform_sections_resume(
 mod tests {
     use serde_json::json;
 
-    use super::{has_managed_settings, permission_request_data, permission_response_params};
+    use super::{
+        ModePostCreateOptions, build_mode_post_create_patch, has_managed_settings,
+        permission_request_data, permission_response_params,
+    };
     use crate::handler::PermissionResult;
     use crate::types::{
         PermissionDecisionContext, PermissionDecisionOutcome, PermissionDecisionSource,
         PermissionDecisionSurface, RequestId, SessionId,
     };
+
+    #[test]
+    fn empty_mode_post_patch_sets_empty_included_builtin_skills() {
+        let patch = build_mode_post_create_patch(
+            crate::ClientMode::Empty,
+            ModePostCreateOptions::default(),
+        )
+        .expect("empty mode always sends a patch");
+        assert_eq!(
+            patch.included_builtin_skills,
+            Some(Vec::new()),
+            "empty mode must fail closed with an empty includedBuiltinSkills list"
+        );
+        assert_eq!(patch.installed_plugins.as_ref().map(|p| p.len()), Some(0));
+        // Serializes as an explicit empty array (not omitted).
+        let value = serde_json::to_value(&patch).expect("serialize patch");
+        assert_eq!(value["includedBuiltinSkills"], serde_json::json!([]));
+    }
+
+    #[test]
+    fn empty_mode_post_patch_preserves_explicit_builtin_skill_allowlist() {
+        let patch = build_mode_post_create_patch(
+            crate::ClientMode::Empty,
+            ModePostCreateOptions {
+                skip_custom_instructions: Some(false),
+                custom_agents_local_only: Some(false),
+                coauthor_enabled: Some(true),
+                manage_schedule_enabled: Some(true),
+                included_builtin_skills: Some(vec!["code-review".to_string()]),
+                ..Default::default()
+            },
+        )
+        .expect("empty mode always sends a patch");
+        assert_eq!(
+            patch.included_builtin_skills,
+            Some(vec!["code-review".to_string()])
+        );
+    }
+
+    #[test]
+    fn copilot_cli_mode_does_not_inject_included_builtin_skills() {
+        // No fields set -> no patch at all.
+        assert!(
+            build_mode_post_create_patch(
+                crate::ClientMode::CopilotCli,
+                ModePostCreateOptions::default(),
+            )
+            .is_none()
+        );
+        // A field set -> patch sent, but skills field stays absent.
+        let patch = build_mode_post_create_patch(
+            crate::ClientMode::CopilotCli,
+            ModePostCreateOptions {
+                skip_custom_instructions: Some(true),
+                ..Default::default()
+            },
+        )
+        .expect("a set field triggers a patch");
+        assert_eq!(patch.included_builtin_skills, None);
+        assert!(patch.installed_plugins.is_none());
+        let value = serde_json::to_value(&patch).expect("serialize patch");
+        assert!(value.get("includedBuiltinSkills").is_none());
+
+        let patch = build_mode_post_create_patch(
+            crate::ClientMode::CopilotCli,
+            ModePostCreateOptions {
+                included_builtin_skills: Some(vec!["code-review".to_string()]),
+                ..Default::default()
+            },
+        )
+        .expect("an explicit allowlist triggers a patch");
+        assert_eq!(
+            patch.included_builtin_skills,
+            Some(vec!["code-review".to_string()])
+        );
+    }
 
     #[test]
     fn direct_injection_enables_managed_safeguards() {

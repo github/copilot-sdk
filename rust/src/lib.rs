@@ -2163,6 +2163,7 @@ impl Client {
                 .on_github_telemetry
                 .is_some()
                 .then_some(true),
+            ..Default::default()
         };
         let value = self
             .call(

@@ -1760,13 +1760,14 @@ pub struct CopilotExpAssignmentResponse {
     pub assignment_context: String,
 }
 
-/// Controls whether bypass-permissions mode is available in a managed session.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-#[non_exhaustive]
-pub enum DisableBypassPermissionsMode {
-    /// Turn off bypass-permissions mode.
-    Disable,
+/// Well-known managed bypass-permissions policies.
+pub struct DisableBypassPermissionsModes;
+
+impl DisableBypassPermissionsModes {
+    /// Permit automatic bypass but block full allow-all.
+    pub const ALLOW_AUTO_ONLY: &'static str = "allow-auto-only";
+    /// Turn off bypass-permissions mode entirely.
+    pub const DISABLE: &'static str = "disable";
 }
 
 /// Permission rules injected as a managed-settings layer at session bootstrap.
@@ -1775,18 +1776,17 @@ pub enum DisableBypassPermissionsMode {
 /// layer. This layer composes restrictively with any server- or device-level
 /// managed settings: [`deny`](Self::deny) and [`ask`](Self::ask) rules are
 /// unioned across layers, every present [`allow`](Self::allow) list must admit a
-/// tool for it to be allowed, and
-/// [`disable_bypass_permissions_mode`](Self::disable_bypass_permissions_mode) is
-/// honored if any layer sets it (deny-wins).
+/// tool for it to be allowed, and bypass-mode restrictions compose to the most
+/// restrictive setting.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct ManagedSettingsPermissions {
-    /// When set to `"disable"`, bypass-permissions mode is turned off for the
-    /// session regardless of other layers. Serialized as
-    /// `disableBypassPermissionsMode`.
+    /// Restricts bypass-permissions mode for the session. See
+    /// [`DisableBypassPermissionsModes`] for well-known values. Unknown values
+    /// are forwarded so newer runtime policies fail closed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub disable_bypass_permissions_mode: Option<DisableBypassPermissionsMode>,
+    pub disable_bypass_permissions_mode: Option<String>,
     /// Tool-permission patterns that are always denied.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub deny: Option<Vec<String>>,
@@ -1800,11 +1800,8 @@ pub struct ManagedSettingsPermissions {
 
 impl ManagedSettingsPermissions {
     /// Sets the bypass-permissions policy for this managed layer.
-    pub fn with_disable_bypass_permissions_mode(
-        mut self,
-        value: DisableBypassPermissionsMode,
-    ) -> Self {
-        self.disable_bypass_permissions_mode = Some(value);
+    pub fn with_disable_bypass_permissions_mode(mut self, value: impl Into<String>) -> Self {
+        self.disable_bypass_permissions_mode = Some(value.into());
         self
     }
 
@@ -1958,6 +1955,10 @@ pub struct SessionConfig {
     /// selected or invoked unless a custom agent with the same name is
     /// configured.
     pub excluded_builtin_agents: Option<Vec<String>>,
+    /// Built-in skill names to include in the session. In
+    /// [`ClientMode::Empty`](crate::ClientMode::Empty), `None` excludes all
+    /// runtime-bundled skills; `Some` opts the named built-ins back in.
+    pub included_builtin_skills: Option<Vec<String>>,
     /// MCP server configurations passed through to the CLI.
     pub mcp_servers: Option<IndexMap<String, McpServerConfig>>,
     /// Controls how MCP OAuth tokens are stored for this session.
@@ -2245,6 +2246,7 @@ impl std::fmt::Debug for SessionConfig {
             .field("available_tools", &self.available_tools)
             .field("excluded_tools", &self.excluded_tools)
             .field("excluded_builtin_agents", &self.excluded_builtin_agents)
+            .field("included_builtin_skills", &self.included_builtin_skills)
             .field("mcp_servers", &self.mcp_servers)
             .field("mcp_oauth_token_storage", &self.mcp_oauth_token_storage)
             .field("embedding_cache_storage", &self.embedding_cache_storage)
@@ -2381,6 +2383,7 @@ impl Default for SessionConfig {
             available_tools: None,
             excluded_tools: None,
             excluded_builtin_agents: None,
+            included_builtin_skills: None,
             mcp_servers: None,
             mcp_oauth_token_storage: None,
             enable_config_discovery: None,
@@ -2962,6 +2965,16 @@ impl SessionConfig {
         self
     }
 
+    /// Set the runtime-bundled skill allowlist.
+    pub fn with_included_builtin_skills<I, S>(mut self, names: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.included_builtin_skills = Some(names.into_iter().map(Into::into).collect());
+        self
+    }
+
     /// Set additional directories to search for custom instruction files.
     /// Forwarded to the CLI on session create; not the same as
     /// [`with_skill_directories`](Self::with_skill_directories).
@@ -3298,6 +3311,10 @@ pub struct ResumeSessionConfig {
     /// selected or invoked unless a custom agent with the same name is
     /// configured.
     pub excluded_builtin_agents: Option<Vec<String>>,
+    /// Built-in skill names to include in the resumed session. In
+    /// [`ClientMode::Empty`](crate::ClientMode::Empty), `None` excludes all
+    /// runtime-bundled skills; `Some` opts the named built-ins back in.
+    pub included_builtin_skills: Option<Vec<String>>,
     /// Re-supply MCP servers so they remain available after app restart.
     pub mcp_servers: Option<IndexMap<String, McpServerConfig>>,
     /// Controls how MCP OAuth tokens are stored for this session.
@@ -3519,6 +3536,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("available_tools", &self.available_tools)
             .field("excluded_tools", &self.excluded_tools)
             .field("excluded_builtin_agents", &self.excluded_builtin_agents)
+            .field("included_builtin_skills", &self.included_builtin_skills)
             .field("mcp_servers", &self.mcp_servers)
             .field("mcp_oauth_token_storage", &self.mcp_oauth_token_storage)
             .field("embedding_cache_storage", &self.embedding_cache_storage)
@@ -3797,6 +3815,7 @@ impl ResumeSessionConfig {
             available_tools: None,
             excluded_tools: None,
             excluded_builtin_agents: None,
+            included_builtin_skills: None,
             mcp_servers: None,
             mcp_oauth_token_storage: None,
             enable_config_discovery: None,
@@ -4188,6 +4207,16 @@ impl ResumeSessionConfig {
         P: Into<PathBuf>,
     {
         self.skill_directories = Some(paths.into_iter().map(Into::into).collect());
+        self
+    }
+
+    /// Set the runtime-bundled skill allowlist on resume.
+    pub fn with_included_builtin_skills<I, S>(mut self, names: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.included_builtin_skills = Some(names.into_iter().map(Into::into).collect());
         self
     }
 

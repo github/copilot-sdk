@@ -1,14 +1,13 @@
 use std::collections::HashMap;
 
 use github_copilot_sdk::rpc::{
-    AuthInfo, AuthInfoType, HistoryTruncateRequest, LspInitializeRequest,
-    MetadataContextInfoRequest, MetadataRecomputeContextTokensRequest,
-    MetadataRecordContextChangeRequest, MetadataSetWorkingDirectoryRequest,
-    MetadataSnapshotCurrentMode, ModeSetRequest, ModelSetReasoningEffortRequest,
-    ModelSwitchToRequest, NameSetAutoRequest, NameSetRequest,
+    AuthInfoType, HistoryTruncateRequest, LspInitializeRequest, MetadataContextInfoRequest,
+    MetadataRecomputeContextTokensRequest, MetadataRecordContextChangeRequest,
+    MetadataSetWorkingDirectoryRequest, MetadataSnapshotCurrentMode, ModeSetRequest,
+    ModelSetReasoningEffortRequest, ModelSwitchToRequest, NameSetAutoRequest, NameSetRequest,
     PermissionsResetSessionApprovalsRequest, PermissionsSetApproveAllRequest, PlanUpdateRequest,
     SessionSetCredentialsParams, SessionUpdateOptionsParams, SessionWorkingDirectoryContext,
-    SessionWorkingDirectoryContextHostType, SessionsForkRequest, ShutdownRequest,
+    SessionWorkingDirectoryContextHostType, SessionsForkRequest, SettableAuthInfo, ShutdownRequest,
     TelemetrySetFeatureOverridesRequest, UserAuthInfo, WorkspacesCreateFileRequest,
     WorkspacesReadFileRequest,
 };
@@ -762,18 +761,18 @@ async fn should_update_options_and_initialize_session_services() {
                     .await
                     .expect("create session");
 
+                let mut update_options = SessionUpdateOptionsParams::default();
+                update_options.ask_user_disabled = Some(true);
+                update_options.available_tools = Some(vec!["view".to_string()]);
+                update_options.client_name = Some("rust-rpc-e2e".to_string());
+                update_options.enable_streaming = Some(true);
+                update_options.model = Some(MODEL_ID.to_string());
+                update_options.working_directory = Some(ctx.work_dir().display().to_string());
+
                 let options = session
                     .rpc()
                     .options()
-                    .update(SessionUpdateOptionsParams {
-                        ask_user_disabled: Some(true),
-                        available_tools: Some(vec!["view".to_string()]),
-                        client_name: Some("rust-rpc-e2e".to_string()),
-                        enable_streaming: Some(true),
-                        model: Some(MODEL_ID.to_string()),
-                        working_directory: Some(ctx.work_dir().display().to_string()),
-                        ..SessionUpdateOptionsParams::default()
-                    })
+                    .update(update_options)
                     .await
                     .expect("update options");
                 assert!(options.success);
@@ -893,7 +892,7 @@ async fn should_set_auth_credentials() {
                     .rpc()
                     .git_hub_auth()
                     .set_credentials(SessionSetCredentialsParams {
-                        credentials: Some(AuthInfo::User(UserAuthInfo {
+                        credentials: Some(SettableAuthInfo::User(UserAuthInfo {
                             host: "github.com".to_string(),
                             login: "rpc-session-user".to_string(),
                             ..Default::default()

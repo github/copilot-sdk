@@ -17,6 +17,7 @@ from copilot import (
     CanvasProviderIdentity,
     CapiSessionOptions,
     CopilotClient,
+    DisableBypassPermissionsModes,
     ExtensionInfo,
     ModelBillingTokenPrices,
     ModelBillingTokenPricesLongContext,
@@ -722,7 +723,7 @@ class TestCreateSessionConfig:
                 enable_managed_settings=True,
                 managed_settings=ManagedSettings(
                     permissions=ManagedSettingsPermissions(
-                        disable_bypass_permissions_mode="disable",
+                        disable_bypass_permissions_mode=DisableBypassPermissionsModes.ALLOW_AUTO_ONLY,
                         deny=["Shell(git push)"],
                         ask=["Domain(publish.example)"],
                         allow=["Read(**)"],
@@ -733,7 +734,10 @@ class TestCreateSessionConfig:
                 session.session_id,
                 on_permission_request=PermissionHandler.approve_all,
                 managed_settings=ManagedSettings(
-                    permissions=ManagedSettingsPermissions(ask=["Domain(publish.example)"])
+                    permissions=ManagedSettingsPermissions(
+                        disable_bypass_permissions_mode="future-fail-closed-mode",
+                        ask=["Domain(publish.example)"],
+                    )
                 ),
             )
 
@@ -742,14 +746,31 @@ class TestCreateSessionConfig:
             assert captured["session.create"]["enableManagedSettings"] is True
             assert captured["session.create"]["managedSettings"] == {
                 "permissions": {
-                    "disableBypassPermissionsMode": "disable",
+                    "disableBypassPermissionsMode": "allow-auto-only",
                     "deny": ["Shell(git push)"],
                     "ask": ["Domain(publish.example)"],
                     "allow": ["Read(**)"],
                 }
             }
             assert captured["session.resume"]["managedSettings"] == {
-                "permissions": {"ask": ["Domain(publish.example)"]}
+                "permissions": {
+                    "disableBypassPermissionsMode": "future-fail-closed-mode",
+                    "ask": ["Domain(publish.example)"],
+                }
+            }
+
+            await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                managed_settings=ManagedSettings(
+                    permissions=ManagedSettingsPermissions(
+                        disable_bypass_permissions_mode=DisableBypassPermissionsModes.DISABLE,
+                    )
+                ),
+            )
+            assert captured["session.create"]["managedSettings"] == {
+                "permissions": {
+                    "disableBypassPermissionsMode": "disable",
+                }
             }
         finally:
             await client.force_stop()

@@ -91,6 +91,7 @@ public class ResumeSessionConfig {
     private DefaultAgentConfig defaultAgent;
     private String agent;
     private List<String> skillDirectories;
+    private List<String> includedBuiltinSkills;
     private List<String> instructionDirectories;
     private List<String> pluginDirectories;
     private LargeToolOutputConfig largeOutput;
@@ -1526,6 +1527,28 @@ public class ResumeSessionConfig {
     }
 
     /**
+     * Gets the runtime-bundled skill allowlist.
+     *
+     * @return the built-in skill names, or {@code null} when unspecified
+     */
+    public List<String> getIncludedBuiltinSkills() {
+        return includedBuiltinSkills == null ? null : Collections.unmodifiableList(includedBuiltinSkills);
+    }
+
+    /**
+     * Sets the runtime-bundled skill allowlist. In empty mode, omitting this option
+     * excludes all built-in skills; specifying names opts those built-ins back in.
+     *
+     * @param includedBuiltinSkills
+     *            the built-in skill names to allow
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setIncludedBuiltinSkills(List<String> includedBuiltinSkills) {
+        this.includedBuiltinSkills = includedBuiltinSkills;
+        return this;
+    }
+
+    /**
      * Gets the additional directories to search for custom instruction files.
      *
      * @return the list of instruction directory paths
@@ -2063,6 +2086,9 @@ public class ResumeSessionConfig {
         copy.defaultAgent = this.defaultAgent;
         copy.agent = this.agent;
         copy.skillDirectories = this.skillDirectories != null ? new ArrayList<>(this.skillDirectories) : null;
+        copy.includedBuiltinSkills = this.includedBuiltinSkills != null
+                ? new ArrayList<>(this.includedBuiltinSkills)
+                : null;
         copy.instructionDirectories = this.instructionDirectories != null
                 ? new ArrayList<>(this.instructionDirectories)
                 : null;

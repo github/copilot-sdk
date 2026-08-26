@@ -22,7 +22,7 @@ use github_copilot_sdk::session_events::{
 };
 use github_copilot_sdk::types::{
     CanvasProviderIdentity, CloudSessionOptions, CloudSessionRepository, CommandContext,
-    CommandDefinition, CommandHandler, DeliveryMode, DisableBypassPermissionsMode,
+    CommandDefinition, CommandHandler, DeliveryMode, DisableBypassPermissionsModes,
     ElicitationRequest, ElicitationResult, ExitPlanModeData, ExtensionInfo, ManagedSettings,
     ManagedSettingsPermissions, MessageOptions, PermissionDecisionContext,
     PermissionDecisionOutcome, PermissionDecisionSource, PermissionDecisionSurface, RequestId,
@@ -788,6 +788,30 @@ async fn create_session_sends_canvas_wire_fields() {
     timeout(TIMEOUT, create_handle).await.unwrap().unwrap();
 }
 
+#[test]
+fn managed_bypass_permissions_modes_use_wire_values() {
+    let disabled = ManagedSettingsPermissions::default()
+        .with_disable_bypass_permissions_mode(DisableBypassPermissionsModes::DISABLE);
+    assert_eq!(
+        serde_json::to_value(disabled).unwrap()["disableBypassPermissionsMode"],
+        "disable"
+    );
+
+    let known = ManagedSettingsPermissions::default()
+        .with_disable_bypass_permissions_mode(DisableBypassPermissionsModes::ALLOW_AUTO_ONLY);
+    assert_eq!(
+        serde_json::to_value(known).unwrap()["disableBypassPermissionsMode"],
+        "allow-auto-only"
+    );
+
+    let future = ManagedSettingsPermissions::default()
+        .with_disable_bypass_permissions_mode("future-fail-closed-mode");
+    assert_eq!(
+        serde_json::to_value(future).unwrap()["disableBypassPermissionsMode"],
+        "future-fail-closed-mode"
+    );
+}
+
 #[tokio::test]
 async fn create_and_resume_send_managed_settings_permissions() {
     use github_copilot_sdk::types::ResumeSessionConfig;
@@ -796,7 +820,7 @@ async fn create_and_resume_send_managed_settings_permissions() {
 
     let managed = ManagedSettings::default().with_permissions(
         ManagedSettingsPermissions::default()
-            .with_disable_bypass_permissions_mode(DisableBypassPermissionsMode::Disable)
+            .with_disable_bypass_permissions_mode(DisableBypassPermissionsModes::ALLOW_AUTO_ONLY)
             .with_deny(vec!["shell(rm*)".to_string()])
             .with_ask(vec!["write".to_string()])
             .with_allow(vec![]),
@@ -821,7 +845,7 @@ async fn create_and_resume_send_managed_settings_permissions() {
     assert_eq!(request["method"], "session.create");
     assert_eq!(request["params"]["enableManagedSettings"], true);
     let perms = &request["params"]["managedSettings"]["permissions"];
-    assert_eq!(perms["disableBypassPermissionsMode"], "disable");
+    assert_eq!(perms["disableBypassPermissionsMode"], "allow-auto-only");
     assert_eq!(perms["deny"][0], "shell(rm*)");
     assert_eq!(perms["ask"][0], "write");
     assert_eq!(perms["allow"], serde_json::json!([]));

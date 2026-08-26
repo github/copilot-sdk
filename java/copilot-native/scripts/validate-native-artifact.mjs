@@ -11,6 +11,8 @@ import zlib from "node:zlib";
 const END_OF_CENTRAL_DIRECTORY = 0x06054b50;
 const CENTRAL_DIRECTORY_FILE_HEADER = 0x02014b50;
 const LOCAL_FILE_HEADER = 0x04034b50;
+const PLATFORM_CLASSIFIER =
+  /^(?:linux(?:musl)?-(?:x64|arm64)|darwin-(?:x64|arm64)|win32-(?:x64|arm64))$/;
 
 export function validateNativeClassifierJar({
   classifier,
@@ -78,7 +80,8 @@ export function validateNativeClassifierJar({
 export function validatePlaceholderJar(jarPath) {
   const archive = readJar(jarPath);
   for (const entryName of archive.entries.keys()) {
-    if (/^native\/(?:linux|win32)-x64\//.test(entryName)) {
+    const nativeClassifier = /^native\/([^/]+)\//.exec(entryName)?.[1];
+    if (nativeClassifier && PLATFORM_CLASSIFIER.test(nativeClassifier)) {
       throw new Error(
         `Placeholder primary JAR must not contain platform-native resources; found ${entryName}`,
       );

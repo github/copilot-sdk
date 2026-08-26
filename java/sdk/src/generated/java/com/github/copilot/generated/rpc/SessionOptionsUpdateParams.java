@@ -74,6 +74,8 @@ public record SessionOptionsUpdateParams(
     @JsonProperty("shellProcessFlags") List<String> shellProcessFlags,
     /** Resolved sandbox configuration. */
     @JsonProperty("sandboxConfig") SandboxConfig sandboxConfig,
+    /** Origin of the sandbox choice. The runtime uses this only for internal telemetry provenance; managed policy is derived independently. */
+    @JsonProperty("sandboxConfigSource") SandboxConfigSource sandboxConfigSource,
     /** Whether interactive shell sessions are logged. */
     @JsonProperty("logInteractiveShells") Boolean logInteractiveShells,
     /** How env values are passed to MCP servers (`direct` inlines literal values; `indirect` resolves at launch). */
@@ -82,6 +84,8 @@ public record SessionOptionsUpdateParams(
     @JsonProperty("allowAllMcpServerInstructions") Boolean allowAllMcpServerInstructions,
     /** Additional directories to search for skills. */
     @JsonProperty("skillDirectories") List<String> skillDirectories,
+    /** Built-in skill names to include in this session. When specified, only these runtime-bundled skills are available. Skills from other sources with the same name remain available. Set to null to remove the allowlist restriction. */
+    @JsonProperty("includedBuiltinSkills") List<String> includedBuiltinSkills,
     /** Skill IDs that should be excluded from this session. */
     @JsonProperty("disabledSkills") List<String> disabledSkills,
     /** Whether to discover custom instructions on demand after successful file views (AGENTS.md / CLAUDE.md / .github/copilot-instructions.md surfacing). Combined with `skipCustomInstructions`. */

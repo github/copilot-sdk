@@ -1101,6 +1101,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 		CoauthorEnabled:        config.CoauthorEnabled,
 		ManageScheduleEnabled:  config.ManageScheduleEnabled,
 		SandboxConfig:          config.SandboxConfig,
+		IncludedBuiltinSkills:  config.IncludedBuiltinSkills,
 	}); err != nil {
 		return nil, err
 	}
@@ -1381,6 +1382,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 		CoauthorEnabled:        config.CoauthorEnabled,
 		ManageScheduleEnabled:  config.ManageScheduleEnabled,
 		SandboxConfig:          config.SandboxConfig,
+		IncludedBuiltinSkills:  config.IncludedBuiltinSkills,
 	}); err != nil {
 		return nil, err
 	}

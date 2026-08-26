@@ -28,6 +28,15 @@ export function validateNativeHost(classifier, host) {
     return `Validated native build host: ${classifier}`;
   }
 
+  if (classifier === "darwin-arm64") {
+    if (host.platform !== "darwin" || host.arch !== "arm64") {
+      throw new Error(
+        `Native ${classifier} packaging requires macOS ARM64; detected ${host.platform}-${host.arch}`,
+      );
+    }
+    return `Validated native build host: ${classifier}`;
+  }
+
   throw new Error(`Unsupported native build classifier: ${classifier}`);
 }
 
