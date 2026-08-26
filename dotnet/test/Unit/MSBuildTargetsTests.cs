@@ -48,6 +48,7 @@ public class MSBuildTargetsTests
         var outputPath = sandbox.ExpectedOutputBinary();
         Assert.True(File.Exists(outputPath), $"Expected CLI to be copied to '{outputPath}'.\n{result.FailureMessage()}");
         Assert.Equal(File.ReadAllText(preinstalled), File.ReadAllText(outputPath));
+        Assert.True(File.Exists(Path.Combine(Path.GetDirectoryName(outputPath)!, ".copilot-explicit-cli")));
     }
 
     [Fact]

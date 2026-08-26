@@ -71,6 +71,8 @@ const RUNTIME_BINARY_NAME: &str = "copilot-runtime.exe";
 const RUNTIME_BINARY_NAME: &str = "copilot-runtime";
 #[cfg(has_bundled_cli)]
 const RUNTIME_NODE_NAME: &str = "runtime.node";
+#[cfg(has_bundled_cli)]
+const RUNTIME_VERSION_MARKER: &str = ".copilot-runtime-version";
 
 #[cfg(feature = "bundled-cli")]
 static INSTALLED_PATH: OnceLock<Option<PathBuf>> = OnceLock::new();
@@ -174,7 +176,14 @@ pub(crate) fn runtime_path() -> Option<PathBuf> {
 pub(crate) fn install_runtime_at(extract_dir: &Path) -> Option<PathBuf> {
     #[cfg(has_bundled_cli)]
     {
-        match install_runtime(extract_dir, build_time::CLI_ARCHIVE) {
+        let install_dir = match runtime_install_dir(extract_dir, CLI_VERSION) {
+            Ok(dir) => dir,
+            Err(e) => {
+                warn!(error = %e, "embedded runtime install directory selection failed");
+                return None;
+            }
+        };
+        match install_runtime(&install_dir, build_time::CLI_ARCHIVE) {
             Ok(path) => {
                 info!(path = %path.display(), version = CLI_VERSION, "embedded runtime installed");
                 return Some(path);
@@ -189,6 +198,39 @@ pub(crate) fn install_runtime_at(extract_dir: &Path) -> Option<PathBuf> {
         let _ = extract_dir;
     }
     None
+}
+
+#[cfg(has_bundled_cli)]
+fn runtime_install_dir(base_dir: &Path, version: &str) -> Result<PathBuf, EmbeddedCliError> {
+    fs::create_dir_all(base_dir)
+        .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::CreateDir, e))?;
+    let marker = base_dir.join(RUNTIME_VERSION_MARKER);
+    match fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&marker)
+    {
+        Ok(mut file) => {
+            if let Err(error) = file
+                .write_all(version.as_bytes())
+                .and_then(|()| file.sync_all())
+            {
+                drop(file);
+                let _ = fs::remove_file(&marker);
+                return Err(EmbeddedCliError::new(EmbeddedCliErrorKind::Io, error));
+            }
+            Ok(base_dir.to_path_buf())
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+            let installed_version = fs::read_to_string(marker).unwrap_or_default();
+            if installed_version == version {
+                Ok(base_dir.to_path_buf())
+            } else {
+                Ok(base_dir.join(version))
+            }
+        }
+        Err(error) => Err(EmbeddedCliError::new(EmbeddedCliErrorKind::Io, error)),
+    }
 }
 
 #[cfg(has_bundled_cli)]
@@ -290,7 +332,10 @@ fn install_hostless_assets(install_dir: &Path, archive: &[u8]) -> Result<(), Emb
             .read_to_end(&mut bytes)
             .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Archive, e))?;
         let target = install_dir.join(&path);
-        if fs::metadata(&target).map(|m| m.len() > 0).unwrap_or(false) {
+        if fs::read(&target)
+            .map(|installed| installed == bytes)
+            .unwrap_or(false)
+        {
             continue;
         }
         let parent = target.parent().ok_or_else(|| {
@@ -346,15 +391,18 @@ fn install_adjacent_file(
     label: &str,
 ) -> Result<(), EmbeddedCliError> {
     let target = install_dir.join(file_name);
-    if fs::metadata(&target).map(|m| m.len() > 0).unwrap_or(false) {
-        return Ok(());
-    }
     let bytes = extract_binary(archive, file_name)?;
     if bytes.is_empty() {
         return Err(EmbeddedCliError::with_message(
             EmbeddedCliErrorKind::Verification,
             format!("embedded {label} is empty"),
         ));
+    }
+    if fs::read(&target)
+        .map(|installed| installed == bytes)
+        .unwrap_or(false)
+    {
+        return Ok(());
     }
     let tmp = write_temp_file(install_dir, &bytes)?;
     if let Err(e) = publish(&tmp, &target) {
@@ -981,5 +1029,43 @@ mod tests {
             let mode = fs::metadata(&a).expect("meta").permissions().mode();
             assert_eq!(mode & 0o777, 0o755, "temp binary should be executable");
         }
+    }
+
+    #[cfg(has_bundled_cli)]
+    #[test]
+    fn runtime_install_replaces_stale_pair() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        fs::write(dir.path().join(RUNTIME_NODE_NAME), b"stale runtime").expect("seed runtime");
+        fs::write(dir.path().join(RUNTIME_BINARY_NAME), b"stale wrapper").expect("seed wrapper");
+
+        install_runtime(dir.path(), build_time::CLI_ARCHIVE).expect("install runtime");
+
+        assert_eq!(
+            fs::read(dir.path().join(RUNTIME_NODE_NAME)).expect("read runtime"),
+            extract_binary(build_time::CLI_ARCHIVE, RUNTIME_NODE_NAME).expect("extract runtime")
+        );
+        assert_eq!(
+            fs::read(dir.path().join(RUNTIME_BINARY_NAME)).expect("read wrapper"),
+            extract_binary(build_time::CLI_ARCHIVE, RUNTIME_BINARY_NAME).expect("extract wrapper")
+        );
+    }
+
+    #[cfg(has_bundled_cli)]
+    #[test]
+    fn custom_runtime_install_dir_isolated_by_version() {
+        let dir = tempfile::tempdir().expect("tempdir");
+
+        assert_eq!(
+            runtime_install_dir(dir.path(), "1.0.0").expect("claim directory"),
+            dir.path()
+        );
+        assert_eq!(
+            runtime_install_dir(dir.path(), "1.0.0").expect("reuse directory"),
+            dir.path()
+        );
+        assert_eq!(
+            runtime_install_dir(dir.path(), "2.0.0").expect("isolate directory"),
+            dir.path().join("2.0.0")
+        );
     }
 }

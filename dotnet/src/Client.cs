@@ -55,6 +55,7 @@ namespace GitHub.Copilot;
 /// </example>
 public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 {
+    private const string ExplicitBundledCliMarker = ".copilot-explicit-cli";
     /// <summary>
     /// Minimum protocol version this SDK can communicate with.
     /// </summary>
@@ -2429,6 +2430,16 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         _ = GetBundledNativePath(
             OperatingSystem.IsWindows() ? "copilot-runtime.exe" : "copilot-runtime",
             out var searchedWrapper);
+        var directory = Path.GetDirectoryName(searchedWrapper)!;
+        var runtimeNode = Path.Combine(directory, "runtime.node");
+        var explicitCliMarker = Path.Combine(directory, ExplicitBundledCliMarker);
+        if (!File.Exists(searchedWrapper)
+            && !File.Exists(runtimeNode)
+            && File.Exists(explicitCliMarker)
+            && GetBundledCliPath(out _) is { } explicitCli)
+        {
+            return new RuntimeLaunch(explicitCli, "Bundled explicit CLI");
+        }
         return ValidateRuntimePair(searchedWrapper, "Bundled runtime");
     }
 

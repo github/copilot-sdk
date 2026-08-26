@@ -46,9 +46,9 @@ describe("materializeRuntimeBundle", () => {
 
         expect(readFileSync(installedWrapper, "utf8")).toBe("wrapper");
         expect(readFileSync(join(installDir, "runtime.node"), "utf8")).toBe("runtime");
-        expect(readFileSync(join(installDir, "ripgrep", "bin", "test-platform", "rg"), "utf8")).toBe(
-            "ripgrep"
-        );
+        expect(
+            readFileSync(join(installDir, "ripgrep", "bin", "test-platform", "rg"), "utf8")
+        ).toBe("ripgrep");
         expect(existsSync(join(installDir, "app.js"))).toBe(false);
         expect(existsSync(join(installDir, "LICENSE.md"))).toBe(false);
         expect(existsSync(join(installDir, "README.md"))).toBe(false);

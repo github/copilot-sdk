@@ -57,7 +57,8 @@ use of the in-process transport.
 | `COPILOT_CLI_PATH` | Use this specific binary instead of downloading |
 | `COPILOT_CLI_EXTRACT_DIR` | Override the cache directory (binary placed directly here) |
 | `COPILOT_SKIP_CLI_DOWNLOAD` | Set to `1` to disable auto-download |
-| `COPILOT_CLI_DOWNLOAD_BASE_URL` | Override the GitHub Releases download URL |
+| `COPILOT_NPM_REGISTRY_URL` | Override the npm registry used for managed out-of-process and in-process runtime downloads |
+| `COPILOT_CLI_DOWNLOAD_BASE_URL` | Override the GitHub Releases download URL used for the root CLI |
 
 ## Run the Sample
 
