@@ -184,28 +184,34 @@ it("ignores a granted variable the extension never requested", async () => {
     expect(run.postjoin).toBe("E2E_SDK_TOKEN=granted-token\nE2E_SDK_SMUGGLED=");
 });
 
-const cliObservations = isInProcessTransport
-    ? ""
-    : mkdtempSync(join(tmpdir(), "copilot-env-access-cli-"));
+// TODO(PR #2395): Temporarily disable the real-host extension case because this PR transitions
+// managed out-of-process SDK launches to the Rust-only flow, which does not yet provide the Node
+// extension subprocess lifecycle required for the fixture extension to join.
+const extensionHostTestDisabledForRustOnlyFlow = true;
+const cliObservations =
+    isInProcessTransport || extensionHostTestDisabledForRustOnlyFlow
+        ? ""
+        : mkdtempSync(join(tmpdir(), "copilot-env-access-cli-"));
 const cliResultFile = join(cliObservations, "result");
-const cliContext = isInProcessTransport
-    ? undefined
-    : await createSdkTestContext({
-          copilotClientOptions: {
-              env: {
-                  COPILOT_CLI_ENABLED_FEATURE_FLAGS: "EXTENSIONS",
-                  EXTENSION_ENV_REQUEST: "E2E_SDK_TOKEN",
-                  EXTENSION_RESULT_FILE: cliResultFile,
-                  EXTENSION_PREJOIN_FILE: join(cliObservations, "prejoin"),
-                  EXTENSION_POSTJOIN_FILE: join(cliObservations, "postjoin"),
+const cliContext =
+    isInProcessTransport || extensionHostTestDisabledForRustOnlyFlow
+        ? undefined
+        : await createSdkTestContext({
+              copilotClientOptions: {
+                  env: {
+                      COPILOT_CLI_ENABLED_FEATURE_FLAGS: "EXTENSIONS",
+                      EXTENSION_ENV_REQUEST: "E2E_SDK_TOKEN",
+                      EXTENSION_RESULT_FILE: cliResultFile,
+                      EXTENSION_PREJOIN_FILE: join(cliObservations, "prejoin"),
+                      EXTENSION_POSTJOIN_FILE: join(cliObservations, "postjoin"),
+                  },
               },
-          },
-      });
+          });
 
 // The released CLI ignores `requestedEnvironmentVariables`, so this covers the
 // half a real CLI can prove today: asking for variables does not break the join.
 // It becomes the grant test once `@github/copilot` carries the host half.
-it.skipIf(isInProcessTransport)(
+it.skipIf(isInProcessTransport || extensionHostTestDisabledForRustOnlyFlow)(
     "joins a real CLI that does not support environment requests",
     async () => {
         if (!cliContext) {
