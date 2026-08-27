@@ -43,6 +43,36 @@ test("accepts a matching, complete Windows classifier", (t) => {
   );
 });
 
+test("accepts a matching, complete Windows ARM64 classifier", (t) => {
+  const fixture = createFixture(t);
+  const windowsArm64Classifier = "win32-arm64";
+  const windowsArm64ArtifactName =
+    "copilot-sdk-java-runtime-1.2.3-win32-arm64.jar";
+  const windowsArm64JarPath = path.join(
+    fixture.root,
+    windowsArm64ArtifactName,
+  );
+  createNativeClassifierTestFixture({
+    classifier: windowsArm64Classifier,
+    outputPath: windowsArm64JarPath,
+    repoRoot: fixture.repoRoot,
+  });
+
+  assert.deepEqual(
+    validateNativeClassifierJar({
+      classifier: windowsArm64Classifier,
+      jarPath: windowsArm64JarPath,
+      expectedFilename: windowsArm64ArtifactName,
+      repoRoot: fixture.repoRoot,
+    }),
+    {
+      classifier: windowsArm64Classifier,
+      nativeVersion: "9.8.10",
+      sha256: undefined,
+    },
+  );
+});
+
 test("accepts a matching, complete Darwin classifier", (t) => {
   const fixture = createFixture(t);
   const darwinClassifier = "darwin-arm64";
@@ -328,6 +358,7 @@ test("validates one complete signed local publication", (t) => {
   const linuxJar = `${artifactId}-${version}-linux-x64.jar`;
   const linuxArm64Jar = `${artifactId}-${version}-linux-arm64.jar`;
   const windowsJar = `${artifactId}-${version}-win32-x64.jar`;
+  const windowsArm64Jar = `${artifactId}-${version}-win32-arm64.jar`;
   const darwinJar = `${artifactId}-${version}-darwin-arm64.jar`;
   writeStoredZip(path.join(publicationDirectory, primaryJar), [
     ["META-INF/MANIFEST.MF", "Manifest-Version: 1.0\n"],
@@ -356,6 +387,11 @@ test("validates one complete signed local publication", (t) => {
     repoRoot: fixture.repoRoot,
   });
   createNativeClassifierTestFixture({
+    classifier: "win32-arm64",
+    outputPath: path.join(publicationDirectory, windowsArm64Jar),
+    repoRoot: fixture.repoRoot,
+  });
+  createNativeClassifierTestFixture({
     classifier: "darwin-arm64",
     outputPath: path.join(publicationDirectory, darwinJar),
     repoRoot: fixture.repoRoot,
@@ -372,6 +408,7 @@ test("validates one complete signed local publication", (t) => {
     linuxJar,
     linuxArm64Jar,
     windowsJar,
+    windowsArm64Jar,
     darwinJar,
   ]) {
     fs.writeFileSync(
@@ -447,6 +484,14 @@ test("local publication validation rejects cross-classifier contamination", (t) 
     repoRoot: fixture.repoRoot,
   });
   createNativeClassifierTestFixture({
+    classifier: "win32-arm64",
+    outputPath: path.join(
+      publicationDirectory,
+      `${artifactId}-${version}-win32-arm64.jar`,
+    ),
+    repoRoot: fixture.repoRoot,
+  });
+  createNativeClassifierTestFixture({
     classifier: "darwin-arm64",
     outputPath: path.join(
       publicationDirectory,
@@ -496,6 +541,7 @@ function createFixture(t) {
     JSON.stringify({
       packages: {
         "node_modules/@github/copilot-win32-x64": { version: "9.8.7" },
+        "node_modules/@github/copilot-win32-arm64": { version: "9.8.10" },
         "node_modules/@github/copilot-linux-x64": { version: "9.8.6" },
         "node_modules/@github/copilot-linux-arm64": { version: "9.8.9" },
         "node_modules/@github/copilot-darwin-arm64": { version: "9.8.8" },

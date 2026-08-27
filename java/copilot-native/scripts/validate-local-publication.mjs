@@ -33,6 +33,7 @@ export function validateLocalPublication({
     `${artifactId}-${version}-linux-x64.jar`,
     `${artifactId}-${version}-linux-arm64.jar`,
     `${artifactId}-${version}-win32-x64.jar`,
+    `${artifactId}-${version}-win32-arm64.jar`,
     `${artifactId}-${version}-darwin-arm64.jar`,
   ];
   const files = new Set(fs.readdirSync(artifactDirectory));
@@ -67,6 +68,7 @@ export function validateLocalPublication({
     "linux-x64",
     "linux-arm64",
     "win32-x64",
+    "win32-arm64",
     "darwin-arm64",
   ]) {
     const filename = `${artifactId}-${version}-${classifier}.jar`;

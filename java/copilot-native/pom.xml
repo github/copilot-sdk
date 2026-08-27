@@ -235,8 +235,8 @@
     <profiles>
         <!--
             The explicit in-process test profile defaults to Linux x64. A later
-            host profile overrides these properties on Linux ARM64, Windows x64,
-            or Apple Silicon macOS. Unsupported hosts fail validation before
+            host profile overrides these properties on Linux ARM64, Windows x64
+            or ARM64, or Apple Silicon macOS. Unsupported hosts fail validation before
             downloading or packaging native files.
         -->
         <profile>
@@ -466,6 +466,61 @@
             </build>
         </profile>
         <profile>
+            <id>native-win32-arm64</id>
+            <activation>
+                <os>
+                    <family>Windows</family>
+                    <arch>aarch64</arch>
+                </os>
+            </activation>
+            <properties>
+                <copilot.native.classifier>win32-arm64</copilot.native.classifier>
+                <copilot.native.cli.filename>copilot.exe</copilot.native.cli.filename>
+            </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>validate-native-host</id>
+                                <phase>validate</phase>
+                            </execution>
+                            <execution>
+                                <id>fetch-native</id>
+                                <phase>generate-resources</phase>
+                            </execution>
+                            <execution>
+                                <id>test-fetch-native</id>
+                                <phase>test</phase>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-jar-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>jar-native</id>
+                                <phase>package</phase>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-antrun-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>verify-native-jars</id>
+                                <phase>package</phase>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <profile>
             <id>native-darwin-arm64</id>
             <activation>
                 <os>
@@ -583,8 +638,8 @@
             </build>
         </profile>
         <!--
-            The Windows classifier is assembled on windows-latest and passed to
-            the sole Ubuntu publisher. Validate it before attaching so deploy
+            The Windows x64 classifier is assembled on windows-latest and passed
+            to the sole Ubuntu publisher. Validate it before attaching so deploy
             and release signing see one complete, host-matched artifact set.
         -->
         <profile>
@@ -646,8 +701,70 @@
             </build>
         </profile>
         <!--
+            The Windows ARM64 classifier is assembled on windows-11-arm and
+            passed to the sole Ubuntu publisher.
+        -->
+        <profile>
+            <id>attach-external-win32-arm64-classifier</id>
+            <activation>
+                <property>
+                    <name>copilot.native.external.win32.arm64.classifier.path</name>
+                </property>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>validate-external-win32-arm64-classifier</id>
+                                <phase>validate</phase>
+                                <goals>
+                                    <goal>exec</goal>
+                                </goals>
+                                <configuration>
+                                    <executable>node</executable>
+                                    <arguments>
+                                        <argument>${project.basedir}/scripts/validate-native-artifact.mjs</argument>
+                                        <argument>classifier</argument>
+                                        <argument>win32-arm64</argument>
+                                        <argument>${copilot.native.external.win32.arm64.classifier.path}</argument>
+                                        <argument>${project.build.finalName}-win32-arm64.jar</argument>
+                                        <argument>${copilot.sdk.root}</argument>
+                                    </arguments>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>build-helper-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>attach-external-win32-arm64-classifier</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>attach-artifact</goal>
+                                </goals>
+                                <configuration>
+                                    <artifacts>
+                                        <artifact>
+                                            <file>${copilot.native.external.win32.arm64.classifier.path}</file>
+                                            <type>jar</type>
+                                            <classifier>win32-arm64</classifier>
+                                        </artifact>
+                                    </artifacts>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <!--
             The Darwin classifier is assembled on an Apple Silicon macOS runner
-            and passed to the sole Ubuntu publisher with the Windows classifier.
+            and passed to the sole Ubuntu publisher with the Windows classifiers.
         -->
         <profile>
             <id>attach-external-darwin-classifier</id>
