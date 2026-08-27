@@ -38,7 +38,8 @@ describe("UI Elicitation Callback", async () => {
         }
     );
 
-    it(
+    // In-process sessions do not expose current tool metadata for introspection.
+    it.skipIf(isInProcessTransport)(
         "session created with the elicitation ask-user variant exposes the structured tool",
         { timeout: 60_000 },
         async () => {
