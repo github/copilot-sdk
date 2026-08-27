@@ -47,7 +47,7 @@ conversations:
           task.
       - role: tool
         tool_call_id: toolcall_1
-        content: 1. original content
+        content: original content
       - role: assistant
         content: "Now I'll replace 'original' with 'modified':"
       - role: assistant
@@ -82,7 +82,7 @@ conversations:
           task.
       - role: tool
         tool_call_id: toolcall_1
-        content: 1. original content
+        content: original content
       - role: assistant
         content: "Now I'll replace 'original' with 'modified':"
         tool_calls:

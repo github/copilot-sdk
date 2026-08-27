@@ -44,7 +44,7 @@ conversations:
           task.
       - role: tool
         tool_call_id: toolcall_1
-        content: 1. test data
+        content: test data
       - role: assistant
         content: |-
           The file `data.txt` contains:

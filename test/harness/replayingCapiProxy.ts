@@ -132,6 +132,7 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
     { toolName: "*", normalizer: normalizeAvailableToolNames },
     { toolName: "*", normalizer: normalizeBackgroundAgentStartMessage },
     { toolName: "read_agent", normalizer: normalizeReadAgentResult },
+    { toolName: "view", normalizer: normalizeViewLineNumbers },
   ];
 
   /**
@@ -1552,6 +1553,36 @@ function normalizeAvailableToolNames(result: string): string {
     /(Tool '[^']+' does not exist\.) Available tools that can be called are [^.]*\./g,
     "$1",
   );
+}
+
+// The runtime used to prefix every line of `view` output with `N. ` (the line
+// number). copilot-agent-runtime#13802 shipped the winning experiment branch and
+// made raw file content the unconditional behavior, so captures recorded against
+// older runtimes carry the prefixes while current runtimes do not. Strip a leading
+// run of consecutively numbered lines so both forms replay against the same
+// snapshot. Trailing content such as the truncation notice is left untouched
+// because it was never numbered.
+function normalizeViewLineNumbers(result: string): string {
+  const lines = result.split("\n");
+  let expected: number | undefined;
+  let index = 0;
+  for (; index < lines.length; index++) {
+    // Lines of a CRLF file keep their carriage return after splitting on "\n".
+    const carriageReturn = lines[index].endsWith("\r");
+    const line = carriageReturn ? lines[index].slice(0, -1) : lines[index];
+    const match = /^(\d+)\.(?: (.*))?$/.exec(line);
+    if (!match) break;
+    const lineNumber = Number(match[1]);
+    if (expected === undefined) {
+      if (lineNumber < 1) break;
+    } else if (lineNumber !== expected) {
+      break;
+    }
+    expected = lineNumber + 1;
+    lines[index] = `${match[2] ?? ""}${carriageReturn ? "\r" : ""}`;
+  }
+
+  return index === 0 ? result : lines.join("\n").trimEnd();
 }
 
 function normalizeInterruptedToolResult(result: string): string {

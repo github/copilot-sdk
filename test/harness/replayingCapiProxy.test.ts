@@ -546,6 +546,107 @@ Always include PINEAPPLE_COCONUT_42.
     expect(toolMessage?.content).toBe("Tool 'report_intent' does not exist.");
   });
 
+  test("strips view line-number prefixes from view tool results", async () => {
+    const requestBody = JSON.stringify({
+      messages: [
+        { role: "user", content: "Read the file" },
+        {
+          role: "assistant",
+          tool_calls: [
+            {
+              id: "tc1",
+              type: "function",
+              function: {
+                name: "view",
+                arguments: '{"path":"lines.txt","view_range":[2,4]}',
+              },
+            },
+            {
+              id: "tc2",
+              type: "function",
+              function: { name: "sql", arguments: '{"query":"SELECT 1"}' },
+            },
+            {
+              id: "tc3",
+              type: "function",
+              function: { name: "view", arguments: '{"path":"crlf.txt"}' },
+            },
+          ],
+        },
+        {
+          role: "tool",
+          tool_call_id: "tc1",
+          content: "2. line2\n3. line3\n4. line4",
+        },
+        {
+          role: "tool",
+          tool_call_id: "tc2",
+          content: "1. INSERT\n2. INSERT",
+        },
+        {
+          role: "tool",
+          tool_call_id: "tc3",
+          content: "1. first\r\n2. second",
+        },
+      ],
+    });
+    const responseBody = JSON.stringify({
+      choices: [{ message: { role: "assistant", content: "Done" } }],
+    });
+
+    const outputPath = await createProxy([
+      { url: "/chat/completions", requestBody, responseBody },
+    ]);
+
+    const result = await readYamlOutput(outputPath);
+    const toolMessages = result.conversations[0].messages.filter(
+      (m) => m.role === "tool",
+    );
+    expect(toolMessages.map((message) => message.content)).toEqual([
+      "line2\nline3\nline4",
+      // Only `view` results carried line-number prefixes, so other tools that
+      // legitimately return numbered lines must be left alone.
+      "1. INSERT\n2. INSERT",
+      "first\r\nsecond",
+    ]);
+  });
+
+  test("stops stripping view line numbers at the first non-consecutive line", async () => {
+    const requestBody = JSON.stringify({
+      messages: [
+        { role: "user", content: "Read the file" },
+        {
+          role: "assistant",
+          tool_calls: [
+            {
+              id: "tc1",
+              type: "function",
+              function: { name: "view", arguments: '{"path":"steps.md"}' },
+            },
+          ],
+        },
+        {
+          role: "tool",
+          tool_call_id: "tc1",
+          content: "1. first step\n1. second step",
+        },
+      ],
+    });
+    const responseBody = JSON.stringify({
+      choices: [{ message: { role: "assistant", content: "Done" } }],
+    });
+
+    const outputPath = await createProxy([
+      { url: "/chat/completions", requestBody, responseBody },
+    ]);
+
+    const result = await readYamlOutput(outputPath);
+    const toolMessage = result.conversations[0].messages.find(
+      (m) => m.role === "tool",
+    );
+    expect(toolMessage?.content).toBe("first step\n1. second step");
+  });
+
   test("normalizes interrupted tool execution results", async () => {
     const requestBody = JSON.stringify({
       messages: [
@@ -1146,6 +1247,94 @@ Always include PINEAPPLE_COCONUT_42.
           (JSON.parse(response.body) as ChatCompletion).choices[0].message
             .content,
         ).toBe("Done");
+      } finally {
+        await proxy.stop();
+      }
+    });
+
+    test("matches view results recorded before line numbers were removed", async () => {
+      const cachePath = path.join(tempDir, "cache.yaml");
+      // Snapshots now store the raw file content that current runtimes send.
+      const cacheContent = yaml.stringify({
+        models: ["test-model"],
+        conversations: [
+          {
+            messages: [
+              { role: "system", content: "${system}" },
+              { role: "user", content: "Read the file" },
+              {
+                role: "assistant",
+                tool_calls: [
+                  {
+                    id: "toolcall_0",
+                    type: "function",
+                    function: {
+                      name: "view",
+                      arguments: '{"path":"greeting.txt"}',
+                    },
+                  },
+                ],
+              },
+              {
+                role: "tool",
+                tool_call_id: "toolcall_0",
+                content: "Hello\nWorld",
+              },
+              { role: "assistant", content: "Done" },
+            ],
+          },
+        ],
+      } satisfies NormalizedData);
+      await writeFile(cachePath, cacheContent);
+
+      const proxy = new ReplayingCapiProxy(
+        "http://localhost:9999",
+        cachePath,
+        workDir,
+      );
+      const proxyUrl = await proxy.start();
+
+      try {
+        for (const viewResult of [
+          // Older runtimes prefixed each line with its line number.
+          "1. Hello\n2. World",
+          // Current runtimes return the raw content.
+          "Hello\nWorld",
+        ]) {
+          const response = await makeRequest(proxyUrl, "/chat/completions", {
+            body: {
+              model: "test-model",
+              messages: [
+                { role: "system", content: "System prompt" },
+                { role: "user", content: "Read the file" },
+                {
+                  role: "assistant",
+                  tool_calls: [
+                    {
+                      id: "runtime-call-id",
+                      type: "function",
+                      function: {
+                        name: "view",
+                        arguments: '{"path":"greeting.txt"}',
+                      },
+                    },
+                  ],
+                },
+                {
+                  role: "tool",
+                  tool_call_id: "runtime-call-id",
+                  content: viewResult,
+                },
+              ],
+            },
+          });
+
+          expect(response.status).toBe(200);
+          expect(
+            (JSON.parse(response.body) as ChatCompletion).choices[0].message
+              .content,
+          ).toBe("Done");
+        }
       } finally {
         await proxy.stop();
       }
