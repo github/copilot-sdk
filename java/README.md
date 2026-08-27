@@ -189,9 +189,11 @@ For rotating per-session GitHub credentials, use
 `ResumeSessionConfig` setter) instead of `setGitHubToken(...)`:
 
 ```java
-var config = new SessionConfig().setGitHubTokenProvider(args ->
-    acquireForHost(args.host()).thenApply(token ->
-        GitHubTokenProviderResult.token(token, 8 * 60 * 60)));
+var config = new SessionConfig()
+    .setGitHubTokenProvider(args ->
+        acquireForHost(args.host()).thenApply(token ->
+            GitHubTokenProviderResult.token(token, 8 * 60 * 60)))
+    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL);
 ```
 
 The remaining lifetime is required and must be positive when the callback
