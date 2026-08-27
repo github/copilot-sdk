@@ -191,7 +191,6 @@ class E2ETestContext:
             {
                 "GH_TOKEN": DEFAULT_GITHUB_TOKEN,
                 "GITHUB_TOKEN": DEFAULT_GITHUB_TOKEN,
-                "COPILOT_CLI_PATH": self.cli_path,
                 "COPILOT_HMAC_KEY": "",
                 "CAPI_HMAC_KEY": "",
             }

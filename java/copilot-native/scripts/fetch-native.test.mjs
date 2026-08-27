@@ -104,11 +104,13 @@ test('stages retained package assets and excludes CLI-only content', (t) => {
       },
     }),
   );
-  fs.writeFileSync(
-    path.join(fixture.fakeBinDir, 'npm'),
-    '#!/bin/sh\ncp "$FETCH_NATIVE_TARBALL" "$4/fixture.tgz"\nprintf "fixture.tgz\\n"\n',
-  );
-  fs.chmodSync(path.join(fixture.fakeBinDir, 'npm'), 0o755);
+  const fakeNpmPath = path.join(fixture.fakeBinDir, process.platform === 'win32' ? 'npm.cmd' : 'npm');
+  const fakeNpm =
+    process.platform === 'win32'
+      ? '@copy "%FETCH_NATIVE_TARBALL%" "%4\\fixture.tgz" >nul\r\n@echo fixture.tgz\r\n'
+      : '#!/bin/sh\ncp "$FETCH_NATIVE_TARBALL" "$4/fixture.tgz"\nprintf "fixture.tgz\\n"\n';
+  fs.writeFileSync(fakeNpmPath, fakeNpm);
+  fs.chmodSync(fakeNpmPath, 0o755);
   fs.rmSync(path.join(fixture.stagingDir, classifier), { recursive: true, force: true });
 
   const result = runScript(fixture, { FETCH_NATIVE_TARBALL: tarball });
