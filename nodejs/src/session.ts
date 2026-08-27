@@ -71,6 +71,7 @@ import {
     FactoryResumeError,
     isFactoryRunTerminal,
     type FactoryResumeErrorCode,
+    type FactoryListRunsOptions,
     type FactoryRunResult,
     type FactoryAgentOptions,
     type RunOptions,
@@ -462,6 +463,8 @@ export class CopilotSession {
             if (options?.resumeFromRunId !== undefined) {
                 return this.factory.resume(options.resumeFromRunId, {
                     limits: options.limits,
+                    notifyOnComplete: options.notifyOnComplete,
+                    logPhaseNames: options.logPhaseNames,
                 });
             }
             const envelope = await this.rpc.factory.run({
@@ -469,6 +472,8 @@ export class CopilotSession {
                 args: options?.args === undefined ? {} : options.args,
                 options: {
                     limits: options?.limits,
+                    notifyOnComplete: options?.notifyOnComplete,
+                    logPhaseNames: options?.logPhaseNames,
                 },
             });
 
@@ -481,6 +486,8 @@ export class CopilotSession {
                 response = await this.rpc.factory.resume({
                     runId,
                     limits: options?.limits,
+                    notifyOnComplete: options?.notifyOnComplete,
+                    logPhaseNames: options?.logPhaseNames,
                 });
             } catch (error) {
                 if (
@@ -499,7 +506,10 @@ export class CopilotSession {
         }) as SessionFactoryApi["resume"],
         getRun: async (runId) => this.rpc.factory.getRun({ runId }),
         waitForRun: (runId, options) => this.waitForFactoryRun(runId, options?.signal),
-        listRuns: async () => (await this.rpc.factory.listRuns({})).runs,
+        listRuns: (async (options?: FactoryListRunsOptions) => {
+            const page = await this.rpc.factory.listRuns(options ?? {});
+            return options === undefined ? page.runs : page;
+        }) as SessionFactoryApi["listRuns"],
         getRunDetail: (runId) => this.rpc.factory.getRunDetail({ runId }),
         getRunProgress: (runId, options = {}) =>
             this.rpc.factory.getRunProgress({ runId, ...options }),

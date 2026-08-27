@@ -7,6 +7,12 @@ See [GitHub Releases](https://github.com/github/copilot-sdk/releases) for the fu
 
 ## [Unreleased]
 
+### Feature: Node Agent Factories pagination and run notifications
+
+The experimental Node.js Agent Factories convenience API now supports paginated run history. Existing `session.factory.listRuns()` calls still return the runs array, while calls with `afterSeq`, `beforeSeq`, or `limit` return the full page with cursor and truncation metadata.
+
+Factory `run` and `resume` options now accept `notifyOnComplete` and `logPhaseNames`. The SDK forwards these options to the Copilot CLI for new and resumed runs.
+
 ### Feature: rotating session-scoped GitHub credentials
 
 All six SDKs can now acquire short-lived GitHub credentials through a session-scoped callback. The SDK registers the callback before session create or resume, maps `initial` and `refresh` requests to the owning session, and removes registrations on rollback, replacement, session close, and client close. Static per-session `gitHubToken` credentials remain supported and are mutually exclusive with the callback.

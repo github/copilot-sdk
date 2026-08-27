@@ -209,6 +209,8 @@ export type {
     FactoryRunResult,
     FactoryRunStatus,
     FactoryRunSummary,
+    FactoryListRunsOptions,
+    FactoryRunsPage,
     FactoryRunDetail,
     FactoryProgressPage,
     FactoryProgressLine,
