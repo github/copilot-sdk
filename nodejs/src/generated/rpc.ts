@@ -2548,8 +2548,24 @@ export type PermissionDecisionSurface =
   | "prompt_mode"
   /** The Copilot App client. */
   | "copilot_app"
+  /** An Agent Client Protocol host. */
+  | "acp"
   /** A generic Copilot SDK client. */
   | "sdk";
+/**
+ * Response capability available to the client when it settled a permission request.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "PermissionResponseCapability".
+ */
+/** @experimental */
+export type PermissionResponseCapability =
+  /** The client could ask a user for this decision. */
+  | "interactive"
+  /** The client could return an automated response but could not ask a user. */
+  | "headless"
+  /** The client had no response path available. */
+  | "none";
 /**
  * Tool approval to persist and apply
  *
@@ -8372,6 +8388,14 @@ export interface GitHubTelemetryClientInfo {
    * Stable machine identifier for the device.
    */
   dev_device_id?: string;
+  /**
+   * Distinct CPU model names for the host, comma-separated.
+   */
+  cpu_model?: string;
+  /**
+   * Number of logical CPU cores on the host.
+   */
+  cpu_count?: number;
 }
 /**
  * A single telemetry event in the runtime's native GitHub-shaped telemetry format, forwarded verbatim to opted-in hosts. The `restricted` flag on the enclosing GitHubTelemetryNotification distinguishes standard from restricted events; the payload shape is identical for both.
@@ -13498,6 +13522,7 @@ export interface PermissionDecisionContext {
   outcome: PermissionDecisionOutcome;
   source: PermissionDecisionSource;
   surface: PermissionDecisionSurface;
+  responseCapability?: PermissionResponseCapability;
 }
 /**
  * Pending permission request ID and the decision to apply (approve/reject and scope).

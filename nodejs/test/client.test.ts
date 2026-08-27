@@ -1284,10 +1284,11 @@ describe("CopilotClient", () => {
         expect((client as any).sharedSessionWatches.has("watch-session")).toBe(false);
         expect("send" in watch).toBe(false);
         expect("abort" in watch).toBe(false);
-        if (false) {
-            // @ts-expect-error A shared-session watch is intentionally passive.
-            await watch.send({ prompt: "not allowed" });
-        }
+        // A shared-session watch is intentionally passive: `send`/`abort` must not
+        // exist on its type, so this resolves to `true` only while they are absent.
+        type PassiveWatch<T> = "send" | "abort" extends keyof T ? never : true;
+        const watchIsPassive: PassiveWatch<typeof watch> = true;
+        expect(watchIsPassive).toBe(true);
 
         await watch.close();
         await watch.close();

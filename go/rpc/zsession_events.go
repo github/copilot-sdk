@@ -1376,6 +1376,8 @@ func (*MCPToolsListChangedData) Type() SessionEventType { return SessionEventTyp
 type SessionIdleData struct {
 	// True when the preceding agentic loop was cancelled via abort signal
 	Aborted *bool `json:"aborted,omitempty"`
+	// The session mode the agent was operating in when it went idle, when the mode is known. Lets turn-scoped consumers distinguish an autopilot continuation boundary (where the agent keeps working after this idle) from a genuine turn completion.
+	Mode *SessionMode `json:"mode,omitempty"`
 }
 
 func (*SessionIdleData) sessionEventData()      {}

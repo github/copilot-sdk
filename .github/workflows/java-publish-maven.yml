@@ -401,6 +401,13 @@ jobs:
           node copilot-native/scripts/validate-native-artifact.mjs \
             classifier linux-x64 "$LINUX_JAR" "$(basename "$LINUX_JAR")" ..
           LINUX_SHA=$(sha256sum "$LINUX_JAR" | cut -d ' ' -f 1)
+          GROUP_ID=$(mvn -q -pl copilot-native help:evaluate -Dexpression=project.groupId -DforceStdout)
+          ARTIFACT_ID=$(mvn -q -pl copilot-native help:evaluate -Dexpression=project.artifactId -DforceStdout)
+          POM_VERSION=$(mvn -q -pl copilot-native help:evaluate -Dexpression=project.version -DforceStdout)
+          if [ -z "$GROUP_ID" ] || [ -z "$ARTIFACT_ID" ] || [ "$POM_VERSION" != "$VERSION" ]; then
+            echo "::error::Unexpected copilot-native Maven coordinates: $GROUP_ID:$ARTIFACT_ID:$POM_VERSION (expected version $VERSION)"
+            exit 1
+          fi
           {
             echo "### Maven Central Release"
             echo "- **Version:** $VERSION"
@@ -408,6 +415,16 @@ jobs:
             echo "- **Source commit:** \`${{ needs.prepare-release.outputs.tag_commit }}\`"
             echo "- **Next development version:** ${{ needs.prepare-release.outputs.development_version }}"
             echo "- **Repository:** Maven Central"
+            echo ""
+            echo "#### Maven Coordinates"
+            echo ""
+            echo '```xml'
+            echo "<dependency>"
+            echo "    <groupId>$GROUP_ID</groupId>"
+            echo "    <artifactId>$ARTIFACT_ID</artifactId>"
+            echo "    <version>$POM_VERSION</version>"
+            echo "</dependency>"
+            echo '```'
             echo ""
             echo "#### Published Native Classifiers"
             echo ""
@@ -424,7 +441,13 @@ jobs:
 
   rollback-release:
     name: Roll back failed Java release preparation
-    needs: [prepare-release, build-windows-classifier, build-darwin-classifier, deploy-maven]
+    needs:
+      [
+        prepare-release,
+        build-windows-classifier,
+        build-darwin-classifier,
+        deploy-maven,
+      ]
     if: ${{ failure() && needs.prepare-release.outputs.docs_commit != '' }}
     runs-on: ubuntu-latest
     permissions:

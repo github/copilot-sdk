@@ -35,6 +35,8 @@ import {
 } from "./generated/rpc.js";
 import type {
     GitHubTelemetryNotification,
+    GitHubTokenAcquireRequest,
+    GitHubTokenAcquireResult,
     OpenCanvasInstance,
     SessionUpdateOptionsParams,
 } from "./generated/rpc.js";
@@ -58,6 +60,7 @@ import type {
     ForegroundSessionInfo,
     GetAuthStatusResponse,
     BearerTokenProvider,
+    GitHubTokenProvider,
     GetStatusResponse,
     InternalRuntimeConnection,
     RuntimeConnection,
@@ -525,6 +528,10 @@ export class CopilotClient {
     private builtinPluginDirectories: string[] = [];
     private onGitHubTelemetry?: (notification: GitHubTelemetryNotification) => void | Promise<void>;
     private clientGlobalHandlers: import("./generated/rpc.js").ClientGlobalApiHandlers = {};
+    private githubTokenProviders = new Map<
+        string,
+        { provider: GitHubTokenProvider; sessionId?: string; committed: boolean }
+    >();
 
     /**
      * Typed server-scoped RPC methods.
@@ -863,7 +870,63 @@ export class CopilotClient {
                 },
             };
         }
+        handlers.gitHubToken = {
+            getToken: (params) => this.acquireGitHubToken(params),
+        };
         this.clientGlobalHandlers = handlers;
+    }
+
+    private async acquireGitHubToken(
+        params: GitHubTokenAcquireRequest
+    ): Promise<GitHubTokenAcquireResult> {
+        const registration = this.githubTokenProviders.get(params.registrationId);
+        if (!registration) {
+            throw new Error(
+                `No GitHub token provider registered for registration ID "${params.registrationId}"`
+            );
+        }
+        return await registration.provider({
+            host: params.host,
+            sessionId: params.sessionId ?? registration.sessionId,
+            reason: params.reason,
+        });
+    }
+
+    private registerGitHubTokenProvider(
+        provider: GitHubTokenProvider | undefined,
+        sessionId?: string
+    ): string | undefined {
+        if (!provider) {
+            return undefined;
+        }
+        const registrationId = randomUUID();
+        this.githubTokenProviders.set(registrationId, { provider, sessionId, committed: false });
+        return registrationId;
+    }
+
+    private assignGitHubTokenProvider(registrationId: string | undefined, sessionId: string): void {
+        if (!registrationId) {
+            return;
+        }
+        const registration = this.githubTokenProviders.get(registrationId);
+        if (registration) {
+            registration.sessionId = sessionId;
+        }
+    }
+
+    private commitGitHubTokenProvider(sessionId: string, registrationId?: string): void {
+        for (const [candidateId, registration] of this.githubTokenProviders) {
+            if (registration.sessionId === sessionId && registration.committed) {
+                this.githubTokenProviders.delete(candidateId);
+            }
+        }
+        const registration = registrationId
+            ? this.githubTokenProviders.get(registrationId)
+            : undefined;
+        if (registration) {
+            registration.sessionId = sessionId;
+            registration.committed = true;
+        }
     }
 
     /**
@@ -1030,6 +1093,7 @@ export class CopilotClient {
         }
         this.sessions.clear();
         this.sharedSessionWatches.clear();
+        this.githubTokenProviders.clear();
 
         // Ask SDK-owned runtimes to flush and clean up before we tear down
         // their transport/process. External runtimes may be shared, so only
@@ -1213,6 +1277,7 @@ export class CopilotClient {
         }
         this.sessions.clear();
         this.sharedSessionWatches.clear();
+        this.githubTokenProviders.clear();
 
         // Force close connection. Suppress writer failures first so teardown
         // write rejections don't surface as unhandled rejections.
@@ -1464,6 +1529,9 @@ export class CopilotClient {
     }
 
     async createSession(config: SessionConfig): Promise<CopilotSession> {
+        if (config.gitHubToken !== undefined && config.gitHubTokenProvider !== undefined) {
+            throw new Error("gitHubToken and gitHubTokenProvider are mutually exclusive");
+        }
         if (!this.connection) {
             await this.start();
         }
@@ -1483,6 +1551,11 @@ export class CopilotClient {
         const callerSessionId = config.sessionId;
         const useServerGeneratedId = config.cloud != null && callerSessionId == null;
         const localSessionId = useServerGeneratedId ? undefined : (callerSessionId ?? randomUUID());
+        const toolFilterOptions = this.resolveToolFilterOptions(config);
+        const gitHubTokenProviderRegistrationId = this.registerGitHubTokenProvider(
+            config.gitHubTokenProvider,
+            localSessionId
+        );
 
         // Strip non-serializable bearerTokenProvider callbacks from provider configs,
         // replacing them with a wire flag; keep the callbacks for session-side
@@ -1511,6 +1584,13 @@ export class CopilotClient {
                     managedSettingsEnabled:
                         config.enableManagedSettings === true ||
                         config.managedSettings !== undefined,
+                    onDisconnected:
+                        gitHubTokenProviderRegistrationId === undefined
+                            ? undefined
+                            : () =>
+                                  this.githubTokenProviders.delete(
+                                      gitHubTokenProviderRegistrationId
+                                  ),
                 }
             );
             s.registerTools(config.tools);
@@ -1554,11 +1634,16 @@ export class CopilotClient {
         // processing (e.g. sessionFs.writeFile for workspace metadata) can be
         // routed to the correct handlers.
         if (localSessionId !== undefined) {
-            session = initializeSession(localSessionId);
-            registeredId = localSessionId;
+            try {
+                session = initializeSession(localSessionId);
+                registeredId = localSessionId;
+            } catch (error) {
+                if (gitHubTokenProviderRegistrationId !== undefined) {
+                    this.githubTokenProviders.delete(gitHubTokenProviderRegistrationId);
+                }
+                throw error;
+            }
         }
-
-        const toolFilterOptions = this.resolveToolFilterOptions(config);
 
         try {
             const response = await this.connection!.sendRequest("session.create", {
@@ -1648,6 +1733,7 @@ export class CopilotClient {
                 infiniteSessions: config.infiniteSessions,
                 memory: config.memory,
                 gitHubToken: config.gitHubToken,
+                gitHubTokenProviderRegistrationId,
                 remoteSession: config.remoteSession,
                 cloud: config.cloud,
                 expAssignments: config.expAssignments,
@@ -1678,6 +1764,7 @@ export class CopilotClient {
                 session = initializeSession(returnedSessionId);
                 registeredId = returnedSessionId;
             }
+            this.assignGitHubTokenProvider(gitHubTokenProviderRegistrationId, returnedSessionId);
             if (config.onMcpAuthRequest) {
                 await this.connection!.sendRequest("session.eventLog.registerInterest", {
                     sessionId: returnedSessionId,
@@ -1688,9 +1775,13 @@ export class CopilotClient {
             session.setCapabilities(capabilities);
 
             await this.updateSessionOptionsForMode(session, config);
+            this.commitGitHubTokenProvider(returnedSessionId, gitHubTokenProviderRegistrationId);
         } catch (e) {
             if (registeredId !== undefined) {
                 this.sessions.delete(registeredId);
+            }
+            if (gitHubTokenProviderRegistrationId !== undefined) {
+                this.githubTokenProviders.delete(gitHubTokenProviderRegistrationId);
             }
             throw e;
         }
@@ -1790,6 +1881,9 @@ export class CopilotClient {
         factories?: FactoryHandle[],
         extensionOptions?: ExtensionJoinOptions
     ): Promise<CopilotSession> {
+        if (config.gitHubToken !== undefined && config.gitHubTokenProvider !== undefined) {
+            throw new Error("gitHubToken and gitHubTokenProvider are mutually exclusive");
+        }
         if (!this.connection) {
             await this.start();
         }
@@ -1855,6 +1949,15 @@ export class CopilotClient {
         this.setupSessionFs(session, config);
 
         const toolFilterOptions = this.resolveToolFilterOptions(config);
+        const gitHubTokenProviderRegistrationId = this.registerGitHubTokenProvider(
+            config.gitHubTokenProvider,
+            sessionId
+        );
+        if (gitHubTokenProviderRegistrationId !== undefined) {
+            session._setOnDisconnected(() =>
+                this.githubTokenProviders.delete(gitHubTokenProviderRegistrationId)
+            );
+        }
 
         try {
             const response = await this.connection!.sendRequest("session.resume", {
@@ -1948,6 +2051,7 @@ export class CopilotClient {
                 disableResume: config.suppressResumeEvent,
                 continuePendingWork: config.continuePendingWork,
                 gitHubToken: config.gitHubToken,
+                gitHubTokenProviderRegistrationId,
                 remoteSession: config.remoteSession,
                 openCanvases: config.openCanvases,
                 expAssignments: config.expAssignments,
@@ -1995,8 +2099,12 @@ export class CopilotClient {
             }
 
             await this.updateSessionOptionsForMode(session, config);
+            this.commitGitHubTokenProvider(sessionId, gitHubTokenProviderRegistrationId);
         } catch (e) {
             this.sessions.delete(sessionId);
+            if (gitHubTokenProviderRegistrationId !== undefined) {
+                this.githubTokenProviders.delete(gitHubTokenProviderRegistrationId);
+            }
             throw e;
         }
 
@@ -2240,8 +2348,9 @@ export class CopilotClient {
             throw new Error(`Failed to delete session ${sessionId}: ${error || "Unknown error"}`);
         }
 
-        // Remove from local sessions map if present
+        const session = this.sessions.get(sessionId);
         this.sessions.delete(sessionId);
+        session?._runOnDisconnected();
     }
 
     /**
@@ -3004,6 +3113,7 @@ export class CopilotClient {
 
         this.connection.onClose(() => {
             this.state = "disconnected";
+            this.githubTokenProviders.clear();
         });
 
         this.connection.onError((_error) => {
@@ -3090,7 +3200,10 @@ export class CopilotClient {
             }
         }
 
-        if (event.type === "session.disconnected" && this.sharedSessionWatches.has(event.sessionId)) {
+        if (
+            event.type === "session.disconnected" &&
+            this.sharedSessionWatches.has(event.sessionId)
+        ) {
             this.sessions.get(event.sessionId)?._markDisconnected();
             this.sessions.delete(event.sessionId);
             this.sharedSessionWatches.delete(event.sessionId);

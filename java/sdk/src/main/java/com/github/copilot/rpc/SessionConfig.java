@@ -106,6 +106,8 @@ public class SessionConfig {
     private boolean enableMcpApps;
     private GitHubMcpToolConfig githubMcpToolConfig;
     private String gitHubToken;
+    @JsonIgnore
+    private GitHubTokenProvider gitHubTokenProvider;
     private String remoteSession;
     private CloudSessionOptions cloud;
     private CopilotExpAssignmentResponse expAssignments;
@@ -1969,6 +1971,33 @@ public class SessionConfig {
     }
 
     /**
+     * Gets the rotating GitHub token provider for this session.
+     *
+     * @return the provider, or {@code null} when a static token is used
+     */
+    public GitHubTokenProvider getGitHubTokenProvider() {
+        return gitHubTokenProvider;
+    }
+
+    /**
+     * Sets the rotating GitHub token provider for this session.
+     * <p>
+     * The provider receives only the effective host, optional assigned session ID,
+     * and acquisition reason. It must return a positive remaining lifetime in
+     * seconds when its callback completes. Production GitHub tokens typically last
+     * eight hours. This option is mutually exclusive with
+     * {@link #setGitHubToken(String)}.
+     *
+     * @param gitHubTokenProvider
+     *            provider used for initial acquisition and refresh
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setGitHubTokenProvider(GitHubTokenProvider gitHubTokenProvider) {
+        this.gitHubTokenProvider = gitHubTokenProvider;
+        return this;
+    }
+
+    /**
      * Gets the per-session remote behavior control.
      * <p>
      * Possible values:
@@ -2086,10 +2115,11 @@ public class SessionConfig {
      * (bypass-permissions policy) at session bootstrap.
      * <p>
      * When {@code true}, the runtime self-fetches enterprise managed settings using
-     * the session's {@link #getGitHubToken() gitHubToken}. Requires
-     * {@code gitHubToken} to be set; if omitted, the runtime is expected to reject
-     * session creation (fail-closed). When unset, behaves exactly as before.
-     * Serialized on the wire as {@code enableManagedSettings}.
+     * the session's static {@link #getGitHubToken() gitHubToken} or
+     * {@link #getGitHubTokenProvider() gitHubTokenProvider}. Requires one of those
+     * credentials; if both are omitted, the runtime is expected to reject session
+     * creation (fail-closed). When unset, behaves exactly as before. Serialized on
+     * the wire as {@code enableManagedSettings}.
      *
      * @param enableManagedSettings
      *            {@code true} to opt into self-fetching managed settings
@@ -2210,6 +2240,7 @@ public class SessionConfig {
         copy.enableMcpApps = this.enableMcpApps;
         copy.githubMcpToolConfig = this.githubMcpToolConfig;
         copy.gitHubToken = this.gitHubToken;
+        copy.gitHubTokenProvider = this.gitHubTokenProvider;
         copy.remoteSession = this.remoteSession;
         copy.cloud = this.cloud;
         copy.expAssignments = this.expAssignments;

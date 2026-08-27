@@ -24,7 +24,9 @@ This guide is a sister to [Scaling and multi-tenancy](./scaling.md). Use that gu
 | `baseDirectory` | Isolating `COPILOT_HOME` per runtime instance | Ignored when connecting to an existing runtime. |
 | `sessionFs` | Routing session filesystem storage off local disk | Pair with per-session filesystem providers. |
 | `RuntimeConnection.forUri(url)` | Sharing one already-running runtime | Language names vary; see samples below. |
-| Per-session `gitHubToken` | Scoping auth to the requesting user | Prefer this over a single shared user token. |
+| Per-session GitHub token or provider | Scoping auth to the requesting user | Prefer a rotating provider for short-lived credentials; use a static `gitHubToken` only when rotation is unnecessary. |
+
+For callback-backed credentials, see [Rotating session-scoped GitHub tokens](../auth/authenticate.md#rotating-session-scoped-github-tokens). Each session owns its provider registration, so concurrent sessions can use different GitHub hosts and accounts without sharing callback state.
 
 ### `mode: "empty"`
 

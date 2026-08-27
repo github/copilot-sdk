@@ -78,6 +78,7 @@ from .generated.session_events import (
     SessionErrorData,
     SessionEvent,
     SessionIdleData,
+    SessionMode,
     session_event_from_dict,
 )
 from .generated.session_events import (
@@ -1548,6 +1549,7 @@ class CopilotSession:
         client: Any,
         workspace_path: os.PathLike[str] | str | None = None,
         managed_settings_enabled: bool = False,
+        on_disconnect: Callable[[], None] | None = None,
     ):
         """
         Initialize a new CopilotSession.
@@ -1600,6 +1602,17 @@ class CopilotSession:
         self._open_canvases_lock = threading.Lock()
         self._rpc: SessionRpc | None = None
         self._destroyed = False
+        self._on_disconnect = on_disconnect
+
+    def _set_disconnect_callback(self, callback: Callable[[], None]) -> None:
+        """Set the client-owned cleanup callback before the session becomes active."""
+        self._on_disconnect = callback
+
+    def _run_disconnect_callback(self) -> None:
+        callback = self._on_disconnect
+        self._on_disconnect = None
+        if callback is not None:
+            callback()
 
     @property
     def rpc(self) -> SessionRpc:
@@ -1781,7 +1794,7 @@ class CopilotSession:
                             total_start,
                             session_id=self.session_id,
                         )
-                case SessionIdleData():
+                case SessionIdleData() as data if data.mode != SessionMode.AUTOPILOT:
                     log_timing(
                         logger,
                         logging.DEBUG,
@@ -2973,6 +2986,7 @@ class CopilotSession:
         try:
             await self._client.request("session.destroy", {"sessionId": self.session_id})
         finally:
+            self._run_disconnect_callback()
             # Clear handlers even if the request fails.
             with self._event_handlers_lock:
                 self._event_handlers.clear()

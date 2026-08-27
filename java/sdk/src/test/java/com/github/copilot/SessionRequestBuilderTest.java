@@ -26,6 +26,7 @@ import com.github.copilot.rpc.ElicitationResultAction;
 import com.github.copilot.rpc.ExitPlanModeResult;
 import com.github.copilot.rpc.ExpConfigEntry;
 import com.github.copilot.rpc.GitHubMcpToolConfig;
+import com.github.copilot.rpc.GitHubTokenProviderResult;
 import com.github.copilot.rpc.LargeToolOutputConfig;
 import com.github.copilot.rpc.MemoryConfiguration;
 import com.github.copilot.rpc.ResumeSessionConfig;
@@ -54,6 +55,27 @@ public class SessionRequestBuilderTest {
         assertNull(request.getModel());
         assertTrue(request.getRequestPermission(), "requestPermission should be true even for null config");
         assertEquals("direct", request.getEnvValueMode(), "envValueMode should be 'direct' even for null config");
+    }
+
+    @Test
+    void testGitHubTokenProviderRegistrationWireFieldHasExactCasing() throws Exception {
+        var create = SessionRequestBuilder.buildCreateRequest(new SessionConfig(), "create-session");
+        create.setGitHubTokenProviderRegistrationId("create-registration");
+        var resume = SessionRequestBuilder.buildResumeRequest("resume-session", new ResumeSessionConfig());
+        resume.setGitHubTokenProviderRegistrationId("resume-registration");
+        var mapper = JsonRpcClient.getObjectMapper();
+
+        assertEquals("create-registration",
+                mapper.readTree(mapper.writeValueAsBytes(create)).path("gitHubTokenProviderRegistrationId").asText());
+        assertEquals("resume-registration",
+                mapper.readTree(mapper.writeValueAsBytes(resume)).path("gitHubTokenProviderRegistrationId").asText());
+        assertFalse(mapper.readTree(mapper.writeValueAsBytes(create)).has("gitHubToken"));
+    }
+
+    @Test
+    void testGitHubTokenProviderResultRedactsToken() {
+        var result = GitHubTokenProviderResult.token("do-not-print", 28_800);
+        assertFalse(result.toString().contains("do-not-print"));
     }
 
     @Test

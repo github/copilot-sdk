@@ -57,6 +57,7 @@ import com.github.copilot.generated.SessionCanvasOpenedEvent;
 import com.github.copilot.generated.SessionErrorEvent;
 import com.github.copilot.generated.SessionEvent;
 import com.github.copilot.generated.SessionIdleEvent;
+import com.github.copilot.generated.SessionMode;
 import com.github.copilot.generated.rpc.OpenCanvasInstance;
 import com.github.copilot.rpc.AgentInfo;
 import com.github.copilot.rpc.AutoModeSwitchHandler;
@@ -198,6 +199,7 @@ public final class CopilotSession implements AutoCloseable {
     private volatile Map<String, java.util.function.Function<String, CompletableFuture<String>>> transformCallbacks;
     private final ScheduledExecutorService timeoutScheduler;
     private volatile Executor executor;
+    private volatile GitHubTokenProviderRegistry.Registration gitHubTokenProviderRegistration;
 
     /** Tracks whether this session instance has been terminated via close(). */
     private volatile boolean isTerminated = false;
@@ -250,6 +252,18 @@ public final class CopilotSession implements AutoCloseable {
      */
     void setExecutor(Executor executor) {
         this.executor = executor;
+    }
+
+    void setGitHubTokenProviderRegistration(GitHubTokenProviderRegistry.Registration registration) {
+        this.gitHubTokenProviderRegistration = registration;
+    }
+
+    synchronized void releaseGitHubTokenProviderRegistration() {
+        GitHubTokenProviderRegistry.Registration registration = gitHubTokenProviderRegistration;
+        gitHubTokenProviderRegistration = null;
+        if (registration != null) {
+            registration.close();
+        }
     }
 
     /**
@@ -549,7 +563,8 @@ public final class CopilotSession implements AutoCloseable {
                                     + sessionId,
                             totalNanos);
                 }
-            } else if (evt instanceof SessionIdleEvent) {
+            } else if (evt instanceof SessionIdleEvent idleEvent
+                    && (idleEvent.getData() == null || idleEvent.getData().mode() != SessionMode.AUTOPILOT)) {
                 LoggingHelpers.logTiming(LOG, Level.FINE,
                         "CopilotSession.sendAndWait idle received. Elapsed={Elapsed}, SessionId=" + sessionId,
                         totalNanos);
@@ -2301,6 +2316,7 @@ public final class CopilotSession implements AutoCloseable {
         }
 
         timeoutScheduler.shutdownNow();
+        releaseGitHubTokenProviderRegistration();
 
         try {
             rpc.invoke("session.destroy", Map.of("sessionId", sessionId), Void.class).get(5, TimeUnit.SECONDS);
