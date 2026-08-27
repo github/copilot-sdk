@@ -324,6 +324,21 @@ describe("disabled MCP servers", async () => {
             .length;
     }
 
+    async function waitForMcpRequestCount(expectedCount: number): Promise<void> {
+        let lastCount = 0;
+        await waitForCondition(
+            async () => {
+                lastCount = await mcpRequestCount();
+                return lastCount >= expectedCount;
+            },
+            {
+                timeoutMs: 60_000,
+                intervalMs: 100,
+                timeoutMessage: `Timed out waiting for ${expectedCount} /mcp request(s); saw ${lastCount}.`,
+            }
+        );
+    }
+
     it(
         "keeps disabled plugin MCP servers per-session on create",
         { timeout: 120_000 },
@@ -415,7 +430,7 @@ describe("disabled MCP servers", async () => {
             expectSyntheticResponse(
                 await enabledSession.sendAndWait({ prompt: MCP_TRIGGER_PROMPT })
             );
-            expect(await mcpRequestCount()).toBe(requestsBeforeFirstMessage);
+            await waitForMcpRequestCount(requestsBeforeFirstMessage + 1);
         }
     );
 
