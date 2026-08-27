@@ -154,18 +154,21 @@ class NativeRuntimeLoaderTest {
     }
 
     @Test
-    void resolveFromCliPathReturnsAbsolutePathForRelativeCliPath(@TempDir Path tempDir) throws Exception {
+    void resolveFromCliPathReturnsAbsolutePathForRelativeCliPath() throws Exception {
         Path workingDirectory = Path.of("").toAbsolutePath();
-        Path fakeCliDir = tempDir.resolve("cli-dir");
-        Files.createDirectories(fakeCliDir);
-        Path fakeCliPath = fakeCliDir.resolve("copilot");
-        Files.createFile(fakeCliPath);
-        Path runtimeNode = fakeCliDir.resolve(NativeRuntimeLoader.RUNTIME_FILENAME);
-        Files.write(runtimeNode, FAKE_BINARY_CONTENT);
+        Path fakeCliDir = Files.createTempDirectory(workingDirectory.resolve("target"), "relative-cli-");
+        try {
+            Path fakeCliPath = Files.createFile(fakeCliDir.resolve("copilot"));
+            Path runtimeNode = Files.write(fakeCliDir.resolve(NativeRuntimeLoader.RUNTIME_FILENAME),
+                    FAKE_BINARY_CONTENT);
+            Path relativeCliPath = workingDirectory.relativize(fakeCliPath);
 
-        Path relativeCliPath = workingDirectory.relativize(fakeCliPath);
-
-        assertEquals(runtimeNode, NativeRuntimeLoader.resolveFromCliPath(relativeCliPath.toString()));
+            assertEquals(runtimeNode, NativeRuntimeLoader.resolveFromCliPath(relativeCliPath.toString()));
+        } finally {
+            Files.deleteIfExists(fakeCliDir.resolve(NativeRuntimeLoader.RUNTIME_FILENAME));
+            Files.deleteIfExists(fakeCliDir.resolve("copilot"));
+            Files.deleteIfExists(fakeCliDir);
+        }
     }
 
     @Test
