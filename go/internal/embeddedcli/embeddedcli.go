@@ -378,7 +378,7 @@ func installRuntimeAssets(installDir string) error {
 			continue
 		}
 		clean := filepath.Clean(filepath.FromSlash(header.Name))
-		if filepath.IsAbs(clean) || clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
+		if !filepath.IsLocal(clean) {
 			return fmt.Errorf("unsafe runtime asset path %q", header.Name)
 		}
 		content, err := io.ReadAll(tarReader)

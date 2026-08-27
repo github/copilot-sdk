@@ -184,29 +184,34 @@ describe("Client", () => {
         await client.stop();
     });
 
-    it("should report error with stderr when CLI fails to start", async () => {
-        const client = new CopilotClient({
-            connection: RuntimeConnection.forStdio({ args: ["--nonexistent-flag-for-testing"] }),
-        });
-        onTestFinishedStop(client);
+    it.skipIf(isInProcessTransport)(
+        "should report error with stderr when CLI fails to start",
+        async () => {
+            const client = new CopilotClient({
+                connection: RuntimeConnection.forStdio({
+                    args: ["--nonexistent-flag-for-testing"],
+                }),
+            });
+            onTestFinishedStop(client);
 
-        let initialError: Error | undefined;
-        try {
-            await client.start();
-            expect.fail("Expected start() to throw an error");
-        } catch (error) {
-            initialError = error as Error;
-            expect(initialError.message).toContain("stderr");
-            expect(initialError.message).toContain("nonexistent");
-        }
+            let initialError: Error | undefined;
+            try {
+                await client.start();
+                expect.fail("Expected start() to throw an error");
+            } catch (error) {
+                initialError = error as Error;
+                expect(initialError.message).toContain("stderr");
+                expect(initialError.message).toContain("nonexistent");
+            }
 
-        // Verify subsequent calls also fail (don't hang)
-        try {
-            const session = await client.createSession({ onPermissionRequest: approveAll });
-            await session.send("test");
-            expect.fail("Expected send() to throw an error after CLI exit");
-        } catch (error) {
-            expect(error).toBeInstanceOf(Error);
+            // Verify subsequent calls also fail (don't hang)
+            try {
+                const session = await client.createSession({ onPermissionRequest: approveAll });
+                await session.send("test");
+                expect.fail("Expected send() to throw an error after CLI exit");
+            } catch (error) {
+                expect(error).toBeInstanceOf(Error);
+            }
         }
-    });
+    );
 });
