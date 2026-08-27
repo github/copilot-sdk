@@ -40,6 +40,21 @@ const arrayResult = defineFactory({
     run: async () => [1, "two", false],
 });
 
+const phased = defineFactory({
+    meta: {
+        name: "phased",
+        description: "Record named phases and ordinary progress.",
+        phases: [{ title: "Collect" }, { title: "Summarize" }],
+    },
+    run: async ({ phase, log }) => {
+        phase("Collect");
+        log("Collected");
+        phase("Summarize");
+        log("Summarized");
+        return "finished";
+    },
+});
+
 const forwardsSubagentOptions = defineFactory({
     meta: {
         name: "forwards-subagent-options",
@@ -141,6 +156,7 @@ session = await joinSession({
     factories: [
         argumentEcho,
         arrayResult,
+        phased,
         forwardsSubagentOptions,
         startsFromContextSession,
         startsFromModuleSession,

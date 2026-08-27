@@ -149,6 +149,101 @@ it.skipIf(isInProcessTransport)(
 );
 
 it.skipIf(isInProcessTransport)(
+    "forwards factory runtime controls across the SDK process boundary",
+    async () => {
+        if (!factoryTestContext) {
+            throw new Error("Factory E2E requires the stdio transport");
+        }
+        const { workDir } = factoryTestContext;
+        await using session = await setupFactoryExtension(workDir);
+
+        const suppressed = await session.factory.run("phased", {
+            notifyOnComplete: false,
+            logPhaseNames: false,
+        });
+
+        expect(suppressed).toMatchObject({
+            status: "completed",
+            result: "finished",
+        });
+        const progress = await session.factory.getRunProgress(suppressed.runId);
+        expect(progress.records).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({ kind: "phase", text: "Collect" }),
+                expect.objectContaining({ kind: "log", text: "Collected" }),
+                expect.objectContaining({ kind: "phase", text: "Summarize" }),
+                expect.objectContaining({ kind: "log", text: "Summarized" }),
+            ])
+        );
+
+        const events = await session.getEvents();
+        expect(
+            events.some(
+                (event) =>
+                    event.type === "system.notification" &&
+                    event.data.kind.type === "factory_completed" &&
+                    event.data.kind.runId === suppressed.runId
+            )
+        ).toBe(false);
+        expect(
+            events.filter(
+                (event) => event.type === "session.info" && event.data.infoType === "factory_phase"
+            )
+        ).toEqual([]);
+    }
+);
+
+it.skipIf(isInProcessTransport)("pages factory runs and returns cursor metadata", async () => {
+    if (!factoryTestContext) {
+        throw new Error("Factory E2E requires the stdio transport");
+    }
+    const { workDir } = factoryTestContext;
+    await using session = await setupFactoryExtension(workDir);
+
+    const first = await session.factory.run("argument-echo", {
+        args: { ordinal: 1 },
+        notifyOnComplete: false,
+    });
+    const second = await session.factory.run("argument-echo", {
+        args: { ordinal: 2 },
+        notifyOnComplete: false,
+    });
+    const third = await session.factory.run("argument-echo", {
+        args: { ordinal: 3 },
+        notifyOnComplete: false,
+    });
+
+    const newest = await session.factory.listRuns({ limit: 1 });
+    expect(newest).toMatchObject({
+        runs: [expect.objectContaining({ runId: third.runId })],
+        hasMoreNewer: false,
+        omittedOlder: 2,
+    });
+    expect(newest.oldestSeq).toBe(newest.newestSeq);
+    expect(newest.oldestSeq).not.toBeNull();
+
+    const older = await session.factory.listRuns({
+        beforeSeq: newest.oldestSeq!,
+        limit: 1,
+    });
+    expect(older).toMatchObject({
+        runs: [expect.objectContaining({ runId: second.runId })],
+        hasMoreNewer: true,
+        omittedOlder: 1,
+    });
+
+    const oldest = await session.factory.listRuns({
+        beforeSeq: older.oldestSeq!,
+        limit: 1,
+    });
+    expect(oldest).toMatchObject({
+        runs: [expect.objectContaining({ runId: first.runId })],
+        hasMoreNewer: true,
+        omittedOlder: 0,
+    });
+});
+
+it.skipIf(isInProcessTransport)(
     "runs a factory when its session denies every permission request",
     async () => {
         if (!factoryTestContext) {
@@ -180,7 +275,12 @@ it.skipIf(isInProcessTransport)(
             status: "error",
         });
 
-        await expect(session.factory.resume(failedRun.runId)).resolves.toMatchObject({
+        await expect(
+            session.factory.resume(failedRun.runId, {
+                notifyOnComplete: false,
+                logPhaseNames: false,
+            })
+        ).resolves.toMatchObject({
             status: "completed",
             result: "resumed",
         });
