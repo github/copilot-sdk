@@ -251,13 +251,13 @@ public class SessionRequestBuilderTest {
     void testBuildCreateRequestForwardsAuthClientIdMetadataUrl() {
         var url = "https://example.com/oauth/client-metadata.json";
         var config = new SessionConfig().setAuthClientIdMetadataUrl(url);
-        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config);
+        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config, "sid-auth");
         assertEquals(url, request.getAuthClientIdMetadataUrl());
     }
 
     @Test
     void testBuildCreateRequestOmitsAuthClientIdMetadataUrlWhenUnset() {
-        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(new SessionConfig());
+        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(new SessionConfig(), "sid-auth-unset");
         assertNull(request.getAuthClientIdMetadataUrl());
     }
 

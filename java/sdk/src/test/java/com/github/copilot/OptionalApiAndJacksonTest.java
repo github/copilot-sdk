@@ -663,10 +663,11 @@ class OptionalApiAndJacksonTest {
     @Test
     void jackson_createRequestAuthClientIdMetadataUrlSerializedAndOmitted() throws Exception {
         var url = "https://example.com/oauth/client-metadata.json";
-        var configured = SessionRequestBuilder.buildCreateRequest(new SessionConfig().setAuthClientIdMetadataUrl(url));
+        var configured = SessionRequestBuilder.buildCreateRequest(new SessionConfig().setAuthClientIdMetadataUrl(url),
+                "session-id");
         assertTrue(MAPPER.writeValueAsString(configured).contains("\"authClientIdMetadataUrl\":\"" + url + "\""));
 
-        var unset = SessionRequestBuilder.buildCreateRequest(new SessionConfig());
+        var unset = SessionRequestBuilder.buildCreateRequest(new SessionConfig(), "session-id");
         assertFalse(MAPPER.writeValueAsString(unset).contains("authClientIdMetadataUrl"));
     }
 
