@@ -32,10 +32,12 @@ export function validateNativeHost(classifier, host) {
     return `Validated native build host: ${classifier}`;
   }
 
-  if (classifier === "darwin-arm64") {
-    if (host.platform !== "darwin" || host.arch !== "arm64") {
+  if (classifier === "darwin-x64" || classifier === "darwin-arm64") {
+    const expectedArch = classifier === "darwin-x64" ? "x64" : "arm64";
+    const displayArch = expectedArch === "x64" ? "x64" : "ARM64";
+    if (host.platform !== "darwin" || host.arch !== expectedArch) {
       throw new Error(
-        `Native ${classifier} packaging requires macOS ARM64; detected ${host.platform}-${host.arch}`,
+        `Native ${classifier} packaging requires macOS ${displayArch}; detected ${host.platform}-${host.arch}`,
       );
     }
     return `Validated native build host: ${classifier}`;

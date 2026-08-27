@@ -521,6 +521,61 @@
             </build>
         </profile>
         <profile>
+            <id>native-darwin-x64</id>
+            <activation>
+                <os>
+                    <family>mac</family>
+                    <arch>x86_64</arch>
+                </os>
+            </activation>
+            <properties>
+                <copilot.native.classifier>darwin-x64</copilot.native.classifier>
+                <copilot.native.cli.filename>copilot</copilot.native.cli.filename>
+            </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>validate-native-host</id>
+                                <phase>validate</phase>
+                            </execution>
+                            <execution>
+                                <id>fetch-native</id>
+                                <phase>generate-resources</phase>
+                            </execution>
+                            <execution>
+                                <id>test-fetch-native</id>
+                                <phase>test</phase>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-jar-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>jar-native</id>
+                                <phase>package</phase>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-antrun-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>verify-native-jars</id>
+                                <phase>package</phase>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <profile>
             <id>native-darwin-arm64</id>
             <activation>
                 <os>
@@ -763,7 +818,7 @@
             </build>
         </profile>
         <!--
-            The Darwin classifier is assembled on an Apple Silicon macOS runner
+            The Darwin ARM64 classifier is assembled on an Apple Silicon macOS runner
             and passed to the sole Ubuntu publisher with the Windows classifiers.
         -->
         <profile>
@@ -815,6 +870,68 @@
                                             <file>${copilot.native.external.darwin.classifier.path}</file>
                                             <type>jar</type>
                                             <classifier>darwin-arm64</classifier>
+                                        </artifact>
+                                    </artifacts>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <!--
+            The Darwin x64 classifier is assembled on an Intel macOS runner and
+            passed to the sole Ubuntu publisher with the other classifiers.
+        -->
+        <profile>
+            <id>attach-external-darwin-x64-classifier</id>
+            <activation>
+                <property>
+                    <name>copilot.native.external.darwin.x64.classifier.path</name>
+                </property>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>validate-external-darwin-x64-classifier</id>
+                                <phase>validate</phase>
+                                <goals>
+                                    <goal>exec</goal>
+                                </goals>
+                                <configuration>
+                                    <executable>node</executable>
+                                    <arguments>
+                                        <argument>${project.basedir}/scripts/validate-native-artifact.mjs</argument>
+                                        <argument>classifier</argument>
+                                        <argument>darwin-x64</argument>
+                                        <argument>${copilot.native.external.darwin.x64.classifier.path}</argument>
+                                        <argument>${project.build.finalName}-darwin-x64.jar</argument>
+                                        <argument>${copilot.sdk.root}</argument>
+                                    </arguments>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>build-helper-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>attach-external-darwin-x64-classifier</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>attach-artifact</goal>
+                                </goals>
+                                <configuration>
+                                    <artifacts>
+                                        <artifact>
+                                            <file>${copilot.native.external.darwin.x64.classifier.path}</file>
+                                            <type>jar</type>
+                                            <classifier>darwin-x64</classifier>
                                         </artifact>
                                     </artifacts>
                                 </configuration>
