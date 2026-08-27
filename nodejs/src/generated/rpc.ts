@@ -7268,6 +7268,10 @@ export interface ExternalToolTextResultForLlmContentShellExit {
    * Whether outputPreview is known to be incomplete or truncated
    */
   outputTruncated?: boolean;
+  /**
+   * Path reported in the shell session's filesystem namespace when shell output exceeded the configured large-output threshold.
+   */
+  outputFilePath?: string;
 }
 /**
  * Image content block with base64-encoded data
@@ -8087,6 +8091,14 @@ export interface FactoryResumeRequest {
    */
   runId: string;
   limits?: FactoryRunLimits;
+  /**
+   * Whether to notify the originating session when the factory completes.
+   */
+  notifyOnComplete?: boolean;
+  /**
+   * Whether to emit factory phase names to the session transcript.
+   */
+  logPhaseNames?: boolean;
 }
 /**
  * Wire-only per-invocation factory resource ceiling overrides.
@@ -8271,9 +8283,74 @@ export interface FactoryRunRequest {
 export interface RunOptions {
   limits?: FactoryRunLimits;
   /**
+   * Whether to notify the originating session when the factory completes.
+   */
+  notifyOnComplete?: boolean;
+  /**
+   * Whether to emit factory phase names to the session transcript.
+   */
+  logPhaseNames?: boolean;
+  /**
    * Run identifier whose journal and progress should seed this resumed run.
    */
   resumeFromRunId?: string;
+}
+/**
+ * Internal parameters for resuming a factory run from a tool.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryToolResumeRequest".
+ */
+/** @experimental */
+/** @internal */
+export interface FactoryToolResumeRequest {
+  /**
+   * Factory run identifier.
+   */
+  runId: string;
+  limits?: FactoryRunLimits;
+  /**
+   * Opaque identifier of the originating tool call.
+   */
+  toolCallId?: string;
+}
+/**
+ * Options for an internal tool-originated factory invocation.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryToolRunOptions".
+ */
+/** @experimental */
+/** @internal */
+export interface FactoryToolRunOptions {
+  limits?: FactoryRunLimits;
+  /**
+   * Run identifier whose journal and progress should seed this resumed run.
+   */
+  resumeFromRunId?: string;
+}
+/**
+ * Internal parameters for invoking a registered factory from a tool.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryToolRunRequest".
+ */
+/** @experimental */
+/** @internal */
+export interface FactoryToolRunRequest {
+  /**
+   * Registered factory name.
+   */
+  name: string;
+  /**
+   * Factory input value.
+   */
+  args: JsonValue;
+  options?: FactoryToolRunOptions;
+  /**
+   * Opaque identifier of the originating tool call.
+   */
+  toolCallId?: string;
 }
 /**
  * Optional user prompt to combine with the fleet orchestration instructions.
@@ -21006,10 +21083,6 @@ export interface ToolsExecuteRequest {
 /** @experimental */
 export interface ToolsGetBuiltinDescriptorsRequest {
   /**
-   * Whether line numbers should be omitted from the view tool descriptor.
-   */
-  noViewLineNumbers?: boolean;
-  /**
    * Whether descriptors should favor fewer user-intervention prompts.
    */
   reduceUserIntervention?: boolean;
@@ -21022,10 +21095,6 @@ export interface ToolsGetBuiltinDescriptorsRequest {
    */
   skillEmbeddingEnabled?: boolean;
   shellConfig?: ToolsShellDescriptorConfig;
-  /**
-   * Whether shell commands may only run asynchronously.
-   */
-  shellAsyncOnlyEnabled?: boolean;
   /**
    * Whether the configured shell supports PowerShell 7 syntax.
    */
@@ -25552,6 +25621,27 @@ export function createInternalSessionRpc(connection: MessageConnection, sessionI
                 unregister: async (params: CanvasProviderUnregisterRequest): Promise<void> =>
                     connection.sendRequest("session.canvas.provider.unregister", { sessionId, ...params }),
             },
+        },
+        /** @experimental */
+        factory: {
+            /**
+             * Internal tool-originated factory invocation.
+             *
+             * @param params Internal parameters for invoking a registered factory from a tool.
+             *
+             * @returns Complete current or terminal factory run envelope.
+             */
+            runFromTool: async (params: FactoryToolRunRequest): Promise<FactoryRunResult> =>
+                connection.sendRequest("session.factory.runFromTool", { sessionId, ...params }),
+            /**
+             * Internal tool-originated factory resume.
+             *
+             * @param params Internal parameters for resuming a factory run from a tool.
+             *
+             * @returns Resolved persisted factory identity and resumed run envelope.
+             */
+            resumeFromTool: async (params: FactoryToolResumeRequest): Promise<FactoryResumeResult> =>
+                connection.sendRequest("session.factory.resumeFromTool", { sessionId, ...params }),
         },
         /** @experimental */
         model: {

@@ -14,7 +14,7 @@ import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * Parameters for resuming a factory run from its persisted identity.
+ * Complete current or terminal factory run envelope.
  *
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
@@ -23,16 +23,20 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record SessionFactoryResumeParams(
-    /** Target session identifier */
-    @JsonProperty("sessionId") String sessionId,
+public record SessionFactoryRunFromToolResult(
     /** Factory run identifier. */
     @JsonProperty("runId") String runId,
-    /** Optional per-invocation resource ceiling overrides. */
-    @JsonProperty("limits") FactoryRunLimits limits,
-    /** Whether to notify the originating session when the factory completes. */
-    @JsonProperty("notifyOnComplete") Boolean notifyOnComplete,
-    /** Whether to emit factory phase names to the session transcript. */
-    @JsonProperty("logPhaseNames") Boolean logPhaseNames
+    /** Current or terminal factory run status. */
+    @JsonProperty("status") FactoryRunStatus status,
+    /** Completed factory result. */
+    @JsonProperty("result") Object result,
+    /** Error message for an errored run. */
+    @JsonProperty("error") String error,
+    /** Machine-readable failure details for an errored run. */
+    @JsonProperty("failure") Object failure,
+    /** Reason for a halted or cancelled run. */
+    @JsonProperty("reason") String reason,
+    /** Partial journal and progress snapshot for a halted, cancelled, or errored run. */
+    @JsonProperty("snapshot") Object snapshot
 ) {
 }

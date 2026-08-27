@@ -253,6 +253,10 @@ pub mod rpc_methods {
     pub const SESSION_FACTORY_RUN: &str = "session.factory.run";
     /// `session.factory.resume`
     pub const SESSION_FACTORY_RESUME: &str = "session.factory.resume";
+    /// `session.factory.runFromTool`
+    pub const SESSION_FACTORY_RUNFROMTOOL: &str = "session.factory.runFromTool";
+    /// `session.factory.resumeFromTool`
+    pub const SESSION_FACTORY_RESUMEFROMTOOL: &str = "session.factory.resumeFromTool";
     /// `session.factory.getRun`
     pub const SESSION_FACTORY_GETRUN: &str = "session.factory.getRun";
     /// `session.factory.listRuns`
@@ -4879,6 +4883,9 @@ pub struct ExternalToolTextResultForLlmContentShellExit {
     pub cwd: Option<String>,
     /// Exit code from the completed shell command
     pub exit_code: i64,
+    /// Path reported in the shell session's filesystem namespace when shell output exceeded the configured large-output threshold.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_file_path: Option<String>,
     /// Output associated with this shell command, if available. May be partial, truncated, or a preview; not guaranteed to be full output.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub output_preview: Option<String>,
@@ -5584,6 +5591,12 @@ pub struct FactoryResumeRequest {
     /// Optional per-invocation resource ceiling overrides.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub limits: Option<FactoryRunLimits>,
+    /// Whether to emit factory phase names to the session transcript.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub log_phase_names: Option<bool>,
+    /// Whether to notify the originating session when the factory completes.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub notify_on_complete: Option<bool>,
     /// Factory run identifier.
     pub run_id: String,
 }
@@ -5708,6 +5721,12 @@ pub struct RunOptions {
     /// Per-invocation resource ceiling overrides.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub limits: Option<FactoryRunLimits>,
+    /// Whether to emit factory phase names to the session transcript.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub log_phase_names: Option<bool>,
+    /// Whether to notify the originating session when the factory completes.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub notify_on_complete: Option<bool>,
     /// Run identifier whose journal and progress should seed this resumed run.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub resume_from_run_id: Option<String>,
@@ -5731,6 +5750,70 @@ pub struct FactoryRunRequest {
     /// Factory invocation options.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub options: Option<RunOptions>,
+}
+
+/// Internal parameters for resuming a factory run from a tool.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct FactoryToolResumeRequest {
+    /// Optional per-invocation resource ceiling overrides.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limits: Option<FactoryRunLimits>,
+    /// Factory run identifier.
+    pub run_id: String,
+    /// Opaque identifier of the originating tool call.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_call_id: Option<String>,
+}
+
+/// Options for an internal tool-originated factory invocation.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct FactoryToolRunOptions {
+    /// Per-invocation resource ceiling overrides.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limits: Option<FactoryRunLimits>,
+    /// Run identifier whose journal and progress should seed this resumed run.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resume_from_run_id: Option<String>,
+}
+
+/// Internal parameters for invoking a registered factory from a tool.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct FactoryToolRunRequest {
+    /// Factory input value.
+    pub args: serde_json::Value,
+    /// Registered factory name.
+    pub name: String,
+    /// Tool-originated factory invocation options.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) options: Option<FactoryToolRunOptions>,
+    /// Opaque identifier of the originating tool call.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_call_id: Option<String>,
 }
 
 /// Optional user prompt to combine with the fleet orchestration instructions.
@@ -19623,15 +19706,9 @@ pub struct ToolsGetBuiltinDescriptorsRequest {
     /// Whether tool descriptors should include authoring metadata.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub include_author: Option<bool>,
-    /// Whether line numbers should be omitted from the view tool descriptor.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub no_view_line_numbers: Option<bool>,
     /// Whether descriptors should favor fewer user-intervention prompts.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reduce_user_intervention: Option<bool>,
-    /// Whether shell commands may only run asynchronously.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub shell_async_only_enabled: Option<bool>,
     /// Shell-specific names and description lines for shell tools.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub shell_config: Option<ToolsShellDescriptorConfig>,
@@ -22279,6 +22356,55 @@ pub struct SessionFactoryRunResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionFactoryResumeResult {
+    /// Persisted factory name resolved for the resumed run.
+    pub factory_name: String,
+    /// Terminal resumed run envelope.
+    pub run: FactoryRunResult,
+}
+
+/// Complete current or terminal factory run envelope.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionFactoryRunFromToolResult {
+    /// Error message for an errored run.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    /// Machine-readable failure details for an errored run.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub failure: Option<serde_json::Value>,
+    /// Reason for a halted or cancelled run.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+    /// Completed factory result.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub result: Option<serde_json::Value>,
+    /// Factory run identifier.
+    pub run_id: String,
+    /// Partial journal and progress snapshot for a halted, cancelled, or errored run.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub snapshot: Option<serde_json::Value>,
+    /// Current or terminal factory run status.
+    pub status: FactoryRunStatus,
+}
+
+/// Resolved persisted factory identity and resumed run envelope.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionFactoryResumeFromToolResult {
     /// Persisted factory name resolved for the resumed run.
     pub factory_name: String,
     /// Terminal resumed run envelope.

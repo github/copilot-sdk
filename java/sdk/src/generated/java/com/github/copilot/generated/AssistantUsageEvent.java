@@ -115,7 +115,9 @@ public final class AssistantUsageEvent extends SessionEvent {
         /** Finish reason reported by the model for this API call (e.g. "stop", "length", "tool_calls", "content_filter"). Normalized to OpenAI vocabulary; for Anthropic models a "refusal" stop reason maps to "content_filter". */
         @JsonProperty("finishReason") String finishReason,
         /** Whether the model response was blocked or truncated by content filtering (finish_reason === 'content_filter'). For Anthropic models this corresponds to a 'refusal' stop reason. */
-        @JsonProperty("contentFilterTriggered") Boolean contentFilterTriggered
+        @JsonProperty("contentFilterTriggered") Boolean contentFilterTriggered,
+        /** Experimental HydraFusion attribution for this concrete model call's usage. */
+        @JsonProperty("fusion") FusionAttribution fusion
     ) {
     }
 }

@@ -47,6 +47,24 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
+	case SessionEventTypeAssistantFusionPhaseCompleted:
+		var d AssistantFusionPhaseCompletedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeAssistantFusionPhaseFailed:
+		var d AssistantFusionPhaseFailedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeAssistantFusionPhaseStarted:
+		var d AssistantFusionPhaseStartedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
 	case SessionEventTypeAssistantIdle:
 		var d AssistantIdleData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
@@ -467,6 +485,30 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
+	case SessionEventTypeSessionFusionCompleted:
+		var d SessionFusionCompletedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionFusionResolved:
+		var d SessionFusionResolvedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionFusionRouteFailed:
+		var d SessionFusionRouteFailedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionFusionRouteStarted:
+		var d SessionFusionRouteStartedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
 	case SessionEventTypeSessionHandoff:
 		var d SessionHandoffData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
@@ -667,6 +709,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 		e.Data = &d
 	case SessionEventTypeSubagentCompleted:
 		var d SubagentCompletedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSubagentConfigured:
+		var d SubagentConfiguredData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}

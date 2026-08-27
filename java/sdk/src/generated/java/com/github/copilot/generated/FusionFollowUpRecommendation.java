@@ -3,9 +3,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 // AUTO-GENERATED FILE - DO NOT EDIT
-// Generated from: api.schema.json
+// Generated from: session-events.schema.json
 
-package com.github.copilot.generated.rpc;
+package com.github.copilot.generated;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -13,21 +13,17 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Options controlling factory invocation.
+ * Durable server recommendation for subsequent HydraFusion turns.
  *
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record RunOptions(
-    /** Per-invocation resource ceiling overrides. */
-    @JsonProperty("limits") FactoryRunLimits limits,
-    /** Whether to notify the originating session when the factory completes. */
-    @JsonProperty("notifyOnComplete") Boolean notifyOnComplete,
-    /** Whether to emit factory phase names to the session transcript. */
-    @JsonProperty("logPhaseNames") Boolean logPhaseNames,
-    /** Run identifier whose journal and progress should seed this resumed run. */
-    @JsonProperty("resumeFromRunId") String resumeFromRunId
+public record FusionFollowUpRecommendation(
+    /** Recommended routing action for the next user-message turn. */
+    @JsonProperty("userTurn") FusionFollowUpAction userTurn,
+    /** Recommended routing action for the next compaction turn. */
+    @JsonProperty("compactionTurn") FusionFollowUpAction compactionTurn
 ) {
 }

@@ -2980,6 +2980,9 @@ type ExternalToolTextResultForLlmContentShellExit struct {
 	Cwd *string `json:"cwd,omitempty"`
 	// Exit code from the completed shell command
 	ExitCode int64 `json:"exitCode"`
+	// Path reported in the shell session's filesystem namespace when shell output exceeded the
+	// configured large-output threshold.
+	OutputFilePath *string `json:"outputFilePath,omitempty"`
 	// Output associated with this shell command, if available. May be partial, truncated, or a
 	// preview; not guaranteed to be full output.
 	OutputPreview *string `json:"outputPreview,omitempty"`
@@ -3416,6 +3419,10 @@ type FactoryProgressPage struct {
 type FactoryResumeRequest struct {
 	// Optional per-invocation resource ceiling overrides.
 	Limits *FactoryRunLimits `json:"limits,omitempty"`
+	// Whether to emit factory phase names to the session transcript.
+	LogPhaseNames *bool `json:"logPhaseNames,omitempty"`
+	// Whether to notify the originating session when the factory completes.
+	NotifyOnComplete *bool `json:"notifyOnComplete,omitempty"`
 	// Factory run identifier.
 	RunID string `json:"runId"`
 }
@@ -3668,6 +3675,48 @@ type FactoryRunTerminal struct {
 	Reason *string `json:"reason,omitempty"`
 	// Prompt-safe preview of the completed result.
 	ResultPreview *string `json:"resultPreview,omitempty"`
+}
+
+// Internal parameters for resuming a factory run from a tool.
+// Experimental: FactoryToolResumeRequest is part of an experimental API and may change or
+// be removed.
+// Internal: FactoryToolResumeRequest is an internal SDK API and is not part of the public
+// surface.
+type FactoryToolResumeRequest struct {
+	// Optional per-invocation resource ceiling overrides.
+	Limits *FactoryRunLimits `json:"limits,omitempty"`
+	// Factory run identifier.
+	RunID string `json:"runId"`
+	// Opaque identifier of the originating tool call.
+	ToolCallID *string `json:"toolCallId,omitempty"`
+}
+
+// Options for an internal tool-originated factory invocation.
+// Experimental: FactoryToolRunOptions is part of an experimental API and may change or be
+// removed.
+// Internal: FactoryToolRunOptions is an internal SDK API and is not part of the public
+// surface.
+type FactoryToolRunOptions struct {
+	// Per-invocation resource ceiling overrides.
+	Limits *FactoryRunLimits `json:"limits,omitempty"`
+	// Run identifier whose journal and progress should seed this resumed run.
+	ResumeFromRunID *string `json:"resumeFromRunId,omitempty"`
+}
+
+// Internal parameters for invoking a registered factory from a tool.
+// Experimental: FactoryToolRunRequest is part of an experimental API and may change or be
+// removed.
+// Internal: FactoryToolRunRequest is an internal SDK API and is not part of the public
+// surface.
+type FactoryToolRunRequest struct {
+	// Factory input value.
+	Args any `json:"args"`
+	// Registered factory name.
+	Name string `json:"name"`
+	// Tool-originated factory invocation options.
+	Options *FactoryToolRunOptions `json:"options,omitempty"`
+	// Opaque identifier of the originating tool call.
+	ToolCallID *string `json:"toolCallId,omitempty"`
 }
 
 // Content filtering mode to apply to all tools, or a map of tool name to content filtering
@@ -10146,6 +10195,10 @@ type RemoteSessionRepository struct {
 type RunOptions struct {
 	// Per-invocation resource ceiling overrides.
 	Limits *FactoryRunLimits `json:"limits,omitempty"`
+	// Whether to emit factory phase names to the session transcript.
+	LogPhaseNames *bool `json:"logPhaseNames,omitempty"`
+	// Whether to notify the originating session when the factory completes.
+	NotifyOnComplete *bool `json:"notifyOnComplete,omitempty"`
 	// Run identifier whose journal and progress should seed this resumed run.
 	ResumeFromRunID *string `json:"resumeFromRunId,omitempty"`
 }
@@ -14284,12 +14337,8 @@ type ToolsGetBuiltinDescriptorsRequest struct {
 	BackgroundTaskNotificationsEnabled *bool `json:"backgroundTaskNotificationsEnabled,omitempty"`
 	// Whether tool descriptors should include authoring metadata.
 	IncludeAuthor *bool `json:"includeAuthor,omitempty"`
-	// Whether line numbers should be omitted from the view tool descriptor.
-	NoViewLineNumbers *bool `json:"noViewLineNumbers,omitempty"`
 	// Whether descriptors should favor fewer user-intervention prompts.
 	ReduceUserIntervention *bool `json:"reduceUserIntervention,omitempty"`
-	// Whether shell commands may only run asynchronously.
-	ShellAsyncOnlyEnabled *bool `json:"shellAsyncOnlyEnabled,omitempty"`
 	// Shell-specific names and description lines for shell tools.
 	ShellConfig *ToolsShellDescriptorConfig `json:"shellConfig,omitempty"`
 	// Whether the configured shell supports PowerShell 7 syntax.
@@ -21903,6 +21952,12 @@ func (a *FactoryAPI) Resume(ctx context.Context, params *FactoryResumeRequest) (
 		if params.Limits != nil {
 			req["limits"] = *params.Limits
 		}
+		if params.LogPhaseNames != nil {
+			req["logPhaseNames"] = *params.LogPhaseNames
+		}
+		if params.NotifyOnComplete != nil {
+			req["notifyOnComplete"] = *params.NotifyOnComplete
+		}
 		req["runId"] = params.RunID
 	}
 	raw, err := a.client.Request(ctx, "session.factory.resume", req)
@@ -25617,14 +25672,8 @@ func (a *ToolsAPI) GetBuiltinDescriptors(ctx context.Context, params *ToolsGetBu
 		if params.IncludeAuthor != nil {
 			req["includeAuthor"] = *params.IncludeAuthor
 		}
-		if params.NoViewLineNumbers != nil {
-			req["noViewLineNumbers"] = *params.NoViewLineNumbers
-		}
 		if params.ReduceUserIntervention != nil {
 			req["reduceUserIntervention"] = *params.ReduceUserIntervention
-		}
-		if params.ShellAsyncOnlyEnabled != nil {
-			req["shellAsyncOnlyEnabled"] = *params.ShellAsyncOnlyEnabled
 		}
 		if params.ShellConfig != nil {
 			req["shellConfig"] = *params.ShellConfig
@@ -26973,6 +27022,72 @@ func (a *InternalCommandsAPI) FinalizeInvocationEffect(ctx context.Context, para
 	return &result, nil
 }
 
+// Experimental: InternalFactoryAPI contains experimental APIs that may change or be removed.
+type InternalFactoryAPI internalSessionAPI
+
+// ResumeFromTool internal tool-originated factory resume.
+//
+// RPC method: session.factory.resumeFromTool.
+//
+// Parameters: Internal parameters for resuming a factory run from a tool.
+//
+// Returns: Resolved persisted factory identity and resumed run envelope.
+// Internal: ResumeFromTool is part of the SDK's internal handshake/plumbing; external
+// callers should not use it.
+func (a *InternalFactoryAPI) ResumeFromTool(ctx context.Context, params *FactoryToolResumeRequest) (*FactoryResumeResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.Limits != nil {
+			req["limits"] = *params.Limits
+		}
+		req["runId"] = params.RunID
+		if params.ToolCallID != nil {
+			req["toolCallId"] = *params.ToolCallID
+		}
+	}
+	raw, err := a.client.Request(ctx, "session.factory.resumeFromTool", req)
+	if err != nil {
+		return nil, err
+	}
+	var result FactoryResumeResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// RunFromTool internal tool-originated factory invocation.
+//
+// RPC method: session.factory.runFromTool.
+//
+// Parameters: Internal parameters for invoking a registered factory from a tool.
+//
+// Returns: Complete current or terminal factory run envelope.
+// Internal: RunFromTool is part of the SDK's internal handshake/plumbing; external callers
+// should not use it.
+func (a *InternalFactoryAPI) RunFromTool(ctx context.Context, params *FactoryToolRunRequest) (*FactoryRunResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["args"] = params.Args
+		req["name"] = params.Name
+		if params.Options != nil {
+			req["options"] = *params.Options
+		}
+		if params.ToolCallID != nil {
+			req["toolCallId"] = *params.ToolCallID
+		}
+	}
+	raw, err := a.client.Request(ctx, "session.factory.runFromTool", req)
+	if err != nil {
+		return nil, err
+	}
+	var result FactoryRunResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // Experimental: InternalGitHubAuthAPI contains experimental APIs that may change or be
 // removed.
 type InternalGitHubAuthAPI internalSessionAPI
@@ -27771,6 +27886,7 @@ type InternalSessionRPC struct {
 
 	Canvas     *InternalCanvasAPI
 	Commands   *InternalCommandsAPI
+	Factory    *InternalFactoryAPI
 	GitHubAuth *InternalGitHubAuthAPI
 	MCP        *InternalMCPAPI
 	Model      *InternalModelAPI
@@ -27816,6 +27932,7 @@ func NewInternalSessionRPC(client *jsonrpc2.Client, sessionID string) *InternalS
 	r.common = internalSessionAPI{client: client, sessionID: sessionID}
 	r.Canvas = (*InternalCanvasAPI)(&r.common)
 	r.Commands = (*InternalCommandsAPI)(&r.common)
+	r.Factory = (*InternalFactoryAPI)(&r.common)
 	r.GitHubAuth = (*InternalGitHubAuthAPI)(&r.common)
 	r.MCP = (*InternalMCPAPI)(&r.common)
 	r.Model = (*InternalModelAPI)(&r.common)

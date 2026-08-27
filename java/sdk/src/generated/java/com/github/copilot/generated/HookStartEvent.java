@@ -39,7 +39,9 @@ public final class HookStartEvent extends SessionEvent {
         /** Type of hook being invoked (e.g., "preToolUse", "postToolUse", "sessionStart") */
         @JsonProperty("hookType") String hookType,
         /** Input data passed to the hook */
-        @JsonProperty("input") Object input
+        @JsonProperty("input") Object input,
+        /** Tool call ID of the parent tool invocation when this event originates from a sub-agent */
+        @JsonProperty("parentToolCallId") String parentToolCallId
     ) {
     }
 }

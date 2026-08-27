@@ -4735,6 +4735,75 @@ impl<'a> SessionRpcFactory<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
+    /// Internal tool-originated factory invocation.
+    ///
+    /// Wire method: `session.factory.runFromTool`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Internal parameters for invoking a registered factory from a tool.
+    ///
+    /// # Returns
+    ///
+    /// Complete current or terminal factory run envelope.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn run_from_tool(
+        &self,
+        params: FactoryToolRunRequest,
+    ) -> Result<FactoryRunResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_FACTORY_RUNFROMTOOL, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Internal tool-originated factory resume.
+    ///
+    /// Wire method: `session.factory.resumeFromTool`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Internal parameters for resuming a factory run from a tool.
+    ///
+    /// # Returns
+    ///
+    /// Resolved persisted factory identity and resumed run envelope.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn resume_from_tool(
+        &self,
+        params: FactoryToolResumeRequest,
+    ) -> Result<FactoryResumeResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_FACTORY_RESUMEFROMTOOL,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
     /// Gets the current or settled envelope for a factory run.
     ///
     /// Wire method: `session.factory.getRun`.
