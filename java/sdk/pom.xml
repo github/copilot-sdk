@@ -721,6 +721,18 @@ did not produce the multi-release output. Re-build on JDK 25+ and verify the
             </properties>
         </profile>
         <profile>
+            <id>native-darwin-x64</id>
+            <activation>
+                <os>
+                    <family>mac</family>
+                    <arch>x86_64</arch>
+                </os>
+            </activation>
+            <properties>
+                <copilot.native.classifier>darwin-x64</copilot.native.classifier>
+            </properties>
+        </profile>
+        <profile>
             <id>native-darwin-arm64</id>
             <activation>
                 <os>

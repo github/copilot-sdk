@@ -72,7 +72,7 @@ implementation 'com.github:copilot-sdk-java:1.0.14-preview.1-SNAPSHOT'
 
 ## In-process mode (experimental)
 
-The SDK supports running the Copilot runtime **in-process** as a native library instead of spawning a separate CLI process. This eliminates process management overhead and simplifies deployment. In-process mode is currently experimental and supported on **linux-x64** (glibc), **linux-arm64** (glibc), **win32-x64**, **win32-arm64**, and **darwin-arm64**.
+The SDK supports running the Copilot runtime **in-process** as a native library instead of spawning a separate CLI process. This eliminates process management overhead and simplifies deployment. In-process mode is currently experimental and supported on **linux-x64** (glibc), **linux-arm64** (glibc), **win32-x64**, **win32-arm64**, **darwin-x64**, and **darwin-arm64**.
 
 Because in-process mode is experimental, see the [Using experimental APIs](#using-experimental-apis) section for how to opt in.
 
@@ -95,7 +95,7 @@ Add both the SDK and the platform-specific native runtime to your project:
         <version>${copilot.version}</version>
         <classifier>linux-x64</classifier>
     </dependency>
-    <!-- Use linux-arm64, win32-x64, win32-arm64, or darwin-arm64 on those target platforms -->
+    <!-- Use linux-arm64, win32-x64, win32-arm64, darwin-x64, or darwin-arm64 on those target platforms -->
     <!-- JNA (required for in-process mode) -->
     <dependency>
         <groupId>net.java.dev.jna</groupId>
@@ -511,7 +511,7 @@ mvn jacoco:prepare-agent@wire-up-coverage-instrumentation antrun:run@print-test-
 
 Run native-runtime Maven commands from the `java` directory. Native packaging requires Node.js and npm in addition to JDK 25 and Maven because `copilot-native/scripts/fetch-native.mjs` retrieves the pinned npm runtime package.
 
-On a native Linux glibc host, Maven activates `native-linux-x64` or `native-linux-arm64` for the matching architecture when `copilot.native.libc=glibc` is set. On Windows x64, Windows ARM64, and Apple Silicon macOS, Maven activates `native-win32-x64`, `native-win32-arm64`, or `native-darwin-arm64` automatically. The matching profile validates the host, runs the native script tests, fetches the pinned `@github/copilot-<classifier>` package during `generate-resources`, packages the classifier JAR during `package`, and verifies its native contents. Ensure npm can authenticate to the package registry before running the build.
+On a native Linux glibc host, Maven activates `native-linux-x64` or `native-linux-arm64` for the matching architecture when `copilot.native.libc=glibc` is set. On Windows x64, Windows ARM64, Intel macOS, and Apple Silicon macOS, Maven activates `native-win32-x64`, `native-win32-arm64`, `native-darwin-x64`, or `native-darwin-arm64` automatically. The matching profile validates the host, runs the native script tests, fetches the pinned `@github/copilot-<classifier>` package during `generate-resources`, packages the classifier JAR during `package`, and verifies its native contents. Ensure npm can authenticate to the package registry before running the build.
 
 Before opting in, validate that Node.js reports glibc for the build host:
 
@@ -532,10 +532,10 @@ On Windows x64 or ARM64 PowerShell, initialize Java and run the same profile:
 mvn -Pinprocess clean verify
 ```
 
-The same command validates in-process mode on Apple Silicon macOS:
+The same command validates in-process mode on macOS; use the classifier for the host architecture:
 
 ```bash
-node copilot-native/scripts/validate-native-host.mjs darwin-arm64
+node copilot-native/scripts/validate-native-host.mjs darwin-x64 # Use darwin-arm64 on Apple Silicon
 mvn -Pinprocess clean verify
 ```
 
@@ -546,7 +546,7 @@ node copilot-native/scripts/validate-native-host.mjs linux-arm64
 mvn -Pinprocess clean verify -Dcopilot.native.libc=glibc
 ```
 
-On Intel macOS, Linux musl, and other unsupported hosts, do not set `copilot.native.libc=glibc`. A normal build produces only the OS-neutral primary, sources, and Javadoc JARs; it does not run native script tests, download or stage native files, or produce a platform classifier JAR.
+On Linux musl and other unsupported hosts, do not set `copilot.native.libc=glibc`. A normal build produces only the OS-neutral primary, sources, and Javadoc JARs; it does not run native script tests, download or stage native files, or produce a platform classifier JAR.
 
 To build only the OS-neutral artifacts on any host, or override the glibc opt-in, disable native download and packaging:
 
@@ -564,7 +564,7 @@ mvn clean verify -Dcopilot.native.libc=glibc
 mvn clean package -pl copilot-native -DskipTests -Dcopilot.native.libc=glibc -Dcopilot.native.skip.download=true
 ```
 
-On Linux, the classifier JAR contains `runtime.node`, `platform.properties`, and `copilot` under `native/linux-x64` or `native/linux-arm64`. On Windows, it contains those resources under `native/win32-x64` or `native/win32-arm64`, with the CLI named `copilot.exe`. On Apple Silicon macOS, it contains them under `native/darwin-arm64`. The placeholder JAR remains OS-neutral and contains no native binaries. Unsupported hosts retain the placeholder-only behavior.
+On Linux, the classifier JAR contains `runtime.node`, `platform.properties`, and `copilot` under `native/linux-x64` or `native/linux-arm64`. On Windows, it contains those resources under `native/win32-x64` or `native/win32-arm64`, with the CLI named `copilot.exe`. On macOS, it contains them under `native/darwin-x64` or `native/darwin-arm64`. The placeholder JAR remains OS-neutral and contains no native binaries. Unsupported hosts retain the placeholder-only behavior.
 
 ## License
 
