@@ -22,6 +22,8 @@ public enum PermissionDecisionSurface {
     PROMPT_MODE("prompt_mode"),
     /** The {@code copilot_app} variant. */
     COPILOT_APP("copilot_app"),
+    /** The {@code acp} variant. */
+    ACP("acp"),
     /** The {@code sdk} variant. */
     SDK("sdk");
 

@@ -42,10 +42,13 @@ public class RewindE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
             async () =>
             {
                 rewindPoints = await session.Rpc.History.ListRewindPointsAsync();
-                return rewindPoints.UnavailableReason is null;
+                return rewindPoints.UnavailableReason is null
+                    && rewindPoints.Points.Count == 1
+                    && rewindPoints.Points[0].CanRestoreFiles
+                    && rewindPoints.Points[0].FileCount == 1;
             },
             timeout: TimeSpan.FromSeconds(10),
-            timeoutMessage: "Timed out waiting for rewind points to become available.",
+            timeoutMessage: "Timed out waiting for a restorable file rewind point.",
             pollInterval: TimeSpan.FromMilliseconds(100));
 
         Assert.NotNull(rewindPoints);

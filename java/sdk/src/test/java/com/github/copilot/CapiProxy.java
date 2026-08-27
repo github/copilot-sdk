@@ -57,16 +57,15 @@ public class CapiProxy implements AutoCloseable {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final Pattern LISTENING_PATTERN = Pattern.compile("Listening: (http://[^\\s]+)(?:\\s+(\\{.*\\}))?$");
+    private static final HttpClient HTTP_CLIENT = HttpClient.newHttpClient();
 
     private Process process;
     private String proxyUrl;
     private String connectProxyUrl;
     private String caFilePath;
-    private final HttpClient httpClient;
     private BufferedReader stdoutReader;
 
     public CapiProxy() {
-        this.httpClient = HttpClient.newHttpClient();
     }
 
     /**
@@ -212,7 +211,7 @@ public class CapiProxy implements AutoCloseable {
         HttpRequest request = HttpRequest.newBuilder().uri(URI.create(proxyUrl + "/config"))
                 .header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString(body)).build();
 
-        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        HttpResponse<String> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
         if (response.statusCode() != 200) {
             throw new IOException("Proxy config failed with status " + response.statusCode() + ": " + response.body());
         }
@@ -234,7 +233,7 @@ public class CapiProxy implements AutoCloseable {
 
         HttpRequest request = HttpRequest.newBuilder().uri(URI.create(proxyUrl + "/exchanges")).GET().build();
 
-        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        HttpResponse<String> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
         if (response.statusCode() != 200) {
             throw new IOException("Failed to get exchanges: " + response.statusCode());
         }
@@ -284,7 +283,7 @@ public class CapiProxy implements AutoCloseable {
         HttpRequest request = HttpRequest.newBuilder().uri(URI.create(proxyUrl + "/copilot-user-config"))
                 .header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString(body)).build();
 
-        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        HttpResponse<String> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
         if (response.statusCode() != 200) {
             throw new IOException(
                     "Failed to set copilot user config: " + response.statusCode() + ": " + response.body());
@@ -331,7 +330,7 @@ public class CapiProxy implements AutoCloseable {
         HttpRequest request = HttpRequest.newBuilder().uri(URI.create(proxyUrl + "/copilot-user-config"))
                 .header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString(body)).build();
 
-        HttpResponse<String> response2 = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        HttpResponse<String> response2 = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
         if (response2.statusCode() != 200) {
             throw new IOException(
                     "Failed to set copilot user config: " + response2.statusCode() + ": " + response2.body());
@@ -376,7 +375,7 @@ public class CapiProxy implements AutoCloseable {
                 HttpRequest request = HttpRequest.newBuilder().uri(URI.create(stopUrl))
                         .POST(HttpRequest.BodyPublishers.noBody()).build();
 
-                httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+                HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
             } catch (Exception e) {
                 // Best effort - ignore errors
             }

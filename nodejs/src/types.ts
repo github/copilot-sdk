@@ -21,6 +21,8 @@ import type {
 import type { CopilotSession } from "./session.js";
 import type { FactoryJsonSchema, JsonValue } from "./factory.js";
 import type {
+    GitHubTokenAcquireRequest,
+    GitHubTokenAcquireResult,
     GitHubTelemetryNotification,
     ModelBillingTokenPrices,
     OpenCanvasInstance,
@@ -31,10 +33,38 @@ import type { ToolSet } from "./toolSet.js";
 export type { RemoteSessionMode } from "./generated/rpc.js";
 export type { CurrentToolMetadata } from "./generated/rpc.js";
 export type {
+    GitHubTokenAcquireReason,
+    GitHubTokenAcquireResult,
     GitHubTelemetryNotification,
     GitHubTelemetryEvent,
     GitHubTelemetryClientInfo,
 } from "./generated/rpc.js";
+
+/**
+ * Arguments passed to a session's {@link GitHubTokenProvider}.
+ *
+ * The callback registration identifier is intentionally kept inside the SDK.
+ */
+export type GitHubTokenProviderArgs = Pick<
+    GitHubTokenAcquireRequest,
+    "host" | "sessionId" | "reason"
+>;
+
+/** Tagged token or cancellation returned by a {@link GitHubTokenProvider}. */
+export type GitHubTokenProviderResult = GitHubTokenAcquireResult;
+
+/**
+ * Acquires a GitHub token for one session.
+ *
+ * A token result must include `expiresIn`: the positive number of seconds of
+ * remaining lifetime when the callback completes. Production GitHub tokens
+ * typically last eight hours. Initial cancellation, callback errors, and
+ * invalid token responses reject session creation or resume instead of falling
+ * back to ambient authentication.
+ */
+export type GitHubTokenProvider = (
+    args: GitHubTokenProviderArgs
+) => GitHubTokenProviderResult | Promise<GitHubTokenProviderResult>;
 export type {
     ModelBillingTokenPrices,
     ModelBillingTokenPricesLongContext,
@@ -58,6 +88,7 @@ export type {
     PermissionDecisionOutcome,
     PermissionDecisionSource,
     PermissionDecisionSurface,
+    PermissionResponseCapability,
 } from "./generated/rpc.js";
 export type { CopilotRequestContext } from "./copilotRequestHandler.js";
 export {
@@ -2167,6 +2198,14 @@ export interface GitHubMcpToolConfig {
     disableFormDeferral?: boolean;
 }
 
+/** Well-known managed bypass-permissions policies. */
+export const DisableBypassPermissionsModes = {
+    /** Turn off bypass-permissions mode entirely. */
+    Disable: "disable",
+    /** Permit automatic bypass but block full allow-all. */
+    AllowAutoOnly: "allow-auto-only",
+} as const;
+
 /**
  * Permissions-only managed policy injected by the host via
  * {@link SessionConfigBase.managedSettings}.
@@ -2177,11 +2216,11 @@ export interface GitHubMcpToolConfig {
  */
 export interface ManagedSettingsPermissions {
     /**
-     * When set to `"disable"`, bypass-permissions ("yolo") mode is turned off
-     * for the session. This is deny-wins: it cannot be re-enabled by any other
-     * layer.
+     * Restricts bypass-permissions mode for the session. See
+     * {@link DisableBypassPermissionsModes} for well-known values. Unknown
+     * values are forwarded so newer runtime policies fail closed.
      */
-    disableBypassPermissionsMode?: "disable";
+    disableBypassPermissionsMode?: string;
     /** Operations that must always be denied. Unioned across managed layers. */
     deny?: string[];
     /**
@@ -2385,6 +2424,13 @@ export interface SessionConfigBase {
      * a custom agent with the same name is configured.
      */
     excludedBuiltinAgents?: string[];
+
+    /**
+     * Built-in skill names to include in the session. In `mode: "empty"`,
+     * omitting this option excludes all runtime-bundled skills; specifying names
+     * opts those built-ins back in. Skills from other sources remain eligible.
+     */
+    includedBuiltinSkills?: string[];
 
     /**
      * Custom provider configuration (BYOK - Bring Your Own Key).
@@ -2705,6 +2751,16 @@ export interface SessionConfigBase {
     gitHubToken?: string;
 
     /**
+     * Acquires short-lived GitHub credentials for this session on demand.
+     *
+     * Mutually exclusive with {@link SessionConfigBase.gitHubToken}. The
+     * callback receives the effective GitHub host, the session ID when known,
+     * and whether this is the initial acquisition or a refresh. Its opaque
+     * registration ID remains internal to the SDK.
+     */
+    gitHubTokenProvider?: GitHubTokenProvider;
+
+    /**
      * Opt-in: when true, the runtime self-fetches enterprise managed settings
      * (bypass-permissions policy) at session bootstrap using the session's
      * `gitHubToken`. Requires {@link SessionConfigBase.gitHubToken} to be set;
@@ -2721,8 +2777,8 @@ export interface SessionConfigBase {
      * with the same managed-permission parser it uses for fetched policy and
      * composes it restrictively with any self-fetched (server) and
      * device-managed (MDM) layers: `deny`/`ask` rules are unioned, every
-     * declared `allow` list must admit an operation, and
-     * `disableBypassPermissionsMode: "disable"` is deny-wins.
+     * declared `allow` list must admit an operation, and bypass-mode
+     * restrictions are composed fail-closed.
      *
      * This is startup-only. It is **not** persisted: it must be re-supplied on
      * {@link CopilotClient.resumeSession | resume}, where it replaces the prior

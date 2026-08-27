@@ -28,6 +28,8 @@ public enum AuthInfoType {
     API_KEY("api-key"),
     /** The {@code token} variant. */
     TOKEN("token"),
+    /** The {@code token-provider} variant. */
+    TOKEN_PROVIDER("token-provider"),
     /** The {@code copilot-api-token} variant. */
     COPILOT_API_TOKEN("copilot-api-token");
 

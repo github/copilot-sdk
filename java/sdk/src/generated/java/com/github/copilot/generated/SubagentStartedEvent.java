@@ -43,7 +43,9 @@ public final class SubagentStartedEvent extends SessionEvent {
         /** Description of what the sub-agent does */
         @JsonProperty("agentDescription") String agentDescription,
         /** Model the sub-agent will run with, when known at start. */
-        @JsonProperty("model") String model
+        @JsonProperty("model") String model,
+        /** Root id of the factory run that spawned this sub-agent, when it was spawned by one. */
+        @JsonProperty("factoryRunId") String factoryRunId
     ) {
     }
 }

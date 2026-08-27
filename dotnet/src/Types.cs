@@ -3052,15 +3052,14 @@ public sealed class GitHubMcpToolConfig
     public bool? DisableFormDeferral { get; set; }
 }
 
-/// <summary>
-/// Controls whether bypass-permissions mode is available in a managed session.
-/// </summary>
-[JsonConverter(typeof(JsonStringEnumConverter<DisableBypassPermissionsMode>))]
-public enum DisableBypassPermissionsMode
+/// <summary>Well-known managed bypass-permissions policies.</summary>
+public static class DisableBypassPermissionsModes
 {
-    /// <summary>Turn off bypass-permissions mode.</summary>
-    [JsonStringEnumMemberName("disable")]
-    Disable
+    /// <summary>Turns off bypass-permissions mode entirely.</summary>
+    public const string Disable = "disable";
+
+    /// <summary>Permits automatic bypass but blocks full allow-all.</summary>
+    public const string AllowAutoOnly = "allow-auto-only";
 }
 
 /// <summary>
@@ -3071,18 +3070,19 @@ public enum DisableBypassPermissionsMode
 /// This layer composes restrictively with any server- or device-level managed
 /// settings: <see cref="Deny"/> and <see cref="Ask"/> rules are unioned across
 /// layers, every present <see cref="Allow"/> list must admit a tool for it to be
-/// allowed, and <see cref="DisableBypassPermissionsMode"/> is honored if any
-/// layer sets it (deny-wins).
+/// allowed, and <see cref="DisableBypassPermissionsMode"/> policies compose to
+/// the most restrictive setting.
 /// </remarks>
 public sealed class ManagedSettingsPermissions
 {
     /// <summary>
-    /// When set to <c>"disable"</c>, bypass-permissions mode is turned off for the
-    /// session regardless of other layers. Serialized as
-    /// <c>disableBypassPermissionsMode</c>.
+    /// Restricts bypass-permissions mode for the session regardless of other
+    /// layers. See <see cref="DisableBypassPermissionsModes"/> for well-known
+    /// values. Unknown values are forwarded so newer runtime policies fail closed.
+    /// Serialized as <c>disableBypassPermissionsMode</c>.
     /// </summary>
     [JsonPropertyName("disableBypassPermissionsMode")]
-    public DisableBypassPermissionsMode? DisableBypassPermissionsMode { get; set; }
+    public string? DisableBypassPermissionsMode { get; set; }
 
     /// <summary>Tool-permission patterns that are always denied.</summary>
     [JsonPropertyName("deny")]
@@ -3142,6 +3142,7 @@ public abstract class SessionConfigBase
         DefaultAgent = other.DefaultAgent;
         Agent = other.Agent;
         DisabledSkills = other.DisabledSkills is not null ? [.. other.DisabledSkills] : null;
+        IncludedBuiltinSkills = other.IncludedBuiltinSkills is not null ? [.. other.IncludedBuiltinSkills] : null;
         DisabledMcpServers = other.DisabledMcpServers is not null ? [.. other.DisabledMcpServers] : null;
         EnableCitations = other.EnableCitations;
         EnableFileChangeTracking = other.EnableFileChangeTracking;
@@ -3206,6 +3207,7 @@ public abstract class SessionConfigBase
         ContextTier = other.ContextTier;
         CreateSessionFsProvider = other.CreateSessionFsProvider;
         GitHubToken = other.GitHubToken;
+        GitHubTokenProvider = other.GitHubTokenProvider;
         RemoteSession = other.RemoteSession;
         ExpAssignments = other.ExpAssignments;
         EnableManagedSettings = other.EnableManagedSettings;
@@ -3351,6 +3353,14 @@ public abstract class SessionConfigBase
     /// <see cref="EnableConfigDiscovery"/>.
     /// </summary>
     public bool? EnableSkills { get; set; }
+
+    /// <summary>
+    /// Built-in skill names to include in the session. In
+    /// <see cref="CopilotClientMode.Empty"/>, omitting this option excludes all
+    /// runtime-bundled skills; specifying names opts those built-ins back in.
+    /// Skills from other sources remain eligible.
+    /// </summary>
+    public IList<string>? IncludedBuiltinSkills { get; set; }
 
     /// <summary>
     /// Custom tool declarations available to the language model during the session.
@@ -3648,6 +3658,16 @@ public abstract class SessionConfigBase
     /// and stores it on the session for content exclusion, model routing, and quota checks.
     /// </summary>
     public string? GitHubToken { get; set; }
+
+    /// <summary>
+    /// Gets or sets a callback that acquires session-scoped GitHub tokens on
+    /// demand. Initial cancellation, callback errors, and invalid token responses
+    /// reject session creation or resume instead of falling back to ambient
+    /// authentication. This cannot be combined with <see cref="GitHubToken"/>.
+    /// </summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonIgnore]
+    public Func<GitHubTokenProviderArgs, Task<GitHubTokenProviderResult>>? GitHubTokenProvider { get; set; }
 
     /// <summary>
     /// Per-session remote behavior control:

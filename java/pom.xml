@@ -7,7 +7,7 @@
 
     <groupId>com.github</groupId>
     <artifactId>copilot-sdk-java-parent</artifactId>
-    <version>1.0.12-SNAPSHOT</version>
+    <version>1.0.14-preview.1-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <name>GitHub Copilot SDK :: Java :: Parent</name>
@@ -63,7 +63,7 @@
             DO NOT EDIT MANUALLY. Updated by the update-copilot-dependency
             workflow.
         -->
-        <readonly-copilot-sdk-ref-impl-version-from-lastmerge-file-updated-by-reference-impl-sync>^1.0.80</readonly-copilot-sdk-ref-impl-version-from-lastmerge-file-updated-by-reference-impl-sync>
+        <readonly-copilot-sdk-ref-impl-version-from-lastmerge-file-updated-by-reference-impl-sync>^1.0.81-11</readonly-copilot-sdk-ref-impl-version-from-lastmerge-file-updated-by-reference-impl-sync>
         <!-- The parent POM is not published to Maven Central. -->
         <maven.deploy.skip>true</maven.deploy.skip>
     </properties>
@@ -129,7 +129,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-release-plugin</artifactId>
-                    <version>3.1.1</version>
+                    <version>3.3.1</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -169,7 +169,7 @@
                 <plugin>
                     <groupId>org.codehaus.mojo</groupId>
                     <artifactId>flatten-maven-plugin</artifactId>
-                    <version>1.7.0</version>
+                    <version>1.8.0</version>
                     <configuration>
                         <flattenMode>ossrh</flattenMode>
                     </configuration>

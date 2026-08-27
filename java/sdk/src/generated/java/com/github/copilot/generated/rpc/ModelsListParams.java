@@ -24,7 +24,9 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record ModelsListParams(
-    /** GitHub token for per-user model listing. When provided, resolves this token to determine the user's Copilot plan and available models instead of using the global auth. */
+    /** Opaque account identifier returned by `account.getAllUsers`. When omitted, the current account is used. */
+    @JsonProperty("selectionId") String selectionId,
+    /** GitHub token accepted for compatibility with existing SDK clients. When provided, resolves this token instead of using the current account. */
     @JsonProperty("gitHubToken") String gitHubToken
 ) {
 }

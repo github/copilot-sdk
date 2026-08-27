@@ -56,42 +56,45 @@ type sessionHandler struct {
 //	})
 type Session struct {
 	// SessionID is the unique identifier for this session.
-	SessionID             string
-	workspacePath         string
-	client                *jsonrpc2.Client
-	clientSessionAPIs     *rpc.ClientSessionAPIHandlers
-	handlers              []sessionHandler
-	nextHandlerID         uint64
-	handlerMutex          sync.RWMutex
-	toolHandlers          map[string]ToolHandler
-	toolHandlersM         sync.RWMutex
-	permissionHandler     PermissionHandlerFunc
-	permissionMux         sync.RWMutex
-	managedSettings       bool
-	mcpAuthHandler        MCPAuthHandler
-	mcpAuthMu             sync.RWMutex
-	userInputHandler      UserInputHandler
-	userInputMux          sync.RWMutex
-	exitPlanModeHandler   ExitPlanModeRequestHandler
-	exitPlanModeMu        sync.RWMutex
-	autoModeSwitchHandler AutoModeSwitchRequestHandler
-	autoModeSwitchMu      sync.RWMutex
-	hooks                 *SessionHooks
-	hooksMux              sync.RWMutex
-	transformCallbacks    map[string]SectionTransformFn
-	transformMu           sync.Mutex
-	commandHandlers       map[string]CommandHandler
-	commandHandlersMu     sync.RWMutex
-	elicitationHandler    ElicitationHandler
-	elicitationMu         sync.RWMutex
-	canvasHandler         CanvasHandler
-	canvasMu              sync.RWMutex
-	bearerTokenProviders  map[string]BearerTokenProvider
-	bearerTokenMu         sync.RWMutex
-	openCanvases          []rpc.OpenCanvasInstance
-	openCanvasesMu        sync.RWMutex
-	capabilities          SessionCapabilities
-	capabilitiesMu        sync.RWMutex
+	SessionID                   string
+	workspacePath               string
+	client                      *jsonrpc2.Client
+	clientSessionAPIs           *rpc.ClientSessionAPIHandlers
+	handlers                    []sessionHandler
+	nextHandlerID               uint64
+	handlerMutex                sync.RWMutex
+	toolHandlers                map[string]ToolHandler
+	toolHandlersM               sync.RWMutex
+	permissionHandler           PermissionHandlerFunc
+	permissionMux               sync.RWMutex
+	managedSettings             bool
+	mcpAuthHandler              MCPAuthHandler
+	mcpAuthMu                   sync.RWMutex
+	userInputHandler            UserInputHandler
+	userInputMux                sync.RWMutex
+	exitPlanModeHandler         ExitPlanModeRequestHandler
+	exitPlanModeMu              sync.RWMutex
+	autoModeSwitchHandler       AutoModeSwitchRequestHandler
+	autoModeSwitchMu            sync.RWMutex
+	hooks                       *SessionHooks
+	hooksMux                    sync.RWMutex
+	transformCallbacks          map[string]SectionTransformFn
+	transformMu                 sync.Mutex
+	commandHandlers             map[string]CommandHandler
+	commandHandlersMu           sync.RWMutex
+	elicitationHandler          ElicitationHandler
+	elicitationMu               sync.RWMutex
+	canvasHandler               CanvasHandler
+	canvasMu                    sync.RWMutex
+	bearerTokenProviders        map[string]BearerTokenProvider
+	bearerTokenMu               sync.RWMutex
+	releaseGitHubTokenProvider  func()
+	gitHubTokenProviderMu       sync.Mutex
+	gitHubTokenProviderReleased bool
+	openCanvases                []rpc.OpenCanvasInstance
+	openCanvasesMu              sync.RWMutex
+	capabilities                SessionCapabilities
+	capabilitiesMu              sync.RWMutex
 
 	// eventCh serializes user event handler dispatch. dispatchEvent enqueues;
 	// a single goroutine (processEvents) dequeues and invokes handlers in FIFO order.
@@ -495,6 +498,9 @@ func (s *Session) SendAndWait(ctx context.Context, options MessageOptions) (*Ses
 			lastAssistantMessage = &eventCopy
 			mu.Unlock()
 		case *SessionIdleData:
+			if d.Mode != nil && *d.Mode == SessionModeAutopilot {
+				break
+			}
 			select {
 			case idleCh <- struct{}{}:
 			default:
@@ -1722,11 +1728,9 @@ func (s *Session) GetEvents(ctx context.Context) ([]SessionEvent, error) {
 //	}
 func (s *Session) Disconnect() error {
 	_, err := s.client.Request(context.Background(), "session.destroy", sessionDestroyRequest{SessionID: s.SessionID})
-	if err != nil {
-		return fmt.Errorf("failed to disconnect session: %w", err)
-	}
 
 	s.closeOnce.Do(func() { close(s.eventCh) })
+	s.releaseGitHubTokenProviderRegistration()
 
 	// Clear handlers
 	s.handlerMutex.Lock()
@@ -1749,7 +1753,36 @@ func (s *Session) Disconnect() error {
 	s.elicitationHandler = nil
 	s.elicitationMu.Unlock()
 
+	if err != nil {
+		return fmt.Errorf("failed to disconnect session: %w", err)
+	}
 	return nil
+}
+
+func (s *Session) releaseGitHubTokenProviderRegistration() {
+	s.gitHubTokenProviderMu.Lock()
+	if s.gitHubTokenProviderReleased {
+		s.gitHubTokenProviderMu.Unlock()
+		return
+	}
+	s.gitHubTokenProviderReleased = true
+	release := s.releaseGitHubTokenProvider
+	s.releaseGitHubTokenProvider = nil
+	s.gitHubTokenProviderMu.Unlock()
+	if release != nil {
+		release()
+	}
+}
+
+func (s *Session) setGitHubTokenProviderRegistrationRelease(release func()) {
+	s.gitHubTokenProviderMu.Lock()
+	if !s.gitHubTokenProviderReleased {
+		s.releaseGitHubTokenProvider = release
+		s.gitHubTokenProviderMu.Unlock()
+		return
+	}
+	s.gitHubTokenProviderMu.Unlock()
+	release()
 }
 
 // Abort aborts the currently processing message in this session.

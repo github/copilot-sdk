@@ -252,10 +252,13 @@ describe("Sessions", () => {
 
         // It only tells the model about the specified tools and no others
         const traffic = await waitForExchanges();
-        expect(traffic[0].request.tools).toMatchObject([
-            { function: { name: "view" } },
-            { function: { name: "edit" } },
-        ]);
+        expect(traffic[0].request.tools).toHaveLength(2);
+        expect(traffic[0].request.tools).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({ function: expect.objectContaining({ name: "view" }) }),
+                expect.objectContaining({ function: expect.objectContaining({ name: "edit" }) }),
+            ])
+        );
     });
 
     it("should create a session with excludedTools", async () => {

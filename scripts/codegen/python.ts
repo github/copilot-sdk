@@ -201,6 +201,17 @@ function collectPythonExternalEnumNames(
     return enumNames;
 }
 
+function preservePythonSessionEventConstructorOrder(schema: JSONSchema7): void {
+    for (const definitions of [schema.definitions, schema.$defs]) {
+        if (!definitions) continue;
+        const customTool = definitions.PermissionRequestCustomTool;
+        if (!customTool || typeof customTool !== "object") continue;
+        const skipPermission = (customTool as JSONSchema7).properties?.skipPermission;
+        if (!skipPermission || typeof skipPermission !== "object") continue;
+        (skipPermission as Record<string, unknown>)["x-copilot-sdk-append-last"] = true;
+    }
+}
+
 function preservePythonRpcStringDateFields(definitions: Record<string, JSONSchema7>): void {
     const quotaSnapshot = definitions.AccountQuotaSnapshot;
     const resetDate = quotaSnapshot?.properties?.resetDate as JSONSchema7 | undefined;
@@ -2574,6 +2585,13 @@ function emitPyFlatDiscriminatedUnion(
     ctx.classes.push(lines.join("\n"));
 }
 
+const PYTHON_INTEGER_DECODER = [
+    `def from_int(x: Any) -> int:`,
+    `    assert isinstance(x, (int, float)) and not isinstance(x, bool)`,
+    `    assert not isinstance(x, float) or x.is_integer()`,
+    `    return int(x)`,
+].join("\n");
+
 export function generatePythonSessionEventsCode(schema: JSONSchema7): string {
     const variants = extractPyEventVariants(schema);
     const ctx: PyCodegenCtx = {
@@ -2642,9 +2660,7 @@ export function generatePythonSessionEventsCode(schema: JSONSchema7): string {
     out.push(`    return x`);
     out.push(``);
     out.push(``);
-    out.push(`def from_int(x: Any) -> int:`);
-    out.push(`    assert isinstance(x, int) and not isinstance(x, bool)`);
-    out.push(`    return x`);
+    out.push(PYTHON_INTEGER_DECODER);
     out.push(``);
     out.push(``);
     out.push(`def to_int(x: Any) -> int:`);
@@ -2944,6 +2960,7 @@ async function generateSessionEvents(schemaPath?: string): Promise<void> {
     const schema = addManagedApprovalRequiredToPermissionRequests(
         (await loadSchemaJson(resolvedPath)) as JSONSchema7
     );
+    preservePythonSessionEventConstructorOrder(schema);
     const processed = propagateInternalVisibility(postProcessSchema(schema));
     let code = generatePythonSessionEventsCode(processed);
     const { typeNames } = collectInternalSymbols(processed);
@@ -3347,6 +3364,14 @@ def _patch_model_capabilities(data: dict) -> dict:
 
     // Patch models.list to normalize capabilities before deserialization
     let finalCode = lines.join("\n");
+    finalCode = finalCode.replace(
+        [
+            `def from_int(x: Any) -> int:`,
+            `    assert isinstance(x, int) and not isinstance(x, bool)`,
+            `    return x`,
+        ].join("\n"),
+        PYTHON_INTEGER_DECODER
+    );
     finalCode = finalCode.replace(
         `ModelList.from_dict(await self._client.request("models.list"`,
         `ModelList.from_dict(_patch_model_capabilities(await self._client.request("models.list"`,

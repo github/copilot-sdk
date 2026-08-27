@@ -25,7 +25,7 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionPlanReadSqlTodosWithDependenciesResult(
-    /** Rows from the session SQL todos table, ordered by creation time and id. Empty when no database, no todos table, or the SELECT failed. */
+    /** Rows from the session SQL todos table, ordered by creation time with insertion order used to break ties when available and id used for WITHOUT ROWID tables. Empty when no database, no todos table, or the SELECT failed. */
     @JsonProperty("rows") List<PlanSqlTodosRow> rows,
     /** Edges from the session SQL todo_deps table. Empty when no database, no todo_deps table, or the SELECT failed. Read independently from `rows`, so a broken todo_deps table does not affect the rows result and vice versa. */
     @JsonProperty("dependencies") List<PlanSqlTodoDependency> dependencies

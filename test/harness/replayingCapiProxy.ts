@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { appendFileSync, existsSync } from "fs";
+import { appendFileSync } from "fs";
 import { mkdir, readFile, writeFile } from "fs/promises";
 import type {
   ChatCompletion,
@@ -126,6 +126,7 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
   private startPromise: Promise<string> | null = null;
   private defaultToolResultNormalizers: ToolResultNormalizer[] = [
     { toolName: "*", normalizer: normalizeLargeOutputFilepaths },
+    { toolName: "*", normalizer: normalizeInterruptedToolResult },
     { toolName: "${shell}", normalizer: normalizeShellExitMarkers },
     { toolName: "*", normalizer: normalizeGhAuthMessages },
     { toolName: "*", normalizer: normalizeAvailableToolNames },
@@ -206,17 +207,30 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
   }
 
   private async loadStoredData(): Promise<void> {
-    if (this.state && existsSync(this.state.filePath)) {
-      const content = await readFile(this.state.filePath, "utf-8");
-      this.state.storedData = yaml.parse(content) as NormalizedData;
-      normalizeToolResultOrder(this.state.storedData.conversations);
-      normalizeStoredUserMessages(this.state.storedData.conversations);
-      normalizeStoredToolMessages(this.state.storedData.conversations);
-      normalizeStoredMessagesForBackend(
-        this.state.storedData.conversations,
-        this.state.backend,
-      );
+    if (!this.state) {
+      return;
     }
+    // Read directly and treat a missing file as "nothing stored" rather than
+    // checking for existence first, which would be a check-then-use race.
+    const content = await readFile(this.state.filePath, "utf-8").catch(
+      (error: NodeJS.ErrnoException) => {
+        if (error.code === "ENOENT") {
+          return undefined;
+        }
+        throw error;
+      },
+    );
+    if (content === undefined) {
+      return;
+    }
+    this.state.storedData = yaml.parse(content) as NormalizedData;
+    normalizeToolResultOrder(this.state.storedData.conversations);
+    normalizeStoredUserMessages(this.state.storedData.conversations);
+    normalizeStoredToolMessages(this.state.storedData.conversations);
+    normalizeStoredMessagesForBackend(
+      this.state.storedData.conversations,
+      this.state.backend,
+    );
   }
 
   async stop(skipWritingCache?: boolean): Promise<void> {
@@ -835,6 +849,7 @@ async function findSavedChatCompletionResponse(
   if (!requestModel) {
     throw new Error("Unable to determine model from request");
   }
+  const backgroundAgentIds = extractBackgroundAgentIds(requestBody);
 
   // Now find a matching cached conversation (i.e., one for which this request is a prefix)
   for (const conversation of storedData.conversations) {
@@ -848,6 +863,7 @@ async function findSavedChatCompletionResponse(
         conversation.messages,
         replyIndex,
         workDir,
+        backgroundAgentIds,
       );
     }
   }
@@ -1069,8 +1085,11 @@ function normalizeToolCalls(
   // still match cached responses even if these details change.
   for (const conv of conversations) {
     const idMap = new Map<string, string>();
+    const backgroundAgentNamesByToolCallId = new Map<string, string>();
+    const backgroundAgentNamesByRuntimeId = new Map<string, string>();
     const precedingMessages: NormalizedMessage[] = [];
     let counter = 0;
+    let unnamedBackgroundAgentCounter = 0;
     for (const msg of conv.messages) {
       for (const tc of msg.tool_calls ?? []) {
         // Normalize ID in tool calls
@@ -1082,6 +1101,29 @@ function normalizeToolCalls(
           originalToolName && normalizedToolNames[originalToolName];
         if (normalizedToolName) {
           tc.function!.name = normalizedToolName;
+        }
+
+        if (tc.function?.name === "task") {
+          const configuredName = getBackgroundAgentName(
+            tc.function.arguments,
+          );
+          const fallbackName =
+            unnamedBackgroundAgentCounter === 0
+              ? "background-agent"
+              : `background-agent-${unnamedBackgroundAgentCounter}`;
+          backgroundAgentNamesByToolCallId.set(
+            tc.id,
+            configuredName ?? fallbackName,
+          );
+          unnamedBackgroundAgentCounter++;
+        } else if (
+          tc.function?.name === "read_agent" ||
+          tc.function?.name === "write_agent"
+        ) {
+          tc.function.arguments = normalizeBackgroundAgentArguments(
+            tc.function.arguments,
+            backgroundAgentNamesByRuntimeId,
+          );
         }
       }
 
@@ -1095,6 +1137,19 @@ function normalizeToolCalls(
             .flatMap((m) => m.tool_calls ?? [])
             .find((tc) => tc.id === msg.tool_call_id);
           if (precedingToolCall) {
+            if (precedingToolCall.function?.name === "task") {
+              const runtimeId = getBackgroundAgentId(msg.content);
+              const stableName = backgroundAgentNamesByToolCallId.get(
+                msg.tool_call_id,
+              );
+              if (runtimeId && stableName) {
+                backgroundAgentNamesByRuntimeId.set(runtimeId, stableName);
+                msg.content = normalizeBackgroundAgentStartMessageWithId(
+                  msg.content,
+                  stableName,
+                );
+              }
+            }
             for (const normalizer of resultNormalizers) {
               if (
                 precedingToolCall.function?.name === normalizer.toolName ||
@@ -1103,6 +1158,10 @@ function normalizeToolCalls(
                 msg.content = normalizer.normalizer(msg.content);
               }
             }
+            msg.content = replaceBackgroundAgentIds(
+              msg.content,
+              backgroundAgentNamesByRuntimeId,
+            );
           }
         }
       }
@@ -1371,6 +1430,7 @@ function normalizeStoredToolMessages(conversations: NormalizedConversation[]) {
   for (const conversation of conversations) {
     for (const message of conversation.messages) {
       if (message.role === "tool" && typeof message.content === "string") {
+        message.content = normalizeInterruptedToolResult(message.content);
         message.content = normalizeAvailableToolNames(message.content);
         message.content = normalizeBackgroundAgentStartMessage(message.content);
         message.content = normalizeReadAgentResult(message.content);
@@ -1494,11 +1554,190 @@ function normalizeAvailableToolNames(result: string): string {
   );
 }
 
-function normalizeBackgroundAgentStartMessage(result: string): string {
+function normalizeInterruptedToolResult(result: string): string {
   return result.replace(
-    /^(Agent started in background with agent_id: .*?\. You'll be notified when it completes\. Tell the user you're waiting and end your response, or continue unrelated work until notified\.).*$/s,
-    "$1",
+    /^(?:Failed to execute `[^`]+` tool(?: with arguments: [\s\S]*?)? due to error: (?:Error: )?Session aborted|<shell context is being reconfigured; retry the command>)$/,
+    "The execution of this tool, or a previous tool was interrupted.",
   );
+}
+
+function normalizeBackgroundAgentStartMessage(result: string): string {
+  return normalizeBackgroundAgentStartMessageWithId(result);
+}
+
+function normalizeBackgroundAgentStartMessageWithId(
+  result: string,
+  stableId?: string,
+): string {
+  return result.replace(
+    /^Agent started in background with agent_id: (.*?)(\. You'll be notified when it completes\. Tell the user you're waiting and end your response, or continue unrelated work until notified\.).*$/s,
+    (_match, runtimeId: string, suffix: string) =>
+      `Agent started in background with agent_id: ${stableId ?? runtimeId}${suffix}`,
+  );
+}
+
+function getBackgroundAgentName(argumentsJson: string): string | undefined {
+  try {
+    const args = JSON.parse(argumentsJson) as unknown;
+    if (
+      args &&
+      typeof args === "object" &&
+      "name" in args &&
+      typeof args.name === "string"
+    ) {
+      return args.name;
+    }
+  } catch {
+    // Invalid tool arguments are left for the runtime to report.
+  }
+  return undefined;
+}
+
+function getBackgroundAgentId(content: string): string | undefined {
+  const match = content.match(
+    /^Agent started in background with agent_id: (.*?)\. You'll be notified when it completes\./s,
+  );
+  if (match?.[1]) {
+    return match[1];
+  }
+
+  try {
+    const parsed = JSON.parse(content) as unknown;
+    if (
+      parsed &&
+      typeof parsed === "object" &&
+      "textResultForLlm" in parsed &&
+      typeof parsed.textResultForLlm === "string"
+    ) {
+      return getBackgroundAgentId(parsed.textResultForLlm);
+    }
+  } catch {
+    // Plain-text tool results are expected.
+  }
+  return undefined;
+}
+
+function replaceBackgroundAgentIds(
+  content: string,
+  backgroundAgentNamesByRuntimeId: Map<string, string>,
+): string {
+  let normalized = content;
+  for (const [runtimeId, stableName] of backgroundAgentNamesByRuntimeId) {
+    normalized = normalized.split(runtimeId).join(stableName);
+  }
+  return normalized;
+}
+
+function rewriteBackgroundAgentArguments(
+  argumentsJson: string,
+  replacements: Map<string, string>,
+): string {
+  try {
+    const args = JSON.parse(argumentsJson) as unknown;
+    if (!args || typeof args !== "object") {
+      return argumentsJson;
+    }
+
+    if (
+      "agent_id" in args &&
+      typeof args.agent_id === "string" &&
+      replacements.has(args.agent_id)
+    ) {
+      args.agent_id = replacements.get(args.agent_id);
+    }
+    if ("agent_ids" in args && Array.isArray(args.agent_ids)) {
+      args.agent_ids = args.agent_ids.map((agentId: unknown) =>
+        typeof agentId === "string"
+          ? (replacements.get(agentId) ?? agentId)
+          : agentId,
+      );
+    }
+    return JSON.stringify(args);
+  } catch {
+    return argumentsJson;
+  }
+}
+
+function normalizeBackgroundAgentArguments(
+  argumentsJson: string,
+  backgroundAgentNamesByRuntimeId: Map<string, string>,
+): string {
+  return rewriteBackgroundAgentArguments(
+    argumentsJson,
+    backgroundAgentNamesByRuntimeId,
+  );
+}
+
+function extractBackgroundAgentIds(
+  requestBody: string | undefined,
+): Map<string, string> {
+  const result = new Map<string, string>();
+  if (!requestBody) {
+    return result;
+  }
+
+  try {
+    const request = JSON.parse(requestBody) as {
+      messages?: Array<{
+        role?: string;
+        tool_call_id?: string;
+        content?: unknown;
+        tool_calls?: Array<{
+          id?: string;
+          function?: { name?: string; arguments?: string };
+        }>;
+      }>;
+    };
+    const backgroundAgentNamesByToolCallId = new Map<string, string>();
+    let unnamedBackgroundAgentCounter = 0;
+    for (const message of request.messages ?? []) {
+      for (const toolCall of message.tool_calls ?? []) {
+        if (
+          toolCall.id &&
+          toolCall.function?.name === "task" &&
+          toolCall.function.arguments
+        ) {
+          const configuredName = getBackgroundAgentName(
+            toolCall.function.arguments,
+          );
+          const fallbackName =
+            unnamedBackgroundAgentCounter === 0
+              ? "background-agent"
+              : `background-agent-${unnamedBackgroundAgentCounter}`;
+          backgroundAgentNamesByToolCallId.set(
+            toolCall.id,
+            configuredName ?? fallbackName,
+          );
+          unnamedBackgroundAgentCounter++;
+        }
+      }
+
+      if (
+        message.role === "tool" &&
+        message.tool_call_id &&
+        typeof message.content === "string"
+      ) {
+        const stableName = backgroundAgentNamesByToolCallId.get(
+          message.tool_call_id,
+        );
+        const runtimeId = getBackgroundAgentId(message.content);
+        if (stableName && runtimeId) {
+          result.set(stableName, runtimeId);
+        }
+      }
+    }
+  } catch {
+    // Request parsing failures are handled by the normal replay matcher.
+  }
+
+  return result;
+}
+
+function expandBackgroundAgentArguments(
+  argumentsJson: string,
+  backgroundAgentIds: Map<string, string>,
+): string {
+  return rewriteBackgroundAgentArguments(argumentsJson, backgroundAgentIds);
 }
 
 // Transforms a single OpenAI-style inbound response message into normalized form
@@ -1652,6 +1891,7 @@ function createOpenAIResponse(
   messages: NormalizedMessage[],
   responseStartIndex: number,
   workDir: string,
+  backgroundAgentIds: Map<string, string>,
 ): ChatCompletion {
   // Here we recreate the strange CAPI/productcode behavior of using multiple choices to represent
   // multiple assistant messages in a row. This is the inverse of the logic in transformOpenAIResponseChoice().
@@ -1668,7 +1908,10 @@ function createOpenAIResponse(
       type: "function" as const,
       function: {
         name: expandToolName(tc.function?.name ?? ""),
-        arguments: expandWorkDir(tc.function?.arguments, workDir, true) ?? "{}",
+        arguments: expandBackgroundAgentArguments(
+          expandWorkDir(tc.function?.arguments, workDir, true) ?? "{}",
+          backgroundAgentIds,
+        ),
       },
     }));
 
@@ -1782,11 +2025,18 @@ function createGetModelsResponse(modelIds: string[]) {
 }
 
 async function writeFileIfDifferent(filePath: string, contents: string) {
-  if (existsSync(filePath)) {
-    const existingContents = await readFile(filePath, "utf-8");
-    if (existingContents === contents) {
-      return;
-    }
+  // Read directly instead of checking for existence first, which would be a
+  // check-then-use race on the same path.
+  const existingContents = await readFile(filePath, "utf-8").catch(
+    (error: NodeJS.ErrnoException) => {
+      if (error.code === "ENOENT") {
+        return undefined;
+      }
+      throw error;
+    },
+  );
+  if (existingContents === contents) {
+    return;
   }
 
   await writeFile(filePath, contents, "utf-8");

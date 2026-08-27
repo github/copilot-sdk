@@ -6,6 +6,8 @@ import "errors"
 
 const inProcessAvailable = false
 
+var errInProcessUnavailable = errors.New("in-process transport unavailable")
+
 func createInProcessHost(string, inProcessHostConfig) (inProcessHost, error) {
-	return nil, errors.New("in-process transport unavailable")
+	return nil, errInProcessUnavailable
 }

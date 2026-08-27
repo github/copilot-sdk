@@ -25,7 +25,7 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionPlanReadSqlTodosResult(
-    /** Rows from the session SQL todos table, ordered by creation time and id. */
+    /** Rows from the session SQL todos table, ordered by creation time with insertion order used to break ties when available and id used for WITHOUT ROWID tables. */
     @JsonProperty("rows") List<PlanSqlTodosRow> rows
 ) {
 }

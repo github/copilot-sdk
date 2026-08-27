@@ -84,6 +84,7 @@ describe("session event codegen", () => {
         expect(code).toContain("payload: str");
         expect(code).toContain("encoded: str");
         expect(code).toContain("count: int");
+        expect(code).toContain("assert not isinstance(x, float) or x.is_integer()");
     });
 
     it("strips Ms suffixes from duration member names while preserving JSON names", () => {

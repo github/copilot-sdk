@@ -34,6 +34,7 @@ public final class FactoryRunUpdatedEvent extends SessionEvent {
     @JsonIgnoreProperties(ignoreUnknown = true)
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record FactoryRunUpdatedEventData(
+        /** Factory run identifier. */
         @JsonProperty("runId") String runId,
         /** Monotonic revision now available for the run. */
         @JsonProperty("revision") Long revision

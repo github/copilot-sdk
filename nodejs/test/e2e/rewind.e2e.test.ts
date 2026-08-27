@@ -43,7 +43,11 @@ describe("Rewind", async () => {
 
             let rewindPoints = await session.rpc.history.listRewindPoints();
             const deadline = Date.now() + 10_000;
-            while (rewindPoints.unavailableReason && Date.now() < deadline) {
+            while (
+                Date.now() < deadline &&
+                (rewindPoints.unavailableReason !== undefined ||
+                    !rewindPoints.points[0]?.canRestoreFiles)
+            ) {
                 await new Promise((resolveDelay) => setTimeout(resolveDelay, 100));
                 rewindPoints = await session.rpc.history.listRewindPoints();
             }

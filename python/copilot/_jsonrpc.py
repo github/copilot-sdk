@@ -296,6 +296,9 @@ class JsonRpcClient:
 
     def _fail_pending_requests(self):
         """Fail all pending requests when process exits"""
+        if self._stderr_thread and self._stderr_thread is not threading.current_thread():
+            self._stderr_thread.join(timeout=1.0)
+
         # Build error message with stderr output
         stderr_output = self.get_stderr_output()
         return_code = None

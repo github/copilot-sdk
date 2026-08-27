@@ -26,8 +26,11 @@ import javax.annotation.processing.Generated;
 public record SessionQueueUpdateTextParams(
     /** Target session identifier */
     @JsonProperty("sessionId") String sessionId,
+    /** Stable opaque ID of the queued item to edit. */
     @JsonProperty("id") String id,
+    /** Replacement prompt sent to the model. */
     @JsonProperty("prompt") String prompt,
+    /** Optional replacement prompt displayed to the user. */
     @JsonProperty("displayPrompt") String displayPrompt
 ) {
 }

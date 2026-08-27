@@ -5,11 +5,14 @@
 package com.github.copilot;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 import java.io.Closeable;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -24,7 +27,10 @@ import org.junit.jupiter.api.Test;
 import com.github.copilot.generated.SessionEvent;
 import com.github.copilot.generated.AssistantMessageEvent;
 import com.github.copilot.generated.SessionIdleEvent;
+import com.github.copilot.generated.SessionMode;
 import com.github.copilot.generated.SessionStartEvent;
+import com.github.copilot.rpc.MessageOptions;
+import com.github.copilot.rpc.SendMessageResponse;
 
 /**
  * Unit tests for session event handling API.
@@ -83,6 +89,33 @@ public class SessionEventHandlingTest {
         assertEquals(2, receivedMessages.size());
         assertEquals("First message", receivedMessages.get(0).getData().content());
         assertEquals("Second message", receivedMessages.get(1).getData().content());
+    }
+
+    @Test
+    void testSendAndWaitSkipsAutopilotContinuationIdle() throws Exception {
+        var rpc = mock(JsonRpcClient.class);
+        when(rpc.invoke(eq("session.send"), any(), eq(SendMessageResponse.class)))
+                .thenReturn(CompletableFuture.completedFuture(new SendMessageResponse("message-1")));
+        when(rpc.invoke(eq("session.destroy"), any(), eq(Void.class)))
+                .thenReturn(CompletableFuture.completedFuture(null));
+        session = new CopilotSession("test-session-id", rpc);
+
+        try {
+            var pending = session.sendAndWait(new MessageOptions().setPrompt("keep going"));
+
+            dispatchEvent(createAssistantMessageEvent("intermediate"));
+            dispatchEvent(createSessionIdleEvent(SessionMode.AUTOPILOT));
+            assertFalse(pending.isDone(), "Autopilot continuation idle must not complete sendAndWait");
+
+            dispatchEvent(createAssistantMessageEvent("final"));
+            dispatchEvent(createSessionIdleEvent(SessionMode.INTERACTIVE));
+
+            var result = pending.get(5, TimeUnit.SECONDS);
+            assertNotNull(result);
+            assertEquals("final", result.getData().content());
+        } finally {
+            session.close();
+        }
     }
 
     @Test
@@ -865,12 +898,18 @@ public class SessionEventHandlingTest {
     private AssistantMessageEvent createAssistantMessageEvent(String content) {
         var event = new AssistantMessageEvent();
         var data = new AssistantMessageEvent.AssistantMessageEventData(null, null, content, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
         event.setData(data);
         return event;
     }
 
     private SessionIdleEvent createSessionIdleEvent() {
         return new SessionIdleEvent();
+    }
+
+    private SessionIdleEvent createSessionIdleEvent(SessionMode mode) {
+        var event = new SessionIdleEvent();
+        event.setData(new SessionIdleEvent.SessionIdleEventData(null, mode));
+        return event;
     }
 }

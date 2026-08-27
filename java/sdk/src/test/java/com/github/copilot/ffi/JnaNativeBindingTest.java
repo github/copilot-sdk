@@ -303,11 +303,13 @@ class JnaNativeBindingTest {
     }
 
     @Test
-    void resetForTestingAllowsReloadFromDifferentPath(@TempDir Path tempDir) throws Exception {
+    void resetForTestingAllowsReloadFromDifferentPath() throws Exception {
         Path nativeLib = resolveNativeLib();
         assumeTrue(nativeLib != null, "Native runtime not available (run with -Pinprocess)");
-        Path altPath = tempDir.resolve("runtime-copy-reset.node");
-        Files.copy(nativeLib, altPath);
+        Path altDir = Path.of("target", "jna-test-runtime");
+        Files.createDirectories(altDir);
+        Path altPath = altDir.resolve("runtime-copy-reset.node");
+        Files.copy(nativeLib, altPath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
 
         new JnaNativeBinding(nativeLib);
 

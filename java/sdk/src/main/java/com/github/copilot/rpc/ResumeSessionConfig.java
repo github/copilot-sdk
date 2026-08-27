@@ -89,6 +89,7 @@ public class ResumeSessionConfig {
     private DefaultAgentConfig defaultAgent;
     private String agent;
     private List<String> skillDirectories;
+    private List<String> includedBuiltinSkills;
     private List<String> instructionDirectories;
     private List<String> pluginDirectories;
     private LargeToolOutputConfig largeOutput;
@@ -105,6 +106,8 @@ public class ResumeSessionConfig {
     private boolean enableMcpApps;
     private GitHubMcpToolConfig githubMcpToolConfig;
     private String gitHubToken;
+    @JsonIgnore
+    private GitHubTokenProvider gitHubTokenProvider;
     private String remoteSession;
     private CopilotExpAssignmentResponse expAssignments;
     private Boolean enableManagedSettings;
@@ -1490,6 +1493,28 @@ public class ResumeSessionConfig {
     }
 
     /**
+     * Gets the runtime-bundled skill allowlist.
+     *
+     * @return the built-in skill names, or {@code null} when unspecified
+     */
+    public List<String> getIncludedBuiltinSkills() {
+        return includedBuiltinSkills == null ? null : Collections.unmodifiableList(includedBuiltinSkills);
+    }
+
+    /**
+     * Sets the runtime-bundled skill allowlist. In empty mode, omitting this option
+     * excludes all built-in skills; specifying names opts those built-ins back in.
+     *
+     * @param includedBuiltinSkills
+     *            the built-in skill names to allow
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setIncludedBuiltinSkills(List<String> includedBuiltinSkills) {
+        this.includedBuiltinSkills = includedBuiltinSkills;
+        return this;
+    }
+
+    /**
      * Gets the additional directories to search for custom instruction files.
      *
      * @return the list of instruction directory paths
@@ -1865,6 +1890,33 @@ public class ResumeSessionConfig {
     }
 
     /**
+     * Gets the rotating GitHub token provider for the resumed session.
+     *
+     * @return the provider, or {@code null} when a static token is used
+     */
+    public GitHubTokenProvider getGitHubTokenProvider() {
+        return gitHubTokenProvider;
+    }
+
+    /**
+     * Sets the rotating GitHub token provider for the resumed session.
+     * <p>
+     * The provider receives only the effective host, optional assigned session ID,
+     * and acquisition reason. It must return a positive remaining lifetime in
+     * seconds when its callback completes. Production GitHub tokens typically last
+     * eight hours. This option is mutually exclusive with
+     * {@link #setGitHubToken(String)}.
+     *
+     * @param gitHubTokenProvider
+     *            provider used for initial acquisition and refresh
+     * @return this config instance for method chaining
+     */
+    public ResumeSessionConfig setGitHubTokenProvider(GitHubTokenProvider gitHubTokenProvider) {
+        this.gitHubTokenProvider = gitHubTokenProvider;
+        return this;
+    }
+
+    /**
      * Gets the per-session remote behavior control.
      * <p>
      * See {@link SessionConfig#getRemoteSession()} for details on possible values.
@@ -2026,6 +2078,9 @@ public class ResumeSessionConfig {
         copy.defaultAgent = this.defaultAgent;
         copy.agent = this.agent;
         copy.skillDirectories = this.skillDirectories != null ? new ArrayList<>(this.skillDirectories) : null;
+        copy.includedBuiltinSkills = this.includedBuiltinSkills != null
+                ? new ArrayList<>(this.includedBuiltinSkills)
+                : null;
         copy.instructionDirectories = this.instructionDirectories != null
                 ? new ArrayList<>(this.instructionDirectories)
                 : null;
@@ -2045,6 +2100,7 @@ public class ResumeSessionConfig {
         copy.enableMcpApps = this.enableMcpApps;
         copy.githubMcpToolConfig = this.githubMcpToolConfig;
         copy.gitHubToken = this.gitHubToken;
+        copy.gitHubTokenProvider = this.gitHubTokenProvider;
         copy.remoteSession = this.remoteSession;
         copy.expAssignments = this.expAssignments;
         copy.enableManagedSettings = this.enableManagedSettings;

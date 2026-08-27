@@ -79,6 +79,11 @@ async fn should_get_status() {
 
 #[tokio::test]
 async fn should_get_authenticated_status() {
+    // TODO(cli-1.0.81-2): CLI 1.0.81-2 stopped honoring client-level GitHub tokens over the
+    // in-process (FFI) host, which resolves auth from the ambient environment instead.
+    if super::support::skip_inprocess("client-level GitHub tokens are not supported in-process") {
+        return;
+    }
     with_e2e_context("client", "should_get_authenticated_status", |ctx| {
         Box::pin(async move {
             ctx.set_default_copilot_user();
@@ -99,6 +104,11 @@ async fn should_get_authenticated_status() {
 
 #[tokio::test]
 async fn should_list_models_when_authenticated() {
+    // TODO(cli-1.0.81-2): CLI 1.0.81-2 stopped honoring client-level GitHub tokens over the
+    // in-process (FFI) host, which resolves auth from the ambient environment instead.
+    if super::support::skip_inprocess("client-level GitHub tokens are not supported in-process") {
+        return;
+    }
     with_e2e_context("client", "should_list_models_when_authenticated", |ctx| {
         Box::pin(async move {
             ctx.set_default_copilot_user();

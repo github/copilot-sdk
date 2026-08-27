@@ -40,6 +40,12 @@ public sealed class E2ETestContext : IAsyncDisposable
 
     public static async Task<E2ETestContext> CreateAsync()
     {
+        // A previous in-process context may have left this process's cwd inside a work
+        // directory that has since been deleted. getcwd() then fails, which breaks
+        // Process.Start below while it resolves the proxy executable. Repoint the cwd at
+        // the ambient value first; SetCurrentDirectory succeeds even if the old cwd is gone.
+        InProcessEnvIsolation.RestoreAmbientWorkingDirectory();
+
         var repoRoot = FindRepoRoot();
 
         var homeDir = Path.Combine(Path.GetTempPath(), $"copilot-test-config-{Guid.NewGuid()}");
@@ -477,6 +483,14 @@ public sealed class E2ETestContext : IAsyncDisposable
         // Skip writing snapshots in CI to avoid corrupting them on test failures
         var isCI = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("GITHUB_ACTIONS"));
         try { await _proxy.StopAsync(skipWritingCache: isCI); } catch (Exception ex) when (IsTransientCleanupException(ex)) { errors.Add(ex); }
+
+        // The in-process worker inherits this process's cwd, so ApplyInProcessEnvironment
+        // may have pointed it at WorkDir. The assembly-level isolation attribute only
+        // restores it around tests that actually execute, so a statically skipped test
+        // can leave the cwd inside a directory this method is about to delete. Every
+        // later Process.Start would then fail resolving its executable because getcwd()
+        // returns ENOENT. Repoint the cwd before deleting anything.
+        InProcessEnvIsolation.RestoreAmbientWorkingDirectory();
 
         try { await DeleteDirectoryAsync(HomeDir); } catch (Exception ex) when (IsTransientCleanupException(ex)) { errors.Add(ex); }
         try { await DeleteDirectoryAsync(WorkDir); } catch (Exception ex) when (IsTransientCleanupException(ex)) { errors.Add(ex); }

@@ -70,45 +70,45 @@ func TestRpcSessionStateExtras(t *testing.T) {
 		session := createPortedSession(t, client, nil)
 		defer session.Disconnect()
 		defer func() {
-			_, _ = session.RPC.Permissions.SetAllowAll(t.Context(), &rpc.PermissionsSetAllowAllRequest{Enabled: copilot.Bool(false)})
+			_, _ = session.RPC.Permissions.SetMode(t.Context(), &rpc.PermissionsSetModeRequest{Mode: rpc.PermissionModeManual})
 		}()
 
-		initial, err := session.RPC.Permissions.GetAllowAll(t.Context())
+		initial, err := session.RPC.Permissions.GetMode(t.Context())
 		if err != nil {
-			t.Fatalf("Permissions.GetAllowAll initial failed: %v", err)
+			t.Fatalf("Permissions.GetMode initial failed: %v", err)
 		}
-		if initial.Enabled {
-			t.Fatal("Allow-all should be disabled on a fresh session")
+		if initial.Mode != rpc.PermissionModeManual {
+			t.Fatalf("Expected manual mode on a fresh session, got %q", initial.Mode)
 		}
 
-		enable, err := session.RPC.Permissions.SetAllowAll(t.Context(), &rpc.PermissionsSetAllowAllRequest{Enabled: copilot.Bool(true)})
+		enable, err := session.RPC.Permissions.SetMode(t.Context(), &rpc.PermissionsSetModeRequest{Mode: rpc.PermissionModeAllowAll})
 		if err != nil {
-			t.Fatalf("Permissions.SetAllowAll(true) failed: %v", err)
+			t.Fatalf("Permissions.SetMode(allow-all) failed: %v", err)
 		}
-		if !enable.Success || !enable.Enabled {
-			t.Fatalf("Expected successful enable, got %+v", enable)
+		if !enable.Success || enable.Mode != rpc.PermissionModeAllowAll {
+			t.Fatalf("Expected successful allow-all mode change, got %+v", enable)
 		}
-		afterEnable, err := session.RPC.Permissions.GetAllowAll(t.Context())
+		afterEnable, err := session.RPC.Permissions.GetMode(t.Context())
 		if err != nil {
-			t.Fatalf("Permissions.GetAllowAll after enable failed: %v", err)
+			t.Fatalf("Permissions.GetMode after allow-all failed: %v", err)
 		}
-		if !afterEnable.Enabled {
-			t.Fatal("Expected allow-all to be enabled")
+		if afterEnable.Mode != rpc.PermissionModeAllowAll {
+			t.Fatalf("Expected allow-all mode, got %q", afterEnable.Mode)
 		}
 
-		disable, err := session.RPC.Permissions.SetAllowAll(t.Context(), &rpc.PermissionsSetAllowAllRequest{Enabled: copilot.Bool(false)})
+		disable, err := session.RPC.Permissions.SetMode(t.Context(), &rpc.PermissionsSetModeRequest{Mode: rpc.PermissionModeManual})
 		if err != nil {
-			t.Fatalf("Permissions.SetAllowAll(false) failed: %v", err)
+			t.Fatalf("Permissions.SetMode(manual) failed: %v", err)
 		}
-		if !disable.Success || disable.Enabled {
-			t.Fatalf("Expected successful disable, got %+v", disable)
+		if !disable.Success || disable.Mode != rpc.PermissionModeManual {
+			t.Fatalf("Expected successful manual mode change, got %+v", disable)
 		}
-		afterDisable, err := session.RPC.Permissions.GetAllowAll(t.Context())
+		afterDisable, err := session.RPC.Permissions.GetMode(t.Context())
 		if err != nil {
-			t.Fatalf("Permissions.GetAllowAll after disable failed: %v", err)
+			t.Fatalf("Permissions.GetMode after manual failed: %v", err)
 		}
-		if afterDisable.Enabled {
-			t.Fatal("Expected allow-all to be disabled")
+		if afterDisable.Mode != rpc.PermissionModeManual {
+			t.Fatalf("Expected manual mode, got %q", afterDisable.Mode)
 		}
 	})
 

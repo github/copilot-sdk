@@ -21,7 +21,9 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionSettingsBuiltInToolAvailabilitySnapshot(
+    /** Whether the report-progress tool is available. */
     @JsonProperty("reportProgress") Boolean reportProgress,
+    /** Whether the create-pull-request tool is available. */
     @JsonProperty("createPullRequest") Boolean createPullRequest
 ) {
 }
