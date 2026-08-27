@@ -539,6 +539,7 @@ export class CopilotClient {
     private _rpc: ReturnType<typeof createServerRpc> | null = null;
     private _internalRpc: ReturnType<typeof createInternalServerRpc> | null = null;
     private processExitPromise: Promise<never> | null = null; // Rejects when CLI process exits
+    private processTransportError: Error | null = null;
     private negotiatedProtocolVersion: number | null = null;
     /** Connection-level session filesystem config, set via constructor option. */
     private sessionFsConfig: SessionFsConfig | null = null;
@@ -974,6 +975,8 @@ export class CopilotClient {
             return;
         }
 
+        this.forceStopping = false;
+        this.processTransportError = null;
         this.state = "connecting";
 
         try {
@@ -1020,9 +1023,10 @@ export class CopilotClient {
 
             this.state = "connected";
         } catch (error) {
+            const startupError = this.processTransportError ?? error;
             await this.forceStop();
             this.state = "error";
-            throw error;
+            throw startupError;
         }
     }
 
@@ -2915,6 +2919,10 @@ export class CopilotClient {
             }
             this.state = "error";
             const reason = err instanceof Error ? (err.stack ?? err.message) : String(err);
+            const stderrOutput = this.stderrBuffer.trim();
+            this.processTransportError = new Error(
+                `CLI server connection failed: ${reason}${stderrOutput ? `\nstderr: ${stderrOutput}` : ""}`
+            );
             this.logDebug(`stdin pipe error: ${reason}`);
             try {
                 this.connection?.dispose();
