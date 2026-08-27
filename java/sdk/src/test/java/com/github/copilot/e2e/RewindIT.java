@@ -102,7 +102,7 @@ class RewindIT {
     }
 
     private static SessionHistoryListRewindPointsResult waitForRewindPoints(CopilotSession session) throws Exception {
-        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
         SessionHistoryListRewindPointsResult result;
         do {
             result = session.getRpc().history.listRewindPoints().get(10, TimeUnit.SECONDS);

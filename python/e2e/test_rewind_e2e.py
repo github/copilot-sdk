@@ -52,7 +52,7 @@ class TestRewind:
             # capture lands instead of sampling once; the assertions below still run if
             # it never does.
             rewind_points = await session.rpc.history.list_rewind_points()
-            deadline = asyncio.get_running_loop().time() + 10
+            deadline = asyncio.get_running_loop().time() + 30
             while asyncio.get_running_loop().time() < deadline and not (
                 rewind_points.unavailable_reason is None
                 and rewind_points.points

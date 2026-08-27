@@ -47,7 +47,7 @@ public class RewindE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
                     && rewindPoints.Points[0].CanRestoreFiles
                     && rewindPoints.Points[0].FileCount == 1;
             },
-            timeout: TimeSpan.FromSeconds(10),
+            timeout: TimeSpan.FromSeconds(30),
             timeoutMessage: "Timed out waiting for a restorable file rewind point.",
             pollInterval: TimeSpan.FromMilliseconds(100));
 

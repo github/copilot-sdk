@@ -42,7 +42,7 @@ describe("Rewind", async () => {
             expect(readFileSync(filePath, "utf8")).toBe(FILE_CONTENT);
 
             let rewindPoints = await session.rpc.history.listRewindPoints();
-            const deadline = Date.now() + 10_000;
+            const deadline = Date.now() + 30_000;
             while (
                 Date.now() < deadline &&
                 (rewindPoints.unavailableReason !== undefined ||

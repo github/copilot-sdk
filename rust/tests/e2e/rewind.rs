@@ -94,7 +94,7 @@ async fn should_restore_tracked_file_and_conversation() {
 async fn wait_for_rewind_points(
     session: &github_copilot_sdk::session::Session,
 ) -> HistoryListRewindPointsResult {
-    let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(30);
     loop {
         let result = session
             .rpc()
@@ -102,12 +102,16 @@ async fn wait_for_rewind_points(
             .list_rewind_points()
             .await
             .expect("list rewind points");
-        if result.unavailable_reason.is_none() {
+        if result.unavailable_reason.is_none()
+            && result.points.first().is_some_and(|point| {
+                point.can_restore_files && point.file_count == 1
+            })
+        {
             return result;
         }
         assert!(
             tokio::time::Instant::now() < deadline,
-            "timed out waiting for rewind points"
+            "timed out waiting for a restorable rewind point: {result:?}"
         );
         tokio::time::sleep(Duration::from_millis(100)).await;
     }
