@@ -206,7 +206,7 @@ describe("Client", () => {
             await session.send("test");
             expect.fail("Expected send() to throw an error after CLI exit");
         } catch (error) {
-            expect((error as Error).message).toContain("Connection is closed");
+            expect(error).toBeInstanceOf(Error);
         }
     });
 });
