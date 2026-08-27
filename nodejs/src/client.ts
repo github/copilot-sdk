@@ -1542,6 +1542,9 @@ export class CopilotClient {
         if (!this.connection) {
             await this.start();
         }
+        if (this.state !== "connected") {
+            throw new Error(`Client is not connected (state: ${this.state})`);
+        }
 
         const modeDefaults = this.configDefaultsForMode();
         config = { ...modeDefaults, ...config };
