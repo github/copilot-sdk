@@ -16,7 +16,7 @@ import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { Socket } from "node:net";
-import { dirname, isAbsolute, join } from "node:path";
+import { dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
     createMessageConnection,
@@ -422,10 +422,6 @@ function getBundledCliPackage(): BundledCliPackage {
             `Searched ${searchPaths.length} paths. ` +
             `Ensure @github/copilot is installed, or pass cliPath/cliUrl to CopilotClient.`
     );
-}
-
-function getBundledCliPath(): string {
-    return join(getBundledCliPackage().root, "index.js");
 }
 
 function getBundledRuntimePath(): string {
@@ -2809,7 +2805,15 @@ export class CopilotClient {
 
     /** Starts the in-process FFI runtime with SDK-managed typed options. */
     private async startInProcessFfi(): Promise<void> {
-        const entrypoint = this.resolveCliPathForFfi();
+        const explicitEntrypoint = this.resolvedEnv.COPILOT_CLI_PATH;
+        const runtimeLibrary = explicitEntrypoint
+            ? join(
+                  dirname(resolve(explicitEntrypoint)),
+                  "prebuilds",
+                  CopilotClient.getNapiPrebuildsFolder(explicitEntrypoint),
+                  "runtime.node"
+              )
+            : join(dirname(getBundledRuntimePath()), "runtime.node");
         // Load the FFI host lazily so the native `koffi` addon (and its
         // platform-specific `koffi.node`) is only loaded on the in-process path;
         // out-of-process (stdio/tcp) consumers never touch the native dependency.
@@ -2844,12 +2848,7 @@ export class CopilotClient {
             args.push("--remote");
         }
 
-        const host = FfiRuntimeHost.create(
-            entrypoint,
-            CopilotClient.getNapiPrebuildsFolder(entrypoint),
-            environment,
-            args
-        );
+        const host = FfiRuntimeHost.create(runtimeLibrary, explicitEntrypoint, environment, args);
         this.ffiHost = host;
         await host.start();
     }
@@ -2872,20 +2871,6 @@ export class CopilotClient {
         this.connection.listen();
     }
 
-    /**
-     * Resolves the CLI entrypoint used for in-process FFI hosting: `COPILOT_CLI_PATH`
-     * when set, otherwise the bundled platform-package entrypoint.
-     */
-    private resolveCliPathForFfi(): string {
-        return this.resolvedEnv.COPILOT_CLI_PATH ?? getBundledCliPath();
-    }
-
-    /**
-     * Returns the napi prebuilds folder name for the current host — the
-     * `<node-platform>-<arch>` convention (e.g. `win32-x64`, `darwin-arm64`,
-     * `linux-x64`, `linuxmusl-x64`) under which the runtime ships
-     * `prebuilds/<folder>/runtime.node`.
-     */
     private static getNapiPrebuildsFolder(entrypoint: string): string {
         const arch = process.arch;
         if (arch !== "x64" && arch !== "arm64") {

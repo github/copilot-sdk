@@ -41,9 +41,8 @@ public class ClientE2ETests(E2ETestFixture fixture) : IClassFixture<E2ETestFixtu
     [Fact]
     public async Task Should_Start_And_Connect_Over_InProcess_Ffi()
     {
-        // In-process FFI hosting resolves the CLI entrypoint (COPILOT_CLI_PATH or the
-        // bundled CLI binary) and its sibling native runtime library itself; if neither
-        // is available, StartAsync throws and the test fails hard.
+        // In-process FFI hosting loads the bundled runtime library directly; if it is
+        // unavailable, StartAsync throws and the test fails hard.
         using var client = new CopilotClient(new CopilotClientOptions
         {
             Connection = RuntimeConnection.ForInProcess(),

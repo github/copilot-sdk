@@ -2,12 +2,11 @@
 //! library and speaking JSON-RPC over its C ABI,
 //! instead of spawning a CLI child process and communicating over stdio/TCP.
 //!
-//! The runtime's `host_start` export spawns the residual TypeScript worker
-//! itself — the packaged single-file CLI (`copilot --embedded-host`) or, for
-//! dev, `node dist-cli/index.js --embedded-host`. JSON-RPC frames are pumped
-//! across the ABI: writes go to `connection_write`; inbound frames arrive on a
-//! native callback that feeds an async reader. The framing is unchanged — the
-//! same LSP `Content-Length:` frames the stdio transport uses.
+//! The runtime's `host_start` export constructs the Rust server synchronously in
+//! this process. JSON-RPC frames are pumped across the ABI: writes go to
+//! `connection_write`; inbound frames arrive on a native callback that feeds an
+//! async reader. The framing is unchanged — the same LSP `Content-Length:`
+//! frames the stdio transport uses.
 
 use std::collections::HashMap;
 use std::ffi::c_void;
@@ -204,12 +203,11 @@ impl AsyncWrite for FfiWriter {
     }
 }
 
-/// Prepared FFI host: the bound cdylib exports plus the spawn arguments needed
-/// to start the runtime worker. The cdylib is loaded process-globally and never
-/// unloaded (see [`load_library`]).
+/// Prepared FFI host. The cdylib is loaded process-globally and never unloaded
+/// (see [`load_library`]).
 pub(crate) struct FfiHost {
     library_path: PathBuf,
-    entrypoint: PathBuf,
+    cli_entrypoint: Option<PathBuf>,
     environment: Vec<(String, String)>,
     args: Vec<String>,
     host_start: HostStartFn,
@@ -224,30 +222,34 @@ pub(crate) struct FfiHost {
 unsafe impl Send for FfiHost {}
 
 impl FfiHost {
-    /// Load the cdylib next to `entrypoint` and bind its exports.
-    ///
-    /// `entrypoint` is the packaged single-file CLI binary or, for dev, a
-    /// `.js` file launched via `node`. The native library is resolved relative
-    /// to the entrypoint directory, supporting both packaged and development
-    /// layouts.
+    /// Load the cdylib next to `runtime_entrypoint` and bind its exports.
     pub(crate) fn create(
-        entrypoint: &Path,
+        runtime_entrypoint: &Path,
+        cli_entrypoint: Option<&Path>,
         environment: Vec<(String, String)>,
         args: Vec<String>,
     ) -> Result<Self, Error> {
-        let entrypoint = std::fs::canonicalize(entrypoint)
-            .map(path_for_child_process)
+        let runtime_entrypoint = std::fs::canonicalize(runtime_entrypoint).map_err(|e| {
+            Error::with_message(
+                ErrorKind::InvalidConfig,
+                format!(
+                    "failed to resolve in-process runtime entrypoint '{}': {e}",
+                    runtime_entrypoint.display()
+                ),
+            )
+        })?;
+        let cli_entrypoint = cli_entrypoint
+            .map(std::fs::canonicalize)
+            .transpose()
             .map_err(|e| {
                 Error::with_message(
                     ErrorKind::InvalidConfig,
-                    format!(
-                        "failed to resolve in-process CLI entrypoint '{}': {e}",
-                        entrypoint.display()
-                    ),
+                    format!("failed to resolve explicit in-process CLI entrypoint: {e}"),
                 )
-            })?;
-        let library_path =
-            std::fs::canonicalize(resolve_library_path(&entrypoint)?).map_err(|e| {
+            })?
+            .map(path_for_child_process);
+        let library_path = std::fs::canonicalize(resolve_library_path(&runtime_entrypoint)?)
+            .map_err(|e| {
                 Error::with_message(
                     ErrorKind::InvalidConfig,
                     format!("failed to resolve in-process runtime library: {e}"),
@@ -267,7 +269,7 @@ impl FfiHost {
 
         Ok(Self {
             library_path,
-            entrypoint,
+            cli_entrypoint,
             environment,
             args,
             host_start,
@@ -278,11 +280,7 @@ impl FfiHost {
         })
     }
 
-    /// Start the runtime worker and open the FFI JSON-RPC connection.
-    ///
-    /// `host_start` blocks until the worker connects back and signals
-    /// readiness (up to ~30s), and must not run on an async executor thread, so
-    /// the blocking handshake is offloaded to [`tokio::task::spawn_blocking`].
+    /// Start the native runtime and open the FFI JSON-RPC connection.
     pub(crate) async fn start(self) -> Result<(FfiReader, FfiWriter, Arc<FfiShared>), Error> {
         tokio::task::spawn_blocking(move || self.start_blocking())
             .await
@@ -295,7 +293,7 @@ impl FfiHost {
     }
 
     fn start_blocking(self) -> Result<(FfiReader, FfiWriter, Arc<FfiShared>), Error> {
-        let argv = build_argv_json(&self.entrypoint, &self.args);
+        let argv = build_argv_json(self.cli_entrypoint.as_deref(), &self.args);
         let env = build_env_json(&self.environment);
 
         let (env_ptr, env_len) = match &env {
@@ -309,9 +307,8 @@ impl FfiHost {
             return Err(Error::with_message(
                 ErrorKind::InvalidConfig,
                 format!(
-                    "copilot_runtime_host_start failed (library '{}', entrypoint '{}')",
-                    self.library_path.display(),
-                    self.entrypoint.display()
+                    "copilot_runtime_host_start failed (library '{}')",
+                    self.library_path.display()
                 ),
             ));
         }
@@ -528,28 +525,23 @@ fn path_for_child_process(path: PathBuf) -> PathBuf {
     path
 }
 
-fn build_argv_json(entrypoint: &Path, extra_args: &[String]) -> Vec<u8> {
-    // A `.js` entrypoint (dev / dist-cli) is launched via node; the packaged
-    // single-file CLI binary embeds its own Node and is invoked directly.
-    let entrypoint_str = entrypoint.to_string_lossy().into_owned();
-    let is_js = entrypoint
-        .extension()
-        .and_then(|ext| ext.to_str())
-        .is_some_and(|ext| ext.eq_ignore_ascii_case("js"));
-    let mut argv: Vec<String> = if is_js {
-        vec![
-            "node".to_string(),
+fn build_argv_json(entrypoint: Option<&Path>, extra_args: &[String]) -> Vec<u8> {
+    let mut argv = Vec::new();
+    if let Some(entrypoint) = entrypoint {
+        let entrypoint_str = entrypoint.to_string_lossy().into_owned();
+        if entrypoint
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("js"))
+        {
+            argv.push("node".to_string());
+        }
+        argv.extend([
             entrypoint_str,
             "--embedded-host".to_string(),
             "--no-auto-update".to_string(),
-        ]
-    } else {
-        vec![
-            entrypoint_str,
-            "--embedded-host".to_string(),
-            "--no-auto-update".to_string(),
-        ]
-    };
+        ]);
+    }
     argv.extend_from_slice(extra_args);
     serde_json::to_vec(&argv).expect("argv serializes")
 }
@@ -570,29 +562,20 @@ mod tests {
     use super::*;
 
     #[test]
-    fn argv_pins_worker_and_appends_client_options() {
+    fn argv_without_entrypoint_contains_only_client_options() {
         let argv: Vec<String> = serde_json::from_slice(&build_argv_json(
-            Path::new("copilot"),
+            None,
             &["--log-level".into(), "debug".into()],
         ))
         .unwrap();
 
-        assert_eq!(
-            argv,
-            [
-                "copilot",
-                "--embedded-host",
-                "--no-auto-update",
-                "--log-level",
-                "debug"
-            ]
-        );
+        assert_eq!(argv, ["--log-level", "debug"]);
     }
 
     #[test]
-    fn javascript_entrypoint_uses_node() {
+    fn explicit_javascript_entrypoint_uses_node() {
         let argv: Vec<String> =
-            serde_json::from_slice(&build_argv_json(Path::new("index.js"), &[])).unwrap();
+            serde_json::from_slice(&build_argv_json(Some(Path::new("index.js")), &[])).unwrap();
 
         assert_eq!(
             argv,

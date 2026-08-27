@@ -131,10 +131,10 @@ public final class NativeRuntimeLoader {
     }
 
     /**
-     * Resolves the copilot CLI executable from the same location as the bundled
-     * {@code runtime.node}. The CLI is used as {@code argv[0]} in
-     * {@code copilot_runtime_host_start} — the Rust runtime spawns it as a child
-     * process.
+     * Resolves the legacy copilot CLI entrypoint from the same location as the
+     * bundled {@code runtime.node}. Callers may pass this entrypoint through
+     * {@code copilot_runtime_host_start} when legacy extension hosting is
+     * requested.
      *
      * <p>
      * This method calls {@link #resolve()} to locate {@code runtime.node}, then
@@ -148,6 +148,25 @@ public final class NativeRuntimeLoader {
     public static Path resolveEntrypoint() throws IOException {
         String configuredCli = System.getenv(COPILOT_CLI_PATH_ENV);
         return resolveEntrypoint(configuredCli, resolve());
+    }
+
+    /**
+     * Resolves an explicitly configured legacy CLI entrypoint, if it has a
+     * compatible adjacent runtime library.
+     *
+     * @return the absolute CLI path, or {@code null} when no compatible override is
+     *         configured
+     * @throws IOException
+     *             if the configured files cannot be inspected
+     */
+    public static Path resolveConfiguredEntrypoint() throws IOException {
+        String configuredCli = System.getenv(COPILOT_CLI_PATH_ENV);
+        if (configuredCli == null || configuredCli.isBlank()) {
+            return null;
+        }
+        Path configuredPath = Path.of(configuredCli).toAbsolutePath().normalize();
+        return resolveFromCliPath(configuredCli) != null && Files.isRegularFile(configuredPath)
+                && Files.size(configuredPath) > 0 ? configuredPath : null;
     }
 
     /**

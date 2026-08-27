@@ -3,9 +3,9 @@
 Instead of spawning the Copilot CLI as a child process and talking JSON-RPC over
 stdio/TCP, the in-process transport loads the runtime's native shared library
 (``runtime.node`` — a Rust ``cdylib``) into this process and drives JSON-RPC over
-its C ABI (FFI). The native ``host_start`` export spawns the residual worker
-itself, so the SDK never launches the worker directly; it only pumps opaque LSP
-``Content-Length:``-framed JSON-RPC bytes across the boundary:
+its C ABI (FFI). The native ``host_start`` export constructs the Rust server
+synchronously; the SDK only pumps opaque LSP ``Content-Length:``-framed JSON-RPC
+bytes across the boundary:
 
 - client → server frames go to ``copilot_runtime_connection_write``
 - server → client frames arrive on a native callback that feeds a thread-safe
@@ -114,8 +114,8 @@ def _natural_library_name() -> str:
     return "libcopilot_runtime.so"
 
 
-def resolve_library_path(cli_entrypoint: str) -> str | None:
-    """Resolve the native runtime library next to the given CLI entrypoint.
+def resolve_library_path(runtime_entrypoint: str) -> str | None:
+    """Resolve the native runtime library next to the given runtime entrypoint.
 
     Checks, in order:
 
@@ -125,7 +125,7 @@ def resolve_library_path(cli_entrypoint: str) -> str | None:
 
     Returns the absolute path, or ``None`` when neither exists.
     """
-    directory = Path(cli_entrypoint).resolve().parent
+    directory = Path(runtime_entrypoint).resolve().parent
 
     flat = directory / _natural_library_name()
     if flat.is_file():
@@ -327,15 +327,15 @@ class _FfiProcessAdapter:
 class FfiRuntimeHost:
     """Hosts the Copilot runtime in-process via its native C ABI.
 
-    Construct with :meth:`create`, then :meth:`start` to spawn the worker and open
-    the FFI connection. Expose :attr:`process` to :class:`JsonRpcClient`, and call
-    :meth:`dispose` to tear everything down.
+    Construct with :meth:`create`, then :meth:`start` to start the native engine
+    and open the FFI connection. Expose :attr:`process` to
+    :class:`JsonRpcClient`, and call :meth:`dispose` to tear everything down.
     """
 
     def __init__(
         self,
         library_path: str,
-        cli_entrypoint: str,
+        cli_entrypoint: str | None,
         environment: dict[str, str] | None = None,
         args: Sequence[str] = (),
     ) -> None:
@@ -367,31 +367,30 @@ class FfiRuntimeHost:
 
     @staticmethod
     def create(
-        cli_entrypoint: str,
+        library_path: str,
+        cli_entrypoint: str | None = None,
         environment: dict[str, str] | None = None,
         args: Sequence[str] = (),
     ) -> FfiRuntimeHost:
-        """Resolve the cdylib next to the CLI entrypoint and prepare the host.
+        """Load the runtime cdylib and prepare the host.
 
         Raises:
             RuntimeError: If the native runtime library cannot be found.
         """
-        full_entrypoint = str(Path(cli_entrypoint).resolve())
-        library_path = resolve_library_path(full_entrypoint)
-        if library_path is None:
+        full_library_path = str(Path(library_path).resolve())
+        if not Path(full_library_path).is_file():
             raise RuntimeError(
-                "In-process FFI runtime library not found next to "
-                f"'{full_entrypoint}'. Download it with "
-                "`python -m copilot download-runtime --in-process`, or set "
-                "COPILOT_CLI_PATH to a runtime package that ships it."
+                f"In-process FFI runtime library not found at '{full_library_path}'."
             )
-        return FfiRuntimeHost(library_path, full_entrypoint, environment, args)
+        full_entrypoint = (
+            str(Path(cli_entrypoint).resolve()) if cli_entrypoint is not None else None
+        )
+        return FfiRuntimeHost(full_library_path, full_entrypoint, environment, args)
 
     def _build_argv(self) -> bytes:
-        # A `.js` entrypoint (dev) is launched via node; the packaged single-file
-        # CLI embeds its own Node and is invoked directly. `--no-auto-update`
-        # pins the worker to the runtime package matching the loaded cdylib.
-        if self._cli_entrypoint.lower().endswith(".js"):
+        if self._cli_entrypoint is None:
+            argv: list[str] = []
+        elif self._cli_entrypoint.lower().endswith(".js"):
             argv = ["node", self._cli_entrypoint, "--embedded-host", "--no-auto-update"]
         else:
             argv = [self._cli_entrypoint, "--embedded-host", "--no-auto-update"]
@@ -407,11 +406,9 @@ class FfiRuntimeHost:
         return json.dumps(obj).encode("utf-8")
 
     def start_blocking(self) -> None:
-        """Spawn the worker and open the FFI connection (blocks up to ~30s).
+        """Start the native engine and open the FFI connection.
 
-        Must be run off the event loop (e.g. via :func:`asyncio.to_thread`);
-        ``host_start`` blocks until the worker connects back and signals
-        readiness.
+        Must be run off the event loop (e.g. via :func:`asyncio.to_thread`).
         """
         argv = self._build_argv()
         env = self._build_env()
@@ -419,8 +416,7 @@ class FfiRuntimeHost:
         self._server_id = self._lib.host_start(argv, len(argv), env, len(env) if env else 0)
         if not self._server_id:
             raise RuntimeError(
-                f"copilot_runtime_host_start failed (library '{self._library_path}', "
-                f"entrypoint '{self._cli_entrypoint}')."
+                f"copilot_runtime_host_start failed (library '{self._library_path}')."
             )
 
         self._outbound_callback = _OutboundCallback(self._on_outbound)

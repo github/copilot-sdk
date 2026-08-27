@@ -510,12 +510,8 @@ impl E2eContext {
             .expect("start E2E client")
     }
 
-    /// Start a client that hosts the runtime in-process over FFI
-    /// ([`Transport::InProcess`]). Unlike the stdio harness, the CLI
-    /// entrypoint is passed as the program directly (the FFI host builds the
-    /// `node <entrypoint> --embedded-host` argv itself and loads the sibling
-    /// runtime cdylib), so a `.js` entrypoint is not split into node +
-    /// prefix_args here.
+    /// Start a client that hosts the bundled runtime directly in-process over
+    /// FFI ([`Transport::InProcess`]).
     #[cfg_attr(not(feature = "bundled-in-process"), allow(dead_code))]
     pub async fn start_inprocess_client(&self) -> Client {
         let options = ClientOptions::new().with_transport(Transport::InProcess);

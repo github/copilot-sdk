@@ -2215,24 +2215,21 @@ func (c *Client) startInProcess(ctx context.Context) error {
 		return errors.New("in-process transport unavailable: rebuild with -tags copilot_inprocess on a supported platform")
 	}
 
-	runtimePath := c.cliPath
+	cliEntrypoint := c.cliPath
+	if cliEntrypoint == "" {
+		cliEntrypoint = getEnvValue(c.options.Env, "COPILOT_CLI_PATH")
+	}
+	runtimePath := cliEntrypoint
 	if runtimePath == "" {
-		// The in-process transport does not resolve a bare command name from PATH
-		// (unlike the child-process transport).
-		if p := getEnvValue(c.options.Env, "COPILOT_CLI_PATH"); p != "" {
-			runtimePath = p
-		}
+		runtimePath = embeddedcli.RuntimePath()
 	}
 	if runtimePath == "" {
-		runtimePath = embeddedcli.Path()
-	}
-	if runtimePath == "" {
-		return errors.New("in-process runtime unavailable: set COPILOT_CLI_PATH to a compatible runtime package or build with the bundled embedded runtime")
+		return errors.New("in-process runtime unavailable: build with the bundled embedded runtime or set COPILOT_CLI_PATH to a compatible runtime package")
 	}
 
 	config := c.inProcessHostConfig()
 
-	host, err := createInProcessHost(runtimePath, config)
+	host, err := createInProcessHost(runtimePath, cliEntrypoint, config)
 	if err != nil {
 		return err
 	}

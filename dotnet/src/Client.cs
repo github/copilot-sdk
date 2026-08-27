@@ -417,9 +417,19 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                         ffiArgs.Add("--remote");
                     }
 
+                    var explicitCliPath = System.Environment.GetEnvironmentVariable("COPILOT_CLI_PATH");
+                    if (string.IsNullOrEmpty(explicitCliPath))
+                    {
+                        explicitCliPath = null;
+                    }
+                    var ffiRuntimePath = explicitCliPath is null
+                        ? GetBundledNativePath(FfiRuntimeHost.GetRuntimeLibraryFileName(), out var searchedRuntime)
+                            ?? throw new InvalidOperationException(
+                                $"In-process FFI runtime library not found at '{searchedRuntime}'.")
+                        : ResolveRuntimePathForExplicitCli(explicitCliPath);
                     var ffiHost = FfiRuntimeHost.Create(
-                        ResolveCliPathForFfi(),
-                        GetNapiPrebuildsFolderOrThrow(),
+                        ffiRuntimePath,
+                        explicitCliPath,
                         ffiEnvironment,
                         ffiArgs,
                         _logger);
@@ -2499,26 +2509,22 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         return arch != null ? $"{os}-{arch}" : null;
     }
 
-    private string ResolveCliPathForFfi()
+    private static string ResolveRuntimePathForExplicitCli(string cliPath)
     {
-        var envCliPath = _options.Environment is not null && _options.Environment.TryGetValue("COPILOT_CLI_PATH", out var envValue)
-            ? envValue
-            : System.Environment.GetEnvironmentVariable("COPILOT_CLI_PATH");
-        if (!string.IsNullOrEmpty(envCliPath))
+        var fullEntrypoint = Path.GetFullPath(cliPath);
+        var directory = Path.GetDirectoryName(fullEntrypoint)
+            ?? throw new InvalidOperationException($"Could not determine directory for '{cliPath}'.");
+        var flatLibraryPath = Path.Combine(directory, FfiRuntimeHost.GetRuntimeLibraryFileName());
+        if (File.Exists(flatLibraryPath))
         {
-            return envCliPath;
+            return flatLibraryPath;
         }
-
-        // Fall back to the bundled single-file CLI the same way stdio discovers it.
-        // It embeds its own Node and is spawned directly as `copilot --embedded-host`,
-        // with the sibling cdylib loaded in-process (FfiRuntimeHost.Create prefers the
-        // flat `libcopilot_runtime.so`/`copilot_runtime.dll` next to the CLI, falling
-        // back to the dev `prebuilds/<folder>/runtime.node` layout).
-        var bundled = GetBundledCliPath(out var searchedPath);
-        return bundled
-            ?? throw new InvalidOperationException(
-                "In-process FFI hosting requires the Copilot CLI. Set the COPILOT_CLI_PATH "
-                + $"environment variable, or ensure the bundled CLI is present (looked in '{searchedPath}').");
+        var prebuildsLibraryPath = Path.Combine(
+            directory, "prebuilds", GetNapiPrebuildsFolderOrThrow(), "runtime.node");
+        return File.Exists(prebuildsLibraryPath)
+            ? prebuildsLibraryPath
+            : throw new InvalidOperationException(
+                $"FFI runtime library not found. Looked for '{flatLibraryPath}' and '{prebuildsLibraryPath}'.");
     }
 
     /// <summary>

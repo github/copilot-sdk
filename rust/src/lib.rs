@@ -181,7 +181,8 @@ pub enum Transport {
 pub enum CliProgram {
     /// Auto-resolve the transport's program. Managed child-process transports
     /// select `COPILOT_CLI_PATH`, then the bundled runtime wrapper. In-process
-    /// transport selects the compatible CLI entrypoint. This is the default.
+    /// transport loads the wrapper's adjacent runtime library directly unless
+    /// `COPILOT_CLI_PATH` explicitly selects a legacy embedded host.
     #[default]
     Resolve,
     /// Use an explicit binary path (skips resolution).
@@ -259,7 +260,7 @@ pub fn install_bundled_runtime() -> Option<PathBuf> {
 /// When `program` is [`CliProgram::Resolve`] (the default), [`Client::start`]
 /// uses `COPILOT_CLI_PATH` when set to a real file. Managed child-process
 /// transports next use the bundled `copilot-runtime` wrapper. In-process
-/// transport uses the compatible bundled CLI entrypoint. With `bundled-cli`
+/// transport loads the wrapper's adjacent runtime library. With `bundled-cli`
 /// disabled, the corresponding artifact is resolved from the build-time
 /// extraction cache.
 ///
@@ -1216,7 +1217,7 @@ impl Client {
                 let resolve_start = Instant::now();
                 let resolved = resolve::copilot_binary_with_extract_dir(
                     options.bundled_cli_extract_dir.as_deref(),
-                    !matches!(options.transport, Transport::InProcess),
+                    true,
                 )?;
                 let resolve_elapsed = resolve_start.elapsed();
                 timings.program_resolve_ms = Some(StartupTimings::millis(resolve_elapsed));
@@ -1375,7 +1376,15 @@ impl Client {
                     if !use_logged_in_user {
                         args.push("--no-auto-login".to_string());
                     }
-                    let host = crate::ffi::FfiHost::create(&program, environment, args)?;
+                    let explicit_cli = std::env::var_os("COPILOT_CLI_PATH")
+                        .map(PathBuf::from)
+                        .filter(|path| path.is_file());
+                    let host = crate::ffi::FfiHost::create(
+                        &program,
+                        explicit_cli.as_deref(),
+                        environment,
+                        args,
+                    )?;
                     let (reader, writer, shared) = host.start().await?;
                     let client = Self::from_transport(
                         reader,
