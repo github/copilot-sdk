@@ -1251,6 +1251,16 @@ type GitHubMCPToolConfig struct {
 	DisableFormDeferral *bool    `json:"disableFormDeferral,omitempty"`
 }
 
+// AskUserVariant selects the model-facing shape of the ask_user tool.
+type AskUserVariant string
+
+const (
+	// AskUserVariantLegacy uses the legacy user-input request implementation.
+	AskUserVariantLegacy AskUserVariant = "legacy"
+	// AskUserVariantElicitation uses the elicitation-based implementation.
+	AskUserVariantElicitation AskUserVariant = "elicitation"
+)
+
 // SessionConfig configures a new session
 type SessionConfig struct {
 	// SessionID is an optional custom session ID
@@ -1342,6 +1352,10 @@ type SessionConfig struct {
 	GitHubTokenProvider GitHubTokenProvider
 	// OnUserInputRequest is a handler for user input requests from the agent (enables ask_user tool)
 	OnUserInputRequest UserInputHandler
+	// AskUserVariant selects the model-facing shape of the ask_user tool.
+	// The zero value preserves legacy behavior. AskUserVariantElicitation also
+	// requires OnElicitationRequest so the host can answer structured forms.
+	AskUserVariant AskUserVariant
 	// Hooks configures hook handlers for session lifecycle events
 	Hooks *SessionHooks
 	// WorkingDirectory is the working directory for the session.
@@ -1916,6 +1930,10 @@ type ResumeSessionConfig struct {
 	OnMCPAuthRequest MCPAuthHandler
 	// OnUserInputRequest is a handler for user input requests from the agent (enables ask_user tool)
 	OnUserInputRequest UserInputHandler
+	// AskUserVariant selects the model-facing shape of the ask_user tool.
+	// The zero value preserves legacy behavior. AskUserVariantElicitation also
+	// requires OnElicitationRequest so the host can answer structured forms.
+	AskUserVariant AskUserVariant
 	// Hooks configures hook handlers for session lifecycle events
 	Hooks *SessionHooks
 	// WorkingDirectory is the working directory for the session.
@@ -2509,6 +2527,7 @@ type createSessionRequest struct {
 	ModelCapabilities                  *rpc.ModelCapabilitiesOverride         `json:"modelCapabilities,omitempty"`
 	RequestPermission                  *bool                                  `json:"requestPermission,omitempty"`
 	RequestUserInput                   *bool                                  `json:"requestUserInput,omitempty"`
+	AskUserVariant                     AskUserVariant                         `json:"askUserVariant,omitempty"`
 	RequestExitPlanMode                *bool                                  `json:"requestExitPlanMode,omitempty"`
 	RequestAutoModeSwitch              *bool                                  `json:"requestAutoModeSwitch,omitempty"`
 	Hooks                              *bool                                  `json:"hooks,omitempty"`
@@ -2606,6 +2625,7 @@ type resumeSessionRequest struct {
 	ModelCapabilities                  *rpc.ModelCapabilitiesOverride         `json:"modelCapabilities,omitempty"`
 	RequestPermission                  *bool                                  `json:"requestPermission,omitempty"`
 	RequestUserInput                   *bool                                  `json:"requestUserInput,omitempty"`
+	AskUserVariant                     AskUserVariant                         `json:"askUserVariant,omitempty"`
 	RequestExitPlanMode                *bool                                  `json:"requestExitPlanMode,omitempty"`
 	RequestAutoModeSwitch              *bool                                  `json:"requestAutoModeSwitch,omitempty"`
 	Hooks                              *bool                                  `json:"hooks,omitempty"`

@@ -274,6 +274,11 @@ let config = SessionConfig {
 let session = client.create_session(config).await?;
 ```
 
+Use `with_ask_user_variant(AskUserVariant::Elicitation)` together with
+`with_elicitation_handler(...)` to expose the structured form-based `ask_user`
+tool. The default remains `AskUserVariant::Legacy`. Re-supply the option and
+handler through `ResumeSessionConfig` on a cold resume.
+
 For rotating per-session GitHub credentials, install a `GitHubTokenProvider`
 instead of setting `github_token`:
 
@@ -521,6 +526,7 @@ impl ElicitationHandler for MyElicitation {
 
 let config = SessionConfig::default()
     .with_permission_handler(Arc::new(ApproveAllHandler))
+    .with_ask_user_variant(AskUserVariant::Elicitation)
     .with_elicitation_handler(Arc::new(MyElicitation));
 ```
 

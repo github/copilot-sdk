@@ -788,12 +788,22 @@ func hasManagedSettings(enableManagedSettings *bool, managedSettings *ManagedSet
 	return (enableManagedSettings != nil && *enableManagedSettings) || managedSettings != nil
 }
 
+func validateAskUserVariant(variant AskUserVariant) error {
+	if variant != "" && variant != AskUserVariantLegacy && variant != AskUserVariantElicitation {
+		return fmt.Errorf("invalid AskUserVariant %q: expected %q, %q, or unset", variant, AskUserVariantLegacy, AskUserVariantElicitation)
+	}
+	return nil
+}
+
 func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Session, error) {
 	if config == nil {
 		config = &SessionConfig{}
 	}
 	if config.GitHubToken != "" && config.GitHubTokenProvider != nil {
 		return nil, fmt.Errorf("GitHubToken and GitHubTokenProvider cannot be used together")
+	}
+	if err := validateAskUserVariant(config.AskUserVariant); err != nil {
+		return nil, err
 	}
 
 	if err := c.ensureConnected(ctx); err != nil {
@@ -842,6 +852,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.Capi = config.Capi
 	req.Providers = config.Providers
 	req.Models = config.Models
+	req.AskUserVariant = config.AskUserVariant
 	req.EnableSessionTelemetry = config.EnableSessionTelemetry
 	req.EnableCitations = config.EnableCitations
 	req.EnableFileChangeTracking = config.EnableFileChangeTracking
@@ -1170,6 +1181,9 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	if config.GitHubToken != "" && config.GitHubTokenProvider != nil {
 		return nil, fmt.Errorf("GitHubToken and GitHubTokenProvider cannot be used together")
 	}
+	if err := validateAskUserVariant(config.AskUserVariant); err != nil {
+		return nil, err
+	}
 
 	if err := c.ensureConnected(ctx); err != nil {
 		return nil, err
@@ -1200,6 +1214,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	req.Capi = config.Capi
 	req.Providers = config.Providers
 	req.Models = config.Models
+	req.AskUserVariant = config.AskUserVariant
 	req.EnableSessionTelemetry = config.EnableSessionTelemetry
 	req.IsExperimentalMode = config.EnableExperimentalMode
 	req.SkipCustomInstructions = config.SkipCustomInstructions

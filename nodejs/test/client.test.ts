@@ -303,6 +303,39 @@ describe("CopilotClient", () => {
         });
     });
 
+    it("forwards the ask-user variant on create and cold resume", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => stopClient(client));
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId };
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+        const onElicitationRequest = async () => ({ action: "decline" as const });
+
+        const session = await client.createSession({
+            askUserVariant: "elicitation",
+            onElicitationRequest,
+        });
+        await client.resumeSession(session.sessionId, {
+            askUserVariant: "elicitation",
+            onElicitationRequest,
+        });
+
+        expect(spy.mock.calls.find(([method]) => method === "session.create")![1]).toMatchObject({
+            askUserVariant: "elicitation",
+            requestElicitation: true,
+        });
+        expect(spy.mock.calls.find(([method]) => method === "session.resume")![1]).toMatchObject({
+            askUserVariant: "elicitation",
+            requestElicitation: true,
+        });
+    });
+
     it("omits GitHub MCP tool config when unset", async () => {
         const client = new CopilotClient();
         await client.start();

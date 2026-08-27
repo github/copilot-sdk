@@ -39,6 +39,29 @@ describe("UI Elicitation Callback", async () => {
     );
 
     it(
+        "session created with the elicitation ask-user variant exposes the structured tool",
+        { timeout: 60_000 },
+        async () => {
+            const session = await client.createSession({
+                onPermissionRequest: approveAll,
+                askUserVariant: "elicitation",
+                onElicitationRequest: async () => ({ action: "accept", content: {} }),
+            });
+
+            await session.rpc.tools.initializeAndValidate();
+            const { tools } = await session.rpc.tools.getCurrentMetadata();
+            const askUserSchema = tools?.find((tool) => tool.name === "ask_user")?.input_schema as
+                | { properties?: Record<string, unknown> }
+                | undefined;
+
+            expect(askUserSchema?.properties).toHaveProperty("message");
+            expect(askUserSchema?.properties).toHaveProperty("requestedSchema");
+            expect(askUserSchema?.properties).not.toHaveProperty("question");
+            await session.disconnect();
+        }
+    );
+
+    it(
         "session created without onElicitationRequest reports no elicitation capability",
         { timeout: 60_000 },
         async () => {

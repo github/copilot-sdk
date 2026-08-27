@@ -465,6 +465,54 @@ public sealed class ClientSessionLifetimeTests
     }
 
     [Fact]
+    public async Task CreateSessionAsync_Forwards_AskUserVariant()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            AskUserVariant = AskUserVariant.Elicitation,
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        var request = Assert.Single(server.Requests, request => request.Method == "session.create");
+        Assert.Equal("elicitation", request.Params.GetProperty("askUserVariant").GetString());
+
+        server.ClearRequests();
+        await using var defaultSession = await client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+        var defaultRequest = Assert.Single(server.Requests, request => request.Method == "session.create");
+        Assert.False(defaultRequest.Params.TryGetProperty("askUserVariant", out _));
+    }
+
+    [Fact]
+    public async Task ResumeSessionAsync_Forwards_AskUserVariant_On_Cold_Resume()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+
+        await using var session = await client.ResumeSessionAsync("ask-user-variant", new ResumeSessionConfig
+        {
+            AskUserVariant = AskUserVariant.Legacy,
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        var request = Assert.Single(server.Requests, request => request.Method == "session.resume");
+        Assert.Equal("legacy", request.Params.GetProperty("askUserVariant").GetString());
+
+        server.ClearRequests();
+        await using var defaultSession = await client.ResumeSessionAsync("ask-user-variant-default", new ResumeSessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+        var defaultRequest = Assert.Single(server.Requests, request => request.Method == "session.resume");
+        Assert.False(defaultRequest.Params.TryGetProperty("askUserVariant", out _));
+    }
+
+    [Fact]
     public async Task SessionRequests_Serialize_AdditionalDirectories()
     {
         await using var server = await FakeCopilotServer.StartAsync();

@@ -1678,6 +1678,7 @@ export class CopilotClient {
                 requestPermission: !!config.onPermissionRequest,
                 requestUserInput: !!config.onUserInputRequest,
                 requestElicitation: !!config.onElicitationRequest,
+                askUserVariant: config.askUserVariant,
                 ...(config.enableMcpApps ? { requestMcpApps: true } : {}),
                 ...(config.githubMcpToolConfig != null
                     ? { githubMcpToolConfig: config.githubMcpToolConfig }
@@ -1946,6 +1947,7 @@ export class CopilotClient {
                     config.onPermissionRequest !== defaultJoinSessionPermissionHandler,
                 requestUserInput: !!config.onUserInputRequest,
                 requestElicitation: !!config.onElicitationRequest,
+                askUserVariant: config.askUserVariant,
                 ...(config.enableMcpApps ? { requestMcpApps: true } : {}),
                 ...(config.githubMcpToolConfig != null
                     ? { githubMcpToolConfig: config.githubMcpToolConfig }
