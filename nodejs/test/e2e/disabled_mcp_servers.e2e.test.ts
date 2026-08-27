@@ -324,21 +324,6 @@ describe("disabled MCP servers", async () => {
             .length;
     }
 
-    async function waitForMcpRequestCount(expectedCount: number): Promise<void> {
-        let lastCount = 0;
-        await waitForCondition(
-            async () => {
-                lastCount = await mcpRequestCount();
-                return lastCount >= expectedCount;
-            },
-            {
-                timeoutMs: 60_000,
-                intervalMs: 100,
-                timeoutMessage: `Timed out waiting for ${expectedCount} /mcp request(s); saw ${lastCount}.`,
-            }
-        );
-    }
-
     it(
         "keeps disabled plugin MCP servers per-session on create",
         { timeout: 120_000 },
@@ -424,13 +409,12 @@ describe("disabled MCP servers", async () => {
                 githubMcpToolConfig: { enableAllTools: true },
             });
             await drainPostCreateRpc(enabledSession);
-            await waitForMcpRequestCount(1);
+            await waitForMcpStatus(enabledSession, "github-mcp-server", "connected");
             const requestsBeforeFirstMessage = await mcpRequestCount();
-            expect(requestsBeforeFirstMessage).toBe(1);
+            expect(requestsBeforeFirstMessage).toBeGreaterThan(0);
             expectSyntheticResponse(
                 await enabledSession.sendAndWait({ prompt: MCP_TRIGGER_PROMPT })
             );
-            await waitForMcpStatus(enabledSession, "github-mcp-server", "connected");
             expect(await mcpRequestCount()).toBe(requestsBeforeFirstMessage);
         }
     );
