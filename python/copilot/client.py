@@ -2230,6 +2230,7 @@ class CopilotClient:
         include_sub_agent_streaming_events: bool | None = None,
         mcp_servers: dict[str, MCPServerConfig] | None = None,
         mcp_oauth_token_storage: Literal["persistent", "in-memory"] | None = None,
+        auth_client_id_metadata_url: str | None = None,
         embedding_cache_storage: Literal["persistent", "in-memory"] | None = None,
         custom_agents: list[CustomAgentConfig] | None = None,
         default_agent: DefaultAgentConfig | dict[str, Any] | None = None,
@@ -2357,6 +2358,9 @@ class CopilotClient:
                 ``"persistent"`` uses the OS keychain (shared across sessions).
                 ``"in-memory"`` stores tokens in memory (discarded on session end).
                 Defaults to ``"in-memory"`` for safe multitenant behavior.
+            auth_client_id_metadata_url: OAuth Client ID Metadata Document URL
+                identifying the host for MCP authorization. When unset, no host
+                identity is supplied.
             embedding_cache_storage: Controls how embedding caches are stored.
                 `"persistent"` uses disk-based storage (shared across sessions).
                 `"in-memory"` stores embeddings in memory (discarded on session end).
@@ -2654,6 +2658,8 @@ class CopilotClient:
         mcp_oauth_token_storage = _mcp_oauth_token_storage_default(mode, mcp_oauth_token_storage)
         if mcp_oauth_token_storage is not None:
             payload["mcpOAuthTokenStorage"] = mcp_oauth_token_storage
+        if auth_client_id_metadata_url is not None:
+            payload["authClientIdMetadataUrl"] = auth_client_id_metadata_url
         embedding_cache_storage = _embedding_cache_storage_default(mode, embedding_cache_storage)
         if embedding_cache_storage is not None:
             payload["embeddingCacheStorage"] = embedding_cache_storage
@@ -2991,6 +2997,7 @@ class CopilotClient:
         include_sub_agent_streaming_events: bool | None = None,
         mcp_servers: dict[str, MCPServerConfig] | None = None,
         mcp_oauth_token_storage: Literal["persistent", "in-memory"] | None = None,
+        auth_client_id_metadata_url: str | None = None,
         embedding_cache_storage: Literal["persistent", "in-memory"] | None = None,
         custom_agents: list[CustomAgentConfig] | None = None,
         default_agent: DefaultAgentConfig | dict[str, Any] | None = None,
@@ -3120,6 +3127,9 @@ class CopilotClient:
                 ``"persistent"`` uses the OS keychain (shared across sessions).
                 ``"in-memory"`` stores tokens in memory (discarded on session end).
                 Defaults to ``"in-memory"`` for safe multitenant behavior.
+            auth_client_id_metadata_url: OAuth Client ID Metadata Document URL
+                identifying the host for MCP authorization. Re-supply the same
+                host identity used when the session was created.
             embedding_cache_storage: Controls how embedding caches are stored.
                 `"persistent"` uses disk-based storage (shared across sessions).
                 `"in-memory"` stores embeddings in memory (discarded on session end).
@@ -3413,6 +3423,8 @@ class CopilotClient:
         mcp_oauth_token_storage = _mcp_oauth_token_storage_default(mode, mcp_oauth_token_storage)
         if mcp_oauth_token_storage is not None:
             payload["mcpOAuthTokenStorage"] = mcp_oauth_token_storage
+        if auth_client_id_metadata_url is not None:
+            payload["authClientIdMetadataUrl"] = auth_client_id_metadata_url
         embedding_cache_storage = _embedding_cache_storage_default(mode, embedding_cache_storage)
         if embedding_cache_storage is not None:
             payload["embeddingCacheStorage"] = embedding_cache_storage

@@ -661,6 +661,27 @@ class OptionalApiAndJacksonTest {
     }
 
     @Test
+    void jackson_createRequestAuthClientIdMetadataUrlSerializedAndOmitted() throws Exception {
+        var url = "https://example.com/oauth/client-metadata.json";
+        var configured = SessionRequestBuilder.buildCreateRequest(new SessionConfig().setAuthClientIdMetadataUrl(url));
+        assertTrue(MAPPER.writeValueAsString(configured).contains("\"authClientIdMetadataUrl\":\"" + url + "\""));
+
+        var unset = SessionRequestBuilder.buildCreateRequest(new SessionConfig());
+        assertFalse(MAPPER.writeValueAsString(unset).contains("authClientIdMetadataUrl"));
+    }
+
+    @Test
+    void jackson_resumeRequestAuthClientIdMetadataUrlSerializedAndOmitted() throws Exception {
+        var url = "https://example.com/oauth/client-metadata.json";
+        var configured = SessionRequestBuilder.buildResumeRequest("session-id",
+                new ResumeSessionConfig().setAuthClientIdMetadataUrl(url));
+        assertTrue(MAPPER.writeValueAsString(configured).contains("\"authClientIdMetadataUrl\":\"" + url + "\""));
+
+        var unset = SessionRequestBuilder.buildResumeRequest("session-id", new ResumeSessionConfig());
+        assertFalse(MAPPER.writeValueAsString(unset).contains("authClientIdMetadataUrl"));
+    }
+
+    @Test
     void jackson_infiniteSessionConfigClearedFieldsOmitted() throws Exception {
         var cfg = new InfiniteSessionConfig();
         cfg.setEnabled(true);

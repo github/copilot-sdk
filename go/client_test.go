@@ -1648,6 +1648,69 @@ func TestResumeSessionRequest_MCPOAuthTokenStorage(t *testing.T) {
 	})
 }
 
+func TestSessionRequests_AuthClientIDMetadataURL(t *testing.T) {
+	url := "https://example.com/oauth/client-metadata.json"
+
+	t.Run("create includes configured URL", func(t *testing.T) {
+		data, err := json.Marshal(createSessionRequest{AuthClientIDMetadataURL: url})
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var payload map[string]any
+		if err := json.Unmarshal(data, &payload); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if payload["authClientIdMetadataUrl"] != url {
+			t.Errorf("Expected authClientIdMetadataUrl to be %q, got %v", url, payload["authClientIdMetadataUrl"])
+		}
+	})
+
+	t.Run("create omits empty URL", func(t *testing.T) {
+		data, err := json.Marshal(createSessionRequest{})
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var payload map[string]any
+		if err := json.Unmarshal(data, &payload); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if _, ok := payload["authClientIdMetadataUrl"]; ok {
+			t.Error("Expected authClientIdMetadataUrl to be omitted when empty")
+		}
+	})
+
+	t.Run("resume includes configured URL", func(t *testing.T) {
+		data, err := json.Marshal(resumeSessionRequest{
+			SessionID:               "s1",
+			AuthClientIDMetadataURL: url,
+		})
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var payload map[string]any
+		if err := json.Unmarshal(data, &payload); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if payload["authClientIdMetadataUrl"] != url {
+			t.Errorf("Expected authClientIdMetadataUrl to be %q, got %v", url, payload["authClientIdMetadataUrl"])
+		}
+	})
+
+	t.Run("resume omits empty URL", func(t *testing.T) {
+		data, err := json.Marshal(resumeSessionRequest{SessionID: "s1"})
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var payload map[string]any
+		if err := json.Unmarshal(data, &payload); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if _, ok := payload["authClientIdMetadataUrl"]; ok {
+			t.Error("Expected authClientIdMetadataUrl to be omitted when empty")
+		}
+	})
+}
+
 func TestOverridesBuiltInTool(t *testing.T) {
 	t.Run("OverridesBuiltInTool is serialized in tool definition", func(t *testing.T) {
 		tool := Tool{

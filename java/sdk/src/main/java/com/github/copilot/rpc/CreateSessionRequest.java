@@ -116,6 +116,9 @@ public final class CreateSessionRequest {
     @JsonProperty("mcpOAuthTokenStorage")
     private String mcpOAuthTokenStorage;
 
+    @JsonProperty("authClientIdMetadataUrl")
+    private String authClientIdMetadataUrl;
+
     @JsonProperty("envValueMode")
     private String envValueMode;
 
@@ -586,6 +589,16 @@ public final class CreateSessionRequest {
      */
     public void setMcpOAuthTokenStorage(String mcpOAuthTokenStorage) {
         this.mcpOAuthTokenStorage = mcpOAuthTokenStorage;
+    }
+
+    /** Gets the host OAuth client metadata URL. @return the metadata URL */
+    public String getAuthClientIdMetadataUrl() {
+        return authClientIdMetadataUrl;
+    }
+
+    /** Sets the host OAuth client metadata URL. @param url the metadata URL */
+    public void setAuthClientIdMetadataUrl(String url) {
+        this.authClientIdMetadataUrl = url;
     }
 
     /** Gets MCP environment variable value mode. @return the mode */

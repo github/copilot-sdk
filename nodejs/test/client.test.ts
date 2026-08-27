@@ -1867,6 +1867,60 @@ describe("CopilotClient", () => {
         expect(payload.mcpOAuthTokenStorage).toBe("persistent");
     });
 
+    it("forwards authClientIdMetadataUrl in session.create and omits it when unset", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => stopClient(client));
+
+        let sequence = 0;
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") {
+                    sequence += 1;
+                    return { sessionId: params.sessionId ?? `s${sequence}` };
+                }
+                throw new Error(`Unexpected method: ${method}`);
+            });
+        const url = "https://example.com/oauth/client-metadata.json";
+        await client.createSession({
+            onPermissionRequest: approveAll,
+            authClientIdMetadataUrl: url,
+        });
+        await client.createSession({ onPermissionRequest: approveAll });
+
+        const payloads = spy.mock.calls
+            .filter((c) => c[0] === "session.create")
+            .map((c) => c[1] as any);
+        expect(payloads[0].authClientIdMetadataUrl).toBe(url);
+        expect(JSON.stringify(payloads[1])).not.toContain("authClientIdMetadataUrl");
+    });
+
+    it("forwards authClientIdMetadataUrl in session.resume and omits it when unset", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => stopClient(client));
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+        const url = "https://example.com/oauth/client-metadata.json";
+        await client.resumeSession("s1", {
+            onPermissionRequest: approveAll,
+            authClientIdMetadataUrl: url,
+        });
+        await client.resumeSession("s2", { onPermissionRequest: approveAll });
+
+        const payloads = spy.mock.calls
+            .filter((c) => c[0] === "session.resume")
+            .map((c) => c[1] as any);
+        expect(payloads[0].authClientIdMetadataUrl).toBe(url);
+        expect(JSON.stringify(payloads[1])).not.toContain("authClientIdMetadataUrl");
+    });
+
     it("defaults memory to { enabled: false } in session.create when mode is empty", async () => {
         const client = new CopilotClient({ mode: "empty", baseDirectory: "/tmp/copilot-test" });
         await client.start();

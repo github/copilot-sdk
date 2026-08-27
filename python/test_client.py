@@ -2552,6 +2552,68 @@ class TestMcpOAuthTokenStorage:
             await client.force_stop()
 
     @pytest.mark.asyncio
+    async def test_create_session_forwards_and_omits_auth_client_id_metadata_url(self):
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        await client.start()
+
+        try:
+            captured = []
+            original_request = client._client.request
+
+            async def mock_request(method, params, **kwargs):
+                if method == "session.create":
+                    captured.append(params)
+                return await original_request(method, params, **kwargs)
+
+            client._client.request = mock_request
+            url = "https://example.com/oauth/client-metadata.json"
+            await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                auth_client_id_metadata_url=url,
+            )
+            await client.create_session(on_permission_request=PermissionHandler.approve_all)
+
+            assert captured[0]["authClientIdMetadataUrl"] == url
+            assert "authClientIdMetadataUrl" not in captured[1]
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_resume_session_forwards_and_omits_auth_client_id_metadata_url(self):
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        await client.start()
+
+        try:
+            session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+            )
+            captured = []
+            original_request = client._client.request
+
+            async def mock_request(method, params, **kwargs):
+                if method == "session.resume":
+                    captured.append(params)
+                    return {"sessionId": params["sessionId"]}
+                return await original_request(method, params, **kwargs)
+
+            client._client.request = mock_request
+            url = "https://example.com/oauth/client-metadata.json"
+            await client.resume_session(
+                session.session_id,
+                on_permission_request=PermissionHandler.approve_all,
+                auth_client_id_metadata_url=url,
+            )
+            await client.resume_session(
+                session.session_id,
+                on_permission_request=PermissionHandler.approve_all,
+            )
+
+            assert captured[0]["authClientIdMetadataUrl"] == url
+            assert "authClientIdMetadataUrl" not in captured[1]
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
     async def test_create_session_defaults_memory_to_disabled_in_empty_mode(self):
         client = CopilotClient(
             connection=RuntimeConnection.for_stdio(path=CLI_PATH),
