@@ -21,10 +21,12 @@ export function validateNativeHost(classifier, host) {
     return `Validated native build host: ${classifier} (glibc ${host.glibcVersionRuntime})`;
   }
 
-  if (classifier === "win32-x64") {
-    if (host.platform !== "win32" || host.arch !== "x64") {
+  if (classifier === "win32-x64" || classifier === "win32-arm64") {
+    const expectedArch = classifier === "win32-x64" ? "x64" : "arm64";
+    const displayArch = expectedArch === "x64" ? "x64" : "ARM64";
+    if (host.platform !== "win32" || host.arch !== expectedArch) {
       throw new Error(
-        `Native ${classifier} packaging requires Windows x64; detected ${host.platform}-${host.arch}`,
+        `Native ${classifier} packaging requires Windows ${displayArch}; detected ${host.platform}-${host.arch}`,
       );
     }
     return `Validated native build host: ${classifier}`;

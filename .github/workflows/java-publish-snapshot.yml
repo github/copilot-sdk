@@ -158,6 +158,67 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+  build-windows-arm64-classifier:
+    name: Build Windows ARM64 snapshot classifier
+    needs: resolve-source
+    runs-on: windows-11-arm
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.build.outputs.version }}
+    defaults:
+      run:
+        shell: pwsh
+        working-directory: ./java
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5
+        with:
+          java-version: "25"
+          distribution: "microsoft"
+          cache: "maven"
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 22
+
+      - name: Build and validate win32-arm64 classifier
+        id: build
+        run: |
+          $sourceCommit = git rev-parse HEAD
+          if ($sourceCommit -ne '${{ needs.resolve-source.outputs.source_sha }}') {
+            throw "Checked out $sourceCommit instead of the resolved snapshot source."
+          }
+          node copilot-native/scripts/validate-native-host.mjs win32-arm64
+          mvn -B -pl copilot-native package -DskipTests
+          $version = mvn help:evaluate "-Dexpression=project.version" -q "-DforceStdout"
+          $jar = "copilot-native/target/copilot-sdk-java-runtime-$version-win32-arm64.jar"
+          $primaryJar = "copilot-native/target/copilot-sdk-java-runtime-$version.jar"
+          if (-not (Test-Path -LiteralPath $jar -PathType Leaf)) {
+            throw "Expected Windows ARM64 classifier was not produced: $jar"
+          }
+          node copilot-native/scripts/validate-native-artifact.mjs classifier win32-arm64 $jar ([IO.Path]::GetFileName($jar)) ..
+          node copilot-native/scripts/validate-native-artifact.mjs placeholder $primaryJar
+          $manifest = "copilot-native/target/win32-arm64-$version.sha256"
+          $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $jar).Hash.ToLowerInvariant()
+          "$hash  $([IO.Path]::GetFileName($jar))" | Set-Content -NoNewline -Encoding ascii $manifest
+          node copilot-native/scripts/validate-native-artifact.mjs checksum $jar $manifest ([IO.Path]::GetFileName($jar))
+          "version=$version" | Add-Content $env:GITHUB_OUTPUT
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: java-native-win32-arm64-snapshot-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            java/copilot-native/target/copilot-sdk-java-runtime-${{ steps.build.outputs.version }}-win32-arm64.jar
+            java/copilot-native/target/win32-arm64-${{ steps.build.outputs.version }}.sha256
+          if-no-files-found: error
+          retention-days: 1
+
   build-darwin-classifier:
     name: Build Darwin snapshot classifier
     needs: resolve-source
@@ -228,6 +289,7 @@ jobs:
         resolve-source,
         build-linux-arm64-classifier,
         build-windows-classifier,
+        build-windows-arm64-classifier,
         build-darwin-classifier,
       ]
     runs-on: ubuntu-latest
@@ -266,6 +328,11 @@ jobs:
         with:
           name: java-native-win32-x64-snapshot-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/java-native-win32-x64
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: java-native-win32-arm64-snapshot-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/java-native-win32-arm64
 
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
@@ -353,12 +420,38 @@ jobs:
           echo "darwin_jar=$JAR" >> "$GITHUB_OUTPUT"
           echo "darwin_sha=$(cut -d ' ' -f 1 "$MANIFEST")" >> "$GITHUB_OUTPUT"
 
+      - name: Verify version, source, and Windows ARM64 classifier
+        id: windows-arm64-artifact
+        run: |
+          SOURCE_COMMIT=$(git rev-parse HEAD)
+          if [ "$SOURCE_COMMIT" != "${{ needs.resolve-source.outputs.source_sha }}" ]; then
+            echo "::error::Checked out $SOURCE_COMMIT instead of the resolved snapshot source."
+            exit 1
+          fi
+          VERSION="${{ steps.windows-artifact.outputs.version }}"
+          if [ "$VERSION" != "${{ needs.build-windows-arm64-classifier.outputs.version }}" ]; then
+            echo "::error::Windows ARM64 classifier version does not match deploy version."
+            exit 1
+          fi
+          ARTIFACT_DIRECTORY="${{ runner.temp }}/java-native-win32-arm64"
+          JAR="$ARTIFACT_DIRECTORY/copilot-sdk-java-runtime-$VERSION-win32-arm64.jar"
+          MANIFEST="$ARTIFACT_DIRECTORY/win32-arm64-$VERSION.sha256"
+          test -f "$JAR"
+          test -f "$MANIFEST"
+          node "$GITHUB_WORKSPACE/java/copilot-native/scripts/validate-native-artifact.mjs" \
+            checksum "$JAR" "$MANIFEST" "$(basename "$JAR")"
+          node "$GITHUB_WORKSPACE/java/copilot-native/scripts/validate-native-artifact.mjs" \
+            classifier win32-arm64 "$JAR" "$(basename "$JAR")" "$GITHUB_WORKSPACE"
+          echo "windows_arm64_jar=$JAR" >> "$GITHUB_OUTPUT"
+          echo "windows_arm64_sha=$(cut -d ' ' -f 1 "$MANIFEST")" >> "$GITHUB_OUTPUT"
+
       - name: Build Linux classifier and deploy complete snapshot
         run: |
           VERSION="${{ steps.windows-artifact.outputs.version }}"
           mvn -B deploy -DskipTests -Dcopilot.native.libc=glibc \
             "-Dcopilot.native.external.linux.arm64.classifier.path=${{ steps.linux-arm64-artifact.outputs.linux_arm64_jar }}" \
             "-Dcopilot.native.external.win32.classifier.path=${{ steps.windows-artifact.outputs.windows_jar }}" \
+            "-Dcopilot.native.external.win32.arm64.classifier.path=${{ steps.windows-arm64-artifact.outputs.windows_arm64_jar }}" \
             "-Dcopilot.native.external.darwin.classifier.path=${{ steps.darwin-artifact.outputs.darwin_jar }}"
           LINUX_JAR="copilot-native/target/copilot-sdk-java-runtime-$VERSION-linux-x64.jar"
           test -f "$LINUX_JAR"
@@ -395,6 +488,7 @@ jobs:
             echo "| \`linux-x64\` | \`ubuntu-latest\` | \`$(basename "$LINUX_JAR")\` | \`$LINUX_SHA\` | Published |"
             echo "| \`linux-arm64\` | \`ubuntu-24.04-arm\` | \`$(basename "${{ steps.linux-arm64-artifact.outputs.linux_arm64_jar }}")\` | \`${{ steps.linux-arm64-artifact.outputs.linux_arm64_sha }}\` | Published |"
             echo "| \`win32-x64\` | \`windows-latest\` | \`$(basename "${{ steps.windows-artifact.outputs.windows_jar }}")\` | \`${{ steps.windows-artifact.outputs.windows_sha }}\` | Published |"
+            echo "| \`win32-arm64\` | \`windows-11-arm\` | \`$(basename "${{ steps.windows-arm64-artifact.outputs.windows_arm64_jar }}")\` | \`${{ steps.windows-arm64-artifact.outputs.windows_arm64_sha }}\` | Published |"
             echo "| \`darwin-arm64\` | \`macos-26\` | \`$(basename "${{ steps.darwin-artifact.outputs.darwin_jar }}")\` | \`${{ steps.darwin-artifact.outputs.darwin_sha }}\` | Published |"
           } >> "$GITHUB_STEP_SUMMARY"
         env:

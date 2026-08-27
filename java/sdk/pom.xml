@@ -709,6 +709,18 @@ did not produce the multi-release output. Re-build on JDK 25+ and verify the
             </properties>
         </profile>
         <profile>
+            <id>native-win32-arm64</id>
+            <activation>
+                <os>
+                    <family>Windows</family>
+                    <arch>aarch64</arch>
+                </os>
+            </activation>
+            <properties>
+                <copilot.native.classifier>win32-arm64</copilot.native.classifier>
+            </properties>
+        </profile>
+        <profile>
             <id>native-darwin-arm64</id>
             <activation>
                 <os>
