@@ -159,10 +159,13 @@ public partial class ToolsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         Assert.Contains("unknown", answer?.Data.Content?.ToLowerInvariant());
 
         // The failure must also be diagnosable from the host: the SDK swallows the
-        // exception on the wire (by design) but has to leave a trace in the log.
+        // exception on the wire (by design) but has to leave a trace in the log,
+        // including the stage so a handler that threw is distinguishable from one
+        // that never ran.
         var failureLog = Assert.Single(LogEntries, e =>
             e.Level == LogLevel.Error && e.Message.Contains("get_user_location", StringComparison.Ordinal));
         Assert.Contains("Tool call failed", failureLog.Message, StringComparison.Ordinal);
+        Assert.Contains("Stage=InvokingHandler", failureLog.Message, StringComparison.Ordinal);
         Assert.Equal("Melbourne", failureLog.Exception?.Message);
     }
 
