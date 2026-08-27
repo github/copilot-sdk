@@ -7,9 +7,9 @@ import { defaultRuntimeCacheRoot, materializeRuntimeBundle } from "../src/runtim
 
 describe("defaultRuntimeCacheRoot", () => {
     it.each([
-        ["darwin", "/home/test", {}, "/home/test/Library/Caches/github-copilot-sdk/runtime"],
-        ["linux", "/home/test", {}, "/home/test/.cache/github-copilot-sdk/runtime"],
-        ["linux", "/home/test", { XDG_CACHE_HOME: "/cache" }, "/cache/github-copilot-sdk/runtime"],
+        ["darwin", "/home/test", {}, join("/home/test", "Library", "Caches", "github-copilot-sdk", "runtime")],
+        ["linux", "/home/test", {}, join("/home/test", ".cache", "github-copilot-sdk", "runtime")],
+        ["linux", "/home/test", { XDG_CACHE_HOME: "/cache" }, join("/cache", "github-copilot-sdk", "runtime")],
         [
             "win32",
             "C:\\Users\\test",

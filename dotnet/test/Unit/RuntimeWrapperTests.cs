@@ -16,6 +16,7 @@ public sealed class RuntimeWrapperIsolationCollection
 [Collection(RuntimeWrapperIsolationCollection.Name)]
 public sealed class RuntimeWrapperTests
 {
+#if !NETFRAMEWORK
     [Fact]
     public async Task Managed_Launch_Fails_When_Bundled_Runtime_Pair_Is_Missing()
     {
@@ -44,6 +45,7 @@ public sealed class RuntimeWrapperTests
             Directory.Delete(emptyBaseDirectory);
         }
     }
+#endif
 
     [Fact]
     public async Task Explicit_Path_Does_Not_Require_Adjacent_Runtime_Node()
@@ -79,6 +81,7 @@ public sealed class RuntimeWrapperTests
         Assert.DoesNotContain("runtime.node", exception.ToString(), StringComparison.OrdinalIgnoreCase);
     }
 
+#if !NETFRAMEWORK
     [Fact]
     public async Task Marked_Bundled_Explicit_Cli_Does_Not_Require_Runtime_Pair()
     {
@@ -113,6 +116,7 @@ public sealed class RuntimeWrapperTests
             Directory.Delete(baseDirectory, recursive: true);
         }
     }
+#endif
 
     private static string GetPortableRid()
     {

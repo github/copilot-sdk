@@ -13,14 +13,14 @@ export function createNativeClassifierTestFixture({
   outputPath,
   repoRoot,
 }) {
-  const cliFilename = classifier.startsWith("win32")
-    ? "copilot.exe"
-    : "copilot";
+  const runtimeFilename = classifier.startsWith("win32")
+    ? "copilot-runtime.exe"
+    : "copilot-runtime";
   const nativeVersion = readPinnedNativeVersion(repoRoot, classifier);
   const prefix = `native/${classifier}`;
   writeStoredZip(outputPath, [
     [`${prefix}/runtime.node`, "test runtime"],
-    [`${prefix}/${cliFilename}`, "test cli"],
+    [`${prefix}/${runtimeFilename}`, "test runtime wrapper"],
     [
       `${prefix}/platform.properties`,
       `classifier=${classifier}\nversion=${nativeVersion}\n`,

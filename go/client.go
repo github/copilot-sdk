@@ -341,15 +341,6 @@ func NewClient(options *ClientOptions) *Client {
 	return client
 }
 
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if value != "" {
-			return value
-		}
-	}
-	return ""
-}
-
 func resolveRuntimeExecutable(explicitPath, bundledRuntimePath string) (string, error) {
 	if explicitPath != "" {
 		return explicitPath, nil

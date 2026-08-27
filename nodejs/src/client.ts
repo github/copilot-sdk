@@ -2740,21 +2740,16 @@ export class CopilotClient {
             // Set up a promise that rejects when the process exits (used to race against RPC calls)
             this.processExitPromise = new Promise<never>((_, rejectProcessExit) => {
                 this.cliProcess!.on("exit", (code) => {
-                    // Give a small delay for stderr to be fully captured
-                    setTimeout(() => {
-                        const stderrOutput = this.stderrBuffer.trim();
-                        if (stderrOutput) {
-                            rejectProcessExit(
-                                new Error(
-                                    `CLI server exited with code ${code}\nstderr: ${stderrOutput}`
-                                )
-                            );
-                        } else {
-                            rejectProcessExit(
-                                new Error(`CLI server exited unexpectedly with code ${code}`)
-                            );
-                        }
-                    }, 50);
+                    const stderrOutput = this.stderrBuffer.trim();
+                    if (stderrOutput) {
+                        rejectProcessExit(
+                            new Error(`CLI server exited with code ${code}\nstderr: ${stderrOutput}`)
+                        );
+                    } else {
+                        rejectProcessExit(
+                            new Error(`CLI server exited unexpectedly with code ${code}`)
+                        );
+                    }
                 });
             });
             // Prevent unhandled rejection when process exits normally (we only use this in Promise.race)

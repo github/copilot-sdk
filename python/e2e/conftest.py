@@ -18,6 +18,7 @@ from .testharness import E2ETestContext, is_inprocess_transport
 if is_inprocess_transport():
     os.environ.pop("COPILOT_HMAC_KEY", None)
     os.environ.pop("CAPI_HMAC_KEY", None)
+    os.environ.pop("COPILOT_CLI_PATH", None)
 
 
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)

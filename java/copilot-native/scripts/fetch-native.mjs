@@ -130,7 +130,7 @@ console.log(`Integrity verified (${integrity.slice(0, 20)}...).`);
 
 const inventory = [];
 const members = execFileSync('tar', ['-tzf', tarballPath], { encoding: 'utf8' })
-  .split('\n')
+  .split(/\r?\n/)
   .filter(Boolean);
 for (const member of members) {
   const destinationRelative = hostlessRuntimePath(member, classifier);

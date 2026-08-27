@@ -246,7 +246,7 @@ public class MSBuildTargetsTests
 
         public void WriteRuntimeCacheAsset(params string[] pathAndContents)
         {
-            var pathParts = pathAndContents[..^1];
+            var pathParts = pathAndContents.Take(pathAndContents.Length - 1).ToArray();
             var path = Path.Combine(ProjectDir, "obj", "Debug", "net8.0", "copilot-cli", "0.0.0-test",
                 GetNpmPlatform());
             foreach (var part in pathParts)
@@ -269,13 +269,15 @@ public class MSBuildTargetsTests
 
         public void WriteStaleOutputRuntimeAsset(params string[] pathAndContents)
         {
-            var relativeParts = pathAndContents[..^1];
+            var relativeParts = pathAndContents.Take(pathAndContents.Length - 1).ToArray();
             var path = ExpectedRuntimeAsset(relativeParts);
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             File.WriteAllText(path, pathAndContents[^1]);
             var manifest = ExpectedRuntimeAsset(".copilot-runtime-assets");
             Directory.CreateDirectory(Path.GetDirectoryName(manifest)!);
-            File.WriteAllText(manifest, string.Join(Path.DirectorySeparatorChar, relativeParts) + Environment.NewLine);
+            File.WriteAllText(
+                manifest,
+                string.Join(Path.DirectorySeparatorChar.ToString(), relativeParts) + Environment.NewLine);
         }
 
         public async Task<BuildResult> BuildAsync(IDictionary<string, string> properties)
