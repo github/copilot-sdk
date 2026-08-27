@@ -14,32 +14,34 @@ import test from 'node:test';
 const version = '1.0.79';
 const integrity = 'sha512-test-integrity';
 const runtimeContent = 'runtime content';
-const cliContent = 'cli content';
 const wrapperContent = 'wrapper content';
+const stagingSchema = 'hostless-runtime-v2';
 const scriptPath = fileURLToPath(new URL('./fetch-native.mjs', import.meta.url));
 
 for (const classifier of ['linux-x64', 'linux-arm64', 'win32-x64', 'win32-arm64', 'darwin-arm64']) {
-  test(`${classifier}: missing CLI does not use incremental fast path`, (t) => {
+  test(`${classifier}: complete hostless artifacts use incremental fast path without a CLI`, (t) => {
     const fixture = createFixture(t, classifier);
-    fs.rmSync(fixture.cliPath);
 
     const result = runScript(fixture);
 
-    assertRestagingAttempted(fixture, result);
-  });
-
-  test(`${classifier}: stale CLI does not use incremental fast path`, (t) => {
-    const fixture = createFixture(t, classifier);
-    fs.writeFileSync(fixture.cliPath, 'stale CLI content');
-
-    const result = runScript(fixture);
-
-    assertRestagingAttempted(fixture, result);
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /already staged/);
+    assert.equal(fs.existsSync(fixture.npmMarkerPath), false);
   });
 
   test(`${classifier}: missing runtime wrapper does not use incremental fast path`, (t) => {
     const fixture = createFixture(t, classifier);
     fs.rmSync(fixture.wrapperPath);
+
+    const result = runScript(fixture);
+
+    assertRestagingAttempted(fixture, result);
+  });
+
+  test(`${classifier}: legacy staging schema does not use incremental fast path`, (t) => {
+    const fixture = createFixture(t, classifier);
+    const stampPath = path.join(fixture.stagingDir, classifier, '.version');
+    fs.writeFileSync(stampPath, fs.readFileSync(stampPath, 'utf8').replace(stagingSchema, 'hostless-runtime-v1'));
 
     const result = runScript(fixture);
 
@@ -82,7 +84,7 @@ test('stages retained package assets and excludes CLI-only content', (t) => {
   fs.mkdirSync(path.join(packageRoot, 'prebuilds', classifier), { recursive: true });
   fs.mkdirSync(path.join(packageRoot, 'ripgrep', 'bin', classifier), { recursive: true });
   fs.mkdirSync(path.join(packageRoot, 'definitions'), { recursive: true });
-  fs.writeFileSync(path.join(packageRoot, 'copilot'), cliContent);
+  fs.writeFileSync(path.join(packageRoot, 'copilot'), 'excluded');
   fs.writeFileSync(path.join(packageRoot, 'prebuilds', classifier, 'runtime.node'), runtimeContent);
   fs.writeFileSync(path.join(packageRoot, 'prebuilds', classifier, 'copilot-runtime'), wrapperContent);
   fs.writeFileSync(path.join(packageRoot, 'ripgrep', 'bin', classifier, 'rg'), 'ripgrep content');
@@ -116,6 +118,7 @@ test('stages retained package assets and excludes CLI-only content', (t) => {
   assert.equal(fs.readFileSync(path.join(resourceDir, 'ripgrep', 'bin', classifier, 'rg'), 'utf8'), 'ripgrep content');
   assert.equal(fs.readFileSync(path.join(resourceDir, 'definitions', 'future.json'), 'utf8'), '{}');
   assert.equal(fs.existsSync(path.join(resourceDir, 'app.js')), false);
+  assert.equal(fs.existsSync(path.join(resourceDir, 'copilot')), false);
   assert.equal(fs.existsSync(path.join(resourceDir, 'LICENSE.md')), false);
   assert.equal(fs.existsSync(path.join(resourceDir, 'README.md')), false);
   assert.match(fs.readFileSync(path.join(resourceDir, 'runtime-assets.list'), 'utf8'), /ripgrep\/bin\/linux-x64\/rg/);
@@ -144,7 +147,6 @@ function createFixture(t, classifier) {
   );
 
   const runtimePath = path.join(resourceDir, 'runtime.node');
-  const cliPath = path.join(resourceDir, classifier.startsWith('win32') ? 'copilot.exe' : 'copilot');
   const wrapperPath = path.join(
     resourceDir,
     classifier.startsWith('win32') ? 'copilot-runtime.exe' : 'copilot-runtime',
@@ -154,17 +156,16 @@ function createFixture(t, classifier) {
   const inventoryPath = path.join(resourceDir, 'runtime-assets.list');
   fs.mkdirSync(path.dirname(ripgrepPath), { recursive: true });
   fs.writeFileSync(runtimePath, runtimeContent);
-  fs.writeFileSync(cliPath, cliContent);
   fs.writeFileSync(wrapperPath, wrapperContent);
   fs.writeFileSync(ripgrepPath, 'ripgrep content');
   fs.writeFileSync(
     inventoryPath,
-    `644\truntime.node\n755\tcopilot\n755\tcopilot-runtime\n755\tripgrep/bin/${classifier}/rg\n`,
+    `644\truntime.node\n755\tcopilot-runtime\n755\tripgrep/bin/${classifier}/rg\n`,
   );
   fs.writeFileSync(platformPropertiesPath, `classifier=${classifier}\nversion=${version}\n`);
   fs.writeFileSync(
     path.join(stagingDir, classifier, '.version'),
-    `${version}\n${integrity}\n${digestTree(resourceDir)}\n`,
+    `${stagingSchema}\n${version}\n${integrity}\n${digestTree(resourceDir)}\n`,
   );
 
   const fakeNpmPath = path.join(fakeBinDir, process.platform === 'win32' ? 'npm.cmd' : 'npm');
@@ -182,7 +183,6 @@ function createFixture(t, classifier) {
     fakeBinDir,
     npmMarkerPath,
     runtimePath,
-    cliPath,
     wrapperPath,
     ripgrepPath,
     platformPropertiesPath,

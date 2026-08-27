@@ -25,12 +25,6 @@ namespace GitHub.Copilot.Test.E2E;
 public class RpcExtensionsLoadedE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     : E2ETestBase(fixture, "rpc_extensions_loaded", output)
 {
-    // TODO(PR #2395): Temporarily disabled while this PR transitions managed out-of-process SDK
-    // launches to the Rust-only flow. Re-enable when that flow provides the Node extension
-    // subprocess lifecycle required by the EXTENSIONS controller.
-    private const string RustOnlyFlowSkipReason =
-        "Temporarily disabled for the Rust-only out-of-process transition in PR #2395";
-
     /// <summary>
     /// Extension subprocess startup involves Node fork + SDK resolver + JSON-RPC
     /// handshake. Empirically this completes in well under a second on Windows,
@@ -169,7 +163,7 @@ public class RpcExtensionsLoadedE2ETests(E2ETestFixture fixture, ITestOutputHelp
         return lastSeen!;
     }
 
-    [Theory(Skip = RustOnlyFlowSkipReason)]
+    [Theory]
     [InlineData("user")]
     [InlineData("project")]
     public async Task Discovers_Loads_And_Reports_Running_Extension(string sourceValue)
@@ -212,7 +206,7 @@ public class RpcExtensionsLoadedE2ETests(E2ETestFixture fixture, ITestOutputHelp
         Assert.True(ext.Pid > 0);
     }
 
-    [Fact(Skip = RustOnlyFlowSkipReason)]
+    [Fact]
     public async Task Disable_Then_Enable_Cycles_Extension_Status()
     {
         var extName = CreateUserExtension();
@@ -240,7 +234,7 @@ public class RpcExtensionsLoadedE2ETests(E2ETestFixture fixture, ITestOutputHelp
         Assert.NotNull(reEnabled.Pid);
     }
 
-    [Fact(Skip = RustOnlyFlowSkipReason)]
+    [Fact]
     public async Task Reload_Picks_Up_Extension_Added_After_Session_Create()
     {
         // Start the session BEFORE writing the extension so the initial discovery sees nothing.
@@ -274,7 +268,7 @@ public class RpcExtensionsLoadedE2ETests(E2ETestFixture fixture, ITestOutputHelp
         Assert.Equal(ExtensionSource.User, ext.Source);
     }
 
-    [Fact(Skip = RustOnlyFlowSkipReason)]
+    [Fact]
     public async Task Failed_Extension_Reports_Failed_Status()
     {
         // Write an extension whose body throws synchronously at import time.
@@ -302,7 +296,7 @@ public class RpcExtensionsLoadedE2ETests(E2ETestFixture fixture, ITestOutputHelp
         Assert.Equal(ExtensionSource.User, ext.Source);
     }
 
-    [Fact(Skip = RustOnlyFlowSkipReason)]
+    [Fact]
     public async Task Multiple_Extensions_Are_Discovered_Independently()
     {
         var ext1Name = CreateUserExtension(prefix: "multi-a");
@@ -326,7 +320,7 @@ public class RpcExtensionsLoadedE2ETests(E2ETestFixture fixture, ITestOutputHelp
         Assert.Equal(pids.Count, pids.Distinct().Count());
     }
 
-    [Fact(Skip = RustOnlyFlowSkipReason)]
+    [Fact]
     public async Task Reload_Preserves_Disabled_State_Across_Calls()
     {
         var extName = CreateUserExtension(prefix: "persistent-disable");

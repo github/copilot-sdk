@@ -27,6 +27,8 @@ const excludedTopLevel = new Set([
   'app.js',
   'assets',
   'changelog.json',
+  'copilot',
+  'copilot.exe',
   'copilot-sdk',
   'foundry-local-sdk',
   'index.js',
@@ -70,13 +72,12 @@ const outDir = path.join(stagingDir, classifier);
 const resourceDir = path.join(outDir, 'native', classifier);
 const runtimePath = path.join(resourceDir, 'runtime.node');
 const isWindows = classifier.startsWith('win32');
-const cliFilename = isWindows ? 'copilot.exe' : 'copilot';
-const cliPath = path.join(resourceDir, cliFilename);
 const wrapperFilename = isWindows ? 'copilot-runtime.exe' : 'copilot-runtime';
 const wrapperPath = path.join(resourceDir, wrapperFilename);
 const inventoryPath = path.join(resourceDir, 'runtime-assets.list');
 const platformPropertiesPath = path.join(resourceDir, 'platform.properties');
 const expectedPlatformProperties = `classifier=${classifier}\nversion=${version}\n`;
+const stagingSchema = 'hostless-runtime-v2';
 const stampPath = path.join(outDir, '.version');
 
 // Idempotence: skip the download only when every required staged artifact
@@ -84,18 +85,19 @@ const stampPath = path.join(outDir, '.version');
 if (
   fs.existsSync(runtimePath) &&
   fs.existsSync(wrapperPath) &&
-  fs.existsSync(cliPath) &&
   fs.existsSync(inventoryPath) &&
   fs.existsSync(platformPropertiesPath) &&
   fs.existsSync(stampPath)
 ) {
   const stampLines = fs.readFileSync(stampPath, 'utf8').trim().split('\n');
-  const stampVersion = stampLines[0] || '';
-  const stampIntegrity = stampLines[1] || '';
-  const stampTreeDigest = stampLines[2] || '';
+  const stampSchema = stampLines[0] || '';
+  const stampVersion = stampLines[1] || '';
+  const stampIntegrity = stampLines[2] || '';
+  const stampTreeDigest = stampLines[3] || '';
   const currentTreeDigest = digestTree(resourceDir);
   const currentPlatformProperties = fs.readFileSync(platformPropertiesPath, 'utf8');
   if (
+    stampSchema === stagingSchema &&
     stampVersion === version &&
     stampIntegrity === integrity &&
     stampTreeDigest === currentTreeDigest &&
@@ -162,12 +164,12 @@ fs.writeFileSync(inventoryPath, `${inventory.join('\n')}\n`);
 
 fs.rmSync(tarballPath, { force: true });
 
-if (!fs.existsSync(runtimePath) || !fs.existsSync(wrapperPath) || !fs.existsSync(cliPath)) {
-  throw new Error(`Package ${packageName}@${version} is missing the CLI or runtime wrapper pair`);
+if (!fs.existsSync(runtimePath) || !fs.existsSync(wrapperPath)) {
+  throw new Error(`Package ${packageName}@${version} is missing the runtime wrapper pair`);
 }
 fs.writeFileSync(platformPropertiesPath, expectedPlatformProperties);
 const treeDigest = digestTree(resourceDir);
-fs.writeFileSync(stampPath, `${version}\n${integrity}\n${treeDigest}\n`);
+fs.writeFileSync(stampPath, `${stagingSchema}\n${version}\n${integrity}\n${treeDigest}\n`);
 
 console.log(`Staged ${runtimePath}`);
 

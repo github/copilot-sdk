@@ -42,6 +42,8 @@ describe("materializeRuntimeBundle", () => {
         mkdirSync(join(sourceDir, "definitions"), { recursive: true });
         writeFileSync(join(sourceDir, "definitions", "future.json"), "{}");
         writeFileSync(join(sourceDir, "app.js"), "excluded");
+        writeFileSync(join(sourceDir, "copilot"), "excluded");
+        writeFileSync(join(sourceDir, "copilot.exe"), "excluded");
         writeFileSync(join(sourceDir, "LICENSE.md"), "excluded");
         writeFileSync(join(sourceDir, "README.md"), "excluded");
 
@@ -66,6 +68,8 @@ describe("materializeRuntimeBundle", () => {
             readFileSync(join(installDir, "ripgrep", "bin", "test-platform", "rg"), "utf8")
         ).toBe("ripgrep");
         expect(existsSync(join(installDir, "app.js"))).toBe(false);
+        expect(existsSync(join(installDir, "copilot"))).toBe(false);
+        expect(existsSync(join(installDir, "copilot.exe"))).toBe(false);
         expect(existsSync(join(installDir, "LICENSE.md"))).toBe(false);
         expect(existsSync(join(installDir, "README.md"))).toBe(false);
         if (process.platform !== "win32") {

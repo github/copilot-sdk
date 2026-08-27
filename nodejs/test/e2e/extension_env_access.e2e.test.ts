@@ -14,9 +14,9 @@ import {
     StreamMessageReader,
     StreamMessageWriter,
 } from "vscode-jsonrpc/node.js";
-import { approveAll } from "../../src/index.js";
+import { approveAll, RuntimeConnection } from "../../src/index.js";
 import { getSdkProtocolVersion } from "../../src/sdkProtocolVersion.js";
-import { createSdkTestContext, isInProcessTransport } from "./harness/sdkTestContext.js";
+import { createSdkTestContext, getLegacyCliPathForTests } from "./harness/sdkTestContext.js";
 import { retry } from "./harness/sdkTestHelper.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -184,62 +184,47 @@ it("ignores a granted variable the extension never requested", async () => {
     expect(run.postjoin).toBe("E2E_SDK_TOKEN=granted-token\nE2E_SDK_SMUGGLED=");
 });
 
-// TODO(PR #2395): Temporarily disable the real-host extension case because this PR transitions
-// managed out-of-process SDK launches to the Rust-only flow, which does not yet provide the Node
-// extension subprocess lifecycle required for the fixture extension to join.
-const extensionHostTestDisabledForRustOnlyFlow = true;
-const cliObservations =
-    isInProcessTransport || extensionHostTestDisabledForRustOnlyFlow
-        ? ""
-        : mkdtempSync(join(tmpdir(), "copilot-env-access-cli-"));
+const cliObservations = mkdtempSync(join(tmpdir(), "copilot-env-access-cli-"));
 const cliResultFile = join(cliObservations, "result");
-const cliContext =
-    isInProcessTransport || extensionHostTestDisabledForRustOnlyFlow
-        ? undefined
-        : await createSdkTestContext({
-              copilotClientOptions: {
-                  env: {
-                      COPILOT_CLI_ENABLED_FEATURE_FLAGS: "EXTENSIONS",
-                      EXTENSION_ENV_REQUEST: "E2E_SDK_TOKEN",
-                      EXTENSION_RESULT_FILE: cliResultFile,
-                      EXTENSION_PREJOIN_FILE: join(cliObservations, "prejoin"),
-                      EXTENSION_POSTJOIN_FILE: join(cliObservations, "postjoin"),
-                  },
-              },
-          });
+const cliContext = await createSdkTestContext({
+    copilotClientOptions: {
+        connection: RuntimeConnection.forStdio({ path: getLegacyCliPathForTests() }),
+        env: {
+            COPILOT_CLI_ENABLED_FEATURE_FLAGS: "EXTENSIONS",
+            EXTENSION_ENV_REQUEST: "E2E_SDK_TOKEN",
+            EXTENSION_RESULT_FILE: cliResultFile,
+            EXTENSION_PREJOIN_FILE: join(cliObservations, "prejoin"),
+            EXTENSION_POSTJOIN_FILE: join(cliObservations, "postjoin"),
+        },
+    },
+});
 
 // The released CLI ignores `requestedEnvironmentVariables`, so this covers the
 // half a real CLI can prove today: asking for variables does not break the join.
 // It becomes the grant test once `@github/copilot` carries the host half.
-it.skipIf(isInProcessTransport || extensionHostTestDisabledForRustOnlyFlow)(
-    "joins a real CLI that does not support environment requests",
-    async () => {
-        if (!cliContext) {
-            throw new Error("Extension E2E requires an out-of-process transport");
-        }
-        const { workDir, copilotClient } = cliContext;
-        const extensionDir = join(workDir, ".github", "extensions", "env-access");
-        await rm(join(workDir, ".github"), { recursive: true, force: true });
-        await rm(cliResultFile, { force: true });
-        await mkdir(extensionDir, { recursive: true });
-        await copyFile(FIXTURE, join(extensionDir, "extension.mjs"));
-        execFileSync("git", ["init", "--quiet"], { cwd: workDir });
+it("joins a real CLI that does not support environment requests", async () => {
+    const { workDir, copilotClient } = cliContext;
+    const extensionDir = join(workDir, ".github", "extensions", "env-access");
+    await rm(join(workDir, ".github"), { recursive: true, force: true });
+    await rm(cliResultFile, { force: true });
+    await mkdir(extensionDir, { recursive: true });
+    await copyFile(FIXTURE, join(extensionDir, "extension.mjs"));
+    execFileSync("git", ["init", "--quiet"], { cwd: workDir });
 
-        await using _session = await copilotClient.createSession({
-            requestExtensions: true,
-            extensionSdkPath: DIST_DIR,
-            onPermissionRequest: approveAll,
-        });
+    await using _session = await copilotClient.createSession({
+        requestExtensions: true,
+        extensionSdkPath: DIST_DIR,
+        onPermissionRequest: approveAll,
+    });
 
-        await retry(
-            "wait for the env-access extension to join the session",
-            async () => {
-                expect(existsSync(cliResultFile)).toBe(true);
-            },
-            300,
-            100
-        );
+    await retry(
+        "wait for the env-access extension to join the session",
+        async () => {
+            expect(existsSync(cliResultFile)).toBe(true);
+        },
+        300,
+        100
+    );
 
-        expect(readFileSync(cliResultFile, "utf-8")).toBe("joined");
-    }
-);
+    expect(readFileSync(cliResultFile, "utf-8")).toBe("joined");
+});

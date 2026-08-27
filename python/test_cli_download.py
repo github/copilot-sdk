@@ -24,6 +24,8 @@ def _runtime_package(npm_platform: str) -> bytes:
     members = {
         f"package/prebuilds/{npm_platform}/{wrapper_name}": b"wrapper",
         f"package/prebuilds/{npm_platform}/runtime.node": b"runtime",
+        "package/copilot": b"excluded",
+        "package/copilot.exe": b"excluded",
         f"package/ripgrep/bin/{npm_platform}/rg": b"ripgrep",
         "package/definitions/future.json": b"{}",
         "package/app.js": b"excluded",
@@ -116,7 +118,9 @@ class TestEnsureRuntimeWrapper:
         assert (install_dir / "ripgrep" / "bin" / npm_platform / "rg").read_bytes() == b"ripgrep"
         assert (install_dir / "definitions" / "future.json").read_bytes() == b"{}"
         assert not (install_dir / "app.js").exists()
-        assert (install_dir / ".hostless-runtime-assets-v1").is_file()
+        assert not (install_dir / "copilot").exists()
+        assert not (install_dir / "copilot.exe").exists()
+        assert (install_dir / ".hostless-runtime-assets-v2").is_file()
         if os.name != "nt":
             assert (install_dir / wrapper_name).stat().st_mode & 0o111
 
@@ -143,6 +147,8 @@ class TestEnsureRuntimeWrapper:
         install_dir.mkdir(parents=True)
         (install_dir / wrapper_name).write_bytes(b"old-wrapper")
         (install_dir / "runtime.node").write_bytes(b"old-runtime")
+        (install_dir / "copilot").write_bytes(b"legacy-sea")
+        (install_dir / ".hostless-runtime-assets-v1").write_text("1\n", encoding="ascii")
         data = _runtime_package(npm_platform)
 
         with (
@@ -156,5 +162,6 @@ class TestEnsureRuntimeWrapper:
 
         assert wrapper == str(install_dir / wrapper_name)
         assert (install_dir / wrapper_name).read_bytes() == b"wrapper"
-        assert (install_dir / ".hostless-runtime-assets-v1").is_file()
+        assert not (install_dir / "copilot").exists()
+        assert (install_dir / ".hostless-runtime-assets-v2").is_file()
         assert (install_dir / "ripgrep" / "bin" / npm_platform / "rg").is_file()

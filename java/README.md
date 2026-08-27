@@ -572,7 +572,7 @@ mvn clean verify -Dcopilot.native.libc=glibc
 mvn clean package -pl copilot-native -DskipTests -Dcopilot.native.libc=glibc -Dcopilot.native.skip.download=true
 ```
 
-On Linux, the classifier JAR contains `runtime.node`, `platform.properties`, and `copilot` under `native/linux-x64` or `native/linux-arm64`. On Windows, it contains those resources under `native/win32-x64` or `native/win32-arm64`, with the CLI named `copilot.exe`. On Apple Silicon macOS, it contains them under `native/darwin-arm64`. The placeholder JAR remains OS-neutral and contains no native binaries. Unsupported hosts retain the placeholder-only behavior.
+Each classifier JAR includes `runtime.node`, `platform.properties`, and `copilot-runtime` (or `copilot-runtime.exe`) under its `native/<classifier>` directory. It does not contain the legacy `copilot` SEA. The placeholder JAR remains OS-neutral and contains no native binaries. Unsupported hosts retain the placeholder-only behavior.
 
 ## License
 

@@ -391,6 +391,8 @@ _HOSTLESS_EXCLUDED_TOP_LEVEL = {
     "app.js",
     "assets",
     "changelog.json",
+    "copilot",
+    "copilot.exe",
     "copilot-sdk",
     "foundry-local-sdk",
     "index.js",
@@ -463,7 +465,7 @@ def ensure_runtime_wrapper(version: str | None = None, force: bool = False) -> s
     pair_dir = get_cache_dir(ver) / "prebuilds" / npm_platform
     wrapper_path = pair_dir / wrapper_name
     runtime_path = pair_dir / "runtime.node"
-    assets_marker = pair_dir / ".hostless-runtime-assets-v1"
+    assets_marker = pair_dir / ".hostless-runtime-assets-v2"
 
     wrapper_exists = wrapper_path.is_file() and wrapper_path.stat().st_size > 0
     runtime_exists = runtime_path.is_file() and runtime_path.stat().st_size > 0
