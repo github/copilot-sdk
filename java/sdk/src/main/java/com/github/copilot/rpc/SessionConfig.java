@@ -919,7 +919,9 @@ public class SessionConfig {
     /**
      * Sets a handler for user input requests from the agent.
      * <p>
-     * When provided, enables the ask_user tool for the agent to request user input.
+     * When provided, enables the legacy question-and-answer form of the
+     * {@code ask_user} tool. Use an elicitation handler with
+     * {@link AskUserVariant#ELICITATION}.
      *
      * @param onUserInputRequest
      *            the user input handler

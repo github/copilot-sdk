@@ -960,7 +960,7 @@ To let a specific custom tool bypass the permission prompt entirely, set `skipPe
 
 ## User Input Requests
 
-Enable the agent to ask questions to the user using the `ask_user` tool by providing an `onUserInputRequest` handler:
+Enable the legacy question-and-answer `ask_user` tool by providing an `onUserInputRequest` handler:
 
 ```typescript
 const session = await client.createSession({

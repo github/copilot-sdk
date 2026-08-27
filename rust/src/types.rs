@@ -2198,9 +2198,9 @@ pub struct SessionConfig {
     /// Optional MCP OAuth request handler. When set, the SDK can satisfy MCP
     /// server OAuth requests with host-acquired token data or cancellation.
     pub mcp_auth_handler: Option<Arc<dyn McpAuthHandler>>,
-    /// Optional user-input handler. When `None`,
-    /// `requestUserInput: false` goes on the wire and the `ask_user`
-    /// tool is disabled.
+    /// Optional handler for the legacy question-and-answer `ask_user` variant.
+    /// When `None`, `requestUserInput: false` goes on the wire, so this client
+    /// cannot handle legacy user-input requests.
     pub user_input_handler: Option<Arc<dyn UserInputHandler>>,
     /// Optional exit-plan-mode handler. When `None`,
     /// `requestExitPlanMode: false` goes on the wire.
@@ -2676,8 +2676,8 @@ impl SessionConfig {
         self
     }
 
-    /// Install a [`UserInputHandler`]. Required for the `ask_user` tool
-    /// to be enabled.
+    /// Install a [`UserInputHandler`] for the legacy question-and-answer
+    /// `ask_user` variant.
     pub fn with_user_input_handler(mut self, handler: Arc<dyn UserInputHandler>) -> Self {
         self.user_input_handler = Some(handler);
         self

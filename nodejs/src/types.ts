@@ -1265,7 +1265,7 @@ export const defaultJoinSessionPermissionHandler: PermissionHandler =
 // ============================================================================
 
 /**
- * Request for user input from the agent (enables ask_user tool)
+ * Legacy question-and-answer request from the `ask_user` tool.
  */
 export interface UserInputRequest {
     /**

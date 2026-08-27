@@ -1350,7 +1350,8 @@ type SessionConfig struct {
 	// GitHubTokenProvider acquires session-scoped GitHub tokens on demand. It
 	// cannot be combined with GitHubToken.
 	GitHubTokenProvider GitHubTokenProvider
-	// OnUserInputRequest is a handler for user input requests from the agent (enables ask_user tool)
+	// OnUserInputRequest handles legacy question-and-answer requests from the agent
+	// and enables the legacy ask_user tool.
 	OnUserInputRequest UserInputHandler
 	// AskUserVariant selects the model-facing shape of the ask_user tool.
 	// The zero value preserves legacy behavior. AskUserVariantElicitation also
@@ -1928,7 +1929,8 @@ type ResumeSessionConfig struct {
 	// OnMCPAuthRequest is an optional handler for MCP OAuth requests from MCP servers.
 	// See SessionConfig.OnMCPAuthRequest.
 	OnMCPAuthRequest MCPAuthHandler
-	// OnUserInputRequest is a handler for user input requests from the agent (enables ask_user tool)
+	// OnUserInputRequest handles legacy question-and-answer requests from the agent
+	// and enables the legacy ask_user tool.
 	OnUserInputRequest UserInputHandler
 	// AskUserVariant selects the model-facing shape of the ask_user tool.
 	// The zero value preserves legacy behavior. AskUserVariantElicitation also
