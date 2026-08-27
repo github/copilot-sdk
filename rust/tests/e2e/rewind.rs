@@ -13,6 +13,11 @@ const FILE_CONTENT: &str = "SDK rewind content";
 
 #[tokio::test]
 async fn should_restore_tracked_file_and_conversation() {
+    // TODO(cli-1.0.81): Re-enable when Windows file-change tracking records built-in create tool writes.
+    if cfg!(windows) {
+        return;
+    }
+
     super::support::with_shared_e2e_context(
         &E2E,
         "rewind",

@@ -24,6 +24,10 @@ func TestRewindE2E(t *testing.T) {
 	t.Cleanup(func() { client.ForceStop() })
 
 	t.Run("should restore tracked file and conversation", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("blocked on CLI 1.0.81 file-change tracking regression on Windows")
+		}
+
 		ctx.ConfigureForTest(t)
 		filePath := filepath.Join(ctx.WorkDir, rewindFileName)
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import sys
 from pathlib import Path
 
 import pytest
@@ -30,6 +31,9 @@ def _same_path(left: str | Path, right: str | Path) -> bool:
 
 class TestRewind:
     async def test_should_restore_tracked_file_and_conversation(self, ctx: E2ETestContext):
+        if sys.platform == "win32":
+            pytest.skip("blocked on CLI 1.0.81 file-change tracking regression on Windows")
+
         file_path = Path(ctx.work_dir) / FILE_NAME
         session = await ctx.client.create_session(
             model="claude-sonnet-4.5",

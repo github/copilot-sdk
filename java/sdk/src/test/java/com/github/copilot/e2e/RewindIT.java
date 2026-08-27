@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -54,6 +55,9 @@ class RewindIT {
 
     @Test
     void shouldRestoreTrackedFileAndConversation() throws Exception {
+        assumeFalse(System.getProperty("os.name").startsWith("Windows"),
+                "blocked on CLI 1.0.81 file-change tracking regression on Windows");
+
         ctx.configureForTest("rewind", "should_restore_tracked_file_and_conversation");
         Path filePath = ctx.getWorkDir().resolve(FILE_NAME);
 
