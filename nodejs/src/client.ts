@@ -2741,6 +2741,9 @@ export class CopilotClient {
             // Set up a promise that rejects when the process exits (used to race against RPC calls)
             this.processExitPromise = new Promise<never>((_, rejectProcessExit) => {
                 this.cliProcess!.on("exit", (code) => {
+                    if (this.messageWriter) {
+                        this.messageWriter.suppressWriteErrors = true;
+                    }
                     const stderrOutput = this.stderrBuffer.trim();
                     if (stderrOutput) {
                         rejectProcessExit(
