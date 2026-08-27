@@ -103,9 +103,10 @@ async fn wait_for_rewind_points(
             .await
             .expect("list rewind points");
         if result.unavailable_reason.is_none()
-            && result.points.first().is_some_and(|point| {
-                point.can_restore_files && point.file_count == 1
-            })
+            && result
+                .points
+                .first()
+                .is_some_and(|point| point.can_restore_files && point.file_count == 1)
         {
             return result;
         }
