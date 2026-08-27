@@ -25,6 +25,7 @@ public sealed class E2ETestContext : IAsyncDisposable
 
     private readonly ReplayProxy _proxy;
     private readonly string _repoRoot;
+    private readonly ILogger _loggerForwarder;
     private readonly object _clientsLock = new();
     private readonly List<CopilotClient> _persistentClients = [];
     private readonly List<CopilotClient> _transientClients = [];
@@ -36,6 +37,25 @@ public sealed class E2ETestContext : IAsyncDisposable
         ProxyUrl = proxyUrl;
         _proxy = proxy;
         _repoRoot = repoRoot;
+        _loggerForwarder = new CurrentLoggerForwarder(this);
+    }
+
+    /// <summary>
+    /// Forwards log calls to whatever <see cref="Logger"/> is current at the time of the call.
+    /// A <see cref="CopilotClient"/> captures its logger at construction, and the shared
+    /// persistent client is constructed before any test assigns <see cref="Logger"/>; forwarding
+    /// lets its SDK-side warnings and errors still reach the test that is currently running.
+    /// </summary>
+    private sealed class CurrentLoggerForwarder(E2ETestContext context) : ILogger
+    {
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull
+            => context.Logger?.BeginScope(state);
+
+        public bool IsEnabled(LogLevel logLevel)
+            => context.Logger?.IsEnabled(logLevel) ?? false;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+            => context.Logger?.Log(logLevel, eventId, state, exception, formatter);
     }
 
     public static async Task<E2ETestContext> CreateAsync()
@@ -276,7 +296,7 @@ public sealed class E2ETestContext : IAsyncDisposable
     {
         options ??= new CopilotClientOptions();
 
-        options.Logger ??= Logger;
+        options.Logger ??= _loggerForwarder;
 
         // Resolve the working directory the worker should run in. Child-process and
         // URI transports take it as a per-client option; the in-process transport

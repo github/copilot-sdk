@@ -5,6 +5,7 @@
 using GitHub.Copilot.Rpc;
 using GitHub.Copilot.Test.Harness;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Logging;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Text.Json;
@@ -156,6 +157,13 @@ public partial class ToolsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         // exception information as if it was the tool's output.
         Assert.DoesNotContain("Melbourne", answer?.Data.Content);
         Assert.Contains("unknown", answer?.Data.Content?.ToLowerInvariant());
+
+        // The failure must also be diagnosable from the host: the SDK swallows the
+        // exception on the wire (by design) but has to leave a trace in the log.
+        var failureLog = Assert.Single(LogEntries, e =>
+            e.Level == LogLevel.Error && e.Message.Contains("get_user_location", StringComparison.Ordinal));
+        Assert.Contains("Tool call failed", failureLog.Message, StringComparison.Ordinal);
+        Assert.Equal("Melbourne", failureLog.Exception?.Message);
     }
 
     [Fact]

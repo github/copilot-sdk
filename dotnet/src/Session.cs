@@ -642,7 +642,20 @@ public sealed partial class CopilotSession : IAsyncDisposable
 
                         var tool = GetTool(data.ToolName);
                         if (tool is null)
-                            return; // This client doesn't handle this tool; another client will.
+                        {
+                            // This client doesn't handle this tool; another client may. Log it
+                            // anyway: for a single-client host this is indistinguishable from a
+                            // tool that silently never runs, and there is no other signal.
+                            if (_logger.IsEnabled(LogLevel.Warning))
+                            {
+                                LogNoToolHandlerRegistered(
+                                    SessionId,
+                                    data.RequestId,
+                                    data.ToolName,
+                                    string.Join(", ", _toolHandlers.Keys));
+                            }
+                            return;
+                        }
 
                         using (TelemetryHelpers.RestoreTraceContext(data.Traceparent, data.Tracestate))
                             await ExecuteToolAndRespondAsync(data.RequestId, data.ToolName, data.ToolCallId, data.Arguments, tool);
@@ -788,41 +801,41 @@ public sealed partial class CopilotSession : IAsyncDisposable
 
             await Rpc.Mcp.Oauth.HandlePendingRequestAsync(requestId, response);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException ex)
         {
-            await TryCancelMcpAuthRequestAsync(requestId);
+            await TryCancelMcpAuthRequestAsync(requestId, ex);
         }
-        catch (ObjectDisposedException)
+        catch (ObjectDisposedException ex)
         {
-            await TryCancelMcpAuthRequestAsync(requestId);
+            await TryCancelMcpAuthRequestAsync(requestId, ex);
         }
-        catch (InvalidOperationException)
+        catch (InvalidOperationException ex)
         {
-            await TryCancelMcpAuthRequestAsync(requestId);
+            await TryCancelMcpAuthRequestAsync(requestId, ex);
         }
-        catch (ArgumentException)
+        catch (ArgumentException ex)
         {
-            await TryCancelMcpAuthRequestAsync(requestId);
+            await TryCancelMcpAuthRequestAsync(requestId, ex);
         }
-        catch (NotSupportedException)
+        catch (NotSupportedException ex)
         {
-            await TryCancelMcpAuthRequestAsync(requestId);
+            await TryCancelMcpAuthRequestAsync(requestId, ex);
         }
-        catch (JsonException)
+        catch (JsonException ex)
         {
-            await TryCancelMcpAuthRequestAsync(requestId);
+            await TryCancelMcpAuthRequestAsync(requestId, ex);
         }
-        catch (RemoteRpcException)
+        catch (RemoteRpcException ex)
         {
-            await TryCancelMcpAuthRequestAsync(requestId);
+            await TryCancelMcpAuthRequestAsync(requestId, ex);
         }
-        catch (IOException)
+        catch (IOException ex)
         {
-            await TryCancelMcpAuthRequestAsync(requestId);
+            await TryCancelMcpAuthRequestAsync(requestId, ex);
         }
         catch (Exception ex) when (IsRecoverableMcpAuthFailure(ex))
         {
-            await TryCancelMcpAuthRequestAsync(requestId);
+            await TryCancelMcpAuthRequestAsync(requestId, ex);
         }
     }
 
@@ -833,23 +846,27 @@ public sealed partial class CopilotSession : IAsyncDisposable
             and not AccessViolationException
             and not AppDomainUnloadedException;
 
-    private async Task TryCancelMcpAuthRequestAsync(string requestId)
+    private async Task TryCancelMcpAuthRequestAsync(string requestId, Exception cause)
     {
+        LogMcpAuthFailed(cause, SessionId, requestId);
         try
         {
             await Rpc.Mcp.Oauth.HandlePendingRequestAsync(requestId, new McpOauthPendingRequestResponseCancelled());
         }
-        catch (IOException)
+        catch (IOException ex)
         {
-            // Connection lost — nothing we can do.
+            // Connection lost — nothing we can do beyond recording it.
+            LogMcpAuthCancelDeliveryFailed(ex, SessionId, requestId);
         }
-        catch (ObjectDisposedException)
+        catch (ObjectDisposedException ex)
         {
-            // Connection already disposed — nothing we can do.
+            // Connection already disposed — nothing we can do beyond recording it.
+            LogMcpAuthCancelDeliveryFailed(ex, SessionId, requestId);
         }
-        catch (RemoteRpcException)
+        catch (RemoteRpcException ex)
         {
-            // The pending request may already be gone — nothing we can do.
+            // The pending request may already be gone — nothing we can do beyond recording it.
+            LogMcpAuthCancelDeliveryFailed(ex, SessionId, requestId);
         }
     }
 
@@ -928,17 +945,23 @@ public sealed partial class CopilotSession : IAsyncDisposable
         }
         catch (Exception ex)
         {
+            // The failure may come from argument binding or result conversion rather than the
+            // handler itself, in which case the caller's delegate never ran and this log is the
+            // only evidence of why. Never log the arguments or the result — they can be sensitive.
+            LogToolCallFailed(ex, SessionId, requestId, toolCallId, toolName);
             try
             {
                 await Rpc.Tools.HandlePendingToolCallAsync(requestId, result: null, error: ex.Message);
             }
-            catch (IOException)
+            catch (IOException deliveryEx)
             {
-                // Connection lost or RPC error — nothing we can do
+                // Connection lost or RPC error — nothing we can do beyond recording it.
+                LogToolCallErrorDeliveryFailed(deliveryEx, SessionId, requestId, toolName);
             }
-            catch (ObjectDisposedException)
+            catch (ObjectDisposedException deliveryEx)
             {
-                // Connection already disposed — nothing we can do
+                // Connection already disposed — nothing we can do beyond recording it.
+                LogToolCallErrorDeliveryFailed(deliveryEx, SessionId, requestId, toolName);
             }
         }
     }
@@ -982,13 +1005,15 @@ public sealed partial class CopilotSession : IAsyncDisposable
             {
                 await Rpc.Permissions.HandlePendingPermissionRequestAsync(requestId, PermissionDecision.UserNotAvailable());
             }
-            catch (IOException)
+            catch (IOException deliveryEx)
             {
-                // Connection lost or RPC error — nothing we can do
+                // Connection lost or RPC error — nothing we can do beyond recording it.
+                LogPermissionDecisionDeliveryFailed(deliveryEx, SessionId, requestId);
             }
-            catch (ObjectDisposedException)
+            catch (ObjectDisposedException deliveryEx)
             {
-                // Connection already disposed — nothing we can do
+                // Connection already disposed — nothing we can do beyond recording it.
+                LogPermissionDecisionDeliveryFailed(deliveryEx, SessionId, requestId);
             }
         }
     }
@@ -1235,13 +1260,22 @@ public sealed partial class CopilotSession : IAsyncDisposable
     {
         if (!_commandHandlers.TryGetValue(commandName, out var handler))
         {
+            if (_logger.IsEnabled(LogLevel.Warning))
+            {
+                LogNoCommandHandlerRegistered(
+                    SessionId,
+                    requestId,
+                    commandName,
+                    string.Join(", ", _commandHandlers.Keys));
+            }
             try
             {
                 await Rpc.Commands.HandlePendingCommandAsync(requestId, error: $"Unknown command: {commandName}");
             }
             catch (Exception ex) when (ex is IOException or ObjectDisposedException)
             {
-                // Connection lost — nothing we can do
+                // Connection lost — nothing we can do beyond recording it.
+                LogCommandErrorDeliveryFailed(ex, SessionId, requestId, commandName);
             }
             return;
         }
@@ -1275,6 +1309,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
         {
             // User handler can throw any exception — report the error back to the server
             // so the pending command doesn't hang.
+            LogCommandFailed(error, SessionId, requestId, commandName);
             var message = error.Message;
             try
             {
@@ -1282,7 +1317,8 @@ public sealed partial class CopilotSession : IAsyncDisposable
             }
             catch (Exception ex) when (ex is IOException or ObjectDisposedException)
             {
-                // Connection lost — nothing we can do
+                // Connection lost — nothing we can do beyond recording it.
+                LogCommandErrorDeliveryFailed(ex, SessionId, requestId, commandName);
             }
         }
     }
@@ -1322,6 +1358,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             // User handler can throw any exception — attempt to cancel so the request doesn't hang.
+            LogElicitationFailed(ex, SessionId, requestId);
             try
             {
                 await Rpc.Ui.HandlePendingElicitationAsync(requestId, new UIElicitationResponse
@@ -1331,7 +1368,8 @@ public sealed partial class CopilotSession : IAsyncDisposable
             }
             catch (Exception innerEx) when (innerEx is IOException or ObjectDisposedException)
             {
-                // Connection lost — nothing we can do
+                // Connection lost — nothing we can do beyond recording it.
+                LogElicitationCancelDeliveryFailed(innerEx, SessionId, requestId);
             }
         }
     }
@@ -1974,6 +2012,61 @@ public sealed partial class CopilotSession : IAsyncDisposable
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "Failed to fetch tool metadata for {toolName}")]
     private partial void LogToolMetadataFetchFailed(Exception exception, string toolName);
+
+    [LoggerMessage(
+        Level = LogLevel.Error,
+        Message = "Tool call failed before a result could be produced. SessionId={SessionId}, RequestId={RequestId}, ToolCallId={ToolCallId}, Tool={ToolName}")]
+    private partial void LogToolCallFailed(Exception exception, string sessionId, string requestId, string toolCallId, string toolName);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Failed to deliver the tool call error back to the runtime. SessionId={SessionId}, RequestId={RequestId}, Tool={ToolName}")]
+    private partial void LogToolCallErrorDeliveryFailed(Exception exception, string sessionId, string requestId, string toolName);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Received a tool request for a tool this client has no handler registered for. Another connected client may handle it; otherwise the tool call will never be answered by this client. SessionId={SessionId}, RequestId={RequestId}, Tool={ToolName}, RegisteredTools=[{RegisteredTools}]")]
+    private partial void LogNoToolHandlerRegistered(string sessionId, string requestId, string toolName, string registeredTools);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Failed to deliver the permission decision back to the runtime. SessionId={SessionId}, RequestId={RequestId}")]
+    private partial void LogPermissionDecisionDeliveryFailed(Exception exception, string sessionId, string requestId);
+
+    [LoggerMessage(
+        Level = LogLevel.Error,
+        Message = "Command handler failed. SessionId={SessionId}, RequestId={RequestId}, Command={CommandName}")]
+    private partial void LogCommandFailed(Exception exception, string sessionId, string requestId, string commandName);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Failed to deliver the command error back to the runtime. SessionId={SessionId}, RequestId={RequestId}, Command={CommandName}")]
+    private partial void LogCommandErrorDeliveryFailed(Exception exception, string sessionId, string requestId, string commandName);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Received a command request for a command this client has no handler registered for. SessionId={SessionId}, RequestId={RequestId}, Command={CommandName}, RegisteredCommands=[{RegisteredCommands}]")]
+    private partial void LogNoCommandHandlerRegistered(string sessionId, string requestId, string commandName, string registeredCommands);
+
+    [LoggerMessage(
+        Level = LogLevel.Error,
+        Message = "Elicitation handler failed; cancelling the pending elicitation. SessionId={SessionId}, RequestId={RequestId}")]
+    private partial void LogElicitationFailed(Exception exception, string sessionId, string requestId);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Failed to deliver the elicitation cancellation back to the runtime. SessionId={SessionId}, RequestId={RequestId}")]
+    private partial void LogElicitationCancelDeliveryFailed(Exception exception, string sessionId, string requestId);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "MCP OAuth request failed; cancelling the pending request. SessionId={SessionId}, RequestId={RequestId}")]
+    private partial void LogMcpAuthFailed(Exception exception, string sessionId, string requestId);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Failed to deliver the MCP OAuth cancellation back to the runtime. SessionId={SessionId}, RequestId={RequestId}")]
+    private partial void LogMcpAuthCancelDeliveryFailed(Exception exception, string sessionId, string requestId);
 
     internal record SendMessageRequest
     {

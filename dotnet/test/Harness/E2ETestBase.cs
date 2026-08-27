@@ -35,15 +35,33 @@ public abstract class E2ETestBase : IClassFixture<E2ETestFixture>, IAsyncLifetim
     /// <summary>Logger that forwards warnings and above to xunit test output.</summary>
     protected ILogger Logger { get; }
 
+    /// <summary>
+    /// Warning-and-above messages the SDK logged during this test, in order. Populated by
+    /// <see cref="Logger"/>, which is wired into every client created through <see cref="Ctx"/>.
+    /// </summary>
+    protected IReadOnlyList<LogEntry> LogEntries => ((XunitLogger)Logger).Entries;
+
+    /// <summary>A single captured log message.</summary>
+    protected sealed record LogEntry(LogLevel Level, string Message, Exception? Exception);
+
     /// <summary>Bridges <see cref="ILogger"/> to xunit's <see cref="ITestOutputHelper"/>.</summary>
     private sealed class XunitLogger(ITestOutputHelper output) : ILogger
     {
+        private readonly List<LogEntry> _entries = [];
+
+        public IReadOnlyList<LogEntry> Entries
+        {
+            get { lock (_entries) { return [.. _entries]; } }
+        }
+
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
         public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel.Warning;
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
         {
             if (!IsEnabled(logLevel)) return;
-            try { output.WriteLine($"[{logLevel}] {formatter(state, exception)}"); }
+            var message = formatter(state, exception);
+            lock (_entries) { _entries.Add(new LogEntry(logLevel, message, exception)); }
+            try { output.WriteLine($"[{logLevel}] {message}"); }
             catch (InvalidOperationException) { /* test already finished */ }
         }
     }
