@@ -84,6 +84,7 @@ it.skipIf(isInProcessTransport)(
 
         const result = await session.factory.run("argument-echo", {
             args: { source: "sdk-e2e", count: 11 },
+            notifyOnComplete: false,
         });
 
         expect(result).toMatchObject({
@@ -140,7 +141,7 @@ it.skipIf(isInProcessTransport)(
         const { workDir } = factoryTestContext;
         await using session = await setupFactoryExtension(workDir);
 
-        const run = await session.factory.run("argument-echo");
+        const run = await session.factory.run("argument-echo", { notifyOnComplete: false });
         const error = await session.factory.resume(run.runId).catch((caught: unknown) => caught);
 
         expect(error).toBeInstanceOf(FactoryResumeError);
@@ -253,7 +254,9 @@ it.skipIf(isInProcessTransport)(
         const denyPermissions = vi.fn(() => ({ kind: "reject" as const }));
         await using session = await setupFactoryExtension(workDir, denyPermissions);
 
-        await expect(session.factory.run("argument-echo")).resolves.toMatchObject({
+        await expect(
+            session.factory.run("argument-echo", { notifyOnComplete: false })
+        ).resolves.toMatchObject({
             status: "completed",
         });
         expect(denyPermissions).not.toHaveBeenCalled();
@@ -270,7 +273,7 @@ it.skipIf(isInProcessTransport)(
         const denyPermissions = vi.fn(() => ({ kind: "reject" as const }));
         await using session = await setupFactoryExtension(workDir, denyPermissions);
 
-        const failedRun = await session.factory.run("fails-once");
+        const failedRun = await session.factory.run("fails-once", { notifyOnComplete: false });
         expect(failedRun).toMatchObject({
             status: "error",
         });
@@ -297,7 +300,9 @@ it.skipIf(isInProcessTransport)(
         const { workDir } = factoryTestContext;
         await using session = await setupFactoryExtension(workDir);
 
-        const result = await session.factory.run("starts-from-context-session");
+        const result = await session.factory.run("starts-from-context-session", {
+            notifyOnComplete: false,
+        });
 
         expect(result).toMatchObject({
             status: "completed",
@@ -316,7 +321,9 @@ it.skipIf(isInProcessTransport)(
         const { workDir } = factoryTestContext;
         await using session = await setupFactoryExtension(workDir);
 
-        const result = await session.factory.run("starts-from-module-session");
+        const result = await session.factory.run("starts-from-module-session", {
+            notifyOnComplete: false,
+        });
 
         expect(result).toMatchObject({
             status: "completed",
@@ -336,7 +343,7 @@ it.skipIf(isInProcessTransport)(
         const extensionDir = join(workDir, ".github", "extensions", "factory-smoke");
         await using session = await setupFactoryExtension(workDir);
 
-        const parked = session.factory.run("parked");
+        const parked = session.factory.run("parked", { notifyOnComplete: false });
         await retry(
             "wait for the parked factory to enter its body",
             async () => {
@@ -382,7 +389,7 @@ it.skipIf(isInProcessTransport)(
         const { workDir } = factoryTestContext;
         await using session = await setupFactoryExtension(workDir);
 
-        const result = await session.factory.run("array-result");
+        const result = await session.factory.run("array-result", { notifyOnComplete: false });
 
         expect(result).toMatchObject({
             status: "completed",
@@ -401,7 +408,10 @@ it.skipIf(isInProcessTransport)(
         await using session = await setupFactoryExtension(workDir);
 
         const args = [1, "two", false];
-        const result = await session.factory.run("argument-echo", { args });
+        const result = await session.factory.run("argument-echo", {
+            args,
+            notifyOnComplete: false,
+        });
 
         expect(result).toMatchObject({
             status: "completed",

@@ -169,6 +169,7 @@ void waitForMarker("start-b", 30_000)
     .then(async () => {
         const result = await session.factory.run("argument-echo", {
             args: { source: "module-watcher" },
+            notifyOnComplete: false,
         });
         writeFileSync(marker("b-result"), JSON.stringify({ status: "success", result }));
     })
