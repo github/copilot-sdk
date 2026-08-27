@@ -314,7 +314,7 @@ describe("disabled MCP servers", async () => {
     }
 
     async function drainPostCreateRpc(session: CopilotSession): Promise<void> {
-        // Drain a non-MCP post-create RPC without initializing MCP before the first model turn.
+        // Drain a non-MCP post-create RPC so session initialization settles before assertions.
         await session.rpc.metadata.snapshot();
     }
 
@@ -424,13 +424,14 @@ describe("disabled MCP servers", async () => {
                 githubMcpToolConfig: { enableAllTools: true },
             });
             await drainPostCreateRpc(enabledSession);
+            await waitForMcpRequestCount(1);
             const requestsBeforeFirstMessage = await mcpRequestCount();
-            expect(requestsBeforeFirstMessage).toBe(0);
+            expect(requestsBeforeFirstMessage).toBe(1);
             expectSyntheticResponse(
                 await enabledSession.sendAndWait({ prompt: MCP_TRIGGER_PROMPT })
             );
-            await waitForMcpRequestCount(requestsBeforeFirstMessage + 1);
             await waitForMcpStatus(enabledSession, "github-mcp-server", "connected");
+            expect(await mcpRequestCount()).toBe(requestsBeforeFirstMessage);
         }
     );
 
