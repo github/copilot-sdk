@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -17,6 +19,13 @@ import (
 // tool. A client can replace its behavior by registering a [Tool] with this
 // exact name and OverridesBuiltInTool set to true.
 const toolSearchToolName = "tool_search_tool"
+
+const (
+	dispatchStagePreparingArguments = "PreparingArguments"
+	dispatchStageInvokingHandler    = "InvokingHandler"
+	dispatchStageConvertingResult   = "ConvertingResult"
+	dispatchStageSendingResult      = "SendingResult"
+)
 
 type sessionHandler struct {
 	id uint64
@@ -95,6 +104,7 @@ type Session struct {
 	openCanvasesMu              sync.RWMutex
 	capabilities                SessionCapabilities
 	capabilitiesMu              sync.RWMutex
+	logLevel                    string
 
 	// eventCh serializes user event handler dispatch. dispatchEvent enqueues;
 	// a single goroutine (processEvents) dequeues and invokes handlers in FIFO order.
@@ -110,6 +120,36 @@ type Session struct {
 // Returns empty string if infinite sessions are disabled.
 func (s *Session) WorkspacePath() string {
 	return s.workspacePath
+}
+
+func (s *Session) logWarningEnabled() bool {
+	switch strings.ToLower(s.logLevel) {
+	case "warning", "info", "debug", "all":
+		return true
+	default:
+		return false
+	}
+}
+
+func (s *Session) logErrorEnabled() bool {
+	switch strings.ToLower(s.logLevel) {
+	case "error", "warning", "info", "debug", "all":
+		return true
+	default:
+		return false
+	}
+}
+
+func (s *Session) logWarnf(format string, args ...any) {
+	if s.logWarningEnabled() {
+		log.Printf("WARNING: "+format, args...)
+	}
+}
+
+func (s *Session) logErrorf(format string, args ...any) {
+	if s.logErrorEnabled() {
+		log.Printf("ERROR: "+format, args...)
+	}
 }
 
 // OpenCanvases returns the open-canvas snapshot last reported by the runtime.
@@ -374,11 +414,13 @@ func newSession(
 	client *jsonrpc2.Client,
 	workspacePath string,
 	managedSettings bool,
+	logLevel string,
 ) *Session {
 	s := &Session{
 		SessionID:         sessionID,
 		workspacePath:     workspacePath,
 		managedSettings:   managedSettings,
+		logLevel:          logLevel,
 		client:            client,
 		clientSessionAPIs: &rpc.ClientSessionAPIHandlers{},
 		handlers:          make([]sessionHandler, 0),
@@ -611,6 +653,18 @@ func (s *Session) getToolHandler(name string) (ToolHandler, bool) {
 	handler, ok := s.toolHandlers[name]
 	s.toolHandlersM.RUnlock()
 	return handler, ok
+}
+
+func (s *Session) registeredToolNamesForLog() string {
+	s.toolHandlersM.RLock()
+	defer s.toolHandlersM.RUnlock()
+
+	names := make([]string, 0, len(s.toolHandlers))
+	for name := range s.toolHandlers {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return strings.Join(names, ", ")
 }
 
 // registerPermissionHandler registers a permission handler for this session.
@@ -918,17 +972,46 @@ func (s *Session) getCommandHandler(name string) (CommandHandler, bool) {
 	return handler, ok
 }
 
+func (s *Session) registeredCommandNamesForLog() string {
+	s.commandHandlersMu.RLock()
+	defer s.commandHandlersMu.RUnlock()
+
+	names := make([]string, 0, len(s.commandHandlers))
+	for name := range s.commandHandlers {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return strings.Join(names, ", ")
+}
+
 // executeCommandAndRespond dispatches a command.execute event to the registered handler
 // and sends the result (or error) back via the RPC layer.
 func (s *Session) executeCommandAndRespond(requestID, commandName, command, args string) {
 	ctx := context.Background()
 	handler, ok := s.getCommandHandler(commandName)
 	if !ok {
+		if s.logWarningEnabled() {
+			s.logWarnf(
+				"Received command request without a registered command handler. SessionId=%s, RequestId=%s, CommandName=%s, RegisteredCommandNames=%s",
+				s.SessionID,
+				requestID,
+				commandName,
+				s.registeredCommandNamesForLog(),
+			)
+		}
 		errMsg := fmt.Sprintf("Unknown command: %s", commandName)
-		s.RPC.Commands.HandlePendingCommand(ctx, &rpc.CommandsHandlePendingCommandRequest{
+		if _, rpcErr := s.RPC.Commands.HandlePendingCommand(ctx, &rpc.CommandsHandlePendingCommandRequest{
 			RequestID: requestID,
 			Error:     &errMsg,
-		})
+		}); rpcErr != nil {
+			s.logWarnf(
+				"Failed to deliver command error over RPC. SessionId=%s, RequestId=%s, CommandName=%s, Error=%v",
+				s.SessionID,
+				requestID,
+				commandName,
+				rpcErr,
+			)
+		}
 		return
 	}
 
@@ -940,17 +1023,43 @@ func (s *Session) executeCommandAndRespond(requestID, commandName, command, args
 	}
 
 	if err := handler(cmdCtx); err != nil {
+		s.logErrorf(
+			"Command handler failed. SessionId=%s, RequestId=%s, CommandName=%s, Stage=%s, Error=%v",
+			s.SessionID,
+			requestID,
+			commandName,
+			dispatchStageInvokingHandler,
+			err,
+		)
 		errMsg := err.Error()
-		s.RPC.Commands.HandlePendingCommand(ctx, &rpc.CommandsHandlePendingCommandRequest{
+		if _, rpcErr := s.RPC.Commands.HandlePendingCommand(ctx, &rpc.CommandsHandlePendingCommandRequest{
 			RequestID: requestID,
 			Error:     &errMsg,
-		})
+		}); rpcErr != nil {
+			s.logWarnf(
+				"Failed to deliver command error over RPC. SessionId=%s, RequestId=%s, CommandName=%s, Stage=%s, Error=%v",
+				s.SessionID,
+				requestID,
+				commandName,
+				dispatchStageInvokingHandler,
+				rpcErr,
+			)
+		}
 		return
 	}
 
-	s.RPC.Commands.HandlePendingCommand(ctx, &rpc.CommandsHandlePendingCommandRequest{
+	if _, rpcErr := s.RPC.Commands.HandlePendingCommand(ctx, &rpc.CommandsHandlePendingCommandRequest{
 		RequestID: requestID,
-	})
+	}); rpcErr != nil {
+		s.logWarnf(
+			"Failed to deliver command result over RPC. SessionId=%s, RequestId=%s, CommandName=%s, Stage=%s, Error=%v",
+			s.SessionID,
+			requestID,
+			commandName,
+			dispatchStageSendingResult,
+			rpcErr,
+		)
+	}
 }
 
 // registerElicitationHandler registers an elicitation handler for this session.
@@ -982,6 +1091,11 @@ func (s *Session) getMCPAuthHandler() MCPAuthHandler {
 func (s *Session) handleMCPAuthRequest(request MCPAuthRequest) {
 	handler := s.getMCPAuthHandler()
 	if handler == nil {
+		s.logWarnf(
+			"Received MCP OAuth request without a registered MCP auth handler. SessionId=%s, RequestId=%s",
+			s.SessionID,
+			request.RequestID,
+		)
 		return
 	}
 
@@ -989,29 +1103,50 @@ func (s *Session) handleMCPAuthRequest(request MCPAuthRequest) {
 	cancel := &rpc.MCPOauthPendingRequestResponseCancelled{}
 	result, err := handler(request, MCPAuthInvocation{SessionID: s.SessionID})
 	if err != nil {
-		log.Printf(
-			"MCP OAuth handler failed. SessionId=%s, RequestId=%s, Error=%v",
+		s.logErrorf(
+			"MCP OAuth handler failed. SessionId=%s, RequestId=%s, Stage=%s, Error=%v",
 			s.SessionID,
 			request.RequestID,
+			dispatchStageInvokingHandler,
 			err,
 		)
 	}
 	if err != nil || result == nil || result.Kind == MCPAuthResultKindCancelled || result.Token == nil {
-		s.RPC.MCP.Oauth().HandlePendingRequest(ctx, &rpc.MCPOauthHandlePendingRequest{
+		deliveryStage := dispatchStageSendingResult
+		if err != nil {
+			deliveryStage = dispatchStageInvokingHandler
+		}
+		if _, rpcErr := s.RPC.MCP.Oauth().HandlePendingRequest(ctx, &rpc.MCPOauthHandlePendingRequest{
 			RequestID: request.RequestID,
 			Result:    cancel,
-		})
+		}); rpcErr != nil {
+			s.logWarnf(
+				"Failed to deliver MCP OAuth cancellation over RPC. SessionId=%s, RequestId=%s, Stage=%s, Error=%v",
+				s.SessionID,
+				request.RequestID,
+				deliveryStage,
+				rpcErr,
+			)
+		}
 		return
 	}
 
-	s.RPC.MCP.Oauth().HandlePendingRequest(ctx, &rpc.MCPOauthHandlePendingRequest{
+	if _, rpcErr := s.RPC.MCP.Oauth().HandlePendingRequest(ctx, &rpc.MCPOauthHandlePendingRequest{
 		RequestID: request.RequestID,
 		Result: &rpc.MCPOauthPendingRequestResponseToken{
 			AccessToken: result.Token.AccessToken,
 			TokenType:   result.Token.TokenType,
 			ExpiresIn:   result.Token.ExpiresIn,
 		},
-	})
+	}); rpcErr != nil {
+		s.logWarnf(
+			"Failed to deliver MCP OAuth result over RPC. SessionId=%s, RequestId=%s, Stage=%s, Error=%v",
+			s.SessionID,
+			request.RequestID,
+			dispatchStageSendingResult,
+			rpcErr,
+		)
+	}
 }
 
 // handleElicitationRequest dispatches an elicitation.requested event to the registered handler
@@ -1019,6 +1154,11 @@ func (s *Session) handleMCPAuthRequest(request MCPAuthRequest) {
 func (s *Session) handleElicitationRequest(elicitCtx ElicitationContext, requestID string) {
 	handler := s.getElicitationHandler()
 	if handler == nil {
+		s.logWarnf(
+			"Received elicitation request without a registered elicitation handler. SessionId=%s, RequestId=%s",
+			s.SessionID,
+			requestID,
+		)
 		return
 	}
 
@@ -1026,13 +1166,28 @@ func (s *Session) handleElicitationRequest(elicitCtx ElicitationContext, request
 
 	result, err := handler(elicitCtx)
 	if err != nil {
+		s.logErrorf(
+			"Elicitation handler failed. SessionId=%s, RequestId=%s, Stage=%s, Error=%v",
+			s.SessionID,
+			requestID,
+			dispatchStageInvokingHandler,
+			err,
+		)
 		// Handler failed — attempt to cancel so the request doesn't hang.
-		s.RPC.UI.HandlePendingElicitation(ctx, &rpc.UIHandlePendingElicitationRequest{
+		if _, rpcErr := s.RPC.UI.HandlePendingElicitation(ctx, &rpc.UIHandlePendingElicitationRequest{
 			RequestID: requestID,
 			Result: rpc.UIElicitationResponse{
 				Action: rpc.UIElicitationResponseActionCancel,
 			},
-		})
+		}); rpcErr != nil {
+			s.logWarnf(
+				"Failed to deliver elicitation cancellation over RPC. SessionId=%s, RequestId=%s, Stage=%s, Error=%v",
+				s.SessionID,
+				requestID,
+				dispatchStageInvokingHandler,
+				rpcErr,
+			)
+		}
 		return
 	}
 
@@ -1042,25 +1197,48 @@ func (s *Session) handleElicitationRequest(elicitCtx ElicitationContext, request
 		for k, v := range result.Content {
 			contentValue, err := toRPCContent(v)
 			if err != nil {
-				s.RPC.UI.HandlePendingElicitation(ctx, &rpc.UIHandlePendingElicitationRequest{
+				s.logErrorf(
+					"Elicitation result conversion failed. SessionId=%s, RequestId=%s, Stage=%s, Error=%v",
+					s.SessionID,
+					requestID,
+					dispatchStageConvertingResult,
+					err,
+				)
+				if _, rpcErr := s.RPC.UI.HandlePendingElicitation(ctx, &rpc.UIHandlePendingElicitationRequest{
 					RequestID: requestID,
 					Result: rpc.UIElicitationResponse{
 						Action: rpc.UIElicitationResponseActionCancel,
 					},
-				})
+				}); rpcErr != nil {
+					s.logWarnf(
+						"Failed to deliver elicitation cancellation over RPC. SessionId=%s, RequestId=%s, Stage=%s, Error=%v",
+						s.SessionID,
+						requestID,
+						dispatchStageConvertingResult,
+						rpcErr,
+					)
+				}
 				return
 			}
 			rpcContent[k] = contentValue
 		}
 	}
 
-	s.RPC.UI.HandlePendingElicitation(ctx, &rpc.UIHandlePendingElicitationRequest{
+	if _, rpcErr := s.RPC.UI.HandlePendingElicitation(ctx, &rpc.UIHandlePendingElicitationRequest{
 		RequestID: requestID,
 		Result: rpc.UIElicitationResponse{
 			Action:  result.Action,
 			Content: rpcContent,
 		},
-	})
+	}); rpcErr != nil {
+		s.logWarnf(
+			"Failed to deliver elicitation result over RPC. SessionId=%s, RequestId=%s, Stage=%s, Error=%v",
+			s.SessionID,
+			requestID,
+			dispatchStageSendingResult,
+			rpcErr,
+		)
+	}
 }
 
 // toRPCContent converts an SDK content value to an RPC elicitation response value.
@@ -1439,6 +1617,16 @@ func (s *Session) handleBroadcastEvent(event SessionEvent) {
 	case *ExternalToolRequestedData:
 		handler, ok := s.getToolHandler(d.ToolName)
 		if !ok {
+			if s.logWarningEnabled() {
+				s.logWarnf(
+					"Received tool request for an unregistered tool. SessionId=%s, RequestId=%s, ToolCallId=%s, ToolName=%s, RegisteredToolNames=%s",
+					s.SessionID,
+					d.RequestID,
+					d.ToolCallID,
+					d.ToolName,
+					s.registeredToolNamesForLog(),
+				)
+			}
 			return
 		}
 		var tp, ts string
@@ -1456,6 +1644,11 @@ func (s *Session) handleBroadcastEvent(event SessionEvent) {
 		}
 		handler := s.getPermissionHandler()
 		if handler == nil {
+			s.logWarnf(
+				"Received permission request without a registered permission handler. SessionId=%s, RequestId=%s",
+				s.SessionID,
+				d.RequestID,
+			)
 			return
 		}
 		s.executePermissionAndRespond(d.RequestID, d.PermissionRequest, handler)
@@ -1466,7 +1659,7 @@ func (s *Session) handleBroadcastEvent(event SessionEvent) {
 			return
 		}
 		if handler == nil {
-			log.Printf(
+			s.logWarnf(
 				"Received MCP OAuth request without a registered MCP auth handler. SessionId=%s, RequestId=%s",
 				s.SessionID,
 				d.RequestID,
@@ -1512,6 +1705,11 @@ func (s *Session) handleBroadcastEvent(event SessionEvent) {
 	case *ElicitationRequestedData:
 		handler := s.getElicitationHandler()
 		if handler == nil {
+			s.logWarnf(
+				"Received elicitation request without a registered elicitation handler. SessionId=%s, RequestId=%s",
+				s.SessionID,
+				d.RequestID,
+			)
 			return
 		}
 		s.handleElicitationRequest(ElicitationContext{
@@ -1535,13 +1733,33 @@ func (s *Session) handleBroadcastEvent(event SessionEvent) {
 // executeToolAndRespond executes a tool handler and sends the result back via RPC.
 func (s *Session) executeToolAndRespond(requestID, toolName, toolCallID string, arguments any, handler ToolHandler, traceparent, tracestate string) {
 	ctx := contextWithTraceParent(context.Background(), traceparent, tracestate)
+	stage := dispatchStagePreparingArguments
 	defer func() {
 		if r := recover(); r != nil {
+			s.logErrorf(
+				"Tool dispatch failed. SessionId=%s, RequestId=%s, ToolCallId=%s, ToolName=%s, Stage=%s, Error=%v",
+				s.SessionID,
+				requestID,
+				toolCallID,
+				toolName,
+				stage,
+				r,
+			)
 			errMsg := fmt.Sprintf("tool panic: %v", r)
-			s.RPC.Tools.HandlePendingToolCall(ctx, &rpc.HandlePendingToolCallRequest{
+			if _, rpcErr := s.RPC.Tools.HandlePendingToolCall(ctx, &rpc.HandlePendingToolCallRequest{
 				RequestID: requestID,
 				Error:     &errMsg,
-			})
+			}); rpcErr != nil {
+				s.logWarnf(
+					"Failed to deliver tool error over RPC. SessionId=%s, RequestId=%s, ToolCallId=%s, ToolName=%s, Stage=%s, Error=%v",
+					s.SessionID,
+					requestID,
+					toolCallID,
+					toolName,
+					stage,
+					rpcErr,
+				)
+			}
 		}
 	}()
 
@@ -1564,16 +1782,37 @@ func (s *Session) executeToolAndRespond(requestID, toolName, toolCallID string, 
 		}
 	}
 
+	stage = dispatchStageInvokingHandler
 	result, err := handler(invocation)
 	if err != nil {
+		s.logErrorf(
+			"Tool dispatch failed. SessionId=%s, RequestId=%s, ToolCallId=%s, ToolName=%s, Stage=%s, Error=%v",
+			s.SessionID,
+			requestID,
+			toolCallID,
+			toolName,
+			dispatchStageInvokingHandler,
+			err,
+		)
 		errMsg := err.Error()
-		s.RPC.Tools.HandlePendingToolCall(ctx, &rpc.HandlePendingToolCallRequest{
+		if _, rpcErr := s.RPC.Tools.HandlePendingToolCall(ctx, &rpc.HandlePendingToolCallRequest{
 			RequestID: requestID,
 			Error:     &errMsg,
-		})
+		}); rpcErr != nil {
+			s.logWarnf(
+				"Failed to deliver tool error over RPC. SessionId=%s, RequestId=%s, ToolCallId=%s, ToolName=%s, Stage=%s, Error=%v",
+				s.SessionID,
+				requestID,
+				toolCallID,
+				toolName,
+				dispatchStageInvokingHandler,
+				rpcErr,
+			)
+		}
 		return
 	}
 
+	stage = dispatchStageConvertingResult
 	textResultForLLM := result.TextResultForLLM
 	if textResultForLLM == "" {
 		textResultForLLM = fmt.Sprintf("%v", result)
@@ -1612,20 +1851,47 @@ func (s *Session) executeToolAndRespond(requestID, toolName, toolCallID string, 
 		}
 		rpcResult.BinaryResultsForLlm = append(rpcResult.BinaryResultsForLlm, entry)
 	}
-	s.RPC.Tools.HandlePendingToolCall(ctx, &rpc.HandlePendingToolCallRequest{
+	stage = dispatchStageSendingResult
+	if _, rpcErr := s.RPC.Tools.HandlePendingToolCall(ctx, &rpc.HandlePendingToolCallRequest{
 		RequestID: requestID,
 		Result:    rpcResult,
-	})
+	}); rpcErr != nil {
+		s.logErrorf(
+			"Tool dispatch failed. SessionId=%s, RequestId=%s, ToolCallId=%s, ToolName=%s, Stage=%s, Error=%v",
+			s.SessionID,
+			requestID,
+			toolCallID,
+			toolName,
+			dispatchStageSendingResult,
+			rpcErr,
+		)
+	}
 }
 
 // executePermissionAndRespond executes a permission handler and sends the result back via RPC.
 func (s *Session) executePermissionAndRespond(requestID string, permissionRequest PermissionRequest, handler PermissionHandlerFunc) {
+	stage := dispatchStageInvokingHandler
 	defer func() {
 		if r := recover(); r != nil {
-			s.RPC.Permissions.HandlePendingPermissionRequest(context.Background(), &rpc.PermissionDecisionRequest{
+			s.logErrorf(
+				"Permission dispatch failed. SessionId=%s, RequestId=%s, Stage=%s, Error=%v",
+				s.SessionID,
+				requestID,
+				stage,
+				r,
+			)
+			if _, rpcErr := s.RPC.Permissions.HandlePendingPermissionRequest(context.Background(), &rpc.PermissionDecisionRequest{
 				RequestID: requestID,
 				Result:    &rpc.PermissionDecisionUserNotAvailable{},
-			})
+			}); rpcErr != nil {
+				s.logWarnf(
+					"Failed to deliver permission error over RPC. SessionId=%s, RequestId=%s, Stage=%s, Error=%v",
+					s.SessionID,
+					requestID,
+					stage,
+					rpcErr,
+				)
+			}
 		}
 	}()
 
@@ -1636,25 +1902,49 @@ func (s *Session) executePermissionAndRespond(requestID string, permissionReques
 
 	decision, err := handler(permissionRequest, invocation)
 	if err != nil {
-		log.Printf("permission handler failed: session_id=%s request_id=%s error=%v", s.SessionID, requestID, err)
-		s.RPC.Permissions.HandlePendingPermissionRequest(context.Background(), &rpc.PermissionDecisionRequest{
+		s.logErrorf(
+			"Permission handler failed. SessionId=%s, RequestId=%s, Stage=%s, Error=%v",
+			s.SessionID,
+			requestID,
+			dispatchStageInvokingHandler,
+			err,
+		)
+		if _, rpcErr := s.RPC.Permissions.HandlePendingPermissionRequest(context.Background(), &rpc.PermissionDecisionRequest{
 			RequestID: requestID,
 			Result:    &rpc.PermissionDecisionUserNotAvailable{},
-		})
+		}); rpcErr != nil {
+			s.logWarnf(
+				"Failed to deliver permission error over RPC. SessionId=%s, RequestId=%s, Stage=%s, Error=%v",
+				s.SessionID,
+				requestID,
+				dispatchStageInvokingHandler,
+				rpcErr,
+			)
+		}
 		return
 	}
 	if decision == nil {
 		// Handler returned (nil, nil); treat as user-not-available rather
 		// than sending null on the wire.
-		s.RPC.Permissions.HandlePendingPermissionRequest(context.Background(), &rpc.PermissionDecisionRequest{
+		stage = dispatchStageSendingResult
+		if _, rpcErr := s.RPC.Permissions.HandlePendingPermissionRequest(context.Background(), &rpc.PermissionDecisionRequest{
 			RequestID: requestID,
 			Result:    &rpc.PermissionDecisionUserNotAvailable{},
-		})
+		}); rpcErr != nil {
+			s.logWarnf(
+				"Failed to deliver permission result over RPC. SessionId=%s, RequestId=%s, Stage=%s, Error=%v",
+				s.SessionID,
+				requestID,
+				dispatchStageSendingResult,
+				rpcErr,
+			)
+		}
 		return
 	}
 	// Unwrap any attribution so decisionContext travels as a sibling of result,
 	// not nested inside it. The suppression and send logic below operates on the
 	// underlying decision.
+	stage = dispatchStageConvertingResult
 	decision, decisionContext := splitAttribution(decision)
 	if _, ok := decision.(*rpc.PermissionDecisionNoResult); ok {
 		return
@@ -1663,11 +1953,20 @@ func (s *Session) executePermissionAndRespond(requestID string, permissionReques
 		return
 	}
 
-	s.RPC.Permissions.HandlePendingPermissionRequest(context.Background(), &rpc.PermissionDecisionRequest{
+	stage = dispatchStageSendingResult
+	if _, rpcErr := s.RPC.Permissions.HandlePendingPermissionRequest(context.Background(), &rpc.PermissionDecisionRequest{
 		RequestID:       requestID,
 		Result:          decision,
 		DecisionContext: decisionContext,
-	})
+	}); rpcErr != nil {
+		s.logWarnf(
+			"Failed to deliver permission result over RPC. SessionId=%s, RequestId=%s, Stage=%s, Error=%v",
+			s.SessionID,
+			requestID,
+			dispatchStageSendingResult,
+			rpcErr,
+		)
+	}
 }
 
 // GetEvents retrieves all events from this session's history.

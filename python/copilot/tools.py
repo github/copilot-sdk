@@ -53,6 +53,7 @@ class ToolResult:
     tool_telemetry: dict[str, Any] | None = None
     tool_references: list[str] | None = None
     _from_exception: bool = field(default=False, repr=False)
+    _exception: BaseException | None = field(default=None, repr=False)
 
 
 @dataclass
@@ -294,6 +295,7 @@ def define_tool(
                     error=str(exc),
                     tool_telemetry={},
                     _from_exception=True,
+                    _exception=exc,
                 )
 
         return Tool(

@@ -8,7 +8,7 @@ use serde_json::Value;
 use tokio::sync::oneshot;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
-use tracing::{Instrument, warn};
+use tracing::{Instrument, error, warn};
 
 use crate::canvas::CanvasHandler;
 use crate::generated::api_types::{
@@ -1495,6 +1495,12 @@ fn build_command_handler_map(commands: Option<&[CommandDefinition]>) -> Arc<Comm
     Arc::new(map)
 }
 
+fn registered_names<V>(handlers: &HashMap<String, V>) -> String {
+    let mut names = handlers.keys().map(String::as_str).collect::<Vec<_>>();
+    names.sort_unstable();
+    names.join(", ")
+}
+
 fn upsert_open_canvas_snapshot(
     snapshots: &mut Vec<OpenCanvasInstance>,
     snapshot: OpenCanvasInstance,
@@ -1852,6 +1858,11 @@ async fn handle_notification(
             // handler installed, don't respond — another client on the
             // same CLI may handle it.
             let Some(permission_handler) = handlers.permission.clone() else {
+                warn!(
+                    session_id = %session_id,
+                    request_id = %request_id,
+                    "received permission request without a registered permission handler"
+                );
                 return;
             };
             let client = client.clone();
@@ -1885,18 +1896,26 @@ async fn handle_notification(
                         return;
                     };
                     let rpc_start = Instant::now();
-                    let _ = client
+                    let response = client
                         .call(
                             rpc_methods::SESSION_PERMISSIONS_HANDLEPENDINGPERMISSIONREQUEST,
                             Some(params),
                         )
                         .await;
-                    tracing::debug!(
-                        elapsed_ms = rpc_start.elapsed().as_millis(),
-                        session_id = %sid,
-                        request_id = %request_id,
-                        "Session::handle_notification response sent successfully"
-                    );
+                    match response {
+                        Ok(_) => tracing::debug!(
+                            elapsed_ms = rpc_start.elapsed().as_millis(),
+                            session_id = %sid,
+                            request_id = %request_id,
+                            "Session::handle_notification response sent successfully"
+                        ),
+                        Err(e) => warn!(
+                            error = %e,
+                            session_id = %sid,
+                            request_id = %request_id,
+                            "failed to deliver permission decision back to the runtime"
+                        ),
+                    }
                 }
                 .instrument(span),
             );
@@ -1909,7 +1928,29 @@ async fn handle_notification(
                 match serde_json::from_value(notification.event.data.clone()) {
                     Ok(d) => d,
                     Err(e) => {
-                        warn!(error = %e, "failed to deserialize external_tool.requested");
+                        let tool_call_id = notification
+                            .event
+                            .data
+                            .get("toolCallId")
+                            .and_then(Value::as_str)
+                            .unwrap_or("")
+                            .to_string();
+                        let tool_name = notification
+                            .event
+                            .data
+                            .get("toolName")
+                            .and_then(Value::as_str)
+                            .unwrap_or("")
+                            .to_string();
+                        error!(
+                            error = %e,
+                            session_id = %session_id,
+                            request_id = %request_id,
+                            tool_call_id = %tool_call_id,
+                            tool_name = %tool_name,
+                            stage = "PreparingArguments",
+                            "tool call failed"
+                        );
                         let client = client.clone();
                         let sid = session_id.clone();
                         let span = tracing::error_span!(
@@ -1920,7 +1961,7 @@ async fn handle_notification(
                         tokio::spawn(
                             async move {
                                 let rpc_start = Instant::now();
-                                let _ = client
+                                let response = client
                                 .call(
                                     "session.tools.handlePendingToolCall",
                                     Some(serde_json::json!({
@@ -1930,12 +1971,22 @@ async fn handle_notification(
                                     })),
                                 )
                                 .await;
-                                tracing::debug!(
-                                    elapsed_ms = rpc_start.elapsed().as_millis(),
-                                    session_id = %sid,
-                                    request_id = %request_id,
-                                    "Session::handle_notification response sent successfully"
-                                );
+                                match response {
+                                    Ok(_) => tracing::debug!(
+                                        elapsed_ms = rpc_start.elapsed().as_millis(),
+                                        session_id = %sid,
+                                        request_id = %request_id,
+                                        "Session::handle_notification response sent successfully"
+                                    ),
+                                    Err(e) => warn!(
+                                        error = %e,
+                                        session_id = %sid,
+                                        request_id = %request_id,
+                                        tool_call_id = %tool_call_id,
+                                        tool_name = %tool_name,
+                                        "failed to deliver tool call error back to the runtime"
+                                    ),
+                                }
                             }
                             .instrument(span),
                         );
@@ -1951,6 +2002,16 @@ async fn handle_notification(
                 handlers.tools.get(&data.tool_name).cloned()
             };
             let Some(tool_handler) = tool_handler else {
+                if tracing::enabled!(tracing::Level::WARN) {
+                    let registered_tool_names = registered_names(handlers.tools.as_ref());
+                    warn!(
+                        session_id = %session_id,
+                        request_id = %request_id,
+                        tool_name = %data.tool_name,
+                        registered_tool_names = %registered_tool_names,
+                        "received tool request without a registered tool handler"
+                    );
+                }
                 return;
             };
             let client = client.clone();
@@ -1962,14 +2023,24 @@ async fn handle_notification(
             );
             tokio::spawn(
                 async move {
+                    let tool_name = data.tool_name.clone();
                     // `tool_name.is_empty()` would have produced a `None`
                     // lookup in `handlers.tools` and short-circuited at the
                     // outer guard above, so only the tool_call_id check is
                     // reachable here.
                     if data.tool_call_id.is_empty() {
                         let error_msg = "Missing toolCallId";
+                        error!(
+                            error = %error_msg,
+                            session_id = %sid,
+                            request_id = %request_id,
+                            tool_call_id = %data.tool_call_id,
+                            tool_name = %tool_name,
+                            stage = "PreparingArguments",
+                            "tool call failed"
+                        );
                         let rpc_start = Instant::now();
-                        let _ = client
+                        let response = client
                             .call(
                                 "session.tools.handlePendingToolCall",
                                 Some(serde_json::json!({
@@ -1979,16 +2050,25 @@ async fn handle_notification(
                                 })),
                             )
                             .await;
-                        tracing::debug!(
-                            elapsed_ms = rpc_start.elapsed().as_millis(),
-                            session_id = %sid,
-                            request_id = %request_id,
-                            "Session::handle_notification response sent successfully"
-                        );
+                        match response {
+                            Ok(_) => tracing::debug!(
+                                elapsed_ms = rpc_start.elapsed().as_millis(),
+                                session_id = %sid,
+                                request_id = %request_id,
+                                "Session::handle_notification response sent successfully"
+                            ),
+                            Err(e) => warn!(
+                                error = %e,
+                                session_id = %sid,
+                                request_id = %request_id,
+                                tool_call_id = %data.tool_call_id,
+                                tool_name = %tool_name,
+                                "failed to deliver tool call error back to the runtime"
+                            ),
+                        }
                         return;
                     }
                     let tool_call_id = data.tool_call_id.clone();
-                    let tool_name = data.tool_name.clone();
                     // The built-in tool-search tool receives a snapshot of the
                     // session's currently initialized tools so an override can
                     // filter the live catalog without issuing its own RPC. Fetch
@@ -2025,9 +2105,21 @@ async fn handle_notification(
                         tracestate: data.tracestate,
                     };
                     let handler_start = Instant::now();
-                    let tool_result = match tool_handler.call(invocation).await {
-                        Ok(r) => r,
-                        Err(e) => tool_failure_result(e.to_string()),
+                    let (tool_result, handler_succeeded) = match tool_handler.call(invocation).await
+                    {
+                        Ok(r) => (r, true),
+                        Err(e) => {
+                            error!(
+                                error = %e,
+                                session_id = %sid,
+                                request_id = %request_id,
+                                tool_call_id = %tool_call_id,
+                                tool_name = %tool_name,
+                                stage = "InvokingHandler",
+                                "tool call failed"
+                            );
+                            (tool_failure_result(e.to_string()), false)
+                        }
                     };
                     tracing::debug!(
                         elapsed_ms = handler_start.elapsed().as_millis(),
@@ -2037,9 +2129,23 @@ async fn handle_notification(
                         tool_name = %tool_name,
                         "ToolHandler::call dispatch"
                     );
-                    let result_value = serde_json::to_value(tool_result).unwrap_or(Value::Null);
+                    let (result_value, result_converted) = match serde_json::to_value(tool_result) {
+                        Ok(value) => (value, true),
+                        Err(e) => {
+                            error!(
+                                error = %e,
+                                session_id = %sid,
+                                request_id = %request_id,
+                                tool_call_id = %tool_call_id,
+                                tool_name = %tool_name,
+                                stage = "ConvertingResult",
+                                "tool call failed"
+                            );
+                            (Value::Null, false)
+                        }
+                    };
                     let rpc_start = Instant::now();
-                    let _ = client
+                    let response = client
                         .call(
                             "session.tools.handlePendingToolCall",
                             Some(serde_json::json!({
@@ -2049,14 +2155,33 @@ async fn handle_notification(
                             })),
                         )
                         .await;
-                    tracing::debug!(
-                        elapsed_ms = rpc_start.elapsed().as_millis(),
-                        session_id = %sid,
-                        request_id = %request_id,
-                        tool_call_id = %tool_call_id,
-                        tool_name = %tool_name,
-                        "Session::handle_notification response sent successfully"
-                    );
+                    match response {
+                        Ok(_) => tracing::debug!(
+                            elapsed_ms = rpc_start.elapsed().as_millis(),
+                            session_id = %sid,
+                            request_id = %request_id,
+                            tool_call_id = %tool_call_id,
+                            tool_name = %tool_name,
+                            "Session::handle_notification response sent successfully"
+                        ),
+                        Err(e) if handler_succeeded && result_converted => error!(
+                            error = %e,
+                            session_id = %sid,
+                            request_id = %request_id,
+                            tool_call_id = %tool_call_id,
+                            tool_name = %tool_name,
+                            stage = "SendingResult",
+                            "tool call failed"
+                        ),
+                        Err(e) => warn!(
+                            error = %e,
+                            session_id = %sid,
+                            request_id = %request_id,
+                            tool_call_id = %tool_call_id,
+                            tool_name = %tool_name,
+                            "failed to deliver tool call response back to the runtime"
+                        ),
+                    }
                 }
                 .instrument(span),
             );
@@ -2077,6 +2202,11 @@ async fn handle_notification(
             // handler installed, don't respond — another client on the
             // same CLI may handle it.
             let Some(elicitation_handler) = handlers.elicitation.clone() else {
+                warn!(
+                    session_id = %session_id,
+                    request_id = %request_id,
+                    "received elicitation request without a registered elicitation handler"
+                );
                 return;
             };
             let elicitation_data: ElicitationRequestedData =
@@ -2143,7 +2273,15 @@ async fn handle_notification(
                     });
                     let result = match handler_task.await {
                         Ok(r) => r,
-                        Err(_) => cancel.clone(),
+                        Err(e) => {
+                            error!(
+                                error = %e,
+                                session_id = %sid,
+                                request_id = %request_id,
+                                "elicitation handler failed; cancelling pending elicitation"
+                            );
+                            cancel.clone()
+                        }
                     };
                     let rpc_start = Instant::now();
                     if let Err(e) = client
@@ -2158,8 +2296,13 @@ async fn handle_notification(
                         .await
                     {
                         // RPC failed — attempt cancel as last resort
-                        warn!(error = %e, "handlePendingElicitation failed, sending cancel");
-                        let _ = client
+                        warn!(
+                            error = %e,
+                            session_id = %sid,
+                            request_id = %request_id,
+                            "failed to deliver elicitation response back to the runtime; sending cancel"
+                        );
+                        if let Err(e) = client
                             .call(
                                 "session.ui.handlePendingElicitation",
                                 Some(serde_json::json!({
@@ -2168,7 +2311,15 @@ async fn handle_notification(
                                     "result": cancel,
                                 })),
                             )
-                            .await;
+                            .await
+                        {
+                            warn!(
+                                error = %e,
+                                session_id = %sid,
+                                request_id = %request_id,
+                                "failed to deliver elicitation cancellation back to the runtime"
+                            );
+                        }
                     } else {
                         tracing::debug!(
                             elapsed_ms = rpc_start.elapsed().as_millis(),
@@ -2245,10 +2396,18 @@ async fn handle_notification(
                     });
                     let result = match handler_task.await {
                         Ok(result) => result,
-                        Err(_) => cancel,
+                        Err(e) => {
+                            warn!(
+                                error = %e,
+                                session_id = %sid,
+                                request_id = %request_id,
+                                "MCP OAuth request failed; cancelling pending request"
+                            );
+                            cancel
+                        }
                     };
                     let rpc_start = Instant::now();
-                    let _ = client
+                    let response = client
                         .call(
                             "session.mcp.oauth.handlePendingRequest",
                             Some(serde_json::json!({
@@ -2258,10 +2417,20 @@ async fn handle_notification(
                             })),
                         )
                         .await;
-                    tracing::debug!(
-                        elapsed_ms = rpc_start.elapsed().as_millis(),
-                        "Session::handle_notification MCP auth response sent"
-                    );
+                    match response {
+                        Ok(_) => tracing::debug!(
+                            elapsed_ms = rpc_start.elapsed().as_millis(),
+                            session_id = %sid,
+                            request_id = %request_id,
+                            "Session::handle_notification MCP auth response sent"
+                        ),
+                        Err(e) => warn!(
+                            error = %e,
+                            session_id = %sid,
+                            request_id = %request_id,
+                            "failed to deliver MCP OAuth response back to the runtime"
+                        ),
+                    }
                 }
                 .instrument(span),
             );
@@ -2282,10 +2451,23 @@ async fn handle_notification(
             tokio::spawn(
                 async move {
                     let request_id = data.request_id;
-                    let ack_error = match command_handlers.get(&data.command_name).cloned() {
-                        None => Some(format!("Unknown command: {}", data.command_name)),
+                    let command_name = data.command_name.clone();
+                    let ack_error = match command_handlers.get(&command_name).cloned() {
+                        None => {
+                            if tracing::enabled!(tracing::Level::WARN) {
+                                let registered_command_names =
+                                    registered_names(command_handlers.as_ref());
+                                warn!(
+                                    session_id = %sid,
+                                    request_id = %request_id,
+                                    command_name = %command_name,
+                                    registered_command_names = %registered_command_names,
+                                    "received command request without a registered command handler"
+                                );
+                            }
+                            Some(format!("Unknown command: {}", data.command_name))
+                        }
                         Some(handler) => {
-                            let command_name = data.command_name.clone();
                             let ctx = CommandContext {
                                 session_id: sid.clone(),
                                 command: data.command,
@@ -2303,7 +2485,16 @@ async fn handle_notification(
                             );
                             match result {
                                 Ok(()) => None,
-                                Err(e) => Some(e.to_string()),
+                                Err(e) => {
+                                    error!(
+                                        error = %e,
+                                        session_id = %sid,
+                                        request_id = %request_id,
+                                        command_name = %command_name,
+                                        "command handler failed"
+                                    );
+                                    Some(e.to_string())
+                                }
                             }
                         }
                     };
@@ -2311,19 +2502,36 @@ async fn handle_notification(
                         "sessionId": sid,
                         "requestId": request_id,
                     });
+                    let has_ack_error = ack_error.is_some();
                     if let Some(error_msg) = ack_error {
                         params["error"] = serde_json::Value::String(error_msg);
                     }
                     let rpc_start = Instant::now();
-                    let _ = client
+                    let response = client
                         .call("session.commands.handlePendingCommand", Some(params))
                         .await;
-                    tracing::debug!(
-                        elapsed_ms = rpc_start.elapsed().as_millis(),
-                        session_id = %sid,
-                        request_id = %request_id,
-                        "Session::handle_notification response sent successfully"
-                    );
+                    match response {
+                        Ok(_) => tracing::debug!(
+                            elapsed_ms = rpc_start.elapsed().as_millis(),
+                            session_id = %sid,
+                            request_id = %request_id,
+                            "Session::handle_notification response sent successfully"
+                        ),
+                        Err(e) if has_ack_error => warn!(
+                            error = %e,
+                            session_id = %sid,
+                            request_id = %request_id,
+                            command_name = %command_name,
+                            "failed to deliver command error back to the runtime"
+                        ),
+                        Err(e) => warn!(
+                            error = %e,
+                            session_id = %sid,
+                            request_id = %request_id,
+                            command_name = %command_name,
+                            "failed to deliver command response back to the runtime"
+                        ),
+                    }
                 }
                 .instrument(span),
             );

@@ -878,7 +878,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
         // Tracks how far the call got so a failure can name the stage it died in. From the
         // outside, "the arguments never bound" and "the connection dropped after the handler
         // succeeded" otherwise look identical: both surface only as a completed tool call.
-        var stage = ToolCallStage.PreparingArguments;
+        var stage = "PreparingArguments";
         try
         {
             var invocation = new ToolInvocation
@@ -926,7 +926,9 @@ public sealed partial class CopilotSession : IAsyncDisposable
             }
 
             var toolTimestamp = Stopwatch.GetTimestamp();
-            stage = ToolCallStage.InvokingHandler;
+            // InvokeAsync binds the arguments before running the handler body, so a failure at
+            // this stage does not guarantee the handler itself ran.
+            stage = "InvokingHandler";
             var result = await tool.InvokeAsync(aiFunctionArgs);
             LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
                 "CopilotSession.ExecuteToolAndRespondAsync tool dispatch. Elapsed={Elapsed}, SessionId={SessionId}, RequestId={RequestId}, ToolCallId={ToolCallId}, Tool={ToolName}",
@@ -936,11 +938,11 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 toolCallId,
                 toolName);
 
-            stage = ToolCallStage.ConvertingResult;
+            stage = "ConvertingResult";
             var toolResultObject = ToolResultObject.ConvertFromInvocationResult(result, tool.JsonSerializerOptions);
 
             var responseRpcTimestamp = Stopwatch.GetTimestamp();
-            stage = ToolCallStage.SendingResult;
+            stage = "SendingResult";
             await Rpc.Tools.HandlePendingToolCallAsync(requestId, toolResultObject, error: null);
             LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
                 "CopilotSession.ExecuteToolAndRespondAsync response sent successfully. Elapsed={Elapsed}, SessionId={SessionId}, RequestId={RequestId}, ToolCallId={ToolCallId}, Tool={ToolName}",
@@ -2023,23 +2025,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     [LoggerMessage(
         Level = LogLevel.Error,
         Message = "Tool call failed. Stage={Stage}, SessionId={SessionId}, RequestId={RequestId}, ToolCallId={ToolCallId}, Tool={ToolName}")]
-    private partial void LogToolCallFailed(Exception exception, string sessionId, string requestId, string toolCallId, string toolName, ToolCallStage stage);
-
-    /// <summary>Identifies how far a tool call got before it failed.</summary>
-    private enum ToolCallStage
-    {
-        /// <summary>Unpacking the incoming JSON arguments. The handler has not been called.</summary>
-        PreparingArguments,
-
-        /// <summary>Inside <see cref="AIFunction.InvokeAsync"/>, which binds arguments before running the handler body — so the handler itself may still never have run.</summary>
-        InvokingHandler,
-
-        /// <summary>Converting the handler's return value for the wire. The handler succeeded.</summary>
-        ConvertingResult,
-
-        /// <summary>Sending the successful result back to the runtime. The handler succeeded.</summary>
-        SendingResult,
-    }
+    private partial void LogToolCallFailed(Exception exception, string sessionId, string requestId, string toolCallId, string toolName, string stage);
 
     [LoggerMessage(
         Level = LogLevel.Warning,

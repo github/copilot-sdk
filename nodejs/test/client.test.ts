@@ -5,6 +5,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
+import { ErrorCodes, ResponseError } from "vscode-jsonrpc/node.js";
 import {
     approveAll,
     createAttributedPermissionResult,
@@ -346,6 +347,105 @@ describe("CopilotClient", () => {
         expect(observedRequest.reason).toBe("initial");
         expect(observedRequest.resourceMetadata).toBeUndefined();
         expect(observedRequest.wwwAuthenticateParams).toBeUndefined();
+    });
+
+    it("logs MCP OAuth handler failures without logging request contents", async () => {
+        const handlerError = new Error("oauth failed");
+        const sendRequest = vi.fn(async () => ({ success: true }));
+        const error = vi.spyOn(console, "error").mockImplementation(() => {});
+        const session = new CopilotSession(
+            "session-1",
+            { sendRequest } as any,
+            undefined,
+            undefined,
+            {
+                mcpAuthHandler: async () => {
+                    throw handlerError;
+                },
+            }
+        );
+
+        await (session as any)._executeMcpAuthAndRespond({
+            requestId: "oauth-request",
+            serverName: "sensitive-server",
+            serverUrl: "https://example.com/mcp",
+            reason: "initial",
+        });
+
+        expect(error).toHaveBeenCalledWith("MCP OAuth handler or response delivery failed", {
+            sessionId: "session-1",
+            requestId: "oauth-request",
+            error: handlerError,
+        });
+        expect(JSON.stringify(error.mock.calls)).not.toContain("sensitive-server");
+        expect(sendRequest).toHaveBeenCalledWith("session.mcp.oauth.handlePendingRequest", {
+            sessionId: "session-1",
+            requestId: "oauth-request",
+            result: { kind: "cancelled" },
+        });
+        error.mockRestore();
+    });
+
+    it("logs permission requests without a registered handler", () => {
+        const session = new CopilotSession("session-1", {
+            sendRequest: vi.fn(async () => ({ success: true })),
+        } as any);
+        const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+        (session as any)._dispatchEvent({
+            id: "evt-permission-missing",
+            timestamp: new Date().toISOString(),
+            parentId: null,
+            ephemeral: true,
+            type: "permission.requested",
+            data: {
+                requestId: "req-permission-missing",
+                permissionRequest: { kind: "shell", commands: ["echo do-not-log"] },
+            },
+        });
+
+        expect(warn).toHaveBeenCalledWith(
+            "Received permission request without a registered permission handler",
+            {
+                sessionId: "session-1",
+                requestId: "req-permission-missing",
+            }
+        );
+        expect(JSON.stringify(warn.mock.calls)).not.toContain("do-not-log");
+        warn.mockRestore();
+    });
+
+    it("logs permission handler failures without logging request contents", async () => {
+        const handlerError = new Error("permission failed");
+        const sendRequest = vi.fn(async () => ({ success: true }));
+        const error = vi.spyOn(console, "error").mockImplementation(() => {});
+        const session = new CopilotSession("session-1", { sendRequest } as any);
+        session.registerPermissionHandler(() => {
+            throw handlerError;
+        });
+
+        await (session as any)._executePermissionAndRespond("req-permission-failed", {
+            kind: "shell",
+            commands: ["echo do-not-log"],
+        });
+
+        expect(error).toHaveBeenCalledWith("Permission handler or response delivery failed", {
+            sessionId: "session-1",
+            requestId: "req-permission-failed",
+            error: handlerError,
+        });
+        expect(JSON.stringify(error.mock.calls)).not.toContain("do-not-log");
+        expect(sendRequest).toHaveBeenCalledWith(
+            "session.permissions.handlePendingPermissionRequest",
+            {
+                sessionId: "session-1",
+                requestId: "req-permission-failed",
+                result: {
+                    kind: "user-not-available",
+                },
+            }
+        );
+        error.mockRestore();
     });
 
     it("registers interest in MCP OAuth required events after create when an auth handler is configured", async () => {
@@ -1000,6 +1100,141 @@ describe("CopilotClient", () => {
             ([method]) => method === "session.create"
         )![1] as any;
         expect(createPayload.tools[0].isTerminal).toBeUndefined();
+    });
+
+    it("logs external tool requests without a registered handler", () => {
+        const session = new CopilotSession("session-1", {
+            sendRequest: vi.fn(async () => ({ success: true })),
+        } as any);
+        const registeredHandler = vi.fn();
+        session.registerTools([{ name: "registered_tool", handler: registeredHandler }]);
+        const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+        (session as any)._dispatchEvent({
+            id: "evt-tool-missing",
+            timestamp: new Date().toISOString(),
+            parentId: null,
+            ephemeral: true,
+            type: "external_tool.requested",
+            data: {
+                requestId: "req-tool-missing",
+                toolName: "missing_tool",
+                toolCallId: "call-1",
+                arguments: { secret: "do-not-log" },
+                sessionId: "session-1",
+            },
+        });
+
+        expect(warn).toHaveBeenCalledWith(
+            "Received tool request without a registered tool handler",
+            {
+                sessionId: "session-1",
+                requestId: "req-tool-missing",
+                toolCallId: "call-1",
+                toolName: "missing_tool",
+                registeredToolNames: ["registered_tool"],
+            }
+        );
+        expect(JSON.stringify(warn.mock.calls)).not.toContain("do-not-log");
+        expect(registeredHandler).not.toHaveBeenCalled();
+        warn.mockRestore();
+    });
+
+    it("logs external tool handler failures with dispatch stage", async () => {
+        const handlerError = new Error("tool failed");
+        const sendRequest = vi.fn(async () => ({ success: true }));
+        const session = new CopilotSession("session-1", { sendRequest } as any);
+        session.registerTools([
+            {
+                name: "failing_tool",
+                handler: () => {
+                    throw handlerError;
+                },
+            },
+        ]);
+        const error = vi.spyOn(console, "error").mockImplementation(() => {});
+
+        (session as any)._dispatchEvent({
+            id: "evt-tool-failed",
+            timestamp: new Date().toISOString(),
+            parentId: null,
+            ephemeral: true,
+            type: "external_tool.requested",
+            data: {
+                requestId: "req-tool-failed",
+                toolName: "failing_tool",
+                toolCallId: "call-2",
+                arguments: { secret: "do-not-log" },
+                sessionId: "session-1",
+            },
+        });
+
+        await vi.waitFor(() =>
+            expect(sendRequest).toHaveBeenCalledWith("session.tools.handlePendingToolCall", {
+                sessionId: "session-1",
+                requestId: "req-tool-failed",
+                error: "tool failed",
+            })
+        );
+        expect(error).toHaveBeenCalledWith("Tool handler or response delivery failed", {
+            sessionId: "session-1",
+            requestId: "req-tool-failed",
+            toolCallId: "call-2",
+            toolName: "failing_tool",
+            stage: "InvokingHandler",
+            error: handlerError,
+        });
+        expect(JSON.stringify(error.mock.calls)).not.toContain("do-not-log");
+        error.mockRestore();
+    });
+
+    it("logs external tool response delivery failures with dispatch stage", async () => {
+        const rpcError = new ResponseError(ErrorCodes.InternalError, "rpc failed");
+        const sendRequest = vi.fn(async () => {
+            throw rpcError;
+        });
+        const session = new CopilotSession("session-1", { sendRequest } as any);
+        session.registerTools([{ name: "echo_tool", handler: () => "ok" }]);
+        const error = vi.spyOn(console, "error").mockImplementation(() => {});
+        const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+        (session as any)._dispatchEvent({
+            id: "evt-tool-rpc-failed",
+            timestamp: new Date().toISOString(),
+            parentId: null,
+            ephemeral: true,
+            type: "external_tool.requested",
+            data: {
+                requestId: "req-tool-rpc-failed",
+                toolName: "echo_tool",
+                toolCallId: "call-3",
+                arguments: { secret: "do-not-log" },
+                sessionId: "session-1",
+            },
+        });
+
+        await vi.waitFor(() =>
+            expect(warn).toHaveBeenCalledWith("Failed to deliver tool handler error response", {
+                sessionId: "session-1",
+                requestId: "req-tool-rpc-failed",
+                toolCallId: "call-3",
+                toolName: "echo_tool",
+                error: rpcError,
+            })
+        );
+        expect(error).toHaveBeenCalledWith("Tool handler or response delivery failed", {
+            sessionId: "session-1",
+            requestId: "req-tool-rpc-failed",
+            toolCallId: "call-3",
+            toolName: "echo_tool",
+            stage: "SendingResult",
+            error: rpcError,
+        });
+        expect(JSON.stringify([...error.mock.calls, ...warn.mock.calls])).not.toContain(
+            "do-not-log"
+        );
+        error.mockRestore();
+        warn.mockRestore();
     });
 
     it("forwards new session options in session.create and session.resume", async () => {
@@ -3334,13 +3569,15 @@ describe("CopilotClient", () => {
             await client.start();
             onTestFinished(() => stopClient(client));
 
+            const handlerError = new Error("deploy failed");
+            const error = vi.spyOn(console, "error").mockImplementation(() => {});
             const session = await client.createSession({
                 onPermissionRequest: approveAll,
                 commands: [
                     {
                         name: "fail",
                         handler: () => {
-                            throw new Error("deploy failed");
+                            throw handlerError;
                         },
                     },
                 ],
@@ -3374,7 +3611,14 @@ describe("CopilotClient", () => {
                     expect.objectContaining({ requestId: "req-2", error: "deploy failed" })
                 )
             );
+            expect(error).toHaveBeenCalledWith("Command handler or response delivery failed", {
+                sessionId: session.sessionId,
+                requestId: "req-2",
+                commandName: "fail",
+                error: handlerError,
+            });
             rpcSpy.mockRestore();
+            error.mockRestore();
         });
 
         it("sends error for unknown command", async () => {
@@ -3382,6 +3626,7 @@ describe("CopilotClient", () => {
             await client.start();
             onTestFinished(() => stopClient(client));
 
+            const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
             const session = await client.createSession({
                 onPermissionRequest: approveAll,
                 commands: [{ name: "deploy", handler: async () => {} }],
@@ -3418,7 +3663,17 @@ describe("CopilotClient", () => {
                     })
                 )
             );
+            expect(warn).toHaveBeenCalledWith(
+                "Received command request without a registered command handler",
+                {
+                    sessionId: session.sessionId,
+                    requestId: "req-3",
+                    commandName: "unknown",
+                    registeredCommandNames: ["deploy"],
+                }
+            );
             rpcSpy.mockRestore();
+            warn.mockRestore();
         });
     });
 
@@ -3526,6 +3781,36 @@ describe("CopilotClient", () => {
             rpcSpy.mockRestore();
         });
 
+        it("logs elicitation requests without a registered handler", () => {
+            const session = new CopilotSession("session-1", {
+                sendRequest: vi.fn(async () => ({ success: true })),
+            } as any);
+            const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+            (session as any)._dispatchEvent({
+                id: "evt-elicitation-missing",
+                timestamp: new Date().toISOString(),
+                parentId: null,
+                ephemeral: true,
+                type: "elicitation.requested",
+                data: {
+                    requestId: "req-elicitation-missing",
+                    message: "do-not-log",
+                    requestedSchema: { type: "object" },
+                },
+            });
+
+            expect(warn).toHaveBeenCalledWith(
+                "Received elicitation request without a registered elicitation handler",
+                {
+                    sessionId: "session-1",
+                    requestId: "req-elicitation-missing",
+                }
+            );
+            expect(JSON.stringify(warn.mock.calls)).not.toContain("do-not-log");
+            warn.mockRestore();
+        });
+
         it("sends mode callback request flags based on handler presence", async () => {
             const client = new CopilotClient();
             await client.start();
@@ -3614,10 +3899,12 @@ describe("CopilotClient", () => {
             await client.start();
             onTestFinished(() => stopClient(client));
 
+            const handlerError = new Error("handler exploded");
+            const error = vi.spyOn(console, "error").mockImplementation(() => {});
             const session = await client.createSession({
                 onPermissionRequest: approveAll,
                 onElicitationRequest: async () => {
-                    throw new Error("handler exploded");
+                    throw handlerError;
                 },
             });
 
@@ -3640,7 +3927,13 @@ describe("CopilotClient", () => {
                     result: { action: "cancel" },
                 })
             );
+            expect(error).toHaveBeenCalledWith("Elicitation handler or response delivery failed", {
+                sessionId: session.sessionId,
+                requestId: "req-123",
+                error: handlerError,
+            });
             rpcSpy.mockRestore();
+            error.mockRestore();
         });
     });
 

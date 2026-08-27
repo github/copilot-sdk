@@ -970,6 +970,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 			c.client,
 			"",
 			hasManagedSettings(config.EnableManagedSettings, config.ManagedSettings),
+			c.options.LogLevel,
 		)
 
 		s.registerTools(config.Tools)
@@ -1327,6 +1328,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 		c.client,
 		"",
 		hasManagedSettings(config.EnableManagedSettings, config.ManagedSettings),
+		c.options.LogLevel,
 	)
 
 	session.registerTools(config.Tools)

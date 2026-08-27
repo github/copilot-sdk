@@ -382,6 +382,7 @@ function isFactoryFatalError(error: unknown): boolean {
 export type AssistantMessageEvent = Extract<SessionEvent, { type: "assistant.message" }>;
 
 const TOOL_SEARCH_TOOL_NAME = "tool_search_tool";
+type ToolDispatchStage = "InvokingHandler" | "ConvertingResult" | "SendingResult";
 
 /**
  * Represents a single conversation session with the Copilot CLI.
@@ -983,6 +984,14 @@ export class CopilotSession {
                     traceparent,
                     tracestate
                 );
+            } else {
+                console.warn("Received tool request without a registered tool handler", {
+                    sessionId: this.sessionId,
+                    requestId,
+                    toolCallId,
+                    toolName,
+                    registeredToolNames: Array.from(this.toolHandlers.keys()),
+                });
             }
         } else if (event.type === "permission.requested") {
             const { requestId, permissionRequest, resolvedByHook } = event.data as {
@@ -995,6 +1004,14 @@ export class CopilotSession {
             }
             if (this.permissionHandler) {
                 void this._executePermissionAndRespond(requestId, permissionRequest);
+            } else {
+                console.warn(
+                    "Received permission request without a registered permission handler",
+                    {
+                        sessionId: this.sessionId,
+                        requestId,
+                    }
+                );
             }
         } else if (event.type === "mcp.oauth_required") {
             const data = event.data as McpAuthRequest | undefined;
@@ -1031,6 +1048,14 @@ export class CopilotSession {
                         url,
                     },
                     requestId
+                );
+            } else {
+                console.warn(
+                    "Received elicitation request without a registered elicitation handler",
+                    {
+                        sessionId: this.sessionId,
+                        requestId: event.data.requestId,
+                    }
                 );
             }
         } else if (event.type === "capabilities.changed") {
@@ -1093,6 +1118,7 @@ export class CopilotSession {
         traceparent?: string,
         tracestate?: string
     ): Promise<void> {
+        let stage: ToolDispatchStage = "InvokingHandler";
         try {
             // The built-in tool-search tool receives a snapshot of the session's
             // currently initialized tools so an override can filter the live
@@ -1117,6 +1143,7 @@ export class CopilotSession {
                 traceparent,
                 tracestate,
             });
+            stage = "ConvertingResult";
             let result: ToolResult;
             if (rawResult == null) {
                 result = "";
@@ -1130,8 +1157,17 @@ export class CopilotSession {
             if (this.disconnected) {
                 return;
             }
+            stage = "SendingResult";
             await this.rpc.tools.handlePendingToolCall({ requestId, result });
         } catch (error) {
+            console.error("Tool handler or response delivery failed", {
+                sessionId: this.sessionId,
+                requestId,
+                toolCallId,
+                toolName,
+                stage,
+                error,
+            });
             if (this.disconnected) {
                 return;
             }
@@ -1142,7 +1178,13 @@ export class CopilotSession {
                 if (!(rpcError instanceof ConnectionError || rpcError instanceof ResponseError)) {
                     throw rpcError;
                 }
-                // Connection lost or RPC error — nothing we can do
+                console.warn("Failed to deliver tool handler error response", {
+                    sessionId: this.sessionId,
+                    requestId,
+                    toolCallId,
+                    toolName,
+                    error: rpcError,
+                });
             }
         }
     }
@@ -1177,14 +1219,14 @@ export class CopilotSession {
                     : { requestId, result, decisionContext }
             );
         } catch (error) {
-            if (this.disconnected) {
-                return;
-            }
             console.error("Permission handler or response delivery failed", {
                 sessionId: this.sessionId,
                 requestId,
                 error,
             });
+            if (this.disconnected) {
+                return;
+            }
             try {
                 await this.rpc.permissions.handlePendingPermissionRequest({
                     requestId,
@@ -1196,7 +1238,11 @@ export class CopilotSession {
                 if (!(rpcError instanceof ConnectionError || rpcError instanceof ResponseError)) {
                     throw rpcError;
                 }
-                // Connection lost or RPC error — nothing we can do
+                console.warn("Failed to deliver permission handler fallback response", {
+                    sessionId: this.sessionId,
+                    requestId,
+                    error: rpcError,
+                });
             }
         }
     }
@@ -1216,7 +1262,12 @@ export class CopilotSession {
                 requestId: request.requestId,
                 result: response,
             });
-        } catch (_error) {
+        } catch (error) {
+            console.error("MCP OAuth handler or response delivery failed", {
+                sessionId: this.sessionId,
+                requestId: request.requestId,
+                error,
+            });
             try {
                 await this.rpc.mcp.oauth.handlePendingRequest({
                     requestId: request.requestId,
@@ -1226,6 +1277,11 @@ export class CopilotSession {
                 if (!(rpcError instanceof ConnectionError || rpcError instanceof ResponseError)) {
                     throw rpcError;
                 }
+                console.warn("Failed to deliver MCP OAuth handler fallback response", {
+                    sessionId: this.sessionId,
+                    requestId: request.requestId,
+                    error: rpcError,
+                });
             }
         }
     }
@@ -1242,6 +1298,12 @@ export class CopilotSession {
     ): Promise<void> {
         const handler = this.commandHandlers.get(commandName);
         if (!handler) {
+            console.warn("Received command request without a registered command handler", {
+                sessionId: this.sessionId,
+                requestId,
+                commandName,
+                registeredCommandNames: Array.from(this.commandHandlers.keys()),
+            });
             try {
                 await this.rpc.commands.handlePendingCommand({
                     requestId,
@@ -1251,6 +1313,12 @@ export class CopilotSession {
                 if (!(rpcError instanceof ConnectionError || rpcError instanceof ResponseError)) {
                     throw rpcError;
                 }
+                console.warn("Failed to deliver command handler error response", {
+                    sessionId: this.sessionId,
+                    requestId,
+                    commandName,
+                    error: rpcError,
+                });
             }
             return;
         }
@@ -1262,6 +1330,12 @@ export class CopilotSession {
             }
             await this.rpc.commands.handlePendingCommand({ requestId });
         } catch (error) {
+            console.error("Command handler or response delivery failed", {
+                sessionId: this.sessionId,
+                requestId,
+                commandName,
+                error,
+            });
             if (this.disconnected) {
                 return;
             }
@@ -1272,6 +1346,12 @@ export class CopilotSession {
                 if (!(rpcError instanceof ConnectionError || rpcError instanceof ResponseError)) {
                     throw rpcError;
                 }
+                console.warn("Failed to deliver command handler error response", {
+                    sessionId: this.sessionId,
+                    requestId,
+                    commandName,
+                    error: rpcError,
+                });
             }
         }
     }
@@ -1638,6 +1718,10 @@ export class CopilotSession {
      */
     async _handleElicitationRequest(context: ElicitationContext, requestId: string): Promise<void> {
         if (!this.elicitationHandler) {
+            console.warn("Received elicitation request without a registered elicitation handler", {
+                sessionId: this.sessionId,
+                requestId,
+            });
             return;
         }
         try {
@@ -1649,7 +1733,12 @@ export class CopilotSession {
                     ...(result.content ? { content: result.content } : {}),
                 },
             });
-        } catch {
+        } catch (error) {
+            console.error("Elicitation handler or response delivery failed", {
+                sessionId: this.sessionId,
+                requestId,
+                error,
+            });
             // Handler failed — attempt to cancel so the request doesn't hang
             try {
                 await this.rpc.ui.handlePendingElicitation({
@@ -1660,7 +1749,11 @@ export class CopilotSession {
                 if (!(rpcError instanceof ConnectionError || rpcError instanceof ResponseError)) {
                     throw rpcError;
                 }
-                // Connection lost or RPC error — nothing we can do
+                console.warn("Failed to deliver elicitation handler fallback response", {
+                    sessionId: this.sessionId,
+                    requestId,
+                    error: rpcError,
+                });
             }
         }
     }

@@ -12,8 +12,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -853,6 +855,7 @@ public final class CopilotSession implements AutoCloseable {
             }
             ToolDefinition tool = getTool(data.toolName());
             if (tool == null) {
+                logNoToolHandlerRegistered(data.requestId(), data.toolName());
                 return; // This client doesn't handle this tool; another client will
             }
             executeToolAndRespondAsync(data.requestId(), data.toolName(), data.toolCallId(), data.arguments(), tool);
@@ -867,6 +870,7 @@ public final class CopilotSession implements AutoCloseable {
             }
             PermissionHandler handler = permissionHandler.get();
             if (handler == null) {
+                logNoPermissionHandlerRegistered(data.requestId());
                 return; // This client doesn't handle permissions; another client will
             }
             executePermissionAndRespondAsync(data.requestId(),
@@ -908,6 +912,8 @@ public final class CopilotSession implements AutoCloseable {
                         .setRequestedSchema(schema).setMode(data.mode() != null ? data.mode().getValue() : null)
                         .setElicitationSource(data.elicitationSource()).setUrl(data.url());
                 handleElicitationRequestAsync(context, data.requestId());
+            } else {
+                logNoElicitationHandlerRegistered(data.requestId());
             }
         } else if (event instanceof CapabilitiesChangedEvent capEvent) {
             var data = capEvent.getData();
@@ -956,6 +962,7 @@ public final class CopilotSession implements AutoCloseable {
     private void executeToolAndRespondAsync(String requestId, String toolName, String toolCallId, Object arguments,
             ToolDefinition tool) {
         Runnable task = () -> {
+            String stage = "PreparingArguments";
             try {
                 JsonNode argumentsNode = arguments instanceof JsonNode jn
                         ? jn
@@ -965,7 +972,9 @@ public final class CopilotSession implements AutoCloseable {
 
                 populateToolSearchMetadata(toolName, invocation);
 
+                stage = "InvokingHandler";
                 tool.handler().invoke(invocation).thenAccept(result -> {
+                    String responseStage = "ConvertingResult";
                     try {
                         ToolResultObject toolResult;
                         if (result instanceof ToolResultObject tr) {
@@ -974,27 +983,30 @@ public final class CopilotSession implements AutoCloseable {
                             toolResult = ToolResultObject
                                     .success(result instanceof String s ? s : MAPPER.writeValueAsString(result));
                         }
+                        responseStage = "SendingResult";
                         getRpc().tools.handlePendingToolCall(
                                 new SessionToolsHandlePendingToolCallParams(sessionId, requestId, toolResult, null));
                     } catch (Exception e) {
-                        LOG.log(Level.WARNING, "Error sending tool result for requestId=" + requestId, e);
+                        logToolCallFailed(e, requestId, toolCallId, toolName, responseStage);
                     }
                 }).exceptionally(ex -> {
+                    logToolCallFailed(unwrapCompletionException(ex), requestId, toolCallId, toolName,
+                            "InvokingHandler");
                     try {
                         getRpc().tools.handlePendingToolCall(new SessionToolsHandlePendingToolCallParams(sessionId,
                                 requestId, null, ex.getMessage() != null ? ex.getMessage() : ex.toString()));
                     } catch (Exception e) {
-                        LOG.log(Level.WARNING, "Error sending tool error for requestId=" + requestId, e);
+                        logToolCallErrorDeliveryFailed(e, requestId, toolName);
                     }
                     return null;
                 });
             } catch (Exception e) {
-                LOG.log(Level.WARNING, "Error executing tool for requestId=" + requestId, e);
+                logToolCallFailed(e, requestId, toolCallId, toolName, stage);
                 try {
                     getRpc().tools.handlePendingToolCall(new SessionToolsHandlePendingToolCallParams(sessionId,
                             requestId, null, e.getMessage() != null ? e.getMessage() : e.toString()));
                 } catch (Exception sendEx) {
-                    LOG.log(Level.WARNING, "Error sending tool error for requestId=" + requestId, sendEx);
+                    logToolCallErrorDeliveryFailed(sendEx, requestId, toolName);
                 }
             }
         };
@@ -1020,6 +1032,95 @@ public final class CopilotSession implements AutoCloseable {
         return new SessionUiHandlePendingElicitationParams(sessionId, requestId, cancelResult);
     }
 
+    private static Throwable unwrapCompletionException(Throwable throwable) {
+        if ((throwable instanceof CompletionException || throwable instanceof ExecutionException)
+                && throwable.getCause() != null) {
+            return throwable.getCause();
+        }
+        return throwable;
+    }
+
+    private void logToolCallFailed(Throwable exception, String requestId, String toolCallId, String toolName,
+            String stage) {
+        LOG.log(Level.SEVERE, "Tool call failed. Stage=" + stage + ", SessionId=" + sessionId + ", RequestId="
+                + requestId + ", ToolCallId=" + toolCallId + ", Tool=" + toolName, exception);
+    }
+
+    private void logToolCallErrorDeliveryFailed(Throwable exception, String requestId, String toolName) {
+        LOG.log(Level.WARNING, "Failed to deliver the tool call error back to the runtime. SessionId=" + sessionId
+                + ", RequestId=" + requestId + ", Tool=" + toolName, exception);
+    }
+
+    private void logNoToolHandlerRegistered(String requestId, String toolName) {
+        if (LOG.isLoggable(Level.WARNING)) {
+            LOG.warning("Received a tool request for a tool this client has no handler registered for. "
+                    + "Another connected client may handle it; otherwise the tool call will never be answered by "
+                    + "this client. SessionId=" + sessionId + ", RequestId=" + requestId + ", Tool=" + toolName
+                    + ", RegisteredTools=[" + String.join(", ", toolHandlers.keySet()) + "]");
+        }
+    }
+
+    private void logPermissionFailed(Throwable exception, String requestId) {
+        LOG.log(Level.SEVERE,
+                "Permission handler or response delivery failed. SessionId=" + sessionId + ", RequestId=" + requestId,
+                exception);
+    }
+
+    private void logPermissionDecisionDeliveryFailed(Throwable exception, String requestId) {
+        LOG.log(Level.WARNING, "Failed to deliver the permission decision back to the runtime. SessionId=" + sessionId
+                + ", RequestId=" + requestId, exception);
+    }
+
+    private void logNoPermissionHandlerRegistered(String requestId) {
+        LOG.warning(() -> "Received a permission request without a registered permission handler. "
+                + "Another connected client may handle it; otherwise the permission request will never be answered "
+                + "by this client. SessionId=" + sessionId + ", RequestId=" + requestId);
+    }
+
+    private void logCommandFailed(Throwable exception, String requestId, String commandName) {
+        LOG.log(Level.SEVERE, "Command handler or response delivery failed. SessionId=" + sessionId + ", RequestId="
+                + requestId + ", Command=" + commandName, exception);
+    }
+
+    private void logCommandErrorDeliveryFailed(Throwable exception, String requestId, String commandName) {
+        LOG.log(Level.WARNING, "Failed to deliver the command error back to the runtime. SessionId=" + sessionId
+                + ", RequestId=" + requestId + ", Command=" + commandName, exception);
+    }
+
+    private void logNoCommandHandlerRegistered(String requestId, String commandName) {
+        if (LOG.isLoggable(Level.WARNING)) {
+            LOG.warning("Received a command request for a command this client has no handler registered for. SessionId="
+                    + sessionId + ", RequestId=" + requestId + ", Command=" + commandName + ", RegisteredCommands=["
+                    + String.join(", ", commandHandlers.keySet()) + "]");
+        }
+    }
+
+    private void logElicitationFailed(Throwable exception, String requestId) {
+        LOG.log(Level.SEVERE, "Elicitation handler or response delivery failed; cancelling the pending elicitation. "
+                + "SessionId=" + sessionId + ", RequestId=" + requestId, exception);
+    }
+
+    private void logElicitationCancelDeliveryFailed(Throwable exception, String requestId) {
+        LOG.log(Level.WARNING, "Failed to deliver the elicitation cancellation back to the runtime. SessionId="
+                + sessionId + ", RequestId=" + requestId, exception);
+    }
+
+    private void logNoElicitationHandlerRegistered(String requestId) {
+        LOG.warning(() -> "Received an elicitation request without a registered elicitation handler. "
+                + "Another connected client may handle it; otherwise the elicitation request will never be answered "
+                + "by this client. SessionId=" + sessionId + ", RequestId=" + requestId);
+    }
+
+    private void logMcpAuthFailed(Throwable exception, String requestId) {
+        LOG.log(Level.WARNING, "MCP OAuth request failed; cancelling the pending request. SessionId=" + sessionId
+                + ", RequestId=" + requestId, exception);
+    }
+
+    private void logMcpAuthCancelDeliveryFailed(Throwable exception, String requestId) {
+        LOG.log(Level.WARNING, "Failed to deliver the MCP OAuth cancellation back to the runtime. SessionId="
+                + sessionId + ", RequestId=" + requestId, exception);
+    }
+
     /**
      * Executes a permission handler and sends the result back via
      * {@code session.permissions.handlePendingPermissionRequest}.
@@ -1043,10 +1144,10 @@ public final class CopilotSession implements AutoCloseable {
                                 new SessionPermissionsHandlePendingPermissionRequestParams(sessionId, requestId, result,
                                         result.getDecisionContext()));
                     } catch (Exception e) {
-                        LOG.log(Level.WARNING, "Error sending permission result for requestId=" + requestId, e);
+                        logPermissionFailed(e, requestId);
                     }
                 }).exceptionally(ex -> {
-                    LOG.log(Level.SEVERE, "Permission handler failed for requestId=" + requestId, ex);
+                    logPermissionFailed(unwrapCompletionException(ex), requestId);
                     try {
                         PermissionRequestResult denied = new PermissionRequestResult();
                         denied.setKind(PermissionRequestResultKind.DENIED_COULD_NOT_REQUEST_FROM_USER);
@@ -1054,12 +1155,12 @@ public final class CopilotSession implements AutoCloseable {
                                 new SessionPermissionsHandlePendingPermissionRequestParams(sessionId, requestId, denied,
                                         null));
                     } catch (Exception e) {
-                        LOG.log(Level.WARNING, "Error sending permission denied for requestId=" + requestId, e);
+                        logPermissionDecisionDeliveryFailed(e, requestId);
                     }
                     return null;
                 });
             } catch (Exception e) {
-                LOG.log(Level.WARNING, "Error executing permission handler for requestId=" + requestId, e);
+                logPermissionFailed(e, requestId);
                 try {
                     PermissionRequestResult denied = new PermissionRequestResult();
                     denied.setKind(PermissionRequestResultKind.DENIED_COULD_NOT_REQUEST_FROM_USER);
@@ -1067,7 +1168,7 @@ public final class CopilotSession implements AutoCloseable {
                             new SessionPermissionsHandlePendingPermissionRequestParams(sessionId, requestId, denied,
                                     null));
                 } catch (Exception sendEx) {
-                    LOG.log(Level.WARNING, "Error sending permission denied for requestId=" + requestId, sendEx);
+                    logPermissionDecisionDeliveryFailed(sendEx, requestId);
                 }
             }
         };
@@ -1089,11 +1190,12 @@ public final class CopilotSession implements AutoCloseable {
                 var invocation = new McpAuthInvocation().setSessionId(sessionId);
                 handler.handle(request, invocation)
                         .thenAccept(result -> sendMcpAuthResponse(request.requestId(), result)).exceptionally(ex -> {
+                            logMcpAuthFailed(unwrapCompletionException(ex), request.requestId());
                             sendMcpAuthResponse(request.requestId(), McpAuthResult.cancelled());
                             return null;
                         });
             } catch (Exception e) {
-                LOG.log(Level.WARNING, "Error executing MCP auth handler for requestId=" + request.requestId(), e);
+                logMcpAuthFailed(e, request.requestId());
                 sendMcpAuthResponse(request.requestId(), McpAuthResult.cancelled());
             }
         };
@@ -1111,11 +1213,13 @@ public final class CopilotSession implements AutoCloseable {
     }
 
     private void sendMcpAuthResponse(String requestId, McpAuthResult result) {
+        boolean isCancellationResponse = true;
         try {
             Object response;
             if (result == null || result.isCancelled() || result.token() == null) {
                 response = Map.of("kind", "cancelled");
             } else {
+                isCancellationResponse = false;
                 var token = result.token();
                 var tokenResponse = new java.util.HashMap<String, Object>();
                 tokenResponse.put("kind", "token");
@@ -1131,7 +1235,12 @@ public final class CopilotSession implements AutoCloseable {
             getRpc().mcp.oauth.handlePendingRequest(
                     new SessionMcpOauthHandlePendingRequestParams(sessionId, requestId, response));
         } catch (Exception e) {
-            LOG.log(Level.WARNING, "Error sending MCP auth response for requestId=" + requestId, e);
+            if (isCancellationResponse) {
+                logMcpAuthCancelDeliveryFailed(e, requestId);
+            } else {
+                LOG.log(Level.WARNING,
+                        "Error sending MCP auth response. SessionId=" + sessionId + ", RequestId=" + requestId, e);
+            }
         }
     }
 
@@ -1160,11 +1269,12 @@ public final class CopilotSession implements AutoCloseable {
         CommandHandler handler = commandHandlers.get(commandName);
         Runnable task = () -> {
             if (handler == null) {
+                logNoCommandHandlerRegistered(requestId, commandName);
                 try {
                     getRpc().commands.handlePendingCommand(new SessionCommandsHandlePendingCommandParams(sessionId,
                             requestId, "Unknown command: " + commandName));
                 } catch (Exception e) {
-                    LOG.log(Level.WARNING, "Error sending command error for requestId=" + requestId, e);
+                    logCommandErrorDeliveryFailed(e, requestId, commandName);
                 }
                 return;
             }
@@ -1176,26 +1286,27 @@ public final class CopilotSession implements AutoCloseable {
                         getRpc().commands.handlePendingCommand(
                                 new SessionCommandsHandlePendingCommandParams(sessionId, requestId, null));
                     } catch (Exception e) {
-                        LOG.log(Level.WARNING, "Error sending command result for requestId=" + requestId, e);
+                        logCommandFailed(e, requestId, commandName);
                     }
                 }).exceptionally(ex -> {
+                    logCommandFailed(unwrapCompletionException(ex), requestId, commandName);
                     try {
                         String msg = ex.getMessage() != null ? ex.getMessage() : ex.toString();
                         getRpc().commands.handlePendingCommand(
                                 new SessionCommandsHandlePendingCommandParams(sessionId, requestId, msg));
                     } catch (Exception e) {
-                        LOG.log(Level.WARNING, "Error sending command error for requestId=" + requestId, e);
+                        logCommandErrorDeliveryFailed(e, requestId, commandName);
                     }
                     return null;
                 });
             } catch (Exception e) {
-                LOG.log(Level.WARNING, "Error executing command for requestId=" + requestId, e);
+                logCommandFailed(e, requestId, commandName);
                 try {
                     String msg = e.getMessage() != null ? e.getMessage() : e.toString();
                     getRpc().commands.handlePendingCommand(
                             new SessionCommandsHandlePendingCommandParams(sessionId, requestId, msg));
                 } catch (Exception sendEx) {
-                    LOG.log(Level.WARNING, "Error sending command error for requestId=" + requestId, sendEx);
+                    logCommandErrorDeliveryFailed(sendEx, requestId, commandName);
                 }
             }
         };
@@ -1218,6 +1329,7 @@ public final class CopilotSession implements AutoCloseable {
     private void handleElicitationRequestAsync(ElicitationContext context, String requestId) {
         ElicitationHandler handler = elicitationHandler.get();
         if (handler == null) {
+            logNoElicitationHandlerRegistered(requestId);
             return;
         }
         Runnable task = () -> {
@@ -1232,22 +1344,24 @@ public final class CopilotSession implements AutoCloseable {
                         getRpc().ui.handlePendingElicitation(
                                 new SessionUiHandlePendingElicitationParams(sessionId, requestId, elicitationResult));
                     } catch (Exception e) {
-                        LOG.log(Level.WARNING, "Error sending elicitation result for requestId=" + requestId, e);
+                        LOG.log(Level.SEVERE, "Elicitation response delivery failed. SessionId=" + sessionId
+                                + ", RequestId=" + requestId, e);
                     }
                 }).exceptionally(ex -> {
+                    logElicitationFailed(unwrapCompletionException(ex), requestId);
                     try {
                         getRpc().ui.handlePendingElicitation(buildElicitationCancelParams(requestId));
                     } catch (Exception e) {
-                        LOG.log(Level.WARNING, "Error sending elicitation cancel for requestId=" + requestId, e);
+                        logElicitationCancelDeliveryFailed(e, requestId);
                     }
                     return null;
                 });
             } catch (Exception e) {
-                LOG.log(Level.WARNING, "Error executing elicitation handler for requestId=" + requestId, e);
+                logElicitationFailed(e, requestId);
                 try {
                     getRpc().ui.handlePendingElicitation(buildElicitationCancelParams(requestId));
                 } catch (Exception sendEx) {
-                    LOG.log(Level.WARNING, "Error sending elicitation cancel for requestId=" + requestId, sendEx);
+                    logElicitationCancelDeliveryFailed(sendEx, requestId);
                 }
             }
         };

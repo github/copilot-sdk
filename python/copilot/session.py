@@ -1937,6 +1937,25 @@ class CopilotSession:
 
                 handler = self._get_tool_handler(tool_name)
                 if not handler:
+                    if logger.isEnabledFor(logging.WARNING):
+                        with self._tool_handlers_lock:
+                            registered_tools = ", ".join(self._tool_handlers.keys())
+                        logger.warning(
+                            "Received a tool request for a tool this client has no handler "
+                            "registered for. Another connected client may handle it; otherwise "
+                            "the tool call will never be answered by this client. "
+                            "SessionId=%s, RequestId=%s, Tool=%s, RegisteredTools=[%s]",
+                            self.session_id,
+                            request_id,
+                            tool_name,
+                            registered_tools,
+                            extra={
+                                "session_id": self.session_id,
+                                "request_id": request_id,
+                                "tool_name": tool_name,
+                                "registered_tools": registered_tools,
+                            },
+                        )
                     return  # This client doesn't handle this tool; another client will.
 
                 tool_call_id = data.tool_call_id or ""
@@ -1970,6 +1989,14 @@ class CopilotSession:
                 with self._permission_handler_lock:
                     perm_handler = self._permission_handler
                 if not perm_handler:
+                    logger.warning(
+                        "Received a permission request without a registered permission handler. "
+                        "Another connected client may handle it; otherwise the permission request "
+                        "will never be answered by this client. SessionId=%s, RequestId=%s",
+                        self.session_id,
+                        request_id,
+                        extra={"session_id": self.session_id, "request_id": request_id},
+                    )
                     return  # This client doesn't handle permissions; another client will.
 
                 asyncio.ensure_future(
@@ -1989,6 +2016,7 @@ class CopilotSession:
                         "SessionId=%s, RequestId=%s",
                         self.session_id,
                         data.request_id,
+                        extra={"session_id": self.session_id, "request_id": data.request_id},
                     )
                     return
                 request: McpAuthRequest = {
@@ -2044,12 +2072,19 @@ class CopilotSession:
                 )
 
             case ElicitationRequestedData() as data:
+                request_id = data.request_id
+                if not request_id:
+                    return
                 with self._elicitation_handler_lock:
                     handler = self._elicitation_handler
                 if not handler:
-                    return
-                request_id = data.request_id
-                if not request_id:
+                    logger.warning(
+                        "Received an elicitation request without a registered elicitation handler. "
+                        "SessionId=%s, RequestId=%s",
+                        self.session_id,
+                        request_id,
+                        extra={"session_id": self.session_id, "request_id": request_id},
+                    )
                     return
                 context: ElicitationContext = {
                     "session_id": self.session_id,
@@ -2101,6 +2136,7 @@ class CopilotSession:
         tracestate: str | None = None,
     ) -> None:
         """Execute a tool handler and send the result back via HandlePendingToolCall RPC."""
+        stage = "PreparingArguments"
         try:
             # The built-in tool-search tool receives a snapshot of the session's
             # currently initialized tools so an override can filter the live
@@ -2125,6 +2161,7 @@ class CopilotSession:
 
             with trace_context(traceparent, tracestate):
                 handler_start = time.perf_counter()
+                stage = "InvokingHandler"
                 result = handler(invocation)
                 if inspect.isawaitable(result):
                     result = await result
@@ -2139,6 +2176,7 @@ class CopilotSession:
                     tool_name=tool_name,
                 )
 
+            stage = "ConvertingResult"
             tool_result: ToolResult
             if result is None:
                 tool_result = ToolResult(
@@ -2155,7 +2193,30 @@ class CopilotSession:
             # standard "Failed to execute..." message. Deliberate user-returned
             # failures send the full structured result to preserve metadata.
             if tool_result._from_exception:
+                if tool_result._exception is not None:
+                    logger.error(
+                        "Tool call failed. Stage=%s, SessionId=%s, RequestId=%s, "
+                        "ToolCallId=%s, Tool=%s",
+                        "InvokingHandler",
+                        self.session_id,
+                        request_id,
+                        tool_call_id,
+                        tool_name,
+                        exc_info=(
+                            type(tool_result._exception),
+                            tool_result._exception,
+                            tool_result._exception.__traceback__,
+                        ),
+                        extra={
+                            "stage": "InvokingHandler",
+                            "session_id": self.session_id,
+                            "request_id": request_id,
+                            "tool_call_id": tool_call_id,
+                            "tool_name": tool_name,
+                        },
+                    )
                 rpc_start = time.perf_counter()
+                stage = "SendingResult"
                 await self.rpc.tools.handle_pending_tool_call(
                     HandlePendingToolCallRequest(
                         request_id=request_id,
@@ -2173,11 +2234,13 @@ class CopilotSession:
                     tool_name=tool_name,
                 )
             else:
+                result_for_llm = tool_result_to_external_tool_text_result_for_llm(tool_result)
                 rpc_start = time.perf_counter()
+                stage = "SendingResult"
                 await self.rpc.tools.handle_pending_tool_call(
                     HandlePendingToolCallRequest(
                         request_id=request_id,
-                        result=tool_result_to_external_tool_text_result_for_llm(tool_result),
+                        result=result_for_llm,
                     )
                 )
                 log_timing(
@@ -2191,6 +2254,21 @@ class CopilotSession:
                     tool_name=tool_name,
                 )
         except Exception as exc:
+            logger.exception(
+                "Tool call failed. Stage=%s, SessionId=%s, RequestId=%s, ToolCallId=%s, Tool=%s",
+                stage,
+                self.session_id,
+                request_id,
+                tool_call_id,
+                tool_name,
+                extra={
+                    "stage": stage,
+                    "session_id": self.session_id,
+                    "request_id": request_id,
+                    "tool_call_id": tool_call_id,
+                    "tool_name": tool_name,
+                },
+            )
             try:
                 await self.rpc.tools.handle_pending_tool_call(
                     HandlePendingToolCallRequest(
@@ -2199,7 +2277,19 @@ class CopilotSession:
                     )
                 )
             except (JsonRpcError, ProcessExitedError, OSError):
-                pass  # Connection lost or RPC error — nothing we can do
+                logger.warning(
+                    "Failed to deliver the tool call error back to the runtime. "
+                    "SessionId=%s, RequestId=%s, Tool=%s",
+                    self.session_id,
+                    request_id,
+                    tool_name,
+                    exc_info=True,
+                    extra={
+                        "session_id": self.session_id,
+                        "request_id": request_id,
+                        "tool_name": tool_name,
+                    },
+                )
 
     async def _execute_permission_and_respond(
         self,
@@ -2254,7 +2344,9 @@ class CopilotSession:
             )
         except Exception:
             logger.exception(
-                "Permission handler or response delivery failed",
+                "Permission handler or response delivery failed. SessionId=%s, RequestId=%s",
+                self.session_id,
+                request_id,
                 extra={"session_id": self.session_id, "request_id": request_id},
             )
             try:
@@ -2265,7 +2357,14 @@ class CopilotSession:
                     )
                 )
             except (JsonRpcError, ProcessExitedError, OSError):
-                pass  # Connection lost or RPC error — nothing we can do
+                logger.warning(
+                    "Failed to deliver the permission decision back to the runtime. "
+                    "SessionId=%s, RequestId=%s",
+                    self.session_id,
+                    request_id,
+                    exc_info=True,
+                    extra={"session_id": self.session_id, "request_id": request_id},
+                )
 
     async def _execute_mcp_auth_and_respond(
         self,
@@ -2308,6 +2407,14 @@ class CopilotSession:
                 )
             )
         except Exception:
+            logger.warning(
+                "MCP OAuth request failed; cancelling the pending request. "
+                "SessionId=%s, RequestId=%s",
+                self.session_id,
+                request_id,
+                exc_info=True,
+                extra={"session_id": self.session_id, "request_id": request_id},
+            )
             try:
                 await self.rpc.mcp.oauth.handle_pending_request(
                     MCPOauthHandlePendingRequest(
@@ -2318,7 +2425,14 @@ class CopilotSession:
                     )
                 )
             except (JsonRpcError, ProcessExitedError, OSError):
-                pass  # Connection lost or RPC error — nothing we can do
+                logger.warning(
+                    "Failed to deliver the MCP OAuth cancellation back to the runtime. "
+                    "SessionId=%s, RequestId=%s",
+                    self.session_id,
+                    request_id,
+                    exc_info=True,
+                    extra={"session_id": self.session_id, "request_id": request_id},
+                )
 
     async def _execute_command_and_respond(
         self,
@@ -2332,6 +2446,24 @@ class CopilotSession:
             handler = self._command_handlers.get(command_name)
 
         if not handler:
+            if logger.isEnabledFor(logging.WARNING):
+                with self._command_handlers_lock:
+                    registered_commands = ", ".join(self._command_handlers.keys())
+                logger.warning(
+                    "Received a command request for a command this client has no handler "
+                    "registered for. SessionId=%s, RequestId=%s, Command=%s, "
+                    "RegisteredCommands=[%s]",
+                    self.session_id,
+                    request_id,
+                    command_name,
+                    registered_commands,
+                    extra={
+                        "session_id": self.session_id,
+                        "request_id": request_id,
+                        "command_name": command_name,
+                        "registered_commands": registered_commands,
+                    },
+                )
             try:
                 await self.rpc.commands.handle_pending_command(
                     CommandsHandlePendingCommandRequest(
@@ -2340,7 +2472,19 @@ class CopilotSession:
                     )
                 )
             except (JsonRpcError, ProcessExitedError, OSError):
-                pass  # Connection lost — nothing we can do
+                logger.warning(
+                    "Failed to deliver the command error back to the runtime. "
+                    "SessionId=%s, RequestId=%s, Command=%s",
+                    self.session_id,
+                    request_id,
+                    command_name,
+                    exc_info=True,
+                    extra={
+                        "session_id": self.session_id,
+                        "request_id": request_id,
+                        "command_name": command_name,
+                    },
+                )
             return
 
         try:
@@ -2377,6 +2521,18 @@ class CopilotSession:
                 command_name=command_name,
             )
         except Exception as exc:
+            logger.exception(
+                "Command handler or response delivery failed. "
+                "SessionId=%s, RequestId=%s, Command=%s",
+                self.session_id,
+                request_id,
+                command_name,
+                extra={
+                    "session_id": self.session_id,
+                    "request_id": request_id,
+                    "command_name": command_name,
+                },
+            )
             message = str(exc)
             try:
                 await self.rpc.commands.handle_pending_command(
@@ -2386,7 +2542,19 @@ class CopilotSession:
                     )
                 )
             except (JsonRpcError, ProcessExitedError, OSError):
-                pass  # Connection lost — nothing we can do
+                logger.warning(
+                    "Failed to deliver the command error back to the runtime. "
+                    "SessionId=%s, RequestId=%s, Command=%s",
+                    self.session_id,
+                    request_id,
+                    command_name,
+                    exc_info=True,
+                    extra={
+                        "session_id": self.session_id,
+                        "request_id": request_id,
+                        "command_name": command_name,
+                    },
+                )
 
     async def _handle_elicitation_request(
         self,
@@ -2401,6 +2569,13 @@ class CopilotSession:
         with self._elicitation_handler_lock:
             handler = self._elicitation_handler
         if not handler:
+            logger.warning(
+                "Received an elicitation request without a registered elicitation handler. "
+                "SessionId=%s, RequestId=%s",
+                self.session_id,
+                request_id,
+                extra={"session_id": self.session_id, "request_id": request_id},
+            )
             return
         try:
             handler_start = time.perf_counter()
@@ -2438,6 +2613,13 @@ class CopilotSession:
             )
         except Exception:
             # Handler failed — attempt to cancel so the request doesn't hang
+            logger.exception(
+                "Elicitation handler or response delivery failed; cancelling the pending "
+                "elicitation. SessionId=%s, RequestId=%s",
+                self.session_id,
+                request_id,
+                extra={"session_id": self.session_id, "request_id": request_id},
+            )
             try:
                 await self.rpc.ui.handle_pending_elicitation(
                     UIHandlePendingElicitationRequest(
@@ -2448,7 +2630,14 @@ class CopilotSession:
                     )
                 )
             except (JsonRpcError, ProcessExitedError, OSError):
-                pass  # Connection lost or RPC error — nothing we can do
+                logger.warning(
+                    "Failed to deliver the elicitation cancellation back to the runtime. "
+                    "SessionId=%s, RequestId=%s",
+                    self.session_id,
+                    request_id,
+                    exc_info=True,
+                    extra={"session_id": self.session_id, "request_id": request_id},
+                )
 
     def _assert_elicitation(self) -> None:
         """Raises if the host does not support elicitation."""
