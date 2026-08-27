@@ -187,7 +187,7 @@ session.factory.resume(
 ): Promise<FactoryRunResult>;
 ```
 
-Set `notifyOnComplete` to notify the originating session when the factory completes. Set `logPhaseNames` to emit factory phase names to the session transcript. Both options apply to new and resumed runs.
+Set `notifyOnComplete` to `true` for factories that are likely to be invoked by an agent, so the originating session is notified when the factory completes. Set it to `false` for factories intended to be invoked programmatically, where the caller awaits the result directly. Set `logPhaseNames` to emit factory phase names to the session transcript. Both options apply to new and resumed runs.
 
 Both resolve with the run envelope (`FactoryRunResult`) for **every** outcome — `completed`, `error`, `halted`, and `cancelled` alike. Inspect `status` and read `result` only when the run completed; a limit breach carries a typed `failure`. SDK-initiated `run` and `resume` do not request permission, so they have no declined outcome. The model's `run_factory` tool requests permission before the durable row exists; declining it creates no run row. An SDK-initiated run is refused only when the session already has its maximum number of active top-level runs. Pre-execution resume failures throw `FactoryResumeError`, whose `code` is one of `not_found`, `non_resumable`, `already_active`, `factory_already_running`, `factory_limits_invalid`, `factory_session_disposed`, `factory_storage_unavailable`, or `factory_storage_corrupt`.
 
