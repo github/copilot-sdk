@@ -1071,7 +1071,25 @@ class TestCreateSessionConfig:
             await client.force_stop()
 
     @pytest.mark.asyncio
-    async def test_create_and_resume_session_forward_capi_options(self):
+    @pytest.mark.parametrize(
+        ("capi", "expected"),
+        [
+            (None, None),
+            ({}, {}),
+            ({"enable_web_socket_responses": False}, {"enableWebSocketResponses": False}),
+            ({"enable_web_socket_responses": True}, {"enableWebSocketResponses": True}),
+            ({"auto_tier": "efficiency"}, {"autoTier": "efficiency"}),
+            ({"auto_tier": "balance"}, {"autoTier": "balance"}),
+            ({"auto_tier": "intelligence"}, {"autoTier": "intelligence"}),
+            (
+                {"auto_tier": "balance", "enable_web_socket_responses": False},
+                {"autoTier": "balance", "enableWebSocketResponses": False},
+            ),
+        ],
+    )
+    async def test_create_and_resume_session_forward_capi_options(
+        self, capi: CapiSessionOptions | None, expected: dict[str, object] | None
+    ):
         client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()
         try:
@@ -1088,25 +1106,22 @@ class TestCreateSessionConfig:
                 return {}
 
             client._client.request = mock_request
-            create_capi: CapiSessionOptions = {"enable_web_socket_responses": False}
-            resume_capi: CapiSessionOptions = {"enable_web_socket_responses": True}
-
             session = await client.create_session(
                 on_permission_request=PermissionHandler.approve_all,
-                capi=create_capi,
+                model="auto",
+                capi=capi,
             )
             await client.resume_session(
                 session.session_id,
                 on_permission_request=PermissionHandler.approve_all,
-                capi=resume_capi,
+                capi=capi,
             )
 
-            assert captured["session.create"]["capi"] == {
-                "enableWebSocketResponses": False,
-            }
-            assert captured["session.resume"]["capi"] == {
-                "enableWebSocketResponses": True,
-            }
+            for method in ("session.create", "session.resume"):
+                if capi is None:
+                    assert "capi" not in captured[method]
+                else:
+                    assert captured[method]["capi"] == expected
         finally:
             await client.force_stop()
 

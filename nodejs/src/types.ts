@@ -2120,6 +2120,9 @@ export interface FactoryMeta {
     limits?: FactoryLimits;
 }
 
+/** Routing preference used when the session model is `auto`. */
+export type AutoTier = "efficiency" | "balance" | "intelligence";
+
 /**
  * Provider-scoped options for the Copilot API (CAPI).
  *
@@ -2129,6 +2132,17 @@ export interface FactoryMeta {
  * provider-level choices are conceptually per-provider rather than global.
  */
 export interface CapiSessionOptions {
+    /**
+     * Routing preference used when the session model is `auto`.
+     * Requires a runtime with Auto tier support and V2 Auto routing.
+     *
+     * When omitted on create, the runtime uses its default routing behavior.
+     * The runtime persists this preference across cold resume; an explicit tier
+     * on cold resume overrides the persisted value. For an already-resident
+     * session, omission preserves the current tier and a different tier is rejected.
+     */
+    autoTier?: AutoTier;
+
     /**
      * Whether to use the WebSocket transport for the CAPI Responses API.
      *

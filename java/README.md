@@ -330,6 +330,32 @@ Chain fluent modifiers to set tool options:
 
 For design context and decision rationale, see [ADR-006](docs/adr/adr-006-tool-definition-inline.md).
 
+## Auto routing tiers
+
+Use `CapiSessionOptions.setAutoTier(...)` to select `AutoTier.EFFICIENCY`,
+`AutoTier.BALANCE`, or `AutoTier.INTELLIGENCE`. This option is meaningful only
+with model `auto` (Auto mode V2).
+It requires a runtime version that supports `capi.autoTier`.
+
+```java
+import com.github.copilot.rpc.AutoTier;
+import com.github.copilot.rpc.CapiSessionOptions;
+import com.github.copilot.rpc.SessionConfig;
+
+var config = new SessionConfig()
+    .setModel("auto")
+    .setCapi(new CapiSessionOptions().setAutoTier(AutoTier.BALANCE));
+```
+
+The same options work with `ResumeSessionConfig.setCapi(...)` and can be combined
+with `setEnableWebSocketResponses(false)`. The SDK omits an unset (`null`) tier:
+the runtime chooses its default on create and preserves the persisted/current
+tier on resume. An explicit tier overrides the persisted tier on cold resume;
+the runtime rejects a conflicting tier when the session is already resident
+in memory. The SDK does not choose a default or manage tier persistence.
+See [Auto tier persistence](../docs/features/session-persistence.md#auto-tier-persistence)
+for the lifecycle rules.
+
 ## Session Store
 
 `enableSessionStore` on `SessionConfig` enables the cross-session store for search and retrieval across sessions. When unset in the default `CopilotClientMode.COPILOT_CLI` mode, the runtime default applies (enabled). In `CopilotClientMode.EMPTY` mode, defaults to disabled.

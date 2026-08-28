@@ -12,6 +12,7 @@ import {
     createCanvas,
     DisableBypassPermissionsModes,
     RuntimeConnection,
+    type CapiSessionOptions,
     type GitHubTelemetryNotification,
     type ManagedSettings,
     type ModelInfo,
@@ -1276,37 +1277,50 @@ describe("CopilotClient", () => {
         expect(resumePayload.expAssignments).toBeUndefined();
     });
 
-    it("forwards capi options in session.create and session.resume", async () => {
-        const client = new CopilotClient();
-        await client.start();
-        onTestFinished(() => stopClient(client));
+    it.each([
+        undefined,
+        {},
+        { enableWebSocketResponses: false },
+        { enableWebSocketResponses: true },
+        { autoTier: "efficiency" },
+        { autoTier: "balance" },
+        { autoTier: "intelligence" },
+        { autoTier: "balance", enableWebSocketResponses: false },
+    ] satisfies (CapiSessionOptions | undefined)[])(
+        "forwards capi options %j in session.create and session.resume",
+        async (capi) => {
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => stopClient(client));
 
-        const spy = vi
-            .spyOn((client as any).connection!, "sendRequest")
-            .mockImplementation(async (method: string, params: any) => {
-                if (method === "session.create") return { sessionId: params.sessionId };
-                if (method === "session.resume") return { sessionId: params.sessionId };
-                throw new Error(`Unexpected method: ${method}`);
+            const spy = vi
+                .spyOn((client as any).connection!, "sendRequest")
+                .mockImplementation(async (method: string, params: any) => {
+                    if (method === "session.create") return { sessionId: params.sessionId };
+                    if (method === "session.resume") return { sessionId: params.sessionId };
+                    throw new Error(`Unexpected method: ${method}`);
+                });
+
+            const session = await client.createSession({
+                onPermissionRequest: approveAll,
+                model: "auto",
+                capi,
+            });
+            await client.resumeSession(session.sessionId, {
+                onPermissionRequest: approveAll,
+                capi,
             });
 
-        const session = await client.createSession({
-            onPermissionRequest: approveAll,
-            capi: { enableWebSocketResponses: false },
-        });
-        await client.resumeSession(session.sessionId, {
-            onPermissionRequest: approveAll,
-            capi: { enableWebSocketResponses: false },
-        });
-
-        const createPayload = spy.mock.calls.find(
-            ([method]) => method === "session.create"
-        )![1] as any;
-        const resumePayload = spy.mock.calls.find(
-            ([method]) => method === "session.resume"
-        )![1] as any;
-        expect(createPayload.capi).toEqual({ enableWebSocketResponses: false });
-        expect(resumePayload.capi).toEqual({ enableWebSocketResponses: false });
-    });
+            const createPayload = spy.mock.calls.find(
+                ([method]) => method === "session.create"
+            )![1] as any;
+            const resumePayload = spy.mock.calls.find(
+                ([method]) => method === "session.resume"
+            )![1] as any;
+            expect(JSON.parse(JSON.stringify(createPayload)).capi).toEqual(capi);
+            expect(JSON.parse(JSON.stringify(resumePayload)).capi).toEqual(capi);
+        }
+    );
 
     it("forwards pluginDirectories and largeOutput in session.create and session.resume", async () => {
         const client = new CopilotClient();

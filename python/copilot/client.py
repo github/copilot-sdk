@@ -260,8 +260,22 @@ def _exp_assignment_response_to_dict(
     return wire
 
 
+AutoTier = Literal["efficiency", "balance", "intelligence"]
+"""Routing preference used when the session model is ``auto``."""
+
+
 class CapiSessionOptions(TypedDict, total=False):
     """Provider-scoped Copilot API (CAPI) session options."""
+
+    auto_tier: AutoTier
+    """Routing preference used when the session model is ``auto``.
+
+    Requires a runtime with Auto tier support and V2 Auto routing. When omitted
+    on create, the runtime uses its default routing behavior. The runtime persists
+    this preference across cold resume; an explicit tier on cold resume overrides
+    the persisted value. For an already-resident session, omission preserves the
+    current tier and a different tier is rejected.
+    """
 
     enable_web_socket_responses: bool
     """Whether to use WebSocket transport for the CAPI Responses API.
@@ -289,6 +303,8 @@ def _cloud_session_options_to_dict(options: CloudSessionOptions) -> dict[str, An
 
 def _capi_session_options_to_wire(options: CapiSessionOptions) -> dict[str, Any]:
     wire: dict[str, Any] = {}
+    if "auto_tier" in options:
+        wire["autoTier"] = options["auto_tier"]
     if "enable_web_socket_responses" in options:
         wire["enableWebSocketResponses"] = options["enable_web_socket_responses"]
     return wire
@@ -2314,7 +2330,9 @@ class CopilotClient:
             hooks: Lifecycle hooks for the session.
             working_directory: Working directory for the session.
             provider: Provider configuration for Azure or custom endpoints.
-            capi: CAPI provider-scoped options. WebSocket transport is the
+            capi: CAPI provider-scoped options. Set ``auto_tier`` to ``efficiency``,
+                ``balance``, or ``intelligence`` to select an Auto routing preference
+                on a runtime with Auto tier support. WebSocket transport is the
                 default for the CAPI Responses API whenever the model advertises
                 the ``ws:/responses`` endpoint. Set
                 ``enable_web_socket_responses=False`` to force the HTTP
@@ -3076,7 +3094,10 @@ class CopilotClient:
             hooks: Lifecycle hooks for the session.
             working_directory: Working directory for the session.
             provider: Provider configuration for Azure or custom endpoints.
-            capi: CAPI provider-scoped options. WebSocket transport is the
+            capi: CAPI provider-scoped options. Omit ``auto_tier`` to preserve the
+                current or persisted Auto routing preference. An explicit tier
+                overrides it on cold resume, but cannot change it on an
+                already-resident session. WebSocket transport is the
                 default for the CAPI Responses API whenever the model advertises
                 the ``ws:/responses`` endpoint. Set
                 ``enable_web_socket_responses=False`` to force the HTTP

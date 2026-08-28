@@ -464,6 +464,89 @@ public sealed class ClientSessionLifetimeTests
         Assert.False(agent.TryGetProperty("reasoningEffort", out _));
     }
 
+    [Theory]
+    [InlineData(AutoTier.Efficiency, "efficiency", null)]
+    [InlineData(AutoTier.Balance, "balance", null)]
+    [InlineData(AutoTier.Intelligence, "intelligence", null)]
+    [InlineData(AutoTier.Efficiency, "efficiency", false)]
+    [InlineData(AutoTier.Balance, "balance", false)]
+    [InlineData(AutoTier.Intelligence, "intelligence", false)]
+    public async Task SessionRequests_Serialize_CapiAutoTier(AutoTier tier, string expectedTier, bool? enableWebSocketResponses)
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        var capi = new CapiSessionOptions { AutoTier = tier, EnableWebSocketResponses = enableWebSocketResponses };
+
+        await using var created = await client.CreateSessionAsync(new SessionConfig
+        {
+            Model = "auto",
+            Capi = capi,
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+        await using var resumed = await client.ResumeSessionAsync("resume-with-auto-tier", new ResumeSessionConfig
+        {
+            Model = "auto",
+            Capi = capi,
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        foreach (var method in new[] { "session.create", "session.resume" })
+        {
+            var request = Assert.Single(server.Requests, request => request.Method == method);
+            var serializedCapi = request.Params.GetProperty("capi");
+            Assert.Equal(expectedTier, serializedCapi.GetProperty("autoTier").GetString());
+            if (enableWebSocketResponses.HasValue)
+            {
+                Assert.Equal(enableWebSocketResponses.Value, serializedCapi.GetProperty("enableWebSocketResponses").GetBoolean());
+            }
+            else
+            {
+                Assert.False(serializedCapi.TryGetProperty("enableWebSocketResponses", out _));
+            }
+        }
+    }
+
+    [Theory]
+    [InlineData(false, null)]
+    [InlineData(true, null)]
+    [InlineData(true, false)]
+    public async Task SessionRequests_Omit_CapiAutoTier_WhenUnset(bool includeCapi, bool? enableWebSocketResponses)
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        var capi = includeCapi ? new CapiSessionOptions { EnableWebSocketResponses = enableWebSocketResponses } : null;
+
+        await using var created = await client.CreateSessionAsync(new SessionConfig
+        {
+            Model = "auto",
+            Capi = capi,
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+        await using var resumed = await client.ResumeSessionAsync("resume-without-auto-tier", new ResumeSessionConfig
+        {
+            Capi = capi,
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        foreach (var method in new[] { "session.create", "session.resume" })
+        {
+            var request = Assert.Single(server.Requests, request => request.Method == method);
+            Assert.Equal(includeCapi, request.Params.TryGetProperty("capi", out var serializedCapi));
+            if (includeCapi)
+            {
+                Assert.False(serializedCapi.TryGetProperty("autoTier", out _));
+                if (enableWebSocketResponses.HasValue)
+                {
+                    Assert.Equal(enableWebSocketResponses.Value, serializedCapi.GetProperty("enableWebSocketResponses").GetBoolean());
+                }
+                else
+                {
+                    Assert.Empty(serializedCapi.EnumerateObject());
+                }
+            }
+        }
+    }
+
     [Fact]
     public async Task SessionRequests_Serialize_AdditionalDirectories()
     {
