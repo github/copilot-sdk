@@ -181,7 +181,7 @@ const CONTENT_LENGTH_HEADER: &str = "Content-Length: ";
 /// hooks dispatcher around `SessionHooks::on_hook` only. Every request phase
 /// includes its start offset from request receipt, and `request_complete`
 /// records total elapsed time. Collection is enabled only when this target
-/// has an active DEBUG subscriber.
+/// has an active DEBUG subscriber when the client is constructed.
 const REVERSE_RPC_TIMING_TARGET: &str = "github_copilot_sdk::reverse_rpc_timing";
 const REVERSE_RPC_TIMING_CAPACITY: usize = 256;
 
@@ -264,25 +264,26 @@ struct WriteCommand {
 
 struct ReverseRpcWriteTrace {
     trace: ReverseRpcTrace,
-    completed: bool,
+    completion_attempted: bool,
 }
 
 impl ReverseRpcWriteTrace {
     fn new(trace: ReverseRpcTrace) -> Self {
         Self {
             trace,
-            completed: false,
+            completion_attempted: false,
         }
     }
 
     fn record_complete(&mut self, completed_at: TokioInstant, succeeded: bool) {
-        self.completed = self.trace.record_complete(completed_at, succeeded);
+        self.completion_attempted = true;
+        let _ = self.trace.record_complete(completed_at, succeeded);
     }
 }
 
 impl Drop for ReverseRpcWriteTrace {
     fn drop(&mut self) {
-        if !self.completed {
+        if !self.completion_attempted {
             let _ = self.trace.record_complete(TokioInstant::now(), false);
         }
     }
@@ -658,6 +659,13 @@ impl JsonRpcClient {
     /// messages to pending request channels, the notification broadcast,
     /// or the request-forwarding channel; and a writer actor that owns the
     /// underlying `AsyncWrite` and serializes frames atomically.
+    #[cfg_attr(
+        not(any(test, feature = "test-support")),
+        expect(
+            dead_code,
+            reason = "low-level constructor is exported only with test-support"
+        )
+    )]
     pub fn new(
         writer: impl AsyncWrite + Unpin + Send + 'static,
         reader: impl AsyncRead + Unpin + Send + 'static,
@@ -673,7 +681,17 @@ impl JsonRpcClient {
         notification_tx: broadcast::Sender<JsonRpcNotification>,
         request_tx: mpsc::UnboundedSender<JsonRpcRequest>,
     ) -> Self {
-        Self::new_inner(writer, reader, notification_tx, request_tx, true)
+        let trace_reverse_rpc = tracing::enabled!(
+            target: REVERSE_RPC_TIMING_TARGET,
+            tracing::Level::DEBUG
+        );
+        Self::new_inner(
+            writer,
+            reader,
+            notification_tx,
+            request_tx,
+            trace_reverse_rpc,
+        )
     }
 
     fn new_inner(
@@ -1370,8 +1388,7 @@ impl JsonRpcClient {
 
         let (ack_tx, ack_rx) = oneshot::channel();
         let enqueued_at = TokioInstant::now();
-        let response_trace = reverse_rpc.clone();
-        if let Some(trace) = &response_trace {
+        if let Some(trace) = &reverse_rpc {
             trace.transfer_completion_to_writer();
         }
         if self
@@ -1384,9 +1401,6 @@ impl JsonRpcClient {
             })
             .is_err()
         {
-            if let Some(trace) = &response_trace {
-                trace.record_complete(TokioInstant::now(), false);
-            }
             return Err(Error::from(std::io::Error::new(
                 std::io::ErrorKind::BrokenPipe,
                 "writer actor has shut down",
@@ -1396,15 +1410,10 @@ impl JsonRpcClient {
         match ack_rx.await {
             Ok(Ok(())) => Ok(()),
             Ok(Err(e)) => Err(Error::from(e)),
-            Err(_) => {
-                if let Some(trace) = &response_trace {
-                    trace.record_complete(TokioInstant::now(), false);
-                }
-                Err(Error::from(std::io::Error::new(
-                    std::io::ErrorKind::BrokenPipe,
-                    "writer actor dropped ack without responding",
-                )))
-            }
+            Err(_) => Err(Error::from(std::io::Error::new(
+                std::io::ErrorKind::BrokenPipe,
+                "writer actor dropped ack without responding",
+            ))),
         }
     }
 
@@ -1879,6 +1888,7 @@ mod tests {
 
         assert_eq!(forwarded.id, request.id);
         assert!(client.reverse_requests.read().is_empty());
+        assert!(client.timing_task.lock().is_none());
         client.force_close();
     }
 
@@ -1906,6 +1916,7 @@ mod tests {
 
         assert_eq!(forwarded.id, request.id);
         assert!(client.reverse_requests.read().is_empty());
+        assert!(client.timing_task.lock().is_none());
         client.force_close();
     }
 
@@ -1947,6 +1958,121 @@ mod tests {
             output.find("phase=\"first\"").unwrap()
                 < output.find("phase=\"request_complete\"").unwrap()
         );
+    }
+
+    #[tokio::test]
+    async fn saturated_terminal_queue_counts_one_writer_completion_drop_once() {
+        let trace_buffer = TraceBuffer::default();
+        let _subscriber = tracing::subscriber::set_default(trace_subscriber(trace_buffer.clone()));
+        let (timing, phase_rx, terminal_rx, dropped_records) = timing_channel(1);
+        let now = TokioInstant::now();
+        let filler_request = JsonRpcRequest::new(38, "filler.request", None);
+        let filler =
+            ReverseRpcTrace::new(&filler_request, now, &RandomState::new(), timing.clone());
+        filler.mark_forwarding(now);
+        assert!(filler.record_complete(now, true));
+
+        let writer_request = JsonRpcRequest::new(39, "writer.request", None);
+        let writer = ReverseRpcTrace::new(&writer_request, now, &RandomState::new(), timing);
+        writer.mark_forwarding(now);
+        let mut writer_trace = ReverseRpcWriteTrace::new(writer);
+        writer_trace.record_complete(now, true);
+        drop(writer_trace);
+
+        assert_eq!(
+            filler.inner.timing.dropped_records.load(Ordering::Relaxed),
+            1
+        );
+        drop(filler);
+        tokio::spawn(JsonRpcClient::timing_loop(
+            phase_rx,
+            terminal_rx,
+            dropped_records,
+        ));
+
+        wait_for_trace(&trace_buffer, "phase=\"records_dropped\"").await;
+        let output = trace_buffer.text();
+        let dropped = output
+            .lines()
+            .find(|line| line.contains("phase=\"records_dropped\""))
+            .expect("terminal saturation diagnostic should be emitted");
+        assert!(dropped.contains("dropped_records=1"));
+        assert!(output.contains("rpc_method=filler.request"));
+        assert!(!output.lines().any(|line| {
+            line.contains("rpc_method=writer.request")
+                && line.contains("phase=\"request_complete\"")
+        }));
+    }
+
+    #[tokio::test]
+    async fn saturated_terminal_queue_counts_closed_writer_fallback_once() {
+        let trace_buffer = TraceBuffer::default();
+        let _subscriber = tracing::subscriber::set_default(trace_subscriber(trace_buffer.clone()));
+        let (timing, phase_rx, terminal_rx, dropped_records) = timing_channel(1);
+        let now = TokioInstant::now();
+        let filler_request = JsonRpcRequest::new(40, "filler.request", None);
+        let filler =
+            ReverseRpcTrace::new(&filler_request, now, &RandomState::new(), timing.clone());
+        filler.mark_forwarding(now);
+        assert!(filler.record_complete(now, true));
+
+        let (notification_tx, _) = broadcast::channel(1);
+        let (request_tx, _request_rx) = mpsc::unbounded_channel();
+        let client = JsonRpcClient::new(
+            tokio::io::sink(),
+            tokio::io::empty(),
+            notification_tx,
+            request_tx,
+        );
+        let write_task = client
+            .write_task
+            .lock()
+            .take()
+            .expect("writer task should be running");
+        write_task.abort();
+        let _ = write_task.await;
+
+        let writer_request = JsonRpcRequest::new(41, "writer.request", None);
+        let writer = ReverseRpcTrace::new(&writer_request, now, &RandomState::new(), timing);
+        writer.mark_forwarding(now);
+        let error = client
+            .write_frame(
+                &JsonRpcResponse {
+                    jsonrpc: "2.0".to_string(),
+                    id: writer_request.id,
+                    result: Some(serde_json::json!({})),
+                    error: None,
+                },
+                Some(writer),
+            )
+            .await
+            .unwrap_err();
+        assert!(matches!(error.kind(), ErrorKind::Io));
+        assert_eq!(
+            filler.inner.timing.dropped_records.load(Ordering::Relaxed),
+            1
+        );
+        drop(filler);
+        tokio::spawn(JsonRpcClient::timing_loop(
+            phase_rx,
+            terminal_rx,
+            dropped_records,
+        ));
+
+        wait_for_trace(&trace_buffer, "phase=\"records_dropped\"").await;
+        let output = trace_buffer.text();
+        let dropped = output
+            .lines()
+            .find(|line| line.contains("phase=\"records_dropped\""))
+            .expect("closed-writer saturation diagnostic should be emitted");
+        assert!(dropped.contains("dropped_records=1"));
+        assert!(output.contains("rpc_method=filler.request"));
+        assert!(!output.lines().any(|line| {
+            line.contains("rpc_method=writer.request")
+                && line.contains("phase=\"request_complete\"")
+        }));
+
+        client.force_close();
     }
 
     #[tokio::test(start_paused = true)]
