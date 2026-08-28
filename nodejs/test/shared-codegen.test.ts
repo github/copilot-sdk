@@ -16,7 +16,10 @@ import {
 
 describe("shared schema definition codegen utilities", () => {
     it("adds the pinned shared-session watch contract and rejects drift", () => {
-        const schema = addSharedSessionWatchApi({ server: {}, definitions: {} } satisfies ApiSchema);
+        const schema = addSharedSessionWatchApi({
+            server: {},
+            definitions: {},
+        } satisfies ApiSchema);
         const sessions = schema.server?.sessions as Record<string, unknown>;
 
         expect(sessions.watch).toMatchObject({
@@ -32,7 +35,11 @@ describe("shared schema definition codegen utilities", () => {
 
         expect(() =>
             addSharedSessionWatchApi({
-                server: { sessions: { watch: { rpcMethod: "sessions.watch", params: null, result: null } } },
+                server: {
+                    sessions: {
+                        watch: { rpcMethod: "sessions.watch", params: null, result: null },
+                    },
+                },
             })
         ).toThrow("sessions.watch contract differs");
     });
