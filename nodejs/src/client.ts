@@ -1565,6 +1565,7 @@ export class CopilotClient {
                 this.onGetTraceContext,
                 {
                     mcpAuthHandler: config.onMcpAuthRequest,
+                    mcpHeadersRefreshHandler: config.onMcpHeadersRefresh,
                     managedSettingsEnabled:
                         config.enableManagedSettings === true ||
                         config.managedSettings !== undefined,
@@ -1693,6 +1694,7 @@ export class CopilotClient {
                     ? { enableGitHubTelemetryForwarding: true }
                     : {}),
                 mcpServers: toWireMcpServers(config.mcpServers),
+                managedMcpServers: config.managedMcpServers,
                 mcpOAuthTokenStorage: config.mcpOAuthTokenStorage,
                 envValueMode: "direct",
                 customAgents: toWireCustomAgents(config.customAgents),
@@ -1753,6 +1755,12 @@ export class CopilotClient {
                 await this.connection!.sendRequest("session.eventLog.registerInterest", {
                     sessionId: returnedSessionId,
                     eventType: "mcp.oauth_required",
+                });
+            }
+            if (config.onMcpHeadersRefresh) {
+                await this.connection!.sendRequest("session.eventLog.registerInterest", {
+                    sessionId: returnedSessionId,
+                    eventType: "mcp.headers_refresh_required",
                 });
             }
             session["_workspacePath"] = workspacePath;
@@ -1833,6 +1841,7 @@ export class CopilotClient {
             this.onGetTraceContext,
             {
                 mcpAuthHandler: config.onMcpAuthRequest,
+                mcpHeadersRefreshHandler: config.onMcpHeadersRefresh,
                 managedSettingsEnabled:
                     config.enableManagedSettings === true || config.managedSettings !== undefined,
             }
@@ -1971,6 +1980,7 @@ export class CopilotClient {
                     ? { enableGitHubTelemetryForwarding: true }
                     : {}),
                 mcpServers: toWireMcpServers(config.mcpServers),
+                managedMcpServers: config.managedMcpServers,
                 mcpOAuthTokenStorage: config.mcpOAuthTokenStorage,
                 envValueMode: "direct",
                 customAgents: toWireCustomAgents(config.customAgents),
@@ -2031,6 +2041,12 @@ export class CopilotClient {
                 await this.connection!.sendRequest("session.eventLog.registerInterest", {
                     sessionId,
                     eventType: "mcp.oauth_required",
+                });
+            }
+            if (config.onMcpHeadersRefresh) {
+                await this.connection!.sendRequest("session.eventLog.registerInterest", {
+                    sessionId,
+                    eventType: "mcp.headers_refresh_required",
                 });
             }
 

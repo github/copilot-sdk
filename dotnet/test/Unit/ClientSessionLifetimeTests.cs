@@ -814,6 +814,121 @@ public sealed class ClientSessionLifetimeTests
         Assert.Equal("cancelled", request.Params.GetProperty("result").GetProperty("kind").GetString());
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData(5000L)]
+    public async Task McpHeadersRefresh_Handler_Sends_Headers_With_Optional_Ttl(long? ttlMs)
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll,
+            ManagedMcpServers = new Dictionary<string, ManagedMcpServerConfig>
+            {
+                ["github"] = new()
+                {
+                    DisplayName = "GitHub",
+                    Url = "https://example.com/mcp",
+                    HeadersRefreshTtlMs = 60_000
+                }
+            },
+            OnMcpHeadersRefresh = context =>
+            {
+                Assert.Equal("managed-session-name", context.ServerName);
+                Assert.Equal("https://example.com/mcp", context.ServerUrl);
+                Assert.Equal(McpHeadersRefreshRequiredReason.Startup, context.Reason);
+                return Task.FromResult<McpHeadersRefreshResult?>(new()
+                {
+                    Headers = new Dictionary<string, string> { ["Authorization"] = "Bearer short-lived" },
+                    TtlMs = ttlMs
+                });
+            }
+        });
+
+        DispatchEvent(session, new McpHeadersRefreshRequiredEvent
+        {
+            Data = new McpHeadersRefreshRequiredData
+            {
+                RequestId = "mcp-refresh-1",
+                ServerName = "managed-session-name",
+                ServerUrl = "https://example.com/mcp",
+                Reason = McpHeadersRefreshRequiredReason.Startup
+            }
+        });
+
+        var request = await WaitForRequestAsync(server, "session.mcp.headers.handlePendingHeadersRefreshRequest");
+        var result = request.Params.GetProperty("result");
+        Assert.Equal("headers", result.GetProperty("kind").GetString());
+        Assert.Equal("Bearer short-lived", result.GetProperty("headers").GetProperty("Authorization").GetString());
+        Assert.Equal(ttlMs.HasValue, result.TryGetProperty("ttlMs", out var ttl));
+        if (ttlMs.HasValue)
+            Assert.Equal(ttlMs.Value, ttl.GetInt64());
+
+        var create = server.Requests.First(request => request.Method == "session.create");
+        Assert.Equal("GitHub", create.Params.GetProperty("managedMcpServers").GetProperty("github").GetProperty("displayName").GetString());
+        Assert.Contains(
+            server.Requests,
+            request => request.Method == "session.eventLog.registerInterest"
+                && request.Params.GetProperty("eventType").GetString() == "mcp.headers_refresh_required");
+    }
+
+    [Fact]
+    public async Task McpHeadersRefresh_Handler_Exception_Sends_Explicit_Broker_Error()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll,
+            OnMcpHeadersRefresh = _ => throw new ApplicationException("credential revoked")
+        });
+
+        DispatchEvent(session, new McpHeadersRefreshRequiredEvent
+        {
+            Data = new McpHeadersRefreshRequiredData
+            {
+                RequestId = "mcp-refresh-error",
+                ServerName = "GitHub",
+                ServerUrl = "https://example.com/mcp",
+                Reason = McpHeadersRefreshRequiredReason.AuthFailed
+            }
+        });
+
+        var request = await WaitForRequestAsync(server, "session.mcp.headers.handlePendingHeadersRefreshRequest");
+        var result = request.Params.GetProperty("result");
+        Assert.Equal("error", result.GetProperty("kind").GetString());
+        Assert.Equal("credential revoked", result.GetProperty("message").GetString());
+    }
+
+    [Fact]
+    public async Task McpHeadersRefresh_Handler_Cancellation_Sends_Explicit_Broker_Error()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll,
+            OnMcpHeadersRefresh = _ => Task.FromCanceled<McpHeadersRefreshResult?>(new CancellationToken(true))
+        });
+
+        DispatchEvent(session, new McpHeadersRefreshRequiredEvent
+        {
+            Data = new McpHeadersRefreshRequiredData
+            {
+                RequestId = "mcp-refresh-cancelled",
+                ServerName = "GitHub",
+                ServerUrl = "https://example.com/mcp",
+                Reason = McpHeadersRefreshRequiredReason.AuthFailed
+            }
+        });
+
+        var request = await WaitForRequestAsync(server, "session.mcp.headers.handlePendingHeadersRefreshRequest");
+        var result = request.Params.GetProperty("result");
+        Assert.Equal("error", result.GetProperty("kind").GetString());
+        Assert.False(string.IsNullOrWhiteSpace(result.GetProperty("message").GetString()));
+    }
+
     [Fact]
     public async Task Generated_Session_Rpc_Throws_When_Session_Disposed()
     {
@@ -1524,6 +1639,10 @@ public sealed class ClientSessionLifetimeTests
                     ["success"] = true
                 },
                 "session.mcp.oauth.handlePendingRequest" => new Dictionary<string, object?>
+                {
+                    ["success"] = true
+                },
+                "session.mcp.headers.handlePendingHeadersRefreshRequest" => new Dictionary<string, object?>
                 {
                     ["success"] = true
                 },

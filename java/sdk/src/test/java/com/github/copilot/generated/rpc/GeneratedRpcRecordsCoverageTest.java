@@ -637,7 +637,7 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionMcpListResult_nested() {
-        var server = new McpServer("my-mcp", McpServerStatus.CONNECTED, McpServerSource.USER, null, null, null);
+        var server = new McpServer("my-mcp", McpServerStatus.CONNECTED, McpServerSource.USER, null, null, null, null);
         var result = new SessionMcpListResult(List.of(server), null);
         assertEquals(1, result.servers().size());
         assertEquals("my-mcp", result.servers().get(0).name());

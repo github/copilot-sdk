@@ -914,7 +914,7 @@ export type SkillSource =
   /** Skill bundled with the runtime. */
   | "builtin";
 /**
- * Configuration source: user, workspace, plugin, or builtin
+ * Configuration source: user, workspace, plugin, builtin, or managed
  */
 export type McpServerSource =
   /** Server configured in the user's global MCP configuration. */
@@ -924,7 +924,9 @@ export type McpServerSource =
   /** Server contributed by an installed plugin. */
   | "plugin"
   /** Server bundled with the runtime. */
-  | "builtin";
+  | "builtin"
+  /** Server supplied by a trusted host-managed catalog. */
+  | "managed";
 /**
  * Connection status: connected, failed, needs-auth, pending, disabled, stopped, or not_configured
  */
@@ -9935,6 +9937,10 @@ export interface McpServersLoadedData {
  * A single MCP server status summary in `session.mcp_servers_loaded`, including name, status, source, transport, and plugin metadata.
  */
 export interface McpServersLoadedServer {
+  /**
+   * Human-readable display name supplied by a managed server catalog.
+   */
+  displayName?: string;
   /**
    * Error message if the server failed to connect
    */

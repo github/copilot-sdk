@@ -160,6 +160,8 @@ public record SessionOpenOptions(
     /** Memory configuration for this session. */
     @JsonProperty("memory") MemoryConfiguration memory,
     /** Capabilities enabled for this session. */
-    @JsonProperty("sessionCapabilities") List<SessionCapability> sessionCapabilities
+    @JsonProperty("sessionCapabilities") List<SessionCapability> sessionCapabilities,
+    /** Non-secret host-managed HTTP MCP servers keyed by stable managed identity. Managed provenance is runtime-established from this separate field and credentials are supplied through dynamic-header refresh. */
+    @JsonProperty("managedMcpServers") Map<String, ManagedMcpServerConfig> managedMcpServers
 ) {
 }

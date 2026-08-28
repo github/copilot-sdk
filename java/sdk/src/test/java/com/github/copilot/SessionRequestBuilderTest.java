@@ -12,6 +12,7 @@ import java.util.concurrent.CompletableFuture;
 
 import org.junit.jupiter.api.Test;
 
+import com.github.copilot.generated.rpc.ManagedMcpServerConfig;
 import com.github.copilot.generated.rpc.SessionLimitsConfig;
 import com.github.copilot.rpc.AutoModeSwitchResponse;
 import com.github.copilot.rpc.CloudSessionOptions;
@@ -1095,5 +1096,30 @@ public class SessionRequestBuilderTest {
         assertFalse(
                 mapper.writeValueAsString(SessionRequestBuilder.buildCreateRequest(new SessionConfig(), "session-2"))
                         .contains("\"githubMcpToolConfig\""));
+    }
+
+    @Test
+    void managedMcpServersAreMappedAndSerializedForCreateAndColdResume() throws Exception {
+        var managedServer = new ManagedMcpServerConfig("Managed catalog server", "https://mcp.example.com",
+                List.of("search"), 15_000L, 300_000L);
+        var managedServers = Map.of("catalog-server", managedServer);
+
+        var createRequest = SessionRequestBuilder
+                .buildCreateRequest(new SessionConfig().setManagedMcpServers(managedServers), "session-1");
+        var resumeRequest = SessionRequestBuilder.buildResumeRequest("session-1",
+                new ResumeSessionConfig().setManagedMcpServers(managedServers));
+
+        assertEquals(managedServers, createRequest.getManagedMcpServers());
+        assertEquals(managedServers, resumeRequest.getManagedMcpServers());
+
+        var mapper = JsonRpcClient.getObjectMapper();
+        var createJson = mapper.readTree(mapper.writeValueAsBytes(createRequest));
+        var resumeJson = mapper.readTree(mapper.writeValueAsBytes(resumeRequest));
+        assertEquals("Managed catalog server",
+                createJson.path("managedMcpServers").path("catalog-server").path("displayName").asText());
+        assertEquals(300_000L,
+                createJson.path("managedMcpServers").path("catalog-server").path("headersRefreshTtlMs").asLong());
+        assertEquals("https://mcp.example.com",
+                resumeJson.path("managedMcpServers").path("catalog-server").path("url").asText());
     }
 }

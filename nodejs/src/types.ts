@@ -14,6 +14,7 @@ import type {
     PermissionRequest as GeneratedPermissionRequest,
     PermissionRequestedData as GeneratedPermissionRequestedData,
     PermissionRequestedEvent as GeneratedPermissionRequestedEvent,
+    McpHeadersRefreshRequiredReason,
     ReasoningSummary,
     SessionLimitsConfig,
     SessionEvent as GeneratedSessionEvent,
@@ -24,6 +25,7 @@ import type {
     GitHubTokenAcquireRequest,
     GitHubTokenAcquireResult,
     GitHubTelemetryNotification,
+    ManagedMcpServerConfig,
     ModelBillingTokenPrices,
     OpenCanvasInstance,
     RemoteSessionMode,
@@ -32,6 +34,7 @@ import type {
 import type { ToolSet } from "./toolSet.js";
 export type { RemoteSessionMode } from "./generated/rpc.js";
 export type { CurrentToolMetadata } from "./generated/rpc.js";
+export type { ManagedMcpServerConfig } from "./generated/rpc.js";
 export type {
     GitHubTokenAcquireReason,
     GitHubTokenAcquireResult,
@@ -2031,6 +2034,38 @@ export type McpAuthHandler = (
     | undefined
     | Promise<McpAuthResult | McpAuthToken | null | undefined>;
 
+/** MCP server whose short-lived HTTP headers must be refreshed by the host. */
+export interface McpHeadersRefreshRequest {
+    /** Human-readable managed catalog display name. */
+    serverName: string;
+    /** Hosted MCP streamable HTTP endpoint. */
+    serverUrl: string;
+    /** Why the runtime invalidated or requested dynamic headers. */
+    reason: McpHeadersRefreshRequiredReason;
+}
+
+/** Dynamic headers and their optional credential-bounded cache lifetime. */
+export interface McpHeadersRefreshResult {
+    headers: Record<string, string>;
+    ttlMs?: number;
+}
+
+/**
+ * Callback invoked when a managed MCP server needs fresh HTTP headers.
+ *
+ * Return a bare header map or a structured result with `ttlMs`. Returning
+ * `undefined` reports that no headers are available. Throwing reports an
+ * explicit credential-broker error to the runtime.
+ */
+export type McpHeadersRefreshHandler = (
+    request: McpHeadersRefreshRequest,
+    context: { sessionId: string }
+) =>
+    | McpHeadersRefreshResult
+    | Record<string, string>
+    | undefined
+    | Promise<McpHeadersRefreshResult | Record<string, string> | undefined>;
+
 /**
  * Stable extension identity for session participants that provide canvases.
  */
@@ -2555,6 +2590,12 @@ export interface SessionConfigBase {
     onMcpAuthRequest?: McpAuthHandler;
 
     /**
+     * Supplies short-lived HTTP headers for managed MCP servers.
+     * Re-register this handler when cold-resuming a session.
+     */
+    onMcpHeadersRefresh?: McpHeadersRefreshHandler;
+
+    /**
      * Handler for user input requests from the agent.
      * When provided, enables the ask_user tool allowing the agent to ask questions.
      */
@@ -2668,6 +2709,15 @@ export interface SessionConfigBase {
      * Keys are server names, values are server configurations.
      */
     mcpServers?: Record<string, MCPServerConfig>;
+
+    /**
+     * Non-secret hosted MCP servers injected from a trusted managed catalog.
+     * Keys are stable managed identities. Credentials must be supplied through
+     * {@link onMcpHeadersRefresh}, never stored in this configuration.
+     *
+     * @experimental
+     */
+    managedMcpServers?: Record<string, ManagedMcpServerConfig>;
 
     /**
      * Custom agent configurations for the session.

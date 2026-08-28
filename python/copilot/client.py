@@ -102,7 +102,9 @@ from .session import (
     GitHubMcpToolConfig,
     InfiniteSessionConfig,
     LargeToolOutputConfig,
+    ManagedMCPServerConfig,
     McpAuthHandler,
+    McpHeadersRefreshHandler,
     MCPServerConfig,
     MemoryConfiguration,
     ModelCapabilitiesOverride,
@@ -414,6 +416,26 @@ def _mcp_servers_to_wire(
             config = {**config, "cwd": config["working_directory"]}
             del config["working_directory"]
         wire[name] = config
+    return wire
+
+
+def _managed_mcp_servers_to_wire(
+    servers: dict[str, ManagedMCPServerConfig],
+) -> dict[str, Any]:
+    """Convert managed MCP configuration keys to the JSON-RPC wire casing."""
+    wire: dict[str, Any] = {}
+    for name, config in servers.items():
+        server: dict[str, Any] = {
+            "displayName": config["display_name"],
+            "url": config["url"],
+        }
+        if "tools" in config:
+            server["tools"] = config["tools"]
+        if "timeout" in config:
+            server["timeout"] = config["timeout"]
+        if "headers_refresh_ttl_ms" in config:
+            server["headersRefreshTtlMs"] = config["headers_refresh_ttl_ms"]
+        wire[name] = server
     return wire
 
 
@@ -2229,6 +2251,7 @@ class CopilotClient:
         streaming: bool | None = None,
         include_sub_agent_streaming_events: bool | None = None,
         mcp_servers: dict[str, MCPServerConfig] | None = None,
+        managed_mcp_servers: dict[str, ManagedMCPServerConfig] | None = None,
         mcp_oauth_token_storage: Literal["persistent", "in-memory"] | None = None,
         embedding_cache_storage: Literal["persistent", "in-memory"] | None = None,
         custom_agents: list[CustomAgentConfig] | None = None,
@@ -2256,6 +2279,7 @@ class CopilotClient:
         commands: list[CommandDefinition] | None = None,
         on_elicitation_request: ElicitationHandler | None = None,
         on_mcp_auth_request: McpAuthHandler | None = None,
+        on_mcp_headers_refresh: McpHeadersRefreshHandler | None = None,
         enable_mcp_apps: bool = False,
         on_exit_plan_mode_request: ExitPlanModeHandler | None = None,
         on_auto_mode_switch_request: AutoModeSwitchHandler | None = None,
@@ -2353,6 +2377,12 @@ class CopilotClient:
                 ``agentId`` set). When False, only non-streaming sub-agent events and
                 ``subagent.*`` lifecycle events are forwarded. Defaults to True.
             mcp_servers: MCP server configurations.
+            managed_mcp_servers: Non-secret hosted MCP servers from a trusted
+                managed catalog, keyed by stable managed identity. Re-supply on
+                cold resume.
+            on_mcp_headers_refresh: Supplies short-lived HTTP headers for managed
+                MCP servers. Exceptions are reported to the runtime as explicit
+                credential-broker errors.
             mcp_oauth_token_storage: Controls how MCP OAuth tokens are stored.
                 ``"persistent"`` uses the OS keychain (shared across sessions).
                 ``"in-memory"`` stores tokens in memory (discarded on session end).
@@ -2650,6 +2680,8 @@ class CopilotClient:
         # Add MCP servers configuration if provided
         if mcp_servers:
             payload["mcpServers"] = _mcp_servers_to_wire(mcp_servers)
+        if managed_mcp_servers is not None:
+            payload["managedMcpServers"] = _managed_mcp_servers_to_wire(managed_mcp_servers)
         # Mode "empty" defaults MCP OAuth token storage to in-memory; caller wins.
         mcp_oauth_token_storage = _mcp_oauth_token_storage_default(mode, mcp_oauth_token_storage)
         if mcp_oauth_token_storage is not None:
@@ -2820,6 +2852,7 @@ class CopilotClient:
             s._register_commands(commands)
             s._register_permission_handler(on_permission_request)
             s._register_mcp_auth_handler(on_mcp_auth_request)
+            s._register_mcp_headers_refresh_handler(on_mcp_headers_refresh)
             if on_user_input_request:
                 s._register_user_input_handler(on_user_input_request)
             if on_elicitation_request:
@@ -2912,6 +2945,14 @@ class CopilotClient:
                     "session.eventLog.registerInterest",
                     {"sessionId": session.session_id, "eventType": "mcp.oauth_required"},
                 )
+            if on_mcp_headers_refresh is not None:
+                await self._client.request(
+                    "session.eventLog.registerInterest",
+                    {
+                        "sessionId": session.session_id,
+                        "eventType": "mcp.headers_refresh_required",
+                    },
+                )
             session._workspace_path = response.get("workspacePath")
             capabilities = response.get("capabilities")
             session._set_capabilities(capabilities)
@@ -2990,6 +3031,7 @@ class CopilotClient:
         streaming: bool | None = None,
         include_sub_agent_streaming_events: bool | None = None,
         mcp_servers: dict[str, MCPServerConfig] | None = None,
+        managed_mcp_servers: dict[str, ManagedMCPServerConfig] | None = None,
         mcp_oauth_token_storage: Literal["persistent", "in-memory"] | None = None,
         embedding_cache_storage: Literal["persistent", "in-memory"] | None = None,
         custom_agents: list[CustomAgentConfig] | None = None,
@@ -3017,6 +3059,7 @@ class CopilotClient:
         commands: list[CommandDefinition] | None = None,
         on_elicitation_request: ElicitationHandler | None = None,
         on_mcp_auth_request: McpAuthHandler | None = None,
+        on_mcp_headers_refresh: McpHeadersRefreshHandler | None = None,
         enable_mcp_apps: bool = False,
         on_exit_plan_mode_request: ExitPlanModeHandler | None = None,
         on_auto_mode_switch_request: AutoModeSwitchHandler | None = None,
@@ -3116,6 +3159,10 @@ class CopilotClient:
                 ``agentId`` set). When False, only non-streaming sub-agent events and
                 ``subagent.*`` lifecycle events are forwarded. Defaults to True.
             mcp_servers: MCP server configurations.
+            managed_mcp_servers: Non-secret hosted MCP servers from a trusted
+                managed catalog. Re-supply them on cold resume.
+            on_mcp_headers_refresh: Supplies short-lived HTTP headers for managed
+                MCP servers.
             mcp_oauth_token_storage: Controls how MCP OAuth tokens are stored.
                 ``"persistent"`` uses the OS keychain (shared across sessions).
                 ``"in-memory"`` stores tokens in memory (discarded on session end).
@@ -3409,6 +3456,8 @@ class CopilotClient:
         # TODO: disable_resume is not a keyword arg yet; keeping for future use
         if mcp_servers:
             payload["mcpServers"] = _mcp_servers_to_wire(mcp_servers)
+        if managed_mcp_servers is not None:
+            payload["managedMcpServers"] = _managed_mcp_servers_to_wire(managed_mcp_servers)
         # Mode "empty" defaults MCP OAuth token storage to in-memory; caller wins.
         mcp_oauth_token_storage = _mcp_oauth_token_storage_default(mode, mcp_oauth_token_storage)
         if mcp_oauth_token_storage is not None:
@@ -3516,6 +3565,7 @@ class CopilotClient:
         session._register_commands(commands)
         session._register_permission_handler(on_permission_request)
         session._register_mcp_auth_handler(on_mcp_auth_request)
+        session._register_mcp_headers_refresh_handler(on_mcp_headers_refresh)
         if on_user_input_request:
             session._register_user_input_handler(on_user_input_request)
         if on_elicitation_request:
@@ -3580,6 +3630,14 @@ class CopilotClient:
                 await self._client.request(
                     "session.eventLog.registerInterest",
                     {"sessionId": session.session_id, "eventType": "mcp.oauth_required"},
+                )
+            if on_mcp_headers_refresh is not None:
+                await self._client.request(
+                    "session.eventLog.registerInterest",
+                    {
+                        "sessionId": session.session_id,
+                        "eventType": "mcp.headers_refresh_required",
+                    },
                 )
         except BaseException as exc:
             with self._sessions_lock:

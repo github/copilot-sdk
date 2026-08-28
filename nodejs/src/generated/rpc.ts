@@ -1695,6 +1695,10 @@ export type McpHeadersHandlePendingHeadersRefreshRequest =
         [k: string]: string | undefined;
       };
       /**
+       * Optional lifetime in milliseconds for these returned headers. The runtime clamps its configured cache lifetime to this value.
+       */
+      ttlMs?: number;
+      /**
        * Headers-refresh response variant discriminator.
        */
       kind: "headers";
@@ -1704,6 +1708,16 @@ export type McpHeadersHandlePendingHeadersRefreshRequest =
        * Headers-refresh response variant discriminator.
        */
       kind: "none";
+    }
+  | {
+      /**
+       * Host credential broker failure, denial, or revocation reason.
+       */
+      message: string;
+      /**
+       * Headers-refresh response variant discriminator.
+       */
+      kind: "error";
     };
 /**
  * One eligible way to run the server, represented as a tagged package or remote variant so package identity and endpoint states cannot contradict the install method.
@@ -11564,6 +11578,10 @@ export interface McpServer {
    * Error message if the server failed to connect
    */
   error?: string;
+  /**
+   * Human-readable display name supplied by a managed server catalog.
+   */
+  displayName?: string;
 }
 /**
  * In-process MCP server configuration used by embedded SDK clients.
@@ -18293,6 +18311,14 @@ export interface SessionOpenOptions {
    * Capabilities enabled for this session.
    */
   sessionCapabilities?: SessionCapability[];
+  /**
+   * Non-secret host-managed HTTP MCP servers keyed by stable managed identity. Managed provenance is runtime-established from this separate field and credentials are supplied through dynamic-header refresh.
+   *
+   * @experimental
+   */
+  managedMcpServers?: {
+    [k: string]: ManagedMcpServerConfig | undefined;
+  };
 }
 /**
  * Per-session settings for built-in shell tools.
@@ -18438,6 +18464,35 @@ export interface SessionOpenOptionsAdditionalContentExclusionPolicyRuleSource {
    * Type of the policy source.
    */
   type: string;
+}
+/**
+ * Non-secret host-managed HTTP MCP server configuration. The containing map key is the stable managed identity; credentials are supplied dynamically by the host.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ManagedMcpServerConfig".
+ */
+/** @experimental */
+export interface ManagedMcpServerConfig {
+  /**
+   * Human-readable catalog display name.
+   */
+  displayName: string;
+  /**
+   * Hosted MCP streamable HTTP endpoint.
+   */
+  url: string;
+  /**
+   * Tools to include. Defaults to all tools when omitted.
+   */
+  tools?: string[];
+  /**
+   * Timeout in milliseconds for tool discovery and tool calls.
+   */
+  timeout?: number;
+  /**
+   * Maximum dynamic-header cache lifetime in milliseconds.
+   */
+  headersRefreshTtlMs?: number;
 }
 /**
  * Parameters for creating a new local session.

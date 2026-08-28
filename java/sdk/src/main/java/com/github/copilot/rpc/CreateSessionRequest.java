@@ -12,6 +12,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import com.github.copilot.CopilotExperimental;
+import com.github.copilot.generated.rpc.ManagedMcpServerConfig;
 import com.github.copilot.generated.rpc.SessionLimitsConfig;
 
 /**
@@ -112,6 +113,9 @@ public final class CreateSessionRequest {
 
     @JsonProperty("mcpServers")
     private Map<String, McpServerConfig> mcpServers;
+
+    @JsonProperty("managedMcpServers")
+    private Map<String, ManagedMcpServerConfig> managedMcpServers;
 
     @JsonProperty("mcpOAuthTokenStorage")
     private String mcpOAuthTokenStorage;
@@ -573,6 +577,18 @@ public final class CreateSessionRequest {
     /** Sets MCP servers. @param mcpServers the servers map */
     public void setMcpServers(Map<String, McpServerConfig> mcpServers) {
         this.mcpServers = mcpServers;
+    }
+
+    /** Gets managed MCP servers. @return the managed servers map */
+    public Map<String, ManagedMcpServerConfig> getManagedMcpServers() {
+        return managedMcpServers == null ? null : Collections.unmodifiableMap(managedMcpServers);
+    }
+
+    /**
+     * Sets managed MCP servers. @param managedMcpServers the managed servers map
+     */
+    public void setManagedMcpServers(Map<String, ManagedMcpServerConfig> managedMcpServers) {
+        this.managedMcpServers = managedMcpServers;
     }
 
     /** Gets MCP OAuth token storage mode. @return the storage mode */

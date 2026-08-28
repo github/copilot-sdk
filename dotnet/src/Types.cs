@@ -1274,6 +1274,57 @@ public sealed class McpAuthResult
     public static McpAuthResult Cancel() => new() { Cancelled = true };
 }
 
+/// <summary>Context for a managed MCP dynamic-headers refresh callback.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class McpHeadersRefreshContext
+{
+    /// <summary>Identifier of the session that requested refreshed headers.</summary>
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>Human-readable managed catalog display name.</summary>
+    public string ServerName { get; set; } = string.Empty;
+
+    /// <summary>Hosted MCP streamable HTTP endpoint.</summary>
+    public string ServerUrl { get; set; } = string.Empty;
+
+    /// <summary>Why the runtime invalidated or requested dynamic headers.</summary>
+    public McpHeadersRefreshRequiredReason Reason { get; set; }
+}
+
+/// <summary>Dynamic headers and their optional credential-bounded cache lifetime.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class McpHeadersRefreshResult
+{
+    /// <summary>HTTP headers to overlay on requests to the managed MCP server.</summary>
+    public required IDictionary<string, string> Headers { get; set; }
+
+    /// <summary>Optional lifetime in milliseconds for the returned credentials.</summary>
+    public long? TtlMs { get; set; }
+}
+
+/// <summary>
+/// Non-secret hosted MCP server configuration supplied by a trusted managed catalog.
+/// Credentials are provided only through <see cref="SessionConfigBase.OnMcpHeadersRefresh"/>.
+/// </summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ManagedMcpServerConfig
+{
+    /// <summary>Human-readable catalog display name.</summary>
+    public required string DisplayName { get; set; }
+
+    /// <summary>Hosted MCP streamable HTTP endpoint.</summary>
+    public required string Url { get; set; }
+
+    /// <summary>Tools to include. The runtime includes all tools when omitted.</summary>
+    public IList<string>? Tools { get; set; }
+
+    /// <summary>Timeout in milliseconds for tool discovery and tool calls.</summary>
+    public long? Timeout { get; set; }
+
+    /// <summary>Maximum dynamic-header cache lifetime in milliseconds.</summary>
+    public long? HeadersRefreshTtlMs { get; set; }
+}
+
 // ============================================================================
 // Session Capabilities
 // ============================================================================
@@ -3182,6 +3233,9 @@ public abstract class SessionConfigBase
                 ? new Dictionary<string, McpServerConfig>(dict, dict.Comparer)
                 : new Dictionary<string, McpServerConfig>(other.McpServers))
             : null;
+        ManagedMcpServers = other.ManagedMcpServers is not null
+            ? new Dictionary<string, ManagedMcpServerConfig>(other.ManagedMcpServers)
+            : null;
         McpOAuthTokenStorage = other.McpOAuthTokenStorage;
         Model = other.Model;
         ModelCapabilities = other.ModelCapabilities;
@@ -3190,6 +3244,7 @@ public abstract class SessionConfigBase
         OnEvent = other.OnEvent;
         OnExitPlanModeRequest = other.OnExitPlanModeRequest;
         OnMcpAuthRequest = other.OnMcpAuthRequest;
+        OnMcpHeadersRefresh = other.OnMcpHeadersRefresh;
         OnPermissionRequest = other.OnPermissionRequest;
         OnUserInputRequest = other.OnUserInputRequest;
         Provider = other.Provider;
@@ -3555,6 +3610,13 @@ public abstract class SessionConfigBase
     public IDictionary<string, McpServerConfig>? McpServers { get; set; }
 
     /// <summary>
+    /// Non-secret hosted MCP servers injected from a trusted managed catalog.
+    /// Keys are stable managed identities. Re-supply this map on cold resume.
+    /// </summary>
+    [Experimental(Diagnostics.Experimental)]
+    public IDictionary<string, ManagedMcpServerConfig>? ManagedMcpServers { get; set; }
+
+    /// <summary>
     /// Controls how MCP OAuth tokens are stored for this session.
     /// Default: <see cref="McpOAuthTokenStorageMode.InMemory"/> for safe multitenant behavior.
     /// </summary>
@@ -3785,6 +3847,15 @@ public abstract class SessionConfigBase
     [Experimental(Diagnostics.Experimental)]
     [JsonIgnore]
     public Func<McpAuthContext, Task<McpAuthResult?>>? OnMcpAuthRequest { get; set; }
+
+    /// <summary>
+    /// Supplies short-lived HTTP headers for managed MCP servers. Returning
+    /// <see langword="null"/> reports no headers; exceptions are sent to the
+    /// runtime as explicit credential-broker errors.
+    /// </summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonIgnore]
+    public Func<McpHeadersRefreshContext, Task<McpHeadersRefreshResult?>>? OnMcpHeadersRefresh { get; set; }
 }
 
 /// <summary>

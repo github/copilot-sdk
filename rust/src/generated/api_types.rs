@@ -7735,6 +7735,9 @@ pub struct McpHeadersHandlePendingHeadersRefreshRequestHeaders {
     pub headers: HashMap<String, String>,
     /// Headers-refresh response variant discriminator.
     pub kind: McpHeadersHandlePendingHeadersRefreshRequestHeadersKind,
+    /// Optional lifetime in milliseconds for these returned headers. The runtime clamps its configured cache lifetime to this value.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ttl_ms: Option<i64>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -7742,6 +7745,15 @@ pub struct McpHeadersHandlePendingHeadersRefreshRequestHeaders {
 pub struct McpHeadersHandlePendingHeadersRefreshRequestNone {
     /// Headers-refresh response variant discriminator.
     pub kind: McpHeadersHandlePendingHeadersRefreshRequestNoneKind,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpHeadersHandlePendingHeadersRefreshRequestError {
+    /// Headers-refresh response variant discriminator.
+    pub kind: McpHeadersHandlePendingHeadersRefreshRequestErrorKind,
+    /// Host credential broker failure, denial, or revocation reason.
+    pub message: String,
 }
 
 /// MCP headers refresh request id and the host response.
@@ -8967,6 +8979,9 @@ pub struct McpSamplingExecutionResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpServer {
+    /// Human-readable display name supplied by a managed server catalog.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display_name: Option<String>,
     /// Error message if the server failed to connect
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
@@ -16474,6 +16489,32 @@ pub struct SessionOpenOptionsAdditionalContentExclusionPolicy {
     pub scope: SessionOpenOptionsAdditionalContentExclusionPolicyScope,
 }
 
+/// Non-secret host-managed HTTP MCP server configuration. The containing map key is the stable managed identity; credentials are supplied dynamically by the host.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManagedMcpServerConfig {
+    /// Human-readable catalog display name.
+    pub display_name: String,
+    /// Maximum dynamic-header cache lifetime in milliseconds.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub headers_refresh_ttl_ms: Option<i64>,
+    /// Timeout in milliseconds for tool discovery and tool calls.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timeout: Option<i64>,
+    /// Tools to include. Defaults to all tools when omitted.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tools: Option<Vec<String>>,
+    /// Hosted MCP streamable HTTP endpoint.
+    pub url: String,
+}
+
 /// Command-scoped GitHub credential injection for the shell commands an agent runs.
 ///
 /// Each channel is opt-in and independent, and injection is scoped to the individual command
@@ -16720,6 +16761,16 @@ pub struct SessionOpenOptions {
     /// Identifier sent to LSP-style integrations.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub lsp_client_name: Option<String>,
+    /// Non-secret host-managed HTTP MCP servers keyed by stable managed identity. Managed provenance is runtime-established from this separate field and credentials are supplied through dynamic-header refresh.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub managed_mcp_servers: Option<HashMap<String, ManagedMcpServerConfig>>,
     /// Permissions-only enterprise policy injected by the SDK host at session create or resume. Composes restrictively with self-fetched and device policy and is not persisted.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub managed_settings: Option<SessionManagedSettings>,
@@ -29828,6 +29879,14 @@ pub enum McpHeadersHandlePendingHeadersRefreshRequestNoneKind {
     None,
 }
 
+/// Headers-refresh response variant discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpHeadersHandlePendingHeadersRefreshRequestErrorKind {
+    #[serde(rename = "error")]
+    #[default]
+    Error,
+}
+
 /// Host response: supply dynamic headers or decline this refresh.
 ///
 /// <div class="warning">
@@ -29841,6 +29900,7 @@ pub enum McpHeadersHandlePendingHeadersRefreshRequestNoneKind {
 pub enum McpHeadersHandlePendingHeadersRefreshRequest {
     Headers(McpHeadersHandlePendingHeadersRefreshRequestHeaders),
     None(McpHeadersHandlePendingHeadersRefreshRequestNone),
+    Error(McpHeadersHandlePendingHeadersRefreshRequestError),
 }
 
 /// Whether a planned configuration change would create or modify an entry

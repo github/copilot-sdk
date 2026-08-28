@@ -2,7 +2,7 @@
 //!
 //! Each callback the CLI may dispatch (permission requests, elicitation
 //! prompts, user-input questions, exit-plan-mode prompts,
-//! auto-mode-switch prompts) has its own focused trait with a single
+//! auto-mode-switch prompts, MCP credential requests) has its own focused trait with a single
 //! `handle` method.
 //!
 //! Handlers are **optional**: install only the ones the application cares
@@ -15,17 +15,27 @@
 //! [`Tool::with_handler`](crate::types::Tool::with_handler) on entries passed to
 //! [`SessionConfig::with_tools`](crate::types::SessionConfig::with_tools).
 
+use std::collections::HashMap;
+
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
 use crate::generated::api_types::{
-    McpOauthPendingRequestResponse, McpOauthPendingRequestResponseCancelled,
-    McpOauthPendingRequestResponseCancelledKind, McpOauthPendingRequestResponseToken,
-    McpOauthPendingRequestResponseTokenKind, PermissionDecision, PermissionDecisionApproveOnce,
-    PermissionDecisionContext, PermissionDecisionReject, PermissionDecisionUserNotAvailable,
+    McpHeadersHandlePendingHeadersRefreshRequest,
+    McpHeadersHandlePendingHeadersRefreshRequestError,
+    McpHeadersHandlePendingHeadersRefreshRequestErrorKind,
+    McpHeadersHandlePendingHeadersRefreshRequestHeaders,
+    McpHeadersHandlePendingHeadersRefreshRequestHeadersKind,
+    McpHeadersHandlePendingHeadersRefreshRequestNone,
+    McpHeadersHandlePendingHeadersRefreshRequestNoneKind, McpOauthPendingRequestResponse,
+    McpOauthPendingRequestResponseCancelled, McpOauthPendingRequestResponseCancelledKind,
+    McpOauthPendingRequestResponseToken, McpOauthPendingRequestResponseTokenKind,
+    PermissionDecision, PermissionDecisionApproveOnce, PermissionDecisionContext,
+    PermissionDecisionReject, PermissionDecisionUserNotAvailable,
 };
 use crate::session_events::{
-    McpOauthRequestReason, McpOauthRequiredStaticClientConfig, McpOauthWWWAuthenticateParams,
+    McpHeadersRefreshRequiredReason, McpOauthRequestReason, McpOauthRequiredStaticClientConfig,
+    McpOauthWWWAuthenticateParams,
 };
 use crate::types::{
     ElicitationRequest, ElicitationResult, ExitPlanModeData, PermissionRequestData, RequestId,
@@ -292,6 +302,75 @@ pub trait McpAuthHandler: Send + Sync + 'static {
         request_id: RequestId,
         request: McpAuthRequest,
     ) -> McpAuthResult;
+}
+
+/// Dynamic-header request for a host-managed MCP server.
+#[derive(Debug, Clone)]
+pub struct McpHeadersRefreshRequest {
+    /// Display name of the MCP server that requires headers.
+    pub server_name: String,
+    /// URL of the MCP server that requires headers.
+    pub server_url: String,
+    /// Why the runtime is requesting fresh headers.
+    pub reason: McpHeadersRefreshRequiredReason,
+}
+
+/// Result returned by an [`McpHeadersRefreshHandler`].
+#[derive(Debug, Clone)]
+pub enum McpHeadersRefreshResult {
+    /// Supplies dynamic HTTP headers for the managed MCP server.
+    Headers {
+        /// Headers to overlay onto MCP requests.
+        headers: HashMap<String, String>,
+        /// Optional lifetime in milliseconds for the returned headers.
+        ttl_ms: Option<i64>,
+    },
+    /// Indicates that no dynamic headers are available.
+    None,
+}
+
+impl McpHeadersRefreshResult {
+    pub(crate) fn into_wire(self) -> McpHeadersHandlePendingHeadersRefreshRequest {
+        match self {
+            Self::Headers { headers, ttl_ms } => {
+                McpHeadersHandlePendingHeadersRefreshRequest::Headers(
+                    McpHeadersHandlePendingHeadersRefreshRequestHeaders {
+                        headers,
+                        kind: McpHeadersHandlePendingHeadersRefreshRequestHeadersKind::Headers,
+                        ttl_ms,
+                    },
+                )
+            }
+            Self::None => McpHeadersHandlePendingHeadersRefreshRequest::None(
+                McpHeadersHandlePendingHeadersRefreshRequestNone {
+                    kind: McpHeadersHandlePendingHeadersRefreshRequestNoneKind::None,
+                },
+            ),
+        }
+    }
+}
+
+pub(crate) fn mcp_headers_error_result(
+    message: impl Into<String>,
+) -> McpHeadersHandlePendingHeadersRefreshRequest {
+    McpHeadersHandlePendingHeadersRefreshRequest::Error(
+        McpHeadersHandlePendingHeadersRefreshRequestError {
+            kind: McpHeadersHandlePendingHeadersRefreshRequestErrorKind::Error,
+            message: message.into(),
+        },
+    )
+}
+
+/// Handler for dynamic headers requested by host-managed MCP servers.
+#[async_trait]
+pub trait McpHeadersRefreshHandler: Send + Sync + 'static {
+    /// Resolve a managed MCP headers refresh request.
+    async fn handle(
+        &self,
+        session_id: SessionId,
+        request_id: RequestId,
+        request: McpHeadersRefreshRequest,
+    ) -> Result<McpHeadersRefreshResult, crate::Error>;
 }
 
 /// Handler for `user_input.requested` events from the `ask_user` tool.

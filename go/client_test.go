@@ -2139,6 +2139,76 @@ func TestClient_MCPAuthInterestRegistration(t *testing.T) {
 	})
 }
 
+func TestClient_ManagedMCPCreateAndResume(t *testing.T) {
+	client, requests, cleanup := newInMemoryClient(t)
+	defer cleanup()
+
+	ttl := int64(60_000)
+	managed := map[string]ManagedMCPServerConfig{
+		"github": {
+			DisplayName:         "GitHub",
+			URL:                 "https://example.com/mcp",
+			Tools:               []string{"issues"},
+			HeadersRefreshTtlMs: &ttl,
+		},
+	}
+	handler := func(MCPHeadersRefreshRequest, MCPHeadersRefreshInvocation) (*MCPHeadersRefreshResult, error) {
+		return nil, nil
+	}
+
+	session, err := client.CreateSession(t.Context(), &SessionConfig{
+		ManagedMCPServers:   managed,
+		OnMCPHeadersRefresh: handler,
+	})
+	if err != nil {
+		t.Fatalf("CreateSession failed: %v", err)
+	}
+	defer session.Disconnect()
+
+	create, ok := findRequest(requests.snapshot(), "session.create")
+	if !ok {
+		t.Fatal("missing session.create request")
+	}
+	managedWire, ok := create.Params["managedMcpServers"].(map[string]any)
+	if !ok {
+		t.Fatalf("unexpected managedMcpServers: %#v", create.Params["managedMcpServers"])
+	}
+	github, ok := managedWire["github"].(map[string]any)
+	if !ok || github["displayName"] != "GitHub" || github["headersRefreshTtlMs"] != float64(60_000) {
+		t.Fatalf("unexpected managed server payload: %#v", managedWire)
+	}
+	if !hasEventInterest(requests.snapshot(), "mcp.headers_refresh_required") {
+		t.Fatal("missing managed MCP headers refresh interest on create")
+	}
+
+	requests.clear()
+	resumed, err := client.ResumeSession(t.Context(), session.SessionID, &ResumeSessionConfig{
+		ManagedMCPServers:   managed,
+		OnMCPHeadersRefresh: handler,
+	})
+	if err != nil {
+		t.Fatalf("ResumeSession failed: %v", err)
+	}
+	defer resumed.Disconnect()
+
+	resume, ok := findRequest(requests.snapshot(), "session.resume")
+	if !ok || resume.Params["managedMcpServers"] == nil {
+		t.Fatalf("managed MCP servers missing from resume: %#v", resume.Params)
+	}
+	if !hasEventInterest(requests.snapshot(), "mcp.headers_refresh_required") {
+		t.Fatal("missing managed MCP headers refresh interest on resume")
+	}
+}
+
+func hasEventInterest(requests []recordedRequest, eventType string) bool {
+	for _, request := range requests {
+		if request.Method == "session.eventLog.registerInterest" && request.Params["eventType"] == eventType {
+			return true
+		}
+	}
+	return false
+}
+
 func findRequest(requests []recordedRequest, method string) (recordedRequest, bool) {
 	for _, r := range requests {
 		if r.Method == method {

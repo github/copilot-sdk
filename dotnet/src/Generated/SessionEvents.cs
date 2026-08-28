@@ -9399,6 +9399,11 @@ public sealed partial class CustomAgentsUpdatedAgent
 /// <remarks>Nested data type for <c>McpServersLoadedServer</c>.</remarks>
 public sealed partial class McpServersLoadedServer
 {
+    /// <summary>Human-readable display name supplied by a managed server catalog.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("displayName")]
+    public string? DisplayName { get; set; }
+
     /// <summary>Error message if the server failed to connect.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("error")]
@@ -13855,7 +13860,7 @@ public readonly struct SkillSource : IEquatable<SkillSource>
     }
 }
 
-/// <summary>Configuration source: user, workspace, plugin, or builtin.</summary>
+/// <summary>Configuration source: user, workspace, plugin, builtin, or managed.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct McpServerSource : IEquatable<McpServerSource>
@@ -13885,6 +13890,9 @@ public readonly struct McpServerSource : IEquatable<McpServerSource>
 
     /// <summary>Server bundled with the runtime.</summary>
     public static McpServerSource Builtin { get; } = new("builtin");
+
+    /// <summary>Server supplied by a trusted host-managed catalog.</summary>
+    public static McpServerSource Managed { get; } = new("managed");
 
     /// <summary>Returns a value indicating whether two <see cref="McpServerSource"/> instances are equivalent.</summary>
     public static bool operator ==(McpServerSource left, McpServerSource right) => left.Equals(right);

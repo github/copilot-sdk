@@ -15,14 +15,85 @@ The Copilot SDK can integrate with **MCP servers** (Model Context Protocol) to e
 * Call external APIs
 * And much more
 
-## Server types
+## Server transports
 
-The SDK supports two types of MCP servers:
+The SDK supports two MCP transport families:
 
 | Type | Description | Use Case |
 |------|-------------|----------|
 | **Local/Stdio** | Runs as a subprocess, communicates via stdin/stdout | Local tools, file access, custom scripts |
 | **HTTP/SSE** | Remote server accessed via HTTP | Shared services, cloud-hosted tools |
+
+Transport and configuration origin are separate concepts. A managed MCP server
+uses the HTTP transport, but its configuration comes from a trusted host catalog
+instead of user or workspace configuration. Session status and loaded-server
+events report this distinction with `source: "managed"` and include the catalog
+display name.
+
+## Managed MCP servers
+
+Managed MCP lets a trusted SDK host inject a catalog of non-secret hosted
+servers for one session. The runtime keeps this catalog separate from
+`mcpServers`, so existing local stdio, HTTP, SSE, and OAuth behavior remains
+unchanged.
+
+The host supplies each server under a stable managed identity:
+
+<!-- docs-validate: skip -->
+
+```typescript
+const session = await client.createSession({
+    managedMcpServers: {
+        "github-enterprise": {
+            displayName: "GitHub Enterprise",
+            url: "https://mcp.example.com/",
+            tools: ["issues", "pull_requests"],
+            timeout: 30_000,
+            headersRefreshTtlMs: 60_000,
+        },
+    },
+    onMcpHeadersRefresh: async ({ serverName, serverUrl, reason }) => {
+        const credential = await broker.getCredential({ serverName, serverUrl, reason });
+        return {
+            headers: { Authorization: credential.authorizationHeader },
+            ttlMs: credential.expiresInMs,
+        };
+    },
+});
+```
+
+The corresponding configuration and callback names are:
+
+| SDK | Managed servers | Header refresh callback |
+| --- | --- | --- |
+| Node.js | `managedMcpServers` | `onMcpHeadersRefresh` |
+| Python | `managed_mcp_servers` | `on_mcp_headers_refresh` |
+| Go | `ManagedMCPServers` | `OnMCPHeadersRefresh` |
+| .NET | `ManagedMcpServers` | `OnMcpHeadersRefresh` |
+| Java | `setManagedMcpServers(...)` | `setOnMcpHeadersRefreshRequest(...)` |
+| Rust | `with_managed_mcp_servers(...)` | `with_mcp_headers_handler(...)` |
+
+### Host responsibilities
+
+Managed MCP hosts must enforce these boundaries:
+
+* **Trusted catalog injection**: Only inject server identities, display metadata,
+  endpoints, and tool policy from a trusted catalog. Do not treat model output
+  or untrusted content as catalog configuration.
+* **Memory-only credentials**: Keep access tokens and derived authorization
+  headers in memory. Do not place credentials in `managedMcpServers`, session
+  history, workspace state, or persistent MCP OAuth storage.
+* **Expiry and revocation**: Set `ttlMs` to the remaining credential lifetime.
+  The runtime clamps it to `headersRefreshTtlMs`. Throw from the callback when
+  the broker denies access, fails, or reports revocation; the SDK forwards an
+  explicit broker error without converting it to a successful empty response.
+* **Cold resume**: Re-supply both the managed catalog and the header refresh
+  callback when cold-resuming a session. Managed configuration and credentials
+  are not recovered from persisted session state.
+
+Returning no result from the callback reports that no dynamic headers are
+available. Existing static `headers`, arbitrary HTTP servers, and MCP OAuth
+handlers continue to use their current behavior.
 
 ## Configuration
 

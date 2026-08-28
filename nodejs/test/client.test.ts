@@ -272,6 +272,162 @@ describe("CopilotClient", () => {
         });
     });
 
+    it.each([
+        {
+            name: "bare headers without ttlMs",
+            response: { Authorization: "Bearer short-lived" },
+            expected: {
+                kind: "headers",
+                headers: { Authorization: "Bearer short-lived" },
+            },
+        },
+        {
+            name: "structured headers with ttlMs",
+            response: {
+                headers: { Authorization: "Bearer short-lived" },
+                ttlMs: 5_000,
+            },
+            expected: {
+                kind: "headers",
+                headers: { Authorization: "Bearer short-lived" },
+                ttlMs: 5_000,
+            },
+        },
+    ])("responds to managed MCP header refresh with $name", async ({ response, expected }) => {
+        const sendRequest = vi.fn(async () => ({ success: true }));
+        const session = new CopilotSession(
+            "session-1",
+            { sendRequest } as any,
+            undefined,
+            undefined,
+            { mcpHeadersRefreshHandler: async () => response }
+        );
+
+        await (session as any)._executeMcpHeadersRefreshAndRespond("refresh-request", {
+            serverName: "Managed GitHub",
+            serverUrl: "https://example.com/mcp",
+            reason: "startup",
+        });
+
+        expect(sendRequest).toHaveBeenCalledWith(
+            "session.mcp.headers.handlePendingHeadersRefreshRequest",
+            {
+                sessionId: "session-1",
+                requestId: "refresh-request",
+                result: expected,
+            }
+        );
+    });
+
+    it("reports no managed MCP headers when the handler returns undefined", async () => {
+        const sendRequest = vi.fn(async () => ({ success: true }));
+        const session = new CopilotSession(
+            "session-1",
+            { sendRequest } as any,
+            undefined,
+            undefined,
+            { mcpHeadersRefreshHandler: () => undefined }
+        );
+
+        await (session as any)._executeMcpHeadersRefreshAndRespond("refresh-request", {
+            serverName: "Managed GitHub",
+            serverUrl: "https://example.com/mcp",
+            reason: "ttl-expired",
+        });
+
+        expect(sendRequest).toHaveBeenCalledWith(
+            "session.mcp.headers.handlePendingHeadersRefreshRequest",
+            {
+                sessionId: "session-1",
+                requestId: "refresh-request",
+                result: { kind: "none" },
+            }
+        );
+    });
+
+    it("propagates managed MCP credential broker failures explicitly", async () => {
+        const sendRequest = vi.fn(async () => ({ success: true }));
+        const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
+        const session = new CopilotSession(
+            "session-1",
+            { sendRequest } as any,
+            undefined,
+            undefined,
+            {
+                mcpHeadersRefreshHandler: () => {
+                    throw new Error("credential revoked");
+                },
+            }
+        );
+
+        await (session as any)._executeMcpHeadersRefreshAndRespond("refresh-request", {
+            serverName: "Managed GitHub",
+            serverUrl: "https://example.com/mcp",
+            reason: "auth-failed",
+        });
+
+        expect(sendRequest).toHaveBeenCalledWith(
+            "session.mcp.headers.handlePendingHeadersRefreshRequest",
+            {
+                sessionId: "session-1",
+                requestId: "refresh-request",
+                result: { kind: "error", message: "credential revoked" },
+            }
+        );
+        warning.mockRestore();
+    });
+
+    it("forwards managed MCP servers and refresh interest on create and resume", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => stopClient(client));
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create" || method === "session.resume") {
+                    return { sessionId: params.sessionId };
+                }
+                if (method === "session.eventLog.registerInterest") {
+                    return { id: "interest-1" };
+                }
+                throw new Error(`Unexpected method: ${method}`);
+            });
+        const managedMcpServers = {
+            github: {
+                displayName: "GitHub",
+                url: "https://api.example.com/mcp",
+                tools: ["issues"],
+                timeout: 30_000,
+                headersRefreshTtlMs: 60_000,
+            },
+        };
+        const onMcpHeadersRefresh = () => ({ Authorization: "Bearer short-lived" });
+
+        const session = await client.createSession({
+            managedMcpServers,
+            onMcpHeadersRefresh,
+        });
+        await client.resumeSession(session.sessionId, {
+            managedMcpServers,
+            onMcpHeadersRefresh,
+        });
+
+        for (const method of ["session.create", "session.resume"]) {
+            expect(spy.mock.calls.find(([called]) => called === method)![1]).toMatchObject({
+                managedMcpServers,
+            });
+        }
+        expect(spy).toHaveBeenCalledTimes(4);
+        expect(
+            spy.mock.calls.filter(
+                ([method, params]) =>
+                    method === "session.eventLog.registerInterest" &&
+                    params.eventType === "mcp.headers_refresh_required"
+            )
+        ).toHaveLength(2);
+    });
+
     it("forwards GitHub MCP tool config on create and resume", async () => {
         const client = new CopilotClient();
         await client.start();

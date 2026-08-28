@@ -70,6 +70,8 @@ type Session struct {
 	managedSettings             bool
 	mcpAuthHandler              MCPAuthHandler
 	mcpAuthMu                   sync.RWMutex
+	mcpHeadersRefreshHandler    MCPHeadersRefreshHandler
+	mcpHeadersRefreshMu         sync.RWMutex
 	userInputHandler            UserInputHandler
 	userInputMux                sync.RWMutex
 	exitPlanModeHandler         ExitPlanModeRequestHandler
@@ -979,6 +981,18 @@ func (s *Session) getMCPAuthHandler() MCPAuthHandler {
 	return s.mcpAuthHandler
 }
 
+func (s *Session) registerMCPHeadersRefreshHandler(handler MCPHeadersRefreshHandler) {
+	s.mcpHeadersRefreshMu.Lock()
+	defer s.mcpHeadersRefreshMu.Unlock()
+	s.mcpHeadersRefreshHandler = handler
+}
+
+func (s *Session) getMCPHeadersRefreshHandler() MCPHeadersRefreshHandler {
+	s.mcpHeadersRefreshMu.RLock()
+	defer s.mcpHeadersRefreshMu.RUnlock()
+	return s.mcpHeadersRefreshHandler
+}
+
 func (s *Session) handleMCPAuthRequest(request MCPAuthRequest) {
 	handler := s.getMCPAuthHandler()
 	if handler == nil {
@@ -1506,6 +1520,21 @@ func (s *Session) handleBroadcastEvent(event SessionEvent) {
 		}
 		s.handleMCPAuthRequest(request)
 
+	case *MCPHeadersRefreshRequiredData:
+		handler := s.getMCPHeadersRefreshHandler()
+		if d.RequestID == "" || handler == nil {
+			return
+		}
+		s.executeMCPHeadersRefreshAndRespond(
+			d.RequestID,
+			MCPHeadersRefreshRequest{
+				ServerName: d.ServerName,
+				ServerURL:  d.ServerURL,
+				Reason:     d.Reason,
+			},
+			handler,
+		)
+
 	case *CommandExecuteData:
 		s.executeCommandAndRespond(d.RequestID, d.CommandName, d.Command, d.Args)
 
@@ -1668,6 +1697,47 @@ func (s *Session) executePermissionAndRespond(requestID string, permissionReques
 		Result:          decision,
 		DecisionContext: decisionContext,
 	})
+}
+
+func (s *Session) executeMCPHeadersRefreshAndRespond(
+	requestID string,
+	request MCPHeadersRefreshRequest,
+	handler MCPHeadersRefreshHandler,
+) {
+	var wireResult rpc.MCPHeadersHandlePendingHeadersRefreshRequest
+	result, err := handler(request, MCPHeadersRefreshInvocation{SessionID: s.SessionID})
+	switch {
+	case err != nil:
+		log.Printf(
+			"MCP headers refresh failed: session_id=%s server_name=%s error=%v",
+			s.SessionID,
+			request.ServerName,
+			err,
+		)
+		wireResult = rpc.MCPHeadersHandlePendingHeadersRefreshRequestError{Message: err.Error()}
+	case result == nil:
+		wireResult = rpc.MCPHeadersHandlePendingHeadersRefreshRequestNone{}
+	default:
+		wireResult = rpc.MCPHeadersHandlePendingHeadersRefreshRequestHeaders{
+			Headers: result.Headers,
+			TtlMs:   result.TTLMS,
+		}
+	}
+
+	if _, rpcErr := s.RPC.MCP.Headers().HandlePendingHeadersRefreshRequest(
+		context.Background(),
+		&rpc.MCPHeadersHandlePendingHeadersRefreshRequestRequest{
+			RequestID: requestID,
+			Result:    wireResult,
+		},
+	); rpcErr != nil {
+		log.Printf(
+			"failed to send MCP headers refresh response: session_id=%s request_id=%s error=%v",
+			s.SessionID,
+			requestID,
+			rpcErr,
+		)
+	}
 }
 
 // GetEvents retrieves all events from this session's history.

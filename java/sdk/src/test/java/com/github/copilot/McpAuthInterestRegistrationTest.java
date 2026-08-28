@@ -23,6 +23,7 @@ import com.github.copilot.rpc.CloudSessionOptions;
 import com.github.copilot.rpc.CloudSessionRepository;
 import com.github.copilot.rpc.CopilotClientOptions;
 import com.github.copilot.rpc.McpAuthResult;
+import com.github.copilot.rpc.McpHeadersRefreshResult;
 import com.github.copilot.rpc.PermissionHandler;
 import com.github.copilot.rpc.ResumeSessionConfig;
 import com.github.copilot.rpc.SessionConfig;
@@ -173,6 +174,44 @@ class McpAuthInterestRegistrationTest {
             assertEquals("session.resume", requests.get(0).method());
             assertEquals("session.eventLog.registerInterest", requests.get(1).method());
             assertEquals("mcp.oauth_required", requests.get(1).params().path("eventType").asText());
+        }
+    }
+
+    @Test
+    void createAndResumeRegisterManagedMcpHeadersRefreshInterest() throws Exception {
+        try (var server = new RecordingRuntime();
+                var client = new CopilotClient(new CopilotClientOptions().setCliUrl(server.url()))) {
+            try (var session = client.createSession(new SessionConfig()
+                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                    .setOnMcpHeadersRefreshRequest((request, invocation) -> java.util.concurrent.CompletableFuture
+                            .completedFuture(McpHeadersRefreshResult.none())))
+                    .get()) {
+                assertNotNull(session);
+            }
+
+            List<RpcRequest> createRequests = server.requests().stream()
+                    .filter(request -> "session.create".equals(request.method())
+                            || "session.eventLog.registerInterest".equals(request.method()))
+                    .toList();
+            assertEquals("session.create", createRequests.get(0).method());
+            assertEquals("session.eventLog.registerInterest", createRequests.get(1).method());
+            assertEquals("mcp.headers_refresh_required", createRequests.get(1).params().path("eventType").asText());
+
+            server.clearRequests();
+
+            try (var session = client.resumeSession("managed-session",
+                    new ResumeSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                            .setOnMcpHeadersRefreshRequest(
+                                    (request, invocation) -> java.util.concurrent.CompletableFuture
+                                            .completedFuture(McpHeadersRefreshResult.none())))
+                    .get()) {
+                assertNotNull(session);
+            }
+
+            List<RpcRequest> resumeRequests = server.requests();
+            assertEquals("session.resume", resumeRequests.get(0).method());
+            assertEquals("session.eventLog.registerInterest", resumeRequests.get(1).method());
+            assertEquals("mcp.headers_refresh_required", resumeRequests.get(1).params().path("eventType").asText());
         }
     }
 

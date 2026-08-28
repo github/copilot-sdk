@@ -2931,6 +2931,8 @@ type MCPOauthWwwAuthenticateParams struct {
 
 // A single MCP server status summary in `session.mcp_servers_loaded`, including name, status, source, transport, and plugin metadata.
 type MCPServersLoadedServer struct {
+	// Human-readable display name supplied by a managed server catalog.
+	DisplayName *string `json:"displayName,omitempty"`
 	// Error message if the server failed to connect
 	Error *string `json:"error,omitempty"`
 	// Server name (config key)

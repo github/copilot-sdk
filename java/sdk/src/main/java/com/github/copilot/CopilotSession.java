@@ -14,6 +14,7 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -34,6 +35,7 @@ import com.github.copilot.generated.rpc.SessionCommandsHandlePendingCommandParam
 import com.github.copilot.generated.rpc.SessionLogParams;
 import com.github.copilot.generated.rpc.SessionLogLevel;
 import com.github.copilot.generated.rpc.SessionMcpOauthHandlePendingRequestParams;
+import com.github.copilot.generated.rpc.SessionMcpHeadersHandlePendingHeadersRefreshRequestParams;
 import com.github.copilot.generated.rpc.ModelCapabilitiesOverride;
 import com.github.copilot.generated.rpc.ModelCapabilitiesOverrideLimits;
 import com.github.copilot.generated.rpc.ModelCapabilitiesOverrideSupports;
@@ -50,6 +52,7 @@ import com.github.copilot.generated.CapabilitiesChangedEvent;
 import com.github.copilot.generated.CommandExecuteEvent;
 import com.github.copilot.generated.ElicitationRequestedEvent;
 import com.github.copilot.generated.ExternalToolRequestedEvent;
+import com.github.copilot.generated.McpHeadersRefreshRequiredEvent;
 import com.github.copilot.generated.McpOauthRequiredEvent;
 import com.github.copilot.generated.PermissionRequestedEvent;
 import com.github.copilot.generated.SessionCanvasClosedEvent;
@@ -87,6 +90,10 @@ import com.github.copilot.rpc.McpAuthHandler;
 import com.github.copilot.rpc.McpAuthInvocation;
 import com.github.copilot.rpc.McpAuthRequest;
 import com.github.copilot.rpc.McpAuthResult;
+import com.github.copilot.rpc.McpHeadersRefreshHandler;
+import com.github.copilot.rpc.McpHeadersRefreshInvocation;
+import com.github.copilot.rpc.McpHeadersRefreshRequest;
+import com.github.copilot.rpc.McpHeadersRefreshResult;
 import com.github.copilot.rpc.PermissionHandler;
 import com.github.copilot.rpc.PermissionInvocation;
 import com.github.copilot.rpc.PermissionRequest;
@@ -189,6 +196,7 @@ public final class CopilotSession implements AutoCloseable {
     private final AtomicReference<PermissionHandler> permissionHandler = new AtomicReference<>();
     private volatile boolean managedSettingsEnabled;
     private final AtomicReference<McpAuthHandler> mcpAuthHandler = new AtomicReference<>();
+    private final AtomicReference<McpHeadersRefreshHandler> mcpHeadersRefreshHandler = new AtomicReference<>();
     private final AtomicReference<UserInputHandler> userInputHandler = new AtomicReference<>();
     private final AtomicReference<ElicitationHandler> elicitationHandler = new AtomicReference<>();
     private final AtomicReference<ExitPlanModeHandler> exitPlanModeHandler = new AtomicReference<>();
@@ -885,6 +893,17 @@ public final class CopilotSession implements AutoCloseable {
             executeMcpAuthAndRespondAsync(new McpAuthRequest(data.requestId(), data.serverName(), data.serverUrl(),
                     data.reason(), data.wwwAuthenticateParams(), data.resourceMetadata(), data.staticClientConfig()),
                     handler);
+        } else if (event instanceof McpHeadersRefreshRequiredEvent headersEvent) {
+            var data = headersEvent.getData();
+            if (data == null || data.requestId() == null) {
+                return;
+            }
+            McpHeadersRefreshHandler handler = mcpHeadersRefreshHandler.get();
+            if (handler == null) {
+                return;
+            }
+            executeMcpHeadersRefreshAndRespondAsync(data.requestId(),
+                    new McpHeadersRefreshRequest(data.serverName(), data.serverUrl(), data.reason()), handler);
         } else if (event instanceof CommandExecuteEvent cmdEvent) {
             var data = cmdEvent.getData();
             if (data == null || data.requestId() == null || data.commandName() == null) {
@@ -1133,6 +1152,70 @@ public final class CopilotSession implements AutoCloseable {
         } catch (Exception e) {
             LOG.log(Level.WARNING, "Error sending MCP auth response for requestId=" + requestId, e);
         }
+    }
+
+    private void executeMcpHeadersRefreshAndRespondAsync(String requestId, McpHeadersRefreshRequest request,
+            McpHeadersRefreshHandler handler) {
+        Runnable task = () -> {
+            try {
+                var invocation = new McpHeadersRefreshInvocation().setSessionId(sessionId);
+                handler.handle(request, invocation)
+                        .thenAccept(result -> sendMcpHeadersRefreshResponse(requestId, result)).exceptionally(ex -> {
+                            sendMcpHeadersRefreshError(requestId, ex);
+                            return null;
+                        });
+            } catch (Exception e) {
+                sendMcpHeadersRefreshError(requestId, e);
+            }
+        };
+        try {
+            if (executor != null) {
+                CompletableFuture.runAsync(task, executor);
+            } else {
+                CompletableFuture.runAsync(task);
+            }
+        } catch (RejectedExecutionException e) {
+            LOG.log(Level.WARNING,
+                    "Executor rejected MCP headers refresh task for requestId=" + requestId + "; running inline", e);
+            task.run();
+        }
+    }
+
+    private void sendMcpHeadersRefreshResponse(String requestId, McpHeadersRefreshResult result) {
+        Map<String, Object> response;
+        if (result == null || result.headers() == null) {
+            response = Map.of("kind", "none");
+        } else {
+            var headersResponse = new java.util.HashMap<String, Object>();
+            headersResponse.put("kind", "headers");
+            headersResponse.put("headers", result.headers());
+            if (result.ttlMs() != null) {
+                headersResponse.put("ttlMs", result.ttlMs());
+            }
+            response = headersResponse;
+        }
+        sendMcpHeadersRefreshResponse(requestId, response);
+    }
+
+    private void sendMcpHeadersRefreshError(String requestId, Throwable error) {
+        sendMcpHeadersRefreshResponse(requestId, Map.of("kind", "error", "message", errorMessage(error)));
+    }
+
+    private void sendMcpHeadersRefreshResponse(String requestId, Map<String, Object> response) {
+        try {
+            getRpc().mcp.headers.handlePendingHeadersRefreshRequest(
+                    new SessionMcpHeadersHandlePendingHeadersRefreshRequestParams(sessionId, requestId, response));
+        } catch (Exception e) {
+            LOG.log(Level.WARNING, "Error sending MCP headers refresh response for requestId=" + requestId, e);
+        }
+    }
+
+    private static String errorMessage(Throwable error) {
+        Throwable current = error;
+        while (current instanceof CompletionException && current.getCause() != null) {
+            current = current.getCause();
+        }
+        return current.getMessage() != null ? current.getMessage() : current.toString();
     }
 
     /**
@@ -1405,6 +1488,10 @@ public final class CopilotSession implements AutoCloseable {
 
     void registerMcpAuthHandler(McpAuthHandler handler) {
         mcpAuthHandler.set(handler);
+    }
+
+    void registerMcpHeadersRefreshHandler(McpHeadersRefreshHandler handler) {
+        mcpHeadersRefreshHandler.set(handler);
     }
 
     /**

@@ -5350,6 +5350,9 @@ pub struct SessionCustomAgentsUpdatedData {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpServersLoadedServer {
+    /// Human-readable display name supplied by a managed server catalog.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display_name: Option<String>,
     /// Error message if the server failed to connect
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
@@ -7423,7 +7426,7 @@ pub enum SkillSource {
     Unknown,
 }
 
-/// Configuration source: user, workspace, plugin, or builtin
+/// Configuration source: user, workspace, plugin, builtin, or managed
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum McpServerSource {
     /// Server configured in the user's global MCP configuration.
@@ -7438,6 +7441,9 @@ pub enum McpServerSource {
     /// Server bundled with the runtime.
     #[serde(rename = "builtin")]
     Builtin,
+    /// Server supplied by a trusted host-managed catalog.
+    #[serde(rename = "managed")]
+    Managed,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

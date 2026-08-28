@@ -2222,6 +2222,12 @@ func unmarshalMCPHeadersHandlePendingHeadersRefreshRequest(data []byte) (MCPHead
 	}
 
 	switch raw.Kind {
+	case MCPHeadersHandlePendingHeadersRefreshRequestKindError:
+		var d MCPHeadersHandlePendingHeadersRefreshRequestError
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
 	case MCPHeadersHandlePendingHeadersRefreshRequestKindHeaders:
 		var d MCPHeadersHandlePendingHeadersRefreshRequestHeaders
 		if err := json.Unmarshal(data, &d); err != nil {
@@ -2247,6 +2253,17 @@ func (r RawMCPHeadersHandlePendingHeadersRefreshRequestData) MarshalJSON() ([]by
 		Kind MCPHeadersHandlePendingHeadersRefreshRequestKind `json:"kind"`
 	}{
 		Kind: r.Discriminator,
+	})
+}
+
+func (r MCPHeadersHandlePendingHeadersRefreshRequestError) MarshalJSON() ([]byte, error) {
+	type alias MCPHeadersHandlePendingHeadersRefreshRequestError
+	return json.Marshal(struct {
+		Kind MCPHeadersHandlePendingHeadersRefreshRequestKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
 	})
 }
 
@@ -5397,6 +5414,7 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 		IsExperimentalMode                     *bool                                                `json:"isExperimentalMode,omitempty"`
 		LogInteractiveShells                   *bool                                                `json:"logInteractiveShells,omitempty"`
 		LspClientName                          *string                                              `json:"lspClientName,omitempty"`
+		ManagedMCPServers                      map[string]ManagedMCPServerConfig                    `json:"managedMcpServers,omitzero"`
 		ManagedSettings                        *SessionManagedSettings                              `json:"managedSettings,omitempty"`
 		MaxInlineBinaryBytes                   *int64                                               `json:"maxInlineBinaryBytes,omitempty"`
 		Memory                                 *MemoryConfiguration                                 `json:"memory,omitempty"`
@@ -5477,6 +5495,7 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 	r.IsExperimentalMode = raw.IsExperimentalMode
 	r.LogInteractiveShells = raw.LogInteractiveShells
 	r.LspClientName = raw.LspClientName
+	r.ManagedMCPServers = raw.ManagedMCPServers
 	r.ManagedSettings = raw.ManagedSettings
 	r.MaxInlineBinaryBytes = raw.MaxInlineBinaryBytes
 	r.Memory = raw.Memory
