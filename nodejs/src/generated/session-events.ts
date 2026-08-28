@@ -2807,6 +2807,10 @@ export interface CompactionCompleteEvent {
  */
 export interface CompactionCompleteData {
   /**
+   * Canonical model identifier used for model-specific behavior when replaying compaction
+   */
+  behaviorModelId?: string;
+  /**
    * Checkpoint snapshot number created for recovery
    */
   checkpointNumber?: number;

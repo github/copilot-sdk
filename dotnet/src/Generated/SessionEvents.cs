@@ -2722,6 +2722,11 @@ public sealed partial class SessionCompactionStartData
 /// <summary>Conversation compaction results including success status, metrics, and optional error details.</summary>
 public sealed partial class SessionCompactionCompleteData
 {
+    /// <summary>Canonical model identifier used for model-specific behavior when replaying compaction.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("behaviorModelId")]
+    public string? BehaviorModelId { get; set; }
+
     /// <summary>Checkpoint snapshot number created for recovery.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("checkpointNumber")]

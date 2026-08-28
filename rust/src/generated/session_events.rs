@@ -1726,6 +1726,9 @@ pub struct CompactionCompleteCompactionTokensUsed {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionCompactionCompleteData {
+    /// Canonical model identifier used for model-specific behavior when replaying compaction
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub behavior_model_id: Option<String>,
     /// Checkpoint snapshot number created for recovery
     #[serde(skip_serializing_if = "Option::is_none")]
     pub checkpoint_number: Option<i64>,

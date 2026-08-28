@@ -10213,20 +10213,16 @@ type RuntimeShutdownResult struct {
 type SandboxConfig struct {
 	// Whether to auto-add the current working directory to readwritePaths. Default: true.
 	AddCurrentWorkingDirectory *bool `json:"addCurrentWorkingDirectory,omitempty"`
-	// Whether to auto-grant read access to the tool directories discovered on PATH and in
-	// toolchain environment variables (GOROOT, CARGO_HOME, JAVA_HOME, VIRTUAL_ENV, and
-	// similar), and to common developer-tool caches, registries, and toolchains in their
-	// default home locations (cargo, go, npm, Maven, and more), plus read-write access to (and
-	// up-front creation of) the scratch caches builds write on every run (go-build, ccache,
-	// sccache, Gradle caches, Cargo lock/tracker files), so builds work without extra
-	// configuration; a relocated CARGO_HOME additionally gets its Cargo lock files granted
-	// read-write. Set to false to disable every grant listed above: user-installed toolchains
-	// (rustup, nvm, pyenv, conda, pipx) then need explicit userPolicy.filesystem entries —
-	// readonlyPaths to read them, plus readwriteFiles for a relocated CARGO_HOME's
-	// .package-cache and .global-cache, which Cargo locks on every build. Only these
-	// developer-tool grants are affected: the working directory (see
-	// addCurrentWorkingDirectory), temporary storage, session log paths, and system locations
-	// follow their own rules and stay granted, so commands still run. Default: true (enabled by
+	// Whether to auto-grant read access to tool directories discovered on PATH and in toolchain
+	// environment variables (GOROOT, JAVA_HOME, VIRTUAL_ENV, and similar), and to common
+	// developer-tool caches, config, and toolchains. Writable grants cover scratch caches, the
+	// Unix GitHub CLI cache, and Cargo's registry, git store, and lock/tracker files. A
+	// relocated CARGO_HOME gets the same narrow split: registry and git are read-write; bin is
+	// read-only; the home root, config.toml, and credentials.toml stay ungranted. Set to false
+	// to disable every grant listed above; user-installed toolchains and caches then need
+	// explicit userPolicy.filesystem readonlyPaths and readwritePaths entries. The working
+	// directory (see addCurrentWorkingDirectory), temporary storage, session log paths, and
+	// system locations follow their own rules and stay granted. Default: true (enabled by
 	// default; set to false to opt out).
 	AllowDevToolAccess *bool `json:"allowDevToolAccess,omitempty"`
 	// Credential-injection capability flags.

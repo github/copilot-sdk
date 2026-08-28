@@ -532,6 +532,8 @@ func (*SessionContextClearedData) Type() SessionEventType {
 
 // Conversation compaction results including success status, metrics, and optional error details
 type SessionCompactionCompleteData struct {
+	// Canonical model identifier used for model-specific behavior when replaying compaction
+	BehaviorModelID *string `json:"behaviorModelId,omitempty"`
 	// Checkpoint snapshot number created for recovery
 	CheckpointNumber *int64 `json:"checkpointNumber,omitempty"`
 	// File path where the checkpoint was stored
