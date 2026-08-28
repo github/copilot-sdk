@@ -188,12 +188,21 @@ impl GitHubTokenRegistry {
         state.session_owners.clear();
     }
 
-    pub(crate) async fn dispatch(&self, request: JsonRpcRequest) {
+    pub(crate) async fn dispatch(&self, request: crate::jsonrpc::ReverseRpcRequest) {
         let Some(inner) = self.client.get().and_then(Weak::upgrade) else {
             return;
         };
         let client = Client::from_inner(inner);
-        let _reverse_rpc = client.trace_reverse_request_scheduled(request.id);
+        let (request, reverse_rpc) = request.into_dispatch();
+        let dispatch = self.dispatch_inner(&client, request);
+        if let Some(trace) = &reverse_rpc {
+            trace.scope(dispatch).await;
+        } else {
+            dispatch.await;
+        }
+    }
+
+    async fn dispatch_inner(&self, client: &Client, request: JsonRpcRequest) {
         let params = request
             .params
             .clone()
@@ -202,7 +211,7 @@ impl GitHubTokenRegistry {
             Ok(params) => params,
             Err(error) => {
                 send_error(
-                    &client,
+                    client,
                     request.id,
                     error_codes::INVALID_PARAMS,
                     &format!("invalid params: {error}"),
@@ -219,7 +228,7 @@ impl GitHubTokenRegistry {
             .cloned();
         let Some(provider) = provider else {
             send_error(
-                &client,
+                client,
                 request.id,
                 error_codes::INTERNAL_ERROR,
                 "unknown GitHub token provider registration",
@@ -233,7 +242,7 @@ impl GitHubTokenRegistry {
             GitHubTokenAcquireReason::Refresh => GitHubTokenRequestReason::Refresh,
             GitHubTokenAcquireReason::Unknown => {
                 send_error(
-                    &client,
+                    client,
                     request.id,
                     error_codes::INVALID_PARAMS,
                     "unknown GitHub token acquisition reason",
@@ -253,7 +262,7 @@ impl GitHubTokenRegistry {
         {
             Ok(GitHubTokenProviderResult::Token(token)) => {
                 respond(
-                    &client,
+                    client,
                     request.id,
                     GitHubTokenAcquireResult::Token(token.into_wire()),
                 )
@@ -261,7 +270,7 @@ impl GitHubTokenRegistry {
             }
             Ok(GitHubTokenProviderResult::Cancelled) => {
                 respond(
-                    &client,
+                    client,
                     request.id,
                     GitHubTokenAcquireResult::Cancelled(GitHubTokenAcquireResultCancelled {
                         kind: Default::default(),
@@ -271,7 +280,7 @@ impl GitHubTokenRegistry {
             }
             Err(error) => {
                 send_error(
-                    &client,
+                    client,
                     request.id,
                     error_codes::INTERNAL_ERROR,
                     &format!("GitHub token provider failed: {error}"),

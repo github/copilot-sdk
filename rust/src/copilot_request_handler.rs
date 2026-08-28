@@ -1047,10 +1047,17 @@ impl CopilotRequestDispatcher {
         self.client.get().cloned().unwrap_or_else(Weak::new)
     }
 
-    pub(crate) async fn dispatch(self: &Arc<Self>, request: JsonRpcRequest) {
-        let _reverse_rpc = self
-            .client()
-            .and_then(|client| client.trace_reverse_request_scheduled(request.id));
+    pub(crate) async fn dispatch(self: &Arc<Self>, request: crate::jsonrpc::ReverseRpcRequest) {
+        let (request, reverse_rpc) = request.into_dispatch();
+        let dispatch = self.dispatch_inner(request);
+        if let Some(trace) = &reverse_rpc {
+            trace.scope(dispatch).await;
+        } else {
+            dispatch.await;
+        }
+    }
+
+    async fn dispatch_inner(self: &Arc<Self>, request: JsonRpcRequest) {
         match request.method.as_str() {
             METHOD_HTTP_REQUEST_START => self.handle_start(request).await,
             METHOD_HTTP_REQUEST_CHUNK => self.handle_chunk(request).await,

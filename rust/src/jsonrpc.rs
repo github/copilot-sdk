@@ -1,4 +1,5 @@
 use std::collections::{HashMap, VecDeque, hash_map::RandomState};
+use std::future::Future;
 use std::hash::{BuildHasher, Hash, Hasher};
 use std::sync::Arc;
 use std::sync::OnceLock;
@@ -267,6 +268,17 @@ struct ReverseRpcWriteTrace {
     completion_attempted: bool,
 }
 
+struct ReverseRpcResponseTrace {
+    request_id: u64,
+    trace: ReverseRpcTrace,
+}
+
+// Response helpers retain their existing signatures while the dispatch task
+// carries the exact request generation that produced the response.
+tokio::task_local! {
+    static REVERSE_RPC_RESPONSE_TRACE: ReverseRpcResponseTrace;
+}
+
 impl ReverseRpcWriteTrace {
     fn new(trace: ReverseRpcTrace) -> Self {
         Self {
@@ -305,7 +317,7 @@ enum ReverseRpcTimingEvent {
     },
     HookCallback {
         trace: ReverseRpcTrace,
-        hook_type: String,
+        hook_type: &'static str,
         start_offset_us: u64,
         elapsed_us: u64,
     },
@@ -326,6 +338,9 @@ struct ReverseRpcTimingEmitter {
 
 impl ReverseRpcTimingEmitter {
     fn emit(&self, event: ReverseRpcTimingEvent) -> bool {
+        // Timing is measurement-only: a full bounded queue drops one logical
+        // record rather than delaying RPC work, including for terminal records.
+        // `records_dropped` is the explicit signal that the trace is incomplete.
         let result = if matches!(&event, ReverseRpcTimingEvent::Complete { .. }) {
             self.terminal_tx.try_send(event)
         } else {
@@ -358,7 +373,7 @@ pub(crate) struct ReverseRpcTrace {
 
 struct ReverseRpcTraceInner {
     correlation_key: String,
-    method: String,
+    method: &'static str,
     received_at: TokioInstant,
     forwarded_at: OnceLock<TokioInstant>,
     timing: ReverseRpcTimingEmitter,
@@ -384,6 +399,7 @@ struct ReverseRpcTimingState {
 impl ReverseRpcTrace {
     fn new(
         request: &JsonRpcRequest,
+        generation: u64,
         received_at: TokioInstant,
         correlation_hasher: &RandomState,
         timing: ReverseRpcTimingEmitter,
@@ -400,8 +416,9 @@ impl ReverseRpcTrace {
                     request.id,
                     &request.method,
                     session_id,
+                    generation,
                 ),
-                method: request.method.clone(),
+                method: Self::timing_method(&request.method),
                 received_at,
                 forwarded_at: OnceLock::new(),
                 timing,
@@ -427,6 +444,7 @@ impl ReverseRpcTrace {
         ));
         let trace = Self::new(
             request,
+            0,
             received_at,
             &RandomState::new(),
             ReverseRpcTimingEmitter {
@@ -444,6 +462,7 @@ impl ReverseRpcTrace {
         request_id: u64,
         method: &str,
         session_id: Option<&str>,
+        generation: u64,
     ) -> String {
         // A per-client keyed hash keeps the request-derived key stable for all
         // phases without making custom session IDs guessable from trace output.
@@ -451,7 +470,40 @@ impl ReverseRpcTrace {
         session_id.unwrap_or("<global>").hash(&mut hasher);
         method.hash(&mut hasher);
         request_id.hash(&mut hasher);
+        generation.hash(&mut hasher);
         format!("rrpc-{:016x}", hasher.finish())
+    }
+
+    fn timing_method(method: &str) -> &'static str {
+        match method {
+            "hooks.invoke" => "hooks.invoke",
+            "userInput.request" => "userInput.request",
+            "exitPlanMode.request" => "exitPlanMode.request",
+            "autoModeSwitch.request" => "autoModeSwitch.request",
+            "systemMessage.transform" => "systemMessage.transform",
+            "gitHubToken.getToken" => "gitHubToken.getToken",
+            "providerToken.getToken" => "providerToken.getToken",
+            _ if method.starts_with("sessionFs.") => "sessionFs.*",
+            _ if method.starts_with("canvas.") => "canvas.*",
+            _ if method.starts_with("llmInference.") => "llmInference.*",
+            _ => "unknown",
+        }
+    }
+
+    fn timing_hook_type(hook_type: &str) -> &'static str {
+        match hook_type {
+            "preToolUse" => "preToolUse",
+            "preMcpToolCall" => "preMcpToolCall",
+            "postToolUse" => "postToolUse",
+            "postToolUseFailure" => "postToolUseFailure",
+            "userPromptSubmitted" => "userPromptSubmitted",
+            "userPromptTransformed" => "userPromptTransformed",
+            "sessionStart" => "sessionStart",
+            "sessionEnd" => "sessionEnd",
+            "errorOccurred" => "errorOccurred",
+            "agentStop" => "agentStop",
+            _ => "unknown",
+        }
     }
 
     fn elapsed_us(duration: std::time::Duration) -> u64 {
@@ -469,18 +521,22 @@ impl ReverseRpcTrace {
             .expect("forwarding timestamp must be recorded exactly once");
     }
 
-    fn record_forwarded(&self, succeeded: bool) {
-        let forwarded_at = self
-            .inner
-            .forwarded_at
-            .get()
-            .expect("forwarding timestamp must be set before forwarding");
-        self.record_phase(
-            "request_forward",
-            self.inner.received_at,
-            forwarded_at.duration_since(self.inner.received_at),
-            succeeded,
+    fn forward<T>(&self, send: impl FnOnce() -> Result<(), T>) -> Result<(), T> {
+        let forwarded_at = TokioInstant::now();
+        self.mark_forwarding(forwarded_at);
+        let mut state = self.inner.timing_state.lock();
+        let result = send();
+        self.emit_phase_with_state(
+            &mut state,
+            ReverseRpcTimingEvent::Phase {
+                trace: self.clone(),
+                phase: "request_forward",
+                start_offset_us: 0,
+                elapsed_us: Self::elapsed_us(forwarded_at.duration_since(self.inner.received_at)),
+                succeeded: result.is_ok(),
+            },
         );
+        result
     }
 
     fn record_scheduled(&self, scheduled_at: TokioInstant) {
@@ -505,7 +561,7 @@ impl ReverseRpcTrace {
     ) {
         self.emit_phase(ReverseRpcTimingEvent::HookCallback {
             trace: self.clone(),
-            hook_type: hook_type.to_string(),
+            hook_type: Self::timing_hook_type(hook_type),
             start_offset_us: self.start_offset_us(started_at),
             elapsed_us: Self::elapsed_us(elapsed),
         });
@@ -529,6 +585,14 @@ impl ReverseRpcTrace {
 
     fn emit_phase(&self, event: ReverseRpcTimingEvent) {
         let mut state = self.inner.timing_state.lock();
+        self.emit_phase_with_state(&mut state, event);
+    }
+
+    fn emit_phase_with_state(
+        &self,
+        state: &mut ReverseRpcTimingState,
+        event: ReverseRpcTimingEvent,
+    ) {
         if state.pending_completion.is_some() || state.completion_recorded {
             return;
         }
@@ -587,8 +651,128 @@ impl ReverseRpcTrace {
     }
 }
 
+#[derive(Clone)]
+struct ReverseRpcRegistry(Arc<ReverseRpcRegistryInner>);
+
+struct ReverseRpcRegistryInner {
+    traces: Mutex<Vec<ReverseRpcTrace>>,
+    next_generation: AtomicU64,
+}
+
+impl ReverseRpcRegistry {
+    fn new() -> Self {
+        Self(Arc::new(ReverseRpcRegistryInner {
+            traces: Mutex::new(Vec::new()),
+            next_generation: AtomicU64::new(1),
+        }))
+    }
+
+    fn next_generation(&self) -> u64 {
+        self.0.next_generation.fetch_add(1, Ordering::Relaxed)
+    }
+
+    fn insert(&self, trace: ReverseRpcTrace) {
+        self.0.traces.lock().push(trace);
+    }
+
+    fn remove(&self, trace: &ReverseRpcTrace) -> bool {
+        let mut traces = self.0.traces.lock();
+        let Some(index) = traces
+            .iter()
+            .position(|current| Arc::ptr_eq(&current.inner, &trace.inner))
+        else {
+            return false;
+        };
+        traces.swap_remove(index);
+        true
+    }
+
+    fn abandon_all(&self) {
+        let traces = std::mem::take(&mut *self.0.traces.lock());
+        for trace in traces {
+            trace.record_abandoned(TokioInstant::now());
+        }
+    }
+
+    #[cfg(test)]
+    fn contains(&self, trace: &ReverseRpcTrace) -> bool {
+        self.0
+            .traces
+            .lock()
+            .iter()
+            .any(|current| Arc::ptr_eq(&current.inner, &trace.inner))
+    }
+
+    #[cfg(test)]
+    fn is_empty(&self) -> bool {
+        self.0.traces.lock().is_empty()
+    }
+}
+
+pub(crate) struct ReverseRpcRequest {
+    request: Option<JsonRpcRequest>,
+    trace: Option<ReverseRpcTrace>,
+    registry: Option<ReverseRpcRegistry>,
+}
+
+impl std::ops::Deref for ReverseRpcRequest {
+    type Target = JsonRpcRequest;
+
+    fn deref(&self) -> &Self::Target {
+        self.request
+            .as_ref()
+            .expect("reverse RPC request must exist until dispatch")
+    }
+}
+
+impl ReverseRpcRequest {
+    fn new(
+        request: JsonRpcRequest,
+        trace: Option<ReverseRpcTrace>,
+        registry: Option<ReverseRpcRegistry>,
+    ) -> Self {
+        Self {
+            request: Some(request),
+            trace,
+            registry,
+        }
+    }
+
+    pub(crate) fn into_dispatch(mut self) -> (JsonRpcRequest, Option<ReverseRpcDispatchGuard>) {
+        let request = self
+            .request
+            .take()
+            .expect("reverse RPC request must exist until dispatch");
+        let guard = self.trace.take().map(|trace| {
+            trace.record_scheduled(TokioInstant::now());
+            ReverseRpcDispatchGuard {
+                registry: self
+                    .registry
+                    .take()
+                    .expect("timed reverse RPC request must have a registry"),
+                request_id: request.id,
+                trace,
+            }
+        });
+        (request, guard)
+    }
+}
+
+impl Drop for ReverseRpcRequest {
+    fn drop(&mut self) {
+        if let Some(trace) = self.trace.take()
+            && self
+                .registry
+                .as_ref()
+                .is_some_and(|registry| registry.remove(&trace))
+        {
+            trace.record_abandoned(TokioInstant::now());
+        }
+    }
+}
+
 pub(crate) struct ReverseRpcDispatchGuard {
-    reverse_requests: Arc<RwLock<HashMap<u64, ReverseRpcTrace>>>,
+    registry: ReverseRpcRegistry,
     request_id: u64,
     trace: ReverseRpcTrace,
 }
@@ -597,31 +781,32 @@ impl ReverseRpcDispatchGuard {
     pub(crate) fn trace(&self) -> &ReverseRpcTrace {
         &self.trace
     }
+
+    pub(crate) async fn scope<F: Future>(&self, future: F) -> F::Output {
+        REVERSE_RPC_RESPONSE_TRACE
+            .scope(
+                ReverseRpcResponseTrace {
+                    request_id: self.request_id,
+                    trace: self.trace.clone(),
+                },
+                future,
+            )
+            .await
+    }
 }
 
 impl Drop for ReverseRpcDispatchGuard {
     fn drop(&mut self) {
-        if remove_reverse_request_if_same(&self.reverse_requests, self.request_id, &self.trace) {
+        if self.registry.remove(&self.trace) {
             self.trace.record_abandoned(TokioInstant::now());
         }
     }
 }
 
-fn remove_reverse_request_if_same(
-    reverse_requests: &RwLock<HashMap<u64, ReverseRpcTrace>>,
-    request_id: u64,
-    trace: &ReverseRpcTrace,
-) -> bool {
-    let mut reverse_requests = reverse_requests.write();
-    if reverse_requests
-        .get(&request_id)
-        .is_some_and(|current| Arc::ptr_eq(&current.inner, &trace.inner))
-    {
-        reverse_requests.remove(&request_id);
-        true
-    } else {
-        false
-    }
+#[derive(Clone)]
+enum ReverseRequestSender {
+    Public(mpsc::UnboundedSender<JsonRpcRequest>),
+    Internal(mpsc::UnboundedSender<ReverseRpcRequest>),
 }
 
 /// Low-level JSON-RPC 2.0 client over Content-Length-framed streams.
@@ -644,9 +829,9 @@ pub struct JsonRpcClient {
     /// natural request/response back-pressure of the wire.
     write_tx: mpsc::UnboundedSender<WriteCommand>,
     pending_requests: Arc<RwLock<HashMap<u64, PendingRequest>>>,
-    reverse_requests: Arc<RwLock<HashMap<u64, ReverseRpcTrace>>>,
+    reverse_requests: Option<ReverseRpcRegistry>,
     notification_tx: broadcast::Sender<JsonRpcNotification>,
-    request_tx: mpsc::UnboundedSender<JsonRpcRequest>,
+    request_tx: ReverseRequestSender,
     read_task: Mutex<Option<JoinHandle<()>>>,
     write_task: Mutex<Option<JoinHandle<()>>>,
     timing_task: Mutex<Option<JoinHandle<()>>>,
@@ -672,14 +857,20 @@ impl JsonRpcClient {
         notification_tx: broadcast::Sender<JsonRpcNotification>,
         request_tx: mpsc::UnboundedSender<JsonRpcRequest>,
     ) -> Self {
-        Self::new_inner(writer, reader, notification_tx, request_tx, false)
+        Self::new_inner(
+            writer,
+            reader,
+            notification_tx,
+            ReverseRequestSender::Public(request_tx),
+            false,
+        )
     }
 
     pub(crate) fn new_with_reverse_rpc_timing(
         writer: impl AsyncWrite + Unpin + Send + 'static,
         reader: impl AsyncRead + Unpin + Send + 'static,
         notification_tx: broadcast::Sender<JsonRpcNotification>,
-        request_tx: mpsc::UnboundedSender<JsonRpcRequest>,
+        request_tx: mpsc::UnboundedSender<ReverseRpcRequest>,
     ) -> Self {
         let trace_reverse_rpc = tracing::enabled!(
             target: REVERSE_RPC_TIMING_TARGET,
@@ -689,7 +880,7 @@ impl JsonRpcClient {
             writer,
             reader,
             notification_tx,
-            request_tx,
+            ReverseRequestSender::Internal(request_tx),
             trace_reverse_rpc,
         )
     }
@@ -698,14 +889,14 @@ impl JsonRpcClient {
         writer: impl AsyncWrite + Unpin + Send + 'static,
         reader: impl AsyncRead + Unpin + Send + 'static,
         notification_tx: broadcast::Sender<JsonRpcNotification>,
-        request_tx: mpsc::UnboundedSender<JsonRpcRequest>,
+        request_tx: ReverseRequestSender,
         trace_reverse_rpc: bool,
     ) -> Self {
         let (write_tx, write_rx) = mpsc::unbounded_channel::<WriteCommand>();
 
         let writer_span = tracing::error_span!("jsonrpc_write_loop");
         let write_task = tokio::spawn(Self::write_loop(writer, write_rx).instrument(writer_span));
-        let (timing, timing_task, correlation_hasher) = if trace_reverse_rpc {
+        let (timing, timing_task, correlation_hasher, reverse_requests) = if trace_reverse_rpc {
             let (phase_tx, phase_rx) =
                 mpsc::channel::<ReverseRpcTimingEvent>(REVERSE_RPC_TIMING_CAPACITY);
             let (terminal_tx, terminal_rx) =
@@ -723,16 +914,17 @@ impl JsonRpcClient {
                     dropped_records,
                 ))),
                 Some(RandomState::new()),
+                Some(ReverseRpcRegistry::new()),
             )
         } else {
-            (None, None, None)
+            (None, None, None, None)
         };
 
         let client = Self {
             request_id: AtomicU64::new(1),
             write_tx,
             pending_requests: Arc::new(RwLock::new(HashMap::new())),
-            reverse_requests: Arc::new(RwLock::new(HashMap::new())),
+            reverse_requests,
             notification_tx,
             request_tx,
             read_task: Mutex::new(None),
@@ -774,14 +966,8 @@ impl JsonRpcClient {
             task.abort();
         }
         self.pending_requests.write().clear();
-        let abandoned = self
-            .reverse_requests
-            .write()
-            .drain()
-            .map(|(_, trace)| trace)
-            .collect::<Vec<_>>();
-        for trace in abandoned {
-            trace.record_abandoned(TokioInstant::now());
+        if let Some(reverse_requests) = &self.reverse_requests {
+            reverse_requests.abandon_all();
         }
         // Detach the timing task so it can drain the bounded queue. The
         // aborted read/write tasks drop the remaining senders, so it exits
@@ -1034,9 +1220,9 @@ impl JsonRpcClient {
     async fn read_loop(
         reader: impl AsyncRead + Unpin + Send,
         pending_requests: Arc<RwLock<HashMap<u64, PendingRequest>>>,
-        reverse_requests: Arc<RwLock<HashMap<u64, ReverseRpcTrace>>>,
+        reverse_requests: Option<ReverseRpcRegistry>,
         notification_tx: broadcast::Sender<JsonRpcNotification>,
-        request_tx: mpsc::UnboundedSender<JsonRpcRequest>,
+        request_tx: ReverseRequestSender,
         timing: Option<ReverseRpcTimingEmitter>,
         correlation_hasher: Option<RandomState>,
     ) {
@@ -1103,36 +1289,53 @@ impl JsonRpcClient {
                         let _ = notification_tx.send(notification);
                     }
                     JsonRpcMessage::Request(request) => {
-                        let request_id = request.id;
                         let trace = if tracing::enabled!(
                             target: REVERSE_RPC_TIMING_TARGET,
                             tracing::Level::DEBUG
                         ) {
-                            timing.as_ref().zip(correlation_hasher.as_ref()).map(
-                                |(timing, correlation_hasher)| {
+                            timing
+                                .as_ref()
+                                .zip(correlation_hasher.as_ref())
+                                .zip(reverse_requests.as_ref())
+                                .map(|((timing, correlation_hasher), registry)| {
                                     ReverseRpcTrace::new(
                                         &request,
+                                        registry.next_generation(),
                                         TokioInstant::now(),
                                         correlation_hasher,
                                         timing.clone(),
                                     )
-                                },
-                            )
+                                })
                         } else {
                             None
                         };
                         if let Some(trace) = &trace {
-                            reverse_requests.write().insert(request_id, trace.clone());
-                            trace.mark_forwarding(TokioInstant::now());
+                            reverse_requests
+                                .as_ref()
+                                .expect("timed requests must have a registry")
+                                .insert(trace.clone());
                         }
-                        let forwarded = request_tx.send(request).is_ok();
-                        if let Some(trace) = &trace {
-                            trace.record_forwarded(forwarded);
-                        }
-                        if !forwarded {
-                            if let Some(trace) = reverse_requests.write().remove(&request_id) {
-                                trace.record_abandoned(TokioInstant::now());
+                        let forwarded = match &request_tx {
+                            ReverseRequestSender::Public(request_tx) => {
+                                request_tx.send(request).is_ok()
                             }
+                            ReverseRequestSender::Internal(request_tx) => {
+                                let request = ReverseRpcRequest::new(
+                                    request,
+                                    trace.clone(),
+                                    reverse_requests.clone(),
+                                );
+                                let result = if let Some(trace) = &trace {
+                                    trace.forward(|| request_tx.send(request))
+                                } else {
+                                    request_tx.send(request)
+                                };
+                                let forwarded = result.is_ok();
+                                drop(result);
+                                forwarded
+                            }
+                        };
+                        if !forwarded {
                             warn!("failed to forward JSON-RPC request, channel closed");
                         }
                     }
@@ -1157,13 +1360,8 @@ impl JsonRpcClient {
             );
             pending.clear();
         }
-        let abandoned = reverse_requests
-            .write()
-            .drain()
-            .map(|(_, trace)| trace)
-            .collect::<Vec<_>>();
-        for trace in abandoned {
-            trace.record_abandoned(TokioInstant::now());
+        if let Some(reverse_requests) = &reverse_requests {
+            reverse_requests.abandon_all();
         }
     }
 
@@ -1353,10 +1551,15 @@ impl JsonRpcClient {
     }
 
     pub(crate) async fn write_response(&self, response: &JsonRpcResponse) -> Result<(), Error> {
-        let trace = self.reverse_requests.read().get(&response.id).cloned();
+        let trace = REVERSE_RPC_RESPONSE_TRACE
+            .try_with(|scoped| (scoped.request_id == response.id).then(|| scoped.trace.clone()))
+            .ok()
+            .flatten();
         let result = self.write_frame(response, trace.clone()).await;
-        if let Some(trace) = &trace {
-            let _ = remove_reverse_request_if_same(&self.reverse_requests, response.id, trace);
+        if let Some(trace) = &trace
+            && let Some(reverse_requests) = &self.reverse_requests
+        {
+            let _ = reverse_requests.remove(trace);
         }
         result
     }
@@ -1414,27 +1617,6 @@ impl JsonRpcClient {
                 std::io::ErrorKind::BrokenPipe,
                 "writer actor dropped ack without responding",
             ))),
-        }
-    }
-
-    pub(crate) fn trace_reverse_request_scheduled(
-        &self,
-        request_id: u64,
-    ) -> Option<ReverseRpcDispatchGuard> {
-        let trace = self.reverse_requests.read().get(&request_id).cloned();
-        if let Some(trace) = &trace {
-            trace.record_scheduled(TokioInstant::now());
-        }
-        trace.map(|trace| ReverseRpcDispatchGuard {
-            reverse_requests: self.reverse_requests.clone(),
-            request_id,
-            trace,
-        })
-    }
-
-    pub(crate) fn abandon_reverse_request(&self, request_id: u64) {
-        if let Some(trace) = self.reverse_requests.write().remove(&request_id) {
-            trace.record_abandoned(TokioInstant::now());
         }
     }
 }
@@ -1786,24 +1968,57 @@ mod tests {
             request.id,
             &request.method,
             Some("private-session-id"),
+            7,
         );
         let repeated = ReverseRpcTrace::correlation_key(
             &correlation_hasher,
             request.id,
             &request.method,
             Some("private-session-id"),
+            7,
         );
         let different_session = ReverseRpcTrace::correlation_key(
             &correlation_hasher,
             request.id,
             &request.method,
             Some("other-session"),
+            7,
+        );
+        let different_generation = ReverseRpcTrace::correlation_key(
+            &correlation_hasher,
+            request.id,
+            &request.method,
+            Some("private-session-id"),
+            8,
         );
 
         assert_eq!(same, repeated);
         assert_ne!(same, different_session);
+        assert_ne!(same, different_generation);
         assert!(same.starts_with("rrpc-"));
         assert!(!same.contains("private-session-id"));
+    }
+
+    #[test]
+    fn reverse_request_timing_labels_all_supported_hook_types() {
+        for hook_type in [
+            "preToolUse",
+            "preMcpToolCall",
+            "postToolUse",
+            "postToolUseFailure",
+            "userPromptSubmitted",
+            "userPromptTransformed",
+            "sessionStart",
+            "sessionEnd",
+            "errorOccurred",
+            "agentStop",
+        ] {
+            assert_eq!(ReverseRpcTrace::timing_hook_type(hook_type), hook_type);
+        }
+        assert_eq!(
+            ReverseRpcTrace::timing_hook_type("PRIVATE_SENTINEL_DO_NOT_TRACE"),
+            "unknown"
+        );
     }
 
     #[test]
@@ -1812,25 +2027,20 @@ mod tests {
         let request = JsonRpcRequest::new(17, "hooks.invoke", None);
         let now = TokioInstant::now();
         let correlation_hasher = RandomState::new();
-        let first = ReverseRpcTrace::new(&request, now, &correlation_hasher, timing.clone());
-        let second = ReverseRpcTrace::new(&request, now, &correlation_hasher, timing);
-        let reverse_requests = Arc::new(RwLock::new(HashMap::new()));
-        reverse_requests.write().insert(request.id, first.clone());
+        let first = ReverseRpcTrace::new(&request, 1, now, &correlation_hasher, timing.clone());
+        let second = ReverseRpcTrace::new(&request, 2, now, &correlation_hasher, timing);
+        let registry = ReverseRpcRegistry::new();
+        registry.insert(first.clone());
+        registry.insert(second.clone());
         let guard = ReverseRpcDispatchGuard {
-            reverse_requests: reverse_requests.clone(),
+            registry: registry.clone(),
             request_id: request.id,
             trace: first,
         };
 
-        reverse_requests.write().insert(request.id, second.clone());
         drop(guard);
 
-        let retained = reverse_requests
-            .read()
-            .get(&request.id)
-            .cloned()
-            .expect("new request generation should remain tracked");
-        assert!(Arc::ptr_eq(&retained.inner, &second.inner));
+        assert!(registry.contains(&second));
     }
 
     #[tokio::test(start_paused = true)]
@@ -1850,11 +2060,10 @@ mod tests {
             Some(serde_json::json!({ "sessionId": "session" })),
         );
         let received_at = TokioInstant::now();
-        let trace = ReverseRpcTrace::new(&request, received_at, &RandomState::new(), timing);
+        let trace = ReverseRpcTrace::new(&request, 1, received_at, &RandomState::new(), timing);
 
         tokio::time::advance(Duration::from_millis(5)).await;
-        trace.mark_forwarding(TokioInstant::now());
-        trace.record_forwarded(true);
+        trace.forward(|| Ok::<(), ()>(())).unwrap();
         tokio::time::advance(Duration::from_millis(7)).await;
         trace.record_scheduled(TokioInstant::now());
 
@@ -1876,6 +2085,85 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn reverse_request_forwarding_is_recorded_before_dispatch_can_start() {
+        let trace_buffer = TraceBuffer::default();
+        let _subscriber = tracing::subscriber::set_default(trace_subscriber(trace_buffer.clone()));
+        let (timing, phase_rx, terminal_rx, dropped_records) =
+            timing_channel(REVERSE_RPC_TIMING_CAPACITY);
+        tokio::spawn(JsonRpcClient::timing_loop(
+            phase_rx,
+            terminal_rx,
+            dropped_records,
+        ));
+        let request = JsonRpcRequest::new(31, "hooks.invoke", None);
+        let now = TokioInstant::now();
+        let trace = ReverseRpcTrace::new(&request, 1, now, &RandomState::new(), timing);
+        let registry = ReverseRpcRegistry::new();
+        registry.insert(trace.clone());
+        let forwarded =
+            ReverseRpcRequest::new(request, Some(trace.clone()), Some(registry.clone()));
+        let (request_tx, request_rx) = std::sync::mpsc::channel::<ReverseRpcRequest>();
+        let (received_tx, received_rx) = std::sync::mpsc::channel();
+        let receiver = std::thread::spawn(move || {
+            let request = request_rx.recv().unwrap();
+            received_tx.send(()).unwrap();
+            let (_request, guard) = request.into_dispatch();
+            drop(guard);
+        });
+
+        trace
+            .forward(|| {
+                request_tx.send(forwarded).map_err(|_| ())?;
+                received_rx.recv().map_err(|_| ())?;
+                Ok::<(), ()>(())
+            })
+            .unwrap();
+        receiver.join().unwrap();
+
+        wait_for_trace(&trace_buffer, "phase=\"request_complete\"").await;
+        let output = trace_buffer.text();
+        let forward = output.find("phase=\"request_forward\"").unwrap();
+        let schedule = output.find("phase=\"request_schedule\"").unwrap();
+        let complete = output.find("phase=\"request_complete\"").unwrap();
+        assert!(forward < schedule);
+        assert!(schedule < complete);
+        assert!(registry.is_empty());
+    }
+
+    #[tokio::test]
+    async fn closed_forward_channel_records_failed_forward_before_abandonment() {
+        let trace_buffer = TraceBuffer::default();
+        let _subscriber = tracing::subscriber::set_default(trace_subscriber(trace_buffer.clone()));
+        let (mut server, reader) = tokio::io::duplex(4096);
+        let (notification_tx, _) = broadcast::channel(1);
+        let (request_tx, request_rx) = mpsc::unbounded_channel();
+        drop(request_rx);
+        let client = JsonRpcClient::new_with_reverse_rpc_timing(
+            tokio::io::sink(),
+            reader,
+            notification_tx,
+            request_tx,
+        );
+        let request = JsonRpcRequest::new(32, "hooks.invoke", None);
+
+        server.write_all(&frame(&request)).await.unwrap();
+
+        wait_for_trace(&trace_buffer, "phase=\"request_complete\"").await;
+        let output = trace_buffer.text();
+        let forward = output
+            .lines()
+            .find(|line| line.contains("phase=\"request_forward\""))
+            .expect("failed forwarding phase should be emitted");
+        assert!(forward.contains("status=\"failed\""));
+        assert!(
+            output.find("phase=\"request_forward\"").unwrap()
+                < output.find("phase=\"request_complete\"").unwrap()
+        );
+
+        client.force_close();
+    }
+
+    #[tokio::test]
     async fn public_client_does_not_retain_reverse_request_timing_state() {
         let (mut server, reader) = tokio::io::duplex(4096);
         let (notification_tx, _) = broadcast::channel(1);
@@ -1887,7 +2175,7 @@ mod tests {
         let forwarded = request_rx.recv().await.unwrap();
 
         assert_eq!(forwarded.id, request.id);
-        assert!(client.reverse_requests.read().is_empty());
+        assert!(client.reverse_requests.is_none());
         assert!(client.timing_task.lock().is_none());
         client.force_close();
     }
@@ -1915,7 +2203,8 @@ mod tests {
         let forwarded = request_rx.recv().await.unwrap();
 
         assert_eq!(forwarded.id, request.id);
-        assert!(client.reverse_requests.read().is_empty());
+        assert!(forwarded.trace.is_none());
+        assert!(client.reverse_requests.is_none());
         assert!(client.timing_task.lock().is_none());
         client.force_close();
     }
@@ -1927,7 +2216,7 @@ mod tests {
         let (timing, phase_rx, terminal_rx, dropped_records) = timing_channel(1);
         let request = JsonRpcRequest::new(37, "hooks.invoke", None);
         let now = TokioInstant::now();
-        let trace = ReverseRpcTrace::new(&request, now, &RandomState::new(), timing);
+        let trace = ReverseRpcTrace::new(&request, 1, now, &RandomState::new(), timing);
         trace.mark_forwarding(now);
 
         trace.record_phase("first", now, Duration::ZERO, true);
@@ -1966,14 +2255,14 @@ mod tests {
         let _subscriber = tracing::subscriber::set_default(trace_subscriber(trace_buffer.clone()));
         let (timing, phase_rx, terminal_rx, dropped_records) = timing_channel(1);
         let now = TokioInstant::now();
-        let filler_request = JsonRpcRequest::new(38, "filler.request", None);
+        let filler_request = JsonRpcRequest::new(38, "hooks.invoke", None);
         let filler =
-            ReverseRpcTrace::new(&filler_request, now, &RandomState::new(), timing.clone());
+            ReverseRpcTrace::new(&filler_request, 1, now, &RandomState::new(), timing.clone());
         filler.mark_forwarding(now);
         assert!(filler.record_complete(now, true));
 
-        let writer_request = JsonRpcRequest::new(39, "writer.request", None);
-        let writer = ReverseRpcTrace::new(&writer_request, now, &RandomState::new(), timing);
+        let writer_request = JsonRpcRequest::new(39, "userInput.request", None);
+        let writer = ReverseRpcTrace::new(&writer_request, 2, now, &RandomState::new(), timing);
         writer.mark_forwarding(now);
         let mut writer_trace = ReverseRpcWriteTrace::new(writer);
         writer_trace.record_complete(now, true);
@@ -1997,9 +2286,9 @@ mod tests {
             .find(|line| line.contains("phase=\"records_dropped\""))
             .expect("terminal saturation diagnostic should be emitted");
         assert!(dropped.contains("dropped_records=1"));
-        assert!(output.contains("rpc_method=filler.request"));
+        assert!(output.contains("rpc_method=hooks.invoke"));
         assert!(!output.lines().any(|line| {
-            line.contains("rpc_method=writer.request")
+            line.contains("rpc_method=userInput.request")
                 && line.contains("phase=\"request_complete\"")
         }));
     }
@@ -2010,9 +2299,9 @@ mod tests {
         let _subscriber = tracing::subscriber::set_default(trace_subscriber(trace_buffer.clone()));
         let (timing, phase_rx, terminal_rx, dropped_records) = timing_channel(1);
         let now = TokioInstant::now();
-        let filler_request = JsonRpcRequest::new(40, "filler.request", None);
+        let filler_request = JsonRpcRequest::new(40, "hooks.invoke", None);
         let filler =
-            ReverseRpcTrace::new(&filler_request, now, &RandomState::new(), timing.clone());
+            ReverseRpcTrace::new(&filler_request, 1, now, &RandomState::new(), timing.clone());
         filler.mark_forwarding(now);
         assert!(filler.record_complete(now, true));
 
@@ -2032,8 +2321,8 @@ mod tests {
         write_task.abort();
         let _ = write_task.await;
 
-        let writer_request = JsonRpcRequest::new(41, "writer.request", None);
-        let writer = ReverseRpcTrace::new(&writer_request, now, &RandomState::new(), timing);
+        let writer_request = JsonRpcRequest::new(41, "userInput.request", None);
+        let writer = ReverseRpcTrace::new(&writer_request, 2, now, &RandomState::new(), timing);
         writer.mark_forwarding(now);
         let error = client
             .write_frame(
@@ -2066,9 +2355,9 @@ mod tests {
             .find(|line| line.contains("phase=\"records_dropped\""))
             .expect("closed-writer saturation diagnostic should be emitted");
         assert!(dropped.contains("dropped_records=1"));
-        assert!(output.contains("rpc_method=filler.request"));
+        assert!(output.contains("rpc_method=hooks.invoke"));
         assert!(!output.lines().any(|line| {
-            line.contains("rpc_method=writer.request")
+            line.contains("rpc_method=userInput.request")
                 && line.contains("phase=\"request_complete\"")
         }));
 
@@ -2092,7 +2381,7 @@ mod tests {
         );
         let request = JsonRpcRequest::new(
             41,
-            "hooks.invoke",
+            SENTINEL,
             Some(serde_json::json!({
                 "sessionId": SENTINEL,
                 "hookType": "userPromptSubmitted",
@@ -2108,29 +2397,28 @@ mod tests {
         let forwarded = request_rx.recv().await.unwrap();
         tokio::time::advance(Duration::from_millis(13)).await;
 
-        let trace = client
-            .trace_reverse_request_scheduled(forwarded.id)
-            .expect("reverse request timing should be tracked");
+        let (forwarded, trace) = forwarded.into_dispatch();
+        let trace = trace.expect("reverse request timing should be tracked");
         let callback_start = TokioInstant::now();
         tokio::time::advance(Duration::from_millis(3)).await;
-        trace.trace().record_hook_callback(
-            "userPromptSubmitted",
-            callback_start,
-            callback_start.elapsed(),
-        );
-        client
-            .write_response(&JsonRpcResponse {
+        trace
+            .trace()
+            .record_hook_callback(SENTINEL, callback_start, callback_start.elapsed());
+        trace
+            .scope(client.write_response(&JsonRpcResponse {
                 jsonrpc: "2.0".to_string(),
                 id: forwarded.id,
                 result: Some(serde_json::json!({ "output": SENTINEL })),
                 error: None,
-            })
+            }))
             .await
             .unwrap();
 
         wait_for_trace(&trace_buffer, "phase=\"request_complete\"").await;
         let output = trace_buffer.text();
         assert!(output.contains("github_copilot_sdk::reverse_rpc_timing"));
+        assert!(output.contains("rpc_method=unknown"));
+        assert!(output.contains("hook_type=\"unknown\""));
         assert!(output.contains("phase=\"request_forward\""));
         assert!(output.contains("phase=\"request_schedule\""));
         assert!(output.contains("elapsed_us=13000"));
@@ -2242,25 +2530,23 @@ mod tests {
         let request = JsonRpcRequest::new(53, "hooks.invoke", None);
         let now = TokioInstant::now();
         let trace = ReverseRpcTrace::for_test(&request, now, now);
-        client
-            .reverse_requests
-            .write()
-            .insert(request.id, trace.clone());
+        let registry = ReverseRpcRegistry::new();
+        registry.insert(trace.clone());
         let dispatch_guard = ReverseRpcDispatchGuard {
-            reverse_requests: client.reverse_requests.clone(),
+            registry: registry.clone(),
             request_id: request.id,
             trace,
         };
         let response_task = tokio::spawn({
             let client = client.clone();
             async move {
-                client
-                    .write_response(&JsonRpcResponse {
+                dispatch_guard
+                    .scope(client.write_response(&JsonRpcResponse {
                         jsonrpc: "2.0".to_string(),
                         id: request.id,
                         result: Some(serde_json::json!({})),
                         error: None,
-                    })
+                    }))
                     .await
             }
         });
@@ -2268,7 +2554,6 @@ mod tests {
         assert_eq!(started_rx.recv().await, Some("write"));
         response_task.abort();
         let _ = response_task.await;
-        drop(dispatch_guard);
         tokio::time::advance(Duration::from_millis(10)).await;
         assert_eq!(started_rx.recv().await, Some("flush"));
 
@@ -2281,7 +2566,110 @@ mod tests {
             .collect::<Vec<_>>();
         assert_eq!(complete.len(), 1);
         assert!(complete[0].contains("status=\"succeeded\""));
-        assert!(client.reverse_requests.read().is_empty());
+        assert!(registry.is_empty());
+
+        client.force_close();
+    }
+
+    #[tokio::test]
+    async fn response_timing_uses_the_exact_dispatch_generation_when_ids_are_reused() {
+        let trace_buffer = TraceBuffer::default();
+        let _subscriber = tracing::subscriber::set_default(trace_subscriber(trace_buffer.clone()));
+        let (notification_tx, _) = broadcast::channel(1);
+        let (request_tx, mut request_rx) = mpsc::unbounded_channel();
+        let (mut server, reader) = tokio::io::duplex(4096);
+        let client = JsonRpcClient::new_with_reverse_rpc_timing(
+            tokio::io::sink(),
+            reader,
+            notification_tx,
+            request_tx,
+        );
+        let params = Some(serde_json::json!({ "sessionId": "same-session" }));
+        let first_request = JsonRpcRequest::new(61, "hooks.invoke", params.clone());
+        let second_request = JsonRpcRequest::new(61, "hooks.invoke", params);
+        server.write_all(&frame(&first_request)).await.unwrap();
+        server.write_all(&frame(&second_request)).await.unwrap();
+        let first_forwarded = request_rx.recv().await.unwrap();
+        let second_forwarded = request_rx.recv().await.unwrap();
+
+        // Acquire the newer dispatch first to prove scheduling order cannot
+        // change which receipt-generation each forwarded request carries.
+        let (second_forwarded, second_guard) = second_forwarded.into_dispatch();
+        let second_guard = second_guard.expect("second request should carry timing");
+        let second_trace = second_guard.trace.clone();
+        let second_correlation = second_trace.inner.correlation_key.clone();
+        let (first_forwarded, first_guard) = first_forwarded.into_dispatch();
+        let first_guard = first_guard.expect("first request should carry timing");
+        let first_correlation = first_guard.trace.inner.correlation_key.clone();
+        assert_ne!(first_correlation, second_correlation);
+
+        first_guard
+            .scope(client.write_response(&JsonRpcResponse {
+                jsonrpc: "2.0".to_string(),
+                id: first_forwarded.id,
+                result: Some(serde_json::json!({})),
+                error: None,
+            }))
+            .await
+            .unwrap();
+        wait_for_trace(
+            &trace_buffer,
+            &format!(
+                "correlation_key={first_correlation} rpc_method=hooks.invoke phase=\"request_complete\""
+            ),
+        )
+        .await;
+        assert!(
+            client
+                .reverse_requests
+                .as_ref()
+                .is_some_and(|registry| registry.contains(&second_trace))
+        );
+
+        second_guard
+            .scope(client.write_response(&JsonRpcResponse {
+                jsonrpc: "2.0".to_string(),
+                id: second_forwarded.id,
+                result: Some(serde_json::json!({})),
+                error: None,
+            }))
+            .await
+            .unwrap();
+        wait_for_trace(
+            &trace_buffer,
+            &format!(
+                "correlation_key={second_correlation} rpc_method=hooks.invoke phase=\"request_complete\""
+            ),
+        )
+        .await;
+
+        let output = trace_buffer.text();
+        assert_eq!(
+            output
+                .lines()
+                .filter(|line| {
+                    line.contains(&format!("correlation_key={first_correlation}"))
+                        && line.contains("phase=\"request_complete\"")
+                })
+                .count(),
+            1
+        );
+        assert_eq!(
+            output
+                .lines()
+                .filter(|line| {
+                    line.contains(&format!("correlation_key={second_correlation}"))
+                        && line.contains("phase=\"request_complete\"")
+                })
+                .count(),
+            1
+        );
+        assert!(
+            client
+                .reverse_requests
+                .as_ref()
+                .is_some_and(ReverseRpcRegistry::is_empty)
+        );
 
         client.force_close();
     }
@@ -2306,19 +2694,19 @@ mod tests {
         let request = JsonRpcRequest::new(59, "hooks.invoke", None);
         server.write_all(&frame(&request)).await.unwrap();
         let forwarded = request_rx.recv().await.unwrap();
-        let dispatch_guard = client
-            .trace_reverse_request_scheduled(forwarded.id)
-            .expect("enabled timing target should track the request");
+        let (forwarded, dispatch_guard) = forwarded.into_dispatch();
+        let dispatch_guard =
+            dispatch_guard.expect("enabled timing target should track the request");
         let response_task = tokio::spawn({
             let client = client.clone();
             async move {
-                client
-                    .write_response(&JsonRpcResponse {
+                dispatch_guard
+                    .scope(client.write_response(&JsonRpcResponse {
                         jsonrpc: "2.0".to_string(),
                         id: forwarded.id,
                         result: Some(serde_json::json!({})),
                         error: None,
-                    })
+                    }))
                     .await
             }
         });
@@ -2326,7 +2714,6 @@ mod tests {
         assert_eq!(started_rx.recv().await, Some("write"));
         client.force_close();
         assert!(response_task.await.unwrap().is_err());
-        drop(dispatch_guard);
 
         wait_for_trace(&trace_buffer, "phase=\"request_complete\"").await;
         let complete = trace_buffer
@@ -2381,7 +2768,7 @@ mod tests {
         );
         let request = JsonRpcRequest::new(53, "hooks.invoke", None);
         let now = TokioInstant::now();
-        let trace = ReverseRpcTrace::new(&request, now, &RandomState::new(), timing);
+        let trace = ReverseRpcTrace::new(&request, 1, now, &RandomState::new(), timing);
         trace.mark_forwarding(now);
 
         tokio::time::timeout(

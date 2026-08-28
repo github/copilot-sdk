@@ -1,25 +1,24 @@
 use std::collections::HashMap;
-use std::sync::{Arc, Weak};
+use std::sync::Arc;
 
 use parking_lot::Mutex;
 use tokio::sync::{broadcast, mpsc};
 use tracing::warn;
 
-use crate::jsonrpc::{JsonRpcNotification, JsonRpcRequest};
+use crate::jsonrpc::{JsonRpcNotification, ReverseRpcRequest};
 use crate::types::{SessionEventNotification, SessionId};
-use crate::{Client, ClientInner};
 
 /// Per-session channels created by the router during session registration.
 pub(crate) struct SessionChannels {
     /// Filtered `session.event` notifications for this session.
     pub(crate) notifications: mpsc::UnboundedReceiver<SessionEventNotification>,
     /// Filtered JSON-RPC requests (tool.call, userInput.request, etc.) for this session.
-    pub(crate) requests: mpsc::UnboundedReceiver<JsonRpcRequest>,
+    pub(crate) requests: mpsc::UnboundedReceiver<ReverseRpcRequest>,
 }
 
 struct SessionSenders {
     notifications: mpsc::UnboundedSender<SessionEventNotification>,
-    requests: mpsc::UnboundedSender<JsonRpcRequest>,
+    requests: mpsc::UnboundedSender<ReverseRpcRequest>,
 }
 
 /// Routes notifications and requests by sessionId to per-session channels.
@@ -85,11 +84,10 @@ impl SessionRouter {
     pub(crate) fn ensure_started(
         &self,
         notification_tx: &broadcast::Sender<JsonRpcNotification>,
-        request_rx: &Mutex<Option<mpsc::UnboundedReceiver<JsonRpcRequest>>>,
+        request_rx: &Mutex<Option<mpsc::UnboundedReceiver<ReverseRpcRequest>>>,
         llm_inference: Option<Arc<crate::copilot_request_handler::CopilotRequestDispatcher>>,
         github_telemetry: Option<crate::github_telemetry::GitHubTelemetryCallback>,
         github_token_registry: Arc<crate::github_token::GitHubTokenRegistry>,
-        client: Weak<ClientInner>,
     ) {
         let mut started = self.started.lock();
         if *started {
@@ -194,14 +192,10 @@ impl SessionRouter {
                         if let Some(dispatcher) = &llm_inference {
                             dispatcher.dispatch(request).await;
                         } else {
-                            let request_id = request.id;
                             warn!(
                                 method = %request.method,
                                 "llmInference request with no provider registered"
                             );
-                            if let Some(inner) = client.upgrade() {
-                                Client::from_inner(inner).abandon_reverse_request(request_id);
-                            }
                         }
                         continue;
                     }
@@ -218,31 +212,19 @@ impl SessionRouter {
                             guard.get(sid).map(|s| s.requests.clone())
                         };
                         if let Some(sender) = sender {
-                            if let Err(error) = sender.send(request)
-                                && let Some(inner) = client.upgrade()
-                            {
-                                Client::from_inner(inner).abandon_reverse_request(error.0.id);
-                            }
+                            let _ = sender.send(request);
                         } else {
-                            let request_id = request.id;
                             warn!(
                                 session_id = sid,
                                 method = %request.method,
                                 "request for unregistered session"
                             );
-                            if let Some(inner) = client.upgrade() {
-                                Client::from_inner(inner).abandon_reverse_request(request_id);
-                            }
                         }
                     } else {
-                        let request_id = request.id;
                         warn!(
                             method = %request.method,
                             "request missing sessionId"
                         );
-                        if let Some(inner) = client.upgrade() {
-                            Client::from_inner(inner).abandon_reverse_request(request_id);
-                        }
                     }
                 }
             });

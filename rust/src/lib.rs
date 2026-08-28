@@ -1023,7 +1023,7 @@ struct ClientInner {
     ffi_host: parking_lot::Mutex<Option<Arc<crate::ffi::FfiShared>>>,
     rpc: JsonRpcClient,
     cwd: PathBuf,
-    request_rx: parking_lot::Mutex<Option<mpsc::UnboundedReceiver<JsonRpcRequest>>>,
+    request_rx: parking_lot::Mutex<Option<mpsc::UnboundedReceiver<jsonrpc::ReverseRpcRequest>>>,
     notification_tx: broadcast::Sender<JsonRpcNotification>,
     router: router::SessionRouter,
     github_token_registry: Arc<github_token::GitHubTokenRegistry>,
@@ -1431,7 +1431,6 @@ impl Client {
                 Some(dispatcher.clone()),
                 client.inner.on_github_telemetry.clone(),
                 client.inner.github_token_registry.clone(),
-                Arc::downgrade(&client.inner),
             );
             client.rpc().llm_inference().set_provider().await?;
             let llm_inference_elapsed = llm_inference_start.elapsed();
@@ -1600,7 +1599,7 @@ impl Client {
         mode: ClientMode,
     ) -> Result<Self> {
         let setup_start = Instant::now();
-        let (request_tx, request_rx) = mpsc::unbounded_channel::<JsonRpcRequest>();
+        let (request_tx, request_rx) = mpsc::unbounded_channel::<jsonrpc::ReverseRpcRequest>();
         let (notification_broadcast_tx, _) = broadcast::channel::<JsonRpcNotification>(1024);
         let rpc = JsonRpcClient::new_with_reverse_rpc_timing(
             writer,
@@ -2029,17 +2028,6 @@ impl Client {
         self.inner.rpc.write_response(response).await
     }
 
-    pub(crate) fn trace_reverse_request_scheduled(
-        &self,
-        request_id: u64,
-    ) -> Option<crate::jsonrpc::ReverseRpcDispatchGuard> {
-        self.inner.rpc.trace_reverse_request_scheduled(request_id)
-    }
-
-    pub(crate) fn abandon_reverse_request(&self, request_id: u64) {
-        self.inner.rpc.abandon_reverse_request(request_id);
-    }
-
     /// Reconstruct a [`Client`] handle from a shared inner pointer.
     pub(crate) fn from_inner(inner: Arc<ClientInner>) -> Self {
         Self { inner }
@@ -2049,7 +2037,9 @@ impl Client {
     ///
     /// Can only be called once — subsequent calls return `None`.
     #[expect(dead_code, reason = "reserved for future pub(crate) use")]
-    pub(crate) fn take_request_rx(&self) -> Option<mpsc::UnboundedReceiver<JsonRpcRequest>> {
+    pub(crate) fn take_request_rx(
+        &self,
+    ) -> Option<mpsc::UnboundedReceiver<jsonrpc::ReverseRpcRequest>> {
         self.inner.request_rx.lock().take()
     }
 
@@ -2070,7 +2060,6 @@ impl Client {
             self.inner.llm_inference.get().cloned(),
             self.inner.on_github_telemetry.clone(),
             self.inner.github_token_registry.clone(),
-            Arc::downgrade(&self.inner),
         );
         self.inner.router.register(session_id)
     }
@@ -2090,7 +2079,6 @@ impl Client {
             self.inner.llm_inference.get().cloned(),
             self.inner.on_github_telemetry.clone(),
             self.inner.github_token_registry.clone(),
-            Arc::downgrade(&self.inner),
         );
         let id = self.inner.github_token_registry.register(provider);
         github_token::GitHubTokenRegistration::new(self.inner.github_token_registry.clone(), id)
@@ -2310,7 +2298,6 @@ impl Client {
             self.inner.llm_inference.get().cloned(),
             self.inner.on_github_telemetry.clone(),
             self.inner.github_token_registry.clone(),
-            Arc::downgrade(&self.inner),
         );
     }
 
