@@ -133,7 +133,7 @@ impl ExtensionLaunchProvider for AppExtensionLaunchProvider {
                 executable: "/app/copilot".to_string(),
                 args: vec!["/app/preloads/extension_bootstrap.mjs".to_string()],
                 env: HashMap::from([
-                    ("COPILOT_CLI_DIST_DIR".to_string(), "/app/copilot-cli".to_string()),
+                    ("COPILOT_AUTO_UPDATE".to_string(), "false".to_string()),
                     ("EXTENSION_PATH".to_string(), request.module_path),
                 ]),
             }),
@@ -152,6 +152,12 @@ forwards the returned executable, arguments, and environment unchanged; it
 does not discover or bundle an executable or bootstrap. The runtime owns and
 overrides `COPILOT_SDK_PATH`, `SESSION_ID`, and
 `COPILOT_EXTENSION_PARENT_PID`.
+
+`COPILOT_CLI_DIST_DIR` is only appropriate when the host supplies a complete
+CLI distribution containing `index.js` and its matching preloads. When the
+executable is a version-matched standalone Copilot binary, omit that variable
+and set `COPILOT_AUTO_UPDATE=false` so its embedded distribution remains
+selected.
 
 ### Session
 

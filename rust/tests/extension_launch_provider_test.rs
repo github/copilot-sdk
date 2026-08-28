@@ -69,10 +69,7 @@ fn app_launch_result(executable: &str) -> ExtensionLaunchProviderResolveResult {
             executable: executable.to_string(),
             args: vec!["/app/preloads/extension_bootstrap.mjs".to_string()],
             env: HashMap::from([
-                (
-                    "COPILOT_CLI_DIST_DIR".to_string(),
-                    "/app/copilot-cli".to_string(),
-                ),
+                ("COPILOT_AUTO_UPDATE".to_string(), "false".to_string()),
                 (
                     "EXTENSION_PATH".to_string(),
                     "/extensions/legacy/index.js".to_string(),
@@ -139,7 +136,7 @@ fn launch_profile_request_and_result_serialize_exactly() {
                 "executable": "/app/copilot",
                 "args": ["/app/preloads/extension_bootstrap.mjs"],
                 "env": {
-                    "COPILOT_CLI_DIST_DIR": "/app/copilot-cli",
+                    "COPILOT_AUTO_UPDATE": "false",
                     "EXTENSION_PATH": "/extensions/legacy/index.js"
                 }
             }
@@ -154,10 +151,7 @@ fn launch_profile_request_and_result_serialize_exactly() {
     assert_eq!(
         launch.env,
         HashMap::from([
-            (
-                "COPILOT_CLI_DIST_DIR".to_string(),
-                "/app/copilot-cli".to_string()
-            ),
+            ("COPILOT_AUTO_UPDATE".to_string(), "false".to_string()),
             (
                 "EXTENSION_PATH".to_string(),
                 "/extensions/legacy/index.js".to_string()
