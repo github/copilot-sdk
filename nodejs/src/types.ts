@@ -1887,6 +1887,35 @@ export interface DefaultAgentConfig {
 }
 
 /**
+ * Model policy for the runtime's built-in sub-agents (spawned by the
+ * built-in `task` tool, e.g. `explore`, `general-purpose`).
+ *
+ * - `{ mode: "inherit-parent" }`: use this session's {@link SessionConfigBase.model}
+ *   for the listed {@link agentTypes}. Requires `model` to be set on the session;
+ *   throws if it is omitted.
+ * - `{ mode: "fixed", model }`: use an explicit model for the listed {@link agentTypes}.
+ * - Omitted entirely (the default): preserve the runtime's existing
+ *   model-selection behavior for built-in sub-agents.
+ */
+export type SubagentModelPolicy =
+    | {
+          mode: "inherit-parent";
+          /** Built-in sub-agent types to apply this policy to (e.g. `["explore", "general-purpose"]`). */
+          agentTypes: string[];
+          /** Reasoning effort override forwarded alongside the inherited model, when supported. */
+          reasoningEffort?: ReasoningEffort;
+      }
+    | {
+          mode: "fixed";
+          /** Model identifier to use for the listed built-in sub-agent types. */
+          model: string;
+          /** Built-in sub-agent types to apply this policy to (e.g. `["explore", "general-purpose"]`). */
+          agentTypes: string[];
+          /** Reasoning effort override for the fixed model, when supported. */
+          reasoningEffort?: ReasoningEffort;
+      };
+
+/**
  * Configuration for infinite sessions with automatic context compaction and workspace persistence.
  * When enabled, sessions automatically manage context window limits through background compaction
  * and persist state to a workspace directory.
@@ -2424,6 +2453,29 @@ export interface SessionConfigBase {
      * a custom agent with the same name is configured.
      */
     excludedBuiltinAgents?: string[];
+
+    /**
+     * Model policy applied to built-in sub-agents (e.g. `explore`,
+     * `general-purpose`) that the runtime's built-in `task` tool spawns.
+     *
+     * This does not affect custom agents, which already accept their own
+     * {@link CustomAgentConfig.model}. It also does not change the parent
+     * session's model.
+     *
+     * Implemented on top of the runtime's existing (experimental) subagent
+     * settings mechanism: after the session is created, the SDK calls
+     * `session.rpc.tools.updateSubagentSettings` for each agent type listed
+     * in {@link SubagentModelPolicy.agentTypes}. There is currently no
+     * wildcard to target "all built-in sub-agents" — the runtime's
+     * `agent_type` values are open-ended and not enumerated by the protocol,
+     * so callers must name the built-in agent types they want to affect
+     * (for example `["explore", "general-purpose"]`).
+     *
+     * When omitted, no settings call is made and the runtime's existing
+     * model-selection behavior for built-in sub-agents is preserved exactly
+     * as before.
+     */
+    subagentModel?: SubagentModelPolicy;
 
     /**
      * Built-in skill names to include in the session. In `mode: "empty"`,

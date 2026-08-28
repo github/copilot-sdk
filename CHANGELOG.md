@@ -7,6 +7,14 @@ See [GitHub Releases](https://github.com/github/copilot-sdk/releases) for the fu
 
 ## [Unreleased]
 
+### Feature: model policy for built-in sub-agents (`subagentModel`)
+
+Session create and resume accept a new optional `subagentModel` option that configures which model the runtime's built-in `task` sub-agents (e.g. `explore`, `general-purpose`) use, addressing [github/copilot-sdk#1640](https://github.com/github/copilot-sdk/issues/1640). It is built entirely on the CLI's existing (experimental) subagent settings mechanism (`session.tools.updateSubagentSettings` / `SubagentSettingsEntry`): the SDK issues that call automatically right after the session is created, for the agent types you name.
+
+Two policy modes are available: `{ mode: "inherit-parent", agentTypes }` applies the session's own `model` to the listed built-in agent types (requires `model` to be set), and `{ mode: "fixed", model, agentTypes }` applies an explicit model. Because the runtime's `agent_type` values are open-ended and not enumerated by the wire protocol, there is no wildcard for "all built-ins" — name the agent types you want affected. Omitting `subagentModel` entirely makes no settings call and preserves the runtime's existing model-selection behavior for built-in sub-agents exactly as before.
+
+This does not change custom agents, which already accept their own `model` via `CustomAgentConfig`. Currently implemented for the Node.js SDK; the underlying `updateSubagentSettings` RPC is already generated for every SDK, so the same convenience wrapper can be ported to the other language bindings following this pattern.
+
 ### Feature: rotating session-scoped GitHub credentials
 
 All six SDKs can now acquire short-lived GitHub credentials through a session-scoped callback. The SDK registers the callback before session create or resume, maps `initial` and `refresh` requests to the owning session, and removes registrations on rollback, replacement, session close, and client close. Static per-session `gitHubToken` credentials remain supported and are mutually exclusive with the callback.

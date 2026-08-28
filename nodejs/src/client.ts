@@ -1512,6 +1512,58 @@ export class CopilotClient {
         }
     }
 
+    /**
+     * Applies {@link SessionConfigBase.subagentModel}, if configured, by
+     * translating it into a call to the runtime's existing (experimental)
+     * `session.tools.updateSubagentSettings` RPC. No call is made when the
+     * policy is omitted, preserving the runtime's default behavior exactly.
+     */
+    private async applySubagentModelPolicy(
+        session: CopilotSession,
+        config: SessionConfigBase
+    ): Promise<void> {
+        const policy = config.subagentModel;
+        if (policy === undefined) {
+            return;
+        }
+        if (policy.agentTypes.length === 0) {
+            throw new Error("subagentModel.agentTypes must include at least one agent type");
+        }
+
+        let model: string;
+        if (policy.mode === "inherit-parent") {
+            if (!config.model) {
+                throw new Error(
+                    'subagentModel: mode "inherit-parent" requires config.model to be set'
+                );
+            }
+            model = config.model;
+        } else {
+            model = policy.model;
+        }
+
+        const agents: Record<string, { model: string; effortLevel?: string }> = {};
+        for (const agentType of policy.agentTypes) {
+            agents[agentType] = {
+                model,
+                ...(policy.reasoningEffort !== undefined
+                    ? { effortLevel: policy.reasoningEffort }
+                    : {}),
+            };
+        }
+
+        try {
+            await session.rpc.tools.updateSubagentSettings({ subagents: { agents } });
+        } catch (e) {
+            try {
+                await session.disconnect();
+            } catch {
+                // Swallow: original error is the one the caller needs.
+            }
+            throw e;
+        }
+    }
+
     async createSession(config: SessionConfig): Promise<CopilotSession> {
         if (config.gitHubToken !== undefined && config.gitHubTokenProvider !== undefined) {
             throw new Error("gitHubToken and gitHubTokenProvider are mutually exclusive");
@@ -1759,6 +1811,7 @@ export class CopilotClient {
             session.setCapabilities(capabilities);
 
             await this.updateSessionOptionsForMode(session, config);
+            await this.applySubagentModelPolicy(session, config);
             this.commitGitHubTokenProvider(returnedSessionId, gitHubTokenProviderRegistrationId);
         } catch (e) {
             if (registeredId !== undefined) {
@@ -2035,6 +2088,7 @@ export class CopilotClient {
             }
 
             await this.updateSessionOptionsForMode(session, config);
+            await this.applySubagentModelPolicy(session, config);
             this.commitGitHubTokenProvider(sessionId, gitHubTokenProviderRegistrationId);
         } catch (e) {
             this.sessions.delete(sessionId);
