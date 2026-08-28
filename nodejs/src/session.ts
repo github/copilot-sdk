@@ -382,11 +382,10 @@ function isFactoryFatalError(error: unknown): boolean {
 export type AssistantMessageEvent = Extract<SessionEvent, { type: "assistant.message" }>;
 
 const TOOL_SEARCH_TOOL_NAME = "tool_search_tool";
-type ToolDispatchStage =
-    | "PreparingArguments"
-    | "InvokingHandler"
-    | "ConvertingResult"
-    | "SendingResult";
+// There is deliberately no argument-preparation stage here: handler arguments
+// arrive already decoded and are passed through untouched, so the handler call
+// is the first step that can fail.
+type ToolDispatchStage = "InvokingHandler" | "ConvertingResult" | "SendingResult";
 
 /**
  * Represents a single conversation session with the Copilot CLI.
@@ -1122,7 +1121,7 @@ export class CopilotSession {
         traceparent?: string,
         tracestate?: string
     ): Promise<void> {
-        let stage: ToolDispatchStage = "PreparingArguments";
+        let stage: ToolDispatchStage = "InvokingHandler";
         try {
             // The built-in tool-search tool receives a snapshot of the session's
             // currently initialized tools so an override can filter the live
@@ -1138,7 +1137,6 @@ export class CopilotSession {
                     availableTools = undefined;
                 }
             }
-            stage = "InvokingHandler";
             const rawResult = await handler(args, {
                 sessionId: this.sessionId,
                 toolCallId,
