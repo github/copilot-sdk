@@ -2992,7 +2992,7 @@ describe("CopilotClient", () => {
                     id: "hydrafusion",
                     name: "HydraFusion",
                     capabilities: {},
-                    modelPickerCategory: "powerful",
+                    modelPickerCategory: "versatile",
                 },
                 {
                     id: "hydrafusion-max",
