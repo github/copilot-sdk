@@ -1,5 +1,7 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, hash_map::RandomState};
+use std::hash::{BuildHasher, Hash, Hasher};
 use std::sync::Arc;
+use std::sync::OnceLock;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
 
@@ -289,7 +291,7 @@ struct ReverseRpcTraceInner {
     correlation_key: String,
     method: String,
     received_at: TokioInstant,
-    forwarded_at: TokioInstant,
+    forwarded_at: OnceLock<TokioInstant>,
     timing_tx: mpsc::UnboundedSender<ReverseRpcTimingEvent>,
 }
 
@@ -297,7 +299,7 @@ impl ReverseRpcTrace {
     fn new(
         request: &JsonRpcRequest,
         received_at: TokioInstant,
-        forwarded_at: TokioInstant,
+        correlation_hasher: &RandomState,
         timing_tx: mpsc::UnboundedSender<ReverseRpcTimingEvent>,
     ) -> Self {
         let session_id = request
@@ -307,10 +309,15 @@ impl ReverseRpcTrace {
             .and_then(Value::as_str);
         Self {
             inner: Arc::new(ReverseRpcTraceInner {
-                correlation_key: Self::correlation_key(request.id, &request.method, session_id),
+                correlation_key: Self::correlation_key(
+                    correlation_hasher,
+                    request.id,
+                    &request.method,
+                    session_id,
+                ),
                 method: request.method.clone(),
                 received_at,
-                forwarded_at,
+                forwarded_at: OnceLock::new(),
                 timing_tx,
             }),
         }
@@ -324,43 +331,59 @@ impl ReverseRpcTrace {
     ) -> Self {
         let (timing_tx, timing_rx) = mpsc::unbounded_channel();
         tokio::spawn(JsonRpcClient::timing_loop(timing_rx));
-        Self::new(request, received_at, forwarded_at, timing_tx)
+        let trace = Self::new(request, received_at, &RandomState::new(), timing_tx);
+        trace.mark_forwarding(forwarded_at);
+        trace
     }
 
-    fn correlation_key(request_id: u64, method: &str, session_id: Option<&str>) -> String {
-        let mut hash = 0xcbf29ce484222325_u64;
-        for byte in session_id
-            .unwrap_or("<global>")
-            .bytes()
-            .chain([0xff])
-            .chain(method.bytes())
-            .chain([0xfe])
-            .chain(request_id.to_le_bytes())
-        {
-            hash ^= u64::from(byte);
-            hash = hash.wrapping_mul(0x100000001b3);
-        }
-        format!("rrpc-{hash:016x}")
+    fn correlation_key(
+        correlation_hasher: &RandomState,
+        request_id: u64,
+        method: &str,
+        session_id: Option<&str>,
+    ) -> String {
+        // A per-client keyed hash keeps the request-derived key stable for all
+        // phases without making custom session IDs guessable from trace output.
+        let mut hasher = correlation_hasher.build_hasher();
+        session_id.unwrap_or("<global>").hash(&mut hasher);
+        method.hash(&mut hasher);
+        request_id.hash(&mut hasher);
+        format!("rrpc-{:016x}", hasher.finish())
     }
 
     fn elapsed_us(duration: std::time::Duration) -> u64 {
         u64::try_from(duration.as_micros()).unwrap_or(u64::MAX)
     }
 
+    fn mark_forwarding(&self, forwarded_at: TokioInstant) {
+        self.inner
+            .forwarded_at
+            .set(forwarded_at)
+            .expect("forwarding timestamp must be recorded exactly once");
+    }
+
     fn record_forwarded(&self, succeeded: bool) {
+        let forwarded_at = self
+            .inner
+            .forwarded_at
+            .get()
+            .expect("forwarding timestamp must be set before forwarding");
         self.record_phase(
             "request_forward",
-            self.inner
-                .forwarded_at
-                .duration_since(self.inner.received_at),
+            forwarded_at.duration_since(self.inner.received_at),
             succeeded,
         );
     }
 
     fn record_scheduled(&self, scheduled_at: TokioInstant) {
+        let forwarded_at = self
+            .inner
+            .forwarded_at
+            .get()
+            .expect("forwarding timestamp must be set before scheduling");
         let _ = self.inner.timing_tx.send(ReverseRpcTimingEvent::Scheduled {
             trace: self.clone(),
-            elapsed_us: Self::elapsed_us(scheduled_at.duration_since(self.inner.forwarded_at)),
+            elapsed_us: Self::elapsed_us(scheduled_at.duration_since(*forwarded_at)),
             since_receive_us: Self::elapsed_us(scheduled_at.duration_since(self.inner.received_at)),
         });
     }
@@ -482,14 +505,15 @@ impl JsonRpcClient {
 
         let writer_span = tracing::error_span!("jsonrpc_write_loop");
         let write_task = tokio::spawn(Self::write_loop(writer, write_rx).instrument(writer_span));
-        let (timing_tx, timing_task) = if trace_reverse_rpc {
+        let (timing_tx, timing_task, correlation_hasher) = if trace_reverse_rpc {
             let (timing_tx, timing_rx) = mpsc::unbounded_channel::<ReverseRpcTimingEvent>();
             (
                 Some(timing_tx),
                 Some(tokio::spawn(Self::timing_loop(timing_rx))),
+                Some(RandomState::new()),
             )
         } else {
-            (None, None)
+            (None, None, None)
         };
 
         let client = Self {
@@ -519,6 +543,7 @@ impl JsonRpcClient {
                     notification_tx_clone,
                     request_tx_clone,
                     timing_tx,
+                    correlation_hasher,
                 )
                 .await;
             }
@@ -664,6 +689,7 @@ impl JsonRpcClient {
         notification_tx: broadcast::Sender<JsonRpcNotification>,
         request_tx: mpsc::UnboundedSender<JsonRpcRequest>,
         timing_tx: Option<mpsc::UnboundedSender<ReverseRpcTimingEvent>>,
+        correlation_hasher: Option<RandomState>,
     ) {
         let mut reader = BufReader::new(reader);
 
@@ -729,16 +755,19 @@ impl JsonRpcClient {
                     }
                     JsonRpcMessage::Request(request) => {
                         let request_id = request.id;
-                        let trace = timing_tx.as_ref().map(|timing_tx| {
-                            ReverseRpcTrace::new(
-                                &request,
-                                TokioInstant::now(),
-                                TokioInstant::now(),
-                                timing_tx.clone(),
-                            )
-                        });
+                        let trace = timing_tx.as_ref().zip(correlation_hasher.as_ref()).map(
+                            |(timing_tx, correlation_hasher)| {
+                                ReverseRpcTrace::new(
+                                    &request,
+                                    TokioInstant::now(),
+                                    correlation_hasher,
+                                    timing_tx.clone(),
+                                )
+                            },
+                        );
                         if let Some(trace) = &trace {
                             reverse_requests.write().insert(request_id, trace.clone());
+                            trace.mark_forwarding(TokioInstant::now());
                         }
                         let forwarded = request_tx.send(request).is_ok();
                         if let Some(trace) = &trace {
@@ -1318,18 +1347,25 @@ mod tests {
             "hooks.invoke",
             Some(serde_json::json!({ "sessionId": "private-session-id" })),
         );
+        let correlation_hasher = RandomState::new();
         let same = ReverseRpcTrace::correlation_key(
+            &correlation_hasher,
             request.id,
             &request.method,
             Some("private-session-id"),
         );
         let repeated = ReverseRpcTrace::correlation_key(
+            &correlation_hasher,
             request.id,
             &request.method,
             Some("private-session-id"),
         );
-        let different_session =
-            ReverseRpcTrace::correlation_key(request.id, &request.method, Some("other-session"));
+        let different_session = ReverseRpcTrace::correlation_key(
+            &correlation_hasher,
+            request.id,
+            &request.method,
+            Some("other-session"),
+        );
 
         assert_eq!(same, repeated);
         assert_ne!(same, different_session);
@@ -1342,8 +1378,9 @@ mod tests {
         let (timing_tx, _timing_rx) = mpsc::unbounded_channel();
         let request = JsonRpcRequest::new(17, "hooks.invoke", None);
         let now = TokioInstant::now();
-        let first = ReverseRpcTrace::new(&request, now, now, timing_tx.clone());
-        let second = ReverseRpcTrace::new(&request, now, now, timing_tx);
+        let correlation_hasher = RandomState::new();
+        let first = ReverseRpcTrace::new(&request, now, &correlation_hasher, timing_tx.clone());
+        let second = ReverseRpcTrace::new(&request, now, &correlation_hasher, timing_tx);
         let reverse_requests = Arc::new(RwLock::new(HashMap::new()));
         reverse_requests.write().insert(request.id, first.clone());
         let guard = ReverseRpcDispatchGuard {
@@ -1361,6 +1398,41 @@ mod tests {
             .cloned()
             .expect("new request generation should remain tracked");
         assert!(Arc::ptr_eq(&retained.inner, &second.inner));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn reverse_request_timing_uses_the_forwarding_boundary() {
+        let trace_buffer = TraceBuffer::default();
+        let _subscriber = tracing::subscriber::set_default(trace_subscriber(trace_buffer.clone()));
+        let (timing_tx, timing_rx) = mpsc::unbounded_channel();
+        tokio::spawn(JsonRpcClient::timing_loop(timing_rx));
+        let request = JsonRpcRequest::new(
+            29,
+            "hooks.invoke",
+            Some(serde_json::json!({ "sessionId": "session" })),
+        );
+        let received_at = TokioInstant::now();
+        let trace = ReverseRpcTrace::new(&request, received_at, &RandomState::new(), timing_tx);
+
+        tokio::time::advance(Duration::from_millis(5)).await;
+        trace.mark_forwarding(TokioInstant::now());
+        trace.record_forwarded(true);
+        tokio::time::advance(Duration::from_millis(7)).await;
+        trace.record_scheduled(TokioInstant::now());
+
+        wait_for_trace(&trace_buffer, "phase=\"request_schedule\"").await;
+        let output = trace_buffer.text();
+        let forward = output
+            .lines()
+            .find(|line| line.contains("phase=\"request_forward\""))
+            .expect("request_forward timing should be emitted");
+        let schedule = output
+            .lines()
+            .find(|line| line.contains("phase=\"request_schedule\""))
+            .expect("request_schedule timing should be emitted");
+        assert!(forward.contains("elapsed_us=5000"));
+        assert!(schedule.contains("elapsed_us=7000"));
+        assert!(schedule.contains("since_receive_us=12000"));
     }
 
     #[tokio::test]
