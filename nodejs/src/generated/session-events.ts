@@ -136,6 +136,16 @@ export type SessionEvent =
   | ExtensionsAttachmentsPushedEvent
   | McpAppToolCallCompleteEvent;
 /**
+ * Routing preference used when the session model is `auto`.
+ */
+export type AutoTier =
+  /** Optimize for efficiency. */
+  | "efficiency"
+  /** Balance efficiency and intelligence. */
+  | "balance"
+  /** Optimize for intelligence. */
+  | "intelligence";
+/**
  * Hosting platform type of the repository (github or ado)
  */
 export type WorkingDirectoryContextHostType =
@@ -1106,6 +1116,7 @@ export interface StartData {
    * Whether the session was already in use by another client at start time
    */
   alreadyInUse?: boolean;
+  autoTier?: AutoTier;
   context?: WorkingDirectoryContext;
   /**
    * Context tier selected at session creation time for models with tiered context pricing; null when no tier is selected (e.g., non-tiered model)
@@ -1258,6 +1269,7 @@ export interface ResumeData {
    * Whether the session was already in use by another client at resume time
    */
   alreadyInUse?: boolean;
+  autoTier?: AutoTier;
   context?: WorkingDirectoryContext;
   /**
    * Context tier currently selected at resume time; null when no tier is active

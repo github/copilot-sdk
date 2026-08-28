@@ -1361,6 +1361,10 @@ type CanvasSessionContext struct {
 // Experimental: CapiSessionOptions is part of an experimental API and may change or be
 // removed.
 type CapiSessionOptions struct {
+	// Routing preference used when the session model is `auto`. The runtime persists the
+	// preference across cold resume. When omitted, the default routing behavior is used.
+	// Resuming an already-resident session cannot change its preference.
+	AutoTier *AutoTier `json:"autoTier,omitempty"`
 	// Whether to use WebSocket transport for the CAPI Responses API. Enabled by default when
 	// the model advertises `ws:/responses` support; set to `false` to force the HTTP Responses
 	// transport in environments where WebSockets are blocked (e.g. behind a proxy). Setting
@@ -15856,6 +15860,19 @@ const (
 	AuthInfoTypeToken           AuthInfoType = "token"
 	AuthInfoTypeTokenProvider   AuthInfoType = "token-provider"
 	AuthInfoTypeUser            AuthInfoType = "user"
+)
+
+// Routing preference used when the session model is `auto`.
+// Experimental: AutoTier is part of an experimental API and may change or be removed.
+type AutoTier string
+
+const (
+	// Balance efficiency and intelligence.
+	AutoTierBalance AutoTier = "balance"
+	// Optimize for efficiency.
+	AutoTierEfficiency AutoTier = "efficiency"
+	// Optimize for intelligence.
+	AutoTierIntelligence AutoTier = "intelligence"
 )
 
 // Custom input-format kind.

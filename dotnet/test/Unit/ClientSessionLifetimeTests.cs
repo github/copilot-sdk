@@ -464,13 +464,18 @@ public sealed class ClientSessionLifetimeTests
         Assert.False(agent.TryGetProperty("reasoningEffort", out _));
     }
 
+    public static TheoryData<AutoTier, string, bool?> CapiAutoTiers => new()
+    {
+        { AutoTier.Efficiency, "efficiency", null },
+        { AutoTier.Balance, "balance", null },
+        { AutoTier.Intelligence, "intelligence", null },
+        { AutoTier.Efficiency, "efficiency", false },
+        { AutoTier.Balance, "balance", false },
+        { AutoTier.Intelligence, "intelligence", false },
+    };
+
     [Theory]
-    [InlineData(AutoTier.Efficiency, "efficiency", null)]
-    [InlineData(AutoTier.Balance, "balance", null)]
-    [InlineData(AutoTier.Intelligence, "intelligence", null)]
-    [InlineData(AutoTier.Efficiency, "efficiency", false)]
-    [InlineData(AutoTier.Balance, "balance", false)]
-    [InlineData(AutoTier.Intelligence, "intelligence", false)]
+    [MemberData(nameof(CapiAutoTiers))]
     public async Task SessionRequests_Serialize_CapiAutoTier(AutoTier tier, string expectedTier, bool? enableWebSocketResponses)
     {
         await using var server = await FakeCopilotServer.StartAsync();

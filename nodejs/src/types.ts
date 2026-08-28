@@ -11,6 +11,7 @@ import type { Canvas } from "./canvas.js";
 import type { SessionFsProvider } from "./sessionFsProvider.js";
 import type { CopilotRequestHandler } from "./copilotRequestHandler.js";
 import type {
+    AutoTier,
     PermissionRequest as GeneratedPermissionRequest,
     PermissionRequestedData as GeneratedPermissionRequestedData,
     PermissionRequestedEvent as GeneratedPermissionRequestedEvent,
@@ -72,7 +73,7 @@ export type {
 export type SessionEvent =
     | Exclude<GeneratedSessionEvent, { type: "permission.requested" }>
     | PermissionRequestedEvent;
-export type { ReasoningSummary } from "./generated/session-events.js";
+export type { AutoTier, ReasoningSummary } from "./generated/session-events.js";
 export type { SessionFsProvider } from "./sessionFsProvider.js";
 export { createSessionFsAdapter } from "./sessionFsProvider.js";
 export type { SessionFsFileInfo } from "./sessionFsProvider.js";
@@ -2119,9 +2120,6 @@ export interface FactoryMeta {
     /** Optional resource ceilings presented to the user before execution. */
     limits?: FactoryLimits;
 }
-
-/** Routing preference used when the session model is `auto`. */
-export type AutoTier = "efficiency" | "balance" | "intelligence";
 
 /**
  * Provider-scoped options for the Copilot API (CAPI).

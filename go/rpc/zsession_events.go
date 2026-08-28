@@ -2128,6 +2128,8 @@ func (*SessionHandoffData) Type() SessionEventType { return SessionEventTypeSess
 type SessionStartData struct {
 	// Whether the session was already in use by another client at start time
 	AlreadyInUse *bool `json:"alreadyInUse,omitempty"`
+	// Auto routing preference selected at session creation time
+	AutoTier *AutoTier `json:"autoTier,omitempty"`
 	// Working directory and git context at session start
 	Context *WorkingDirectoryContext `json:"context,omitempty"`
 	// Context tier selected at session creation time for models with tiered context pricing; null when no tier is selected (e.g., non-tiered model)
@@ -2206,6 +2208,8 @@ func (*SessionSessionLimitsChangedData) Type() SessionEventType {
 type SessionResumeData struct {
 	// Whether the session was already in use by another client at resume time
 	AlreadyInUse *bool `json:"alreadyInUse,omitempty"`
+	// Auto routing preference active at resume time
+	AutoTier *AutoTier `json:"autoTier,omitempty"`
 	// Updated working directory and git context at resume time
 	Context *WorkingDirectoryContext `json:"context,omitempty"`
 	// Context tier currently selected at resume time; null when no tier is active

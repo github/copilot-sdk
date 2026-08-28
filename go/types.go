@@ -2206,15 +2206,15 @@ func (p ProviderConfig) MarshalJSON() ([]byte, error) {
 }
 
 // AutoTier selects the routing tier for model "auto" with V2 Auto.
-type AutoTier string
+type AutoTier = rpc.AutoTier
 
 const (
 	// AutoTierEfficiency selects the efficiency routing tier.
-	AutoTierEfficiency AutoTier = "efficiency"
+	AutoTierEfficiency = rpc.AutoTierEfficiency
 	// AutoTierBalance selects the balance routing tier.
-	AutoTierBalance AutoTier = "balance"
+	AutoTierBalance = rpc.AutoTierBalance
 	// AutoTierIntelligence selects the intelligence routing tier.
-	AutoTierIntelligence AutoTier = "intelligence"
+	AutoTierIntelligence = rpc.AutoTierIntelligence
 )
 
 // CapiSessionOptions configures provider-scoped Copilot API (CAPI) session behavior.

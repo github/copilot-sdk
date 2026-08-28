@@ -1916,6 +1916,11 @@ public sealed partial class SessionStartData
     [JsonPropertyName("alreadyInUse")]
     public bool? AlreadyInUse { get; set; }
 
+    /// <summary>Auto routing preference selected at session creation time.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("autoTier")]
+    public AutoTier? AutoTier { get; set; }
+
     /// <summary>Working directory and git context at session start.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("context")]
@@ -1994,6 +1999,11 @@ public sealed partial class SessionResumeData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("alreadyInUse")]
     public bool? AlreadyInUse { get; set; }
+
+    /// <summary>Auto routing preference active at resume time.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("autoTier")]
+    public AutoTier? AutoTier { get; set; }
 
     /// <summary>Updated working directory and git context at resume time.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -10303,6 +10313,70 @@ public sealed partial class McpAppToolCallCompleteToolMeta
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("ui")]
     public McpAppToolCallCompleteToolMetaUI? Ui { get; set; }
+}
+
+/// <summary>Routing preference used when the session model is `auto`.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct AutoTier : IEquatable<AutoTier>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="AutoTier"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="AutoTier"/>.</param>
+    [JsonConstructor]
+    public AutoTier(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="AutoTier"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Optimize for efficiency.</summary>
+    public static AutoTier Efficiency { get; } = new("efficiency");
+
+    /// <summary>Balance efficiency and intelligence.</summary>
+    public static AutoTier Balance { get; } = new("balance");
+
+    /// <summary>Optimize for intelligence.</summary>
+    public static AutoTier Intelligence { get; } = new("intelligence");
+
+    /// <summary>Returns a value indicating whether two <see cref="AutoTier"/> instances are equivalent.</summary>
+    public static bool operator ==(AutoTier left, AutoTier right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="AutoTier"/> instances are not equivalent.</summary>
+    public static bool operator !=(AutoTier left, AutoTier right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is AutoTier other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(AutoTier other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{AutoTier}"/> for serializing <see cref="AutoTier"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<AutoTier>
+    {
+        /// <inheritdoc />
+        public override AutoTier Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, AutoTier value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AutoTier));
+        }
+    }
 }
 
 /// <summary>Hosting platform type of the repository (github or ado).</summary>

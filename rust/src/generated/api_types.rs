@@ -10,10 +10,11 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use super::session_events::{
-    AbortReason, ContextTier, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerSource,
-    McpServerStatus, ModelChangeSource, OmittedBinaryOmittedReason, PermissionMode,
-    PermissionPromptRequest, PermissionRule, ReasoningSummary, SessionLimitsConfig, SessionMode,
-    ShutdownType, SkillSource, TaskCompletionOutcome, UserToolSessionApproval, Verbosity,
+    AbortReason, AutoTier, ContextTier, McpOauthHttpResponse, McpOauthWWWAuthenticateParams,
+    McpServerSource, McpServerStatus, ModelChangeSource, OmittedBinaryOmittedReason,
+    PermissionMode, PermissionPromptRequest, PermissionRule, ReasoningSummary, SessionLimitsConfig,
+    SessionMode, ShutdownType, SkillSource, TaskCompletionOutcome, UserToolSessionApproval,
+    Verbosity,
 };
 use crate::types::{RequestId, SessionEvent, SessionId};
 
@@ -3019,6 +3020,9 @@ pub struct CanvasProviderUnregisterRequest {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CapiSessionOptions {
+    /// Routing preference used when the session model is `auto`. The runtime persists the preference across cold resume. When omitted, the default routing behavior is used. Resuming an already-resident session cannot change its preference.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auto_tier: Option<AutoTier>,
     /// Whether to use WebSocket transport for the CAPI Responses API. Enabled by default when the model advertises `ws:/responses` support; set to `false` to force the HTTP Responses transport in environments where WebSockets are blocked (e.g. behind a proxy). Setting this to `false` is equivalent to the `COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES` environment variable.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_web_socket_responses: Option<bool>,

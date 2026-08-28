@@ -8222,6 +8222,7 @@ class SessionResumeData:
     event_count: int
     resume_time: datetime
     already_in_use: bool | None = None
+    auto_tier: AutoTier | None = None
     context: WorkingDirectoryContext | None = None
     context_tier: ContextTier | None = None
     continue_pending_work: bool | None = None
@@ -8240,6 +8241,7 @@ class SessionResumeData:
         event_count = from_int(obj.get("eventCount"))
         resume_time = from_datetime(obj.get("resumeTime"))
         already_in_use = from_union([from_none, from_bool], obj.get("alreadyInUse"))
+        auto_tier = from_union([from_none, lambda x: parse_enum(AutoTier, x)], obj.get("autoTier"))
         context = from_union([from_none, WorkingDirectoryContext.from_dict], obj.get("context"))
         context_tier = from_union([from_none, lambda x: parse_enum(ContextTier, x)], obj.get("contextTier"))
         continue_pending_work = from_union([from_none, from_bool], obj.get("continuePendingWork"))
@@ -8255,6 +8257,7 @@ class SessionResumeData:
             event_count=event_count,
             resume_time=resume_time,
             already_in_use=already_in_use,
+            auto_tier=auto_tier,
             context=context,
             context_tier=context_tier,
             continue_pending_work=continue_pending_work,
@@ -8274,6 +8277,8 @@ class SessionResumeData:
         result["resumeTime"] = to_datetime(self.resume_time)
         if self.already_in_use is not None:
             result["alreadyInUse"] = from_union([from_none, from_bool], self.already_in_use)
+        if self.auto_tier is not None:
+            result["autoTier"] = from_union([from_none, lambda x: to_enum(AutoTier, x)], self.auto_tier)
         if self.context is not None:
             result["context"] = from_union([from_none, lambda x: to_class(WorkingDirectoryContext, x)], self.context)
         if self.context_tier is not None:
@@ -8566,6 +8571,7 @@ class SessionStartData:
     start_time: datetime
     version: int
     already_in_use: bool | None = None
+    auto_tier: AutoTier | None = None
     context: WorkingDirectoryContext | None = None
     context_tier: ContextTier | None = None
     detached_from_spawning_parent_session_id: str | None = None
@@ -8586,6 +8592,7 @@ class SessionStartData:
         start_time = from_datetime(obj.get("startTime"))
         version = from_int(obj.get("version"))
         already_in_use = from_union([from_none, from_bool], obj.get("alreadyInUse"))
+        auto_tier = from_union([from_none, lambda x: parse_enum(AutoTier, x)], obj.get("autoTier"))
         context = from_union([from_none, WorkingDirectoryContext.from_dict], obj.get("context"))
         context_tier = from_union([from_none, lambda x: parse_enum(ContextTier, x)], obj.get("contextTier"))
         detached_from_spawning_parent_session_id = from_union([from_none, from_str], obj.get("detachedFromSpawningParentSessionId"))
@@ -8603,6 +8610,7 @@ class SessionStartData:
             start_time=start_time,
             version=version,
             already_in_use=already_in_use,
+            auto_tier=auto_tier,
             context=context,
             context_tier=context_tier,
             detached_from_spawning_parent_session_id=detached_from_spawning_parent_session_id,
@@ -8624,6 +8632,8 @@ class SessionStartData:
         result["version"] = to_int(self.version)
         if self.already_in_use is not None:
             result["alreadyInUse"] = from_union([from_none, from_bool], self.already_in_use)
+        if self.auto_tier is not None:
+            result["autoTier"] = from_union([from_none, lambda x: to_enum(AutoTier, x)], self.auto_tier)
         if self.context is not None:
             result["context"] = from_union([from_none, lambda x: to_class(WorkingDirectoryContext, x)], self.context)
         if self.context_tier is not None:
@@ -11695,6 +11705,16 @@ class AutoModeSwitchResponse(Enum):
     NO = "no"
 
 
+class AutoTier(Enum):
+    "Routing preference used when the session model is `auto`."
+    # Optimize for efficiency.
+    EFFICIENCY = "efficiency"
+    # Balance efficiency and intelligence.
+    BALANCE = "balance"
+    # Optimize for intelligence.
+    INTELLIGENCE = "intelligence"
+
+
 class AutopilotObjectiveChangedOperation(Enum):
     "The type of operation performed on the autopilot objective state file"
     # Autopilot objective state file was created for a new objective.
@@ -12530,6 +12550,7 @@ __all__ = [
     "AutoModeSwitchCompletedData",
     "AutoModeSwitchRequestedData",
     "AutoModeSwitchResponse",
+    "AutoTier",
     "AutopilotObjectiveChangedOperation",
     "AutopilotObjectiveChangedStatus",
     "BinaryAssetReference",

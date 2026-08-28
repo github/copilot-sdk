@@ -2380,23 +2380,6 @@ public sealed class ProviderConfig
 }
 
 /// <summary>
-/// Routing tier for model <c>auto</c> with V2 Auto.
-/// </summary>
-[JsonConverter(typeof(JsonStringEnumConverter<AutoTier>))]
-public enum AutoTier
-{
-    /// <summary>The efficiency routing tier.</summary>
-    [JsonStringEnumMemberName("efficiency")]
-    Efficiency,
-    /// <summary>The balance routing tier.</summary>
-    [JsonStringEnumMemberName("balance")]
-    Balance,
-    /// <summary>The intelligence routing tier.</summary>
-    [JsonStringEnumMemberName("intelligence")]
-    Intelligence
-}
-
-/// <summary>
 /// Provider-scoped options for the Copilot API (CAPI) provider.
 /// </summary>
 public sealed class CapiSessionOptions

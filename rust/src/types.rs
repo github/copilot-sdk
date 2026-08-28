@@ -21,6 +21,8 @@ pub use crate::copilot_request_handler::{
     CopilotWebSocketResponse, WebSocketTransform, forward_http,
 };
 use crate::generated::api_types::{CurrentToolMetadata, OpenCanvasInstance};
+/// Routing tier for the `auto` model with Auto mode V2.
+pub use crate::generated::session_events::AutoTier;
 use crate::generated::session_events::ReasoningSummary;
 /// Context window tier for models that support tiered context windows.
 pub use crate::generated::session_events::{ContextTier, SessionLimitsConfig};
@@ -1401,17 +1403,7 @@ impl ProviderConfig {
     }
 }
 
-/// Routing tier for the `auto` model with Auto mode V2.
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
-#[serde(rename_all = "lowercase")]
-pub enum AutoTier {
-    /// Prioritize efficiency.
-    Efficiency,
-    /// Balance efficiency and intelligence.
-    Balance,
-    /// Prioritize intelligence.
-    Intelligence,
-}
+impl Copy for AutoTier {}
 
 /// Provider-scoped Copilot API (CAPI) session options.
 ///
@@ -7279,9 +7271,12 @@ mod tests {
     }
 
     #[test]
-    fn capi_auto_tier_rejects_noncanonical_values() {
+    fn capi_auto_tier_accepts_unknown_values_for_forward_compatibility() {
         for value in ["balanced", "Balance", "unknown"] {
-            assert!(serde_json::from_value::<AutoTier>(json!(value)).is_err());
+            assert_eq!(
+                serde_json::from_value::<AutoTier>(json!(value)).unwrap(),
+                AutoTier::Unknown
+            );
         }
         let capi: CapiSessionOptions = serde_json::from_value(json!({})).unwrap();
         assert_eq!(capi.auto_tier, None);

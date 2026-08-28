@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import ClassVar, TYPE_CHECKING
 
-from .session_events import AbortReason, Attachment, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerSource, McpServerStatus, ModelChangeSource, PermissionMode, PermissionPromptRequest, PermissionRule, ReasoningSummary, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskCompletionOutcome, UserToolSessionApproval, Verbosity
+from .session_events import AbortReason, Attachment, AutoTier, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerSource, McpServerStatus, ModelChangeSource, PermissionMode, PermissionPromptRequest, PermissionRule, ReasoningSummary, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskCompletionOutcome, UserToolSessionApproval, Verbosity
 
 if TYPE_CHECKING:
     from .._jsonrpc import JsonRpcClient
@@ -1051,6 +1051,11 @@ class CanvasProviderUnregisterRequest:
 class CapiSessionOptions:
     """Options scoped to the built-in CAPI (Copilot API) provider."""
 
+    auto_tier: AutoTier | None = None
+    """Routing preference used when the session model is `auto`. The runtime persists the
+    preference across cold resume. When omitted, the default routing behavior is used.
+    Resuming an already-resident session cannot change its preference.
+    """
     enable_web_socket_responses: bool | None = None
     """Whether to use WebSocket transport for the CAPI Responses API. Enabled by default when
     the model advertises `ws:/responses` support; set to `false` to force the HTTP Responses
@@ -1062,11 +1067,14 @@ class CapiSessionOptions:
     @staticmethod
     def from_dict(obj: Any) -> 'CapiSessionOptions':
         assert isinstance(obj, dict)
+        auto_tier = from_union([AutoTier, from_none], obj.get("autoTier"))
         enable_web_socket_responses = from_union([from_bool, from_none], obj.get("enableWebSocketResponses"))
-        return CapiSessionOptions(enable_web_socket_responses)
+        return CapiSessionOptions(auto_tier, enable_web_socket_responses)
 
     def to_dict(self) -> dict:
         result: dict = {}
+        if self.auto_tier is not None:
+            result["autoTier"] = from_union([lambda x: to_enum(AutoTier, x), from_none], self.auto_tier)
         if self.enable_web_socket_responses is not None:
             result["enableWebSocketResponses"] = from_union([from_bool, from_none], self.enable_web_socket_responses)
         return result

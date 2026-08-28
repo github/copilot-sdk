@@ -256,7 +256,7 @@ When resuming a session, you can optionally reconfigure many settings. This is u
 
 ### Auto tier persistence
 
-With `model: "auto"`, the optional `capi.autoTier` setting selects an Auto routing preference: `efficiency`, `balance`, or `intelligence`. In Python, use `capi={"auto_tier": "balance"}`. This requires a runtime with Auto tier support and V2 Auto routing; V1 Auto requests are unchanged.
+With `model: "auto"`, the optional `capi.autoTier` setting selects an Auto routing preference: `efficiency`, `balance`, or `intelligence`. In Python, use `capi={"auto_tier": "balance"}`. This requires Copilot CLI `1.0.82-1` or later with V2 Auto routing; V1 Auto requests are unchanged.
 
 The runtime persists the selected tier, so applications do not need to resend it on every resume:
 
@@ -266,6 +266,8 @@ The runtime persists the selected tier, so applications do not need to resend it
 * Older sessions without a persisted tier retain default routing behavior.
 
 Tier selection is not a live model-switch operation. The SDK forwards the preference; the runtime owns persistence and validation.
+
+The `session.start` and `session.resume` events expose the selected tier in their optional `data.autoTier` field (`data.auto_tier` in Python). When no tier is selected, the field is omitted.
 
 ### Example: changing model on resume
 
