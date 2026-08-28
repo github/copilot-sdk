@@ -10,6 +10,8 @@ mod canvas_dispatch;
 #[cfg(feature = "bundled-cli")]
 pub(crate) mod embeddedcli;
 mod errors;
+/// Connection-level extension launch profile provider.
+pub mod extension_launch_provider;
 /// In-process FFI transport hosting the runtime cdylib (`Transport::InProcess`).
 #[cfg(feature = "bundled-in-process")]
 pub(crate) mod ffi;
@@ -333,6 +335,14 @@ pub struct ClientOptions {
     /// [`CopilotRequestHandler`]
     /// instead of issuing the calls itself.
     pub request_handler: Option<Arc<dyn crate::copilot_request_handler::CopilotRequestHandler>>,
+    /// Connection-level extension launch profile provider.
+    ///
+    /// When set, the SDK registers itself with the runtime during
+    /// [`Client::start`] before any session can be created. Incoming
+    /// `extensionLaunchProvider.resolve` requests are dispatched independently
+    /// of sessions.
+    pub extension_launch_provider:
+        Option<Arc<dyn crate::extension_launch_provider::ExtensionLaunchProvider>>,
     /// Connection-level GitHub telemetry forwarding callback (experimental).
     ///
     /// When set, every session created or resumed on this client opts into
@@ -424,6 +434,10 @@ impl std::fmt::Debug for ClientOptions {
             .field(
                 "request_handler",
                 &self.request_handler.as_ref().map(|_| "<set>"),
+            )
+            .field(
+                "extension_launch_provider",
+                &self.extension_launch_provider.as_ref().map(|_| "<set>"),
             )
             .field(
                 "on_github_telemetry",
@@ -678,6 +692,7 @@ impl Default for ClientOptions {
             on_list_models: None,
             session_fs: None,
             request_handler: None,
+            extension_launch_provider: None,
             on_github_telemetry: None,
             on_get_trace_context: None,
             telemetry: None,
@@ -833,6 +848,18 @@ impl ClientOptions {
         H: crate::copilot_request_handler::CopilotRequestHandler,
     {
         self.request_handler = Some(Arc::new(handler));
+        self
+    }
+
+    /// Register a connection-level extension launch profile provider.
+    ///
+    /// The provider is wrapped in [`Arc`] internally and registered with the
+    /// runtime before [`Client::start`] returns.
+    pub fn with_extension_launch_provider<P>(mut self, provider: P) -> Self
+    where
+        P: crate::extension_launch_provider::ExtensionLaunchProvider,
+    {
+        self.extension_launch_provider = Some(Arc::new(provider));
         self
     }
 
@@ -1059,6 +1086,7 @@ struct ClientInner {
     /// Inbound `llmInference.*` dispatcher, installed when
     /// [`ClientOptions::request_handler`] is set.
     llm_inference: OnceLock<Arc<copilot_request_handler::CopilotRequestDispatcher>>,
+    extension_launch_provider: Arc<extension_launch_provider::ExtensionLaunchProviderDispatcher>,
     /// Connection-level GitHub telemetry forwarding callback, set from
     /// [`ClientOptions::on_github_telemetry`]. Drives the
     /// `enableGitHubTelemetryForwarding` wire flag and the
@@ -1204,6 +1232,7 @@ impl Client {
         };
         let session_fs_config = options.session_fs.clone();
         let request_handler = options.request_handler.clone();
+        let extension_launch_provider = options.extension_launch_provider.clone();
         let session_fs_sqlite_declared = session_fs_config
             .as_ref()
             .and_then(|c| c.capabilities.as_ref())
@@ -1275,6 +1304,7 @@ impl Client {
                     None,
                     working_directory,
                     options.on_list_models,
+                    extension_launch_provider.clone(),
                     session_fs_config.is_some(),
                     session_fs_sqlite_declared,
                     options.on_get_trace_context,
@@ -1306,6 +1336,7 @@ impl Client {
                     Some(child),
                     working_directory,
                     options.on_list_models,
+                    extension_launch_provider.clone(),
                     session_fs_config.is_some(),
                     session_fs_sqlite_declared,
                     options.on_get_trace_context,
@@ -1327,6 +1358,7 @@ impl Client {
                     Some(child),
                     working_directory,
                     options.on_list_models,
+                    extension_launch_provider.clone(),
                     session_fs_config.is_some(),
                     session_fs_sqlite_declared,
                     options.on_get_trace_context,
@@ -1392,6 +1424,7 @@ impl Client {
                         None,
                         working_directory,
                         options.on_list_models,
+                        extension_launch_provider.clone(),
                         session_fs_config.is_some(),
                         session_fs_sqlite_declared,
                         options.on_get_trace_context,
@@ -1418,6 +1451,25 @@ impl Client {
             elapsed_ms = start_time.elapsed().as_millis(),
             "Client::start protocol verification complete"
         );
+        let request_dispatcher = request_handler.map(|handler| {
+            let dispatcher = Arc::new(copilot_request_handler::CopilotRequestDispatcher::new(
+                handler,
+            ));
+            dispatcher.set_client(Arc::downgrade(&client.inner));
+            let _ = client.inner.llm_inference.set(dispatcher.clone());
+            dispatcher
+        });
+        if client.inner.extension_launch_provider.is_configured() {
+            client.inner.router.ensure_started(
+                &client.inner.notification_tx,
+                &client.inner.request_rx,
+                client.inner.extension_launch_provider.clone(),
+                request_dispatcher.clone(),
+                client.inner.on_github_telemetry.clone(),
+                client.inner.github_token_registry.clone(),
+            );
+            client.rpc().register_extension_launch_provider().await?;
+        }
         if !builtin_plugin_directories.is_empty() {
             client
                 .call(
@@ -1447,18 +1499,14 @@ impl Client {
                 "Client::start session filesystem setup complete"
             );
         }
-        if let Some(handler) = request_handler {
+        if let Some(dispatcher) = request_dispatcher {
             let llm_inference_start = Instant::now();
-            let dispatcher = Arc::new(copilot_request_handler::CopilotRequestDispatcher::new(
-                handler,
-            ));
-            dispatcher.set_client(Arc::downgrade(&client.inner));
-            let _ = client.inner.llm_inference.set(dispatcher.clone());
             // Start the router early (before any session is registered) so the
             // startup model catalog request is dispatched to the handler.
             client.inner.router.ensure_started(
                 &client.inner.notification_tx,
                 &client.inner.request_rx,
+                client.inner.extension_launch_provider.clone(),
                 Some(dispatcher.clone()),
                 client.inner.on_github_telemetry.clone(),
                 client.inner.github_token_registry.clone(),
@@ -1517,6 +1565,33 @@ impl Client {
             None,
             cwd,
             None,
+            None,
+            false,
+            false,
+            None,
+            None,
+            None,
+            ClientMode::default(),
+        )
+    }
+
+    /// Construct a [`Client`] from raw streams with a preset extension launch
+    /// provider, for integration testing connection-global reverse requests.
+    #[doc(hidden)]
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn from_streams_with_extension_launch_provider(
+        reader: impl AsyncRead + Unpin + Send + 'static,
+        writer: impl AsyncWrite + Unpin + Send + 'static,
+        cwd: PathBuf,
+        provider: Arc<dyn crate::extension_launch_provider::ExtensionLaunchProvider>,
+    ) -> Result<Self> {
+        Self::from_transport(
+            reader,
+            writer,
+            None,
+            cwd,
+            None,
+            Some(provider),
             false,
             false,
             None,
@@ -1546,6 +1621,7 @@ impl Client {
             None,
             cwd,
             None,
+            None,
             false,
             false,
             Some(provider),
@@ -1571,6 +1647,7 @@ impl Client {
             None,
             cwd,
             None,
+            None,
             false,
             false,
             None,
@@ -1595,6 +1672,7 @@ impl Client {
             writer,
             None,
             cwd,
+            None,
             None,
             false,
             false,
@@ -1622,6 +1700,9 @@ impl Client {
         child: Option<Child>,
         cwd: PathBuf,
         on_list_models: Option<Arc<dyn ListModelsHandler>>,
+        extension_launch_provider: Option<
+            Arc<dyn crate::extension_launch_provider::ExtensionLaunchProvider>,
+        >,
         session_fs_configured: bool,
         session_fs_sqlite_declared: bool,
         on_get_trace_context: Option<Arc<dyn TraceContextProvider>>,
@@ -1643,6 +1724,11 @@ impl Client {
         info!(pid = ?pid, "copilot CLI client ready");
 
         let github_token_registry = Arc::new(github_token::GitHubTokenRegistry::new());
+        let extension_launch_provider = Arc::new(
+            extension_launch_provider::ExtensionLaunchProviderDispatcher::new(
+                extension_launch_provider,
+            ),
+        );
         let client = Self {
             inner: Arc::new(ClientInner {
                 child: parking_lot::Mutex::new(child),
@@ -1662,6 +1748,7 @@ impl Client {
                 session_fs_configured,
                 session_fs_sqlite_declared,
                 llm_inference: OnceLock::new(),
+                extension_launch_provider: extension_launch_provider.clone(),
                 on_github_telemetry,
                 on_get_trace_context,
                 effective_connection_token,
@@ -1670,6 +1757,7 @@ impl Client {
             }),
         };
         github_token_registry.set_client(Arc::downgrade(&client.inner));
+        extension_launch_provider.set_client(Arc::downgrade(&client.inner));
         client.spawn_lifecycle_dispatcher();
         debug!(
             elapsed_ms = setup_start.elapsed().as_millis(),
@@ -2086,6 +2174,7 @@ impl Client {
         self.inner.router.ensure_started(
             &self.inner.notification_tx,
             &self.inner.request_rx,
+            self.inner.extension_launch_provider.clone(),
             self.inner.llm_inference.get().cloned(),
             self.inner.on_github_telemetry.clone(),
             self.inner.github_token_registry.clone(),
@@ -2105,6 +2194,7 @@ impl Client {
         self.inner.router.ensure_started(
             &self.inner.notification_tx,
             &self.inner.request_rx,
+            self.inner.extension_launch_provider.clone(),
             self.inner.llm_inference.get().cloned(),
             self.inner.on_github_telemetry.clone(),
             self.inner.github_token_registry.clone(),
@@ -2324,6 +2414,7 @@ impl Client {
         self.inner.router.ensure_started(
             &self.inner.notification_tx,
             &self.inner.request_rx,
+            self.inner.extension_launch_provider.clone(),
             self.inner.llm_inference.get().cloned(),
             self.inner.on_github_telemetry.clone(),
             self.inner.github_token_registry.clone(),
@@ -2497,6 +2588,7 @@ impl Client {
         let pid = self.pid();
         info!(pid = ?pid, "stopping CLI process");
         let mut errors: Vec<Error> = Vec::new();
+        self.inner.extension_launch_provider.clear();
 
         // Snapshot the registered session IDs without holding the router
         // lock across the destroy RPCs.
@@ -2582,12 +2674,12 @@ impl Client {
             }
         }
 
-        // The runtime.shutdown RPC above already asked the runtime to clean up;
-        // closing here tears down the transport.
+        // Provider registration is scoped to the connection. Closing the
+        // transport unregisters it and prevents stale callbacks after stop.
+        self.inner.rpc.force_close();
         #[cfg(feature = "bundled-in-process")]
         {
             if let Some(host) = self.inner.ffi_host.lock().take() {
-                self.inner.rpc.force_close();
                 host.close();
             }
         }
@@ -2632,6 +2724,7 @@ impl Client {
     pub fn force_stop(&self) {
         let pid = self.pid();
         info!(pid = ?pid, "force-stopping CLI process");
+        self.inner.extension_launch_provider.clear();
         if let Some(mut child) = self.inner.child.lock().take()
             && let Err(e) = child.start_kill()
         {
@@ -3356,6 +3449,7 @@ mod tests {
             Some(child),
             temp.path().to_path_buf(),
             None,
+            None,
             false,
             false,
             None,
@@ -3464,6 +3558,9 @@ mod tests {
                 session_fs_configured: false,
                 session_fs_sqlite_declared: false,
                 llm_inference: OnceLock::new(),
+                extension_launch_provider: Arc::new(
+                    extension_launch_provider::ExtensionLaunchProviderDispatcher::new(None),
+                ),
                 on_github_telemetry: None,
                 on_get_trace_context: None,
                 effective_connection_token: None,

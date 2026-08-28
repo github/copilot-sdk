@@ -101,8 +101,57 @@ transports.
 | `env_remove`        | `Vec<OsString>`             | Environment variables to remove                                   |
 | `extra_args`        | `Vec<String>`               | Extra CLI flags                                                   |
 | `transport`         | `Transport`                 | `Default`, `Stdio`, `InProcess`, `Tcp`, or `External`             |
+| `extension_launch_provider` | `Option<Arc<dyn ExtensionLaunchProvider>>` | Connection-global extension launch resolver |
 
 With the default `CliProgram::Resolve`, managed stdio and TCP transports resolve an explicit `CliProgram::Path(path)`, `COPILOT_CLI_PATH`, then the bundled `copilot-runtime` wrapper and adjacent `runtime.node`. In-process transport retains its CLI-entrypoint resolution. There is no PATH scanning.
+
+#### Extension launch provider
+
+Hosts that own legacy extension process assets can supply a typed, asynchronous
+launch resolver:
+
+```rust,ignore
+use std::collections::HashMap;
+
+use async_trait::async_trait;
+use github_copilot_sdk::extension_launch_provider::{
+    ExtensionLaunchProfile, ExtensionLaunchProvider, ExtensionLaunchProviderResolveRequest,
+    ExtensionLaunchProviderResolveResult,
+};
+use github_copilot_sdk::{Client, ClientOptions, Result};
+
+struct AppExtensionLaunchProvider;
+
+#[async_trait]
+impl ExtensionLaunchProvider for AppExtensionLaunchProvider {
+    async fn resolve(
+        &self,
+        request: ExtensionLaunchProviderResolveRequest,
+    ) -> Result<ExtensionLaunchProviderResolveResult> {
+        Ok(ExtensionLaunchProviderResolveResult {
+            launch: Some(ExtensionLaunchProfile {
+                executable: "/app/copilot".to_string(),
+                args: vec!["/app/preloads/extension_bootstrap.mjs".to_string()],
+                env: HashMap::from([
+                    ("COPILOT_CLI_DIST_DIR".to_string(), "/app/copilot-cli".to_string()),
+                    ("EXTENSION_PATH".to_string(), request.module_path),
+                ]),
+            }),
+        })
+    }
+}
+
+let client = Client::start(
+    ClientOptions::new().with_extension_launch_provider(AppExtensionLaunchProvider),
+).await?;
+```
+
+`Client::start` registers the provider before returning, and reverse requests
+are routed at the connection level rather than through a session. The SDK
+forwards the returned executable, arguments, and environment unchanged; it
+does not discover or bundle an executable or bootstrap. The runtime owns and
+overrides `COPILOT_SDK_PATH`, `SESSION_ID`, and
+`COPILOT_EXTENSION_PARENT_PID`.
 
 ### Session
 
@@ -826,6 +875,7 @@ none of them are scheduled for removal.
 | File              | Description                                                                                                                |
 | ----------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | `lib.rs`          | `Client`, `ClientOptions`, `CliProgram`, `Transport`, `Error`                                                              |
+| `extension_launch_provider.rs` | Connection-global `ExtensionLaunchProvider` trait and launch profile DTOs                                      |
 | `session.rs`      | `Session` struct, event loop, `send`/`send_and_wait`, `Client::create_session`/`resume_session`                            |
 | `subscription.rs` | `EventSubscription` / `LifecycleSubscription` (`Stream`-able observer handles for `subscribe()` / `subscribe_lifecycle()`) |
 | `handler.rs`      | `PermissionHandler`, `ElicitationHandler`, `UserInputHandler`, `ExitPlanModeHandler`, `AutoModeSwitchHandler` traits; `ApproveAllHandler`, `DenyAllHandler`           |
@@ -835,7 +885,7 @@ none of them are scheduled for removal.
 | `types.rs`        | CLI protocol types (`SessionId`, `SessionEvent`, `SessionConfig`, `Tool`, etc.)                                            |
 | `resolve.rs`      | Bundled-CLI resolution (`copilot_binary`)                                                                                  |
 | `embeddedcli.rs`  | Embedded CLI extraction (gated on the default `bundled-cli` feature)                                                       |
-| `router.rs`       | Internal per-session event demux                                                                                           |
+| `router.rs`       | Internal connection-global request dispatch and per-session event demux                                                   |
 | `jsonrpc.rs`      | Internal Content-Length framed JSON-RPC transport                                                                          |
 
 ## Bundled runtime artifacts
