@@ -1609,6 +1609,9 @@ fn spawn_event_loop(
                     .tx
                     .send(Err(ErrorKind::Session(SessionErrorKind::EventLoopClosed).into()));
             }
+            while let Ok(request) = requests.try_recv() {
+                client.abandon_reverse_request(request.id);
+            }
         }
         .instrument(span),
     )
@@ -2350,6 +2353,7 @@ async fn handle_request(
 ) {
     let sid = session_id.clone();
     let client = ctx.client;
+    let reverse_rpc_trace = client.trace_reverse_request_scheduled(request.id);
     let handlers = ctx.handlers;
     let hooks = ctx.hooks;
     let transforms = ctx.transforms;
@@ -2385,7 +2389,15 @@ async fn handle_request(
                 .unwrap_or(Value::Object(Default::default()));
 
             let rpc_result = if let Some(hooks) = hooks {
-                match crate::hooks::dispatch_hook(hooks, &sid, hook_type, input).await {
+                match crate::hooks::dispatch_hook_traced(
+                    hooks,
+                    &sid,
+                    hook_type,
+                    input,
+                    reverse_rpc_trace.as_ref().map(|guard| guard.trace()),
+                )
+                .await
+                {
                     Ok(output) => output,
                     Err(e) => {
                         warn!(error = %e, hook_type = hook_type, "hook dispatch failed");

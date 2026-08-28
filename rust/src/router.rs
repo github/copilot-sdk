@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 
 use parking_lot::Mutex;
 use tokio::sync::{broadcast, mpsc};
@@ -7,6 +7,7 @@ use tracing::warn;
 
 use crate::jsonrpc::{JsonRpcNotification, JsonRpcRequest};
 use crate::types::{SessionEventNotification, SessionId};
+use crate::{Client, ClientInner};
 
 /// Per-session channels created by the router during session registration.
 pub(crate) struct SessionChannels {
@@ -88,6 +89,7 @@ impl SessionRouter {
         llm_inference: Option<Arc<crate::copilot_request_handler::CopilotRequestDispatcher>>,
         github_telemetry: Option<crate::github_telemetry::GitHubTelemetryCallback>,
         github_token_registry: Arc<crate::github_token::GitHubTokenRegistry>,
+        client: Weak<ClientInner>,
     ) {
         let mut started = self.started.lock();
         if *started {
@@ -192,10 +194,14 @@ impl SessionRouter {
                         if let Some(dispatcher) = &llm_inference {
                             dispatcher.dispatch(request).await;
                         } else {
+                            let request_id = request.id;
                             warn!(
                                 method = %request.method,
                                 "llmInference request with no provider registered"
                             );
+                            if let Some(inner) = client.upgrade() {
+                                Client::from_inner(inner).abandon_reverse_request(request_id);
+                            }
                         }
                         continue;
                     }
@@ -212,19 +218,31 @@ impl SessionRouter {
                             guard.get(sid).map(|s| s.requests.clone())
                         };
                         if let Some(sender) = sender {
-                            let _ = sender.send(request);
+                            if let Err(error) = sender.send(request)
+                                && let Some(inner) = client.upgrade()
+                            {
+                                Client::from_inner(inner).abandon_reverse_request(error.0.id);
+                            }
                         } else {
+                            let request_id = request.id;
                             warn!(
                                 session_id = sid,
                                 method = %request.method,
                                 "request for unregistered session"
                             );
+                            if let Some(inner) = client.upgrade() {
+                                Client::from_inner(inner).abandon_reverse_request(request_id);
+                            }
                         }
                     } else {
+                        let request_id = request.id;
                         warn!(
                             method = %request.method,
                             "request missing sessionId"
                         );
+                        if let Some(inner) = client.upgrade() {
+                            Client::from_inner(inner).abandon_reverse_request(request_id);
+                        }
                     }
                 }
             });

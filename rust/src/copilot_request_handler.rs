@@ -1048,6 +1048,9 @@ impl CopilotRequestDispatcher {
     }
 
     pub(crate) async fn dispatch(self: &Arc<Self>, request: JsonRpcRequest) {
+        let _reverse_rpc = self
+            .client()
+            .and_then(|client| client.trace_reverse_request_scheduled(request.id));
         match request.method.as_str() {
             METHOD_HTTP_REQUEST_START => self.handle_start(request).await,
             METHOD_HTTP_REQUEST_CHUNK => self.handle_chunk(request).await,

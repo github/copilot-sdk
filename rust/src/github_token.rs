@@ -193,6 +193,7 @@ impl GitHubTokenRegistry {
             return;
         };
         let client = Client::from_inner(inner);
+        let _reverse_rpc = client.trace_reverse_request_scheduled(request.id);
         let params = request
             .params
             .clone()
