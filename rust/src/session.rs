@@ -1609,6 +1609,7 @@ fn spawn_event_loop(
                     .tx
                     .send(Err(ErrorKind::Session(SessionErrorKind::EventLoopClosed).into()));
             }
+            requests.close();
             while let Ok(request) = requests.try_recv() {
                 drop(request);
             }
