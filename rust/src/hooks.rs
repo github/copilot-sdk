@@ -756,7 +756,7 @@ pub(crate) async fn dispatch_hook_traced(
     let output = hooks.on_hook(event).await;
     let dispatch_elapsed = dispatch_start.elapsed();
     if let Some(trace) = reverse_rpc_trace {
-        trace.record_hook_callback(hook_type, dispatch_elapsed);
+        trace.record_hook_callback(hook_type, dispatch_start, dispatch_elapsed);
     }
     tracing::debug!(
         elapsed_ms = dispatch_elapsed.as_millis(),
@@ -983,6 +983,7 @@ mod tests {
         wait_for_trace(&trace_buffer, "phase=\"hook_callback\"").await;
         let traces = trace_buffer.text();
         assert!(traces.contains("phase=\"hook_callback\""));
+        assert!(traces.contains("start_offset_us=0"));
         assert!(traces.contains("elapsed_us=9000"));
         assert!(!traces.contains(SENTINEL));
     }
