@@ -208,7 +208,7 @@ func TestGitHubTokenProviderCleanupOnDisconnectError(t *testing.T) {
 	registrationID := client.registerGitHubTokenProvider(func(GitHubTokenProviderArgs) (*GitHubTokenProviderResult, error) {
 		return GitHubTokenCancelled(), nil
 	})
-	session := newSession("cleanup-session", rpcClient, "", false)
+	session := newSession("cleanup-session", rpcClient, "", false, "")
 	session.setGitHubTokenProviderRegistrationRelease(func() {
 		client.unregisterGitHubTokenProvider(registrationID)
 	})
@@ -252,7 +252,7 @@ func TestGitHubTokenProviderCleanupOnDelete(t *testing.T) {
 	registrationID := client.registerGitHubTokenProvider(func(GitHubTokenProviderArgs) (*GitHubTokenProviderResult, error) {
 		return GitHubTokenCancelled(), nil
 	})
-	session := newSession("delete-session", rpcClient, "", false)
+	session := newSession("delete-session", rpcClient, "", false, "")
 	session.setGitHubTokenProviderRegistrationRelease(func() {
 		client.unregisterGitHubTokenProvider(registrationID)
 	})

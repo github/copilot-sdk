@@ -104,6 +104,7 @@ type Session struct {
 	openCanvasesMu              sync.RWMutex
 	capabilities                SessionCapabilities
 	capabilitiesMu              sync.RWMutex
+	logLevel                    string
 
 	// eventCh serializes user event handler dispatch. dispatchEvent enqueues;
 	// a single goroutine (processEvents) dequeues and invokes handlers in FIFO order.
@@ -121,10 +122,21 @@ func (s *Session) WorkspacePath() string {
 	return s.workspacePath
 }
 
+// logWarnf reports a condition that is often benign in multi-client setups, such
+// as a request arriving for a handler this client never registered. These can
+// occur per-request, so they are opt-in via the client's LogLevel rather than
+// written to the process-wide logger by default.
 func (s *Session) logWarnf(format string, args ...any) {
-	log.Printf("WARNING: "+format, args...)
+	switch strings.ToLower(s.logLevel) {
+	case "warning", "info", "debug", "all":
+		log.Printf("WARNING: "+format, args...)
+	}
 }
 
+// logErrorf reports a genuine dispatch fault: a handler threw, or a response
+// could not be delivered back to the runtime. These are rare and always
+// actionable, and session.go already logged them unconditionally before staged
+// diagnostics were added, so they stay unconditional.
 func (s *Session) logErrorf(format string, args ...any) {
 	log.Printf("ERROR: "+format, args...)
 }
@@ -391,11 +403,13 @@ func newSession(
 	client *jsonrpc2.Client,
 	workspacePath string,
 	managedSettings bool,
+	logLevel string,
 ) *Session {
 	s := &Session{
 		SessionID:         sessionID,
 		workspacePath:     workspacePath,
 		managedSettings:   managedSettings,
+		logLevel:          logLevel,
 		client:            client,
 		clientSessionAPIs: &rpc.ClientSessionAPIHandlers{},
 		handlers:          make([]sessionHandler, 0),
@@ -1630,7 +1644,9 @@ func (s *Session) handleBroadcastEvent(event SessionEvent) {
 			return
 		}
 		if handler == nil {
-			s.logWarnf(
+			// Unconditional: this path returns without answering the request, and
+			// it logged unconditionally before staged diagnostics were added.
+			log.Printf(
 				"Received an MCP OAuth request without a registered MCP auth handler. SessionId=%s, RequestId=%s",
 				s.SessionID,
 				d.RequestID,
