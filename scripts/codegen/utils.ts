@@ -7,6 +7,7 @@
  */
 
 import { execFile } from "child_process";
+import { readFileSync } from "fs";
 import fs from "fs/promises";
 import type { JSONSchema7, JSONSchema7Definition } from "json-schema";
 import path from "path";
@@ -573,6 +574,78 @@ export interface ApiSchema {
     session?: Record<string, unknown>;
     clientSession?: Record<string, unknown>;
     clientGlobal?: Record<string, unknown>;
+}
+
+interface ApiSchemaOverlay {
+    source: {
+        repository: string;
+        commit: string;
+        schemaPath: string;
+        schemaSha256: string;
+    };
+    method: RpcMethod;
+    definitions: Record<string, JSONSchema7Definition>;
+}
+
+const SHARED_SESSION_WATCH_OVERLAY = JSON.parse(
+    readFileSync(path.join(__dirname, "schema-overlays/shared-session-watch.json"), "utf-8")
+) as ApiSchemaOverlay;
+
+function insertRecordEntriesAfter(
+    target: Record<string, unknown>,
+    after: string,
+    entries: Record<string, unknown>
+): Record<string, unknown> {
+    const result: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(target)) {
+        result[key] = value;
+        if (key === after) Object.assign(result, entries);
+    }
+    if (!(after in target)) Object.assign(result, entries);
+    return result;
+}
+
+/**
+ * Add the Runtime-authored shared-session watch contract while the pinned CLI
+ * package predates its publication. Existing entries must match semantically
+ * so a future package update fails closed on contract drift.
+ */
+export function addSharedSessionWatchApi<T extends ApiSchema>(schema: T): T {
+    schema.server ??= {};
+    const sessions = (schema.server.sessions ??= {}) as Record<string, unknown>;
+    const existingMethod = sessions.watch;
+    if (
+        existingMethod &&
+        stableStringify(existingMethod) !== stableStringify(SHARED_SESSION_WATCH_OVERLAY.method)
+    ) {
+        throw new Error("Pinned CLI sessions.watch contract differs from the accepted Runtime contract");
+    }
+    if (!existingMethod) {
+        schema.server.sessions = insertRecordEntriesAfter(sessions, "connect", {
+            watch: SHARED_SESSION_WATCH_OVERLAY.method,
+        });
+    }
+
+    schema.definitions ??= {};
+    const hasWatchParams = "WatchSharedSessionParams" in schema.definitions;
+    const hasWatchResult = "WatchSharedSessionResult" in schema.definitions;
+    if (hasWatchParams !== hasWatchResult) {
+        throw new Error("Pinned CLI shared-session watch definitions are incomplete");
+    }
+    for (const [name, definition] of Object.entries(SHARED_SESSION_WATCH_OVERLAY.definitions)) {
+        const existingDefinition = schema.definitions[name];
+        if (existingDefinition && stableStringify(existingDefinition) !== stableStringify(definition)) {
+            throw new Error(`Pinned CLI ${name} differs from the accepted Runtime contract`);
+        }
+    }
+    if (!hasWatchParams) {
+        schema.definitions = insertRecordEntriesAfter(
+            schema.definitions as Record<string, unknown>,
+            "VisibilitySetResult",
+            SHARED_SESSION_WATCH_OVERLAY.definitions
+        ) as Record<string, JSONSchema7Definition>;
+    }
+    return schema;
 }
 
 export function isRpcMethod(node: unknown): node is RpcMethod {
