@@ -673,7 +673,13 @@ public sealed partial class CopilotSession : IAsyncDisposable
 
                         var handler = _permissionHandler;
                         if (handler is null)
-                            return; // This client doesn't handle permissions; another client will.
+                        {
+                            // This client doesn't handle permissions; another client may. Log it
+                            // anyway: for a single-client host this is indistinguishable from a
+                            // permission request that silently never resolves.
+                            LogNoPermissionHandlerRegistered(SessionId, data.RequestId);
+                            return;
+                        }
 
                         await ExecutePermissionAndRespondAsync(data.RequestId, data.PermissionRequest, handler);
                         break;
@@ -750,6 +756,13 @@ public sealed partial class CopilotSession : IAsyncDisposable
                                     Url = data.Url
                                 },
                                 data.RequestId);
+                        }
+                        else
+                        {
+                            // This client doesn't handle elicitations; another client may. Log it
+                            // anyway: for a single-client host this is indistinguishable from an
+                            // elicitation request that silently never resolves.
+                            LogNoElicitationHandlerRegistered(SessionId, data.RequestId);
                         }
                         break;
                     }
@@ -2056,6 +2069,16 @@ public sealed partial class CopilotSession : IAsyncDisposable
         Level = LogLevel.Warning,
         Message = "Received a command request for a command this client has no handler registered for. SessionId={SessionId}, RequestId={RequestId}, Command={CommandName}, RegisteredCommands=[{RegisteredCommands}]")]
     private partial void LogNoCommandHandlerRegistered(string sessionId, string requestId, string commandName, string registeredCommands);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Received a permission request without a registered permission handler. SessionId={SessionId}, RequestId={RequestId}")]
+    private partial void LogNoPermissionHandlerRegistered(string sessionId, string requestId);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Received an elicitation request without a registered elicitation handler. SessionId={SessionId}, RequestId={RequestId}")]
+    private partial void LogNoElicitationHandlerRegistered(string sessionId, string requestId);
 
     [LoggerMessage(
         Level = LogLevel.Error,

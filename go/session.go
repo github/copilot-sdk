@@ -104,7 +104,6 @@ type Session struct {
 	openCanvasesMu              sync.RWMutex
 	capabilities                SessionCapabilities
 	capabilitiesMu              sync.RWMutex
-	logLevel                    string
 
 	// eventCh serializes user event handler dispatch. dispatchEvent enqueues;
 	// a single goroutine (processEvents) dequeues and invokes handlers in FIFO order.
@@ -122,34 +121,12 @@ func (s *Session) WorkspacePath() string {
 	return s.workspacePath
 }
 
-func (s *Session) logWarningEnabled() bool {
-	switch strings.ToLower(s.logLevel) {
-	case "warning", "info", "debug", "all":
-		return true
-	default:
-		return false
-	}
-}
-
-func (s *Session) logErrorEnabled() bool {
-	switch strings.ToLower(s.logLevel) {
-	case "error", "warning", "info", "debug", "all":
-		return true
-	default:
-		return false
-	}
-}
-
 func (s *Session) logWarnf(format string, args ...any) {
-	if s.logWarningEnabled() {
-		log.Printf("WARNING: "+format, args...)
-	}
+	log.Printf("WARNING: "+format, args...)
 }
 
 func (s *Session) logErrorf(format string, args ...any) {
-	if s.logErrorEnabled() {
-		log.Printf("ERROR: "+format, args...)
-	}
+	log.Printf("ERROR: "+format, args...)
 }
 
 // OpenCanvases returns the open-canvas snapshot last reported by the runtime.
@@ -414,13 +391,11 @@ func newSession(
 	client *jsonrpc2.Client,
 	workspacePath string,
 	managedSettings bool,
-	logLevel string,
 ) *Session {
 	s := &Session{
 		SessionID:         sessionID,
 		workspacePath:     workspacePath,
 		managedSettings:   managedSettings,
-		logLevel:          logLevel,
 		client:            client,
 		clientSessionAPIs: &rpc.ClientSessionAPIHandlers{},
 		handlers:          make([]sessionHandler, 0),
@@ -990,22 +965,20 @@ func (s *Session) executeCommandAndRespond(requestID, commandName, command, args
 	ctx := context.Background()
 	handler, ok := s.getCommandHandler(commandName)
 	if !ok {
-		if s.logWarningEnabled() {
-			s.logWarnf(
-				"Received command request without a registered command handler. SessionId=%s, RequestId=%s, CommandName=%s, RegisteredCommandNames=%s",
-				s.SessionID,
-				requestID,
-				commandName,
-				s.registeredCommandNamesForLog(),
-			)
-		}
+		s.logWarnf(
+			"Received a command request for a command this client has no handler registered for. SessionId=%s, RequestId=%s, Command=%s, RegisteredCommands=[%s]",
+			s.SessionID,
+			requestID,
+			commandName,
+			s.registeredCommandNamesForLog(),
+		)
 		errMsg := fmt.Sprintf("Unknown command: %s", commandName)
 		if _, rpcErr := s.RPC.Commands.HandlePendingCommand(ctx, &rpc.CommandsHandlePendingCommandRequest{
 			RequestID: requestID,
 			Error:     &errMsg,
 		}); rpcErr != nil {
 			s.logWarnf(
-				"Failed to deliver command error over RPC. SessionId=%s, RequestId=%s, CommandName=%s, Error=%v",
+				"Failed to deliver command error over RPC. SessionId=%s, RequestId=%s, Command=%s, Error=%v",
 				s.SessionID,
 				requestID,
 				commandName,
@@ -1024,7 +997,7 @@ func (s *Session) executeCommandAndRespond(requestID, commandName, command, args
 
 	if err := handler(cmdCtx); err != nil {
 		s.logErrorf(
-			"Command handler failed. SessionId=%s, RequestId=%s, CommandName=%s, Stage=%s, Error=%v",
+			"Command handler failed. SessionId=%s, RequestId=%s, Command=%s, Stage=%s, Error=%v",
 			s.SessionID,
 			requestID,
 			commandName,
@@ -1037,7 +1010,7 @@ func (s *Session) executeCommandAndRespond(requestID, commandName, command, args
 			Error:     &errMsg,
 		}); rpcErr != nil {
 			s.logWarnf(
-				"Failed to deliver command error over RPC. SessionId=%s, RequestId=%s, CommandName=%s, Stage=%s, Error=%v",
+				"Failed to deliver command error over RPC. SessionId=%s, RequestId=%s, Command=%s, Stage=%s, Error=%v",
 				s.SessionID,
 				requestID,
 				commandName,
@@ -1052,7 +1025,7 @@ func (s *Session) executeCommandAndRespond(requestID, commandName, command, args
 		RequestID: requestID,
 	}); rpcErr != nil {
 		s.logWarnf(
-			"Failed to deliver command result over RPC. SessionId=%s, RequestId=%s, CommandName=%s, Stage=%s, Error=%v",
+			"Failed to deliver command result over RPC. SessionId=%s, RequestId=%s, Command=%s, Stage=%s, Error=%v",
 			s.SessionID,
 			requestID,
 			commandName,
@@ -1092,7 +1065,7 @@ func (s *Session) handleMCPAuthRequest(request MCPAuthRequest) {
 	handler := s.getMCPAuthHandler()
 	if handler == nil {
 		s.logWarnf(
-			"Received MCP OAuth request without a registered MCP auth handler. SessionId=%s, RequestId=%s",
+			"Received an MCP OAuth request without a registered MCP auth handler. SessionId=%s, RequestId=%s",
 			s.SessionID,
 			request.RequestID,
 		)
@@ -1155,7 +1128,7 @@ func (s *Session) handleElicitationRequest(elicitCtx ElicitationContext, request
 	handler := s.getElicitationHandler()
 	if handler == nil {
 		s.logWarnf(
-			"Received elicitation request without a registered elicitation handler. SessionId=%s, RequestId=%s",
+			"Received an elicitation request without a registered elicitation handler. SessionId=%s, RequestId=%s",
 			s.SessionID,
 			requestID,
 		)
@@ -1617,16 +1590,14 @@ func (s *Session) handleBroadcastEvent(event SessionEvent) {
 	case *ExternalToolRequestedData:
 		handler, ok := s.getToolHandler(d.ToolName)
 		if !ok {
-			if s.logWarningEnabled() {
-				s.logWarnf(
-					"Received tool request for an unregistered tool. SessionId=%s, RequestId=%s, ToolCallId=%s, ToolName=%s, RegisteredToolNames=%s",
-					s.SessionID,
-					d.RequestID,
-					d.ToolCallID,
-					d.ToolName,
-					s.registeredToolNamesForLog(),
-				)
-			}
+			s.logWarnf(
+				"Received a tool request for a tool this client has no handler registered for. Another connected client may handle it; otherwise the tool call will never be answered by this client. SessionId=%s, RequestId=%s, ToolCallId=%s, Tool=%s, RegisteredTools=[%s]",
+				s.SessionID,
+				d.RequestID,
+				d.ToolCallID,
+				d.ToolName,
+				s.registeredToolNamesForLog(),
+			)
 			return
 		}
 		var tp, ts string
@@ -1645,7 +1616,7 @@ func (s *Session) handleBroadcastEvent(event SessionEvent) {
 		handler := s.getPermissionHandler()
 		if handler == nil {
 			s.logWarnf(
-				"Received permission request without a registered permission handler. SessionId=%s, RequestId=%s",
+				"Received a permission request without a registered permission handler. SessionId=%s, RequestId=%s",
 				s.SessionID,
 				d.RequestID,
 			)
@@ -1660,7 +1631,7 @@ func (s *Session) handleBroadcastEvent(event SessionEvent) {
 		}
 		if handler == nil {
 			s.logWarnf(
-				"Received MCP OAuth request without a registered MCP auth handler. SessionId=%s, RequestId=%s",
+				"Received an MCP OAuth request without a registered MCP auth handler. SessionId=%s, RequestId=%s",
 				s.SessionID,
 				d.RequestID,
 			)
@@ -1706,7 +1677,7 @@ func (s *Session) handleBroadcastEvent(event SessionEvent) {
 		handler := s.getElicitationHandler()
 		if handler == nil {
 			s.logWarnf(
-				"Received elicitation request without a registered elicitation handler. SessionId=%s, RequestId=%s",
+				"Received an elicitation request without a registered elicitation handler. SessionId=%s, RequestId=%s",
 				s.SessionID,
 				d.RequestID,
 			)
@@ -1737,7 +1708,7 @@ func (s *Session) executeToolAndRespond(requestID, toolName, toolCallID string, 
 	defer func() {
 		if r := recover(); r != nil {
 			s.logErrorf(
-				"Tool dispatch failed. SessionId=%s, RequestId=%s, ToolCallId=%s, ToolName=%s, Stage=%s, Error=%v",
+				"Tool call failed. SessionId=%s, RequestId=%s, ToolCallId=%s, Tool=%s, Stage=%s, Error=%v",
 				s.SessionID,
 				requestID,
 				toolCallID,
@@ -1751,7 +1722,7 @@ func (s *Session) executeToolAndRespond(requestID, toolName, toolCallID string, 
 				Error:     &errMsg,
 			}); rpcErr != nil {
 				s.logWarnf(
-					"Failed to deliver tool error over RPC. SessionId=%s, RequestId=%s, ToolCallId=%s, ToolName=%s, Stage=%s, Error=%v",
+					"Failed to deliver tool error over RPC. SessionId=%s, RequestId=%s, ToolCallId=%s, Tool=%s, Stage=%s, Error=%v",
 					s.SessionID,
 					requestID,
 					toolCallID,
@@ -1786,7 +1757,7 @@ func (s *Session) executeToolAndRespond(requestID, toolName, toolCallID string, 
 	result, err := handler(invocation)
 	if err != nil {
 		s.logErrorf(
-			"Tool dispatch failed. SessionId=%s, RequestId=%s, ToolCallId=%s, ToolName=%s, Stage=%s, Error=%v",
+			"Tool call failed. SessionId=%s, RequestId=%s, ToolCallId=%s, Tool=%s, Stage=%s, Error=%v",
 			s.SessionID,
 			requestID,
 			toolCallID,
@@ -1800,7 +1771,7 @@ func (s *Session) executeToolAndRespond(requestID, toolName, toolCallID string, 
 			Error:     &errMsg,
 		}); rpcErr != nil {
 			s.logWarnf(
-				"Failed to deliver tool error over RPC. SessionId=%s, RequestId=%s, ToolCallId=%s, ToolName=%s, Stage=%s, Error=%v",
+				"Failed to deliver tool error over RPC. SessionId=%s, RequestId=%s, ToolCallId=%s, Tool=%s, Stage=%s, Error=%v",
 				s.SessionID,
 				requestID,
 				toolCallID,
@@ -1857,7 +1828,7 @@ func (s *Session) executeToolAndRespond(requestID, toolName, toolCallID string, 
 		Result:    rpcResult,
 	}); rpcErr != nil {
 		s.logErrorf(
-			"Tool dispatch failed. SessionId=%s, RequestId=%s, ToolCallId=%s, ToolName=%s, Stage=%s, Error=%v",
+			"Tool call failed. SessionId=%s, RequestId=%s, ToolCallId=%s, Tool=%s, Stage=%s, Error=%v",
 			s.SessionID,
 			requestID,
 			toolCallID,
