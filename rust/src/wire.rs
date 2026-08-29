@@ -38,8 +38,9 @@ use crate::types::{
 #[serde(rename_all = "camelCase")]
 pub(crate) struct CommandWireDefinition {
     pub name: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
+    /// Always sent. The runtime requires a string, so a command declared
+    /// without a description is serialized as `""` rather than omitted.
+    pub description: String,
 }
 
 /// The exact JSON shape sent on the `session.create` JSON-RPC request.
@@ -169,6 +170,11 @@ pub(crate) struct SessionCreateWire {
     pub additional_directories: Option<Vec<PathBuf>>,
     #[serde(rename = "gitHubToken", skip_serializing_if = "Option::is_none")]
     pub github_token: Option<String>,
+    #[serde(
+        rename = "gitHubTokenProviderRegistrationId",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub github_token_provider_registration_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub remote_session: Option<RemoteSessionMode>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -319,6 +325,11 @@ pub(crate) struct SessionResumeWire {
     pub additional_directories: Option<Vec<PathBuf>>,
     #[serde(rename = "gitHubToken", skip_serializing_if = "Option::is_none")]
     pub github_token: Option<String>,
+    #[serde(
+        rename = "gitHubTokenProviderRegistrationId",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub github_token_provider_registration_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub remote_session: Option<RemoteSessionMode>,
     #[serde(skip_serializing_if = "Option::is_none")]

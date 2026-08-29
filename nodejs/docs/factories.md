@@ -16,11 +16,12 @@ const reviewChanged = defineFactory({
             "Review changed files and verify the findings. " +
             "args: { files: string[] } — the paths to review.",
         phases: [{ title: "Review" }, { title: "Verify" }],
-        limits: {
-            maxConcurrentSubagents: 3,
-            maxTotalSubagents: 10,
-            timeoutSeconds: 90.5,
-            maxAiCredits: 5,
+        argsSchema: {
+            type: "object",
+            required: ["files"],
+            properties: {
+                files: { type: "array", items: { type: "string" } },
+            },
         },
     },
     run: async (ctx) => {
@@ -41,9 +42,19 @@ const reviewChanged = defineFactory({
 const session = await joinSession({ factories: [reviewChanged] });
 ```
 
-Factory metadata contains a stable `name`, a human-readable `description`, declared `phases`, and optional `limits`. Phase entries contain a `title` and optional `detail`.
+Factory metadata contains a stable `name`, a human-readable `description`, declared `phases`, an optional `argsSchema`, and optional `limits`. Phase entries contain a `title` and optional `detail`.
 
-There is no declared schema for `ctx.args`. The `run_factory` tool forwards `args` verbatim and its parameter is untyped, so **the `description` is the only thing telling an agent what arguments to supply** — state the expected shape there whenever a factory reads `ctx.args`, as the example above does. Arguments supplied by an extension calling `session.factory.run(...)` directly are typed through `defineFactory<TArgs>`, but that typing does not reach the model. A factory that reads `ctx.args` should validate it rather than assume a shape.
+## Declaring an argument shape
+
+A factory that reads `ctx.args` should declare `meta.argsSchema`, as the example above does. When the model invokes the factory through the `run_factory` tool, the CLI validates `args` against the declaration **before** the run starts.
+
+Declaring one turns an expensive failure into a cheap one. With a schema, a malformed call is rejected up front — the model gets a correction hint and retries, and no run row, permission prompt, or credit spend happens. Without one, nothing validates: the run starts, takes a user approval, spends credits, and then dies inside the factory body with a confusing error. Agents can read the declared shape with `factories_manage` using `operation: "inspect"`.
+
+Enforcement covers structure — types, required properties, and enum or const values. Finer constraints such as `minLength`, `pattern`, or `additionalProperties` are recorded in the declaration but not enforced. The accepted vocabulary is the `FactoryJsonSchema` subset also used for subagent structured output: `type`, `required`, `enum`, `const`, recursive `properties`/`items`, and `anyOf`/`oneOf`/`allOf`. A `type` is one of `null`, `boolean`, `integer`, `number`, `string`, `array`, or `object`, or a non-empty array of those such as `["object", "null"]`. A declaration outside that subset is rejected at registration.
+
+`argsSchema` is optional and backward compatible. A factory that omits it behaves exactly as before, so **the `description` is then the only thing telling an agent what arguments to supply** — state the expected shape there.
+
+Validation covers the model's `run_factory` path only. An extension calling `session.factory.run(...)` directly is not validated against `argsSchema`; those arguments are typed through `defineFactory<TArgs>` instead, and that typing does not reach the model. So a factory that reads `ctx.args` should still validate it rather than assume a shape — the declared subset does not enforce every constraint, and it does not run at all on the SDK path.
 
 `defineFactory<TArgs, TResult>` accepts a `run(context)` function returning `Promise<TResult>`, where `TResult` is `JsonValue | void`. Objects, arrays, strings, numbers, booleans, and `null` are valid results. Returning `undefined` completes the factory with no result. Other non-JSON values are rejected.
 
@@ -104,7 +115,14 @@ See [factory-patterns.md](./factory-patterns.md) for composable orchestration pa
 
 ## Resource limits
 
-Limits may be declared in `meta.limits` and overridden per invocation. All limits must be positive when present.
+Limits may be declared in `meta.limits` and overridden per invocation. Every limit is optional and must be positive when present; an omitted limit leaves that dimension unbounded, except that an omitted `maxConcurrentSubagents` falls back to `maxTotalSubagents`, so a declared total cap also bounds concurrency.
+
+Set a ceiling only from real knowledge of what the factory costs, or because the user named one. A guessed ceiling does not make a run safer: it stops a healthy run partway with `factory_limit_reached`, after that run has already spent credits. An agent authoring or invoking a factory on the user's behalf has no basis for estimating a number, so it should leave `limits` unset and bound the work with the factory's own counters instead. Omitting limits does not remove oversight of a model-initiated run: `run_factory` requests permission first, and that prompt shows the effective limits. SDK-initiated `run` and `resume` do not request permission, so an SDK caller that wants a ceiling sets it deliberately, from the cost it already knows.
+
+```js
+// Only when the cost profile is known, or the user asked for this ceiling.
+limits: { maxTotalSubagents: 10 },
+```
 
 - `maxConcurrentSubagents`: Positive integer concurrent-subagent cap. Additional subagents wait in a queue. Queueing applies backpressure and does not fail the run.
 - `maxTotalSubagents`: Positive integer cumulative admission cap. An attempted subagent beyond the cap ends the attempt with failure kind `maxTotalSubagents`.
@@ -193,7 +211,7 @@ async ({ args, agent, phase }) => {
 };
 ```
 
-Authoring registers the factory but does not run it. Invoke it afterwards with `run_factory`. Use `factories_manage` with `operation: "list"` to see the factories already registered in the session and `operation: "inspect"` to read one factory's description, phases, and limits before running it.
+Authoring registers the factory but does not run it. Invoke it afterwards with `run_factory`. Use `factories_manage` with `operation: "list"` to see the factories already registered in the session and `operation: "inspect"` to read one factory's description, phases, declared argument shape, and limits before running it.
 
 ## Observe a run
 

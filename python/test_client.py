@@ -6,6 +6,7 @@ This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.py
 
 import asyncio
 import inspect
+import os
 from datetime import UTC, datetime
 from tempfile import TemporaryDirectory
 from unittest.mock import AsyncMock, Mock, patch
@@ -16,6 +17,7 @@ from copilot import (
     CanvasProviderIdentity,
     CapiSessionOptions,
     CopilotClient,
+    DisableBypassPermissionsModes,
     ExtensionInfo,
     ModelBillingTokenPrices,
     ModelBillingTokenPricesLongContext,
@@ -55,6 +57,50 @@ def test_inprocess_connection_has_no_child_process_options():
     assert list(inspect.signature(RuntimeConnection.for_inprocess).parameters) == []
     assert not hasattr(connection, "path")
     assert not hasattr(connection, "args")
+
+
+class TestBuiltinPluginDirectories:
+    @staticmethod
+    async def _start_client(paths=None):
+        client = CopilotClient(
+            connection=RuntimeConnection.for_uri("localhost:1234"),
+            builtin_plugin_directories=paths,
+        )
+        client._connect_to_server = AsyncMock()
+        client._verify_protocol_version = AsyncMock()
+        client._client = Mock()
+        client._client.request = AsyncMock(return_value={})
+
+        await client.start()
+        return client
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("paths", [None, []])
+    async def test_default_or_empty_does_not_call_rpc(self, paths):
+        client = await self._start_client(paths)
+
+        client._client.request.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_configured_paths_call_rpc_once_before_start_completes(self):
+        paths = [
+            os.path.abspath("plugins/core"),
+            os.path.abspath("plugins/github"),
+        ]
+
+        client = await self._start_client(paths)
+
+        client._client.request.assert_awaited_once_with(
+            "plugins.builtin.set",
+            {"paths": paths},
+        )
+
+    def test_relative_path_is_rejected(self):
+        with pytest.raises(ValueError, match="builtin_plugin_directories.*absolute paths"):
+            CopilotClient(
+                connection=RuntimeConnection.for_uri("localhost:1234"),
+                builtin_plugin_directories=["plugins/core"],
+            )
 
 
 class TestClientShutdown:
@@ -676,7 +722,7 @@ class TestCreateSessionConfig:
                 enable_managed_settings=True,
                 managed_settings=ManagedSettings(
                     permissions=ManagedSettingsPermissions(
-                        disable_bypass_permissions_mode="disable",
+                        disable_bypass_permissions_mode=DisableBypassPermissionsModes.ALLOW_AUTO_ONLY,
                         deny=["Shell(git push)"],
                         ask=["Domain(publish.example)"],
                         allow=["Read(**)"],
@@ -687,7 +733,10 @@ class TestCreateSessionConfig:
                 session.session_id,
                 on_permission_request=PermissionHandler.approve_all,
                 managed_settings=ManagedSettings(
-                    permissions=ManagedSettingsPermissions(ask=["Domain(publish.example)"])
+                    permissions=ManagedSettingsPermissions(
+                        disable_bypass_permissions_mode="future-fail-closed-mode",
+                        ask=["Domain(publish.example)"],
+                    )
                 ),
             )
 
@@ -696,14 +745,31 @@ class TestCreateSessionConfig:
             assert captured["session.create"]["enableManagedSettings"] is True
             assert captured["session.create"]["managedSettings"] == {
                 "permissions": {
-                    "disableBypassPermissionsMode": "disable",
+                    "disableBypassPermissionsMode": "allow-auto-only",
                     "deny": ["Shell(git push)"],
                     "ask": ["Domain(publish.example)"],
                     "allow": ["Read(**)"],
                 }
             }
             assert captured["session.resume"]["managedSettings"] == {
-                "permissions": {"ask": ["Domain(publish.example)"]}
+                "permissions": {
+                    "disableBypassPermissionsMode": "future-fail-closed-mode",
+                    "ask": ["Domain(publish.example)"],
+                }
+            }
+
+            await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                managed_settings=ManagedSettings(
+                    permissions=ManagedSettingsPermissions(
+                        disable_bypass_permissions_mode=DisableBypassPermissionsModes.DISABLE,
+                    )
+                ),
+            )
+            assert captured["session.create"]["managedSettings"] == {
+                "permissions": {
+                    "disableBypassPermissionsMode": "disable",
+                }
             }
         finally:
             await client.force_stop()

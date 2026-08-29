@@ -199,6 +199,27 @@ export function postProcessSchema(schema: JSONSchema7): JSONSchema7 {
 
     const processed = { ...schema } as JSONSchema7WithDefs;
 
+    if (processed.title === "ProviderModelConfig" && processed.properties) {
+        const tokenFields = new Set([
+            "maxPromptTokens",
+            "maxContextWindowTokens",
+            "maxOutputTokens",
+        ]);
+        processed.properties = Object.fromEntries(
+            Object.entries(processed.properties).map(([key, value]) => {
+                if (
+                    tokenFields.has(key) &&
+                    typeof value === "object" &&
+                    value !== null &&
+                    (value as JSONSchema7).type === "number"
+                ) {
+                    return [key, { ...(value as JSONSchema7), type: "integer" }];
+                }
+                return [key, value];
+            })
+        );
+    }
+
     if ("const" in processed && typeof processed.const === "boolean") {
         processed.enum = [processed.const];
         delete processed.const;
@@ -456,6 +477,7 @@ export function cloneSchemaForCodegen<T>(value: T): T {
 const PERMISSION_REQUEST_DEFINITION_NAMES = [
     "PermissionRequestCustomTool",
     "PermissionRequestExtensionManagement",
+    "PermissionRequestExtensionEnvAccess",
     "PermissionRequestExtensionPermissionAccess",
     "PermissionRequestFactory",
     "PermissionRequestHook",

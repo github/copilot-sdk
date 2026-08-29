@@ -24,6 +24,7 @@ use crate::generated::api_types::{CurrentToolMetadata, OpenCanvasInstance};
 use crate::generated::session_events::ReasoningSummary;
 /// Context window tier for models that support tiered context windows.
 pub use crate::generated::session_events::{ContextTier, SessionLimitsConfig};
+use crate::github_token::GitHubTokenProvider;
 use crate::handler::{
     AutoModeSwitchHandler, ElicitationHandler, ExitPlanModeHandler, McpAuthHandler,
     PermissionHandler, UserInputHandler,
@@ -614,12 +615,9 @@ impl std::fmt::Debug for CommandDefinition {
 impl Serialize for CommandDefinition {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         use serde::ser::SerializeStruct;
-        let len = if self.description.is_some() { 2 } else { 1 };
-        let mut state = serializer.serialize_struct("CommandDefinition", len)?;
+        let mut state = serializer.serialize_struct("CommandDefinition", 2)?;
         state.serialize_field("name", &self.name)?;
-        if let Some(description) = &self.description {
-            state.serialize_field("description", description)?;
-        }
+        state.serialize_field("description", self.description.as_deref().unwrap_or(""))?;
         state.end()
     }
 }
@@ -1763,13 +1761,14 @@ pub struct CopilotExpAssignmentResponse {
     pub assignment_context: String,
 }
 
-/// Controls whether bypass-permissions mode is available in a managed session.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-#[non_exhaustive]
-pub enum DisableBypassPermissionsMode {
-    /// Turn off bypass-permissions mode.
-    Disable,
+/// Well-known managed bypass-permissions policies.
+pub struct DisableBypassPermissionsModes;
+
+impl DisableBypassPermissionsModes {
+    /// Permit automatic bypass but block full allow-all.
+    pub const ALLOW_AUTO_ONLY: &'static str = "allow-auto-only";
+    /// Turn off bypass-permissions mode entirely.
+    pub const DISABLE: &'static str = "disable";
 }
 
 /// Permission rules injected as a managed-settings layer at session bootstrap.
@@ -1778,18 +1777,17 @@ pub enum DisableBypassPermissionsMode {
 /// layer. This layer composes restrictively with any server- or device-level
 /// managed settings: [`deny`](Self::deny) and [`ask`](Self::ask) rules are
 /// unioned across layers, every present [`allow`](Self::allow) list must admit a
-/// tool for it to be allowed, and
-/// [`disable_bypass_permissions_mode`](Self::disable_bypass_permissions_mode) is
-/// honored if any layer sets it (deny-wins).
+/// tool for it to be allowed, and bypass-mode restrictions compose to the most
+/// restrictive setting.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct ManagedSettingsPermissions {
-    /// When set to `"disable"`, bypass-permissions mode is turned off for the
-    /// session regardless of other layers. Serialized as
-    /// `disableBypassPermissionsMode`.
+    /// Restricts bypass-permissions mode for the session. See
+    /// [`DisableBypassPermissionsModes`] for well-known values. Unknown values
+    /// are forwarded so newer runtime policies fail closed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub disable_bypass_permissions_mode: Option<DisableBypassPermissionsMode>,
+    pub disable_bypass_permissions_mode: Option<String>,
     /// Tool-permission patterns that are always denied.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub deny: Option<Vec<String>>,
@@ -1803,11 +1801,8 @@ pub struct ManagedSettingsPermissions {
 
 impl ManagedSettingsPermissions {
     /// Sets the bypass-permissions policy for this managed layer.
-    pub fn with_disable_bypass_permissions_mode(
-        mut self,
-        value: DisableBypassPermissionsMode,
-    ) -> Self {
-        self.disable_bypass_permissions_mode = Some(value);
+    pub fn with_disable_bypass_permissions_mode(mut self, value: impl Into<String>) -> Self {
+        self.disable_bypass_permissions_mode = Some(value.into());
         self
     }
 
@@ -1961,6 +1956,10 @@ pub struct SessionConfig {
     /// selected or invoked unless a custom agent with the same name is
     /// configured.
     pub excluded_builtin_agents: Option<Vec<String>>,
+    /// Built-in skill names to include in the session. In
+    /// [`ClientMode::Empty`](crate::ClientMode::Empty), `None` excludes all
+    /// runtime-bundled skills; `Some` opts the named built-ins back in.
+    pub included_builtin_skills: Option<Vec<String>>,
     /// MCP server configurations passed through to the CLI.
     pub mcp_servers: Option<IndexMap<String, McpServerConfig>>,
     /// Controls how MCP OAuth tokens are stored for this session.
@@ -2119,6 +2118,12 @@ pub struct SessionConfig {
     /// the GitHub identity used for content exclusion, model routing, and
     /// quota checks for *this session*.
     pub github_token: Option<String>,
+    /// Provider used to acquire rotating GitHub tokens for this session.
+    ///
+    /// Mutually exclusive with [`github_token`](Self::github_token). The callback
+    /// receives the effective host, optional assigned session ID, and acquisition
+    /// reason; its opaque registration ID is never exposed.
+    pub github_token_provider: Option<Arc<dyn GitHubTokenProvider>>,
     /// Per-session remote behavior control:
     /// - `Off` — local only, no remote export (default)
     /// - `Export` — export session events to GitHub without
@@ -2146,9 +2151,10 @@ pub struct SessionConfig {
     pub exp_assignments: Option<CopilotExpAssignmentResponse>,
     /// Opt-in: when `Some(true)`, the runtime self-fetches enterprise managed
     /// settings (bypass-permissions policy) at session bootstrap using the
-    /// session's [`github_token`](Self::github_token). Requires `github_token`
-    /// to be set; if omitted, the runtime is expected to reject session creation
-    /// (fail-closed). When `None`, behaves exactly as before. Set via
+    /// session's static [`github_token`](Self::github_token) or
+    /// [`github_token_provider`](Self::github_token_provider). Requires one of
+    /// those credentials; if both are omitted, the runtime is expected to reject
+    /// session creation (fail-closed). When `None`, behaves exactly as before. Set via
     /// [`with_enable_managed_settings`](Self::with_enable_managed_settings).
     pub enable_managed_settings: Option<bool>,
     /// Optional managed-settings layer injected at session bootstrap. Currently
@@ -2246,6 +2252,7 @@ impl std::fmt::Debug for SessionConfig {
             .field("available_tools", &self.available_tools)
             .field("excluded_tools", &self.excluded_tools)
             .field("excluded_builtin_agents", &self.excluded_builtin_agents)
+            .field("included_builtin_skills", &self.included_builtin_skills)
             .field("mcp_servers", &self.mcp_servers)
             .field("mcp_oauth_token_storage", &self.mcp_oauth_token_storage)
             .field("embedding_cache_storage", &self.embedding_cache_storage)
@@ -2299,6 +2306,10 @@ impl std::fmt::Debug for SessionConfig {
             .field(
                 "github_token",
                 &self.github_token.as_ref().map(|_| "<redacted>"),
+            )
+            .field(
+                "github_token_provider",
+                &self.github_token_provider.as_ref().map(|_| "<set>"),
             )
             .field("remote_session", &self.remote_session)
             .field("cloud", &self.cloud)
@@ -2378,6 +2389,7 @@ impl Default for SessionConfig {
             available_tools: None,
             excluded_tools: None,
             excluded_builtin_agents: None,
+            included_builtin_skills: None,
             mcp_servers: None,
             mcp_oauth_token_storage: None,
             enable_config_discovery: None,
@@ -2417,6 +2429,7 @@ impl Default for SessionConfig {
             working_directory: None,
             additional_directories: None,
             github_token: None,
+            github_token_provider: None,
             remote_session: None,
             cloud: None,
             include_sub_agent_streaming_events: None,
@@ -2462,6 +2475,7 @@ pub(crate) struct SessionConfigRuntime {
     pub canvas_handler: Option<Arc<dyn CanvasHandler>>,
     pub session_fs_provider: Option<Arc<dyn SessionFsProvider>>,
     pub bearer_token_providers: HashMap<String, Arc<dyn BearerTokenProvider>>,
+    pub github_token_provider: Option<Arc<dyn GitHubTokenProvider>>,
     pub commands: Option<Vec<CommandDefinition>>,
 }
 
@@ -2481,6 +2495,12 @@ impl SessionConfig {
         mut self,
         session_id: Option<SessionId>,
     ) -> Result<(crate::wire::SessionCreateWire, SessionConfigRuntime), crate::Error> {
+        if self.github_token.is_some() && self.github_token_provider.is_some() {
+            return Err(crate::Error::with_message(
+                crate::ErrorKind::InvalidConfig,
+                "github_token and github_token_provider are mutually exclusive",
+            ));
+        }
         let permission_active =
             self.permission_handler.is_some() || self.permission_policy.is_some();
         let request_user_input = self.user_input_handler.is_some();
@@ -2507,7 +2527,7 @@ impl SessionConfig {
             cmds.iter()
                 .map(|c| crate::wire::CommandWireDefinition {
                     name: c.name.clone(),
-                    description: c.description.clone(),
+                    description: c.description.clone().unwrap_or_default(),
                 })
                 .collect()
         });
@@ -2582,6 +2602,7 @@ impl SessionConfig {
             working_directory: self.working_directory,
             additional_directories: self.additional_directories,
             github_token: self.github_token,
+            github_token_provider_registration_id: None,
             remote_session: self.remote_session,
             cloud: self.cloud,
             include_sub_agent_streaming_events: self.include_sub_agent_streaming_events,
@@ -2607,6 +2628,7 @@ impl SessionConfig {
             canvas_handler,
             session_fs_provider: self.session_fs_provider,
             bearer_token_providers,
+            github_token_provider: self.github_token_provider,
             commands: self.commands,
         };
 
@@ -2957,6 +2979,16 @@ impl SessionConfig {
         self
     }
 
+    /// Set the runtime-bundled skill allowlist.
+    pub fn with_included_builtin_skills<I, S>(mut self, names: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.included_builtin_skills = Some(names.into_iter().map(Into::into).collect());
+        self
+    }
+
     /// Set additional directories to search for custom instruction files.
     /// Forwarded to the CLI on session create; not the same as
     /// [`with_skill_directories`](Self::with_skill_directories).
@@ -3147,6 +3179,16 @@ impl SessionConfig {
         self
     }
 
+    /// Install a rotating GitHub token provider for this session.
+    ///
+    /// The provider must return a positive remaining lifetime in seconds when
+    /// its callback completes. Production GitHub tokens typically last eight
+    /// hours. This option is mutually exclusive with [`with_github_token`](Self::with_github_token).
+    pub fn with_github_token_provider(mut self, provider: Arc<dyn GitHubTokenProvider>) -> Self {
+        self.github_token_provider = Some(provider);
+        self
+    }
+
     /// Forward sub-agent streaming events to this connection. Defaults
     /// to true on the CLI when unset.
     pub fn with_include_sub_agent_streaming_events(mut self, include: bool) -> Self {
@@ -3214,9 +3256,10 @@ impl SessionConfig {
 
     /// Opt the runtime into self-fetching enterprise managed settings
     /// (bypass-permissions policy) at session bootstrap using the session's
-    /// [`github_token`](Self::github_token). Requires `github_token` to be set;
-    /// if omitted, the runtime is expected to reject session creation
-    /// (fail-closed).
+    /// static [`github_token`](Self::github_token) or
+    /// [`github_token_provider`](Self::github_token_provider). Requires one of
+    /// those credentials; if both are omitted, the runtime is expected to reject
+    /// session creation (fail-closed).
     pub fn with_enable_managed_settings(mut self, enabled: bool) -> Self {
         self.enable_managed_settings = Some(enabled);
         self
@@ -3293,6 +3336,10 @@ pub struct ResumeSessionConfig {
     /// selected or invoked unless a custom agent with the same name is
     /// configured.
     pub excluded_builtin_agents: Option<Vec<String>>,
+    /// Built-in skill names to include in the resumed session. In
+    /// [`ClientMode::Empty`](crate::ClientMode::Empty), `None` excludes all
+    /// runtime-bundled skills; `Some` opts the named built-ins back in.
+    pub included_builtin_skills: Option<Vec<String>>,
     /// Re-supply MCP servers so they remain available after app restart.
     pub mcp_servers: Option<IndexMap<String, McpServerConfig>>,
     /// Controls how MCP OAuth tokens are stored for this session.
@@ -3405,6 +3452,9 @@ pub struct ResumeSessionConfig {
     /// Per-session GitHub token on resume. See
     /// [`SessionConfig::github_token`].
     pub github_token: Option<String>,
+    /// Rotating GitHub token provider on resume. See
+    /// [`SessionConfig::github_token_provider`].
+    pub github_token_provider: Option<Arc<dyn GitHubTokenProvider>>,
     /// Per-session remote behavior control on resume. See
     /// [`SessionConfig::remote_session`].
     pub remote_session: Option<crate::generated::api_types::RemoteSessionMode>,
@@ -3512,6 +3562,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("available_tools", &self.available_tools)
             .field("excluded_tools", &self.excluded_tools)
             .field("excluded_builtin_agents", &self.excluded_builtin_agents)
+            .field("included_builtin_skills", &self.included_builtin_skills)
             .field("mcp_servers", &self.mcp_servers)
             .field("mcp_oauth_token_storage", &self.mcp_oauth_token_storage)
             .field("embedding_cache_storage", &self.embedding_cache_storage)
@@ -3565,6 +3616,10 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field(
                 "github_token",
                 &self.github_token.as_ref().map(|_| "<redacted>"),
+            )
+            .field(
+                "github_token_provider",
+                &self.github_token_provider.as_ref().map(|_| "<set>"),
             )
             .field("remote_session", &self.remote_session)
             .field(
@@ -3625,6 +3680,12 @@ impl ResumeSessionConfig {
     pub(crate) fn into_wire(
         mut self,
     ) -> Result<(crate::wire::SessionResumeWire, SessionConfigRuntime), crate::Error> {
+        if self.github_token.is_some() && self.github_token_provider.is_some() {
+            return Err(crate::Error::with_message(
+                crate::ErrorKind::InvalidConfig,
+                "github_token and github_token_provider are mutually exclusive",
+            ));
+        }
         let permission_active =
             self.permission_handler.is_some() || self.permission_policy.is_some();
         let request_user_input = self.user_input_handler.is_some();
@@ -3651,7 +3712,7 @@ impl ResumeSessionConfig {
             cmds.iter()
                 .map(|c| crate::wire::CommandWireDefinition {
                     name: c.name.clone(),
-                    description: c.description.clone(),
+                    description: c.description.clone().unwrap_or_default(),
                 })
                 .collect()
         });
@@ -3727,6 +3788,7 @@ impl ResumeSessionConfig {
             working_directory: self.working_directory,
             additional_directories: self.additional_directories,
             github_token: self.github_token,
+            github_token_provider_registration_id: None,
             remote_session: self.remote_session,
             include_sub_agent_streaming_events: self.include_sub_agent_streaming_events,
             enable_github_telemetry_forwarding: None,
@@ -3753,6 +3815,7 @@ impl ResumeSessionConfig {
             canvas_handler,
             session_fs_provider: self.session_fs_provider,
             bearer_token_providers,
+            github_token_provider: self.github_token_provider,
             commands: self.commands,
         };
 
@@ -3785,6 +3848,7 @@ impl ResumeSessionConfig {
             available_tools: None,
             excluded_tools: None,
             excluded_builtin_agents: None,
+            included_builtin_skills: None,
             mcp_servers: None,
             mcp_oauth_token_storage: None,
             enable_config_discovery: None,
@@ -3824,6 +3888,7 @@ impl ResumeSessionConfig {
             working_directory: None,
             additional_directories: None,
             github_token: None,
+            github_token_provider: None,
             remote_session: None,
             include_sub_agent_streaming_events: None,
             commands: None,
@@ -4178,6 +4243,16 @@ impl ResumeSessionConfig {
         self
     }
 
+    /// Set the runtime-bundled skill allowlist on resume.
+    pub fn with_included_builtin_skills<I, S>(mut self, names: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.included_builtin_skills = Some(names.into_iter().map(Into::into).collect());
+        self
+    }
+
     /// Set additional directories to search for custom instruction files
     /// on resume. Forwarded to the CLI; not the same as
     /// [`with_skill_directories`](Self::with_skill_directories).
@@ -4361,6 +4436,16 @@ impl ResumeSessionConfig {
     /// client-level token.
     pub fn with_github_token(mut self, token: impl Into<String>) -> Self {
         self.github_token = Some(token.into());
+        self
+    }
+
+    /// Install a rotating GitHub token provider for the resumed session.
+    ///
+    /// The provider must return a positive remaining lifetime in seconds when
+    /// its callback completes. Production GitHub tokens typically last eight
+    /// hours. Mutually exclusive with [`with_github_token`](Self::with_github_token).
+    pub fn with_github_token_provider(mut self, provider: Arc<dyn GitHubTokenProvider>) -> Self {
+        self.github_token_provider = Some(provider);
         self
     }
 
@@ -5773,7 +5858,9 @@ pub use crate::generated::api_types::{
     Model, ModelBilling, ModelBillingTokenPrices, ModelBillingTokenPricesLongContext,
     ModelCapabilities, ModelCapabilitiesLimits, ModelCapabilitiesLimitsVision,
     ModelCapabilitiesSupports, ModelList, ModelPolicy, PermissionDecision,
-    PermissionDecisionApproveOnce, PermissionDecisionReject, PermissionDecisionUserNotAvailable,
+    PermissionDecisionApproveOnce, PermissionDecisionContext, PermissionDecisionOutcome,
+    PermissionDecisionReject, PermissionDecisionSource, PermissionDecisionSurface,
+    PermissionDecisionUserNotAvailable, PermissionResponseCapability,
 };
 
 /// Permission categories the CLI may request approval for.
@@ -5883,12 +5970,20 @@ mod tests {
         CopilotExpAssignmentResponse, CustomAgentConfig, DeliveryMode, ExpConfigEntry,
         ExpFlagValue, ExtensionInfo, GitHubMcpToolConfig, GitHubReferenceType,
         InfiniteSessionConfig, LargeToolOutputConfig, McpServerConfig, McpStdioServerConfig,
-        MemoryConfiguration, NamedProviderConfig, ProviderConfig, ProviderModelConfig,
-        ReasoningSummary, ResumeSessionConfig, SessionConfig, SessionEvent, SessionId,
-        SystemMessageConfig, Tool, ToolBinaryResult, ToolResult, ToolResultExpanded,
+        MemoryConfiguration, NamedProviderConfig, PermissionResponseCapability, ProviderConfig,
+        ProviderModelConfig, ReasoningSummary, ResumeSessionConfig, SessionConfig, SessionEvent,
+        SessionId, SystemMessageConfig, Tool, ToolBinaryResult, ToolResult, ToolResultExpanded,
         ToolResultResponse, ensure_attachment_display_names,
     };
     use crate::generated::session_events::TypedSessionEvent;
+
+    #[test]
+    fn permission_response_capability_is_publicly_exported() {
+        assert_eq!(
+            serde_json::to_value(PermissionResponseCapability::Interactive).unwrap(),
+            json!("interactive")
+        );
+    }
 
     #[test]
     fn tool_builder_composes() {
@@ -7605,7 +7700,10 @@ mod permission_builder_tests {
         let h = resolve_create(cfg).expect("policy + handler yields handler");
         assert!(matches!(
             dispatch(&h).await,
-            PermissionResult::Decision(PermissionDecision::ApproveOnce(_))
+            PermissionResult::Decision {
+                decision: PermissionDecision::ApproveOnce(_),
+                ..
+            }
         ));
     }
 
@@ -7615,7 +7713,10 @@ mod permission_builder_tests {
         let h = resolve_create(cfg).expect("policy alone yields handler");
         assert!(matches!(
             dispatch(&h).await,
-            PermissionResult::Decision(PermissionDecision::ApproveOnce(_))
+            PermissionResult::Decision {
+                decision: PermissionDecision::ApproveOnce(_),
+                ..
+            }
         ));
     }
 
@@ -7633,11 +7734,17 @@ mod permission_builder_tests {
         let hb = resolve_create(b).unwrap();
         assert!(matches!(
             dispatch(&ha).await,
-            PermissionResult::Decision(PermissionDecision::ApproveOnce(_))
+            PermissionResult::Decision {
+                decision: PermissionDecision::ApproveOnce(_),
+                ..
+            }
         ));
         assert!(matches!(
             dispatch(&hb).await,
-            PermissionResult::Decision(PermissionDecision::ApproveOnce(_))
+            PermissionResult::Decision {
+                decision: PermissionDecision::ApproveOnce(_),
+                ..
+            }
         ));
     }
 
@@ -7653,11 +7760,17 @@ mod permission_builder_tests {
         let hb = resolve_create(b).unwrap();
         assert!(matches!(
             dispatch(&ha).await,
-            PermissionResult::Decision(PermissionDecision::Reject(_))
+            PermissionResult::Decision {
+                decision: PermissionDecision::Reject(_),
+                ..
+            }
         ));
         assert!(matches!(
             dispatch(&hb).await,
-            PermissionResult::Decision(PermissionDecision::Reject(_))
+            PermissionResult::Decision {
+                decision: PermissionDecision::Reject(_),
+                ..
+            }
         ));
     }
 
@@ -7669,7 +7782,10 @@ mod permission_builder_tests {
         let h = resolve_create(cfg).unwrap();
         assert!(matches!(
             dispatch(&h).await,
-            PermissionResult::Decision(PermissionDecision::Reject(_))
+            PermissionResult::Decision {
+                decision: PermissionDecision::Reject(_),
+                ..
+            }
         ));
     }
 
@@ -7688,11 +7804,17 @@ mod permission_builder_tests {
         let hb = resolve_create(b).unwrap();
         assert!(matches!(
             dispatch(&ha).await,
-            PermissionResult::Decision(PermissionDecision::Reject(_))
+            PermissionResult::Decision {
+                decision: PermissionDecision::Reject(_),
+                ..
+            }
         ));
         assert!(matches!(
             dispatch(&hb).await,
-            PermissionResult::Decision(PermissionDecision::Reject(_))
+            PermissionResult::Decision {
+                decision: PermissionDecision::Reject(_),
+                ..
+            }
         ));
     }
 
@@ -7704,7 +7826,10 @@ mod permission_builder_tests {
         let h = resolve_resume(cfg).unwrap();
         assert!(matches!(
             dispatch(&h).await,
-            PermissionResult::Decision(PermissionDecision::ApproveOnce(_))
+            PermissionResult::Decision {
+                decision: PermissionDecision::ApproveOnce(_),
+                ..
+            }
         ));
     }
 
@@ -7720,11 +7845,17 @@ mod permission_builder_tests {
         let hb = resolve_resume(b).unwrap();
         assert!(matches!(
             dispatch(&ha).await,
-            PermissionResult::Decision(PermissionDecision::ApproveOnce(_))
+            PermissionResult::Decision {
+                decision: PermissionDecision::ApproveOnce(_),
+                ..
+            }
         ));
         assert!(matches!(
             dispatch(&hb).await,
-            PermissionResult::Decision(PermissionDecision::ApproveOnce(_))
+            PermissionResult::Decision {
+                decision: PermissionDecision::ApproveOnce(_),
+                ..
+            }
         ));
     }
 

@@ -17,6 +17,60 @@ namespace GitHub.Copilot.Test.Unit;
 
 public sealed class GitHubTelemetryTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task BuiltinPluginDirectories_Default_Or_Empty_Does_Not_Call_Rpc(bool useEmpty)
+    {
+        await using var server = await FakeTelemetryServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions
+        {
+            Connection = RuntimeConnection.ForUri(server.Url),
+            BuiltinPluginDirectories = useEmpty ? [] : null,
+        });
+
+        await client.StartAsync();
+
+        Assert.Equal(0, server.BuiltinPluginSetCount);
+    }
+
+    [Fact]
+    public async Task BuiltinPluginDirectories_Are_Set_Once_Before_Start_Completes()
+    {
+        var paths = new[]
+        {
+            Path.GetFullPath(Path.Join("plugins", "core")),
+            Path.GetFullPath(Path.Join("plugins", "github")),
+        };
+        await using var server = await FakeTelemetryServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions
+        {
+            Connection = RuntimeConnection.ForUri(server.Url),
+            BuiltinPluginDirectories = paths,
+        });
+
+        await client.StartAsync();
+
+        Assert.Equal(1, server.BuiltinPluginSetCount);
+        var payload = server.LastBuiltinPluginParams
+            ?? throw new InvalidOperationException("plugins.builtin.set was not captured.");
+        Assert.Collection(
+            payload.GetProperty("paths").EnumerateArray(),
+            value => Assert.Equal(paths[0], value.GetString()),
+            value => Assert.Equal(paths[1], value.GetString()));
+    }
+
+    [Fact]
+    public void BuiltinPluginDirectories_Reject_Relative_Paths()
+    {
+        var exception = Assert.Throws<ArgumentException>(() => new CopilotClient(new CopilotClientOptions
+        {
+            BuiltinPluginDirectories = ["plugins/core"],
+        }));
+
+        Assert.Contains("absolute paths", exception.Message);
+    }
+
     [Fact]
     public async Task CreateSession_Opts_Into_Forwarding_When_Handler_Provided()
     {
@@ -266,6 +320,10 @@ public sealed class GitHubTelemetryTests
 
         public JsonElement? LastConnectParams { get; private set; }
 
+        public JsonElement? LastBuiltinPluginParams { get; private set; }
+
+        public int BuiltinPluginSetCount { get; private set; }
+
         public static Task<FakeTelemetryServer> StartAsync()
         {
             var listener = new TcpListener(IPAddress.Loopback, 0);
@@ -347,6 +405,7 @@ public sealed class GitHubTelemetryTests
             object? result = method switch
             {
                 "connect" => CaptureConnect(request),
+                "plugins.builtin.set" => CaptureBuiltinPluginDirectories(request),
                 "session.create" => CaptureCreate(request),
                 "session.resume" => CaptureResume(request),
                 "session.send" => new Dictionary<string, object?> { ["messageId"] = "message-1" },
@@ -373,6 +432,13 @@ public sealed class GitHubTelemetryTests
                 ["protocolVersion"] = 3,
                 ["version"] = "test",
             };
+        }
+
+        private Dictionary<string, object?> CaptureBuiltinPluginDirectories(JsonElement request)
+        {
+            BuiltinPluginSetCount++;
+            LastBuiltinPluginParams = request.TryGetProperty("params", out var p) ? p.Clone() : null;
+            return new Dictionary<string, object?>();
         }
 
         private Dictionary<string, object?> CaptureCreate(JsonElement request)

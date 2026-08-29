@@ -114,6 +114,16 @@ func SkipIfInProcess(t *testing.T, reason string) {
 	}
 }
 
+// SkipIfInProcessOnMacOS skips the test when E2E tests run under the in-process
+// (FFI) transport on macOS. Coverage is retained over stdio on every OS and
+// in-process on Linux and Windows.
+func SkipIfInProcessOnMacOS(t *testing.T, reason string) {
+	t.Helper()
+	if isInProcessTransport() && runtime.GOOS == "darwin" {
+		t.Skipf("unsupported over the in-process (FFI) transport on macOS: %s", reason)
+	}
+}
+
 // NewTestContext creates a new test context with isolated directories and a replaying proxy.
 func NewTestContext(t *testing.T) *TestContext {
 	t.Helper()

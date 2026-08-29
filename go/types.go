@@ -129,6 +129,11 @@ type ClientOptions struct {
 	// location.
 	// Ignored when connecting to an existing runtime via [URIConnection].
 	BaseDirectory string
+	// BuiltinPluginDirectories contains absolute paths to trusted plugin
+	// directories bundled by the host. When non-empty, Start replaces the
+	// runtime's complete trusted built-in plugin directory set before sessions
+	// can be created.
+	BuiltinPluginDirectories []string
 	// LogLevel for the runtime. When empty (the default), the runtime
 	// uses its own default level; the SDK does not pass --log-level.
 	// Recognized values: "none", "error", "warning", "info", "debug", "all".
@@ -378,6 +383,58 @@ type PermissionInvocation struct {
 	SessionID              string
 	ManagedSettingsEnabled bool
 }
+
+// PermissionDecisionContext describes how and where a permission decision was
+// reached. Attach it to a decision with [NewAttributedPermissionResult] so the runtime
+// can attribute auto-approval telemetry to the responding surface. It is
+// informational only and never changes permission behavior.
+//
+// Experimental: PermissionDecisionContext is part of an experimental API and
+// may change or be removed.
+type PermissionDecisionContext = rpc.PermissionDecisionContext
+
+// PermissionResponseCapability describes whether the responding client could
+// ask a user for a permission decision.
+type PermissionResponseCapability = rpc.PermissionResponseCapability
+
+const (
+	PermissionResponseCapabilityHeadless    = rpc.PermissionResponseCapabilityHeadless
+	PermissionResponseCapabilityInteractive = rpc.PermissionResponseCapabilityInteractive
+	PermissionResponseCapabilityNone        = rpc.PermissionResponseCapabilityNone
+)
+
+// PermissionDecisionOutcome describes the disposition of a permission request
+// as observed by the responding client.
+type PermissionDecisionOutcome = rpc.PermissionDecisionOutcome
+
+const (
+	PermissionDecisionOutcomeAutoApproved    = rpc.PermissionDecisionOutcomeAutoApproved
+	PermissionDecisionOutcomeAutopilotDenied = rpc.PermissionDecisionOutcomeAutopilotDenied
+	PermissionDecisionOutcomePromptedUser    = rpc.PermissionDecisionOutcomePromptedUser
+)
+
+// PermissionDecisionSource identifies the controlled reason or actor
+// responsible for a permission response.
+type PermissionDecisionSource = rpc.PermissionDecisionSource
+
+const (
+	PermissionDecisionSourceAssistedApproval   = rpc.PermissionDecisionSourceAssistedApproval
+	PermissionDecisionSourceHostPolicy         = rpc.PermissionDecisionSourceHostPolicy
+	PermissionDecisionSourceHumanResponse      = rpc.PermissionDecisionSourceHumanResponse
+	PermissionDecisionSourceUnattendedFallback = rpc.PermissionDecisionSourceUnattendedFallback
+)
+
+// PermissionDecisionSurface identifies the client surface that submitted a
+// permission response.
+type PermissionDecisionSurface = rpc.PermissionDecisionSurface
+
+const (
+	PermissionDecisionSurfaceAcp        = rpc.PermissionDecisionSurfaceAcp
+	PermissionDecisionSurfaceCopilotApp = rpc.PermissionDecisionSurfaceCopilotApp
+	PermissionDecisionSurfacePromptMode = rpc.PermissionDecisionSurfacePromptMode
+	PermissionDecisionSurfaceSDK        = rpc.PermissionDecisionSurfaceSDK
+	PermissionDecisionSurfaceTui        = rpc.PermissionDecisionSurfaceTui
+)
 
 // MCPAuthWwwAuthenticateParams contains parsed parameters from an MCP server's WWW-Authenticate response.
 type MCPAuthWwwAuthenticateParams struct {
@@ -1252,6 +1309,10 @@ type SessionConfig struct {
 	// and discovered skill directories). When false, no skills are loaded regardless
 	// of SkillDirectories or EnableConfigDiscovery settings.
 	EnableSkills *bool
+	// IncludedBuiltinSkills is the allowlist of runtime-bundled skill names.
+	// In ModeEmpty, nil excludes all built-in skills; a non-nil list opts the
+	// named built-ins back in. Skills from other sources remain eligible.
+	IncludedBuiltinSkills []string
 	// Tools exposes caller-implemented tools to the CLI. A Tool with a nil Handler
 	// is declaration-only; the consumer must resolve its calls via pending tool RPCs.
 	Tools []Tool
@@ -1276,6 +1337,9 @@ type SessionConfig struct {
 	// When provided, the SDK can satisfy MCP server OAuth requests with host-provided
 	// token data or cancellation.
 	OnMCPAuthRequest MCPAuthHandler
+	// GitHubTokenProvider acquires session-scoped GitHub tokens on demand. It
+	// cannot be combined with GitHubToken.
+	GitHubTokenProvider GitHubTokenProvider
 	// OnUserInputRequest is a handler for user input requests from the agent (enables ask_user tool)
 	OnUserInputRequest UserInputHandler
 	// Hooks configures hook handlers for session lifecycle events
@@ -1523,11 +1587,16 @@ type ManagedSettings struct {
 }
 
 // DisableBypassPermissionsMode is the managed bypass-permissions policy.
-type DisableBypassPermissionsMode = rpc.DisableBypassPermissionsMode
+//
+// The runtime may introduce additional fail-closed modes. Values are serialized
+// as strings so callers can use newer modes without waiting for an SDK release.
+type DisableBypassPermissionsMode string
 
 const (
 	// DisableBypassPermissionsModeDisable turns off bypass-permissions mode.
-	DisableBypassPermissionsModeDisable = rpc.DisableBypassPermissionsModeDisable
+	DisableBypassPermissionsModeDisable DisableBypassPermissionsMode = "disable"
+	// DisableBypassPermissionsModeAllowAutoOnly permits only automatic bypass.
+	DisableBypassPermissionsModeAllowAutoOnly DisableBypassPermissionsMode = "allow-auto-only"
 )
 
 // ManagedSettingsPermissions is the permissions-only managed policy injected
@@ -1535,9 +1604,9 @@ const (
 // accepts for fetched managed policy (e.g. "Read(**)", "Shell(git push *)");
 // malformed rules are rejected by the runtime at session creation.
 type ManagedSettingsPermissions struct {
-	// DisableBypassPermissionsMode, when set to "disable", turns off
-	// bypass-permissions ("yolo") mode for the session. Deny-wins: no other
-	// layer can re-enable it.
+	// DisableBypassPermissionsMode restricts bypass-permissions mode for the
+	// session. See the DisableBypassPermissionsMode constants for known values.
+	// Newer values are forwarded unchanged so runtime policies remain fail-closed.
 	DisableBypassPermissionsMode DisableBypassPermissionsMode `json:"disableBypassPermissionsMode,omitempty"`
 	// Deny lists operations that must always be denied. Unioned across layers.
 	Deny []string `json:"deny,omitzero"`
@@ -1747,6 +1816,9 @@ type ResumeSessionConfig struct {
 	// ClientName identifies the application using the SDK.
 	// Included in the User-Agent header for API requests.
 	ClientName string
+	// GitHubTokenProvider acquires session-scoped GitHub tokens on demand. It
+	// cannot be combined with GitHubToken.
+	GitHubTokenProvider GitHubTokenProvider
 	// Model to use for this session. Can change the model when resuming.
 	Model string
 	// Tools exposes caller-implemented tools to the CLI. A Tool with a nil Handler
@@ -1765,6 +1837,10 @@ type ResumeSessionConfig struct {
 	// be selected or invoked unless a custom agent with the same name is
 	// configured.
 	ExcludedBuiltInAgents []string
+	// IncludedBuiltinSkills is the allowlist of runtime-bundled skill names.
+	// In ModeEmpty, nil excludes all built-in skills; a non-nil list opts the
+	// named built-ins back in. Skills from other sources remain eligible.
+	IncludedBuiltinSkills []string
 	// Provider configures a custom model provider
 	Provider *ProviderConfig
 	// Capi configures provider-scoped CAPI (Copilot API) session options.
@@ -2471,6 +2547,7 @@ type createSessionRequest struct {
 	RequestMCPApps                     *bool                                  `json:"requestMcpApps,omitempty"`
 	GitHubMCPToolConfig                *GitHubMCPToolConfig                   `json:"githubMcpToolConfig,omitempty"`
 	GitHubToken                        string                                 `json:"gitHubToken,omitempty"`
+	GitHubTokenProviderRegistrationID  string                                 `json:"gitHubTokenProviderRegistrationId,omitempty"`
 	RemoteSession                      rpc.RemoteSessionMode                  `json:"remoteSession,omitempty"`
 	Cloud                              *CloudSessionOptions                   `json:"cloud,omitempty"`
 	Canvases                           []CanvasDeclaration                    `json:"canvases,omitempty"`
@@ -2489,7 +2566,7 @@ type createSessionRequest struct {
 // wireCommand is the wire representation of a command (name + description only, no handler).
 type wireCommand struct {
 	Name        string `json:"name"`
-	Description string `json:"description,omitempty"`
+	Description string `json:"description"`
 }
 
 // createSessionResponse is the response from session.create
@@ -2569,6 +2646,7 @@ type resumeSessionRequest struct {
 	RequestMCPApps                     *bool                                  `json:"requestMcpApps,omitempty"`
 	GitHubMCPToolConfig                *GitHubMCPToolConfig                   `json:"githubMcpToolConfig,omitempty"`
 	GitHubToken                        string                                 `json:"gitHubToken,omitempty"`
+	GitHubTokenProviderRegistrationID  string                                 `json:"gitHubTokenProviderRegistrationId,omitempty"`
 	RemoteSession                      rpc.RemoteSessionMode                  `json:"remoteSession,omitempty"`
 	Canvases                           []CanvasDeclaration                    `json:"canvases,omitempty"`
 	OpenCanvases                       []rpc.OpenCanvasInstance               `json:"openCanvases,omitempty"`

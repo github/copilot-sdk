@@ -22,6 +22,8 @@ pub mod copilot_request_handler;
 /// `#[doc(hidden)]` — re-exports the generated telemetry payload types.
 #[doc(hidden)]
 pub mod github_telemetry;
+/// Session-scoped GitHub token provider callbacks.
+pub mod github_token;
 /// Event handler traits for session lifecycle.
 pub mod handler;
 /// Lifecycle hook callbacks (pre/post tool use, prompt submission, session start/end).
@@ -78,6 +80,10 @@ use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
+pub use github_token::{
+    GitHubToken, GitHubTokenProvider, GitHubTokenProviderArgs, GitHubTokenProviderResult,
+    GitHubTokenRequestReason,
+};
 /// Re-export of [`indexmap::IndexMap`], used for order-preserving maps in the
 /// public API (e.g. [`Tool::parameters`](types::Tool::parameters) and
 /// `SessionConfig::mcp_servers`) so serialized key order stays deterministic.
@@ -254,6 +260,11 @@ pub struct ClientOptions {
     pub env_remove: Vec<OsString>,
     /// Extra flags for child-process transports.
     pub extra_args: Vec<String>,
+    /// Absolute paths to trusted plugin directories bundled by the host.
+    ///
+    /// When non-empty, [`Client::start`] replaces the runtime's complete
+    /// trusted built-in plugin directory set before sessions can be created.
+    pub builtin_plugin_directories: Vec<PathBuf>,
     /// Transport mode used to communicate with the CLI server.
     pub transport: Transport,
     /// GitHub token for authentication. When set, the SDK passes the token
@@ -368,6 +379,10 @@ impl std::fmt::Debug for ClientOptions {
             .field("env", &self.env)
             .field("env_remove", &self.env_remove)
             .field("extra_args", &self.extra_args)
+            .field(
+                "builtin_plugin_directories",
+                &self.builtin_plugin_directories,
+            )
             .field("transport", &self.transport)
             .field(
                 "github_token",
@@ -632,6 +647,7 @@ impl Default for ClientOptions {
             env: Vec::new(),
             env_remove: Vec::new(),
             extra_args: Vec::new(),
+            builtin_plugin_directories: Vec::new(),
             transport: Transport::default(),
             github_token: None,
             use_logged_in_user: None,
@@ -721,6 +737,19 @@ impl ClientOptions {
         S: Into<String>,
     {
         self.extra_args = args.into_iter().map(Into::into).collect();
+        self
+    }
+
+    /// Set trusted plugin directories bundled by the host.
+    ///
+    /// Every path must be absolute; invalid paths are rejected by
+    /// [`Client::start`].
+    pub fn with_builtin_plugin_directories<I, P>(mut self, paths: I) -> Self
+    where
+        I: IntoIterator<Item = P>,
+        P: Into<PathBuf>,
+    {
+        self.builtin_plugin_directories = paths.into_iter().map(Into::into).collect();
         self
     }
 
@@ -997,6 +1026,7 @@ struct ClientInner {
     request_rx: parking_lot::Mutex<Option<mpsc::UnboundedReceiver<JsonRpcRequest>>>,
     notification_tx: broadcast::Sender<JsonRpcNotification>,
     router: router::SessionRouter,
+    github_token_registry: Arc<github_token::GitHubTokenRegistry>,
     negotiated_protocol_version: OnceLock<u32>,
     state: parking_lot::Mutex<ConnectionState>,
     lifecycle_tx: broadcast::Sender<SessionLifecycleEvent>,
@@ -1071,6 +1101,30 @@ impl Client {
         if let Some(cfg) = &options.session_fs {
             validate_session_fs_config(cfg)?;
         }
+        let builtin_plugin_directories = options
+            .builtin_plugin_directories
+            .iter()
+            .map(|path| {
+                if !path.is_absolute() {
+                    return Err(Error::with_message(
+                        ErrorKind::InvalidConfig,
+                        format!(
+                            "builtin_plugin_directories must contain only absolute paths: {}",
+                            path.display()
+                        ),
+                    ));
+                }
+                path.to_str().map(str::to_owned).ok_or_else(|| {
+                    Error::with_message(
+                        ErrorKind::InvalidConfig,
+                        format!(
+                            "builtin_plugin_directories must contain valid UTF-8 paths: {}",
+                            path.display()
+                        ),
+                    )
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
         // Auth options only make sense when the SDK spawns the CLI; with an
         // external server, the server manages its own auth.
         if matches!(options.transport, Transport::External { .. }) {
@@ -1333,6 +1387,14 @@ impl Client {
             elapsed_ms = start_time.elapsed().as_millis(),
             "Client::start protocol verification complete"
         );
+        if !builtin_plugin_directories.is_empty() {
+            client
+                .call(
+                    "plugins.builtin.set",
+                    Some(serde_json::json!({ "paths": builtin_plugin_directories })),
+                )
+                .await?;
+        }
         if let Some(cfg) = session_fs_config {
             let session_fs_start = Instant::now();
             let capabilities = cfg.capabilities.as_ref().map(|c| {
@@ -1368,6 +1430,7 @@ impl Client {
                 &client.inner.request_rx,
                 Some(dispatcher.clone()),
                 client.inner.on_github_telemetry.clone(),
+                client.inner.github_token_registry.clone(),
             );
             client.rpc().llm_inference().set_provider().await?;
             let llm_inference_elapsed = llm_inference_start.elapsed();
@@ -1548,6 +1611,7 @@ impl Client {
         let pid = child.as_ref().and_then(|c| c.id());
         info!(pid = ?pid, "copilot CLI client ready");
 
+        let github_token_registry = Arc::new(github_token::GitHubTokenRegistry::new());
         let client = Self {
             inner: Arc::new(ClientInner {
                 child: parking_lot::Mutex::new(child),
@@ -1558,6 +1622,7 @@ impl Client {
                 request_rx: parking_lot::Mutex::new(Some(request_rx)),
                 notification_tx: notification_broadcast_tx,
                 router: router::SessionRouter::new(),
+                github_token_registry: github_token_registry.clone(),
                 negotiated_protocol_version: OnceLock::new(),
                 state: parking_lot::Mutex::new(ConnectionState::Connected),
                 lifecycle_tx: broadcast::channel(256).0,
@@ -1573,6 +1638,7 @@ impl Client {
                 startup_timings: OnceLock::new(),
             }),
         };
+        github_token_registry.set_client(Arc::downgrade(&client.inner));
         client.spawn_lifecycle_dispatcher();
         debug!(
             elapsed_ms = setup_start.elapsed().as_millis(),
@@ -1586,8 +1652,8 @@ impl Client {
     /// notifications via [`ClientInner::lifecycle_tx`] to subscribers
     /// returned by [`Self::subscribe_lifecycle`].
     fn spawn_lifecycle_dispatcher(&self) {
-        let inner = Arc::clone(&self.inner);
-        let mut notif_rx = inner.notification_tx.subscribe();
+        let mut notif_rx = self.inner.notification_tx.subscribe();
+        let lifecycle_tx = self.inner.lifecycle_tx.clone();
         tokio::spawn(async move {
             loop {
                 match notif_rx.recv().await {
@@ -1611,7 +1677,7 @@ impl Client {
                             };
                         // `send` only errors when there are no subscribers — that's
                         // the normal case before any consumer calls subscribe_lifecycle.
-                        let _ = inner.lifecycle_tx.send(event);
+                        let _ = lifecycle_tx.send(event);
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
                         warn!(missed = n, "lifecycle dispatcher lagged");
@@ -1624,6 +1690,7 @@ impl Client {
 
     fn build_command(program: &Path, options: &ClientOptions, working_directory: &Path) -> Command {
         let mut command = Command::new(program);
+        command.kill_on_drop(true);
         for arg in &options.prefix_args {
             command.arg(arg);
         }
@@ -1990,6 +2057,7 @@ impl Client {
             &self.inner.request_rx,
             self.inner.llm_inference.get().cloned(),
             self.inner.on_github_telemetry.clone(),
+            self.inner.github_token_registry.clone(),
         );
         self.inner.router.register(session_id)
     }
@@ -1997,6 +2065,25 @@ impl Client {
     /// Unregister a session, dropping its per-session channels.
     pub(crate) fn unregister_session(&self, session_id: &SessionId) {
         self.inner.router.unregister(session_id);
+    }
+
+    pub(crate) fn register_github_token_provider(
+        &self,
+        provider: Arc<dyn GitHubTokenProvider>,
+    ) -> github_token::GitHubTokenRegistration {
+        self.inner.router.ensure_started(
+            &self.inner.notification_tx,
+            &self.inner.request_rx,
+            self.inner.llm_inference.get().cloned(),
+            self.inner.on_github_telemetry.clone(),
+            self.inner.github_token_registry.clone(),
+        );
+        let id = self.inner.github_token_registry.register(provider);
+        github_token::GitHubTokenRegistration::new(self.inner.github_token_registry.clone(), id)
+    }
+
+    pub(crate) fn retire_github_token_provider(&self, session_id: &SessionId) {
+        self.inner.github_token_registry.retire_session(session_id);
     }
 
     /// Returns the protocol version negotiated with the CLI server, if any.
@@ -2107,6 +2194,7 @@ impl Client {
                 .on_github_telemetry
                 .is_some()
                 .then_some(true),
+            ..Default::default()
         };
         let value = self
             .call(
@@ -2193,6 +2281,7 @@ impl Client {
             Some(serde_json::json!({ "sessionId": session_id })),
         )
         .await?;
+        self.retire_github_token_provider(session_id);
         Ok(())
     }
 
@@ -2206,6 +2295,7 @@ impl Client {
             &self.inner.request_rx,
             self.inner.llm_inference.get().cloned(),
             self.inner.on_github_telemetry.clone(),
+            self.inner.github_token_registry.clone(),
         );
     }
 
@@ -2229,6 +2319,7 @@ impl Client {
             }
             self.inner.router.unregister(&session_id);
         }
+        self.inner.github_token_registry.clear();
 
         match self.list_sessions(None).await {
             Ok(sessions) => {
@@ -2398,6 +2489,7 @@ impl Client {
             }
             self.inner.router.unregister(&session_id);
         }
+        self.inner.github_token_registry.clear();
 
         let should_shutdown_runtime = self.inner.child.lock().is_some();
         #[cfg(feature = "bundled-in-process")]
@@ -2524,6 +2616,7 @@ impl Client {
         // Drop all session channels so any awaiters see a closed channel
         // instead of waiting for responses that will never arrive.
         self.inner.router.clear();
+        self.inner.github_token_registry.clear();
         *self.inner.state.lock() = ConnectionState::Disconnected;
         *self.inner.models_cache.lock() = Arc::new(tokio::sync::OnceCell::new());
     }
@@ -3215,6 +3308,105 @@ mod tests {
         client.force_stop();
     }
 
+    #[cfg(any(unix, windows))]
+    #[tokio::test]
+    async fn dropping_last_client_kills_spawned_cli() {
+        let temp = tempfile::tempdir().unwrap();
+        let ready = temp.path().join("ready");
+        let survived = temp.path().join("survived");
+        let child = test_child_command(temp.path(), &ready, &survived)
+            .spawn()
+            .unwrap();
+        let (client_write, _server_read) = tokio::io::duplex(64);
+        let (_server_write, client_read) = tokio::io::duplex(64);
+        let client = Client::from_transport(
+            client_read,
+            client_write,
+            Some(child),
+            temp.path().to_path_buf(),
+            None,
+            false,
+            false,
+            None,
+            None,
+            None,
+            ClientMode::default(),
+        )
+        .unwrap();
+
+        wait_for_test_child(&ready).await;
+        drop(client);
+
+        assert_test_child_killed(&survived).await;
+    }
+
+    #[cfg(any(unix, windows))]
+    #[tokio::test]
+    async fn spawned_child_is_killed_when_dropped() {
+        let temp = tempfile::tempdir().unwrap();
+        let ready = temp.path().join("ready");
+        let survived = temp.path().join("survived");
+        let child = test_child_command(temp.path(), &ready, &survived)
+            .spawn()
+            .unwrap();
+
+        wait_for_test_child(&ready).await;
+        drop(child);
+
+        assert_test_child_killed(&survived).await;
+    }
+
+    #[cfg(any(unix, windows))]
+    fn test_child_command(temp: &Path, ready: &Path, survived: &Path) -> Command {
+        #[cfg(unix)]
+        let mut command = {
+            let mut command =
+                Client::build_command(Path::new("sh"), &ClientOptions::default(), temp);
+            command.args([
+                "-c",
+                "printf ready > \"$READY\"; sleep 1; printf survived > \"$SURVIVED\"",
+            ]);
+            command
+        };
+        #[cfg(windows)]
+        let mut command = {
+            let mut command =
+                Client::build_command(Path::new("powershell.exe"), &ClientOptions::default(), temp);
+            command.args([
+                "-NoLogo",
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                "Set-Content -LiteralPath $env:READY ready; Start-Sleep -Seconds 1; Set-Content -LiteralPath $env:SURVIVED survived",
+            ]);
+            command
+        };
+        command.env("READY", ready).env("SURVIVED", survived);
+        command
+    }
+
+    #[cfg(any(unix, windows))]
+    async fn wait_for_test_child(ready: &Path) {
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(30);
+        while !ready.exists() {
+            assert!(
+                tokio::time::Instant::now() < deadline,
+                "child did not report readiness"
+            );
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    }
+
+    #[cfg(any(unix, windows))]
+    async fn assert_test_child_killed(survived: &Path) {
+        tokio::time::sleep(Duration::from_millis(1500)).await;
+
+        assert!(
+            !survived.exists(),
+            "child survived after its owner was dropped"
+        );
+    }
+
     fn client_with_list_models_handler(handler: Arc<dyn ListModelsHandler>) -> Client {
         Client {
             inner: Arc::new(ClientInner {
@@ -3232,6 +3424,7 @@ mod tests {
                 request_rx: parking_lot::Mutex::new(None),
                 notification_tx: broadcast::channel(16).0,
                 router: router::SessionRouter::new(),
+                github_token_registry: Arc::new(github_token::GitHubTokenRegistry::new()),
                 negotiated_protocol_version: OnceLock::new(),
                 state: parking_lot::Mutex::new(ConnectionState::Connected),
                 lifecycle_tx: broadcast::channel(16).0,

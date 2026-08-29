@@ -117,6 +117,7 @@ public final class CopilotClient implements AutoCloseable {
     private final CliServerManager serverManager;
     private final LifecycleEventManager lifecycleManager = new LifecycleEventManager();
     private final Map<String, CopilotSession> sessions = new ConcurrentHashMap<>();
+    private final GitHubTokenProviderRegistry gitHubTokenProviders = new GitHubTokenProviderRegistry();
     private volatile CompletableFuture<Connection> connectionFuture;
     private volatile boolean disposed = false;
     private final String optionsHost;
@@ -534,11 +535,10 @@ public final class CopilotClient implements AutoCloseable {
 
     private Connection startCoreBody() {
         Process process = null;
+        JsonRpcClient rpc = null;
         InProcessTransport inProcessTransport = null;
         long startNanos = System.nanoTime();
         try {
-            JsonRpcClient rpc;
-
             if (runtimeConnection instanceof InProcessRuntimeConnection) {
                 // In-process runtime hosted in this process (no child process)
                 inProcessTransport = inProcessTransportFactory.open(options);
@@ -557,12 +557,14 @@ public final class CopilotClient implements AutoCloseable {
             LoggingHelpers.logTiming(LOG, Level.FINE, "CopilotClient.start transport setup complete. Elapsed={Elapsed}",
                     startNanos);
 
-            Connection connection = new Connection(rpc, process, new ServerRpc(rpc::invoke),
+            JsonRpcClient connectedRpc = rpc;
+            Connection connection = new Connection(connectedRpc, process, new ServerRpc(connectedRpc::invoke),
                     inProcessTransport == null ? null : inProcessTransport.host());
 
             // Register handlers for server-to-client calls
-            RpcHandlerDispatcher dispatcher = new RpcHandlerDispatcher(sessions, lifecycleManager::dispatch, executor);
-            dispatcher.registerHandlers(rpc);
+            RpcHandlerDispatcher dispatcher = new RpcHandlerDispatcher(sessions, lifecycleManager::dispatch, executor,
+                    gitHubTokenProviders);
+            dispatcher.registerHandlers(connectedRpc);
 
             // Register the LLM inference request handler when configured.
             com.github.copilot.CopilotRequestHandler requestHandler = this.options.getRequestHandler();
@@ -570,7 +572,7 @@ public final class CopilotClient implements AutoCloseable {
             if (hasLlmInference) {
                 LlmInferenceAdapter llmAdapter = new LlmInferenceAdapter(requestHandler,
                         () -> connection.serverRpc().llmInference, executor);
-                llmAdapter.registerHandlers(rpc);
+                llmAdapter.registerHandlers(connectedRpc);
             }
 
             // Register the GitHub telemetry forwarding handler when configured.
@@ -578,13 +580,22 @@ public final class CopilotClient implements AutoCloseable {
                     .getOnGitHubTelemetry();
             if (onGitHubTelemetry != null) {
                 GitHubTelemetryAdapter telemetryAdapter = new GitHubTelemetryAdapter(onGitHubTelemetry);
-                telemetryAdapter.registerHandlers(rpc);
+                telemetryAdapter.registerHandlers(connectedRpc);
             }
 
             // Verify protocol version
             verifyProtocolVersion(connection);
             LoggingHelpers.logTiming(LOG, Level.FINE,
                     "CopilotClient.start protocol verification complete. Elapsed={Elapsed}", startNanos);
+
+            var builtinPluginDirectories = options.getBuiltinPluginDirectories();
+            if (builtinPluginDirectories != null && !builtinPluginDirectories.isEmpty()) {
+                var paths = new ArrayList<String>(builtinPluginDirectories.size());
+                for (var path : builtinPluginDirectories) {
+                    paths.add(path.toString());
+                }
+                connection.rpc.invoke("plugins.builtin.set", Map.of("paths", paths), Void.class).join();
+            }
 
             // Register as the runtime's LLM inference provider once connected.
             if (hasLlmInference) {
@@ -601,6 +612,13 @@ public final class CopilotClient implements AutoCloseable {
             // Clean up the spawned process if connection setup failed
             if (process != null) {
                 cleanupCliProcess(process, true);
+            }
+            if (rpc != null) {
+                try {
+                    rpc.close();
+                } catch (Exception closeError) {
+                    LOG.log(Level.FINE, "Error closing RPC after failed startup", closeError);
+                }
             }
             if (inProcessTransport != null) {
                 closeRuntimeHost(inProcessTransport.host());
@@ -714,6 +732,7 @@ public final class CopilotClient implements AutoCloseable {
             closeFutures.add(future);
         }
         sessions.clear();
+        gitHubTokenProviders.clear();
 
         return CompletableFuture.allOf(closeFutures.toArray(new CompletableFuture[0]))
                 .thenCompose(v -> cleanupConnection(true));
@@ -727,6 +746,7 @@ public final class CopilotClient implements AutoCloseable {
     public CompletableFuture<Void> forceStop() {
         disposed = true;
         sessions.clear();
+        gitHubTokenProviders.clear();
         // Dispatch the blocking shutdownOwnedExecutor() on a dedicated thread:
         // cleanupConnection() is chained off async work running on the owned
         // executor, so a plain whenComplete(...) here could land the awaitTermination
@@ -860,6 +880,10 @@ public final class CopilotClient implements AutoCloseable {
                             + "For example, to allow all permissions, use: "
                             + "new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)"));
         }
+        if (config.getGitHubToken() != null && config.getGitHubTokenProvider() != null) {
+            return CompletableFuture.failedFuture(
+                    new IllegalArgumentException("gitHubToken and gitHubTokenProvider are mutually exclusive"));
+        }
         return ensureConnected().thenCompose(connection -> {
             long totalNanos = System.nanoTime();
             // For cloud sessions, let the CLI/server assign the session id
@@ -965,6 +989,16 @@ public final class CopilotClient implements AutoCloseable {
                 }
             }
 
+            GitHubTokenProviderRegistry.Registration tokenRegistration = config.getGitHubTokenProvider() == null
+                    ? null
+                    : gitHubTokenProviders.register(config.getGitHubTokenProvider());
+            if (tokenRegistration != null) {
+                request.setGitHubTokenProviderRegistrationId(tokenRegistration.id());
+                if (preRegisteredSessionHolder[0] != null) {
+                    preRegisteredSessionHolder[0].setGitHubTokenProviderRegistration(tokenRegistration);
+                }
+            }
+
             long rpcNanos = System.nanoTime();
             return connection.rpc.invoke("session.create", request, CreateSessionResponse.class)
                     .thenCompose(response -> {
@@ -983,6 +1017,9 @@ public final class CopilotClient implements AutoCloseable {
                         CopilotSession session = preRegisteredSessionHolder[0] != null
                                 ? preRegisteredSessionHolder[0]
                                 : initializeSession.apply(returnedId);
+                        if (tokenRegistration != null) {
+                            session.setGitHubTokenProviderRegistration(tokenRegistration);
+                        }
                         registeredIdHolder[0] = returnedId;
                         CompletableFuture<?> interest = config.getOnMcpAuthRequest() != null
                                 ? session.getRpc().eventLog.registerInterest(
@@ -997,8 +1034,13 @@ public final class CopilotClient implements AutoCloseable {
                             return updateSessionOptionsForMode(session, config.getSkipCustomInstructions().orElse(null),
                                     config.getCustomAgentsLocalOnly().orElse(null),
                                     config.getCoauthorEnabled().orElse(null),
-                                    config.getManageScheduleEnabled().orElse(null));
+                                    config.getManageScheduleEnabled().orElse(null), config.getIncludedBuiltinSkills());
                         }).thenApply(v -> {
+                            if (tokenRegistration != null) {
+                                tokenRegistration.claim(session.getSessionId());
+                            } else {
+                                gitHubTokenProviders.retire(session.getSessionId());
+                            }
                             LoggingHelpers.logTiming(LOG, Level.FINE,
                                     "CopilotClient.createSession complete. Elapsed={Elapsed}, SessionId="
                                             + session.getSessionId(),
@@ -1008,6 +1050,9 @@ public final class CopilotClient implements AutoCloseable {
                     }).exceptionally(ex -> {
                         if (registeredIdHolder[0] != null) {
                             sessions.remove(registeredIdHolder[0]);
+                        }
+                        if (tokenRegistration != null) {
+                            tokenRegistration.close();
                         }
                         LoggingHelpers.logTiming(LOG, Level.WARNING, ex,
                                 "CopilotClient.createSession failed. Elapsed={Elapsed}, SessionId="
@@ -1056,10 +1101,15 @@ public final class CopilotClient implements AutoCloseable {
                             + "For example, to allow all permissions, use: "
                             + "new ResumeSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)"));
         }
+        if (config.getGitHubToken() != null && config.getGitHubTokenProvider() != null) {
+            return CompletableFuture.failedFuture(
+                    new IllegalArgumentException("gitHubToken and gitHubTokenProvider are mutually exclusive"));
+        }
         return ensureConnected().thenCompose(connection -> {
             long totalNanos = System.nanoTime();
             // Register the session before the RPC call to avoid missing early events.
             long setupNanos = System.nanoTime();
+            CopilotSession replacedSession = sessions.get(sessionId);
             var session = new CopilotSession(sessionId, connection.rpc);
             session.setExecutor(executor);
             SessionRequestBuilder.configureSession(session, config);
@@ -1124,6 +1174,14 @@ public final class CopilotClient implements AutoCloseable {
                 }
             }
 
+            GitHubTokenProviderRegistry.Registration tokenRegistration = config.getGitHubTokenProvider() == null
+                    ? null
+                    : gitHubTokenProviders.register(config.getGitHubTokenProvider());
+            if (tokenRegistration != null) {
+                request.setGitHubTokenProviderRegistrationId(tokenRegistration.id());
+                session.setGitHubTokenProviderRegistration(tokenRegistration);
+            }
+
             long rpcNanos = System.nanoTime();
             return connection.rpc.invoke("session.resume", request, ResumeSessionResponse.class)
                     .thenCompose(response -> {
@@ -1153,15 +1211,20 @@ public final class CopilotClient implements AutoCloseable {
                             session.setActiveSessionId(returnedId);
                             sessions.put(returnedId, session);
                         }
-
                         return updateSessionOptionsForMode(session, config.getSkipCustomInstructions().orElse(null),
                                 config.getCustomAgentsLocalOnly().orElse(null),
                                 config.getCoauthorEnabled().orElse(null),
-                                config.getManageScheduleEnabled().orElse(null)).thenApply(v -> {
+                                config.getManageScheduleEnabled().orElse(null), config.getIncludedBuiltinSkills())
+                                .thenApply(v -> {
                                     LoggingHelpers.logTiming(LOG, Level.FINE,
                                             "CopilotClient.resumeSession complete. Elapsed={Elapsed}, SessionId="
                                                     + sessionId,
                                             totalNanos);
+                                    if (tokenRegistration != null) {
+                                        tokenRegistration.claim(session.getSessionId());
+                                    } else {
+                                        gitHubTokenProviders.retire(session.getSessionId());
+                                    }
                                     return session;
                                 });
                     }).exceptionally(ex -> {
@@ -1171,6 +1234,12 @@ public final class CopilotClient implements AutoCloseable {
                         if (!sessionId.equals(activeId)) {
                             sessions.remove(activeId);
                         }
+                        if (replacedSession != null) {
+                            sessions.putIfAbsent(sessionId, replacedSession);
+                        }
+                        if (tokenRegistration != null) {
+                            tokenRegistration.close();
+                        }
                         LoggingHelpers.logTiming(LOG, Level.WARNING, ex,
                                 "CopilotClient.resumeSession failed. Elapsed={Elapsed}, SessionId=" + sessionId,
                                 totalNanos);
@@ -1179,14 +1248,22 @@ public final class CopilotClient implements AutoCloseable {
         });
     }
 
+    CompletableFuture<Void> updateSessionOptionsForMode(CopilotSession session, Boolean skipCustomInstructions,
+            Boolean customAgentsLocalOnly, Boolean coauthorEnabled, Boolean manageScheduleEnabled) {
+        return updateSessionOptionsForMode(session, skipCustomInstructions, customAgentsLocalOnly, coauthorEnabled,
+                manageScheduleEnabled, null);
+    }
+
     /**
      * Applies the post-create / post-resume {@code session.options.update} patch.
      * <p>
      * In {@link CopilotClientMode#EMPTY EMPTY} mode this defaults the four
      * overridable feature flags to safe values (caller values from the config win);
-     * {@code installedPlugins=[]} is unconditional under empty mode so apps that
-     * need plugins must switch modes. In {@link CopilotClientMode#COPILOT_CLI
-     * COPILOT_CLI} mode only explicitly-set fields are forwarded.
+     * {@code installedPlugins=[]} is unconditional under empty mode.
+     * {@code includedBuiltinSkills} defaults to an empty list, but callers can
+     * explicitly allow selected runtime-bundled skills. In
+     * {@link CopilotClientMode#COPILOT_CLI COPILOT_CLI} mode only explicitly-set
+     * fields are forwarded.
      *
      * @param session
      *            the session to patch
@@ -1198,16 +1275,21 @@ public final class CopilotClient implements AutoCloseable {
      *            caller-supplied value, or {@code null} if not set
      * @param manageScheduleEnabled
      *            caller-supplied value, or {@code null} if not set
+     * @param includedBuiltinSkills
+     *            caller-supplied built-in skill allowlist, or {@code null} if not
+     *            set
      * @return a future that completes when the patch has been applied
      */
     CompletableFuture<Void> updateSessionOptionsForMode(CopilotSession session, Boolean skipCustomInstructions,
-            Boolean customAgentsLocalOnly, Boolean coauthorEnabled, Boolean manageScheduleEnabled) {
+            Boolean customAgentsLocalOnly, Boolean coauthorEnabled, Boolean manageScheduleEnabled,
+            List<String> includedBuiltinSkills) {
 
         Boolean patchSkip = null;
         Boolean patchAgents = null;
         Boolean patchCoauthor = null;
         Boolean patchSchedule = null;
         List<SessionInstalledPlugin> patchPlugins = null;
+        List<String> patchSkills = null;
         boolean hasAnyPatch = false;
 
         if (options.getMode() == CopilotClientMode.EMPTY) {
@@ -1216,6 +1298,7 @@ public final class CopilotClient implements AutoCloseable {
             patchCoauthor = coauthorEnabled != null ? coauthorEnabled : false;
             patchSchedule = manageScheduleEnabled != null ? manageScheduleEnabled : false;
             patchPlugins = List.of();
+            patchSkills = includedBuiltinSkills != null ? includedBuiltinSkills : List.of();
             hasAnyPatch = true;
         } else {
             if (skipCustomInstructions != null) {
@@ -1232,6 +1315,10 @@ public final class CopilotClient implements AutoCloseable {
             }
             if (manageScheduleEnabled != null) {
                 patchSchedule = manageScheduleEnabled;
+                hasAnyPatch = true;
+            }
+            if (includedBuiltinSkills != null) {
+                patchSkills = includedBuiltinSkills;
                 hasAnyPatch = true;
             }
         }
@@ -1264,10 +1351,12 @@ public final class CopilotClient implements AutoCloseable {
                 null, // shellInitProfile
                 null, // shellProcessFlags
                 null, // sandboxConfig
+                null, // sandboxConfigSource
                 null, // logInteractiveShells
                 null, // envValueMode
                 null, // allowAllMcpServerInstructions
                 null, // skillDirectories
+                patchSkills, // includedBuiltinSkills
                 null, // disabledSkills
                 null, // enableOnDemandInstructionDiscovery
                 null, // maxInlineBinaryBytes
@@ -1490,7 +1579,10 @@ public final class CopilotClient implements AutoCloseable {
                     if (!response.success()) {
                         throw new RuntimeException("Failed to delete session " + sessionId + ": " + response.error());
                     }
-                    sessions.remove(sessionId);
+                    CopilotSession session = sessions.remove(sessionId);
+                    if (session != null) {
+                        session.releaseGitHubTokenProviderRegistration();
+                    }
                 }));
     }
 

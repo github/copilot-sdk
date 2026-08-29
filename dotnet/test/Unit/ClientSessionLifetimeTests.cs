@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 #if NET8_0_OR_GREATER
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
 using System.Diagnostics;
@@ -18,6 +19,192 @@ namespace GitHub.Copilot.Test.Unit;
 public sealed class ClientSessionLifetimeTests
 {
     private sealed record RpcRequestRecord(string Method, JsonElement Params);
+
+    [Theory]
+    [InlineData("static")]
+    [InlineData("")]
+    public async Task GitHubTokenProvider_Is_Mutually_Exclusive_With_Static_Token(string staticToken)
+    {
+        await using var client = new CopilotClient();
+        var config = new SessionConfig
+        {
+            GitHubToken = staticToken,
+            GitHubTokenProvider = _ => Task.FromResult(GitHubTokenProviderResult.Cancel())
+        };
+
+        var error = await Assert.ThrowsAsync<ArgumentException>(() => client.CreateSessionAsync(config));
+
+        Assert.Contains("cannot be used together", error.Message);
+    }
+
+    [Fact]
+    public async Task GitHubTokenProvider_Is_Released_When_Session_Is_Deleted()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            GitHubTokenProvider = _ => Task.FromResult(GitHubTokenProviderResult.Cancel())
+        });
+        var registrationId = Assert.Single(server.Requests, request => request.Method == "session.create")
+            .Params.GetProperty("gitHubTokenProviderRegistrationId").GetString();
+
+        await client.DeleteSessionAsync(session.SessionId);
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            server.SendRequestAsync("gitHubToken.getToken", TokenRequest(registrationId)));
+        Assert.Contains("Unknown GitHub token provider registration ID", error.Message);
+        await session.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task GitHubTokenProvider_Is_Serialized_And_Maps_Callbacks()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        GitHubTokenProviderArgs? callbackArgs = null;
+        var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            GitHubTokenProvider = args =>
+            {
+                callbackArgs = args;
+                return Task.FromResult(GitHubTokenProviderResult.FromToken(new GitHubToken
+                {
+                    AccessToken = "secret-token",
+                    TokenType = "bearer",
+                    ExpiresIn = 8 * 60 * 60
+                }));
+            }
+        });
+        var request = Assert.Single(server.Requests, request => request.Method == "session.create");
+        var registrationId = request.Params.GetProperty("gitHubTokenProviderRegistrationId").GetString();
+        Assert.False(string.IsNullOrEmpty(registrationId));
+        Assert.False(request.Params.TryGetProperty("gitHubToken", out _));
+
+        var result = await server.SendRequestAsync("gitHubToken.getToken", new Dictionary<string, object?>
+        {
+            ["registrationId"] = registrationId,
+            ["host"] = "github.example.com",
+            ["sessionId"] = session.SessionId,
+            ["reason"] = "refresh"
+        });
+
+        Assert.True(result.TryGetProperty("kind", out var kind), result.ToString());
+        Assert.Equal("token", kind.GetString());
+        Assert.Equal("secret-token", result.GetProperty("accessToken").GetString());
+        Assert.Equal(8 * 60 * 60, result.GetProperty("expiresIn").GetInt64());
+        Assert.NotNull(callbackArgs);
+        Assert.Equal("github.example.com", callbackArgs.Host);
+        Assert.Equal(session.SessionId, callbackArgs.SessionId);
+        Assert.Equal(GitHubTokenRequestReason.Refresh, callbackArgs.Reason);
+        Assert.DoesNotContain("secret-token", new GitHubToken
+        {
+            AccessToken = "secret-token",
+            ExpiresIn = 8 * 60 * 60
+        }.ToString());
+
+        await session.DisposeAsync();
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            server.SendRequestAsync("gitHubToken.getToken", new Dictionary<string, object?>
+            {
+                ["registrationId"] = registrationId,
+                ["host"] = "github.com",
+                ["reason"] = "initial"
+            }));
+        Assert.Contains("Unknown GitHub token provider registration ID", error.Message);
+
+        server.ClearRequests();
+        var resumed = await client.ResumeSessionAsync("resumed-session", new ResumeSessionConfig
+        {
+            GitHubTokenProvider = _ => Task.FromResult(GitHubTokenProviderResult.Cancel())
+        });
+        var resumeRequest = Assert.Single(server.Requests, request => request.Method == "session.resume");
+        Assert.False(string.IsNullOrEmpty(
+            resumeRequest.Params.GetProperty("gitHubTokenProviderRegistrationId").GetString()));
+        await resumed.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task GitHubTokenProvider_Handles_Cancellation_Errors_And_Rollback()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        var cancelledSession = await client.CreateSessionAsync(new SessionConfig
+        {
+            GitHubTokenProvider = _ => Task.FromResult(GitHubTokenProviderResult.Cancel())
+        });
+        var cancelledId = Assert.Single(server.Requests, request => request.Method == "session.create")
+            .Params.GetProperty("gitHubTokenProviderRegistrationId").GetString();
+        var cancelled = await server.SendRequestAsync("gitHubToken.getToken", TokenRequest(cancelledId));
+        Assert.True(cancelled.TryGetProperty("kind", out var cancelledKind), cancelled.ToString());
+        Assert.Equal("cancelled", cancelledKind.GetString());
+        await cancelledSession.DisposeAsync();
+
+        server.ClearRequests();
+        var providerSession = await client.CreateSessionAsync(new SessionConfig
+        {
+            GitHubTokenProvider = _ => Task.FromException<GitHubTokenProviderResult>(
+                new InvalidOperationException("provider failed"))
+        });
+        var providerId = Assert.Single(server.Requests, request => request.Method == "session.create")
+            .Params.GetProperty("gitHubTokenProviderRegistrationId").GetString();
+        var callbackError = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            server.SendRequestAsync("gitHubToken.getToken", TokenRequest(providerId)));
+        Assert.Contains("provider failed", callbackError.Message);
+        await providerSession.DisposeAsync();
+
+        server.ClearRequests();
+        server.FailSessionCreate();
+        await Assert.ThrowsAsync<IOException>(() => client.CreateSessionAsync(new SessionConfig
+        {
+            GitHubTokenProvider = _ => Task.FromResult(GitHubTokenProviderResult.Cancel())
+        }));
+        var rolledBackId = Assert.Single(server.Requests, request => request.Method == "session.create")
+            .Params.GetProperty("gitHubTokenProviderRegistrationId").GetString();
+        var rollbackError = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            server.SendRequestAsync("gitHubToken.getToken", TokenRequest(rolledBackId)));
+        Assert.Contains("Unknown GitHub token provider registration ID", rollbackError.Message);
+    }
+
+    [Fact]
+    public async Task GitHubTokenProvider_Resume_Replaces_Ownership()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        var first = await client.CreateSessionAsync(new SessionConfig
+        {
+            SessionId = "replacement-session",
+            GitHubTokenProvider = _ => Task.FromResult(GitHubTokenProviderResult.Cancel())
+        });
+        var firstId = Assert.Single(server.Requests, request => request.Method == "session.create")
+            .Params.GetProperty("gitHubTokenProviderRegistrationId").GetString();
+
+        await first.DisposeAsync();
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            server.SendRequestAsync("gitHubToken.getToken", TokenRequest(firstId)));
+
+        server.ClearRequests();
+        var resumed = await client.ResumeSessionAsync("replacement-session", new ResumeSessionConfig
+        {
+            GitHubTokenProvider = _ => Task.FromResult(GitHubTokenProviderResult.Cancel())
+        });
+        var secondId = Assert.Single(server.Requests, request => request.Method == "session.resume")
+            .Params.GetProperty("gitHubTokenProviderRegistrationId").GetString();
+
+        var result = await server.SendRequestAsync("gitHubToken.getToken", TokenRequest(secondId));
+        Assert.Equal("cancelled", result.GetProperty("kind").GetString());
+
+        await resumed.DisposeAsync();
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            server.SendRequestAsync("gitHubToken.getToken", TokenRequest(secondId)));
+    }
+
+    private static Dictionary<string, object?> TokenRequest(string? registrationId) => new()
+    {
+        ["registrationId"] = registrationId,
+        ["host"] = "github.com",
+        ["reason"] = "initial"
+    };
 
     [Fact]
     public async Task StopAsync_Requests_Runtime_Shutdown_For_Owned_Process()
@@ -343,6 +530,146 @@ public sealed class ClientSessionLifetimeTests
     }
 
     [Fact]
+    public async Task EmptyMode_Create_Sends_Empty_IncludedBuiltinSkills()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions
+        {
+            Connection = RuntimeConnection.ForUri(server.Url),
+            Mode = CopilotClientMode.Empty,
+            BaseDirectory = Path.GetTempPath(),
+        });
+
+        await using var created = await client.CreateSessionAsync(new SessionConfig
+        {
+            AvailableTools = [],
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        var update = Assert.Single(server.Requests, request => request.Method == "session.options.update");
+        Assert.True(update.Params.TryGetProperty("includedBuiltinSkills", out var skills));
+        Assert.Equal(JsonValueKind.Array, skills.ValueKind);
+        Assert.Equal(0, skills.GetArrayLength());
+        // Adjacent unconditional plugin isolation is still present.
+        Assert.True(update.Params.TryGetProperty("installedPlugins", out var plugins));
+        Assert.Equal(0, plugins.GetArrayLength());
+    }
+
+    [Fact]
+    public async Task EmptyMode_Resume_Sends_Empty_IncludedBuiltinSkills()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions
+        {
+            Connection = RuntimeConnection.ForUri(server.Url),
+            Mode = CopilotClientMode.Empty,
+            BaseDirectory = Path.GetTempPath(),
+        });
+
+        await using var resumed = await client.ResumeSessionAsync("resume-empty-skills", new ResumeSessionConfig
+        {
+            AvailableTools = [],
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        var update = Assert.Single(server.Requests, request => request.Method == "session.options.update");
+        Assert.True(update.Params.TryGetProperty("includedBuiltinSkills", out var skills));
+        Assert.Equal(JsonValueKind.Array, skills.ValueKind);
+        Assert.Equal(0, skills.GetArrayLength());
+    }
+
+    [Fact]
+    public async Task EmptyMode_Resume_Preserves_Explicit_IncludedBuiltinSkills()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions
+        {
+            Connection = RuntimeConnection.ForUri(server.Url),
+            Mode = CopilotClientMode.Empty,
+            BaseDirectory = Path.GetTempPath(),
+        });
+
+        await using var resumed = await client.ResumeSessionAsync("resume-selected-skills", new ResumeSessionConfig
+        {
+            AvailableTools = [],
+            IncludedBuiltinSkills = ["code-review"],
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        var update = Assert.Single(server.Requests, request => request.Method == "session.options.update");
+        var skills = update.Params.GetProperty("includedBuiltinSkills");
+        Assert.Equal(["code-review"], skills.EnumerateArray().Select(value => value.GetString()));
+    }
+
+    [Fact]
+    public async Task EmptyMode_Create_With_EnableSkills_Still_Sends_Empty_IncludedBuiltinSkills()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions
+        {
+            Connection = RuntimeConnection.ForUri(server.Url),
+            Mode = CopilotClientMode.Empty,
+            BaseDirectory = Path.GetTempPath(),
+        });
+
+        // Caller opts into their own custom skills. Runtime-bundled built-ins must
+        // still be excluded: the empty post-patch cannot be weakened by the caller.
+        await using var created = await client.CreateSessionAsync(new SessionConfig
+        {
+            AvailableTools = [],
+            EnableSkills = true,
+            SkillDirectories = [Path.Combine(Path.GetTempPath(), "skills")],
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        var update = Assert.Single(server.Requests, request => request.Method == "session.options.update");
+        Assert.True(update.Params.TryGetProperty("includedBuiltinSkills", out var skills));
+        Assert.Equal(JsonValueKind.Array, skills.ValueKind);
+        Assert.Equal(0, skills.GetArrayLength());
+    }
+
+    [Fact]
+    public async Task EmptyMode_Create_Preserves_Explicit_IncludedBuiltinSkills()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions
+        {
+            Connection = RuntimeConnection.ForUri(server.Url),
+            Mode = CopilotClientMode.Empty,
+            BaseDirectory = Path.GetTempPath(),
+        });
+
+        await using var created = await client.CreateSessionAsync(new SessionConfig
+        {
+            AvailableTools = [],
+            IncludedBuiltinSkills = ["code-review"],
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        var update = Assert.Single(server.Requests, request => request.Method == "session.options.update");
+        var skills = update.Params.GetProperty("includedBuiltinSkills");
+        Assert.Equal(["code-review"], skills.EnumerateArray().Select(value => value.GetString()));
+    }
+
+    [Fact]
+    public async Task CopilotCliMode_Create_Does_Not_Inject_IncludedBuiltinSkills()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+
+        await using var created = await client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        // In the default copilot-cli mode with no overridable options set, no
+        // options patch is sent at all, so the field is never injected.
+        Assert.DoesNotContain(server.Requests, request =>
+            request.Method == "session.options.update"
+            && request.Params.TryGetProperty("includedBuiltinSkills", out _));
+    }
+
+    [Fact]
     public async Task CreateSessionAsync_Registers_McpAuth_Interest_Only_When_Handler_Configured()
     {
         await using var server = await FakeCopilotServer.StartAsync();
@@ -502,6 +829,66 @@ public sealed class ClientSessionLifetimeTests
         await Assert.ThrowsAsync<ObjectDisposedException>(() => session.Rpc.Model.GetCurrentAsync());
     }
 
+    [Fact]
+    public async Task SendAndWaitAsync_Skips_Autopilot_Continuation_Idle()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        var sendTask = session.SendAndWaitAsync(new MessageOptions { Prompt = "keep going" });
+        await WaitForRequestAsync(server, "session.send");
+
+        var continuationIdleProcessed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var subscription = session.On<SessionIdleEvent>(idle =>
+        {
+            if (idle.Data.Mode == SessionMode.Autopilot)
+            {
+                continuationIdleProcessed.TrySetResult();
+            }
+        });
+
+        DispatchEvent(session, new AssistantMessageEvent
+        {
+            Id = Guid.NewGuid(),
+            Data = new AssistantMessageData
+            {
+                Content = "intermediate",
+                MessageId = "assistant-1"
+            }
+        });
+        DispatchEvent(session, new SessionIdleEvent
+        {
+            Id = Guid.NewGuid(),
+            Data = new SessionIdleData { Mode = SessionMode.Autopilot }
+        });
+
+        await continuationIdleProcessed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.False(sendTask.IsCompleted);
+
+        DispatchEvent(session, new AssistantMessageEvent
+        {
+            Id = Guid.NewGuid(),
+            Data = new AssistantMessageData
+            {
+                Content = "final",
+                MessageId = "assistant-2"
+            }
+        });
+        DispatchEvent(session, new SessionIdleEvent
+        {
+            Id = Guid.NewGuid(),
+            Data = new SessionIdleData { Mode = SessionMode.Interactive }
+        });
+
+        var result = await sendTask.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.NotNull(result);
+        Assert.Equal("final", result.Data.Content);
+    }
+
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static async Task<WeakReference<CopilotSession>> CreateDroppedSessionAsync(CopilotClient client)
     {
@@ -552,7 +939,7 @@ public sealed class ClientSessionLifetimeTests
             {
                 Permissions = new ManagedSettingsPermissions
                 {
-                    DisableBypassPermissionsMode = DisableBypassPermissionsMode.Disable,
+                    DisableBypassPermissionsMode = DisableBypassPermissionsModes.Disable,
                     Deny = ["shell(rm*)"],
                     Ask = ["write"],
                     Allow = []
@@ -583,6 +970,234 @@ public sealed class ClientSessionLifetimeTests
         });
         var invocation = await permissionInvocation.Task.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.True(invocation.ManagedSettingsEnabled);
+    }
+
+    [Fact]
+    public async Task CreateSessionAsync_Serializes_Future_ManagedSettings_Bypass_Mode()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await client.StartAsync();
+
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            ManagedSettings = new ManagedSettings
+            {
+                Permissions = new ManagedSettingsPermissions
+                {
+                    DisableBypassPermissionsMode = "future-fail-closed-mode"
+                }
+            },
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        var request = Assert.Single(server.Requests, request => request.Method == "session.create");
+        var permissions = request.Params.GetProperty("managedSettings").GetProperty("permissions");
+        Assert.Equal(
+            "future-fail-closed-mode",
+            permissions.GetProperty("disableBypassPermissionsMode").GetString());
+    }
+
+    [Fact]
+    public async Task PermissionResponse_Forwards_DecisionContext_As_Sibling_Of_Result()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await client.StartAsync();
+
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = (_, _) => Task.FromResult<PermissionDecision>(
+                new PermissionDecisionApproveOnce
+                {
+                    DecisionContext = new PermissionDecisionContext
+                    {
+                        Outcome = PermissionDecisionOutcome.AutoApproved,
+                        Source = PermissionDecisionSource.HostPolicy,
+                        Surface = PermissionDecisionSurface.Sdk
+                    }
+                })
+        });
+
+        DispatchEvent(session, new PermissionRequestedEvent
+        {
+            Data = new PermissionRequestedData
+            {
+                PermissionRequest = new PermissionRequest { Kind = "read" },
+                RequestId = "req-with-context"
+            }
+        });
+
+        var request = await WaitForRequestAsync(server, "session.permissions.handlePendingPermissionRequest");
+
+        Assert.True(request.Params.TryGetProperty("decisionContext", out var decisionContext));
+        Assert.Equal("auto_approved", decisionContext.GetProperty("outcome").GetString());
+        Assert.Equal("host_policy", decisionContext.GetProperty("source").GetString());
+        Assert.Equal("sdk", decisionContext.GetProperty("surface").GetString());
+
+        var result = request.Params.GetProperty("result");
+        Assert.Equal("approve-once", result.GetProperty("kind").GetString());
+        Assert.False(result.TryGetProperty("decisionContext", out _));
+    }
+
+    [Fact]
+    public async Task PermissionResponse_Omits_DecisionContext_When_Not_Supplied()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await client.StartAsync();
+
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = (_, _) => Task.FromResult(PermissionDecision.ApproveOnce())
+        });
+
+        DispatchEvent(session, new PermissionRequestedEvent
+        {
+            Data = new PermissionRequestedData
+            {
+                PermissionRequest = new PermissionRequest { Kind = "read" },
+                RequestId = "req-no-context"
+            }
+        });
+
+        var request = await WaitForRequestAsync(server, "session.permissions.handlePendingPermissionRequest");
+
+        Assert.False(request.Params.TryGetProperty("decisionContext", out _));
+        var result = request.Params.GetProperty("result");
+        Assert.Equal("approve-once", result.GetProperty("kind").GetString());
+        Assert.False(result.TryGetProperty("decisionContext", out _));
+    }
+
+    [Fact]
+    public async Task PermissionResponse_Uses_Latest_Context_When_Reassigned()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await client.StartAsync();
+
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = (_, _) =>
+            {
+                var decision = new PermissionDecisionApproveOnce
+                {
+                    DecisionContext = new PermissionDecisionContext
+                    {
+                        Outcome = PermissionDecisionOutcome.PromptedUser,
+                        Source = PermissionDecisionSource.HumanResponse,
+                        Surface = PermissionDecisionSurface.Tui
+                    }
+                };
+                decision.DecisionContext = new PermissionDecisionContext
+                {
+                    Outcome = PermissionDecisionOutcome.AutoApproved,
+                    Source = PermissionDecisionSource.HostPolicy,
+                    Surface = PermissionDecisionSurface.Sdk
+                };
+                return Task.FromResult<PermissionDecision>(decision);
+            }
+        });
+
+        DispatchEvent(session, new PermissionRequestedEvent
+        {
+            Data = new PermissionRequestedData
+            {
+                PermissionRequest = new PermissionRequest { Kind = "read" },
+                RequestId = "req-replace-context"
+            }
+        });
+
+        var request = await WaitForRequestAsync(server, "session.permissions.handlePendingPermissionRequest");
+
+        var decisionContext = request.Params.GetProperty("decisionContext");
+        Assert.Equal("auto_approved", decisionContext.GetProperty("outcome").GetString());
+        Assert.Equal("host_policy", decisionContext.GetProperty("source").GetString());
+        Assert.Equal("sdk", decisionContext.GetProperty("surface").GetString());
+    }
+
+    [Fact]
+    public async Task PermissionResponse_Is_Suppressed_For_NoResult_Even_With_Context()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await client.StartAsync();
+
+        var handlerInvoked = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = (_, _) =>
+            {
+                handlerInvoked.TrySetResult();
+                return Task.FromResult<PermissionDecision>(
+                    new PermissionDecisionNoResult
+                    {
+                        DecisionContext = new PermissionDecisionContext
+                        {
+                            Outcome = PermissionDecisionOutcome.PromptedUser,
+                            Source = PermissionDecisionSource.HumanResponse,
+                            Surface = PermissionDecisionSurface.Sdk
+                        }
+                    });
+            }
+        });
+
+        DispatchEvent(session, new PermissionRequestedEvent
+        {
+            Data = new PermissionRequestedData
+            {
+                PermissionRequest = new PermissionRequest { Kind = "read" },
+                RequestId = "req-no-result"
+            }
+        });
+
+        await handlerInvoked.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        // Give the send path a chance to (incorrectly) fire before asserting suppression.
+        await Task.Delay(200);
+
+        Assert.DoesNotContain(server.Requests, request => request.Method == "session.permissions.handlePendingPermissionRequest");
+    }
+
+    [Fact]
+    public async Task PermissionResponse_Never_Nests_DecisionContext_Inside_Result()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await client.StartAsync();
+
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = (_, _) => Task.FromResult<PermissionDecision>(
+                new PermissionDecisionReject
+                {
+                    Feedback = "denied by policy",
+                    DecisionContext = new PermissionDecisionContext
+                    {
+                        Outcome = PermissionDecisionOutcome.AutopilotDenied,
+                        Source = PermissionDecisionSource.HostPolicy,
+                        Surface = PermissionDecisionSurface.Sdk
+                    }
+                })
+        });
+
+        DispatchEvent(session, new PermissionRequestedEvent
+        {
+            Data = new PermissionRequestedData
+            {
+                PermissionRequest = new PermissionRequest { Kind = "read" },
+                RequestId = "req-reject-context"
+            }
+        });
+
+        var request = await WaitForRequestAsync(server, "session.permissions.handlePendingPermissionRequest");
+
+        var result = request.Params.GetProperty("result");
+        Assert.Equal("reject", result.GetProperty("kind").GetString());
+        Assert.Equal("denied by policy", result.GetProperty("feedback").GetString());
+        // The context provenance must never be serialized inside the decision itself.
+        Assert.False(result.TryGetProperty("decisionContext", out _));
+        // It is forwarded as a sibling instead.
+        Assert.True(request.Params.TryGetProperty("decisionContext", out _));
     }
 
     [Fact]
@@ -690,9 +1305,13 @@ public sealed class ClientSessionLifetimeTests
         private readonly Task _serverTask;
         private readonly List<RpcRequestRecord> _requests = [];
         private readonly object _requestsLock = new();
+        private readonly ConcurrentDictionary<int, TaskCompletionSource<JsonElement>> _pendingRequests = new();
+        private NetworkStream? _stream;
+        private int _nextRequestId;
         private string? _lastSessionId;
         private bool _delayDestroy;
         private bool _failRuntimeShutdown;
+        private bool _failSessionCreate;
 
         private FakeCopilotServer(TcpListener listener)
         {
@@ -754,6 +1373,31 @@ public sealed class ClientSessionLifetimeTests
             _failRuntimeShutdown = true;
         }
 
+        public void FailSessionCreate()
+        {
+            _failSessionCreate = true;
+        }
+
+        public async Task<JsonElement> SendRequestAsync(string method, Dictionary<string, object?> parameters)
+        {
+            var stream = _stream ?? throw new InvalidOperationException("Client is not connected.");
+            var id = Interlocked.Increment(ref _nextRequestId);
+            var completion = new TaskCompletionSource<JsonElement>(TaskCreationOptions.RunContinuationsAsynchronously);
+            if (!_pendingRequests.TryAdd(id, completion))
+            {
+                throw new InvalidOperationException("Failed to track callback request.");
+            }
+
+            await WriteMessageAsync(stream, new Dictionary<string, object?>
+            {
+                ["jsonrpc"] = "2.0",
+                ["id"] = id,
+                ["method"] = method,
+                ["params"] = parameters
+            }, _cts.Token);
+            return await completion.Task.WaitAsync(_cts.Token);
+        }
+
         public async ValueTask DisposeAsync()
         {
             _allowDestroy.TrySetResult();
@@ -776,16 +1420,37 @@ public sealed class ClientSessionLifetimeTests
         {
             using var tcpClient = await _listener.AcceptTcpClientAsync(_cts.Token);
             using var stream = tcpClient.GetStream();
+            _stream = stream;
 
             while (!_cts.Token.IsCancellationRequested)
             {
-                using var request = await ReadMessageAsync(stream, _cts.Token);
-                if (request is null)
+                using var message = await ReadMessageAsync(stream, _cts.Token);
+                if (message is null)
                 {
                     return;
                 }
 
-                await HandleRequestAsync(stream, request.RootElement, _cts.Token);
+                var root = message.RootElement;
+                if (root.TryGetProperty("method", out _))
+                {
+                    await HandleRequestAsync(stream, root, _cts.Token);
+                    continue;
+                }
+
+                if (root.TryGetProperty("id", out var responseId)
+                    && responseId.TryGetInt32(out var id)
+                    && _pendingRequests.TryRemove(id, out var completion))
+                {
+                    if (root.TryGetProperty("error", out var error))
+                    {
+                        completion.TrySetException(new InvalidOperationException(
+                            error.GetProperty("message").GetString()));
+                    }
+                    else
+                    {
+                        completion.TrySetResult(root.GetProperty("result").Clone());
+                    }
+                }
             }
         }
 
@@ -821,6 +1486,21 @@ public sealed class ClientSessionLifetimeTests
             {
                 _requests.Add(new RpcRequestRecord(method!, paramsElement));
             }
+            if (method == "session.create" && _failSessionCreate)
+            {
+                _failSessionCreate = false;
+                await WriteMessageAsync(stream, new Dictionary<string, object?>
+                {
+                    ["jsonrpc"] = "2.0",
+                    ["id"] = id,
+                    ["error"] = new Dictionary<string, object?>
+                    {
+                        ["code"] = -32000,
+                        ["message"] = "session create failed"
+                    }
+                }, cancellationToken);
+                return;
+            }
             object? result = method switch
             {
                 "connect" => new Dictionary<string, object?>
@@ -839,7 +1519,15 @@ public sealed class ClientSessionLifetimeTests
                 {
                     ["messageId"] = "message-1"
                 },
+                "session.options.update" => new Dictionary<string, object?>
+                {
+                    ["success"] = true
+                },
                 "session.mcp.oauth.handlePendingRequest" => new Dictionary<string, object?>
+                {
+                    ["success"] = true
+                },
+                "session.permissions.handlePendingPermissionRequest" => new Dictionary<string, object?>
                 {
                     ["success"] = true
                 },

@@ -14,7 +14,7 @@ import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * Credentials to store after successful authentication
+ * Credentials to validate and store. Omit login to resolve the authenticated user from the token.
  *
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
@@ -26,7 +26,7 @@ import javax.annotation.processing.Generated;
 public record AccountLoginParams(
     /** GitHub host URL */
     @JsonProperty("host") String host,
-    /** User login/username */
+    /** User login/username. When omitted, the runtime validates the token and resolves the login from GitHub. */
     @JsonProperty("login") String login,
     /** GitHub authentication token */
     @JsonProperty("token") String token

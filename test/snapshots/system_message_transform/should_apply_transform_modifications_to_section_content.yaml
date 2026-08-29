@@ -26,7 +26,7 @@ conversations:
           task.
       - role: tool
         tool_call_id: toolcall_1
-        content: 1. Hello!
+        content: Hello!
       - role: assistant
         content: |-
           The file **hello.txt** contains:

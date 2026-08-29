@@ -4,11 +4,15 @@
 
 package com.github.copilot.rpc;
 
+import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
@@ -19,8 +23,6 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.github.copilot.CopilotExperimental;
 import com.github.copilot.CopilotRequestHandler;
 import com.github.copilot.generated.rpc.GitHubTelemetryNotification;
-import java.util.Optional;
-import java.util.OptionalInt;
 
 /**
  * Configuration options for creating a
@@ -48,6 +50,7 @@ public class CopilotClientOptions {
     @Deprecated
     private boolean autoRestart;
     private boolean autoStart = true;
+    private List<Path> builtinPluginDirectories;
     private String[] cliArgs;
     private String cliPath;
     private String cliUrl;
@@ -117,6 +120,40 @@ public class CopilotClientOptions {
      */
     public CopilotClientOptions setAutoStart(boolean autoStart) {
         this.autoStart = autoStart;
+        return this;
+    }
+
+    /**
+     * Gets the trusted plugin directories bundled by the host.
+     *
+     * @return a copy of the configured absolute paths, or {@code null}
+     */
+    public List<Path> getBuiltinPluginDirectories() {
+        return builtinPluginDirectories != null ? new ArrayList<>(builtinPluginDirectories) : null;
+    }
+
+    /**
+     * Sets trusted plugin directories bundled by the host. Every path must be
+     * absolute. When non-empty, the complete set is registered during startup
+     * before sessions can be created.
+     *
+     * @param paths
+     *            absolute plugin directory paths, or {@code null}/empty to disable
+     * @return this options instance for method chaining
+     */
+    public CopilotClientOptions setBuiltinPluginDirectories(List<Path> paths) {
+        if (paths == null || paths.isEmpty()) {
+            this.builtinPluginDirectories = null;
+            return this;
+        }
+        for (Path path : paths) {
+            Objects.requireNonNull(path, "builtin plugin directory path must not be null");
+            if (!path.isAbsolute()) {
+                throw new IllegalArgumentException(
+                        "BuiltinPluginDirectories must contain only absolute paths: " + path);
+            }
+        }
+        this.builtinPluginDirectories = new ArrayList<>(paths);
         return this;
     }
 
@@ -785,6 +822,9 @@ public class CopilotClientOptions {
         CopilotClientOptions copy = new CopilotClientOptions();
         copy.autoRestart = this.autoRestart;
         copy.autoStart = this.autoStart;
+        copy.builtinPluginDirectories = this.builtinPluginDirectories != null
+                ? new ArrayList<>(this.builtinPluginDirectories)
+                : null;
         copy.cliArgs = this.cliArgs != null ? this.cliArgs.clone() : null;
         copy.cliPath = this.cliPath;
         copy.cliUrl = this.cliUrl;

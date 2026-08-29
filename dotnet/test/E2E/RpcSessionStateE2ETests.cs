@@ -451,7 +451,7 @@ public class RpcSessionStateE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         });
         var login = $"sdk-rpc-{Guid.NewGuid():N}";
 
-        var setCredentials = await session.Rpc.GitHubAuth.SetCredentialsAsync(new AuthInfoUser
+        var setCredentials = await session.Rpc.GitHubAuth.SetCredentialsAsync(new SettableAuthInfoUser
         {
             CopilotUser = new CopilotUserResponse
             {

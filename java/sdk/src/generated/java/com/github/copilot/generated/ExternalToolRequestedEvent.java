@@ -42,6 +42,8 @@ public final class ExternalToolRequestedEvent extends SessionEvent {
         @JsonProperty("toolCallId") String toolCallId,
         /** Name of the external tool to invoke */
         @JsonProperty("toolName") String toolName,
+        /** Stable provider identity captured with an extension-owned tool definition; hosts use it to route the request to the same provider that was offered to the model */
+        @JsonProperty("providerId") String providerId,
         /** Arguments to pass to the external tool */
         @JsonProperty("arguments") Object arguments,
         /** Active session working directory, when known. */

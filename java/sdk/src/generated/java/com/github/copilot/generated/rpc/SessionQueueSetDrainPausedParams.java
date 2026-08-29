@@ -26,6 +26,7 @@ import javax.annotation.processing.Generated;
 public record SessionQueueSetDrainPausedParams(
     /** Target session identifier */
     @JsonProperty("sessionId") String sessionId,
+    /** Whether queued-lane draining should be paused. */
     @JsonProperty("paused") Boolean paused
 ) {
 }

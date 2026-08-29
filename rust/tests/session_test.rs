@@ -7,10 +7,13 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use github_copilot_sdk::canvas::{CanvasDeclaration, CanvasHandler, CanvasResult};
+use github_copilot_sdk::github_token::{
+    GitHubToken, GitHubTokenProviderArgs, GitHubTokenProviderResult, GitHubTokenRequestReason,
+};
 use github_copilot_sdk::handler::{
     ApproveAllHandler, AutoModeSwitchHandler, AutoModeSwitchResponse, ElicitationHandler,
     ExitPlanModeHandler, ExitPlanModeResult, McpAuthHandler, McpAuthRequest, McpAuthResult,
-    UserInputHandler, UserInputResponse,
+    PermissionHandler, PermissionResult, UserInputHandler, UserInputResponse,
 };
 use github_copilot_sdk::rpc::{
     CanvasProviderInvokeActionRequest, CanvasProviderOpenRequest, CanvasProviderOpenResult,
@@ -22,10 +25,11 @@ use github_copilot_sdk::session_events::{
 };
 use github_copilot_sdk::types::{
     CanvasProviderIdentity, CloudSessionOptions, CloudSessionRepository, CommandContext,
-    CommandDefinition, CommandHandler, DeliveryMode, DisableBypassPermissionsMode,
+    CommandDefinition, CommandHandler, DeliveryMode, DisableBypassPermissionsModes,
     ElicitationRequest, ElicitationResult, ExitPlanModeData, ExtensionInfo, ManagedSettings,
-    ManagedSettingsPermissions, MessageOptions, RequestId, SessionConfig, SessionId,
-    SetModelOptions, Tool, ToolInvocation, ToolResult,
+    ManagedSettingsPermissions, MessageOptions, PermissionDecisionContext,
+    PermissionDecisionOutcome, PermissionDecisionSource, PermissionDecisionSurface, RequestId,
+    SessionConfig, SessionId, SetModelOptions, Tool, ToolInvocation, ToolResult,
 };
 use github_copilot_sdk::{Client, ContextTier, ErrorKind, ProtocolErrorKind, tool};
 use serde_json::Value;
@@ -37,6 +41,25 @@ const TIMEOUT: Duration = Duration::from_secs(2);
 struct TestCanvasHandler;
 
 struct CancelMcpAuthHandler;
+
+struct ContextualApproveHandler;
+
+#[async_trait]
+impl PermissionHandler for ContextualApproveHandler {
+    async fn handle(
+        &self,
+        _session_id: SessionId,
+        _request_id: RequestId,
+        _data: github_copilot_sdk::PermissionRequestData,
+    ) -> PermissionResult {
+        PermissionResult::approve_once().with_context(PermissionDecisionContext {
+            outcome: PermissionDecisionOutcome::PromptedUser,
+            response_capability: None,
+            source: PermissionDecisionSource::HumanResponse,
+            surface: PermissionDecisionSurface::CopilotApp,
+        })
+    }
+}
 
 #[async_trait]
 impl McpAuthHandler for CancelMcpAuthHandler {
@@ -233,6 +256,228 @@ where
 
     let session = timeout(TIMEOUT, create_handle).await.unwrap().unwrap();
     (session, server)
+}
+
+#[tokio::test]
+async fn github_token_provider_uses_global_registration_and_maps_results() {
+    let (client, server_read, server_write) = make_client();
+    let mut server = FakeServer {
+        read: server_read,
+        write: server_write,
+        session_id: "github-token-session".to_string(),
+    };
+    let (args_tx, mut args_rx) = tokio::sync::mpsc::unbounded_channel();
+    let provider = Arc::new(move |args: GitHubTokenProviderArgs| {
+        let args_tx = args_tx.clone();
+        async move {
+            args_tx.send(args.clone()).unwrap();
+            match args.host.as_str() {
+                "github.com" => Ok(GitHubTokenProviderResult::Token(GitHubToken::new(
+                    "secret-token",
+                    8 * 60 * 60,
+                ))),
+                "cancel.example" => Ok(GitHubTokenProviderResult::Cancelled),
+                _ => Err(github_copilot_sdk::Error::with_message(
+                    ErrorKind::GitHubTokenProvider,
+                    "credential service unavailable",
+                )),
+            }
+        }
+    });
+    let create_handle = tokio::spawn({
+        let client = client.clone();
+        async move {
+            client
+                .create_session(
+                    SessionConfig::default()
+                        .with_session_id("github-token-session")
+                        .with_github_token_provider(provider),
+                )
+                .await
+                .unwrap()
+        }
+    });
+
+    let create_request = server.read_request().await;
+    assert_eq!(create_request["method"], "session.create");
+    assert!(create_request["params"].get("gitHubToken").is_none());
+    let registration_id = create_request["params"]["gitHubTokenProviderRegistrationId"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    server
+        .send_request(
+            900,
+            "gitHubToken.getToken",
+            serde_json::json!({
+                "registrationId": registration_id,
+                "host": "github.com",
+                "sessionId": "github-token-session",
+                "reason": "initial"
+            }),
+        )
+        .await;
+    let token_response = server.read_response().await;
+    assert_eq!(token_response["result"]["kind"], "token");
+    assert_eq!(token_response["result"]["accessToken"], "secret-token");
+    assert_eq!(token_response["result"]["expiresIn"], 8 * 60 * 60);
+    let args = args_rx.recv().await.unwrap();
+    assert_eq!(args.host, "github.com");
+    assert_eq!(
+        args.session_id.as_ref().map(SessionId::as_str),
+        Some("github-token-session")
+    );
+    assert_eq!(args.reason, GitHubTokenRequestReason::Initial);
+
+    server
+        .send_request(
+            901,
+            "gitHubToken.getToken",
+            serde_json::json!({
+                "registrationId": registration_id,
+                "host": "cancel.example",
+                "reason": "refresh"
+            }),
+        )
+        .await;
+    let cancelled = server.read_response().await;
+    assert_eq!(cancelled["result"]["kind"], "cancelled");
+
+    server
+        .send_request(
+            902,
+            "gitHubToken.getToken",
+            serde_json::json!({
+                "registrationId": registration_id,
+                "host": "error.example",
+                "reason": "refresh"
+            }),
+        )
+        .await;
+    let provider_error = server.read_response().await;
+    assert_eq!(provider_error["error"]["code"], -32603);
+    assert!(
+        provider_error["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("credential service unavailable")
+    );
+
+    server
+        .respond(
+            &create_request,
+            serde_json::json!({"sessionId": "github-token-session"}),
+        )
+        .await;
+    let session = timeout(TIMEOUT, create_handle).await.unwrap().unwrap();
+
+    let delete_handle = tokio::spawn({
+        let client = client.clone();
+        async move {
+            client
+                .delete_session(&SessionId::new("github-token-session"))
+                .await
+        }
+    });
+    let delete_request = server.read_request().await;
+    assert_eq!(delete_request["method"], "session.delete");
+    server.respond(&delete_request, serde_json::json!({})).await;
+    timeout(TIMEOUT, delete_handle)
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap();
+
+    server
+        .send_request(
+            903,
+            "gitHubToken.getToken",
+            serde_json::json!({
+                "registrationId": registration_id,
+                "host": "github.com",
+                "reason": "refresh"
+            }),
+        )
+        .await;
+    let unknown = server.read_response().await;
+    assert_eq!(unknown["error"]["code"], -32603);
+    assert!(
+        unknown["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("unknown GitHub token provider registration")
+    );
+    drop(session);
+}
+
+#[tokio::test]
+async fn github_token_provider_is_mutually_exclusive_and_rolls_back_failed_create() {
+    let provider = Arc::new(|_args: GitHubTokenProviderArgs| async {
+        Ok(GitHubTokenProviderResult::Cancelled)
+    });
+    let (client, server_read, server_write) = make_client();
+    let result = client
+        .create_session(
+            SessionConfig::default()
+                .with_github_token("static")
+                .with_github_token_provider(provider.clone()),
+        )
+        .await;
+    let Err(error) = result else {
+        panic!("mutually exclusive GitHub credentials must be rejected");
+    };
+    assert!(matches!(error.kind(), ErrorKind::InvalidConfig));
+
+    let mut server = FakeServer {
+        read: server_read,
+        write: server_write,
+        session_id: "failed-create".to_string(),
+    };
+    let create_handle = tokio::spawn({
+        let client = client.clone();
+        async move {
+            client
+                .create_session(
+                    SessionConfig::default()
+                        .with_session_id("failed-create")
+                        .with_github_token_provider(provider),
+                )
+                .await
+        }
+    });
+    let create_request = server.read_request().await;
+    let registration_id = create_request["params"]["gitHubTokenProviderRegistrationId"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let response = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": create_request["id"],
+        "error": {"code": -32603, "message": "create failed"}
+    });
+    write_framed(&mut server.write, &serde_json::to_vec(&response).unwrap()).await;
+    assert!(
+        timeout(TIMEOUT, create_handle)
+            .await
+            .unwrap()
+            .unwrap()
+            .is_err()
+    );
+
+    server
+        .send_request(
+            904,
+            "gitHubToken.getToken",
+            serde_json::json!({
+                "registrationId": registration_id,
+                "host": "github.com",
+                "reason": "initial"
+            }),
+        )
+        .await;
+    let unknown = server.read_response().await;
+    assert_eq!(unknown["error"]["code"], -32603);
 }
 
 fn rand_id() -> u64 {
@@ -769,6 +1014,30 @@ async fn create_session_sends_canvas_wire_fields() {
     timeout(TIMEOUT, create_handle).await.unwrap().unwrap();
 }
 
+#[test]
+fn managed_bypass_permissions_modes_use_wire_values() {
+    let disabled = ManagedSettingsPermissions::default()
+        .with_disable_bypass_permissions_mode(DisableBypassPermissionsModes::DISABLE);
+    assert_eq!(
+        serde_json::to_value(disabled).unwrap()["disableBypassPermissionsMode"],
+        "disable"
+    );
+
+    let known = ManagedSettingsPermissions::default()
+        .with_disable_bypass_permissions_mode(DisableBypassPermissionsModes::ALLOW_AUTO_ONLY);
+    assert_eq!(
+        serde_json::to_value(known).unwrap()["disableBypassPermissionsMode"],
+        "allow-auto-only"
+    );
+
+    let future = ManagedSettingsPermissions::default()
+        .with_disable_bypass_permissions_mode("future-fail-closed-mode");
+    assert_eq!(
+        serde_json::to_value(future).unwrap()["disableBypassPermissionsMode"],
+        "future-fail-closed-mode"
+    );
+}
+
 #[tokio::test]
 async fn create_and_resume_send_managed_settings_permissions() {
     use github_copilot_sdk::types::ResumeSessionConfig;
@@ -777,7 +1046,7 @@ async fn create_and_resume_send_managed_settings_permissions() {
 
     let managed = ManagedSettings::default().with_permissions(
         ManagedSettingsPermissions::default()
-            .with_disable_bypass_permissions_mode(DisableBypassPermissionsMode::Disable)
+            .with_disable_bypass_permissions_mode(DisableBypassPermissionsModes::ALLOW_AUTO_ONLY)
             .with_deny(vec!["shell(rm*)".to_string()])
             .with_ask(vec!["write".to_string()])
             .with_allow(vec![]),
@@ -802,7 +1071,7 @@ async fn create_and_resume_send_managed_settings_permissions() {
     assert_eq!(request["method"], "session.create");
     assert_eq!(request["params"]["enableManagedSettings"], true);
     let perms = &request["params"]["managedSettings"]["permissions"];
-    assert_eq!(perms["disableBypassPermissionsMode"], "disable");
+    assert_eq!(perms["disableBypassPermissionsMode"], "allow-auto-only");
     assert_eq!(perms["deny"][0], "shell(rm*)");
     assert_eq!(perms["ask"][0], "write");
     assert_eq!(perms["allow"], serde_json::json!([]));
@@ -2493,6 +2762,45 @@ async fn approve_all_handler_approves_permission() {
     );
     assert_eq!(request["params"]["requestId"], "perm-auto");
     assert_eq!(request["params"]["result"]["kind"], "approve-once");
+}
+
+#[tokio::test]
+async fn permission_result_forwards_context_beside_result() {
+    let (_session, mut server) = create_session_pair_with_config(|cfg| {
+        cfg.with_permission_handler(Arc::new(ContextualApproveHandler))
+    })
+    .await;
+
+    server
+        .send_event(
+            "permission.requested",
+            serde_json::json!({
+                "requestId": "perm-attributed",
+                "sessionId": server.session_id,
+                "permissionRequest": { "kind": "shell" },
+            }),
+        )
+        .await;
+
+    let request = timeout(TIMEOUT, server.read_request()).await.unwrap();
+    assert_eq!(
+        request["method"],
+        "session.permissions.handlePendingPermissionRequest"
+    );
+    assert_eq!(
+        request["params"],
+        serde_json::json!({
+            "sessionId": server.session_id,
+            "requestId": "perm-attributed",
+            "result": { "kind": "approve-once" },
+            "decisionContext": {
+                "outcome": "prompted_user",
+                "source": "human_response",
+                "surface": "copilot_app",
+            },
+        })
+    );
+    assert!(request["params"]["result"].get("decisionContext").is_none());
 }
 
 #[tokio::test]
@@ -4307,13 +4615,10 @@ async fn create_serializes_commands_strips_handler() {
 
     let rollback = &wire[1];
     assert_eq!(rollback["name"], "rollback");
-    assert!(
-        rollback.get("description").is_none(),
-        "description should be omitted when None, got: {rollback}"
-    );
+    assert_eq!(rollback["description"], "");
     assert!(rollback.get("handler").is_none());
     let rollback_keys: Vec<&String> = rollback.as_object().unwrap().keys().collect();
-    assert_eq!(rollback_keys.len(), 1, "got keys: {rollback_keys:?}");
+    assert_eq!(rollback_keys.len(), 2, "got keys: {rollback_keys:?}");
 }
 
 #[tokio::test]

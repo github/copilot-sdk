@@ -54,7 +54,7 @@ class TestRpcTimeout:
     @pytest.mark.asyncio
     async def test_timeout_on_session_params_method(self):
         client = AsyncMock()
-        client.request = AsyncMock(return_value={"mode": "plan"})
+        client.request = AsyncMock(return_value={"modelChanged": False, "status": "completed"})
         api = ModeApi(client, "sess-1")
 
         await api.set(ModeSetRequest(mode=SessionMode.PLAN), timeout=120.0)

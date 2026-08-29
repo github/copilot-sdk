@@ -115,6 +115,22 @@ class JsonRpcClientTest {
         }
     }
 
+    @Test
+    void testCredentialValuesAreRedactedOnlyFromDiagnosticRendering() throws Exception {
+        String json = """
+                {"jsonrpc":"2.0","result":{"accessToken":"secret","nested":{"gitHubToken":"static"}},
+                "metadata":{"tokenType":"Bearer"}}
+                """;
+
+        String rendered = JsonRpcClient.redactCredentialsForLogging(json);
+
+        assertFalse(rendered.contains("secret"));
+        assertFalse(rendered.contains("static"));
+        assertEquals("<redacted>", MAPPER.readTree(rendered).at("/result/accessToken").asText());
+        assertEquals("<redacted>", MAPPER.readTree(rendered).at("/result/nested/gitHubToken").asText());
+        assertEquals("Bearer", MAPPER.readTree(rendered).at("/metadata/tokenType").asText());
+    }
+
     // ---- isConnected() ----
 
     @Test
@@ -133,16 +149,9 @@ class JsonRpcClientTest {
         pair.serverSocket.close();
     }
 
-    private static Process startBlockingProcess() throws IOException {
-        boolean isWindows = System.getProperty("os.name").toLowerCase().contains("windows");
-        return (isWindows
-                ? new ProcessBuilder(System.getenv("COMSPEC"), "/c", "more")
-                : new ProcessBuilder("/usr/bin/cat")).start();
-    }
-
     @Test
     void testIsConnectedWithProcess() throws Exception {
-        Process proc = startBlockingProcess();
+        Process proc = new TestProcess();
         try (var client = JsonRpcClient.fromProcess(proc)) {
             assertTrue(client.isConnected());
         }
@@ -150,7 +159,7 @@ class JsonRpcClientTest {
 
     @Test
     void testIsConnectedWithProcessDead() throws Exception {
-        Process proc = startBlockingProcess();
+        Process proc = new TestProcess();
         var client = JsonRpcClient.fromProcess(proc);
         proc.destroy();
         proc.waitFor(5, TimeUnit.SECONDS);
@@ -162,7 +171,7 @@ class JsonRpcClientTest {
 
     @Test
     void testGetProcessReturnsProcess() throws Exception {
-        Process proc = startBlockingProcess();
+        Process proc = new TestProcess();
         try (var client = JsonRpcClient.fromProcess(proc)) {
             assertSame(proc, client.getProcess());
         }

@@ -25,6 +25,7 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionFactoryListRunsResult(
+    /** Factory run summaries in durable creation order. */
     @JsonProperty("runs") List<FactoryRunSummary> runs,
     /** Oldest terminal-run cursor in this page, or null when the terminal window is empty. */
     @JsonProperty("oldestSeq") Long oldestSeq,

@@ -22,7 +22,7 @@ use crate::generated::api_types::{
     McpOauthPendingRequestResponse, McpOauthPendingRequestResponseCancelled,
     McpOauthPendingRequestResponseCancelledKind, McpOauthPendingRequestResponseToken,
     McpOauthPendingRequestResponseTokenKind, PermissionDecision, PermissionDecisionApproveOnce,
-    PermissionDecisionReject, PermissionDecisionUserNotAvailable,
+    PermissionDecisionContext, PermissionDecisionReject, PermissionDecisionUserNotAvailable,
 };
 use crate::session_events::{
     McpOauthRequestReason, McpOauthRequiredStaticClientConfig, McpOauthWWWAuthenticateParams,
@@ -35,13 +35,30 @@ use crate::types::{
 /// Decision returned by a [`PermissionHandler`].
 ///
 /// Either a concrete wire-level [`PermissionDecision`] (approve, reject,
-/// approve-for-session, approve-permanently, user-not-available, …) or
-/// [`PermissionResult::NoResult`], which tells the SDK to suppress its
-/// response so another connected client can answer instead.
+/// approve-for-session, approve-permanently, user-not-available, …) with
+/// optional telemetry context, or [`PermissionResult::NoResult`], which tells
+/// the SDK to suppress its response so another connected client can answer
+/// instead.
+///
+/// ```
+/// use github_copilot_sdk::handler::PermissionResult;
+///
+/// fn is_decision(result: PermissionResult) -> bool {
+///     match result {
+///         PermissionResult::Decision { .. } => true,
+///         PermissionResult::NoResult => false,
+///     }
+/// }
+/// ```
 #[derive(Debug, Clone)]
 pub enum PermissionResult {
     /// Send a permission decision on the wire.
-    Decision(PermissionDecision),
+    Decision {
+        /// The decision to send.
+        decision: PermissionDecision,
+        /// Optional context describing how and where the decision was reached.
+        context: Option<PermissionDecisionContext>,
+    },
     /// Decline to respond to this request, allowing another connected
     /// client to answer instead. The SDK suppresses the response.
     NoResult,
@@ -50,24 +67,31 @@ pub enum PermissionResult {
 impl PermissionResult {
     /// Approve this single request.
     pub fn approve_once() -> Self {
-        Self::Decision(PermissionDecision::ApproveOnce(
-            PermissionDecisionApproveOnce::default(),
-        ))
+        Self::Decision {
+            decision: PermissionDecision::ApproveOnce(PermissionDecisionApproveOnce::default()),
+            context: None,
+        }
     }
 
     /// Reject the request, optionally forwarding feedback to the LLM.
     pub fn reject(feedback: impl Into<Option<String>>) -> Self {
-        Self::Decision(PermissionDecision::Reject(PermissionDecisionReject {
-            feedback: feedback.into(),
-            ..Default::default()
-        }))
+        Self::Decision {
+            decision: PermissionDecision::Reject(PermissionDecisionReject {
+                feedback: feedback.into(),
+                ..Default::default()
+            }),
+            context: None,
+        }
     }
 
     /// Deny because no user is available to confirm.
     pub fn user_not_available() -> Self {
-        Self::Decision(PermissionDecision::UserNotAvailable(
-            PermissionDecisionUserNotAvailable::default(),
-        ))
+        Self::Decision {
+            decision: PermissionDecision::UserNotAvailable(
+                PermissionDecisionUserNotAvailable::default(),
+            ),
+            context: None,
+        }
     }
 
     /// Decline to respond, allowing another connected client to answer
@@ -75,11 +99,43 @@ impl PermissionResult {
     pub fn no_result() -> Self {
         Self::NoResult
     }
+
+    /// Attach provenance describing how and where this decision was made,
+    /// so the runtime can attribute auto-approval telemetry.
+    ///
+    /// It is a no-op on [`PermissionResult::NoResult`].
+    ///
+    /// ```rust,no_run
+    /// # use github_copilot_sdk::handler::PermissionResult;
+    /// # use github_copilot_sdk::{
+    /// #     PermissionDecisionContext, PermissionDecisionOutcome, PermissionDecisionSource,
+    /// #     PermissionDecisionSurface,
+    /// # };
+    ///
+    /// let result = PermissionResult::approve_once().with_context(PermissionDecisionContext {
+    ///     outcome: PermissionDecisionOutcome::AutoApproved,
+    ///     response_capability: None,
+    ///     source: PermissionDecisionSource::HostPolicy,
+    ///     surface: PermissionDecisionSurface::Sdk,
+    /// });
+    /// ```
+    pub fn with_context(self, context: PermissionDecisionContext) -> Self {
+        match self {
+            Self::Decision { decision, .. } => Self::Decision {
+                decision,
+                context: Some(context),
+            },
+            Self::NoResult => Self::NoResult,
+        }
+    }
 }
 
 impl From<PermissionDecision> for PermissionResult {
     fn from(value: PermissionDecision) -> Self {
-        Self::Decision(value)
+        Self::Decision {
+            decision: value,
+            context: None,
+        }
     }
 }
 
@@ -338,7 +394,10 @@ mod tests {
             .await;
         assert!(matches!(
             result,
-            PermissionResult::Decision(PermissionDecision::ApproveOnce(_))
+            PermissionResult::Decision {
+                decision: PermissionDecision::ApproveOnce(_),
+                ..
+            }
         ));
     }
 
@@ -356,7 +415,10 @@ mod tests {
             .await;
         assert!(matches!(
             result,
-            PermissionResult::Decision(PermissionDecision::UserNotAvailable(_))
+            PermissionResult::Decision {
+                decision: PermissionDecision::UserNotAvailable(_),
+                ..
+            }
         ));
     }
 
@@ -386,7 +448,10 @@ mod tests {
             .await;
         assert!(matches!(
             result,
-            PermissionResult::Decision(PermissionDecision::Reject(_))
+            PermissionResult::Decision {
+                decision: PermissionDecision::Reject(_),
+                ..
+            }
         ));
     }
 

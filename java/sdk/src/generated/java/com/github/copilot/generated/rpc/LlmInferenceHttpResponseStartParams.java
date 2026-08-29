@@ -32,6 +32,7 @@ public record LlmInferenceHttpResponseStartParams(
     @JsonProperty("status") Long status,
     /** Optional HTTP status reason phrase. */
     @JsonProperty("statusText") String statusText,
+    /** HTTP response headers, preserving multiple values per name. */
     @JsonProperty("headers") Map<String, List<String>> headers
 ) {
 }

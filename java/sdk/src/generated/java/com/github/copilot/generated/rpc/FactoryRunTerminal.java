@@ -21,9 +21,13 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record FactoryRunTerminal(
+    /** Human-readable terminal reason. */
     @JsonProperty("reason") String reason,
+    /** Machine-readable terminal failure. */
     @JsonProperty("failure") Object failure,
+    /** Human-readable terminal error. */
     @JsonProperty("error") String error,
+    /** Prompt-safe preview of the completed result. */
     @JsonProperty("resultPreview") String resultPreview
 ) {
 }

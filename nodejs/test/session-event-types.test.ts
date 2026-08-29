@@ -24,6 +24,7 @@ import type {
     PermissionRequest,
     PermissionRequestedData,
     PermissionRequestedEvent,
+    PermissionResponseCapability,
     ManagedSettingsResolvedData,
     ManagedSettingsResolvedEvent,
     ManagedSettingsResolvedSource,
@@ -321,6 +322,7 @@ describe("Session event type exports (#1156)", () => {
         assertImportable<ToolExecutionStartData>();
         assertImportable<UserMessageData>();
         assertImportable<PermissionRequestedData>();
+        assertImportable<PermissionResponseCapability>();
         assertImportable<ManagedSettingsResolvedData>();
 
         assertImportable<AssistantMessageEvent>();

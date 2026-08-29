@@ -9,7 +9,7 @@
  */
 
 export { CopilotClient } from "./client.js";
-export { RuntimeConnection } from "./types.js";
+export { DisableBypassPermissionsModes, RuntimeConnection } from "./types.js";
 export { BuiltInTools, ToolSet } from "./toolSet.js";
 export { CopilotSession, type AssistantMessageEvent } from "./session.js";
 export { defineFactory, FactoryResumeError, isFactoryRunTerminal } from "./factory.js";
@@ -27,6 +27,7 @@ export {
 export {
     defineTool,
     approveAll,
+    createAttributedPermissionResult,
     convertMcpCallToolResult,
     createSessionFsAdapter,
     CopilotRequestHandler,
@@ -96,6 +97,11 @@ export type {
     GitHubTelemetryNotification,
     GitHubTelemetryEvent,
     GitHubTelemetryClientInfo,
+    GitHubTokenAcquireReason,
+    GitHubTokenAcquireResult,
+    GitHubTokenProvider,
+    GitHubTokenProviderArgs,
+    GitHubTokenProviderResult,
     InfiniteSessionConfig,
     LargeToolOutputConfig,
     MemoryConfiguration,
@@ -124,6 +130,12 @@ export type {
     PermissionRequestedData,
     PermissionRequestedEvent,
     PermissionRequestResult,
+    AttributedPermissionResult,
+    PermissionDecisionContext,
+    PermissionDecisionOutcome,
+    PermissionDecisionSource,
+    PermissionDecisionSurface,
+    PermissionResponseCapability,
     ProviderConfig,
     ProviderModelConfig,
     ProviderTokenArgs,

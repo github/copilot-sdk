@@ -383,16 +383,39 @@ export function normalizeSchemaForTypeScript(
     root.definitions = definitions;
     delete root.$defs;
 
-    const rewrite = (value: unknown): unknown => {
+    const internalDefinitionNames = new Set(
+        Object.entries(definitions)
+            .filter(([, definition]) => typeof definition === "object" && definition !== null && isSchemaInternal(definition as JSONSchema7))
+            .map(([name]) => name)
+    );
+    const isInternalUnionVariant = (value: unknown): boolean => {
+        if (!value || typeof value !== "object") return false;
+        const variant = value as JSONSchema7;
+        if (isSchemaInternal(variant)) return true;
+        const match = variant.$ref?.match(/^#\/(?:definitions|\$defs)\/([^/]+)$/);
+        return match ? internalDefinitionNames.has(match[1]) : false;
+    };
+
+    const rewrite = (value: unknown, withinInternalDefinition = false): unknown => {
         if (Array.isArray(value)) {
-            return value.map(rewrite);
+            return value.map((item) => rewrite(item, withinInternalDefinition));
         }
         if (!value || typeof value !== "object") {
             return value;
         }
 
+        const source = value as Record<string, unknown>;
+        const isInternal = withinInternalDefinition || isSchemaInternal(source as JSONSchema7);
         const rewritten = Object.fromEntries(
-            Object.entries(value as Record<string, unknown>).map(([key, child]) => [key, rewrite(child)])
+            Object.entries(source).map(([key, child]) => {
+                const publicChild =
+                    !isInternal &&
+                    (key === "anyOf" || key === "oneOf") &&
+                    Array.isArray(child)
+                        ? child.filter((variant) => !isInternalUnionVariant(variant))
+                        : child;
+                return [key, rewrite(publicChild, isInternal)];
+            })
         ) as Record<string, unknown>;
 
         if (isBareSchemaNode(rewritten as JSONSchema7)) {

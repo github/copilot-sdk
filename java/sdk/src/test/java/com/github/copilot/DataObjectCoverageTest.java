@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import org.junit.jupiter.api.Test;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.github.copilot.rpc.CustomAgentConfig;
@@ -322,6 +323,15 @@ class DataObjectCoverageTest {
         assertEquals("/tmp", cfg.getWorkingDirectory());
         assertEquals(tools, cfg.getTools());
         assertEquals(30, cfg.getTimeout());
+    }
+
+    @Test
+    void mcpStdioServerConfigSerializesWorkingDirectoryAsCwd() {
+        var json = new ObjectMapper()
+                .valueToTree(new McpStdioServerConfig().setCommand("node").setWorkingDirectory("/workspace"));
+
+        assertEquals("/workspace", json.path("cwd").asText());
+        assertFalse(json.has("workingDirectory"));
     }
 
     @Test

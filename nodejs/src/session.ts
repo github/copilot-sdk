@@ -22,6 +22,7 @@ import type {
 import { type Canvas, CanvasError } from "./canvas.js";
 import type { OpenCanvasInstance } from "./generated/rpc.js";
 import { getTraceContext } from "./telemetry.js";
+import { isAttributedPermissionResult } from "./types.js";
 import type {
     CommandHandler,
     AutoModeSwitchHandler,
@@ -41,6 +42,7 @@ import type {
     McpAuthRequest,
     PermissionHandler,
     PermissionRequest,
+    PermissionRequestResult,
     ContextTier,
     ReasoningEffort,
     ReasoningSummary,
@@ -436,6 +438,7 @@ export class CopilotSession {
     private _capabilities: SessionCapabilities = {};
     private openCanvasInstances: OpenCanvasInstance[] = [];
     private disconnected = false;
+    private onDisconnected?: () => void;
 
     /** @internal Client session API handlers, populated by CopilotClient during create/resume. */
     clientSessionApis: ClientSessionApiHandlers = {};
@@ -615,11 +618,16 @@ export class CopilotSession {
         private connection: MessageConnection,
         private _workspacePath?: string,
         traceContextProvider?: TraceContextProvider,
-        options?: { mcpAuthHandler?: McpAuthHandler; managedSettingsEnabled?: boolean }
+        options?: {
+            mcpAuthHandler?: McpAuthHandler;
+            managedSettingsEnabled?: boolean;
+            onDisconnected?: () => void;
+        }
     ) {
         this.traceContextProvider = traceContextProvider;
         this.mcpAuthHandler = options?.mcpAuthHandler;
         this.managedSettingsEnabled = options?.managedSettingsEnabled === true;
+        this.onDisconnected = options?.onDisconnected;
     }
 
     /**
@@ -756,7 +764,7 @@ export class CopilotSession {
         const unsubscribe = this.on((event) => {
             if (event.type === "assistant.message") {
                 lastAssistantMessage = event;
-            } else if (event.type === "session.idle") {
+            } else if (event.type === "session.idle" && event.data.mode !== "autopilot") {
                 resolveOutcome({ kind: "idle" });
             } else if (event.type === "session.error") {
                 const error = new Error(event.data.message);
@@ -796,7 +804,11 @@ export class CopilotSession {
 
     /** @internal */
     _markDisconnected(): void {
+        if (this.disconnected) {
+            return;
+        }
         this.disconnected = true;
+        this._runOnDisconnected();
         this.eventHandlers.clear();
         this.typedEventHandlers.clear();
         this.toolHandlers.clear();
@@ -815,6 +827,17 @@ export class CopilotSession {
         }
         this.factoryAbortControllers.clear();
         this.transformCallbacks?.clear();
+    }
+
+    /** @internal */
+    _runOnDisconnected(): void {
+        this.onDisconnected?.();
+        this.onDisconnected = undefined;
+    }
+
+    /** @internal */
+    _setOnDisconnected(callback: () => void): void {
+        this.onDisconnected = callback;
     }
 
     /**
@@ -1133,17 +1156,26 @@ export class CopilotSession {
         permissionRequest: PermissionRequest
     ): Promise<void> {
         try {
-            const result = await this.permissionHandler!(permissionRequest, {
+            const handlerResult = await this.permissionHandler!(permissionRequest, {
                 sessionId: this.sessionId,
                 managedSettingsEnabled: this.managedSettingsEnabled,
             });
+            const isAttributed = isAttributedPermissionResult(handlerResult);
+            const result: PermissionRequestResult = isAttributed
+                ? handlerResult.result
+                : handlerResult;
+            const decisionContext = isAttributed ? handlerResult.decisionContext : undefined;
             if (result.kind === "no-result") {
                 return;
             }
             if (this.disconnected) {
                 return;
             }
-            await this.rpc.permissions.handlePendingPermissionRequest({ requestId, result });
+            await this.rpc.permissions.handlePendingPermissionRequest(
+                decisionContext === undefined
+                    ? { requestId, result }
+                    : { requestId, result, decisionContext }
+            );
         } catch (error) {
             if (this.disconnected) {
                 return;
@@ -1610,7 +1642,13 @@ export class CopilotSession {
         }
         try {
             const result = await this.elicitationHandler(context);
-            await this.rpc.ui.handlePendingElicitation({ requestId, result });
+            await this.rpc.ui.handlePendingElicitation({
+                requestId,
+                result: {
+                    action: result.action,
+                    ...(result.content ? { content: result.content } : {}),
+                },
+            });
         } catch {
             // Handler failed — attempt to cancel so the request doesn't hang
             try {

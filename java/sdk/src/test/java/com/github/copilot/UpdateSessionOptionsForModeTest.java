@@ -10,6 +10,7 @@ import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
@@ -144,6 +145,8 @@ class UpdateSessionOptionsForModeTest {
             assertTrue(pair.lastParams.path("manageScheduleEnabled").isMissingNode(),
                     "manageScheduleEnabled should be absent");
             assertTrue(pair.lastParams.path("installedPlugins").isMissingNode(), "installedPlugins should be absent");
+            assertTrue(pair.lastParams.path("includedBuiltinSkills").isMissingNode(),
+                    "includedBuiltinSkills should be absent in COPILOT_CLI mode");
             client.close();
         }
     }
@@ -154,13 +157,14 @@ class UpdateSessionOptionsForModeTest {
             var session = new CopilotSession("sess-1", pair.rpcClient);
             var client = new CopilotClient(new CopilotClientOptions().setAutoStart(false));
 
-            client.updateSessionOptionsForMode(session, false, true, true, false).get();
+            client.updateSessionOptionsForMode(session, false, true, true, false, List.of("code-review")).get();
 
             assertEquals("session.options.update", pair.lastMethod);
             assertFalse(pair.lastParams.get("skipCustomInstructions").asBoolean());
             assertTrue(pair.lastParams.get("customAgentsLocalOnly").asBoolean());
             assertTrue(pair.lastParams.get("coauthorEnabled").asBoolean());
             assertFalse(pair.lastParams.get("manageScheduleEnabled").asBoolean());
+            assertEquals("code-review", pair.lastParams.get("includedBuiltinSkills").get(0).asText());
             client.close();
         }
     }
@@ -197,6 +201,9 @@ class UpdateSessionOptionsForModeTest {
             assertFalse(pair.lastParams.get("manageScheduleEnabled").asBoolean(), "default: schedule disabled");
             assertTrue(pair.lastParams.get("installedPlugins").isArray(), "installedPlugins should be empty array");
             assertEquals(0, pair.lastParams.get("installedPlugins").size());
+            assertTrue(pair.lastParams.get("includedBuiltinSkills").isArray(),
+                    "includedBuiltinSkills should be empty array");
+            assertEquals(0, pair.lastParams.get("includedBuiltinSkills").size());
             client.close();
         }
     }
@@ -218,6 +225,25 @@ class UpdateSessionOptionsForModeTest {
             assertTrue(pair.lastParams.get("installedPlugins").isArray(),
                     "installedPlugins always empty in EMPTY mode");
             assertEquals(0, pair.lastParams.get("installedPlugins").size());
+            assertTrue(pair.lastParams.get("includedBuiltinSkills").isArray(),
+                    "includedBuiltinSkills always empty in EMPTY mode");
+            assertEquals(0, pair.lastParams.get("includedBuiltinSkills").size());
+            client.close();
+        }
+    }
+
+    @Test
+    void emptyMode_explicitBuiltinSkillAllowlistWins() throws Exception {
+        try (var pair = new AutoReplyPair()) {
+            var session = new CopilotSession("sess-1", pair.rpcClient);
+            var client = new CopilotClient(new CopilotClientOptions().setMode(CopilotClientMode.EMPTY)
+                    .setCopilotHome("/tmp/copilot-home").setAutoStart(false));
+
+            client.updateSessionOptionsForMode(session, null, null, null, null, List.of("code-review")).get();
+
+            assertEquals("session.options.update", pair.lastMethod);
+            assertEquals(1, pair.lastParams.get("includedBuiltinSkills").size());
+            assertEquals("code-review", pair.lastParams.get("includedBuiltinSkills").get(0).asText());
             client.close();
         }
     }

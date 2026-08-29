@@ -34,9 +34,19 @@ public record Model(
     @JsonProperty("billing") ModelBilling billing,
     /** Supported reasoning effort levels (only present if model supports reasoning effort) */
     @JsonProperty("supportedReasoningEfforts") List<String> supportedReasoningEfforts,
+    /** Default reasoning effort level (only present if model supports reasoning effort) */
+    @JsonProperty("defaultReasoningEffort") String defaultReasoningEffort,
+    /** Context-window tiers this model offers, when the provider advertises them independently of tiered token pricing. Copilot models carry their tiers in `billing.tokenPrices`; a provider that has no pricing to publish (an agent host reached over AHP, for example) declares them here instead, so the model picker can still offer the tier toggle. */
+    @JsonProperty("supportedContextTiers") List<String> supportedContextTiers,
     /** Model capability category for grouping in the model picker */
     @JsonProperty("modelPickerCategory") ModelPickerCategory modelPickerCategory,
     /** Relative cost tier for token-based billing users */
-    @JsonProperty("modelPickerPriceCategory") ModelPickerPriceCategory modelPickerPriceCategory
+    @JsonProperty("modelPickerPriceCategory") ModelPickerPriceCategory modelPickerPriceCategory,
+    /** Warning text the service requires hosts to surface for this model. Present only when the service published at least one warning. */
+    @JsonProperty("warningText") ModelWarningText warningText,
+    /** Informational notices the service published for this model, such as an upcoming change or a recommended alternative. Present only when the service published at least one notice. Hosts should surface these without implying anything is wrong with the model. */
+    @JsonProperty("infoMessages") List<ModelMessage> infoMessages,
+    /** Warnings the service published for this model, such as a deprecated client version. Present only when the service published at least one warning. The model remains usable; hosts should surface these as advisory rather than blocking. */
+    @JsonProperty("warningMessages") List<ModelMessage> warningMessages
 ) {
 }

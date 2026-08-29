@@ -28,7 +28,7 @@ public final class ServerAccountApi {
     }
 
     /**
-     * Optional GitHub token used to look up quota for a specific user instead of the global auth context.
+     * Optional opaque account selection or compatibility GitHub token used to look up quota.
      * <p>
      * Invokes the method with no params, applying the runtime defaults.
      *
@@ -41,7 +41,7 @@ public final class ServerAccountApi {
     }
 
     /**
-     * Optional GitHub token used to look up quota for a specific user instead of the global auth context.
+     * Optional opaque account selection or compatibility GitHub token used to look up quota.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -74,7 +74,7 @@ public final class ServerAccountApi {
     }
 
     /**
-     * Credentials to store after successful authentication
+     * Credentials to validate and store. Omit login to resolve the authenticated user from the token.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0

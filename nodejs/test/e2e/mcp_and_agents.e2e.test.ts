@@ -103,7 +103,6 @@ describe("MCP Servers and Custom Agents", async () => {
             // Create a session first
             const session1 = await client.createSession({ onPermissionRequest: approveAll });
             const sessionId = session1.sessionId;
-            await session1.sendAndWait({ prompt: "What is 1+1?" });
 
             // Resume with MCP servers
             const mcpServers = createTestMcpServers("test-server");

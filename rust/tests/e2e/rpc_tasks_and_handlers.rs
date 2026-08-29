@@ -273,6 +273,7 @@ async fn should_return_expected_results_for_missing_pending_handler_requestids()
                         result: UIElicitationResponse {
                             action: UIElicitationResponseAction::Cancel,
                             content: Default::default(),
+                            meta: None,
                         },
                     })
                     .await

@@ -37,4 +37,15 @@ public final class ServerSkillsConfigApi {
         return caller.invoke("skills.config.setDisabledSkills", params, Void.class);
     }
 
+    /**
+     * Adds or removes a single skill from the global disabled list, leaving every other entry untouched.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<Void> setSkillDisabled(SkillsConfigSetSkillDisabledParams params) {
+        return caller.invoke("skills.config.setSkillDisabled", params, Void.class);
+    }
+
 }

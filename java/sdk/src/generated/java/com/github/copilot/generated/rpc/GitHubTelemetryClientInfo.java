@@ -40,6 +40,10 @@ public record GitHubTelemetryClientInfo(
     /** Whether the user is a GitHub/Microsoft staff member. */
     @JsonProperty("is_staff") Boolean isStaff,
     /** Stable machine identifier for the device. */
-    @JsonProperty("dev_device_id") String devDeviceId
+    @JsonProperty("dev_device_id") String devDeviceId,
+    /** Distinct CPU model names for the host, comma-separated. */
+    @JsonProperty("cpu_model") String cpuModel,
+    /** Number of logical CPU cores on the host. */
+    @JsonProperty("cpu_count") Long cpuCount
 ) {
 }
