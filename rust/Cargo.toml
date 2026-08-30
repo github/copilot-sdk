@@ -94,6 +94,17 @@ required-features = ["test-support"]
 name = "extension_launch_provider_test"
 required-features = ["test-support"]
 
+[[test]]
+name = "extension_launch_provider_runtime_test"
+required-features = ["test-support"]
+
+[[bin]]
+name = "copilot-extension-test-fixture"
+path = "tests/fixtures/extension_fixture.rs"
+required-features = ["test-support"]
+test = false
+bench = false
+
 [build-dependencies]
 base64 = "0.22"
 dirs = "5"
