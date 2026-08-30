@@ -14,7 +14,7 @@ import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * Slash-prefixed command string to enqueue for FIFO processing.
+ * Identifies the target session.
  *
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
@@ -23,12 +23,8 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record SessionCommandsEnqueueParams(
+public record SessionSandboxGetEnforcementStatusParams(
     /** Target session identifier */
-    @JsonProperty("sessionId") String sessionId,
-    /** Slash-prefixed command string to enqueue, e.g. '/compact' or '/model gpt-4'. Queued FIFO with any in-flight items; if the session is idle, processing kicks off immediately. */
-    @JsonProperty("command") String command,
-    /** Optional user-facing text for the queue row. The command string is shown when omitted. */
-    @JsonProperty("displayText") String displayText
+    @JsonProperty("sessionId") String sessionId
 ) {
 }

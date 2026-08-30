@@ -1361,6 +1361,10 @@ type CanvasSessionContext struct {
 // Experimental: CapiSessionOptions is part of an experimental API and may change or be
 // removed.
 type CapiSessionOptions struct {
+	// Routing preference used when the session model is `auto`. The runtime persists the
+	// preference across cold resume. When omitted, the default routing behavior is used.
+	// Resuming an already-resident session cannot change its preference.
+	AutoTier *AutoTier `json:"autoTier,omitempty"`
 	// Whether to use WebSocket transport for the CAPI Responses API. Enabled by default when
 	// the model advertises `ws:/responses` support; set to `false` to force the HTTP Responses
 	// transport in environments where WebSockets are blocked (e.g. behind a proxy). Setting
@@ -2599,6 +2603,8 @@ type EnqueueCommandParams struct {
 	// Slash-prefixed command string to enqueue, e.g. '/compact' or '/model gpt-4'. Queued FIFO
 	// with any in-flight items; if the session is idle, processing kicks off immediately.
 	Command string `json:"command"`
+	// Optional user-facing text for the queue row. The command string is shown when omitted.
+	DisplayText *string `json:"displayText,omitempty"`
 }
 
 // Indicates whether the command was accepted into the local execution queue.
@@ -10343,6 +10349,18 @@ type SandboxConfigUserPolicySeatbelt struct {
 	KeychainAccess *bool `json:"keychainAccess,omitempty"`
 }
 
+// Managed sandbox enforcement state for a session.
+// Experimental: SandboxEnforcementStatus is part of an experimental API and may change or
+// be removed.
+type SandboxEnforcementStatus struct {
+	// Whether an enforcement failure has permanently blocked the session.
+	Blocked bool `json:"blocked"`
+	// The first sandbox enforcement failure that blocked the session.
+	Reason *string `json:"reason,omitempty"`
+	// Whether the effective managed policy requires an available sandbox backend.
+	Required bool `json:"required"`
+}
+
 // Register an absolute-time scheduled prompt.
 // Experimental: ScheduleAddAtRequest is part of an experimental API and may change or be
 // removed.
@@ -15858,6 +15876,19 @@ const (
 	AuthInfoTypeUser            AuthInfoType = "user"
 )
 
+// Routing preference used when the session model is `auto`.
+// Experimental: AutoTier is part of an experimental API and may change or be removed.
+type AutoTier string
+
+const (
+	// Balance efficiency and intelligence.
+	AutoTierBalance AutoTier = "balance"
+	// Optimize for efficiency.
+	AutoTierEfficiency AutoTier = "efficiency"
+	// Optimize for intelligence.
+	AutoTierIntelligence AutoTier = "intelligence"
+)
+
 // Custom input-format kind.
 // Experimental: BuiltinToolFormatType is part of an experimental API and may change or be
 // removed.
@@ -21250,6 +21281,9 @@ func (a *CommandsAPI) Enqueue(ctx context.Context, params *EnqueueCommandParams)
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["command"] = params.Command
+		if params.DisplayText != nil {
+			req["displayText"] = *params.DisplayText
+		}
 	}
 	raw, err := a.client.Request(ctx, "session.commands.enqueue", req)
 	if err != nil {
@@ -25037,6 +25071,28 @@ func (a *RemoteAPI) NotifySteerableChanged(ctx context.Context, params *RemoteNo
 	return &result, nil
 }
 
+// Experimental: SandboxAPI contains experimental APIs that may change or be removed.
+type SandboxAPI sessionAPI
+
+// GetEnforcementStatus returns whether managed policy requires sandbox enforcement and
+// whether an enforcement failure has permanently blocked the session.
+//
+// RPC method: session.sandbox.getEnforcementStatus.
+//
+// Returns: Managed sandbox enforcement state for a session.
+func (a *SandboxAPI) GetEnforcementStatus(ctx context.Context) (*SandboxEnforcementStatus, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request(ctx, "session.sandbox.getEnforcementStatus", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SandboxEnforcementStatus
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // Experimental: ScheduleAPI contains experimental APIs that may change or be removed.
 type ScheduleAPI sessionAPI
 
@@ -26586,6 +26642,7 @@ type SessionRPC struct {
 	Provider         *ProviderAPI
 	Queue            *QueueAPI
 	Remote           *RemoteAPI
+	Sandbox          *SandboxAPI
 	Schedule         *ScheduleAPI
 	Shell            *ShellAPI
 	Skills           *SkillsAPI
@@ -26907,6 +26964,7 @@ func NewSessionRPC(client *jsonrpc2.Client, sessionID string) *SessionRPC {
 	r.Provider = (*ProviderAPI)(&r.common)
 	r.Queue = (*QueueAPI)(&r.common)
 	r.Remote = (*RemoteAPI)(&r.common)
+	r.Sandbox = (*SandboxAPI)(&r.common)
 	r.Schedule = (*ScheduleAPI)(&r.common)
 	r.Shell = (*ShellAPI)(&r.common)
 	r.Skills = (*SkillsAPI)(&r.common)

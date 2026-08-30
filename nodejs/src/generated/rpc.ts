@@ -5,7 +5,7 @@
 
 import type { MessageConnection } from "vscode-jsonrpc/node.js";
 
-import type { AbortReason, Attachment, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerSource, McpServerStatus, ModelChangeSource, PermissionMode, PermissionPromptRequest, PermissionRule, ReasoningSummary, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskCompleteData, TaskCompletionOutcome, UserToolSessionApproval, Verbosity } from "./session-events.js";
+import type { AbortReason, Attachment, AutoTier, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerSource, McpServerStatus, ModelChangeSource, PermissionMode, PermissionPromptRequest, PermissionRule, ReasoningSummary, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskCompleteData, TaskCompletionOutcome, UserToolSessionApproval, Verbosity } from "./session-events.js";
 
 /** A value that can be represented losslessly on the SDK JSON wire. */
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
@@ -5487,6 +5487,7 @@ export interface CanvasProviderUnregisterRequest {
  */
 /** @experimental */
 export interface CapiSessionOptions {
+  autoTier?: AutoTier;
   /**
    * Whether to use WebSocket transport for the CAPI Responses API. Enabled by default when the model advertises `ws:/responses` support; set to `false` to force the HTTP Responses transport in environments where WebSockets are blocked (e.g. behind a proxy). Setting this to `false` is equivalent to the `COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES` environment variable.
    */
@@ -6859,6 +6860,10 @@ export interface EnqueueCommandParams {
    * Slash-prefixed command string to enqueue, e.g. '/compact' or '/model gpt-4'. Queued FIFO with any in-flight items; if the session is idle, processing kicks off immediately.
    */
   command: string;
+  /**
+   * Optional user-facing text for the queue row. The command string is shown when omitted.
+   */
+  displayText?: string | null;
 }
 /**
  * Indicates whether the command was accepted into the local execution queue.
@@ -16589,6 +16594,27 @@ export interface SandboxConfigAuth {
   gh?: boolean;
 }
 /**
+ * Managed sandbox enforcement state for a session.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SandboxEnforcementStatus".
+ */
+/** @experimental */
+export interface SandboxEnforcementStatus {
+  /**
+   * Whether the effective managed policy requires an available sandbox backend.
+   */
+  required: boolean;
+  /**
+   * Whether an enforcement failure has permanently blocked the session.
+   */
+  blocked: boolean;
+  /**
+   * The first sandbox enforcement failure that blocked the session.
+   */
+  reason?: string;
+}
+/**
  * Register an absolute-time scheduled prompt.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -23625,6 +23651,16 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
          */
         sendMessages: async (params: SendMessagesRequest): Promise<SendMessagesResult> =>
             connection.sendRequest("session.sendMessages", { sessionId, ...params }),
+        /** @experimental */
+        sandbox: {
+            /**
+             * Returns whether managed policy requires sandbox enforcement and whether an enforcement failure has permanently blocked the session.
+             *
+             * @returns Managed sandbox enforcement state for a session.
+             */
+            getEnforcementStatus: async (): Promise<SandboxEnforcementStatus> =>
+                connection.sendRequest("session.sandbox.getEnforcementStatus", { sessionId }),
+        },
         /**
          * Aborts the current agent turn.
          *

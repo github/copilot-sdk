@@ -23,6 +23,8 @@ type (
 	AssistantMessageServerTools                                    = rpc.AssistantMessageServerTools
 	AssistantMessageStartData                                      = rpc.AssistantMessageStartData
 	AssistantMessageToolRequest                                    = rpc.AssistantMessageToolRequest
+	AssistantMessageToolRequestCaller                              = rpc.AssistantMessageToolRequestCaller
+	AssistantMessageToolRequestCallerType                          = rpc.AssistantMessageToolRequestCallerType
 	AssistantMessageToolRequestType                                = rpc.AssistantMessageToolRequestType
 	AssistantReasoningData                                         = rpc.AssistantReasoningData
 	AssistantReasoningDeltaData                                    = rpc.AssistantReasoningDeltaData
@@ -69,6 +71,7 @@ type (
 	AutoModeSwitchResponse                                         = rpc.AutoModeSwitchResponse
 	AutopilotObjectiveChangedOperation                             = rpc.AutopilotObjectiveChangedOperation
 	AutopilotObjectiveChangedStatus                                = rpc.AutopilotObjectiveChangedStatus
+	AutoTier                                                       = rpc.AutoTier
 	BinaryAssetReference                                           = rpc.BinaryAssetReference
 	BinaryAssetReferenceType                                       = rpc.BinaryAssetReferenceType
 	BinaryAssetType                                                = rpc.BinaryAssetType
@@ -424,6 +427,7 @@ const (
 	AgentInterruptedActivityToolCall                                   = rpc.AgentInterruptedActivityToolCall
 	AgentInterruptedCancelPhaseMidStream                               = rpc.AgentInterruptedCancelPhaseMidStream
 	AgentInterruptedCancelPhasePreFirstToken                           = rpc.AgentInterruptedCancelPhasePreFirstToken
+	AssistantMessageToolRequestCallerTypeProgram                       = rpc.AssistantMessageToolRequestCallerTypeProgram
 	AssistantMessageToolRequestTypeCustom                              = rpc.AssistantMessageToolRequestTypeCustom
 	AssistantMessageToolRequestTypeFunction                            = rpc.AssistantMessageToolRequestTypeFunction
 	AssistantUsageAPIEndpointChatCompletions                           = rpc.AssistantUsageAPIEndpointChatCompletions
@@ -472,6 +476,9 @@ const (
 	AutopilotObjectiveChangedStatusCapReached                          = rpc.AutopilotObjectiveChangedStatusCapReached
 	AutopilotObjectiveChangedStatusCompleted                           = rpc.AutopilotObjectiveChangedStatusCompleted
 	AutopilotObjectiveChangedStatusPaused                              = rpc.AutopilotObjectiveChangedStatusPaused
+	AutoTierBalance                                                    = rpc.AutoTierBalance
+	AutoTierEfficiency                                                 = rpc.AutoTierEfficiency
+	AutoTierIntelligence                                               = rpc.AutoTierIntelligence
 	BinaryAssetReferenceTypeImage                                      = rpc.BinaryAssetReferenceTypeImage
 	BinaryAssetReferenceTypeResource                                   = rpc.BinaryAssetReferenceTypeResource
 	BinaryAssetTypeImage                                               = rpc.BinaryAssetTypeImage

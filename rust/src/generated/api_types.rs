@@ -10,10 +10,11 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use super::session_events::{
-    AbortReason, ContextTier, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerSource,
-    McpServerStatus, ModelChangeSource, OmittedBinaryOmittedReason, PermissionMode,
-    PermissionPromptRequest, PermissionRule, ReasoningSummary, SessionLimitsConfig, SessionMode,
-    ShutdownType, SkillSource, TaskCompletionOutcome, UserToolSessionApproval, Verbosity,
+    AbortReason, AutoTier, ContextTier, McpOauthHttpResponse, McpOauthWWWAuthenticateParams,
+    McpServerSource, McpServerStatus, ModelChangeSource, OmittedBinaryOmittedReason,
+    PermissionMode, PermissionPromptRequest, PermissionRule, ReasoningSummary, SessionLimitsConfig,
+    SessionMode, ShutdownType, SkillSource, TaskCompletionOutcome, UserToolSessionApproval,
+    Verbosity,
 };
 use crate::types::{RequestId, SessionEvent, SessionId};
 
@@ -202,6 +203,8 @@ pub mod rpc_methods {
     pub const SESSION_SEND: &str = "session.send";
     /// `session.sendMessages`
     pub const SESSION_SENDMESSAGES: &str = "session.sendMessages";
+    /// `session.sandbox.getEnforcementStatus`
+    pub const SESSION_SANDBOX_GETENFORCEMENTSTATUS: &str = "session.sandbox.getEnforcementStatus";
     /// `session.sendSystemNotification`
     pub const SESSION_SENDSYSTEMNOTIFICATION: &str = "session.sendSystemNotification";
     /// `session.abort`
@@ -3019,6 +3022,9 @@ pub struct CanvasProviderUnregisterRequest {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CapiSessionOptions {
+    /// Routing preference used when the session model is `auto`. The runtime persists the preference across cold resume. When omitted, the default routing behavior is used. Resuming an already-resident session cannot change its preference.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auto_tier: Option<AutoTier>,
     /// Whether to use WebSocket transport for the CAPI Responses API. Enabled by default when the model advertises `ws:/responses` support; set to `false` to force the HTTP Responses transport in environments where WebSockets are blocked (e.g. behind a proxy). Setting this to `false` is equivalent to the `COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES` environment variable.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_web_socket_responses: Option<bool>,
@@ -4411,6 +4417,9 @@ pub struct DiscoveredMcpServer {
 pub struct EnqueueCommandParams {
     /// Slash-prefixed command string to enqueue, e.g. '/compact' or '/model gpt-4'. Queued FIFO with any in-flight items; if the session is idle, processing kicks off immediately.
     pub command: String,
+    /// Optional user-facing text for the queue row. The command string is shown when omitted.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display_text: Option<String>,
 }
 
 /// Indicates whether the command was accepted into the local execution queue.
@@ -14756,6 +14765,26 @@ pub struct SandboxConfig {
     pub user_policy: Option<SandboxConfigUserPolicy>,
 }
 
+/// Managed sandbox enforcement state for a session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SandboxEnforcementStatus {
+    /// Whether an enforcement failure has permanently blocked the session.
+    pub blocked: bool,
+    /// The first sandbox enforcement failure that blocked the session.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+    /// Whether the effective managed policy requires an available sandbox backend.
+    pub required: bool,
+}
+
 /// Register an absolute-time scheduled prompt.
 ///
 /// <div class="warning">
@@ -21990,6 +22019,41 @@ pub struct SessionSendResult {
 pub struct SessionSendMessagesResult {
     /// Unique identifiers assigned to the messages, one per provided message in order. Empty when no messages were provided.
     pub message_ids: Vec<String>,
+}
+
+/// Identifies the target session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionSandboxGetEnforcementStatusParams {
+    /// Target session identifier
+    pub session_id: SessionId,
+}
+
+/// Managed sandbox enforcement state for a session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionSandboxGetEnforcementStatusResult {
+    /// Whether an enforcement failure has permanently blocked the session.
+    pub blocked: bool,
+    /// The first sandbox enforcement failure that blocked the session.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+    /// Whether the effective managed policy requires an available sandbox backend.
+    pub required: bool,
 }
 
 /// Result of aborting the current turn

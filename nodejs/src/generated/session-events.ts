@@ -136,6 +136,16 @@ export type SessionEvent =
   | ExtensionsAttachmentsPushedEvent
   | McpAppToolCallCompleteEvent;
 /**
+ * Routing preference used when the session model is `auto`.
+ */
+export type AutoTier =
+  /** Optimize for efficiency. */
+  | "efficiency"
+  /** Balance efficiency and intelligence. */
+  | "balance"
+  /** Optimize for intelligence. */
+  | "intelligence";
+/**
  * Hosting platform type of the repository (github or ado)
  */
 export type WorkingDirectoryContextHostType =
@@ -469,6 +479,10 @@ export type CitationProvider =
  */
 /** @experimental */
 export type CitationLocation = CitationLocationChar | CitationLocationPage | CitationLocationBlock;
+/**
+ * Hosted program caller type
+ */
+export type AssistantMessageToolRequestCallerType = "program";
 /**
  * API endpoint used for this model call, matching CAPI supported_endpoints vocabulary
  */
@@ -1106,6 +1120,7 @@ export interface StartData {
    * Whether the session was already in use by another client at start time
    */
   alreadyInUse?: boolean;
+  autoTier?: AutoTier;
   context?: WorkingDirectoryContext;
   /**
    * Context tier selected at session creation time for models with tiered context pricing; null when no tier is selected (e.g., non-tiered model)
@@ -1258,6 +1273,7 @@ export interface ResumeData {
    * Whether the session was already in use by another client at resume time
    */
   alreadyInUse?: boolean;
+  autoTier?: AutoTier;
   context?: WorkingDirectoryContext;
   /**
    * Context tier currently selected at resume time; null when no tier is active
@@ -4843,6 +4859,7 @@ export interface AssistantMessageToolRequest {
    * Arguments to pass to the tool, format depends on the tool
    */
   arguments?: JsonValue;
+  caller?: AssistantMessageToolRequestCaller;
   /**
    * Resolved intention summary describing what this specific call does
    */
@@ -4868,6 +4885,16 @@ export interface AssistantMessageToolRequest {
    */
   toolTitle?: string;
   type?: AssistantMessageToolRequestType;
+}
+/**
+ * Hosted program that requested this client tool call
+ */
+export interface AssistantMessageToolRequestCaller {
+  /**
+   * Provider-assigned identifier for the hosted caller.
+   */
+  callerId: string;
+  type: AssistantMessageToolRequestCallerType;
 }
 /**
  * Session event "assistant.message_start". Streaming assistant message start metadata

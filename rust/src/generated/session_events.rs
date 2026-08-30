@@ -939,6 +939,9 @@ pub struct SessionStartData {
     /// Whether the session was already in use by another client at start time
     #[serde(skip_serializing_if = "Option::is_none")]
     pub already_in_use: Option<bool>,
+    /// Auto routing preference selected at session creation time
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auto_tier: Option<AutoTier>,
     /// Working directory and git context at session start
     #[serde(skip_serializing_if = "Option::is_none")]
     pub context: Option<WorkingDirectoryContext>,
@@ -988,6 +991,9 @@ pub struct SessionResumeData {
     /// Whether the session was already in use by another client at resume time
     #[serde(skip_serializing_if = "Option::is_none")]
     pub already_in_use: Option<bool>,
+    /// Auto routing preference active at resume time
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auto_tier: Option<AutoTier>,
     /// Updated working directory and git context at resume time
     #[serde(skip_serializing_if = "Option::is_none")]
     pub context: Option<WorkingDirectoryContext>,
@@ -2527,6 +2533,16 @@ pub struct AssistantMessageServerTools {
     pub raw_content_blocks: Option<Vec<serde_json::Value>>,
 }
 
+/// Hosted program that requested this client tool call
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssistantMessageToolRequestCaller {
+    /// Provider-assigned identifier for the hosted caller.
+    pub caller_id: String,
+    /// Kind of hosted caller that requested the client tool call.
+    pub r#type: AssistantMessageToolRequestCallerType,
+}
+
 /// A tool invocation request from the assistant
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -2534,6 +2550,9 @@ pub struct AssistantMessageToolRequest {
     /// Arguments to pass to the tool, format depends on the tool
     #[serde(skip_serializing_if = "Option::is_none")]
     pub arguments: Option<serde_json::Value>,
+    /// Hosted program that requested this client tool call
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub caller: Option<AssistantMessageToolRequestCaller>,
     /// Resolved intention summary describing what this specific call does
     #[serde(skip_serializing_if = "Option::is_none")]
     pub intention_summary: Option<String>,
@@ -6321,6 +6340,24 @@ pub struct McpAppToolCallCompleteData {
     pub tool_name: String,
 }
 
+/// Routing preference used when the session model is `auto`.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AutoTier {
+    /// Optimize for efficiency.
+    #[serde(rename = "efficiency")]
+    Efficiency,
+    /// Balance efficiency and intelligence.
+    #[serde(rename = "balance")]
+    Balance,
+    /// Optimize for intelligence.
+    #[serde(rename = "intelligence")]
+    Intelligence,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// Hosting platform type of the repository (github or ado)
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum WorkingDirectoryContextHostType {
@@ -6933,6 +6970,17 @@ pub enum CitationProvider {
     /// Citation synthesized client-side by the runtime from tool output.
     #[serde(rename = "client")]
     Client,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Hosted program caller type
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AssistantMessageToolRequestCallerType {
+    #[serde(rename = "program")]
+    Program,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

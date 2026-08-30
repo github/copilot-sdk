@@ -2450,6 +2450,7 @@ class AssistantMessageToolRequest:
     name: str
     tool_call_id: str
     arguments: Any = None
+    caller: AssistantMessageToolRequestCaller | None = None
     intention_summary: str | None = None
     mcp_server_name: str | None = None
     mcp_tool_name: str | None = None
@@ -2462,6 +2463,7 @@ class AssistantMessageToolRequest:
         name = from_str(obj.get("name"))
         tool_call_id = from_str(obj.get("toolCallId"))
         arguments = obj.get("arguments")
+        caller = from_union([from_none, AssistantMessageToolRequestCaller.from_dict], obj.get("caller"))
         intention_summary = from_union([from_none, from_str], obj.get("intentionSummary"))
         mcp_server_name = from_union([from_none, from_str], obj.get("mcpServerName"))
         mcp_tool_name = from_union([from_none, from_str], obj.get("mcpToolName"))
@@ -2471,6 +2473,7 @@ class AssistantMessageToolRequest:
             name=name,
             tool_call_id=tool_call_id,
             arguments=arguments,
+            caller=caller,
             intention_summary=intention_summary,
             mcp_server_name=mcp_server_name,
             mcp_tool_name=mcp_tool_name,
@@ -2484,6 +2487,8 @@ class AssistantMessageToolRequest:
         result["toolCallId"] = from_str(self.tool_call_id)
         if self.arguments is not None:
             result["arguments"] = self.arguments
+        if self.caller is not None:
+            result["caller"] = from_union([from_none, lambda x: to_class(AssistantMessageToolRequestCaller, x)], self.caller)
         if self.intention_summary is not None:
             result["intentionSummary"] = from_union([from_none, from_str], self.intention_summary)
         if self.mcp_server_name is not None:
@@ -2494,6 +2499,29 @@ class AssistantMessageToolRequest:
             result["toolTitle"] = from_union([from_none, from_str], self.tool_title)
         if self.type is not None:
             result["type"] = from_union([from_none, lambda x: to_enum(AssistantMessageToolRequestType, x)], self.type)
+        return result
+
+
+@dataclass
+class AssistantMessageToolRequestCaller:
+    "Hosted program that requested this client tool call"
+    caller_id: str
+    type: AssistantMessageToolRequestCallerType
+
+    @staticmethod
+    def from_dict(obj: Any) -> "AssistantMessageToolRequestCaller":
+        assert isinstance(obj, dict)
+        caller_id = from_str(obj.get("callerId"))
+        type = parse_enum(AssistantMessageToolRequestCallerType, obj.get("type"))
+        return AssistantMessageToolRequestCaller(
+            caller_id=caller_id,
+            type=type,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["callerId"] = from_str(self.caller_id)
+        result["type"] = to_enum(AssistantMessageToolRequestCallerType, self.type)
         return result
 
 
@@ -8222,6 +8250,7 @@ class SessionResumeData:
     event_count: int
     resume_time: datetime
     already_in_use: bool | None = None
+    auto_tier: AutoTier | None = None
     context: WorkingDirectoryContext | None = None
     context_tier: ContextTier | None = None
     continue_pending_work: bool | None = None
@@ -8240,6 +8269,7 @@ class SessionResumeData:
         event_count = from_int(obj.get("eventCount"))
         resume_time = from_datetime(obj.get("resumeTime"))
         already_in_use = from_union([from_none, from_bool], obj.get("alreadyInUse"))
+        auto_tier = from_union([from_none, lambda x: parse_enum(AutoTier, x)], obj.get("autoTier"))
         context = from_union([from_none, WorkingDirectoryContext.from_dict], obj.get("context"))
         context_tier = from_union([from_none, lambda x: parse_enum(ContextTier, x)], obj.get("contextTier"))
         continue_pending_work = from_union([from_none, from_bool], obj.get("continuePendingWork"))
@@ -8255,6 +8285,7 @@ class SessionResumeData:
             event_count=event_count,
             resume_time=resume_time,
             already_in_use=already_in_use,
+            auto_tier=auto_tier,
             context=context,
             context_tier=context_tier,
             continue_pending_work=continue_pending_work,
@@ -8274,6 +8305,8 @@ class SessionResumeData:
         result["resumeTime"] = to_datetime(self.resume_time)
         if self.already_in_use is not None:
             result["alreadyInUse"] = from_union([from_none, from_bool], self.already_in_use)
+        if self.auto_tier is not None:
+            result["autoTier"] = from_union([from_none, lambda x: to_enum(AutoTier, x)], self.auto_tier)
         if self.context is not None:
             result["context"] = from_union([from_none, lambda x: to_class(WorkingDirectoryContext, x)], self.context)
         if self.context_tier is not None:
@@ -8566,6 +8599,7 @@ class SessionStartData:
     start_time: datetime
     version: int
     already_in_use: bool | None = None
+    auto_tier: AutoTier | None = None
     context: WorkingDirectoryContext | None = None
     context_tier: ContextTier | None = None
     detached_from_spawning_parent_session_id: str | None = None
@@ -8586,6 +8620,7 @@ class SessionStartData:
         start_time = from_datetime(obj.get("startTime"))
         version = from_int(obj.get("version"))
         already_in_use = from_union([from_none, from_bool], obj.get("alreadyInUse"))
+        auto_tier = from_union([from_none, lambda x: parse_enum(AutoTier, x)], obj.get("autoTier"))
         context = from_union([from_none, WorkingDirectoryContext.from_dict], obj.get("context"))
         context_tier = from_union([from_none, lambda x: parse_enum(ContextTier, x)], obj.get("contextTier"))
         detached_from_spawning_parent_session_id = from_union([from_none, from_str], obj.get("detachedFromSpawningParentSessionId"))
@@ -8603,6 +8638,7 @@ class SessionStartData:
             start_time=start_time,
             version=version,
             already_in_use=already_in_use,
+            auto_tier=auto_tier,
             context=context,
             context_tier=context_tier,
             detached_from_spawning_parent_session_id=detached_from_spawning_parent_session_id,
@@ -8624,6 +8660,8 @@ class SessionStartData:
         result["version"] = to_int(self.version)
         if self.already_in_use is not None:
             result["alreadyInUse"] = from_union([from_none, from_bool], self.already_in_use)
+        if self.auto_tier is not None:
+            result["autoTier"] = from_union([from_none, lambda x: to_enum(AutoTier, x)], self.auto_tier)
         if self.context is not None:
             result["context"] = from_union([from_none, lambda x: to_class(WorkingDirectoryContext, x)], self.context)
         if self.context_tier is not None:
@@ -11637,6 +11675,11 @@ class AgentInterruptedCancelPhase(Enum):
     MID_STREAM = "mid_stream"
 
 
+class AssistantMessageToolRequestCallerType(Enum):
+    "Hosted program caller type"
+    PROGRAM = "program"
+
+
 class AssistantMessageToolRequestType(Enum):
     "Tool call type: \"function\" for standard tool calls, \"custom\" for grammar-based tool calls. Defaults to \"function\" when absent."
     # Standard function-style tool call.
@@ -11693,6 +11736,16 @@ class AutoModeSwitchResponse(Enum):
     YES_ALWAYS = "yes_always"
     # Do not switch models.
     NO = "no"
+
+
+class AutoTier(Enum):
+    "Routing preference used when the session model is `auto`."
+    # Optimize for efficiency.
+    EFFICIENCY = "efficiency"
+    # Balance efficiency and intelligence.
+    BALANCE = "balance"
+    # Optimize for intelligence.
+    INTELLIGENCE = "intelligence"
 
 
 class AutopilotObjectiveChangedOperation(Enum):
@@ -12487,6 +12540,8 @@ __all__ = [
     "AssistantMessageServerTools",
     "AssistantMessageStartData",
     "AssistantMessageToolRequest",
+    "AssistantMessageToolRequestCaller",
+    "AssistantMessageToolRequestCallerType",
     "AssistantMessageToolRequestType",
     "AssistantReasoningData",
     "AssistantReasoningDeltaData",
@@ -12530,6 +12585,7 @@ __all__ = [
     "AutoModeSwitchCompletedData",
     "AutoModeSwitchRequestedData",
     "AutoModeSwitchResponse",
+    "AutoTier",
     "AutopilotObjectiveChangedOperation",
     "AutopilotObjectiveChangedStatus",
     "BinaryAssetReference",
