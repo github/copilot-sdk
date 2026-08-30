@@ -70,6 +70,18 @@ tokio-tungstenite = { version = "0.24", default-features = false, features = ["c
 
 [target.'cfg(windows)'.dependencies]
 zip = { version = "2", default-features = false, features = ["deflate"], optional = true }
+# Windows Job Object primitives backing `process_tree`'s CLI process-tree
+# containment (`JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`).
+windows-sys = { version = "0.61", default-features = false, features = [
+    "Win32_Foundation",
+    "Win32_System_JobObjects",
+    "Win32_System_Threading",
+] }
+
+[target.'cfg(unix)'.dependencies]
+# Process-group primitives backing `process_tree`'s CLI process-tree
+# containment (`killpg`).
+libc = "0.2"
 
 [dev-dependencies]
 rusqlite = { version = "0.35", features = ["bundled"] }
