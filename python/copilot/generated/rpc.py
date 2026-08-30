@@ -5589,28 +5589,6 @@ class MCPOauthProbeRequest:
         result["serverName"] = from_str(self.server_name)
         return result
 
-@dataclass
-class ExternalRefMCPOauthHTTPResponse:
-    """HTTP response returned by the server.
-
-    HTTP 401 or 403 response returned by the server.
-
-    HTTP response returned by the server, when the probe reached the server and captured the
-    complete response.
-    """
-    external_ref_marker_external_ref_mcp_oauth_http_response: str
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'ExternalRefMCPOauthHTTPResponse':
-        assert isinstance(obj, dict)
-        external_ref_marker_external_ref_mcp_oauth_http_response = from_str(obj.get("__externalRefMarker___ExternalRef_McpOauthHttpResponse"))
-        return ExternalRefMCPOauthHTTPResponse(external_ref_marker_external_ref_mcp_oauth_http_response)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["__externalRefMarker___ExternalRef_McpOauthHttpResponse"] = from_str(self.external_ref_marker_external_ref_mcp_oauth_http_response)
-        return result
-
 class Status(Enum):
     AUTHENTICATED = "authenticated"
     FAILED = "failed"
@@ -32985,7 +32963,7 @@ class MCPOauthProbeResult:
     status: Status
     """Probe outcome variant discriminator."""
 
-    http_response: ExternalRefMCPOauthHTTPResponse | None = None
+    http_response: McpOauthHttpResponse | None = None
     """HTTP response returned by the server.
 
     HTTP 401 or 403 response returned by the server.
@@ -33006,7 +32984,7 @@ class MCPOauthProbeResult:
     def from_dict(obj: Any) -> 'MCPOauthProbeResult':
         assert isinstance(obj, dict)
         status = Status(obj.get("status"))
-        http_response = from_union([ExternalRefMCPOauthHTTPResponse.from_dict, from_none], obj.get("httpResponse"))
+        http_response = from_union([McpOauthHttpResponse.from_dict, from_none], obj.get("httpResponse"))
         reason = from_union([MCPOauthProbeNeedsAuthReason, from_none], obj.get("reason"))
         www_authenticate_params = from_union([McpOauthWWWAuthenticateParams.from_dict, from_none], obj.get("wwwAuthenticateParams"))
         error = from_union([from_str, from_none], obj.get("error"))
@@ -33016,7 +32994,7 @@ class MCPOauthProbeResult:
         result: dict = {}
         result["status"] = to_enum(Status, self.status)
         if self.http_response is not None:
-            result["httpResponse"] = from_union([lambda x: to_class(ExternalRefMCPOauthHTTPResponse, x), from_none], self.http_response)
+            result["httpResponse"] = from_union([lambda x: to_class(McpOauthHttpResponse, x), from_none], self.http_response)
         if self.reason is not None:
             result["reason"] = from_union([lambda x: to_enum(MCPOauthProbeNeedsAuthReason, x), from_none], self.reason)
         if self.www_authenticate_params is not None:
@@ -42119,7 +42097,6 @@ __all__ = [
     "ExtensionsApi",
     "ExtensionsDisableRequest",
     "ExtensionsEnableRequest",
-    "ExternalRefMCPOauthHTTPResponse",
     "ExternalToolResult",
     "ExternalToolTextResultForLlm",
     "ExternalToolTextResultForLlmBinaryResultsForLlm",

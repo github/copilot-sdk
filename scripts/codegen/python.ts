@@ -143,12 +143,22 @@ function placeholderToQuicktypeIdentifiers(placeholder: string): string[] {
     return [...new Set([basic, basic.replace(/Mcp/g, "MCP")])];
 }
 
-function postProcessExternalRefsForPython(
+export function postProcessExternalRefsForPython(
     code: string,
     placeholderToReal: Map<string, string>,
     externalEnumNames: Set<string> = new Set()
 ): string {
     for (const [placeholder, realName] of placeholderToReal) {
+        const markerProperty = `__externalRefMarker_${placeholder}`;
+        const markerClass = [
+            ...code.matchAll(
+                /(?:^|\n)(@dataclass\r?\nclass (\w+)\b[\s\S]*?)(?=\n@dataclass\b|\nclass\s+\w|\ndef\s+\w|$)/g
+            ),
+        ].find((match) => match[1].includes(`"${markerProperty}"`));
+        if (markerClass) {
+            code = code.replace(markerClass[0], "\n");
+            code = code.replace(new RegExp(`\\b${escapeRegExp(markerClass[2])}\\b`, "g"), realName);
+        }
         for (const quicktypeName of placeholderToQuicktypeIdentifiers(placeholder)) {
             code = code.replace(
                 new RegExp(
