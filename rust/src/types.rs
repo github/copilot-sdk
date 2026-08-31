@@ -6945,25 +6945,29 @@ mod tests {
         let json = serde_json::to_value(&wire).unwrap();
         assert!(json.get("cachedModels").is_none());
 
-        let mut empty = SessionConfig::default();
-        empty.cached_models = Some(Vec::new());
+        let empty = SessionConfig {
+            cached_models: Some(Vec::new()),
+            ..Default::default()
+        };
         let (wire, _runtime) = empty
             .into_wire(Some(SessionId::from("cached-models-empty")))
             .expect("empty cached models config has no duplicate handlers");
         let json = serde_json::to_value(&wire).unwrap();
         assert_eq!(json["cachedModels"], serde_json::json!([]));
 
-        let mut configured = SessionConfig::default();
-        configured.cached_models = Some(vec![
-            CachedModel {
-                id: "gpt-5.4".to_string(),
-                supports_reasoning_effort: true,
-            },
-            CachedModel {
-                id: "gpt-4o".to_string(),
-                supports_reasoning_effort: false,
-            },
-        ]);
+        let configured = SessionConfig {
+            cached_models: Some(vec![
+                CachedModel {
+                    id: "gpt-5.4".to_string(),
+                    supports_reasoning_effort: true,
+                },
+                CachedModel {
+                    id: "gpt-4o".to_string(),
+                    supports_reasoning_effort: false,
+                },
+            ]),
+            ..Default::default()
+        };
         let (wire, _runtime) = configured
             .into_wire(Some(SessionId::from("cached-models-configured")))
             .expect("cached models config has no duplicate handlers");
