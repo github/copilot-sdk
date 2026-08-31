@@ -1869,6 +1869,17 @@ impl ManagedSettings {
     }
 }
 
+/// Cached model metadata used by the runtime to validate session creation
+/// without synchronously fetching the model catalog again.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CachedModel {
+    /// Model identifier as returned by [`Client::list_models`](crate::Client::list_models).
+    pub id: String,
+    /// Whether the model accepts reasoning-effort configuration.
+    pub supports_reasoning_effort: bool,
+}
+
 /// Selects the model-facing shape of the built-in `ask_user` tool.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -1939,6 +1950,10 @@ pub struct SessionConfig {
     pub session_id: Option<SessionId>,
     /// Model to use (e.g. `"gpt-4"`, `"claude-sonnet-4"`).
     pub model: Option<String>,
+    /// Authoritative projection of a model catalog the host already fetched for
+    /// this create request. `Some(Vec::new())` means no models are available;
+    /// `None` preserves the runtime's synchronous validation fetch.
+    pub cached_models: Option<Vec<CachedModel>>,
     /// Application name sent as `User-Agent` context.
     pub client_name: Option<String>,
     /// Reasoning effort level (e.g. `"low"`, `"medium"`, `"high"`).
@@ -2273,6 +2288,7 @@ impl std::fmt::Debug for SessionConfig {
         f.debug_struct("SessionConfig")
             .field("session_id", &self.session_id)
             .field("model", &self.model)
+            .field("cached_models", &self.cached_models)
             .field("client_name", &self.client_name)
             .field("reasoning_effort", &self.reasoning_effort)
             .field("reasoning_summary", &self.reasoning_summary)
@@ -2415,6 +2431,7 @@ impl Default for SessionConfig {
         Self {
             session_id: None,
             model: None,
+            cached_models: None,
             client_name: None,
             reasoning_effort: None,
             reasoning_summary: None,
@@ -2584,6 +2601,7 @@ impl SessionConfig {
         let wire = crate::wire::SessionCreateWire {
             session_id,
             model: self.model,
+            cached_models: self.cached_models,
             client_name: self.client_name,
             reasoning_effort: self.reasoning_effort,
             reasoning_summary: self.reasoning_summary,
@@ -6052,7 +6070,7 @@ mod tests {
 
     use super::{
         AgentMode, Attachment, AttachmentLineRange, AttachmentSelectionPosition,
-        AttachmentSelectionRange, AutoTier, AzureProviderOptions, CapiSessionOptions,
+        AttachmentSelectionRange, AutoTier, AzureProviderOptions, CachedModel, CapiSessionOptions,
         ConnectionState, CopilotExpAssignmentResponse, CustomAgentConfig, DeliveryMode,
         ExpConfigEntry, ExpFlagValue, ExtensionInfo, GitHubMcpToolConfig, GitHubReferenceType,
         InfiniteSessionConfig, LargeToolOutputConfig, McpServerConfig, McpStdioServerConfig,
@@ -7001,6 +7019,53 @@ mod tests {
         assert_eq!(
             cfg.extension_info,
             Some(ExtensionInfo::new("github-app", "counter"))
+        );
+    }
+
+    #[test]
+    fn session_config_cached_models_preserves_omitted_empty_and_non_empty_wire_shapes() {
+        let omitted = SessionConfig::default();
+        let (wire, _runtime) = omitted
+            .into_wire(Some(SessionId::from("cached-models-omitted")))
+            .expect("default config has no duplicate handlers");
+        let json = serde_json::to_value(&wire).unwrap();
+        assert!(json.get("cachedModels").is_none());
+
+        let mut empty = SessionConfig::default();
+        empty.cached_models = Some(Vec::new());
+        let (wire, _runtime) = empty
+            .into_wire(Some(SessionId::from("cached-models-empty")))
+            .expect("empty cached models config has no duplicate handlers");
+        let json = serde_json::to_value(&wire).unwrap();
+        assert_eq!(json["cachedModels"], serde_json::json!([]));
+
+        let mut configured = SessionConfig::default();
+        configured.cached_models = Some(vec![
+            CachedModel {
+                id: "gpt-5.4".to_string(),
+                supports_reasoning_effort: true,
+            },
+            CachedModel {
+                id: "gpt-4o".to_string(),
+                supports_reasoning_effort: false,
+            },
+        ]);
+        let (wire, _runtime) = configured
+            .into_wire(Some(SessionId::from("cached-models-configured")))
+            .expect("cached models config has no duplicate handlers");
+        let json = serde_json::to_value(&wire).unwrap();
+        assert_eq!(
+            json["cachedModels"],
+            serde_json::json!([
+                {
+                    "id": "gpt-5.4",
+                    "supportsReasoningEffort": true,
+                },
+                {
+                    "id": "gpt-4o",
+                    "supportsReasoningEffort": false,
+                },
+            ])
         );
     }
 
