@@ -23,7 +23,8 @@ To use the SDK, you'll need:
 
 Managed stdio and TCP connections materialize the platform classifier's
 `copilot-runtime[.exe]` and adjacent `runtime.node` by default. An explicit
-`cliPath` overrides the bundled runtime.
+`cliPath` or `COPILOT_CLI_PATH` environment variable overrides the bundled
+runtime.
 
 ## Installation
 

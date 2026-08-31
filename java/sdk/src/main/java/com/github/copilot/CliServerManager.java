@@ -317,8 +317,20 @@ final class CliServerManager {
     }
 
     RuntimeLaunch resolveCliLaunch() throws IOException {
+        return resolveCliLaunch(System.getenv(NativeRuntimeLoader.COPILOT_CLI_PATH_ENV));
+    }
+
+    RuntimeLaunch resolveCliLaunch(String inheritedCliPath) throws IOException {
         if (options.getCliPath() != null) {
             return new RuntimeLaunch(options.getCliPath());
+        }
+
+        var environment = options.getEnvironment();
+        String envCliPath = environment != null
+                ? environment.get(NativeRuntimeLoader.COPILOT_CLI_PATH_ENV)
+                : inheritedCliPath;
+        if (envCliPath != null && !envCliPath.isBlank()) {
+            return new RuntimeLaunch(envCliPath);
         }
 
         Path wrapper = NativeRuntimeLoader.resolveRuntimeWrapper();
