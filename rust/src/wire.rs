@@ -24,11 +24,11 @@ use crate::generated::api_types::{
 };
 use crate::generated::session_events::ReasoningSummary;
 use crate::types::{
-    CanvasProviderIdentity, CapiSessionOptions, CloudSessionOptions, CustomAgentConfig,
-    DefaultAgentConfig, ExtensionInfo, GitHubMcpToolConfig, InfiniteSessionConfig,
-    LargeToolOutputConfig, McpServerConfig, MemoryConfiguration, NamedProviderConfig,
-    ProviderConfig, ProviderModelConfig, SessionId, SessionLimitsConfig, SystemMessageConfig, Tool,
-    ToolSearchConfig,
+    CachedModel, CanvasProviderIdentity, CapiSessionOptions, CloudSessionOptions,
+    CustomAgentConfig, DefaultAgentConfig, ExtensionInfo, GitHubMcpToolConfig,
+    InfiniteSessionConfig, LargeToolOutputConfig, McpServerConfig, MemoryConfiguration,
+    NamedProviderConfig, ProviderConfig, ProviderModelConfig, SessionId, SessionLimitsConfig,
+    SystemMessageConfig, Tool, ToolSearchConfig,
 };
 
 /// Wire representation of a slash command (name + description only). The
@@ -51,6 +51,8 @@ pub(crate) struct SessionCreateWire {
     pub session_id: Option<SessionId>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cached_models: Option<Vec<CachedModel>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub client_name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
