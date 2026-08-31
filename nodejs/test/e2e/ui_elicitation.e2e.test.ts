@@ -24,6 +24,9 @@ describe("UI Elicitation", async () => {
 describe("UI Elicitation Callback", async () => {
     const ctx = await createSdkTestContext();
     const client = ctx.copilotClient;
+    // TODO(PR #2395): Re-enable when the Rust-only managed runtime exposes the
+    // Node-hosted ask_user tool metadata.
+    const askUserMetadataDisabledForRustOnlyFlow = true;
 
     it(
         "session created with onElicitationRequest reports elicitation capability",
@@ -38,8 +41,8 @@ describe("UI Elicitation Callback", async () => {
         }
     );
 
-    // In-process sessions do not expose current tool metadata for introspection.
-    it.skipIf(isInProcessTransport)(
+    // Hostless runtime sessions do not expose current ask_user metadata for introspection.
+    it.skipIf(isInProcessTransport || askUserMetadataDisabledForRustOnlyFlow)(
         "session created with the elicitation ask-user variant exposes the structured tool",
         { timeout: 60_000 },
         async () => {
