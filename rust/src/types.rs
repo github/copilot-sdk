@@ -2141,6 +2141,12 @@ pub struct SessionConfig {
     /// each command appears as `/name` for the user to invoke and the
     /// associated [`CommandHandler`] is called when executed.
     pub commands: Option<Vec<CommandDefinition>>,
+    /// Feature-flag values resolved by the host for this session.
+    ///
+    /// Re-supply these values through [`ResumeSessionConfig::feature_flags`]
+    /// when resuming after a CLI process restart. Set via
+    /// [`with_feature_flags`](Self::with_feature_flags).
+    pub feature_flags: Option<HashMap<String, bool>>,
     /// ExP assignment ("flight") data injected by a trusted integrator, in
     /// the same JSON shape the Copilot CLI fetches from the experimentation
     /// service (`CopilotExpAssignmentResponse`). When supplied, the runtime
@@ -2318,6 +2324,7 @@ impl std::fmt::Debug for SessionConfig {
                 &self.include_sub_agent_streaming_events,
             )
             .field("commands", &self.commands)
+            .field("feature_flags", &self.feature_flags)
             .field("exp_assignments", &self.exp_assignments)
             .field("enable_managed_settings", &self.enable_managed_settings)
             .field("enable_experimental_mode", &self.enable_experimental_mode)
@@ -2434,6 +2441,7 @@ impl Default for SessionConfig {
             cloud: None,
             include_sub_agent_streaming_events: None,
             commands: None,
+            feature_flags: None,
             exp_assignments: None,
             enable_managed_settings: None,
             managed_settings: None,
@@ -2608,6 +2616,7 @@ impl SessionConfig {
             include_sub_agent_streaming_events: self.include_sub_agent_streaming_events,
             enable_github_telemetry_forwarding: None,
             commands: wire_commands,
+            feature_flags: self.feature_flags,
             exp_assignments: self.exp_assignments,
             enable_managed_settings: self.enable_managed_settings,
             is_experimental_mode: self.enable_experimental_mode,
@@ -3241,6 +3250,12 @@ impl SessionConfig {
         self
     }
 
+    /// Set feature-flag values resolved by the host for this session.
+    pub fn with_feature_flags(mut self, feature_flags: HashMap<String, bool>) -> Self {
+        self.feature_flags = Some(feature_flags);
+        self
+    }
+
     /// Inject ExP assignment ("flight") data for this session, in the same
     /// JSON shape the Copilot CLI fetches from the experimentation service
     /// (`CopilotExpAssignmentResponse`). The runtime feeds it into the same
@@ -3464,6 +3479,10 @@ pub struct ResumeSessionConfig {
     /// [`SessionConfig::commands`] — commands are not persisted server-side,
     /// so the resume payload re-supplies the registration.
     pub commands: Option<Vec<CommandDefinition>>,
+    /// Feature-flag values resolved by the host to apply on resume.
+    ///
+    /// See [`SessionConfig::feature_flags`].
+    pub feature_flags: Option<HashMap<String, bool>>,
     /// ExP assignment ("flight") data injected on resume. See
     /// [`SessionConfig::exp_assignments`]. Re-supply on resume so the runtime
     /// re-applies the assignments after a CLI process restart. Set via
@@ -3627,6 +3646,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
                 &self.include_sub_agent_streaming_events,
             )
             .field("commands", &self.commands)
+            .field("feature_flags", &self.feature_flags)
             .field("exp_assignments", &self.exp_assignments)
             .field("enable_managed_settings", &self.enable_managed_settings)
             .field("enable_experimental_mode", &self.enable_experimental_mode)
@@ -3793,6 +3813,7 @@ impl ResumeSessionConfig {
             include_sub_agent_streaming_events: self.include_sub_agent_streaming_events,
             enable_github_telemetry_forwarding: None,
             commands: wire_commands,
+            feature_flags: self.feature_flags,
             exp_assignments: self.exp_assignments,
             enable_managed_settings: self.enable_managed_settings,
             is_experimental_mode: self.enable_experimental_mode,
@@ -3892,6 +3913,7 @@ impl ResumeSessionConfig {
             remote_session: None,
             include_sub_agent_streaming_events: None,
             commands: None,
+            feature_flags: None,
             exp_assignments: None,
             enable_managed_settings: None,
             managed_settings: None,
@@ -4508,6 +4530,12 @@ impl ResumeSessionConfig {
     /// Set [`Self::manage_schedule_enabled`].
     pub fn with_manage_schedule_enabled(mut self, value: bool) -> Self {
         self.manage_schedule_enabled = Some(value);
+        self
+    }
+
+    /// Re-supply feature-flag values resolved by the host on resume.
+    pub fn with_feature_flags(mut self, feature_flags: HashMap<String, bool>) -> Self {
+        self.feature_flags = Some(feature_flags);
         self
     }
 
@@ -6405,6 +6433,46 @@ mod tests {
             .expect("no duplicate handlers");
         let empty_json = serde_json::to_value(&empty_wire).unwrap();
         assert!(empty_json.get("memory").is_none());
+    }
+
+    #[test]
+    fn feature_flags_serialize_on_create_and_resume() {
+        let feature_flags = HashMap::from([
+            ("BACKGROUND_TASK_NOTIFICATION_PAYLOADS".to_string(), true),
+            ("DISABLED_TEST_FLAG".to_string(), false),
+        ]);
+        let expected = serde_json::json!({
+            "BACKGROUND_TASK_NOTIFICATION_PAYLOADS": true,
+            "DISABLED_TEST_FLAG": false,
+        });
+
+        let create_config = SessionConfig::default().with_feature_flags(feature_flags.clone());
+        assert_eq!(create_config.feature_flags.as_ref(), Some(&feature_flags));
+        let (create_wire, _) = create_config
+            .into_wire(Some(SessionId::from("feature-flags-create")))
+            .expect("no duplicate handlers");
+        let create_json = serde_json::to_value(&create_wire).unwrap();
+        assert_eq!(create_json["featureFlags"], expected);
+
+        let (resume_wire, _) = ResumeSessionConfig::new(SessionId::from("feature-flags-resume"))
+            .with_feature_flags(feature_flags)
+            .into_wire()
+            .expect("no duplicate handlers");
+        let resume_json = serde_json::to_value(&resume_wire).unwrap();
+        assert_eq!(resume_json["featureFlags"], expected);
+
+        let (unset_create_wire, _) = SessionConfig::default()
+            .into_wire(Some(SessionId::from("feature-flags-create-unset")))
+            .expect("no duplicate handlers");
+        let unset_create_json = serde_json::to_value(&unset_create_wire).unwrap();
+        assert!(unset_create_json.get("featureFlags").is_none());
+
+        let (unset_resume_wire, _) =
+            ResumeSessionConfig::new(SessionId::from("feature-flags-resume-unset"))
+                .into_wire()
+                .expect("no duplicate handlers");
+        let unset_resume_json = serde_json::to_value(&unset_resume_wire).unwrap();
+        assert!(unset_resume_json.get("featureFlags").is_none());
     }
 
     fn sample_exp_assignments(context: &str) -> CopilotExpAssignmentResponse {
