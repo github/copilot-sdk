@@ -76,7 +76,8 @@ rusqlite = { version = "0.35", features = ["bundled"] }
 schemars = "1"
 serial_test = "3"
 tempfile = "3"
-tokio = { version = "1", features = ["rt-multi-thread"] }
+tokio = { version = "1", features = ["rt-multi-thread", "test-util"] }
+tracing-subscriber = { version = "0.3", features = ["fmt"] }
 
 # Integration tests that call test-support-only Client methods (e.g.
 # `from_streams_with_connection_token`, `from_streams_with_trace_provider`)

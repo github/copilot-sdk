@@ -1609,6 +1609,10 @@ fn spawn_event_loop(
                     .tx
                     .send(Err(ErrorKind::Session(SessionErrorKind::EventLoopClosed).into()));
             }
+            requests.close();
+            while let Ok(request) = requests.try_recv() {
+                drop(request);
+            }
         }
         .instrument(span),
     )
@@ -2346,7 +2350,22 @@ struct RequestDispatchContext<'a> {
 async fn handle_request(
     session_id: &SessionId,
     ctx: RequestDispatchContext<'_>,
+    request: crate::jsonrpc::ReverseRpcRequest,
+) {
+    let (request, reverse_rpc_trace) = request.into_dispatch();
+    let dispatch = handle_request_inner(session_id, ctx, request, reverse_rpc_trace.as_ref());
+    if let Some(trace) = &reverse_rpc_trace {
+        trace.scope(dispatch).await;
+    } else {
+        dispatch.await;
+    }
+}
+
+async fn handle_request_inner(
+    session_id: &SessionId,
+    ctx: RequestDispatchContext<'_>,
     request: crate::JsonRpcRequest,
+    reverse_rpc_trace: Option<&crate::jsonrpc::ReverseRpcDispatchGuard>,
 ) {
     let sid = session_id.clone();
     let client = ctx.client;
@@ -2385,7 +2404,15 @@ async fn handle_request(
                 .unwrap_or(Value::Object(Default::default()));
 
             let rpc_result = if let Some(hooks) = hooks {
-                match crate::hooks::dispatch_hook(hooks, &sid, hook_type, input).await {
+                match crate::hooks::dispatch_hook_traced(
+                    hooks,
+                    &sid,
+                    hook_type,
+                    input,
+                    reverse_rpc_trace.map(|guard| guard.trace()),
+                )
+                .await
+                {
                     Ok(output) => output,
                     Err(e) => {
                         warn!(error = %e, hook_type = hook_type, "hook dispatch failed");

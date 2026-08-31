@@ -1023,7 +1023,7 @@ struct ClientInner {
     ffi_host: parking_lot::Mutex<Option<Arc<crate::ffi::FfiShared>>>,
     rpc: JsonRpcClient,
     cwd: PathBuf,
-    request_rx: parking_lot::Mutex<Option<mpsc::UnboundedReceiver<JsonRpcRequest>>>,
+    request_rx: parking_lot::Mutex<Option<mpsc::UnboundedReceiver<jsonrpc::ReverseRpcRequest>>>,
     notification_tx: broadcast::Sender<JsonRpcNotification>,
     router: router::SessionRouter,
     github_token_registry: Arc<github_token::GitHubTokenRegistry>,
@@ -1599,9 +1599,9 @@ impl Client {
         mode: ClientMode,
     ) -> Result<Self> {
         let setup_start = Instant::now();
-        let (request_tx, request_rx) = mpsc::unbounded_channel::<JsonRpcRequest>();
+        let (request_tx, request_rx) = mpsc::unbounded_channel::<jsonrpc::ReverseRpcRequest>();
         let (notification_broadcast_tx, _) = broadcast::channel::<JsonRpcNotification>(1024);
-        let rpc = JsonRpcClient::new(
+        let rpc = JsonRpcClient::new_with_reverse_rpc_timing(
             writer,
             reader,
             notification_broadcast_tx.clone(),
@@ -2025,7 +2025,7 @@ impl Client {
 
     /// Send a JSON-RPC response back to the CLI (e.g. for permission or tool call requests).
     pub(crate) async fn send_response(&self, response: &JsonRpcResponse) -> Result<()> {
-        self.inner.rpc.write(response).await
+        self.inner.rpc.write_response(response).await
     }
 
     /// Reconstruct a [`Client`] handle from a shared inner pointer.
@@ -2037,7 +2037,9 @@ impl Client {
     ///
     /// Can only be called once — subsequent calls return `None`.
     #[expect(dead_code, reason = "reserved for future pub(crate) use")]
-    pub(crate) fn take_request_rx(&self) -> Option<mpsc::UnboundedReceiver<JsonRpcRequest>> {
+    pub(crate) fn take_request_rx(
+        &self,
+    ) -> Option<mpsc::UnboundedReceiver<jsonrpc::ReverseRpcRequest>> {
         self.inner.request_rx.lock().take()
     }
 

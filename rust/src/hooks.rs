@@ -6,11 +6,11 @@
 //! [`Client::create_session`](crate::Client::create_session).
 
 use std::path::PathBuf;
-use std::time::Instant;
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use tokio::time::Instant;
 
 use crate::types::SessionId;
 
@@ -680,11 +680,22 @@ pub trait SessionHooks: Send + Sync + 'static {
 /// Returns `Ok(Value)` shaped like `{ "output": ... }` on success.
 /// If no hook is registered ([`HookOutput::None`]), the output is an empty
 /// object: `{ "output": {} }`.
+#[cfg(test)]
 pub(crate) async fn dispatch_hook(
     hooks: &dyn SessionHooks,
     session_id: &SessionId,
     hook_type: &str,
     raw_input: Value,
+) -> Result<Value, crate::Error> {
+    dispatch_hook_traced(hooks, session_id, hook_type, raw_input, None).await
+}
+
+pub(crate) async fn dispatch_hook_traced(
+    hooks: &dyn SessionHooks,
+    session_id: &SessionId,
+    hook_type: &str,
+    raw_input: Value,
+    reverse_rpc_trace: Option<&crate::jsonrpc::ReverseRpcTrace>,
 ) -> Result<Value, crate::Error> {
     let ctx = HookContext {
         session_id: session_id.clone(),
@@ -743,8 +754,12 @@ pub(crate) async fn dispatch_hook(
 
     let dispatch_start = Instant::now();
     let output = hooks.on_hook(event).await;
+    let dispatch_elapsed = dispatch_start.elapsed();
+    if let Some(trace) = reverse_rpc_trace {
+        trace.record_hook_callback(hook_type, dispatch_start, dispatch_elapsed);
+    }
     tracing::debug!(
-        elapsed_ms = dispatch_start.elapsed().as_millis(),
+        elapsed_ms = dispatch_elapsed.as_millis(),
         session_id = %session_id,
         hook_type = hook_type,
         "SessionHooks::on_hook dispatch"
@@ -786,7 +801,58 @@ pub(crate) async fn dispatch_hook(
 
 #[cfg(test)]
 mod tests {
+    use std::io::Write;
+    use std::sync::Arc;
+    use std::time::Duration;
+
+    use parking_lot::Mutex;
+    use tokio::sync::Notify;
+    use tracing::Instrument;
+    use tracing_subscriber::Layer;
+    use tracing_subscriber::fmt::MakeWriter;
+    use tracing_subscriber::layer::SubscriberExt;
+
     use super::*;
+    use crate::JsonRpcRequest;
+    use crate::jsonrpc::ReverseRpcTrace;
+
+    #[derive(Clone, Default)]
+    struct TraceBuffer(Arc<Mutex<Vec<u8>>>);
+
+    impl TraceBuffer {
+        fn text(&self) -> String {
+            String::from_utf8(self.0.lock().clone()).unwrap()
+        }
+    }
+
+    impl Write for TraceBuffer {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            self.0.lock().extend_from_slice(buf);
+            Ok(buf.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    impl<'a> MakeWriter<'a> for TraceBuffer {
+        type Writer = Self;
+
+        fn make_writer(&'a self) -> Self::Writer {
+            self.clone()
+        }
+    }
+
+    async fn wait_for_trace(buffer: &TraceBuffer, needle: &str) {
+        for _ in 0..20 {
+            if buffer.text().contains(needle) {
+                return;
+            }
+            tokio::task::yield_now().await;
+        }
+        panic!("timing trace did not contain {needle:?}: {}", buffer.text());
+    }
 
     struct TestHooks;
 
@@ -840,6 +906,86 @@ mod tests {
         let output = &result["output"];
         assert_eq!(output["permissionDecision"], "deny");
         assert_eq!(output["permissionDecisionReason"], "blocked by policy");
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn traced_dispatch_measures_only_the_gated_hook_callback() {
+        const SENTINEL: &str = "PRIVATE_HOOK_SENTINEL_DO_NOT_TRACE";
+
+        struct GatedHooks {
+            started: Arc<Notify>,
+            release: Arc<Notify>,
+        }
+
+        #[async_trait]
+        impl SessionHooks for GatedHooks {
+            async fn on_hook(&self, _event: HookEvent) -> HookOutput {
+                self.started.notify_one();
+                self.release.notified().await;
+                HookOutput::UserPromptSubmitted(UserPromptSubmittedOutput {
+                    modified_prompt: Some(SENTINEL.to_string()),
+                    ..Default::default()
+                })
+            }
+        }
+
+        let trace_buffer = TraceBuffer::default();
+        let subscriber = tracing_subscriber::registry().with(
+            tracing_subscriber::fmt::layer()
+                .with_writer(trace_buffer.clone())
+                .with_ansi(false)
+                .without_time()
+                .with_filter(tracing_subscriber::filter::filter_fn(|metadata| {
+                    metadata.target() == "github_copilot_sdk::reverse_rpc_timing"
+                })),
+        );
+        let _subscriber = tracing::subscriber::set_default(subscriber);
+        let started = Arc::new(Notify::new());
+        let release = Arc::new(Notify::new());
+        let hooks = Arc::new(GatedHooks {
+            started: started.clone(),
+            release: release.clone(),
+        });
+        let request = JsonRpcRequest::new(
+            99,
+            "hooks.invoke",
+            Some(serde_json::json!({ "sessionId": "session-1" })),
+        );
+        let now = Instant::now();
+        let trace = ReverseRpcTrace::for_test(&request, now, now);
+
+        let parent = tracing::error_span!("session_request_handler", session_id = SENTINEL);
+        let dispatch = tokio::spawn(
+            async move {
+                dispatch_hook_traced(
+                    hooks.as_ref(),
+                    &SessionId::new("session-1"),
+                    "userPromptSubmitted",
+                    serde_json::json!({
+                        "sessionId": SENTINEL,
+                        "timestamp": 1234567890,
+                        "cwd": SENTINEL,
+                        "prompt": SENTINEL
+                    }),
+                    Some(&trace),
+                )
+                .await
+            }
+            .instrument(parent),
+        );
+
+        started.notified().await;
+        tokio::time::advance(Duration::from_millis(9)).await;
+        release.notify_one();
+        let output = dispatch.await.unwrap().unwrap();
+        assert_eq!(output["output"]["modifiedPrompt"], SENTINEL);
+
+        wait_for_trace(&trace_buffer, "phase=\"hook_callback\"").await;
+        let traces = trace_buffer.text();
+        assert!(traces.contains("phase=\"hook_callback\""));
+        assert!(traces.contains("start_offset_us=0"));
+        assert!(traces.contains("elapsed_us=9000"));
+        assert!(!traces.contains(SENTINEL));
     }
 
     #[tokio::test]

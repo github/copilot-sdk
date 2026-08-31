@@ -5,7 +5,7 @@ use parking_lot::Mutex;
 use tokio::sync::{broadcast, mpsc};
 use tracing::warn;
 
-use crate::jsonrpc::{JsonRpcNotification, JsonRpcRequest};
+use crate::jsonrpc::{JsonRpcNotification, ReverseRpcRequest};
 use crate::types::{SessionEventNotification, SessionId};
 
 /// Per-session channels created by the router during session registration.
@@ -13,12 +13,12 @@ pub(crate) struct SessionChannels {
     /// Filtered `session.event` notifications for this session.
     pub(crate) notifications: mpsc::UnboundedReceiver<SessionEventNotification>,
     /// Filtered JSON-RPC requests (tool.call, userInput.request, etc.) for this session.
-    pub(crate) requests: mpsc::UnboundedReceiver<JsonRpcRequest>,
+    pub(crate) requests: mpsc::UnboundedReceiver<ReverseRpcRequest>,
 }
 
 struct SessionSenders {
     notifications: mpsc::UnboundedSender<SessionEventNotification>,
-    requests: mpsc::UnboundedSender<JsonRpcRequest>,
+    requests: mpsc::UnboundedSender<ReverseRpcRequest>,
 }
 
 /// Routes notifications and requests by sessionId to per-session channels.
@@ -84,7 +84,7 @@ impl SessionRouter {
     pub(crate) fn ensure_started(
         &self,
         notification_tx: &broadcast::Sender<JsonRpcNotification>,
-        request_rx: &Mutex<Option<mpsc::UnboundedReceiver<JsonRpcRequest>>>,
+        request_rx: &Mutex<Option<mpsc::UnboundedReceiver<ReverseRpcRequest>>>,
         llm_inference: Option<Arc<crate::copilot_request_handler::CopilotRequestDispatcher>>,
         github_telemetry: Option<crate::github_telemetry::GitHubTelemetryCallback>,
         github_token_registry: Arc<crate::github_token::GitHubTokenRegistry>,
