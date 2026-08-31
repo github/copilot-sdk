@@ -98,6 +98,7 @@ import type { FactoryHandle } from "./factory.js";
  */
 const MIN_PROTOCOL_VERSION = 3;
 const RUNTIME_SHUTDOWN_TIMEOUT_MS = 10_000;
+const STARTUP_DIAGNOSTICS_TIMEOUT_MS = 500;
 
 /**
  * Check if value is a Zod schema (has toJSONSchema method)
@@ -1023,7 +1024,23 @@ export class CopilotClient {
 
             this.state = "connected";
         } catch (error) {
-            const startupError = this.processTransportError ?? error;
+            let startupError = this.processTransportError ?? error;
+            if (this.processTransportError && this.processExitPromise) {
+                try {
+                    await withTimeout(
+                        this.processExitPromise,
+                        STARTUP_DIAGNOSTICS_TIMEOUT_MS,
+                        "Timed out waiting for CLI startup diagnostics"
+                    );
+                } catch (processError) {
+                    if (
+                        processError instanceof Error &&
+                        processError.message.includes("\nstderr:")
+                    ) {
+                        startupError = processError;
+                    }
+                }
+            }
             await this.forceStop();
             this.state = "error";
             throw startupError;
@@ -2742,12 +2759,16 @@ export class CopilotClient {
                 }
             });
 
-            // Set up a promise that rejects when the process exits (used to race against RPC calls)
+            this.cliProcess.on("exit", () => {
+                if (this.messageWriter) {
+                    this.messageWriter.suppressWriteErrors = true;
+                }
+            });
+
+            // Wait for close rather than exit so stderr has been completely drained before
+            // the process failure races an in-flight startup RPC.
             this.processExitPromise = new Promise<never>((_, rejectProcessExit) => {
-                this.cliProcess!.on("exit", (code) => {
-                    if (this.messageWriter) {
-                        this.messageWriter.suppressWriteErrors = true;
-                    }
+                this.cliProcess!.on("close", (code) => {
                     const stderrOutput = this.stderrBuffer.trim();
                     if (stderrOutput) {
                         rejectProcessExit(
@@ -2765,7 +2786,7 @@ export class CopilotClient {
             // Prevent unhandled rejection when process exits normally (we only use this in Promise.race)
             this.processExitPromise.catch(() => {});
 
-            this.cliProcess.on("exit", (code) => {
+            this.cliProcess.on("close", (code) => {
                 if (!resolved) {
                     resolved = true;
                     const stderrOutput = this.stderrBuffer.trim();
