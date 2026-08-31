@@ -123,7 +123,6 @@ public class CanvasE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
             RequestCanvasRenderer = true,
-            RequestExtensions = true,
             ExtensionInfo = new ExtensionInfo { Source = "dotnet-sdk-tests", Name = "canvas-provider" },
             Canvases =
             [
