@@ -19,6 +19,13 @@
  *   phase state, missed ephemeral events are recovered from the durable events that follow, and
  *   every field added by newer runtimes is optional — against an older runtime the projection
  *   simply degrades to what the existing phase events carry.
+ * - **Single-turn and authoritative about turn identity.** The projection tracks one HydraFusion
+ *   turn at a time. Evidence that arrives before the turn resolves (a phase, activity, tool, or
+ *   permission event) is adopted only while *no* turn identity has been established yet, and it
+ *   promotes the projection to `"running"`. Once an identity is established — or once the turn
+ *   reaches a terminal `"completed"`/`"fallback"` state — only the durable `session.fusion_resolved`
+ *   event may replace it. Late ephemerals from a previous turn, and the first ephemerals of a next
+ *   turn that has not resolved yet, are intentionally ignored until that resolution arrives.
  * - **Privacy-preserving.** Only event discriminants, phase kinds/roles/scopes, phase-plan
  *   metadata, safe response-byte counts, tool call IDs, permission attribution, commit IDs, and
  *   the stable terminal outcome are retained. Phase content, verdicts, prompts, reasoning,
@@ -61,7 +68,10 @@ export type FusionProgressStatus =
     | "routing"
     /** Routing failed; the turn runs on a deterministic concrete fallback instead. */
     | "fallback"
-    /** A route resolved and the turn's phases are executing. */
+    /**
+     * The turn's phases are executing — either because the route resolved, or because phase
+     * evidence was observed before the resolution and no other turn identity existed yet.
+     */
     | "running"
     /** The turn reached its aggregate outcome. */
     | "completed";
@@ -220,11 +230,17 @@ export function initialFusionProgressState(): FusionProgressState {
  * Folds one session event into the HydraFusion progress projection.
  *
  * Events that are not HydraFusion-related, that carry no usable payload, or that belong to a
- * different turn are returned unchanged, so the reducer can be applied to an entire event stream:
+ * different turn are returned unchanged — by reference, so consumers can cheaply detect that
+ * nothing moved — and the reducer can be applied to an entire event stream:
  *
  * ```ts
  * const state = events.reduce(reduceFusionProgress, initialFusionProgressState());
  * ```
+ *
+ * Turn identity is authoritative: unresolved early evidence is adopted only when no turn identity
+ * exists yet, and an established or terminal projection is replaced only by a durable
+ * `session.fusion_resolved`. Late ephemerals from a previous turn — and the first ephemerals of a
+ * next turn — are ignored until that turn resolves.
  *
  * @experimental
  */
@@ -505,8 +521,20 @@ function beginTurn(state: FusionProgressState, next: FusionProgressState): Fusio
 /**
  * Reconciles the incoming turn identity with the projected one.
  *
- * Returns the state to apply the event to, or `undefined` when the event belongs to a different
- * turn that must not disturb the current projection (a late ephemeral from a previous turn).
+ * Two rules keep the projection stable:
+ *
+ * - **Early evidence is adopted only when no turn identity exists yet.** A phase, activity, tool,
+ *   or permission event that arrives before `session.fusion_resolved` establishes the turn and
+ *   promotes the projection to `"running"`, because that evidence can only come from a turn that is
+ *   already executing.
+ * - **Only an authoritative turn-starting event replaces an established or terminal projection.**
+ *   Once a turn identity is known, a mismatching `fusionId` is accepted only from the durable
+ *   `session.fusion_resolved` path, and a completed or fallback projection is likewise only ever
+ *   replaced there. Late ephemerals from a previous turn — and the first ephemerals of a next turn
+ *   that has not resolved yet — are ignored instead of overwriting or resurrecting it.
+ *
+ * Returns the state to apply the event to, or `undefined` when the event must not disturb the
+ * current projection.
  */
 function alignTurn(
     state: FusionProgressState,
@@ -517,15 +545,24 @@ function alignTurn(
         return state;
     }
     if (state.fusionId === undefined) {
-        return { ...state, fusionId };
+        if (startsTurn) {
+            return { ...state, fusionId };
+        }
+        if (isTerminalStatus(state.status)) {
+            return undefined;
+        }
+        // Evidence of an executing phase implies the turn resolved, even if that event was missed.
+        return { ...state, fusionId, status: "running" };
     }
     if (state.fusionId === fusionId) {
         return state;
     }
-    if (startsTurn || state.status === "completed" || state.status === "fallback") {
-        return { ...EMPTY_STATE, fusionId };
-    }
-    return undefined;
+    return startsTurn ? { ...EMPTY_STATE, fusionId } : undefined;
+}
+
+/** Terminal projections are never resurrected by anything but an authoritative new route. */
+function isTerminalStatus(status: FusionProgressStatus): boolean {
+    return status === "completed" || status === "fallback";
 }
 
 function upsertPhase(

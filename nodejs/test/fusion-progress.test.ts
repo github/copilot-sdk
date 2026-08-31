@@ -566,15 +566,148 @@ describe("reduceFusionProgress", () => {
     });
 
     it("adopts a turn identity discovered from a phase event before the route resolves", () => {
-        const state = apply([
-            phaseStarted("p1", "primary", "solver"),
-            resolved("single", [{ kind: "primary", role: "solver", scope: "root" }]),
-        ]);
+        const beforeResolved = apply([phaseStarted("p1", "primary", "solver")]);
+
+        // Unresolved early evidence must never leave the projection looking inactive.
+        expect(beforeResolved.status).toBe("running");
+        expect(beforeResolved.fusionId).toBe(FUSION_ID);
+        expect(beforeResolved.phases.map((phase) => phase.phaseId)).toEqual(["p1"]);
+        expect(beforeResolved.plan).toEqual([]);
+        expect(beforeResolved.planSource).toBe("unavailable");
+
+        const state = reduceFusionProgress(
+            beforeResolved,
+            resolved("single", [{ kind: "primary", role: "solver", scope: "root" }])
+        );
 
         expect(state.fusionId).toBe(FUSION_ID);
         expect(state.status).toBe("running");
         expect(state.phases.map((phase) => phase.phaseId)).toEqual(["p1"]);
         expect(state.phases[0].planIndex).toBe(0);
+    });
+
+    it("promotes unresolved activity, tool, and permission evidence to a running turn", () => {
+        const fromActivity = apply([activity("p1", "model_output", { totalResponseSizeBytes: 8 })]);
+        expect(fromActivity.status).toBe("running");
+        expect(fromActivity.fusionId).toBe(FUSION_ID);
+
+        const fromTool = apply([
+            {
+                type: "tool.execution_start",
+                data: {
+                    toolCallId: "call-1",
+                    fusion: { fusionId: FUSION_ID, pattern: "single", phaseId: "p1" },
+                },
+            },
+        ]);
+        expect(fromTool.status).toBe("running");
+        expect(fromTool.phases.map((phase) => phase.phaseId)).toEqual(["p1"]);
+
+        const fromPermission = apply([
+            {
+                type: "permission.requested",
+                data: {
+                    requestId: "req-1",
+                    fusion: { fusionId: FUSION_ID, pattern: "single", phaseId: "p1" },
+                },
+            },
+        ]);
+        expect(fromPermission.status).toBe("running");
+        expect(fromPermission.pendingPermissions).toHaveLength(1);
+    });
+
+    it("never lets a stale non-resolved event replace a terminal turn", () => {
+        const turnB = apply([
+            // Turn A runs and completes.
+            resolved("single", [{ kind: "primary", role: "solver", scope: "root" }]),
+            phaseStarted("p1", "primary", "solver"),
+            completed(),
+            // Turn B resolves authoritatively, runs, and completes.
+            resolved("cascade", CASCADE_PLAN, "fusion-2"),
+            phaseStarted("q1", "primary", "solver", "root", "fusion-2"),
+            {
+                type: "session.fusion_completed",
+                data: {
+                    fusionId: "fusion-2",
+                    turnId: "turn-2",
+                    outcome: "succeeded",
+                    commitId: "commit-2",
+                    degradedReason: null,
+                    finalSourcePhaseId: "q1",
+                    pattern: "cascade",
+                },
+            },
+        ]);
+
+        expect(turnB.status).toBe("completed");
+        expect(turnB.completion?.commitId).toBe("commit-2");
+
+        // Late ephemerals and durable stragglers from turn A must all be inert.
+        const staleEvents: FusionProgressEventInput[] = [
+            activity("p1", "model_output", { totalResponseSizeBytes: 4096 }),
+            activity("p1", "tool_started", { toolCallId: "stale-call" }),
+            phaseStarted("p1", "primary", "solver"),
+            phaseCompleted("p1", "primary"),
+            {
+                type: "tool.execution_complete",
+                data: {
+                    toolCallId: "stale-call",
+                    fusion: { fusionId: FUSION_ID, pattern: "single", phaseId: "p1" },
+                },
+            },
+            {
+                type: "permission.requested",
+                data: {
+                    requestId: "stale-req",
+                    fusion: { fusionId: FUSION_ID, pattern: "single", phaseId: "p1" },
+                },
+            },
+            {
+                type: "assistant.message",
+                data: { fusion: { fusionId: FUSION_ID, pattern: "single", commitId: "commit-1" } },
+            },
+            completed(),
+        ];
+
+        for (const stale of staleEvents) {
+            expect(reduceFusionProgress(turnB, stale)).toBe(turnB);
+        }
+
+        const afterStale = staleEvents.reduce(reduceFusionProgress, turnB);
+        expect(afterStale).toBe(turnB);
+        expect(afterStale.fusionId).toBe("fusion-2");
+        expect(afterStale.completion).toEqual({
+            outcome: "succeeded",
+            degraded: false,
+            commitId: "commit-2",
+            finalSourcePhaseId: "q1",
+        });
+        expect(afterStale.publishedCommitId).toBeUndefined();
+        expect(afterStale.plan).toBe(turnB.plan);
+        expect(afterStale.phases).toBe(turnB.phases);
+        expect(afterStale.phases.map((phase) => phase.phaseId)).toEqual(["q1"]);
+    });
+
+    it("never lets phase evidence resurrect a routing-fallback projection", () => {
+        const fallback = apply([
+            routeStarted(),
+            {
+                type: "session.fusion_route_failed",
+                data: { attemptId: "attempt-1", policy: "balanced", reason: "router_unavailable" },
+            },
+        ]);
+
+        expect(fallback.status).toBe("fallback");
+        expect(reduceFusionProgress(fallback, phaseStarted("p1", "primary", "solver"))).toBe(
+            fallback
+        );
+        expect(reduceFusionProgress(fallback, activity("p1", "model_output"))).toBe(fallback);
+        expect(reduceFusionProgress(fallback, completed())).toBe(fallback);
+
+        // Only an authoritative resolved route starts the next turn.
+        const nextTurn = reduceFusionProgress(fallback, resolved("single"));
+        expect(nextTurn.status).toBe("running");
+        expect(nextTurn.fusionId).toBe(FUSION_ID);
     });
 
     it("never projects content, verdicts, error detail, or concrete model identities", () => {
