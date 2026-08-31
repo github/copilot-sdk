@@ -170,6 +170,15 @@ mod platform {
 
     #[cfg(test)]
     pub(super) fn process_alive(pid: u32) -> bool {
+        #[cfg(target_os = "linux")]
+        if let Ok(stat) = std::fs::read_to_string(format!("/proc/{pid}/stat"))
+            && stat
+                .rsplit_once(") ")
+                .and_then(|(_, fields)| fields.chars().next())
+                .is_some_and(|state| matches!(state, 'Z' | 'X'))
+        {
+            return false;
+        }
         // SAFETY: signal 0 only probes process existence.
         (unsafe { libc::kill(pid as i32, 0) }) == 0
     }

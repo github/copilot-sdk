@@ -1059,6 +1059,49 @@ struct ClientInner {
     startup_timings: OnceLock<StartupTimings>,
 }
 
+struct SpawnedProcessGuard {
+    child: Option<Child>,
+    tree: Option<process_tree::ProcessTree>,
+}
+
+impl SpawnedProcessGuard {
+    fn new(child: Child, tree: Option<process_tree::ProcessTree>) -> Self {
+        Self {
+            child: Some(child),
+            tree,
+        }
+    }
+
+    fn child_mut(&mut self) -> &mut Child {
+        self.child.as_mut().expect("spawned process has a child")
+    }
+
+    fn pid(&self) -> Option<u32> {
+        self.child.as_ref().and_then(Child::id)
+    }
+
+    fn transfer_to(mut self, client: &Client) {
+        *client.inner.child.lock() = self.child.take();
+        *client.inner.process_tree.lock() = self.tree.take();
+    }
+}
+
+impl Drop for SpawnedProcessGuard {
+    fn drop(&mut self) {
+        let pid = self.pid();
+        if let Some(tree) = self.tree.take()
+            && let Err(error) = tree.terminate()
+        {
+            error!(pid = ?pid, %error, "failed to terminate CLI process tree during startup cleanup");
+        }
+        if let Some(child) = self.child.as_mut()
+            && let Err(error) = child.start_kill()
+        {
+            error!(pid = ?pid, %error, "failed to kill CLI process during startup cleanup");
+        }
+    }
+}
+
 impl Client {
     /// Start a CLI server process with the given options.
     ///
@@ -1267,7 +1310,7 @@ impl Client {
                 port,
                 connection_token: _,
             } => {
-                let (mut child, tree, actual_port, spawn_elapsed, port_wait_elapsed) =
+                let (mut process, actual_port, spawn_elapsed, port_wait_elapsed) =
                     Self::spawn_tcp(&program, &options, &working_directory, port).await?;
                 timings.process_spawn_ms = Some(StartupTimings::millis(spawn_elapsed));
                 timings.port_wait_ms = Some(StartupTimings::millis(port_wait_elapsed));
@@ -1279,12 +1322,11 @@ impl Client {
                     "Client::start TCP connect complete"
                 );
                 let (reader, writer) = tokio::io::split(stream);
-                Self::drain_stderr(&mut child);
-                Self::from_transport(
+                Self::drain_stderr(process.child_mut());
+                Self::from_spawned_transport(
                     reader,
                     writer,
-                    Some(child),
-                    tree,
+                    process,
                     working_directory,
                     options.on_list_models,
                     session_fs_config.is_some(),
@@ -1474,6 +1516,38 @@ impl Client {
             elapsed_ms = start_time.elapsed().as_millis(),
             "Client::start complete"
         );
+        Ok(client)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn from_spawned_transport(
+        reader: impl AsyncRead + Unpin + Send + 'static,
+        writer: impl AsyncWrite + Unpin + Send + 'static,
+        process: SpawnedProcessGuard,
+        cwd: PathBuf,
+        on_list_models: Option<Arc<dyn ListModelsHandler>>,
+        session_fs_configured: bool,
+        session_fs_sqlite_declared: bool,
+        on_get_trace_context: Option<Arc<dyn TraceContextProvider>>,
+        on_github_telemetry: Option<crate::github_telemetry::GitHubTelemetryCallback>,
+        effective_connection_token: Option<String>,
+        mode: ClientMode,
+    ) -> Result<Self> {
+        let client = Self::from_transport(
+            reader,
+            writer,
+            None,
+            None,
+            cwd,
+            on_list_models,
+            session_fs_configured,
+            session_fs_sqlite_declared,
+            on_get_trace_context,
+            on_github_telemetry,
+            effective_connection_token,
+            mode,
+        )?;
+        process.transfer_to(&client);
         Ok(client)
     }
 
@@ -1850,13 +1924,7 @@ impl Client {
         options: &ClientOptions,
         working_directory: &Path,
         port: u16,
-    ) -> Result<(
-        Child,
-        Option<process_tree::ProcessTree>,
-        u16,
-        Duration,
-        Duration,
-    )> {
+    ) -> Result<(SpawnedProcessGuard, u16, Duration, Duration)> {
         info!(cwd = ?working_directory, program = %program.display(), port = %port, "spawning copilot CLI (tcp)");
         let mut command = Self::build_command(program, options, working_directory);
         command
@@ -1868,14 +1936,15 @@ impl Client {
             .args(&options.extra_args)
             .stdin(Stdio::null());
         let spawn_start = Instant::now();
-        let mut child = command.spawn()?;
+        let child = command.spawn()?;
         let spawn_elapsed = spawn_start.elapsed();
         let tree = process_tree::attach(&child);
+        let mut process = SpawnedProcessGuard::new(child, tree);
         debug!(
             elapsed_ms = spawn_elapsed.as_millis(),
             "Client::spawn_tcp subprocess spawned"
         );
-        let stdout = child.stdout.take().expect("stdout is piped");
+        let stdout = process.child_mut().stdout.take().expect("stdout is piped");
 
         let (port_tx, port_rx) = oneshot::channel::<u16>();
         let span = tracing::error_span!("copilot_cli_port_scan");
@@ -1916,7 +1985,7 @@ impl Client {
             "Client::spawn_tcp TCP port wait complete"
         );
         info!(port = %actual_port, "CLI server listening");
-        Ok((child, tree, actual_port, spawn_elapsed, port_wait_elapsed))
+        Ok((process, actual_port, spawn_elapsed, port_wait_elapsed))
     }
 
     fn drain_stderr(child: &mut Child) {
@@ -2433,11 +2502,12 @@ impl Client {
     ///
     /// Walks every still-registered session and sends `session.destroy`
     /// for each one, asks SDK-owned runtimes to shut down, then terminates
-    /// the CLI's whole process tree (the CLI itself and any descendant it
-    /// spawned) and reaps the CLI child. Errors from per-session destroys,
-    /// runtime shutdown, process-tree termination, and the final child
-    /// reap are collected into [`StopErrors`] rather than short-circuiting
-    /// on the first failure — so callers see the full picture of teardown.
+    /// the CLI and, when process-tree containment was attached successfully,
+    /// its descendants, then reaps the CLI child. Errors from per-session
+    /// destroys, runtime shutdown, process-tree termination, and the final
+    /// child reap are collected into [`StopErrors`] rather than
+    /// short-circuiting on the first failure, so callers see the full
+    /// picture of teardown.
     ///
     /// If you have already called [`Session::disconnect`] on every
     /// session this client created, the per-session destroy step is a
@@ -2576,11 +2646,11 @@ impl Client {
 
     /// Forcibly stop the CLI process without waiting for it to exit.
     ///
-    /// Synchronous fallback when [`stop`](Self::stop) is unsuitable — for
+    /// Synchronous fallback when [`stop`](Self::stop) is unsuitable, for
     /// example when the awaiting tokio runtime is shutting down or the
-    /// process is wedged on I/O. Terminates the CLI's whole process tree
-    /// (the CLI itself and any descendant it spawned) and sends a kill
-    /// signal to the CLI child, without awaiting reaper completion, and
+    /// process is wedged on I/O. Terminates the CLI and, when process-tree
+    /// containment was attached successfully, its descendants. It sends a
+    /// kill signal to the CLI child without awaiting reaper completion and
     /// immediately drops all per-session router state so dependent tasks
     /// observe a closed channel rather than a hang.
     ///
@@ -3354,6 +3424,143 @@ mod tests {
         drop(client);
 
         assert_test_child_killed(&survived).await;
+    }
+
+    #[cfg(any(unix, windows))]
+    #[tokio::test]
+    async fn dropping_last_client_terminates_process_tree_and_releases_descendant_lock() {
+        let temp = tempfile::tempdir().unwrap();
+        let lock_path = temp.path().join("resource.lock");
+        let descendant_ready = temp.path().join("descendant-ready");
+        let start_path = temp.path().join("start");
+        let mut command = root_with_lock_holding_descendant(
+            temp.path(),
+            &lock_path,
+            &descendant_ready,
+            &start_path,
+        );
+        let child = command.spawn().unwrap();
+        let tree = crate::process_tree::attach(&child);
+
+        let (client_write, server_read) = tokio::io::duplex(64);
+        let (server_write, client_read) = tokio::io::duplex(64);
+        drop(server_read);
+        drop(server_write);
+        let client = Client::from_transport(
+            client_read,
+            client_write,
+            Some(child),
+            tree,
+            temp.path().to_path_buf(),
+            None,
+            false,
+            false,
+            None,
+            None,
+            None,
+            ClientMode::default(),
+        )
+        .unwrap();
+
+        std::fs::write(&start_path, b"go").unwrap();
+        wait_for_test_path(&descendant_ready).await;
+        let descendant_pid: u32 = std::fs::read_to_string(&descendant_ready)
+            .unwrap()
+            .trim()
+            .parse()
+            .unwrap();
+        assert!(crate::process_tree::process_alive(descendant_pid));
+
+        drop(client);
+
+        wait_until_test(
+            || !crate::process_tree::process_alive(descendant_pid),
+            "descendant survived dropping the last Client",
+        )
+        .await;
+        wait_until_test(
+            || descendant_lock_is_free(&lock_path),
+            "descendant's lock was never released after dropping the last Client",
+        )
+        .await;
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn failed_tcp_startup_terminates_process_tree_and_releases_descendant_lock() {
+        let temp = tempfile::tempdir().unwrap();
+        let lock_path = temp.path().join("resource.lock");
+        let descendant_ready = temp.path().join("descendant-ready");
+        let this_test_binary = std::env::current_exe().unwrap();
+        let unavailable_port = {
+            let listener = std::net::TcpListener::bind(("127.0.0.1", 0)).unwrap();
+            listener.local_addr().unwrap().port()
+        };
+        const HELPER_FILTER: &str = "process_tree::tests::lock_holder_helper_entrypoint";
+        let options = ClientOptions::new()
+            .with_program(CliProgram::Path(PathBuf::from("sh")))
+            .with_prefix_args([
+                OsString::from("-c"),
+                OsString::from(
+                    "\"$HELPER_BIN\" \"$HELPER_FILTER\" --exact --nocapture & \
+                     while [ ! -f \"$PROCESS_TREE_TEST_READY_PATH\" ]; do sleep 0.01; done; \
+                     echo \"listening on port $REPORTED_PORT\"; wait",
+                ),
+            ])
+            .with_cwd(temp.path())
+            .with_env([
+                ("HELPER_BIN", this_test_binary.into_os_string()),
+                ("HELPER_FILTER", OsString::from(HELPER_FILTER)),
+                (
+                    "PROCESS_TREE_TEST_LOCK_PATH",
+                    lock_path.clone().into_os_string(),
+                ),
+                (
+                    "PROCESS_TREE_TEST_READY_PATH",
+                    descendant_ready.clone().into_os_string(),
+                ),
+                (
+                    "REPORTED_PORT",
+                    OsString::from(unavailable_port.to_string()),
+                ),
+            ])
+            .with_transport(Transport::Tcp {
+                port: 0,
+                connection_token: None,
+            });
+
+        let error = Client::start(options).await.unwrap_err();
+        assert!(matches!(error.kind(), ErrorKind::Io));
+        wait_for_test_path(&descendant_ready).await;
+        let descendant_pid: u32 = std::fs::read_to_string(&descendant_ready)
+            .unwrap()
+            .trim()
+            .parse()
+            .unwrap();
+
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(2);
+        while crate::process_tree::process_alive(descendant_pid)
+            && tokio::time::Instant::now() < deadline
+        {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        let descendant_terminated = !crate::process_tree::process_alive(descendant_pid);
+        let lock_released = descendant_lock_is_free(&lock_path);
+        if !descendant_terminated {
+            // SAFETY: the pid came from the test-only child process.
+            unsafe {
+                libc::kill(descendant_pid as i32, libc::SIGKILL);
+            }
+        }
+
+        assert!(
+            descendant_terminated,
+            "descendant survived failed Client::start; lock_released={lock_released}"
+        );
+        assert!(
+            lock_released,
+            "descendant's lock remained held after failed Client::start"
+        );
     }
 
     #[cfg(any(unix, windows))]
