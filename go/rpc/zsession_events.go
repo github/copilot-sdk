@@ -1258,7 +1258,7 @@ type HookStartData struct {
 	HookInvocationID string `json:"hookInvocationId"`
 	// Type of hook being invoked (e.g., "preToolUse", "postToolUse", "sessionStart")
 	HookType string `json:"hookType"`
-	// Input data passed to the hook
+	// Input data passed to the hook. For postToolUse hooks the retained copy served by session.eventLog.read (and by a resumed session) elides the tool result's inline `contents`/`uiResource` and replaces an over-long `textResultForLlm` with a `[copilot:elided ...]` marker, to keep a multi-megabyte payload out of the durable event log; the live subscription stream still delivers the full value. Read the adjacent tool.execution_complete event for the tool result itself.
 	Input any `json:"input,omitempty"`
 	// Tool call ID of the parent tool invocation when this event originates from a sub-agent
 	ParentToolCallID *string `json:"parentToolCallId,omitempty"`

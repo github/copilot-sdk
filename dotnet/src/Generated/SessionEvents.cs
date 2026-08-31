@@ -4741,7 +4741,7 @@ public sealed partial class HookStartData
     [JsonPropertyName("hookType")]
     public required string HookType { get; set; }
 
-    /// <summary>Input data passed to the hook.</summary>
+    /// <summary>Input data passed to the hook. For postToolUse hooks the retained copy served by session.eventLog.read (and by a resumed session) elides the tool result's inline `contents`/`uiResource` and replaces an over-long `textResultForLlm` with a `[copilot:elided ...]` marker, to keep a multi-megabyte payload out of the durable event log; the live subscription stream still delivers the full value. Read the adjacent tool.execution_complete event for the tool result itself.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("input")]
     public JsonElement? Input { get; set; }

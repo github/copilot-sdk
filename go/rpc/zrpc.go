@@ -9944,10 +9944,8 @@ type RegisterExtensionLaunchProviderResult struct {
 // Internal: RegisterExtensionToolsParams is an internal SDK API and is not part of the
 // public surface.
 type RegisterExtensionToolsParams struct {
-	// In-process ExtensionLoader handle (CLI-only optimization). Marked internal: this field is
-	// excluded from the public SDK surface. When the CLI migrates to a process-separated SDK,
-	// extension discovery/launch moves entirely into the runtime — the CLI passes pure config
-	// (search paths, disabled ids) via SessionOptions instead.
+	// In-process ExtensionLoader handle used only by the CLI and excluded from the public SDK
+	// surface.
 	// Internal: Loader is part of the SDK's internal API surface and is not intended for
 	// external use.
 	Loader any `json:"loader"`
@@ -9963,8 +9961,7 @@ type RegisterExtensionToolsParams struct {
 // Internal: RegisterExtensionToolsResult is an internal SDK API and is not part of the
 // public surface.
 type RegisterExtensionToolsResult struct {
-	// In-process unsubscribe function (CLI-only optimization). Marked internal: replaced by an
-	// explicit `extensions.unregister` RPC in the SDK migration.
+	// In-process unsubscribe function used only by the CLI.
 	// Internal: Unsubscribe is part of the SDK's internal API surface and is not intended for
 	// external use.
 	Unsubscribe any `json:"unsubscribe"`
@@ -12144,10 +12141,8 @@ func (SessionsOpenAttach) Kind() SessionOpenParamsKind {
 // Experimental: SessionsOpenCloud is part of an experimental API and may change or be
 // removed.
 type SessionsOpenCloud struct {
-	// In-process callback invoked when the cloud task is created (before connection). Marked
-	// internal because a function reference cannot cross the JSON-RPC boundary. Disappears in
-	// the SDK migration: the field is purely cosmetic (it flips a single CLI phase label from
-	// 'creating' to 'connecting') and the wire-clean version just drops the intermediate phase.
+	// In-process callback invoked when the cloud task is created, before connection. Internal
+	// because function references cannot cross the JSON-RPC boundary.
 	// Internal: OnTaskCreated is part of the SDK's internal API surface and is not intended for
 	// external use.
 	OnTaskCreated any `json:"onTaskCreated,omitempty"`
@@ -12881,8 +12876,7 @@ type SessionsPruneOldRequest struct {
 // Experimental: SessionsRegisterExtensionToolsOnSessionOptions is part of an experimental
 // API and may change or be removed.
 type SessionsRegisterExtensionToolsOnSessionOptions struct {
-	// In-process `() => boolean` gating callback (CLI-only optimization). Marked internal:
-	// replaced by runtime-side enable/disable RPCs in the SDK migration.
+	// In-process `() => boolean` gating callback used only by the CLI.
 	// Internal: Enabled is part of the SDK's internal API surface and is not intended for
 	// external use.
 	Enabled any `json:"enabled,omitempty"`
@@ -14739,14 +14733,12 @@ type UIElicitationStringOneOfFieldOneOf struct {
 // removed.
 type UIEphemeralQueryRequest struct {
 	// In-process `AbortSignal` forwarded to the model client to cancel an in-flight request.
-	// Marked internal: excluded from the public SDK surface. Replaced by an explicit
-	// cancellation token + cancel RPC in the SDK migration.
+	// Internal and excluded from the public SDK surface.
 	// Internal: AbortSignal is part of the SDK's internal API surface and is not intended for
 	// external use.
 	AbortSignal any `json:"abortSignal,omitempty"`
 	// In-process streaming callback `(text) => void` invoked with each token as the model emits
-	// it. Marked internal: excluded from the public SDK surface. In a process-separated SDK
-	// this is replaced by a streaming RPC that yields chunks and a final answer.
+	// it. Internal and excluded from the public SDK surface.
 	// Internal: OnChunk is part of the SDK's internal API surface and is not intended for
 	// external use.
 	OnChunk any `json:"onChunk,omitempty"`
@@ -20712,7 +20704,7 @@ func (a *ServerRPC) Ping(ctx context.Context, params *PingRequest) (*PingResult,
 
 // RegisterExtensionLaunchProvider registers the calling SDK client as the per-entrypoint
 // extension launch provider. Call before creating any sessions. When omitted, the runtime
-// temporarily falls back to its built-in Node launcher for backward compatibility.
+// uses its built-in extension launcher.
 //
 // RPC method: registerExtensionLaunchProvider.
 // Experimental: RegisterExtensionLaunchProvider is an experimental API and may change or be

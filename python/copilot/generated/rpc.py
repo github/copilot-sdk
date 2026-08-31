@@ -9175,9 +9175,7 @@ class SessionsRegisterExtensionToolsOnSessionOptions:
 
     # Internal: this field is an internal SDK API and is not part of the public surface.
     enabled: Any = None
-    """In-process `() => boolean` gating callback (CLI-only optimization). Marked internal:
-    replaced by runtime-side enable/disable RPCs in the SDK migration.
-    """
+    """In-process `() => boolean` gating callback used only by the CLI."""
 
     @staticmethod
     def from_dict(obj: Any) -> 'SessionsRegisterExtensionToolsOnSessionOptions':
@@ -9189,6 +9187,26 @@ class SessionsRegisterExtensionToolsOnSessionOptions:
         result: dict = {}
         if self.enabled is not None:
             result["enabled"] = self.enabled
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+@dataclass
+class _RegisterExtensionToolsResult:
+    """Handle for releasing the extension tool registration."""
+
+    unsubscribe: Any
+    """In-process unsubscribe function used only by the CLI."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> '_RegisterExtensionToolsResult':
+        assert isinstance(obj, dict)
+        unsubscribe = obj.get("unsubscribe")
+        return _RegisterExtensionToolsResult(unsubscribe)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["unsubscribe"] = self.unsubscribe
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -13717,6 +13735,42 @@ class UIElicitationSchemaPropertyNumberType(Enum):
 
     INTEGER = "integer"
     NUMBER = "number"
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class UIEphemeralQueryRequest:
+    """Transient question to answer without adding it to conversation history."""
+
+    question: str
+    """Question to answer from the current conversation context."""
+
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    abort_signal: Any = None
+    """In-process `AbortSignal` forwarded to the model client to cancel an in-flight request.
+    Internal and excluded from the public SDK surface.
+    """
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    on_chunk: Any = None
+    """In-process streaming callback `(text) => void` invoked with each token as the model emits
+    it. Internal and excluded from the public SDK surface.
+    """
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'UIEphemeralQueryRequest':
+        assert isinstance(obj, dict)
+        question = from_str(obj.get("question"))
+        abort_signal = obj.get("abortSignal")
+        on_chunk = obj.get("onChunk")
+        return UIEphemeralQueryRequest(question, abort_signal, on_chunk)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["question"] = from_str(self.question)
+        if self.abort_signal is not None:
+            result["abortSignal"] = self.abort_signal
+        if self.on_chunk is not None:
+            result["onChunk"] = self.on_chunk
+        return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
@@ -22323,10 +22377,8 @@ class _RegisterExtensionToolsParams:
     """Params to attach an extension loader's tools to a session."""
 
     loader: Any
-    """In-process ExtensionLoader handle (CLI-only optimization). Marked internal: this field is
-    excluded from the public SDK surface. When the CLI migrates to a process-separated SDK,
-    extension discovery/launch moves entirely into the runtime — the CLI passes pure config
-    (search paths, disabled ids) via SessionOptions instead.
+    """In-process ExtensionLoader handle used only by the CLI and excluded from the public SDK
+    surface.
     """
     session_id: str
     """Session to register extension tools on."""
@@ -34224,28 +34276,6 @@ class ProtocolExternalToolDefinition:
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
-# Internal: this type is an internal SDK API and is not part of the public surface.
-@dataclass
-class _RegisterExtensionToolsResult:
-    """Handle for releasing the extension tool registration."""
-
-    unsubscribe: Any
-    """In-process unsubscribe function (CLI-only optimization). Marked internal: replaced by an
-    explicit `extensions.unregister` RPC in the SDK migration.
-    """
-
-    @staticmethod
-    def from_dict(obj: Any) -> '_RegisterExtensionToolsResult':
-        assert isinstance(obj, dict)
-        unsubscribe = obj.get("unsubscribe")
-        return _RegisterExtensionToolsResult(unsubscribe)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["unsubscribe"] = self.unsubscribe
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class SessionLimitPredictionDetails:
     """Explainable AI-credit session-limit prediction.
@@ -34505,10 +34535,8 @@ class SessionsOpenCloud:
 
     # Internal: this field is an internal SDK API and is not part of the public surface.
     on_task_created: Any = None
-    """In-process callback invoked when the cloud task is created (before connection). Marked
-    internal because a function reference cannot cross the JSON-RPC boundary. Disappears in
-    the SDK migration: the field is purely cosmetic (it flips a single CLI phase label from
-    'creating' to 'connecting') and the wire-clean version just drops the intermediate phase.
+    """In-process callback invoked when the cloud task is created, before connection. Internal
+    because function references cannot cross the JSON-RPC boundary.
     """
     options: SessionOpenOptions | None = None
     """Session options for cloud session creation."""
@@ -34968,44 +34996,6 @@ class ToolsSetRequest:
     def to_dict(self) -> dict:
         result: dict = {}
         result["tools"] = from_list(lambda x: to_class(ProtocolExternalToolDefinition, x), self.tools)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class UIEphemeralQueryRequest:
-    """Transient question to answer without adding it to conversation history."""
-
-    question: str
-    """Question to answer from the current conversation context."""
-
-    # Internal: this field is an internal SDK API and is not part of the public surface.
-    abort_signal: Any = None
-    """In-process `AbortSignal` forwarded to the model client to cancel an in-flight request.
-    Marked internal: excluded from the public SDK surface. Replaced by an explicit
-    cancellation token + cancel RPC in the SDK migration.
-    """
-    # Internal: this field is an internal SDK API and is not part of the public surface.
-    on_chunk: Any = None
-    """In-process streaming callback `(text) => void` invoked with each token as the model emits
-    it. Marked internal: excluded from the public SDK surface. In a process-separated SDK
-    this is replaced by a streaming RPC that yields chunks and a final answer.
-    """
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'UIEphemeralQueryRequest':
-        assert isinstance(obj, dict)
-        question = from_str(obj.get("question"))
-        abort_signal = obj.get("abortSignal")
-        on_chunk = obj.get("onChunk")
-        return UIEphemeralQueryRequest(question, abort_signal, on_chunk)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["question"] = from_str(self.question)
-        if self.abort_signal is not None:
-            result["abortSignal"] = self.abort_signal
-        if self.on_chunk is not None:
-            result["onChunk"] = self.on_chunk
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -39625,7 +39615,7 @@ class ServerRpc:
         return PingResult.from_dict(await self._client.request("ping", params_dict, **_timeout_kwargs(timeout)))
 
     async def register_extension_launch_provider(self, *, timeout: float | None = None) -> None:
-        "Registers the calling SDK client as the per-entrypoint extension launch provider. Call before creating any sessions. When omitted, the runtime temporarily falls back to its built-in Node launcher for backward compatibility.\n\n.. warning:: This API is experimental and may change or be removed in future versions."
+        "Registers the calling SDK client as the per-entrypoint extension launch provider. Call before creating any sessions. When omitted, the runtime uses its built-in extension launcher.\n\n.. warning:: This API is experimental and may change or be removed in future versions."
         await self._client.request("registerExtensionLaunchProvider", {}, **_timeout_kwargs(timeout))
 
 

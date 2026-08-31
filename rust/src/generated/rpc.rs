@@ -211,7 +211,7 @@ impl<'a> ClientRpc<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Registers the calling SDK client as the per-entrypoint extension launch provider. Call before creating any sessions. When omitted, the runtime temporarily falls back to its built-in Node launcher for backward compatibility.
+    /// Registers the calling SDK client as the per-entrypoint extension launch provider. Call before creating any sessions. When omitted, the runtime uses its built-in extension launcher.
     ///
     /// Wire method: `registerExtensionLaunchProvider`.
     ///

@@ -14173,7 +14173,7 @@ pub struct RegisterEventInterestResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionsRegisterExtensionToolsOnSessionOptions {
-    /// In-process `() => boolean` gating callback (CLI-only optimization). Marked internal: replaced by runtime-side enable/disable RPCs in the SDK migration.
+    /// In-process `() => boolean` gating callback used only by the CLI.
     #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) enabled: Option<serde_json::Value>,
@@ -14190,7 +14190,7 @@ pub struct SessionsRegisterExtensionToolsOnSessionOptions {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct RegisterExtensionToolsParams {
-    /// In-process ExtensionLoader handle (CLI-only optimization). Marked internal: this field is excluded from the public SDK surface. When the CLI migrates to a process-separated SDK, extension discovery/launch moves entirely into the runtime — the CLI passes pure config (search paths, disabled ids) via SessionOptions instead.
+    /// In-process ExtensionLoader handle used only by the CLI and excluded from the public SDK surface.
     #[doc(hidden)]
     pub(crate) loader: serde_json::Value,
     /// Optional registration options.
@@ -14211,7 +14211,7 @@ pub(crate) struct RegisterExtensionToolsParams {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct RegisterExtensionToolsResult {
-    /// In-process unsubscribe function (CLI-only optimization). Marked internal: replaced by an explicit `extensions.unregister` RPC in the SDK migration.
+    /// In-process unsubscribe function used only by the CLI.
     #[doc(hidden)]
     pub(crate) unsubscribe: serde_json::Value,
 }
@@ -17062,7 +17062,7 @@ pub struct SessionsOpenRemote {
 pub struct SessionsOpenCloud {
     /// Create a new cloud (coding-agent) session.
     pub kind: SessionsOpenCloudKind,
-    /// In-process callback invoked when the cloud task is created (before connection). Marked internal because a function reference cannot cross the JSON-RPC boundary. Disappears in the SDK migration: the field is purely cosmetic (it flips a single CLI phase label from 'creating' to 'connecting') and the wire-clean version just drops the intermediate phase.
+    /// In-process callback invoked when the cloud task is created, before connection. Internal because function references cannot cross the JSON-RPC boundary.
     #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) on_task_created: Option<serde_json::Value>,
@@ -20231,11 +20231,11 @@ pub struct UIElicitationStringOneOfField {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UIEphemeralQueryRequest {
-    /// In-process `AbortSignal` forwarded to the model client to cancel an in-flight request. Marked internal: excluded from the public SDK surface. Replaced by an explicit cancellation token + cancel RPC in the SDK migration.
+    /// In-process `AbortSignal` forwarded to the model client to cancel an in-flight request. Internal and excluded from the public SDK surface.
     #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) abort_signal: Option<serde_json::Value>,
-    /// In-process streaming callback `(text) => void` invoked with each token as the model emits it. Marked internal: excluded from the public SDK surface. In a process-separated SDK this is replaced by a streaming RPC that yields chunks and a final answer.
+    /// In-process streaming callback `(text) => void` invoked with each token as the model emits it. Internal and excluded from the public SDK surface.
     #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) on_chunk: Option<serde_json::Value>,
@@ -21971,7 +21971,7 @@ pub struct SessionsGetRemoteControlStatusResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct SessionsRegisterExtensionToolsOnSessionResult {
-    /// In-process unsubscribe function (CLI-only optimization). Marked internal: replaced by an explicit `extensions.unregister` RPC in the SDK migration.
+    /// In-process unsubscribe function used only by the CLI.
     #[doc(hidden)]
     pub(crate) unsubscribe: serde_json::Value,
 }
