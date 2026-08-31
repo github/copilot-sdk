@@ -35,9 +35,9 @@ func TestGeneratedRPCAPIShape(t *testing.T) {
 	assertTypeExpr(t, fileSet, findTypeSpec(t, file, "FilterMappingEnumMap").Type, "map[string]ContentFilterMode")
 
 	assertInterfaceType(t, file, "MCPServerConfig")
-	assertStructFieldType(t, file, fileSet, "MCPConfigAddRequest", "Config", "MCPServerConfig")
-	assertStructFieldType(t, file, fileSet, "MCPConfigList", "Servers", "map[string]MCPServerConfig")
-	assertStructFieldType(t, file, fileSet, "MCPConfigUpdateRequest", "Config", "MCPServerConfig")
+	assertStructFieldType(t, file, fileSet, "MCPConfigAddRequest", "Config", "MCPSerializableServerConfig")
+	assertStructFieldType(t, file, fileSet, "MCPConfigList", "Servers", "map[string]MCPSerializableServerConfig")
+	assertStructFieldType(t, file, fileSet, "MCPConfigUpdateRequest", "Config", "MCPSerializableServerConfig")
 	assertStructFieldType(t, file, fileSet, "MCPServerConfigHTTP", "FilterMapping", "FilterMapping")
 	assertStructFieldType(t, file, fileSet, "MCPServerConfigStdio", "FilterMapping", "FilterMapping")
 

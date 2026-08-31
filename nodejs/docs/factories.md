@@ -139,6 +139,8 @@ Run by registered name or handle:
 const run = await session.factory.run("review-changed", {
     args: { files: ["src/a.ts"] },
     limits: { maxAiCredits: 3 },
+    notifyOnComplete: true,
+    logPhaseNames: true,
 });
 
 if (run.status === "completed") {
@@ -153,7 +155,12 @@ The name overload is:
 ```ts
 session.factory.run(
     name: string,
-    options?: { args?: JsonValue; limits?: FactoryLimits },
+    options?: {
+        args?: JsonValue;
+        limits?: FactoryLimits;
+        notifyOnComplete?: boolean;
+        logPhaseNames?: boolean;
+    },
 ): Promise<FactoryRunResult>;
 ```
 
@@ -162,6 +169,8 @@ Resume by run ID without resending the name or arguments:
 ```ts
 const run = await session.factory.resume(runId, {
     limits: { maxAiCredits: 6 },
+    notifyOnComplete: true,
+    logPhaseNames: true,
 });
 ```
 
@@ -170,9 +179,15 @@ The signature is:
 ```ts
 session.factory.resume(
     runId: string,
-    options?: { limits?: FactoryLimits },
+    options?: {
+        limits?: FactoryLimits;
+        notifyOnComplete?: boolean;
+        logPhaseNames?: boolean;
+    },
 ): Promise<FactoryRunResult>;
 ```
+
+Set `notifyOnComplete` to `true` for factories that are likely to be invoked by an agent, so the originating session is notified when the factory completes. Set it to `false` for factories intended to be invoked programmatically, where the caller awaits the result directly. Set `logPhaseNames` to emit factory phase names to the session transcript. Both options apply to new and resumed runs.
 
 Both resolve with the run envelope (`FactoryRunResult`) for **every** outcome — `completed`, `error`, `halted`, and `cancelled` alike. Inspect `status` and read `result` only when the run completed; a limit breach carries a typed `failure`. SDK-initiated `run` and `resume` do not request permission, so they have no declined outcome. The model's `run_factory` tool requests permission before the durable row exists; declining it creates no run row. An SDK-initiated run is refused only when the session already has its maximum number of active top-level runs. Pre-execution resume failures throw `FactoryResumeError`, whose `code` is one of `not_found`, `non_resumable`, `already_active`, `factory_already_running`, `factory_limits_invalid`, `factory_session_disposed`, `factory_storage_unavailable`, or `factory_storage_corrupt`.
 
@@ -219,8 +234,13 @@ The calling session can inspect its own factory runs:
 
 ```ts
 const runs = await session.factory.listRuns();
+const runsPage = await session.factory.listRuns({
+    afterSeq,
+    beforeSeq,
+    limit,
+});
 const detail = await session.factory.getRunDetail(runId);
-const page = await session.factory.getRunProgress(runId, {
+const progressPage = await session.factory.getRunProgress(runId, {
     phaseId,
     afterSeq,
     beforeSeq,
@@ -228,7 +248,8 @@ const page = await session.factory.getRunProgress(runId, {
 });
 ```
 
-- `listRuns()` returns the newest default page of this session's durable factory runs.
+- `listRuns()` returns only the runs array from the newest default page of this session's durable factory runs. This overload preserves the original convenience API.
+- `listRuns({ afterSeq, beforeSeq, limit })` returns the full page. Its `oldestSeq`, `newestSeq`, `hasMoreNewer`, and `omittedOlder` fields let callers continue paging without raw RPC calls.
 - `getRunDetail(runId)` returns phases, prompt-safe agent summaries, and the latest progress page.
 - `getRunProgress(runId, options?)` pages progress forward, backward, by phase, or from the latest tail.
 

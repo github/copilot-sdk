@@ -17,6 +17,7 @@ from copilot import (
     CanvasProviderIdentity,
     CapiSessionOptions,
     CopilotClient,
+    DisableBypassPermissionsModes,
     ExtensionInfo,
     ModelBillingTokenPrices,
     ModelBillingTokenPricesLongContext,
@@ -210,6 +211,61 @@ class TestPermissionHandlerOptional:
 
 
 class TestCreateSessionConfig:
+    @pytest.mark.asyncio
+    async def test_ask_user_variant_forwarded_on_create_and_cold_resume(self):
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        await client.start()
+        try:
+            captured: list[tuple[str, dict]] = []
+
+            async def mock_request(method, params, **kwargs):
+                captured.append((method, params))
+                result = {"sessionId": params["sessionId"], "workspacePath": None}
+                callback = kwargs.get("on_response_inline")
+                if callback is not None:
+                    callback(result)
+                return result
+
+            client._client.request = mock_request
+            await client.create_session(
+                session_id="ask-user-create",
+                ask_user_variant="elicitation",
+            )
+            await client.resume_session(
+                "ask-user-cold-resume",
+                ask_user_variant="legacy",
+            )
+            await client.create_session(session_id="ask-user-default-create")
+            await client.resume_session("ask-user-default-cold-resume")
+
+            payloads = {(method, params["sessionId"]): params for method, params in captured}
+            assert (
+                payloads[("session.create", "ask-user-create")]["askUserVariant"] == "elicitation"
+            )
+            assert (
+                payloads[("session.resume", "ask-user-cold-resume")]["askUserVariant"] == "legacy"
+            )
+            assert "askUserVariant" not in payloads[("session.create", "ask-user-default-create")]
+            assert (
+                "askUserVariant" not in payloads[("session.resume", "ask-user-default-cold-resume")]
+            )
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("method", ["create", "resume"])
+    async def test_ask_user_variant_rejects_unknown_values(self, method):
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+
+        with pytest.raises(ValueError, match="ask_user_variant"):
+            if method == "create":
+                await client.create_session(ask_user_variant="unknown")  # type: ignore[arg-type]
+            else:
+                await client.resume_session(
+                    "ask-user-cold-resume",
+                    ask_user_variant="unknown",  # type: ignore[arg-type]
+                )
+
     @pytest.mark.asyncio
     async def test_additional_directories_forwarded_on_create_and_resume(self):
         client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
@@ -721,7 +777,7 @@ class TestCreateSessionConfig:
                 enable_managed_settings=True,
                 managed_settings=ManagedSettings(
                     permissions=ManagedSettingsPermissions(
-                        disable_bypass_permissions_mode="disable",
+                        disable_bypass_permissions_mode=DisableBypassPermissionsModes.ALLOW_AUTO_ONLY,
                         deny=["Shell(git push)"],
                         ask=["Domain(publish.example)"],
                         allow=["Read(**)"],
@@ -732,7 +788,10 @@ class TestCreateSessionConfig:
                 session.session_id,
                 on_permission_request=PermissionHandler.approve_all,
                 managed_settings=ManagedSettings(
-                    permissions=ManagedSettingsPermissions(ask=["Domain(publish.example)"])
+                    permissions=ManagedSettingsPermissions(
+                        disable_bypass_permissions_mode="future-fail-closed-mode",
+                        ask=["Domain(publish.example)"],
+                    )
                 ),
             )
 
@@ -741,14 +800,31 @@ class TestCreateSessionConfig:
             assert captured["session.create"]["enableManagedSettings"] is True
             assert captured["session.create"]["managedSettings"] == {
                 "permissions": {
-                    "disableBypassPermissionsMode": "disable",
+                    "disableBypassPermissionsMode": "allow-auto-only",
                     "deny": ["Shell(git push)"],
                     "ask": ["Domain(publish.example)"],
                     "allow": ["Read(**)"],
                 }
             }
             assert captured["session.resume"]["managedSettings"] == {
-                "permissions": {"ask": ["Domain(publish.example)"]}
+                "permissions": {
+                    "disableBypassPermissionsMode": "future-fail-closed-mode",
+                    "ask": ["Domain(publish.example)"],
+                }
+            }
+
+            await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                managed_settings=ManagedSettings(
+                    permissions=ManagedSettingsPermissions(
+                        disable_bypass_permissions_mode=DisableBypassPermissionsModes.DISABLE,
+                    )
+                ),
+            )
+            assert captured["session.create"]["managedSettings"] == {
+                "permissions": {
+                    "disableBypassPermissionsMode": "disable",
+                }
             }
         finally:
             await client.force_stop()

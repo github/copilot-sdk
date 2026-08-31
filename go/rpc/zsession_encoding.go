@@ -41,6 +41,30 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
+	case SessionEventTypeAgentInterrupted:
+		var d AgentInterruptedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeAssistantFusionPhaseCompleted:
+		var d AssistantFusionPhaseCompletedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeAssistantFusionPhaseFailed:
+		var d AssistantFusionPhaseFailedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeAssistantFusionPhaseStarted:
+		var d AssistantFusionPhaseStartedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
 	case SessionEventTypeAssistantIdle:
 		var d AssistantIdleData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
@@ -203,6 +227,18 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
+	case SessionEventTypeFactoryRunSettled:
+		var d FactoryRunSettledData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeFactoryRunStarted:
+		var d FactoryRunStartedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
 	case SessionEventTypeFactoryRunUpdated:
 		var d FactoryRunUpdatedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
@@ -281,6 +317,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
+	case SessionEventTypeModelCallFinished:
+		var d ModelCallFinishedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
 	case SessionEventTypeModelCallStart:
 		var d ModelCallStartData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
@@ -305,6 +347,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
+	case SessionEventTypePromptCacheBreak:
+		var d PromptCacheBreakData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
 	case SessionEventTypeSamplingCompleted:
 		var d SamplingCompletedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
@@ -313,6 +361,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 		e.Data = &d
 	case SessionEventTypeSamplingRequested:
 		var d SamplingRequestedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSandboxDecision:
+		var d SandboxDecisionData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
@@ -427,6 +481,30 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 		e.Data = &d
 	case SessionEventTypeSessionExtensionsLoaded:
 		var d SessionExtensionsLoadedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionFusionCompleted:
+		var d SessionFusionCompletedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionFusionResolved:
+		var d SessionFusionResolvedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionFusionRouteFailed:
+		var d SessionFusionRouteFailedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionFusionRouteStarted:
+		var d SessionFusionRouteStartedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
@@ -635,6 +713,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
+	case SessionEventTypeSubagentConfigured:
+		var d SubagentConfiguredData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
 	case SessionEventTypeSubagentDeselected:
 		var d SubagentDeselectedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
@@ -707,6 +791,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
+	case SessionEventTypeUIEphemeralQuery:
+		var d UIEphemeralQueryData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
 	case SessionEventTypeUserInputCompleted:
 		var d UserInputCompletedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
@@ -773,6 +863,7 @@ func (r *UserMessageData) UnmarshalJSON(data []byte) error {
 		Source                           *string               `json:"source,omitempty"`
 		SupportedNativeDocumentMIMETypes []string              `json:"supportedNativeDocumentMimeTypes,omitzero"`
 		TransformedContent               *string               `json:"transformedContent,omitempty"`
+		TurnID                           *string               `json:"turnId,omitempty"`
 	}
 	var raw rawUserMessageData
 	if err := json.Unmarshal(data, &raw); err != nil {
@@ -798,6 +889,7 @@ func (r *UserMessageData) UnmarshalJSON(data []byte) error {
 	r.Source = raw.Source
 	r.SupportedNativeDocumentMIMETypes = raw.SupportedNativeDocumentMIMETypes
 	r.TransformedContent = raw.TransformedContent
+	r.TurnID = raw.TurnID
 	return nil
 }
 
@@ -905,7 +997,7 @@ func (r *CitationReference) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func matchesBinaryAssetReference(data []byte) bool {
+func matchesPersistedBinaryResultBinaryAssetReference(data []byte) bool {
 	var rawGroup0 struct {
 		AssetID       json.RawMessage `json:"assetId"`
 		ByteLength    json.RawMessage `json:"byteLength"`
@@ -927,7 +1019,7 @@ func matchesBinaryAssetReference(data []byte) bool {
 	return rawGroup0.OmittedReason == nil
 }
 
-func matchesOmittedBinaryResult(data []byte) bool {
+func matchesPersistedBinaryResultOmittedBinaryResult(data []byte) bool {
 	var rawGroup0 struct {
 		AssetID       json.RawMessage `json:"assetId"`
 		ByteLength    json.RawMessage `json:"byteLength"`
@@ -949,7 +1041,7 @@ func matchesOmittedBinaryResult(data []byte) bool {
 	return rawGroup0.Data == nil
 }
 
-func matchesPersistedBinaryImage(data []byte) bool {
+func matchesPersistedBinaryResultPersistedBinaryImage(data []byte) bool {
 	var rawGroup0 struct {
 		AssetID       json.RawMessage `json:"assetId"`
 		ByteLength    json.RawMessage `json:"byteLength"`
@@ -985,21 +1077,21 @@ func unmarshalPersistedBinaryResult(data []byte) (PersistedBinaryResult, error) 
 
 	switch raw.Type {
 	case PersistedBinaryResultTypeImage:
-		if matchesBinaryAssetReference(data) {
+		if matchesPersistedBinaryResultBinaryAssetReference(data) {
 			var d BinaryAssetReference
 			if err := json.Unmarshal(data, &d); err != nil {
 				return nil, err
 			}
 			return &d, nil
 		}
-		if matchesOmittedBinaryResult(data) {
+		if matchesPersistedBinaryResultOmittedBinaryResult(data) {
 			var d OmittedBinaryResult
 			if err := json.Unmarshal(data, &d); err != nil {
 				return nil, err
 			}
 			return &d, nil
 		}
-		if matchesPersistedBinaryImage(data) {
+		if matchesPersistedBinaryResultPersistedBinaryImage(data) {
 			var d PersistedBinaryImage
 			if err := json.Unmarshal(data, &d); err != nil {
 				return nil, err
@@ -1008,21 +1100,21 @@ func unmarshalPersistedBinaryResult(data []byte) (PersistedBinaryResult, error) 
 		}
 		return &RawPersistedBinaryResult{Discriminator: raw.Type, Raw: data}, nil
 	case PersistedBinaryResultTypeResource:
-		if matchesBinaryAssetReference(data) {
+		if matchesPersistedBinaryResultBinaryAssetReference(data) {
 			var d BinaryAssetReference
 			if err := json.Unmarshal(data, &d); err != nil {
 				return nil, err
 			}
 			return &d, nil
 		}
-		if matchesOmittedBinaryResult(data) {
+		if matchesPersistedBinaryResultOmittedBinaryResult(data) {
 			var d OmittedBinaryResult
 			if err := json.Unmarshal(data, &d); err != nil {
 				return nil, err
 			}
 			return &d, nil
 		}
-		if matchesPersistedBinaryImage(data) {
+		if matchesPersistedBinaryResultPersistedBinaryImage(data) {
 			var d PersistedBinaryImage
 			if err := json.Unmarshal(data, &d); err != nil {
 				return nil, err
@@ -1537,6 +1629,12 @@ func unmarshalPermissionRequest(data []byte) (PermissionRequest, error) {
 			return nil, err
 		}
 		return &d, nil
+	case PermissionRequestKindExtensionEnvAccess:
+		var d PermissionRequestExtensionEnvAccess
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
 	case PermissionRequestKindExtensionManagement:
 		var d PermissionRequestExtensionManagement
 		if err := json.Unmarshal(data, &d); err != nil {
@@ -1615,6 +1713,17 @@ func (r RawPermissionRequest) MarshalJSON() ([]byte, error) {
 
 func (r PermissionRequestCustomTool) MarshalJSON() ([]byte, error) {
 	type alias PermissionRequestCustomTool
+	return json.Marshal(struct {
+		Kind PermissionRequestKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r PermissionRequestExtensionEnvAccess) MarshalJSON() ([]byte, error) {
+	type alias PermissionRequestExtensionEnvAccess
 	return json.Marshal(struct {
 		Kind PermissionRequestKind `json:"kind"`
 		alias
@@ -1759,6 +1868,12 @@ func unmarshalPermissionPromptRequest(data []byte) (PermissionPromptRequest, err
 			return nil, err
 		}
 		return &d, nil
+	case PermissionPromptRequestKindExtensionEnvAccess:
+		var d PermissionPromptRequestExtensionEnvAccess
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
 	case PermissionPromptRequestKindExtensionManagement:
 		var d PermissionPromptRequestExtensionManagement
 		if err := json.Unmarshal(data, &d); err != nil {
@@ -1848,6 +1963,17 @@ func (r PermissionPromptRequestCommands) MarshalJSON() ([]byte, error) {
 
 func (r PermissionPromptRequestCustomTool) MarshalJSON() ([]byte, error) {
 	type alias PermissionPromptRequestCustomTool
+	return json.Marshal(struct {
+		Kind PermissionPromptRequestKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r PermissionPromptRequestExtensionEnvAccess) MarshalJSON() ([]byte, error) {
+	type alias PermissionPromptRequestExtensionEnvAccess
 	return json.Marshal(struct {
 		Kind PermissionPromptRequestKind `json:"kind"`
 		alias
@@ -2095,8 +2221,9 @@ func (r PermissionApproved) MarshalJSON() ([]byte, error) {
 
 func (r *PermissionApprovedForLocation) UnmarshalJSON(data []byte) error {
 	type rawPermissionApprovedForLocation struct {
-		Approval    json.RawMessage `json:"approval"`
-		LocationKey string          `json:"locationKey"`
+		Approval               json.RawMessage `json:"approval"`
+		LocationKey            string          `json:"locationKey"`
+		ManagedApprovalHandled *bool           `json:"managedApprovalHandled,omitempty"`
 	}
 	var raw rawPermissionApprovedForLocation
 	if err := json.Unmarshal(data, &raw); err != nil {
@@ -2110,6 +2237,7 @@ func (r *PermissionApprovedForLocation) UnmarshalJSON(data []byte) error {
 		r.Approval = value
 	}
 	r.LocationKey = raw.LocationKey
+	r.ManagedApprovalHandled = raw.ManagedApprovalHandled
 	return nil
 }
 
@@ -2126,7 +2254,8 @@ func (r PermissionApprovedForLocation) MarshalJSON() ([]byte, error) {
 
 func (r *PermissionApprovedForSession) UnmarshalJSON(data []byte) error {
 	type rawPermissionApprovedForSession struct {
-		Approval json.RawMessage `json:"approval"`
+		Approval               json.RawMessage `json:"approval"`
+		ManagedApprovalHandled *bool           `json:"managedApprovalHandled,omitempty"`
 	}
 	var raw rawPermissionApprovedForSession
 	if err := json.Unmarshal(data, &raw); err != nil {
@@ -2139,6 +2268,7 @@ func (r *PermissionApprovedForSession) UnmarshalJSON(data []byte) error {
 		}
 		r.Approval = value
 	}
+	r.ManagedApprovalHandled = raw.ManagedApprovalHandled
 	return nil
 }
 

@@ -11,6 +11,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.github.copilot.CopilotExperimental;
+import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
@@ -27,6 +28,18 @@ public record SessionModelSwitchToResult(
     /** Currently active model identifier after the switch */
     @JsonProperty("modelId") String modelId,
     /** True when the switch was deferred (enqueued as a cancellable `/model` command) because a turn was active or another model change was already queued, rather than applied immediately. When true, the session's live model is unchanged until the queued change drains. */
-    @JsonProperty("deferred") Boolean deferred
+    @JsonProperty("deferred") Boolean deferred,
+    /** Lifecycle result for the requested switch */
+    @JsonProperty("status") String status,
+    /** Compaction confirmation projection when status is confirmation_required */
+    @JsonProperty("confirmation") ModelSwitchConfirmation confirmation,
+    /** Persistence failure encountered after applying the model switch. */
+    @JsonProperty("persistenceError") String persistenceError,
+    /** User-facing outcome message for the model switch. */
+    @JsonProperty("message") String message,
+    /** User-facing warning produced while applying the model switch. */
+    @JsonProperty("warning") String warning,
+    /** Deprecation warnings associated with the selected model or options. */
+    @JsonProperty("deprecationWarnings") List<String> deprecationWarnings
 ) {
 }

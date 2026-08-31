@@ -16,6 +16,7 @@ from .testharness import (
     E2ETestContext,
     get_final_assistant_message,
     get_next_event_of_type,
+    wait_for_condition,
 )
 
 pytestmark = pytest.mark.asyncio(loop_scope="module")
@@ -396,19 +397,26 @@ class TestSessions:
             )
 
     async def test_should_get_session_metadata(self, ctx: E2ETestContext):
-        import asyncio
-
         # Create a session and send a message to persist it
         session = await ctx.client.create_session(
             on_permission_request=PermissionHandler.approve_all
         )
         await session.send_and_wait("Say hello")
 
-        # Small delay to ensure session file is written to disk
-        await asyncio.sleep(0.2)
+        metadata = None
+
+        async def metadata_is_available() -> bool:
+            nonlocal metadata
+            metadata = await ctx.client.get_session_metadata(session.session_id)
+            return metadata is not None
+
+        await wait_for_condition(
+            metadata_is_available,
+            timeout=10.0,
+            timeout_message="Timed out waiting for session metadata to persist.",
+        )
 
         # Get metadata for the session we just created
-        metadata = await ctx.client.get_session_metadata(session.session_id)
         assert metadata is not None
         assert metadata.session_id == session.session_id
         assert isinstance(metadata.start_time, datetime)

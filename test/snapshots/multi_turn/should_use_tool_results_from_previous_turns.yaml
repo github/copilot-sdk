@@ -44,7 +44,7 @@ conversations:
           task.
       - role: tool
         tool_call_id: toolcall_1
-        content: 1. The magic number is 42.
+        content: The magic number is 42.
       - role: assistant
         content: The magic number is **42**.
   - messages:
@@ -69,7 +69,7 @@ conversations:
         content: Tool 'report_intent' does not exist.
       - role: tool
         tool_call_id: toolcall_1
-        content: 1. The magic number is 42.
+        content: The magic number is 42.
       - role: assistant
         content: The magic number is **42**.
       - role: user

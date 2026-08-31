@@ -79,6 +79,22 @@ public final class SessionMcpOauthApi {
     }
 
     /**
+     * Remote MCP server name for a passive OAuth status probe.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<McpOauthProbeResult> probe(SessionMcpOauthProbeParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.mcp.oauth.probe", _p, McpOauthProbeResult.class);
+    }
+
+    /**
      * Pending MCP OAuth request id to respond to.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden

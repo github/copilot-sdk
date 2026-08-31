@@ -71,6 +71,7 @@ import {
     FactoryResumeError,
     isFactoryRunTerminal,
     type FactoryResumeErrorCode,
+    type FactoryListRunsOptions,
     type FactoryRunResult,
     type FactoryAgentOptions,
     type RunOptions,
@@ -438,6 +439,7 @@ export class CopilotSession {
     private _capabilities: SessionCapabilities = {};
     private openCanvasInstances: OpenCanvasInstance[] = [];
     private disconnected = false;
+    private onDisconnected?: () => void;
 
     /** @internal Client session API handlers, populated by CopilotClient during create/resume. */
     clientSessionApis: ClientSessionApiHandlers = {};
@@ -461,6 +463,8 @@ export class CopilotSession {
             if (options?.resumeFromRunId !== undefined) {
                 return this.factory.resume(options.resumeFromRunId, {
                     limits: options.limits,
+                    notifyOnComplete: options.notifyOnComplete,
+                    logPhaseNames: options.logPhaseNames,
                 });
             }
             const envelope = await this.rpc.factory.run({
@@ -468,6 +472,8 @@ export class CopilotSession {
                 args: options?.args === undefined ? {} : options.args,
                 options: {
                     limits: options?.limits,
+                    notifyOnComplete: options?.notifyOnComplete,
+                    logPhaseNames: options?.logPhaseNames,
                 },
             });
 
@@ -480,6 +486,8 @@ export class CopilotSession {
                 response = await this.rpc.factory.resume({
                     runId,
                     limits: options?.limits,
+                    notifyOnComplete: options?.notifyOnComplete,
+                    logPhaseNames: options?.logPhaseNames,
                 });
             } catch (error) {
                 if (
@@ -498,7 +506,10 @@ export class CopilotSession {
         }) as SessionFactoryApi["resume"],
         getRun: async (runId) => this.rpc.factory.getRun({ runId }),
         waitForRun: (runId, options) => this.waitForFactoryRun(runId, options?.signal),
-        listRuns: async () => (await this.rpc.factory.listRuns({})).runs,
+        listRuns: (async (options?: FactoryListRunsOptions) => {
+            const page = await this.rpc.factory.listRuns(options ?? {});
+            return options === undefined ? page.runs : page;
+        }) as SessionFactoryApi["listRuns"],
         getRunDetail: (runId) => this.rpc.factory.getRunDetail({ runId }),
         getRunProgress: (runId, options = {}) =>
             this.rpc.factory.getRunProgress({ runId, ...options }),
@@ -617,11 +628,16 @@ export class CopilotSession {
         private connection: MessageConnection,
         private _workspacePath?: string,
         traceContextProvider?: TraceContextProvider,
-        options?: { mcpAuthHandler?: McpAuthHandler; managedSettingsEnabled?: boolean }
+        options?: {
+            mcpAuthHandler?: McpAuthHandler;
+            managedSettingsEnabled?: boolean;
+            onDisconnected?: () => void;
+        }
     ) {
         this.traceContextProvider = traceContextProvider;
         this.mcpAuthHandler = options?.mcpAuthHandler;
         this.managedSettingsEnabled = options?.managedSettingsEnabled === true;
+        this.onDisconnected = options?.onDisconnected;
     }
 
     /**
@@ -758,7 +774,7 @@ export class CopilotSession {
         const unsubscribe = this.on((event) => {
             if (event.type === "assistant.message") {
                 lastAssistantMessage = event;
-            } else if (event.type === "session.idle") {
+            } else if (event.type === "session.idle" && event.data.mode !== "autopilot") {
                 resolveOutcome({ kind: "idle" });
             } else if (event.type === "session.error") {
                 const error = new Error(event.data.message);
@@ -798,7 +814,11 @@ export class CopilotSession {
 
     /** @internal */
     _markDisconnected(): void {
+        if (this.disconnected) {
+            return;
+        }
         this.disconnected = true;
+        this._runOnDisconnected();
         this.eventHandlers.clear();
         this.typedEventHandlers.clear();
         this.toolHandlers.clear();
@@ -817,6 +837,17 @@ export class CopilotSession {
         }
         this.factoryAbortControllers.clear();
         this.transformCallbacks?.clear();
+    }
+
+    /** @internal */
+    _runOnDisconnected(): void {
+        this.onDisconnected?.();
+        this.onDisconnected = undefined;
+    }
+
+    /** @internal */
+    _setOnDisconnected(callback: () => void): void {
+        this.onDisconnected = callback;
     }
 
     /**
@@ -1621,7 +1652,13 @@ export class CopilotSession {
         }
         try {
             const result = await this.elicitationHandler(context);
-            await this.rpc.ui.handlePendingElicitation({ requestId, result });
+            await this.rpc.ui.handlePendingElicitation({
+                requestId,
+                result: {
+                    action: result.action,
+                    ...(result.content ? { content: result.content } : {}),
+                },
+            });
         } catch {
             // Handler failed — attempt to cancel so the request doesn't hang
             try {

@@ -277,6 +277,7 @@ async fn mode_set_to_same_value_multiple_times_stays_stable() {
                         .mode()
                         .set(ModeSetRequest {
                             mode: SessionMode::Plan,
+                            ..Default::default()
                         })
                         .await
                         .expect("set mode");

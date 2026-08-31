@@ -95,7 +95,7 @@ class CommandsTest {
         assertEquals("deploy", request.getCommands().get(0).getName());
         assertEquals("Deploy", request.getCommands().get(0).getDescription());
         assertEquals("rollback", request.getCommands().get(1).getName());
-        assertNull(request.getCommands().get(1).getDescription());
+        assertEquals("", request.getCommands().get(1).getDescription());
     }
 
     @Test
@@ -130,11 +130,11 @@ class CommandsTest {
     }
 
     @Test
-    void commandWireDefinitionNullDescriptionAllowed() {
+    void commandWireDefinitionNormalizesNullDescription() {
         var wire = new CommandWireDefinition("rollback", null);
 
         assertEquals("rollback", wire.getName());
-        assertNull(wire.getDescription());
+        assertEquals("", wire.getDescription());
     }
 
     @Test

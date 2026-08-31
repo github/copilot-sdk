@@ -35,7 +35,9 @@ public final class SessionIdleEvent extends SessionEvent {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record SessionIdleEventData(
         /** True when the preceding agentic loop was cancelled via abort signal */
-        @JsonProperty("aborted") Boolean aborted
+        @JsonProperty("aborted") Boolean aborted,
+        /** The session mode the agent was operating in when it went idle, when the mode is known. Lets turn-scoped consumers distinguish an autopilot continuation boundary (where the agent keeps working after this idle) from a genuine turn completion. */
+        @JsonProperty("mode") SessionMode mode
     ) {
     }
 }

@@ -7,15 +7,15 @@ use github_copilot_sdk::rpc::{
     ModelSetReasoningEffortRequest, ModelSwitchToRequest, NameSetAutoRequest, NameSetRequest,
     PermissionsResetSessionApprovalsRequest, PermissionsSetApproveAllRequest, PlanUpdateRequest,
     SessionSetCredentialsParams, SessionUpdateOptionsParams, SessionWorkingDirectoryContext,
-    SessionWorkingDirectoryContextHostType, SessionsForkRequest, ShutdownRequest,
-    TelemetrySetFeatureOverridesRequest, WorkspacesCreateFileRequest, WorkspacesReadFileRequest,
+    SessionWorkingDirectoryContextHostType, SessionsForkRequest, SettableAuthInfo, ShutdownRequest,
+    TelemetrySetFeatureOverridesRequest, UserAuthInfo, WorkspacesCreateFileRequest,
+    WorkspacesReadFileRequest,
 };
 use github_copilot_sdk::session_events::{
     SessionContextChangedData, SessionEventType, SessionMode, SessionShutdownData,
     SessionTitleChangedData, SessionWorkspaceFileChangedData, ShutdownType,
     WorkspaceFileChangedOperation,
 };
-use serde_json::json;
 
 use super::support::{assistant_message_content, wait_for_condition, wait_for_event};
 
@@ -129,6 +129,7 @@ async fn should_get_and_set_session_mode() {
                     .mode()
                     .set(ModeSetRequest {
                         mode: SessionMode::Plan,
+                        ..Default::default()
                     })
                     .await
                     .expect("set plan mode");
@@ -207,7 +208,10 @@ async fn should_set_and_get_each_session_mode_value() {
                     session
                         .rpc()
                         .mode()
-                        .set(ModeSetRequest { mode: mode.clone() })
+                        .set(ModeSetRequest {
+                            mode: mode.clone(),
+                            ..Default::default()
+                        })
                         .await
                         .expect("set mode");
                     assert_eq!(session.rpc().mode().get().await.expect("get mode"), mode);
@@ -757,18 +761,18 @@ async fn should_update_options_and_initialize_session_services() {
                     .await
                     .expect("create session");
 
+                let mut update_options = SessionUpdateOptionsParams::default();
+                update_options.ask_user_disabled = Some(true);
+                update_options.available_tools = Some(vec!["view".to_string()]);
+                update_options.client_name = Some("rust-rpc-e2e".to_string());
+                update_options.enable_streaming = Some(true);
+                update_options.model = Some(MODEL_ID.to_string());
+                update_options.working_directory = Some(ctx.work_dir().display().to_string());
+
                 let options = session
                     .rpc()
                     .options()
-                    .update(SessionUpdateOptionsParams {
-                        ask_user_disabled: Some(true),
-                        available_tools: Some(vec!["view".to_string()]),
-                        client_name: Some("rust-rpc-e2e".to_string()),
-                        enable_streaming: Some(true),
-                        model: Some(MODEL_ID.to_string()),
-                        working_directory: Some(ctx.work_dir().display().to_string()),
-                        ..SessionUpdateOptionsParams::default()
-                    })
+                    .update(update_options)
                     .await
                     .expect("update options");
                 assert!(options.success);
@@ -888,10 +892,10 @@ async fn should_set_auth_credentials() {
                     .rpc()
                     .git_hub_auth()
                     .set_credentials(SessionSetCredentialsParams {
-                        credentials: Some(json!({
-                            "type": "user",
-                            "host": "github.com",
-                            "login": "rpc-session-user"
+                        credentials: Some(SettableAuthInfo::User(UserAuthInfo {
+                            host: "github.com".to_string(),
+                            login: "rpc-session-user".to_string(),
+                            ..Default::default()
                         })),
                     })
                     .await

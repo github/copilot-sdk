@@ -133,8 +133,10 @@ Create a new conversation session.
 - `InfiniteSessions` - Configure automatic context compaction (see below)
 - `WorkingDirectory` - Working directory for the session. When not set, the runtime uses its own process working directory.
 - `EnableSessionStore` - Enables the cross-session store for search and retrieval across sessions. When unset in `CopilotClientMode.CopilotCli`, the runtime default applies (enabled). In `CopilotClientMode.Empty`, defaults to disabled.
+- `GitHubTokenProvider` - Acquires session-scoped GitHub tokens on demand. Return `GitHubTokenProviderResult.FromToken` with a positive `ExpiresIn` value (production GitHub tokens typically use `8 * 60 * 60` seconds), or `GitHubTokenProviderResult.Cancel()`. Cannot be combined with `GitHubToken`.
 - `OnPermissionRequest` - Optional handler called before each tool execution to approve or deny it. When omitted, permission requests are emitted as events and left pending for manual resolution. `PermissionHandler.ApproveAll` approves requests when managed settings are disabled and throws when `EnableManagedSettings` is true. Custom handlers can inspect `ManagedApprovalRequired` for human-facing confirmation logic. See [Permission Handling](#permission-handling) section.
-- `OnUserInputRequest` - Handler for user input requests from the agent (enables ask_user tool). See [User Input Requests](#user-input-requests) section.
+- `OnUserInputRequest` - Handler for legacy question-and-answer requests from the agent. Enables the legacy `ask_user` tool. See [User Input Requests](#user-input-requests) section.
+- `AskUserVariant` - Selects the model-facing `ask_user` tool shape. Defaults to `AskUserVariant.Legacy`; use `AskUserVariant.Elicitation` with `OnElicitationRequest`.
 - `Hooks` - Hook handlers for session lifecycle events. See [Session Hooks](#session-hooks) section.
 
 ##### `ResumeSessionAsync(string sessionId, ResumeSessionConfig? config = null): Task<CopilotSession>`
@@ -144,6 +146,25 @@ Resume an existing session. Returns the session with `WorkspacePath` populated i
 **ResumeSessionConfig:**
 
 - `OnPermissionRequest` - Optional handler called before each tool execution to approve or deny it. See [Permission Handling](#permission-handling) section.
+- `GitHubTokenProvider` - Replaces the session-scoped token provider when resuming. Cannot be combined with `GitHubToken`.
+- `AskUserVariant` - Re-supplies the model-facing `ask_user` tool shape on cold resume.
+
+```csharp
+await using var session = await client.CreateSessionAsync(new SessionConfig
+{
+    GitHubTokenProvider = async args =>
+    {
+        var token = await AcquireTokenAsync(args.Host);
+        return GitHubTokenProviderResult.FromToken(new GitHubToken
+        {
+            AccessToken = token,
+            ExpiresIn = 8 * 60 * 60
+        });
+    }
+});
+```
+
+Initial acquisition runs during session creation or resume. Cancellation, provider errors, and invalid token responses reject that operation instead of falling back to ambient authentication. Idle sessions refresh only before their next credential-consuming operation; there is no background refresh timer.
 
 ##### `PingAsync(string? message = null): Task<PingResponse>`
 
@@ -852,7 +873,7 @@ To let a specific custom tool bypass the permission prompt entirely, set `SkipPe
 
 ## User Input Requests
 
-Enable the agent to ask questions to the user using the `ask_user` tool by providing an `OnUserInputRequest` handler:
+Enable the legacy question-and-answer `ask_user` tool by providing an `OnUserInputRequest` handler:
 
 ```csharp
 var session = await client.CreateSessionAsync(new SessionConfig
@@ -985,6 +1006,7 @@ var session = await client.CreateSessionAsync(new SessionConfig
 {
     Model = "gpt-5",
     OnPermissionRequest = PermissionHandler.ApproveAll,
+    AskUserVariant = AskUserVariant.Elicitation,
     OnElicitationRequest = async (context) =>
     {
         // context.SessionId - Session that triggered the request

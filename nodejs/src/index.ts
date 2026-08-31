@@ -9,7 +9,7 @@
  */
 
 export { CopilotClient } from "./client.js";
-export { RuntimeConnection } from "./types.js";
+export { DisableBypassPermissionsModes, RuntimeConnection } from "./types.js";
 export { BuiltInTools, ToolSet } from "./toolSet.js";
 export { CopilotSession, type AssistantMessageEvent } from "./session.js";
 export { defineFactory, FactoryResumeError, isFactoryRunTerminal } from "./factory.js";
@@ -53,6 +53,7 @@ export {
 // surface for those six identifiers is preserved unchanged.
 export type * from "./generated/session-events.js";
 export type {
+    AskUserVariant,
     CommandContext,
     CommandDefinition,
     CommandHandler,
@@ -97,6 +98,11 @@ export type {
     GitHubTelemetryNotification,
     GitHubTelemetryEvent,
     GitHubTelemetryClientInfo,
+    GitHubTokenAcquireReason,
+    GitHubTokenAcquireResult,
+    GitHubTokenProvider,
+    GitHubTokenProviderArgs,
+    GitHubTokenProviderResult,
     InfiniteSessionConfig,
     LargeToolOutputConfig,
     MemoryConfiguration,
@@ -130,6 +136,7 @@ export type {
     PermissionDecisionOutcome,
     PermissionDecisionSource,
     PermissionDecisionSurface,
+    PermissionResponseCapability,
     ProviderConfig,
     ProviderModelConfig,
     ProviderTokenArgs,
@@ -203,6 +210,8 @@ export type {
     FactoryRunResult,
     FactoryRunStatus,
     FactoryRunSummary,
+    FactoryListRunsOptions,
+    FactoryRunsPage,
     FactoryRunDetail,
     FactoryProgressPage,
     FactoryProgressLine,

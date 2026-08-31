@@ -127,6 +127,7 @@ async fn connect_handshake_supplies_protocol_version() {
     assert_eq!(req["method"], "connect");
     // Token is None for the from_streams entry point (no transport spawn).
     assert!(req["params"].get("token").is_none());
+    assert!(req["params"].get("clientInfo").is_none());
     let response = serde_json::json!({
         "jsonrpc": "2.0",
         "id": req["id"],

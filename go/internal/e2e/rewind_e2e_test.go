@@ -24,6 +24,10 @@ func TestRewindE2E(t *testing.T) {
 	t.Cleanup(func() { client.ForceStop() })
 
 	t.Run("should restore tracked file and conversation", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("blocked on CLI 1.0.81 file-change tracking regression on Windows")
+		}
+
 		ctx.ConfigureForTest(t)
 		filePath := filepath.Join(ctx.WorkDir, rewindFileName)
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
@@ -113,17 +117,20 @@ func TestRewindE2E(t *testing.T) {
 
 func waitForRewindPoints(t *testing.T, session *copilot.Session) *rpc.HistoryListRewindPointsResult {
 	t.Helper()
-	deadline := time.Now().Add(10 * time.Second)
+	deadline := time.Now().Add(30 * time.Second)
 	for {
 		result, err := session.RPC.History.ListRewindPoints(t.Context())
 		if err != nil {
 			t.Fatalf("ListRewindPoints failed: %v", err)
 		}
-		if result.UnavailableReason == nil {
+		if result.UnavailableReason == nil &&
+			len(result.Points) == 1 &&
+			result.Points[0].CanRestoreFiles &&
+			result.Points[0].FileCount == 1 {
 			return result
 		}
 		if time.Now().After(deadline) {
-			t.Fatalf("Timed out waiting for rewind points: %s", *result.UnavailableReason)
+			t.Fatalf("Timed out waiting for a restorable rewind point: %+v", result)
 		}
 		time.Sleep(100 * time.Millisecond)
 	}

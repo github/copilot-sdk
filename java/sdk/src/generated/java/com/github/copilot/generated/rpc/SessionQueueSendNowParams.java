@@ -26,6 +26,7 @@ import javax.annotation.processing.Generated;
 public record SessionQueueSendNowParams(
     /** Target session identifier */
     @JsonProperty("sessionId") String sessionId,
+    /** Stable opaque ID of the queued item to steer into the live turn. */
     @JsonProperty("id") String id
 ) {
 }

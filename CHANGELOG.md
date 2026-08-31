@@ -7,6 +7,24 @@ See [GitHub Releases](https://github.com/github/copilot-sdk/releases) for the fu
 
 ## [Unreleased]
 
+### Feature: Node Agent Factories pagination and run notifications
+
+The experimental Node.js Agent Factories convenience API now supports paginated run history. Existing `session.factory.listRuns()` calls still return the runs array, while calls with `afterSeq`, `beforeSeq`, or `limit` return the full page with cursor and truncation metadata.
+
+Factory `run` and `resume` options now accept `notifyOnComplete` and `logPhaseNames`. The SDK forwards these options to the Copilot CLI for new and resumed runs.
+
+### Feature: selectable `ask_user` session behavior
+
+Session create and cold resume now accept a language-specific `askUserVariant` option with `legacy` and `elicitation` values. SDK sessions retain the legacy question-and-answer tool by default. Select `elicitation` and provide an elicitation handler to expose the structured form-based `ask_user` tool.
+
+### Feature: rotating session-scoped GitHub credentials
+
+All six SDKs can now acquire short-lived GitHub credentials through a session-scoped callback. The SDK registers the callback before session create or resume, maps `initial` and `refresh` requests to the owning session, and removes registrations on rollback, replacement, session close, and client close. Static per-session `gitHubToken` credentials remain supported and are mutually exclusive with the callback.
+
+Token responses use the shared tagged token/cancelled shape and require `expiresIn`, expressed as the positive number of seconds remaining when the callback completes. See [github/copilot-agent-runtime#16381](https://github.com/github/copilot-agent-runtime/pull/16381) for the runtime credential-authority implementation.
+
+Initial acquisition occurs during create or resume; cancellation, callback errors, and invalid credentials reject that operation instead of falling back to ambient authentication. Idle sessions refresh only before their next credential-consuming operation.
+
 ### Feature: extensions can request sensitive environment variables
 
 Copilot CLI extensions can now ask for named sensitive environment variables when they join a session. `joinSession()` accepts a `requestedEnvironmentVariables` option listing the variable names the extension needs. The CLI shows a permission prompt naming the extension and the exact variables requested. On approval, only those variables reach that extension and their values are written into the extension process's `process.env` before `joinSession()` resolves. On denial, `joinSession()` rejects, the extension does not load, and its tools never reach the model.

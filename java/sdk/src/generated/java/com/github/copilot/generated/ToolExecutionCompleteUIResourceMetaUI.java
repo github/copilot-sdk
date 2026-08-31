@@ -25,7 +25,9 @@ public record ToolExecutionCompleteUIResourceMetaUI(
     @JsonProperty("csp") ToolExecutionCompleteUIResourceMetaUICsp csp,
     /** Browser permission metadata for an MCP Apps UI resource, including camera, microphone, geolocation, and clipboard-write. */
     @JsonProperty("permissions") ToolExecutionCompleteUIResourceMetaUIPermissions permissions,
+    /** Optional dedicated origin for the rendered MCP Apps UI resource. */
     @JsonProperty("domain") String domain,
+    /** Whether the host should render a border around the MCP Apps UI resource. */
     @JsonProperty("prefersBorder") Boolean prefersBorder
 ) {
 }

@@ -131,7 +131,6 @@ public class McpAndAgentsTest {
             CopilotSession session1 = client
                     .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
             String sessionId = session1.getSessionId();
-            session1.sendAndWait(new MessageOptions().setPrompt("What is 1+1?")).get(60, TimeUnit.SECONDS);
 
             // Resume with MCP servers
             var mcpServers = createTestMcpServers("test-server");

@@ -31,8 +31,6 @@ public record AgentRegistryLiveTargetEntry(
     @JsonProperty("host") String host,
     /** TCP port the entry's JSON-RPC server is listening on */
     @JsonProperty("port") Long port,
-    /** Connection token (null when the target is unauthenticated) */
-    @JsonProperty("token") String token,
     /** Session ID of the foreground session for this entry */
     @JsonProperty("sessionId") String sessionId,
     /** Friendly session name (when set) */
@@ -56,6 +54,8 @@ public record AgentRegistryLiveTargetEntry(
     /** Copilot CLI version that wrote the entry */
     @JsonProperty("copilotVersion") String copilotVersion,
     /** Wall-clock milliseconds since the watcher last observed this entry (heartbeat freshness) */
-    @JsonProperty("lastSeenMs") Long lastSeenMs
+    @JsonProperty("lastSeenMs") Long lastSeenMs,
+    /** Connection token (null when the target is unauthenticated) */
+    @JsonProperty("token") String token
 ) {
 }

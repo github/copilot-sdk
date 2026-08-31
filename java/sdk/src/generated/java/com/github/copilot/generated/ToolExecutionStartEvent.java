@@ -44,6 +44,7 @@ public final class ToolExecutionStartEvent extends SessionEvent {
         @JsonProperty("shellToolInfo") ToolExecutionStartShellToolInfo shellToolInfo,
         /** Model identifier that generated this tool call */
         @JsonProperty("model") String model,
+        /** Per-request treatment/eligibility signal returned by the Copilot API in the `X-GitHub-Copilot-Request-TE` response header for the associated model call; `false` when the header was absent or unparseable. */
         @JsonProperty("rte") Boolean rte,
         /** Name of the MCP server hosting this tool, when the tool is an MCP tool */
         @JsonProperty("mcpServerName") String mcpServerName,
@@ -56,7 +57,9 @@ public final class ToolExecutionStartEvent extends SessionEvent {
         /** Tool definition metadata, present for MCP tools with MCP Apps support */
         @JsonProperty("toolDescription") ToolExecutionStartToolDescription toolDescription,
         /** Tool call ID of the parent tool invocation when this event originates from a sub-agent */
-        @JsonProperty("parentToolCallId") String parentToolCallId
+        @JsonProperty("parentToolCallId") String parentToolCallId,
+        /** Experimental HydraFusion attribution for this tool execution. */
+        @JsonProperty("fusion") FusionAttribution fusion
     ) {
     }
 }

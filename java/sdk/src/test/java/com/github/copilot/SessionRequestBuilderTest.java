@@ -13,6 +13,7 @@ import java.util.concurrent.CompletableFuture;
 import org.junit.jupiter.api.Test;
 
 import com.github.copilot.generated.rpc.SessionLimitsConfig;
+import com.github.copilot.rpc.AskUserVariant;
 import com.github.copilot.rpc.AutoModeSwitchResponse;
 import com.github.copilot.rpc.CloudSessionOptions;
 import com.github.copilot.rpc.CloudSessionRepository;
@@ -26,6 +27,7 @@ import com.github.copilot.rpc.ElicitationResultAction;
 import com.github.copilot.rpc.ExitPlanModeResult;
 import com.github.copilot.rpc.ExpConfigEntry;
 import com.github.copilot.rpc.GitHubMcpToolConfig;
+import com.github.copilot.rpc.GitHubTokenProviderResult;
 import com.github.copilot.rpc.LargeToolOutputConfig;
 import com.github.copilot.rpc.MemoryConfiguration;
 import com.github.copilot.rpc.ResumeSessionConfig;
@@ -54,6 +56,63 @@ public class SessionRequestBuilderTest {
         assertNull(request.getModel());
         assertTrue(request.getRequestPermission(), "requestPermission should be true even for null config");
         assertEquals("direct", request.getEnvValueMode(), "envValueMode should be 'direct' even for null config");
+    }
+
+    @Test
+    void testGitHubTokenProviderRegistrationWireFieldHasExactCasing() throws Exception {
+        var create = SessionRequestBuilder.buildCreateRequest(new SessionConfig(), "create-session");
+        create.setGitHubTokenProviderRegistrationId("create-registration");
+        var resume = SessionRequestBuilder.buildResumeRequest("resume-session", new ResumeSessionConfig());
+        resume.setGitHubTokenProviderRegistrationId("resume-registration");
+        var mapper = JsonRpcClient.getObjectMapper();
+
+        assertEquals("create-registration",
+                mapper.readTree(mapper.writeValueAsBytes(create)).path("gitHubTokenProviderRegistrationId").asText());
+        assertEquals("resume-registration",
+                mapper.readTree(mapper.writeValueAsBytes(resume)).path("gitHubTokenProviderRegistrationId").asText());
+        assertFalse(mapper.readTree(mapper.writeValueAsBytes(create)).has("gitHubToken"));
+    }
+
+    @Test
+    void testGitHubTokenProviderResultRedactsToken() {
+        var result = GitHubTokenProviderResult.token("do-not-print", 28_800);
+        assertFalse(result.toString().contains("do-not-print"));
+    }
+
+    @Test
+    void askUserVariantIsForwardedAndSerializedForCreateAndColdResume() throws Exception {
+        var createRequest = SessionRequestBuilder.buildCreateRequest(
+                new SessionConfig().setAskUserVariant(AskUserVariant.ELICITATION), "create-session");
+        var resumeRequest = SessionRequestBuilder.buildResumeRequest("resume-session",
+                new ResumeSessionConfig().setAskUserVariant(AskUserVariant.LEGACY));
+        var mapper = JsonRpcClient.getObjectMapper();
+
+        assertEquals(AskUserVariant.ELICITATION, createRequest.getAskUserVariant());
+        assertEquals("elicitation",
+                mapper.readTree(mapper.writeValueAsBytes(createRequest)).path("askUserVariant").asText());
+        assertEquals(AskUserVariant.LEGACY, resumeRequest.getAskUserVariant());
+        assertEquals("legacy",
+                mapper.readTree(mapper.writeValueAsBytes(resumeRequest)).path("askUserVariant").asText());
+    }
+
+    @Test
+    void askUserVariantDefaultsToOmittedLegacyBehavior() throws Exception {
+        var mapper = JsonRpcClient.getObjectMapper();
+        var createRequest = SessionRequestBuilder.buildCreateRequest(new SessionConfig(), "create-session");
+        var resumeRequest = SessionRequestBuilder.buildResumeRequest("resume-session", new ResumeSessionConfig());
+
+        assertNull(createRequest.getAskUserVariant());
+        assertFalse(mapper.readTree(mapper.writeValueAsBytes(createRequest)).has("askUserVariant"));
+        assertNull(resumeRequest.getAskUserVariant());
+        assertFalse(mapper.readTree(mapper.writeValueAsBytes(resumeRequest)).has("askUserVariant"));
+    }
+
+    @Test
+    void askUserVariantAcceptsOnlySupportedWireValues() {
+        assertEquals(AskUserVariant.LEGACY, AskUserVariant.fromValue("legacy"));
+        assertEquals(AskUserVariant.ELICITATION, AskUserVariant.fromValue("elicitation"));
+        assertThrows(IllegalArgumentException.class, () -> AskUserVariant.fromValue("ELICITATION"));
+        assertThrows(IllegalArgumentException.class, () -> AskUserVariant.fromValue("unsupported"));
     }
 
     @Test

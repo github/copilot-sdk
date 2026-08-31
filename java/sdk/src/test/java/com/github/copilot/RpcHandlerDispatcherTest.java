@@ -15,6 +15,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
 import org.junit.jupiter.api.AfterEach;
@@ -32,6 +33,9 @@ import com.github.copilot.rpc.SessionLifecycleEvent;
 import com.github.copilot.rpc.ToolDefinition;
 import com.github.copilot.rpc.ToolResultObject;
 import com.github.copilot.rpc.UserInputResponse;
+import com.github.copilot.generated.rpc.GitHubTokenAcquireReason;
+import com.github.copilot.rpc.GitHubTokenProviderArgs;
+import com.github.copilot.rpc.GitHubTokenProviderResult;
 
 /**
  * Unit tests for {@link RpcHandlerDispatcher} focusing on coverage gaps
@@ -51,6 +55,7 @@ class RpcHandlerDispatcherTest {
     private RpcHandlerDispatcher dispatcher;
     private InputStream responseStream;
     private Map<String, BiConsumer<String, JsonNode>> handlers;
+    private GitHubTokenProviderRegistry gitHubTokenProviders;
 
     @BeforeEach
     void setup() throws Exception {
@@ -66,7 +71,8 @@ class RpcHandlerDispatcherTest {
 
         sessions = new ConcurrentHashMap<>();
         lifecycleEvents = new CopyOnWriteArrayList<>();
-        dispatcher = new RpcHandlerDispatcher(sessions, lifecycleEvents::add, null);
+        gitHubTokenProviders = new GitHubTokenProviderRegistry();
+        dispatcher = new RpcHandlerDispatcher(sessions, lifecycleEvents::add, null, gitHubTokenProviders);
         dispatcher.registerHandlers(rpc);
 
         // Extract the registered handlers via reflection so we can invoke them directly
@@ -117,6 +123,57 @@ class RpcHandlerDispatcherTest {
         CopilotSession session = new CopilotSession(sessionId, rpc);
         sessions.put(sessionId, session);
         return session;
+    }
+
+    @Test
+    void gitHubTokenCallbackMapsRequestAndTokenResult() throws Exception {
+        AtomicReference<GitHubTokenProviderArgs> received = new AtomicReference<>();
+        var registration = gitHubTokenProviders.register(args -> {
+            received.set(args);
+            return CompletableFuture.completedFuture(GitHubTokenProviderResult.token("secret", 28_800, "bearer"));
+        });
+        ObjectNode params = MAPPER.createObjectNode();
+        params.put("registrationId", registration.id());
+        params.put("host", "github.example");
+        params.put("sessionId", "session-1");
+        params.put("reason", "initial");
+
+        invokeHandler("gitHubToken.getToken", "80", params);
+
+        JsonNode response = readResponse();
+        assertEquals("token", response.at("/result/kind").asText());
+        assertEquals("secret", response.at("/result/accessToken").asText());
+        assertEquals(28_800, response.at("/result/expiresIn").asLong());
+        assertEquals("github.example", received.get().host());
+        assertEquals("session-1", received.get().sessionId());
+        assertEquals(GitHubTokenAcquireReason.INITIAL, received.get().reason());
+    }
+
+    @Test
+    void gitHubTokenCallbackPreservesCancellationAndErrors() throws Exception {
+        var cancelled = gitHubTokenProviders
+                .register(args -> CompletableFuture.completedFuture(GitHubTokenProviderResult.cancelled()));
+        ObjectNode cancelledParams = MAPPER.createObjectNode();
+        cancelledParams.put("registrationId", cancelled.id());
+        cancelledParams.put("host", "github.com");
+        cancelledParams.put("reason", "refresh");
+        invokeHandler("gitHubToken.getToken", "81", cancelledParams);
+        assertEquals("cancelled", readResponse().at("/result/kind").asText());
+
+        var failed = gitHubTokenProviders.register(
+                args -> CompletableFuture.failedFuture(new IllegalStateException("credential service unavailable")));
+        ObjectNode failedParams = cancelledParams.deepCopy();
+        failedParams.put("registrationId", failed.id());
+        invokeHandler("gitHubToken.getToken", "82", failedParams);
+        JsonNode error = readResponse();
+        assertEquals(-32603, error.at("/error/code").asInt());
+        assertTrue(error.at("/error/message").asText().contains("credential service unavailable"));
+
+        failedParams.put("registrationId", "unknown");
+        invokeHandler("gitHubToken.getToken", "83", failedParams);
+        JsonNode unknown = readResponse();
+        assertEquals(-32603, unknown.at("/error/code").asInt());
+        assertTrue(unknown.at("/error/message").asText().contains("Unknown GitHub token provider registration"));
     }
 
     // ===== session.event tests =====

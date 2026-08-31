@@ -126,7 +126,8 @@ runs:
             if [ -n "$covered" ] && [ -n "$missed" ]; then
               local total=$((covered + missed))
               if [ "$total" -gt 0 ]; then
-                echo "scale=1; $covered * 100 / $total" | bc
+                awk -v covered="$covered" -v total="$total" \
+                  'BEGIN { printf "%.1f\n", covered * 100 / total }'
               else
                 echo "0"
               fi

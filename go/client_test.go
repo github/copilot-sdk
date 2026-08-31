@@ -445,6 +445,85 @@ func TestClient_ForwardsCapiOptionsToSessionRequests(t *testing.T) {
 	assertCapiEnableWebSocketResponses(t, <-resumeParams)
 }
 
+func TestClient_ForwardsAskUserVariantToSessionRequests(t *testing.T) {
+	rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
+	t.Cleanup(server.Stop)
+	client := &Client{
+		client:   rpcClient,
+		RPC:      rpc.NewServerRPC(rpcClient),
+		sessions: make(map[string]*Session),
+	}
+
+	createParams := make(chan json.RawMessage, 2)
+	server.SetRequestHandler("session.create", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		createParams <- append(json.RawMessage(nil), params...)
+		sessionID := sessionIDFromParams(t, params)
+		return []byte(`{"sessionId":"` + sessionID + `","workspacePath":"/workspace"}`), nil
+	})
+	resumeParams := make(chan json.RawMessage, 2)
+	server.SetRequestHandler("session.resume", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		resumeParams <- append(json.RawMessage(nil), params...)
+		sessionID := sessionIDFromParams(t, params)
+		return []byte(`{"sessionId":"` + sessionID + `","workspacePath":"/workspace"}`), nil
+	})
+
+	if _, err := client.CreateSession(t.Context(), &SessionConfig{
+		SessionID:      "ask-user-create",
+		AskUserVariant: AskUserVariantElicitation,
+	}); err != nil {
+		t.Fatalf("CreateSession failed: %v", err)
+	}
+	if _, err := client.ResumeSession(t.Context(), "ask-user-cold-resume", &ResumeSessionConfig{
+		AskUserVariant: AskUserVariantLegacy,
+	}); err != nil {
+		t.Fatalf("ResumeSession failed: %v", err)
+	}
+	if _, err := client.CreateSession(t.Context(), &SessionConfig{SessionID: "ask-user-default-create"}); err != nil {
+		t.Fatalf("CreateSession with default failed: %v", err)
+	}
+	if _, err := client.ResumeSession(t.Context(), "ask-user-default-cold-resume", nil); err != nil {
+		t.Fatalf("ResumeSession with default failed: %v", err)
+	}
+
+	assertAskUserVariant(t, <-createParams, "elicitation")
+	assertAskUserVariant(t, <-resumeParams, "legacy")
+	assertAskUserVariant(t, <-createParams, "")
+	assertAskUserVariant(t, <-resumeParams, "")
+}
+
+func TestClient_RejectsInvalidAskUserVariant(t *testing.T) {
+	client := &Client{}
+
+	if _, err := client.CreateSession(t.Context(), &SessionConfig{
+		AskUserVariant: AskUserVariant("unknown"),
+	}); err == nil || !strings.Contains(err.Error(), "AskUserVariant") {
+		t.Fatalf("CreateSession error = %v, want invalid AskUserVariant error", err)
+	}
+	if _, err := client.ResumeSession(t.Context(), "cold-resume", &ResumeSessionConfig{
+		AskUserVariant: AskUserVariant("unknown"),
+	}); err == nil || !strings.Contains(err.Error(), "AskUserVariant") {
+		t.Fatalf("ResumeSession error = %v, want invalid AskUserVariant error", err)
+	}
+}
+
+func assertAskUserVariant(t *testing.T, params json.RawMessage, want string) {
+	t.Helper()
+	var payload map[string]any
+	if err := json.Unmarshal(params, &payload); err != nil {
+		t.Fatalf("failed to decode request params: %v", err)
+	}
+	got, present := payload["askUserVariant"]
+	if want == "" {
+		if present {
+			t.Fatalf("askUserVariant = %v, want omitted", got)
+		}
+		return
+	}
+	if got != want {
+		t.Fatalf("askUserVariant = %v, want %q", got, want)
+	}
+}
+
 func TestClient_ForwardsAdditionalDirectoriesToSessionRequests(t *testing.T) {
 	rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
 	t.Cleanup(server.Stop)
@@ -2139,6 +2218,175 @@ func TestClient_MCPAuthInterestRegistration(t *testing.T) {
 	})
 }
 
+func findRequest(requests []recordedRequest, method string) (recordedRequest, bool) {
+	for _, r := range requests {
+		if r.Method == method {
+			return r, true
+		}
+	}
+	return recordedRequest{}, false
+}
+
+func TestClient_EmptyModeIncludedBuiltinSkills(t *testing.T) {
+	t.Run("create post-patch sends empty includedBuiltinSkills", func(t *testing.T) {
+		client, requests, cleanup := newInMemoryClientWithOptions(t, &ClientOptions{
+			Mode:          ModeEmpty,
+			BaseDirectory: "/tmp/copilot-test",
+		})
+		defer cleanup()
+
+		session, err := client.CreateSession(t.Context(), &SessionConfig{
+			OnPermissionRequest: PermissionHandler.ApproveAll,
+			OnEvent:             func(SessionEvent) {},
+			AvailableTools:      []string{},
+		})
+		if err != nil {
+			t.Fatalf("CreateSession failed: %v", err)
+		}
+		defer session.Disconnect()
+
+		update, ok := findRequest(requests.snapshot(), "session.options.update")
+		if !ok {
+			t.Fatalf("expected session.options.update in %+v", requests.snapshot())
+		}
+		skills, present := update.Params["includedBuiltinSkills"]
+		if !present {
+			t.Fatalf("expected includedBuiltinSkills in patch, got %+v", update.Params)
+		}
+		if arr, isArr := skills.([]any); !isArr || len(arr) != 0 {
+			t.Fatalf("expected includedBuiltinSkills=[], got %#v", skills)
+		}
+	})
+
+	t.Run("resume post-patch sends empty includedBuiltinSkills", func(t *testing.T) {
+		client, requests, cleanup := newInMemoryClientWithOptions(t, &ClientOptions{
+			Mode:          ModeEmpty,
+			BaseDirectory: "/tmp/copilot-test",
+		})
+		defer cleanup()
+
+		session, err := client.ResumeSession(t.Context(), "session-empty", &ResumeSessionConfig{
+			OnPermissionRequest: PermissionHandler.ApproveAll,
+			OnEvent:             func(SessionEvent) {},
+			AvailableTools:      []string{},
+		})
+		if err != nil {
+			t.Fatalf("ResumeSession failed: %v", err)
+		}
+		defer session.Disconnect()
+
+		update, ok := findRequest(requests.snapshot(), "session.options.update")
+		if !ok {
+			t.Fatalf("expected session.options.update in %+v", requests.snapshot())
+		}
+		if arr, isArr := update.Params["includedBuiltinSkills"].([]any); !isArr || len(arr) != 0 {
+			t.Fatalf("expected includedBuiltinSkills=[], got %#v", update.Params["includedBuiltinSkills"])
+		}
+	})
+
+	t.Run("resume preserves explicit built-in skill allowlist", func(t *testing.T) {
+		client, requests, cleanup := newInMemoryClientWithOptions(t, &ClientOptions{
+			Mode:          ModeEmpty,
+			BaseDirectory: "/tmp/copilot-test",
+		})
+		defer cleanup()
+
+		session, err := client.ResumeSessionWithOptions(t.Context(), "resume-skills", &ResumeSessionConfig{
+			OnPermissionRequest:   PermissionHandler.ApproveAll,
+			AvailableTools:        []string{},
+			IncludedBuiltinSkills: []string{"code-review"},
+		})
+		if err != nil {
+			t.Fatalf("ResumeSessionWithOptions failed: %v", err)
+		}
+		defer session.Disconnect()
+
+		update, ok := findRequest(requests.snapshot(), "session.options.update")
+		if !ok {
+			t.Fatalf("expected session.options.update in %+v", requests.snapshot())
+		}
+		skills, ok := update.Params["includedBuiltinSkills"].([]any)
+		if !ok || len(skills) != 1 || skills[0] != "code-review" {
+			t.Fatalf("expected includedBuiltinSkills=[code-review], got %#v", update.Params["includedBuiltinSkills"])
+		}
+	})
+
+	t.Run("caller opting into custom skills keeps includedBuiltinSkills empty", func(t *testing.T) {
+		client, requests, cleanup := newInMemoryClientWithOptions(t, &ClientOptions{
+			Mode:          ModeEmpty,
+			BaseDirectory: "/tmp/copilot-test",
+		})
+		defer cleanup()
+
+		session, err := client.CreateSession(t.Context(), &SessionConfig{
+			OnPermissionRequest: PermissionHandler.ApproveAll,
+			OnEvent:             func(SessionEvent) {},
+			AvailableTools:      []string{},
+			EnableSkills:        Bool(true),
+			SkillDirectories:    []string{"/tmp/custom-skills"},
+		})
+		if err != nil {
+			t.Fatalf("CreateSession failed: %v", err)
+		}
+		defer session.Disconnect()
+
+		update, ok := findRequest(requests.snapshot(), "session.options.update")
+		if !ok {
+			t.Fatalf("expected session.options.update in %+v", requests.snapshot())
+		}
+		if arr, isArr := update.Params["includedBuiltinSkills"].([]any); !isArr || len(arr) != 0 {
+			t.Fatalf("expected includedBuiltinSkills=[], got %#v", update.Params["includedBuiltinSkills"])
+		}
+	})
+
+	t.Run("explicit built-in skill allowlist is preserved in empty mode", func(t *testing.T) {
+		client, requests, cleanup := newInMemoryClientWithOptions(t, &ClientOptions{
+			Mode:          ModeEmpty,
+			BaseDirectory: "/tmp/copilot-test",
+		})
+		defer cleanup()
+
+		session, err := client.CreateSession(t.Context(), &SessionConfig{
+			OnPermissionRequest:   PermissionHandler.ApproveAll,
+			AvailableTools:        []string{},
+			IncludedBuiltinSkills: []string{"code-review"},
+		})
+		if err != nil {
+			t.Fatalf("CreateSession failed: %v", err)
+		}
+		defer session.Disconnect()
+
+		update, ok := findRequest(requests.snapshot(), "session.options.update")
+		if !ok {
+			t.Fatalf("expected session.options.update in %+v", requests.snapshot())
+		}
+		skills, ok := update.Params["includedBuiltinSkills"].([]any)
+		if !ok || len(skills) != 1 || skills[0] != "code-review" {
+			t.Fatalf("expected includedBuiltinSkills=[code-review], got %#v", update.Params["includedBuiltinSkills"])
+		}
+	})
+
+	t.Run("copilot-cli mode does not inject includedBuiltinSkills", func(t *testing.T) {
+		client, requests, cleanup := newInMemoryClient(t)
+		defer cleanup()
+
+		session, err := client.CreateSession(t.Context(), &SessionConfig{
+			OnPermissionRequest: PermissionHandler.ApproveAll,
+			OnEvent:             func(SessionEvent) {},
+		})
+		if err != nil {
+			t.Fatalf("CreateSession failed: %v", err)
+		}
+		defer session.Disconnect()
+
+		for _, r := range requests.snapshot() {
+			if _, present := r.Params["includedBuiltinSkills"]; present {
+				t.Fatalf("did not expect includedBuiltinSkills in %s params %+v", r.Method, r.Params)
+			}
+		}
+	})
+}
+
 type recordedRequest struct {
 	Method string
 	Params map[string]any
@@ -2171,13 +2419,18 @@ func (r *requestRecorder) clear() {
 
 func newInMemoryClient(t *testing.T) (*Client, *requestRecorder, func()) {
 	t.Helper()
+	return newInMemoryClientWithOptions(t, &ClientOptions{})
+}
+
+func newInMemoryClientWithOptions(t *testing.T, opts *ClientOptions) (*Client, *requestRecorder, func()) {
+	t.Helper()
 
 	stdinR, stdinW := io.Pipe()
 	stdoutR, stdoutW := io.Pipe()
 	rpcClient := jsonrpc2.NewClient(stdinW, stdoutR)
 	rpcClient.Start()
 
-	client := NewClient(&ClientOptions{})
+	client := NewClient(opts)
 	client.client = rpcClient
 	client.RPC = rpc.NewServerRPC(rpcClient)
 	client.state = stateConnected
@@ -2476,7 +2729,7 @@ func TestResumeSessionRequest_Commands(t *testing.T) {
 		req := resumeSessionRequest{
 			SessionID: "s1",
 			Commands: []wireCommand{
-				{Name: "deploy", Description: "Deploy the app"},
+				{Name: "deploy"},
 			},
 		}
 		data, err := json.Marshal(req)
@@ -2497,6 +2750,9 @@ func TestResumeSessionRequest_Commands(t *testing.T) {
 		cmd0 := cmds[0].(map[string]any)
 		if cmd0["name"] != "deploy" {
 			t.Errorf("Expected command name 'deploy', got %v", cmd0["name"])
+		}
+		if description, ok := cmd0["description"]; !ok || description != "" {
+			t.Errorf("Expected empty command description, got %v", description)
 		}
 	})
 
@@ -3828,6 +4084,26 @@ func TestSessionRequests_ManagedSettings(t *testing.T) {
 		}
 		if _, ok := m["managedSettings"].(map[string]any); !ok {
 			t.Fatalf("Expected managedSettings object, got %v", m["managedSettings"])
+		}
+	})
+
+	t.Run("accepts future bypass-permissions modes", func(t *testing.T) {
+		req := createSessionRequest{ManagedSettings: &ManagedSettings{
+			Permissions: &ManagedSettingsPermissions{
+				DisableBypassPermissionsMode: DisableBypassPermissionsMode("future-fail-closed-mode"),
+			},
+		}}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		perms := m["managedSettings"].(map[string]any)["permissions"].(map[string]any)
+		if perms["disableBypassPermissionsMode"] != "future-fail-closed-mode" {
+			t.Errorf("Expected future mode preserved, got %v", perms["disableBypassPermissionsMode"])
 		}
 	})
 

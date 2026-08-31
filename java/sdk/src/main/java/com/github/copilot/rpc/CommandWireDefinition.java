@@ -31,7 +31,7 @@ public final class CommandWireDefinition {
     /** Creates a definition with name and description. */
     public CommandWireDefinition(String name, String description) {
         this.name = name;
-        this.description = description;
+        this.description = description == null ? "" : description;
     }
 
     /** Gets the command name. @return the name */
@@ -52,7 +52,7 @@ public final class CommandWireDefinition {
 
     /** Sets the description. @param description the description @return this */
     public CommandWireDefinition setDescription(String description) {
-        this.description = description;
+        this.description = description == null ? "" : description;
         return this;
     }
 }

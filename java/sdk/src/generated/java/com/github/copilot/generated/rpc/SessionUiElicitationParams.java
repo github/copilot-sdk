@@ -11,6 +11,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.github.copilot.CopilotExperimental;
+import java.util.Map;
 import javax.annotation.processing.Generated;
 
 /**
@@ -26,9 +27,15 @@ import javax.annotation.processing.Generated;
 public record SessionUiElicitationParams(
     /** Target session identifier */
     @JsonProperty("sessionId") String sessionId,
+    /** Elicitation mode. Omitted and form are equivalent for structured elicitation. */
+    @JsonProperty("mode") McpElicitationFormMode mode,
     /** Message describing what information is needed from the user */
     @JsonProperty("message") String message,
     /** JSON Schema describing the form fields to present to the user */
-    @JsonProperty("requestedSchema") UIElicitationSchema requestedSchema
+    @JsonProperty("requestedSchema") UIElicitationSchema requestedSchema,
+    /** MCP request metadata. */
+    @JsonProperty("_meta") Map<String, Map<String, Object>> meta,
+    /** MCP task metadata. */
+    @JsonProperty("task") McpTaskMetadata task
 ) {
 }

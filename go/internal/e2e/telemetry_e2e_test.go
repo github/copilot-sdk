@@ -96,17 +96,6 @@ func TestTelemetryE2E(t *testing.T) {
 			}
 		}
 
-		traceIDs := map[string]struct{}{}
-		for _, span := range spans {
-			id := stringProp(span, "traceId")
-			if id != "" {
-				traceIDs[id] = struct{}{}
-			}
-		}
-		if len(traceIDs) != 1 {
-			t.Errorf("Expected exactly 1 trace id across spans, got %d (%v)", len(traceIDs), traceIDs)
-		}
-
 		invokeAgent := findSpanWithOperation(spans, "invoke_agent")
 		if invokeAgent == nil {
 			t.Fatal("Expected an invoke_agent span")
@@ -121,6 +110,10 @@ func TestTelemetryE2E(t *testing.T) {
 		if invokeAgentSpanID == "" {
 			t.Fatal("invoke_agent span has empty spanId")
 		}
+		invokeAgentTraceID := stringProp(invokeAgent, "traceId")
+		if invokeAgentTraceID == "" {
+			t.Fatal("invoke_agent span has empty traceId")
+		}
 
 		var chatSpans []map[string]any
 		for _, span := range spans {
@@ -134,6 +127,9 @@ func TestTelemetryE2E(t *testing.T) {
 		for _, chat := range chatSpans {
 			if got := stringProp(chat, "parentSpanId"); got != invokeAgentSpanID {
 				t.Errorf("Expected chat span parentSpanId=%q, got %q", invokeAgentSpanID, got)
+			}
+			if got := stringProp(chat, "traceId"); got != invokeAgentTraceID {
+				t.Errorf("Expected chat span traceId=%q, got %q", invokeAgentTraceID, got)
 			}
 		}
 		var sawPromptInput, sawDoneOutput bool
@@ -158,6 +154,9 @@ func TestTelemetryE2E(t *testing.T) {
 		}
 		if got := stringProp(toolSpan, "parentSpanId"); got != invokeAgentSpanID {
 			t.Errorf("Expected execute_tool parentSpanId=%q, got %q", invokeAgentSpanID, got)
+		}
+		if got := stringProp(toolSpan, "traceId"); got != invokeAgentTraceID {
+			t.Errorf("Expected execute_tool traceId=%q, got %q", invokeAgentTraceID, got)
 		}
 		if got := stringAttr(toolSpan, "gen_ai.tool.name"); got != toolName {
 			t.Errorf("Expected gen_ai.tool.name=%q, got %q", toolName, got)

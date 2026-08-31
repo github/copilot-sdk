@@ -24,7 +24,7 @@ import javax.annotation.processing.Generated;
 public record PermissionPathsConfig(
     /** If true, the runtime allows access to all paths without prompting. Equivalent to constructing an UnrestrictedPathManager. */
     @JsonProperty("unrestricted") Boolean unrestricted,
-    /** Additional directories to allow tool access to (in addition to the session's working directory). When `unrestricted` is true, these are still pre-populated on the UnrestrictedPathManager so they remain visible via getDirectories() (e.g. for @-mention completion). */
+    /** Additional directories to allow tool access to (in addition to the session's working directory). Conventional `.github/skills/` and `.github/agents/` definitions under them also join the session catalogs when their subsystem gates are enabled, so supplying a directory is a trust decision for configuration stored there. When `unrestricted` is true, these are still pre-populated on the UnrestrictedPathManager so they remain visible via getDirectories() (e.g. for @-mention completion). */
     @JsonProperty("additionalDirectories") List<String> additionalDirectories,
     /** Whether to include the system temp directory in the allowed list (defaults to true). Ignored when `unrestricted` is true. */
     @JsonProperty("includeTempDirectory") Boolean includeTempDirectory,

@@ -14,7 +14,7 @@ import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * Opaque auth info used to configure GitHub MCP.
+ * Credential-free authentication identity used to configure GitHub MCP.
  *
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0

@@ -393,6 +393,16 @@ type PermissionInvocation struct {
 // may change or be removed.
 type PermissionDecisionContext = rpc.PermissionDecisionContext
 
+// PermissionResponseCapability describes whether the responding client could
+// ask a user for a permission decision.
+type PermissionResponseCapability = rpc.PermissionResponseCapability
+
+const (
+	PermissionResponseCapabilityHeadless    = rpc.PermissionResponseCapabilityHeadless
+	PermissionResponseCapabilityInteractive = rpc.PermissionResponseCapabilityInteractive
+	PermissionResponseCapabilityNone        = rpc.PermissionResponseCapabilityNone
+)
+
 // PermissionDecisionOutcome describes the disposition of a permission request
 // as observed by the responding client.
 type PermissionDecisionOutcome = rpc.PermissionDecisionOutcome
@@ -408,10 +418,10 @@ const (
 type PermissionDecisionSource = rpc.PermissionDecisionSource
 
 const (
-	PermissionDecisionSourceHostPolicy          = rpc.PermissionDecisionSourceHostPolicy
-	PermissionDecisionSourceHumanResponse       = rpc.PermissionDecisionSourceHumanResponse
-	PermissionDecisionSourceJudgeRecommendation = rpc.PermissionDecisionSourceJudgeRecommendation
-	PermissionDecisionSourceUnattendedFallback  = rpc.PermissionDecisionSourceUnattendedFallback
+	PermissionDecisionSourceAssistedApproval   = rpc.PermissionDecisionSourceAssistedApproval
+	PermissionDecisionSourceHostPolicy         = rpc.PermissionDecisionSourceHostPolicy
+	PermissionDecisionSourceHumanResponse      = rpc.PermissionDecisionSourceHumanResponse
+	PermissionDecisionSourceUnattendedFallback = rpc.PermissionDecisionSourceUnattendedFallback
 )
 
 // PermissionDecisionSurface identifies the client surface that submitted a
@@ -419,6 +429,7 @@ const (
 type PermissionDecisionSurface = rpc.PermissionDecisionSurface
 
 const (
+	PermissionDecisionSurfaceAcp        = rpc.PermissionDecisionSurfaceAcp
 	PermissionDecisionSurfaceCopilotApp = rpc.PermissionDecisionSurfaceCopilotApp
 	PermissionDecisionSurfacePromptMode = rpc.PermissionDecisionSurfacePromptMode
 	PermissionDecisionSurfaceSDK        = rpc.PermissionDecisionSurfaceSDK
@@ -1240,6 +1251,16 @@ type GitHubMCPToolConfig struct {
 	DisableFormDeferral *bool    `json:"disableFormDeferral,omitempty"`
 }
 
+// AskUserVariant selects the model-facing shape of the ask_user tool.
+type AskUserVariant string
+
+const (
+	// AskUserVariantLegacy uses the legacy user-input request implementation.
+	AskUserVariantLegacy AskUserVariant = "legacy"
+	// AskUserVariantElicitation uses the elicitation-based implementation.
+	AskUserVariantElicitation AskUserVariant = "elicitation"
+)
+
 // SessionConfig configures a new session
 type SessionConfig struct {
 	// SessionID is an optional custom session ID
@@ -1298,6 +1319,10 @@ type SessionConfig struct {
 	// and discovered skill directories). When false, no skills are loaded regardless
 	// of SkillDirectories or EnableConfigDiscovery settings.
 	EnableSkills *bool
+	// IncludedBuiltinSkills is the allowlist of runtime-bundled skill names.
+	// In ModeEmpty, nil excludes all built-in skills; a non-nil list opts the
+	// named built-ins back in. Skills from other sources remain eligible.
+	IncludedBuiltinSkills []string
 	// Tools exposes caller-implemented tools to the CLI. A Tool with a nil Handler
 	// is declaration-only; the consumer must resolve its calls via pending tool RPCs.
 	Tools []Tool
@@ -1322,8 +1347,16 @@ type SessionConfig struct {
 	// When provided, the SDK can satisfy MCP server OAuth requests with host-provided
 	// token data or cancellation.
 	OnMCPAuthRequest MCPAuthHandler
-	// OnUserInputRequest is a handler for user input requests from the agent (enables ask_user tool)
+	// GitHubTokenProvider acquires session-scoped GitHub tokens on demand. It
+	// cannot be combined with GitHubToken.
+	GitHubTokenProvider GitHubTokenProvider
+	// OnUserInputRequest handles legacy question-and-answer requests from the agent
+	// and enables the legacy ask_user tool.
 	OnUserInputRequest UserInputHandler
+	// AskUserVariant selects the model-facing shape of the ask_user tool.
+	// The zero value preserves legacy behavior. AskUserVariantElicitation also
+	// requires OnElicitationRequest so the host can answer structured forms.
+	AskUserVariant AskUserVariant
 	// Hooks configures hook handlers for session lifecycle events
 	Hooks *SessionHooks
 	// WorkingDirectory is the working directory for the session.
@@ -1569,11 +1602,16 @@ type ManagedSettings struct {
 }
 
 // DisableBypassPermissionsMode is the managed bypass-permissions policy.
-type DisableBypassPermissionsMode = rpc.DisableBypassPermissionsMode
+//
+// The runtime may introduce additional fail-closed modes. Values are serialized
+// as strings so callers can use newer modes without waiting for an SDK release.
+type DisableBypassPermissionsMode string
 
 const (
 	// DisableBypassPermissionsModeDisable turns off bypass-permissions mode.
-	DisableBypassPermissionsModeDisable = rpc.DisableBypassPermissionsModeDisable
+	DisableBypassPermissionsModeDisable DisableBypassPermissionsMode = "disable"
+	// DisableBypassPermissionsModeAllowAutoOnly permits only automatic bypass.
+	DisableBypassPermissionsModeAllowAutoOnly DisableBypassPermissionsMode = "allow-auto-only"
 )
 
 // ManagedSettingsPermissions is the permissions-only managed policy injected
@@ -1581,9 +1619,9 @@ const (
 // accepts for fetched managed policy (e.g. "Read(**)", "Shell(git push *)");
 // malformed rules are rejected by the runtime at session creation.
 type ManagedSettingsPermissions struct {
-	// DisableBypassPermissionsMode, when set to "disable", turns off
-	// bypass-permissions ("yolo") mode for the session. Deny-wins: no other
-	// layer can re-enable it.
+	// DisableBypassPermissionsMode restricts bypass-permissions mode for the
+	// session. See the DisableBypassPermissionsMode constants for known values.
+	// Newer values are forwarded unchanged so runtime policies remain fail-closed.
 	DisableBypassPermissionsMode DisableBypassPermissionsMode `json:"disableBypassPermissionsMode,omitempty"`
 	// Deny lists operations that must always be denied. Unioned across layers.
 	Deny []string `json:"deny,omitzero"`
@@ -1793,6 +1831,9 @@ type ResumeSessionConfig struct {
 	// ClientName identifies the application using the SDK.
 	// Included in the User-Agent header for API requests.
 	ClientName string
+	// GitHubTokenProvider acquires session-scoped GitHub tokens on demand. It
+	// cannot be combined with GitHubToken.
+	GitHubTokenProvider GitHubTokenProvider
 	// Model to use for this session. Can change the model when resuming.
 	Model string
 	// Tools exposes caller-implemented tools to the CLI. A Tool with a nil Handler
@@ -1811,6 +1852,10 @@ type ResumeSessionConfig struct {
 	// be selected or invoked unless a custom agent with the same name is
 	// configured.
 	ExcludedBuiltInAgents []string
+	// IncludedBuiltinSkills is the allowlist of runtime-bundled skill names.
+	// In ModeEmpty, nil excludes all built-in skills; a non-nil list opts the
+	// named built-ins back in. Skills from other sources remain eligible.
+	IncludedBuiltinSkills []string
 	// Provider configures a custom model provider
 	Provider *ProviderConfig
 	// Capi configures provider-scoped CAPI (Copilot API) session options.
@@ -1884,8 +1929,13 @@ type ResumeSessionConfig struct {
 	// OnMCPAuthRequest is an optional handler for MCP OAuth requests from MCP servers.
 	// See SessionConfig.OnMCPAuthRequest.
 	OnMCPAuthRequest MCPAuthHandler
-	// OnUserInputRequest is a handler for user input requests from the agent (enables ask_user tool)
+	// OnUserInputRequest handles legacy question-and-answer requests from the agent
+	// and enables the legacy ask_user tool.
 	OnUserInputRequest UserInputHandler
+	// AskUserVariant selects the model-facing shape of the ask_user tool.
+	// The zero value preserves legacy behavior. AskUserVariantElicitation also
+	// requires OnElicitationRequest so the host can answer structured forms.
+	AskUserVariant AskUserVariant
 	// Hooks configures hook handlers for session lifecycle events
 	Hooks *SessionHooks
 	// WorkingDirectory is the working directory for the session.
@@ -2479,6 +2529,7 @@ type createSessionRequest struct {
 	ModelCapabilities                  *rpc.ModelCapabilitiesOverride         `json:"modelCapabilities,omitempty"`
 	RequestPermission                  *bool                                  `json:"requestPermission,omitempty"`
 	RequestUserInput                   *bool                                  `json:"requestUserInput,omitempty"`
+	AskUserVariant                     AskUserVariant                         `json:"askUserVariant,omitempty"`
 	RequestExitPlanMode                *bool                                  `json:"requestExitPlanMode,omitempty"`
 	RequestAutoModeSwitch              *bool                                  `json:"requestAutoModeSwitch,omitempty"`
 	Hooks                              *bool                                  `json:"hooks,omitempty"`
@@ -2517,6 +2568,7 @@ type createSessionRequest struct {
 	RequestMCPApps                     *bool                                  `json:"requestMcpApps,omitempty"`
 	GitHubMCPToolConfig                *GitHubMCPToolConfig                   `json:"githubMcpToolConfig,omitempty"`
 	GitHubToken                        string                                 `json:"gitHubToken,omitempty"`
+	GitHubTokenProviderRegistrationID  string                                 `json:"gitHubTokenProviderRegistrationId,omitempty"`
 	RemoteSession                      rpc.RemoteSessionMode                  `json:"remoteSession,omitempty"`
 	Cloud                              *CloudSessionOptions                   `json:"cloud,omitempty"`
 	Canvases                           []CanvasDeclaration                    `json:"canvases,omitempty"`
@@ -2535,7 +2587,7 @@ type createSessionRequest struct {
 // wireCommand is the wire representation of a command (name + description only, no handler).
 type wireCommand struct {
 	Name        string `json:"name"`
-	Description string `json:"description,omitempty"`
+	Description string `json:"description"`
 }
 
 // createSessionResponse is the response from session.create
@@ -2575,6 +2627,7 @@ type resumeSessionRequest struct {
 	ModelCapabilities                  *rpc.ModelCapabilitiesOverride         `json:"modelCapabilities,omitempty"`
 	RequestPermission                  *bool                                  `json:"requestPermission,omitempty"`
 	RequestUserInput                   *bool                                  `json:"requestUserInput,omitempty"`
+	AskUserVariant                     AskUserVariant                         `json:"askUserVariant,omitempty"`
 	RequestExitPlanMode                *bool                                  `json:"requestExitPlanMode,omitempty"`
 	RequestAutoModeSwitch              *bool                                  `json:"requestAutoModeSwitch,omitempty"`
 	Hooks                              *bool                                  `json:"hooks,omitempty"`
@@ -2615,6 +2668,7 @@ type resumeSessionRequest struct {
 	RequestMCPApps                     *bool                                  `json:"requestMcpApps,omitempty"`
 	GitHubMCPToolConfig                *GitHubMCPToolConfig                   `json:"githubMcpToolConfig,omitempty"`
 	GitHubToken                        string                                 `json:"gitHubToken,omitempty"`
+	GitHubTokenProviderRegistrationID  string                                 `json:"gitHubTokenProviderRegistrationId,omitempty"`
 	RemoteSession                      rpc.RemoteSessionMode                  `json:"remoteSession,omitempty"`
 	Canvases                           []CanvasDeclaration                    `json:"canvases,omitempty"`
 	OpenCanvases                       []rpc.OpenCanvasInstance               `json:"openCanvases,omitempty"`

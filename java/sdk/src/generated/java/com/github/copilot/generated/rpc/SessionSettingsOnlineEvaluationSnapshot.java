@@ -21,7 +21,9 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionSettingsOnlineEvaluationSnapshot(
+    /** Whether online evaluation is disabled. */
     @JsonProperty("disableOnlineEvaluation") Boolean disableOnlineEvaluation,
+    /** Whether online-evaluation output-file generation is enabled. */
     @JsonProperty("enableOnlineEvaluationOutputFile") Boolean enableOnlineEvaluationOutputFile
 ) {
 }

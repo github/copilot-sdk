@@ -27,20 +27,18 @@ from ._jsonrpc import JsonRpcError, ProcessExitedError
 from ._telemetry import get_trace_context, trace_context
 from .canvas import CanvasError, CanvasHandler, OpenCanvasInstance
 from .generated.rpc import (
-    CanvasHandler as RpcCanvasHandler,
-)
-from .generated.rpc import (
+    BuiltinToolInputSchemaType,
     CanvasProviderCloseRequest,
     CanvasProviderInvokeActionRequest,
     CanvasProviderOpenRequest,
     CanvasProviderOpenResult,
     ClientSessionApiHandlers,
     CommandsHandlePendingCommandRequest,
+    GitHubTokenAcquireResultKind,
     HandlePendingToolCallRequest,
     LogRequest,
     MCPOauthHandlePendingRequest,
     MCPOauthPendingRequestResponse,
-    MCPOauthPendingRequestResponseKind,
     ModelSwitchToRequest,
     PermissionDecision,
     PermissionDecisionApproveOnce,
@@ -57,8 +55,10 @@ from .generated.rpc import (
     UIElicitationSchema,
     UIElicitationSchemaProperty,
     UIElicitationSchemaPropertyType,
-    UIElicitationSchemaType,
     UIHandlePendingElicitationRequest,
+)
+from .generated.rpc import (
+    CanvasHandler as RpcCanvasHandler,
 )
 from .generated.rpc import (
     ContextTier as _RpcContextTier,
@@ -78,6 +78,7 @@ from .generated.session_events import (
     SessionErrorData,
     SessionEvent,
     SessionIdleData,
+    SessionMode,
     session_event_from_dict,
 )
 from .generated.session_events import (
@@ -503,7 +504,7 @@ McpAuthHandler = Callable[
 
 
 class UserInputRequest(TypedDict, total=False):
-    """Request for user input from the agent (enables ask_user tool)"""
+    """Legacy question-and-answer request from the ask_user tool."""
 
     question: str
     choices: list[str]
@@ -761,7 +762,7 @@ class SessionUiApi:
             UIElicitationRequest(
                 message=message,
                 requested_schema=UIElicitationSchema(
-                    type=UIElicitationSchemaType.OBJECT,
+                    type=BuiltinToolInputSchemaType.OBJECT,
                     properties={
                         "confirmed": UIElicitationSchemaProperty(
                             type=UIElicitationSchemaPropertyType.BOOLEAN,
@@ -796,7 +797,7 @@ class SessionUiApi:
             UIElicitationRequest(
                 message=message,
                 requested_schema=UIElicitationSchema(
-                    type=UIElicitationSchemaType.OBJECT,
+                    type=BuiltinToolInputSchemaType.OBJECT,
                     properties={
                         "selection": UIElicitationSchemaProperty(
                             type=UIElicitationSchemaPropertyType.STRING,
@@ -1548,6 +1549,7 @@ class CopilotSession:
         client: Any,
         workspace_path: os.PathLike[str] | str | None = None,
         managed_settings_enabled: bool = False,
+        on_disconnect: Callable[[], None] | None = None,
     ):
         """
         Initialize a new CopilotSession.
@@ -1600,6 +1602,17 @@ class CopilotSession:
         self._open_canvases_lock = threading.Lock()
         self._rpc: SessionRpc | None = None
         self._destroyed = False
+        self._on_disconnect = on_disconnect
+
+    def _set_disconnect_callback(self, callback: Callable[[], None]) -> None:
+        """Set the client-owned cleanup callback before the session becomes active."""
+        self._on_disconnect = callback
+
+    def _run_disconnect_callback(self) -> None:
+        callback = self._on_disconnect
+        self._on_disconnect = None
+        if callback is not None:
+            callback()
 
     @property
     def rpc(self) -> SessionRpc:
@@ -1781,7 +1794,7 @@ class CopilotSession:
                             total_start,
                             session_id=self.session_id,
                         )
-                case SessionIdleData():
+                case SessionIdleData() as data if data.mode != SessionMode.AUTOPILOT:
                     log_timing(
                         logger,
                         logging.DEBUG,
@@ -2279,14 +2292,14 @@ class CopilotSession:
 
             if result and result.get("kind", "token") == "token":
                 rpc_result = MCPOauthPendingRequestResponse(
-                    kind=MCPOauthPendingRequestResponseKind.TOKEN,
+                    kind=GitHubTokenAcquireResultKind.TOKEN,
                     access_token=result["accessToken"],
                     expires_in=result.get("expiresIn"),
                     token_type=result.get("tokenType"),
                 )
             else:
                 rpc_result = MCPOauthPendingRequestResponse(
-                    kind=MCPOauthPendingRequestResponseKind.CANCELLED
+                    kind=GitHubTokenAcquireResultKind.CANCELLED
                 )
             await self.rpc.mcp.oauth.handle_pending_request(
                 MCPOauthHandlePendingRequest(
@@ -2300,7 +2313,7 @@ class CopilotSession:
                     MCPOauthHandlePendingRequest(
                         request_id=request_id,
                         result=MCPOauthPendingRequestResponse(
-                            kind=MCPOauthPendingRequestResponseKind.CANCELLED
+                            kind=GitHubTokenAcquireResultKind.CANCELLED
                         ),
                     )
                 )
@@ -2973,6 +2986,7 @@ class CopilotSession:
         try:
             await self._client.request("session.destroy", {"sessionId": self.session_id})
         finally:
+            self._run_disconnect_callback()
             # Clear handlers even if the request fails.
             with self._event_handlers_lock:
                 self._event_handlers.clear()

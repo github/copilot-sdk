@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import sys
 from pathlib import Path
 
 import pytest
@@ -30,6 +31,9 @@ def _same_path(left: str | Path, right: str | Path) -> bool:
 
 class TestRewind:
     async def test_should_restore_tracked_file_and_conversation(self, ctx: E2ETestContext):
+        if sys.platform == "win32":
+            pytest.skip("blocked on CLI 1.0.81 file-change tracking regression on Windows")
+
         file_path = Path(ctx.work_dir) / FILE_NAME
         session = await ctx.client.create_session(
             model="claude-sonnet-4.5",
@@ -47,11 +51,16 @@ class TestRewind:
             assert response.data.content == "SDK_REWIND_DONE"
             assert file_path.read_text(encoding="utf-8") == FILE_CONTENT
 
+            # File change capture settles asynchronously after the turn completes, so a
+            # rewind point can briefly report zero restorable files. Poll until the
+            # capture lands instead of sampling once; the assertions below still run if
+            # it never does.
             rewind_points = await session.rpc.history.list_rewind_points()
-            deadline = asyncio.get_running_loop().time() + 10
-            while (
-                rewind_points.unavailable_reason is not None
-                and asyncio.get_running_loop().time() < deadline
+            deadline = asyncio.get_running_loop().time() + 30
+            while asyncio.get_running_loop().time() < deadline and not (
+                rewind_points.unavailable_reason is None
+                and rewind_points.points
+                and rewind_points.points[0].can_restore_files
             ):
                 await asyncio.sleep(0.1)
                 rewind_points = await session.rpc.history.list_rewind_points()

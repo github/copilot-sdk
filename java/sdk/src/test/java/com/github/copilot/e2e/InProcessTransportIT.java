@@ -8,6 +8,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -15,23 +17,27 @@ import org.junit.jupiter.api.Test;
 
 import com.github.copilot.AllowCopilotExperimental;
 import com.github.copilot.CopilotClient;
+import com.github.copilot.CopilotSession;
 import com.github.copilot.E2ETestContext;
 import com.github.copilot.ffi.InProcessEnvGuard;
+import com.github.copilot.generated.AssistantMessageEvent;
+import com.github.copilot.generated.SessionIdleEvent;
 import com.github.copilot.rpc.CopilotClientOptions;
+import com.github.copilot.rpc.MessageOptions;
+import com.github.copilot.rpc.PermissionHandler;
 import com.github.copilot.rpc.PingResponse;
 import com.github.copilot.rpc.RuntimeConnection;
+import com.github.copilot.rpc.SessionConfig;
 
 /**
  * Failsafe integration test for the in-process (FFI) transport.
  *
  * <p>
  * Loads the real {@code runtime.node} native library into this test process via
- * {@link com.github.copilot.ffi.FfiRuntimeHost}, performs a purely local
- * {@code ping} round-trip through the runtime, and stops cleanly. {@code ping}
- * is answered by the runtime itself, so no auth or replay proxy is involved —
- * this mirrors {@code nodejs/test/e2e/inprocess_ffi.e2e.test.ts},
- * {@code go/internal/e2e/inprocess_ffi_e2e_test.go}, and
- * {@code python/e2e/test_inprocess_ffi_e2e.py}.
+ * {@link com.github.copilot.ffi.FfiRuntimeHost}. Coverage includes both a
+ * purely local {@code ping} round-trip and a replay-backed session turn that
+ * exercises authentication, tool initialization, model traffic, and
+ * asynchronous session event delivery over the FFI transport.
  *
  * <p>
  * {@link InProcessEnvGuard} demonstrates how the harness redirects the native
@@ -96,6 +102,26 @@ class InProcessTransportIT {
 
                 client.stop().get();
             }
+        }
+    }
+
+    @Test
+    void shouldCreateSessionAndCompleteTurnOverInProcessFfi() throws Exception {
+        ctx.configureForTest("session", "should_receive_session_events");
+
+        try (CopilotClient client = ctx.createClient();
+                CopilotSession session = client
+                        .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
+                        .get(30, TimeUnit.SECONDS)) {
+            var idleReceived = new CompletableFuture<SessionIdleEvent>();
+            session.on(SessionIdleEvent.class, idleReceived::complete);
+
+            AssistantMessageEvent response = session.sendAndWait(new MessageOptions().setPrompt("What is 100+200?"))
+                    .get(60, TimeUnit.SECONDS);
+
+            assertNotNull(response);
+            assertEquals("100 + 200 = 300", response.getData().content());
+            assertNotNull(idleReceived.get(5, TimeUnit.SECONDS));
         }
     }
 }

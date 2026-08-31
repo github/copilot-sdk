@@ -3,6 +3,7 @@ package e2e
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 	"sync"
@@ -54,7 +55,7 @@ func (p *inMemorySqliteProvider) ReadFile(path string) (string, error) {
 	defer p.mu.Unlock()
 	content, ok := p.files[path]
 	if !ok {
-		return "", fmt.Errorf("file not found: %s", path)
+		return "", fmt.Errorf("%s: %w", path, os.ErrNotExist)
 	}
 	return content, nil
 }
@@ -97,7 +98,7 @@ func (p *inMemorySqliteProvider) Stat(path string) (*copilot.SessionFSFileInfo, 
 			IsFile: true, IsDirectory: false, Size: int64(len(content)), Mtime: now, Birthtime: now,
 		}, nil
 	}
-	return nil, fmt.Errorf("not found: %s", path)
+	return nil, fmt.Errorf("%s: %w", path, os.ErrNotExist)
 }
 
 func (p *inMemorySqliteProvider) MakeDirectory(path string, recursive bool, mode *int) error {

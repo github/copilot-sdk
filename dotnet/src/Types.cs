@@ -3052,15 +3052,14 @@ public sealed class GitHubMcpToolConfig
     public bool? DisableFormDeferral { get; set; }
 }
 
-/// <summary>
-/// Controls whether bypass-permissions mode is available in a managed session.
-/// </summary>
-[JsonConverter(typeof(JsonStringEnumConverter<DisableBypassPermissionsMode>))]
-public enum DisableBypassPermissionsMode
+/// <summary>Well-known managed bypass-permissions policies.</summary>
+public static class DisableBypassPermissionsModes
 {
-    /// <summary>Turn off bypass-permissions mode.</summary>
-    [JsonStringEnumMemberName("disable")]
-    Disable
+    /// <summary>Turns off bypass-permissions mode entirely.</summary>
+    public const string Disable = "disable";
+
+    /// <summary>Permits automatic bypass but blocks full allow-all.</summary>
+    public const string AllowAutoOnly = "allow-auto-only";
 }
 
 /// <summary>
@@ -3071,18 +3070,19 @@ public enum DisableBypassPermissionsMode
 /// This layer composes restrictively with any server- or device-level managed
 /// settings: <see cref="Deny"/> and <see cref="Ask"/> rules are unioned across
 /// layers, every present <see cref="Allow"/> list must admit a tool for it to be
-/// allowed, and <see cref="DisableBypassPermissionsMode"/> is honored if any
-/// layer sets it (deny-wins).
+/// allowed, and <see cref="DisableBypassPermissionsMode"/> policies compose to
+/// the most restrictive setting.
 /// </remarks>
 public sealed class ManagedSettingsPermissions
 {
     /// <summary>
-    /// When set to <c>"disable"</c>, bypass-permissions mode is turned off for the
-    /// session regardless of other layers. Serialized as
-    /// <c>disableBypassPermissionsMode</c>.
+    /// Restricts bypass-permissions mode for the session regardless of other
+    /// layers. See <see cref="DisableBypassPermissionsModes"/> for well-known
+    /// values. Unknown values are forwarded so newer runtime policies fail closed.
+    /// Serialized as <c>disableBypassPermissionsMode</c>.
     /// </summary>
     [JsonPropertyName("disableBypassPermissionsMode")]
-    public DisableBypassPermissionsMode? DisableBypassPermissionsMode { get; set; }
+    public string? DisableBypassPermissionsMode { get; set; }
 
     /// <summary>Tool-permission patterns that are always denied.</summary>
     [JsonPropertyName("deny")]
@@ -3117,6 +3117,21 @@ public sealed class ManagedSettings
 }
 
 /// <summary>
+/// Selects the model-facing shape of the built-in <c>ask_user</c> tool.
+/// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter<AskUserVariant>))]
+public enum AskUserVariant
+{
+    /// <summary>Use the legacy user-input request flow.</summary>
+    [JsonStringEnumMemberName("legacy")]
+    Legacy,
+
+    /// <summary>Use the elicitation request flow.</summary>
+    [JsonStringEnumMemberName("elicitation")]
+    Elicitation
+}
+
+/// <summary>
 /// Shared configuration properties for creating or resuming a Copilot session.
 /// Use <see cref="SessionConfig"/> when creating a new session, or
 /// <see cref="ResumeSessionConfig"/> when resuming an existing one.
@@ -3142,6 +3157,7 @@ public abstract class SessionConfigBase
         DefaultAgent = other.DefaultAgent;
         Agent = other.Agent;
         DisabledSkills = other.DisabledSkills is not null ? [.. other.DisabledSkills] : null;
+        IncludedBuiltinSkills = other.IncludedBuiltinSkills is not null ? [.. other.IncludedBuiltinSkills] : null;
         DisabledMcpServers = other.DisabledMcpServers is not null ? [.. other.DisabledMcpServers] : null;
         EnableCitations = other.EnableCitations;
         EnableFileChangeTracking = other.EnableFileChangeTracking;
@@ -3204,8 +3220,10 @@ public abstract class SessionConfigBase
         ReasoningEffort = other.ReasoningEffort;
         ReasoningSummary = other.ReasoningSummary;
         ContextTier = other.ContextTier;
+        AskUserVariant = other.AskUserVariant;
         CreateSessionFsProvider = other.CreateSessionFsProvider;
         GitHubToken = other.GitHubToken;
+        GitHubTokenProvider = other.GitHubTokenProvider;
         RemoteSession = other.RemoteSession;
         ExpAssignments = other.ExpAssignments;
         EnableManagedSettings = other.EnableManagedSettings;
@@ -3353,6 +3371,14 @@ public abstract class SessionConfigBase
     public bool? EnableSkills { get; set; }
 
     /// <summary>
+    /// Built-in skill names to include in the session. In
+    /// <see cref="CopilotClientMode.Empty"/>, omitting this option excludes all
+    /// runtime-bundled skills; specifying names opts those built-ins back in.
+    /// Skills from other sources remain eligible.
+    /// </summary>
+    public IList<string>? IncludedBuiltinSkills { get; set; }
+
+    /// <summary>
     /// Custom tool declarations available to the language model during the session.
     /// Declarations backed by an <see cref="AIFunction"/> are invoked automatically; declarations without one
     /// are left for the client to handle via external tool request events.
@@ -3361,6 +3387,15 @@ public abstract class SessionConfigBase
 
     /// <summary>System message configuration for the session.</summary>
     public SystemMessageConfig? SystemMessage { get; set; }
+
+    /// <summary>
+    /// Selects the model-facing shape of the built-in <c>ask_user</c> tool.
+    /// The default is <see cref="GitHub.Copilot.AskUserVariant.Legacy"/>. To use
+    /// <see cref="GitHub.Copilot.AskUserVariant.Elicitation"/>, also provide
+    /// <see cref="OnElicitationRequest"/> so the host can answer structured forms.
+    /// The runtime resolves this option when it creates or cold-resumes the session.
+    /// </summary>
+    public AskUserVariant? AskUserVariant { get; set; }
 
     /// <summary>List of tool names to allow; only these tools will be available when specified.</summary>
     public IList<string>? AvailableTools { get; set; }
@@ -3460,7 +3495,11 @@ public abstract class SessionConfigBase
     /// <summary>Handler for permission requests from the server.</summary>
     public Func<PermissionRequest, PermissionInvocation, Task<PermissionDecision>>? OnPermissionRequest { get; set; }
 
-    /// <summary>Handler for user input requests from the agent.</summary>
+    /// <summary>
+    /// Handler for user input requests from the agent. When provided with the default
+    /// <see cref="GitHub.Copilot.AskUserVariant.Legacy"/> variant, enables the
+    /// question-and-answer form of the <c>ask_user</c> tool.
+    /// </summary>
     public Func<UserInputRequest, UserInputInvocation, Task<UserInputResponse>>? OnUserInputRequest { get; set; }
 
     /// <summary>Slash commands registered for this session.</summary>
@@ -3648,6 +3687,16 @@ public abstract class SessionConfigBase
     /// and stores it on the session for content exclusion, model routing, and quota checks.
     /// </summary>
     public string? GitHubToken { get; set; }
+
+    /// <summary>
+    /// Gets or sets a callback that acquires session-scoped GitHub tokens on
+    /// demand. Initial cancellation, callback errors, and invalid token responses
+    /// reject session creation or resume instead of falling back to ambient
+    /// authentication. This cannot be combined with <see cref="GitHubToken"/>.
+    /// </summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonIgnore]
+    public Func<GitHubTokenProviderArgs, Task<GitHubTokenProviderResult>>? GitHubTokenProvider { get; set; }
 
     /// <summary>
     /// Per-session remote behavior control:

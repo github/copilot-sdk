@@ -21,8 +21,11 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record FactoryRunConsumed(
+    /** Accumulated active execution time in milliseconds. */
     @JsonProperty("activeMs") Long activeMs,
+    /** Total subagents spawned by the run. */
     @JsonProperty("subagents") Long subagents,
+    /** AI usage consumed by the run in nano-AIU. */
     @JsonProperty("nanoAiu") Long nanoAiu
 ) {
 }
