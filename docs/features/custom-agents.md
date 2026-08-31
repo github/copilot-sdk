@@ -266,6 +266,34 @@ In addition to per-agent configuration above, you can set `agent` on the **sessi
 | Session Config Property | Type | Description |
 |-------------------------|------|-------------|
 | `agent` | `string` | Name of the custom agent to pre-select at session creation. Must match a `name` in `customAgents`. |
+| `subagentModel` | `SubagentModelPolicy` | Model policy for the runtime's **built-in** sub-agents (e.g. `explore`, `general-purpose`). See [Model policy for built-in sub-agents](#model-policy-for-built-in-sub-agents) below. |
+
+## Model policy for built-in sub-agents
+
+`model` and `reasoningEffort` on a `customAgents` entry only affect agents *you* define. The runtime's own **built-in** sub-agents — `explore`, `general-purpose`, and any others spawned by the built-in `task` tool — historically had no supported way to be pointed at the parent session's model or an explicit model (see [github/copilot-sdk#1640](https://github.com/github/copilot-sdk/issues/1640)).
+
+`subagentModel` closes that gap for the Node.js SDK by wrapping the CLI's existing (experimental) subagent settings mechanism (`session.tools.updateSubagentSettings`). The SDK calls it automatically right after the session is created:
+
+<!-- docs-validate: skip -->
+```typescript
+const session = await client.createSession({
+    model: "claude-sonnet-4.5",
+    subagentModel: {
+        mode: "inherit-parent",
+        agentTypes: ["explore", "general-purpose"],
+    },
+    onPermissionRequest: async () => ({ kind: "approve-once" }),
+});
+```
+
+- `{ mode: "inherit-parent", agentTypes }` — use this session's `model` for the listed built-in agent types. Throws if the session's `model` is not set.
+- `{ mode: "fixed", model, agentTypes }` — use an explicit model (and optional `reasoningEffort`) for the listed built-in agent types.
+- Omit `subagentModel` entirely to preserve the runtime's existing model-selection behavior for built-in sub-agents, unchanged.
+
+There is intentionally no wildcard for "all built-in sub-agents": the runtime's `agent_type` values are open-ended strings that aren't enumerated by the wire protocol, so name the agent types you want to affect. This option does not affect custom agents (use their own `model`/`reasoningEffort` fields instead) and does not change the parent session's model.
+
+> [!NOTE]
+> This SDK-side wrapper is currently available for the Node.js SDK only. The underlying `session.tools.updateSubagentSettings` RPC is generated for every language binding, so the same convenience wrapper can be added to the other SDKs following this pattern; see the CHANGELOG for details.
 
 ## Per-agent skills
 

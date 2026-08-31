@@ -439,6 +439,127 @@ describe("CopilotClient", () => {
         );
     });
 
+    it("applies inherit-parent subagentModel by forwarding the session model to updateSubagentSettings", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => stopClient(client));
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") {
+                    return { sessionId: params.sessionId, workspacePath: "/workspace" };
+                }
+                if (method === "session.tools.updateSubagentSettings") {
+                    return {};
+                }
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        await client.createSession({
+            sessionId: "create-with-subagent-model-policy",
+            model: "claude-sonnet-4.5",
+            subagentModel: { mode: "inherit-parent", agentTypes: ["explore", "general-purpose"] },
+            onPermissionRequest: approveAll,
+        });
+
+        expect(spy).toHaveBeenCalledWith("session.tools.updateSubagentSettings", {
+            sessionId: "create-with-subagent-model-policy",
+            subagents: {
+                agents: {
+                    explore: { model: "claude-sonnet-4.5" },
+                    "general-purpose": { model: "claude-sonnet-4.5" },
+                },
+            },
+        });
+    });
+
+    it("applies fixed subagentModel with an explicit model and reasoning effort", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => stopClient(client));
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") {
+                    return { sessionId: params.sessionId, workspacePath: "/workspace" };
+                }
+                if (method === "session.tools.updateSubagentSettings") {
+                    return {};
+                }
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        await client.createSession({
+            sessionId: "create-with-fixed-subagent-model-policy",
+            subagentModel: {
+                mode: "fixed",
+                model: "claude-haiku-4.5",
+                agentTypes: ["explore"],
+                reasoningEffort: "low",
+            },
+            onPermissionRequest: approveAll,
+        });
+
+        expect(spy).toHaveBeenCalledWith("session.tools.updateSubagentSettings", {
+            sessionId: "create-with-fixed-subagent-model-policy",
+            subagents: {
+                agents: {
+                    explore: { model: "claude-haiku-4.5", effortLevel: "low" },
+                },
+            },
+        });
+    });
+
+    it("omits any updateSubagentSettings call when subagentModel is not configured", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => stopClient(client));
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") {
+                    return { sessionId: params.sessionId, workspacePath: "/workspace" };
+                }
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        await client.createSession({
+            sessionId: "create-without-subagent-model-policy",
+            onPermissionRequest: approveAll,
+        });
+
+        expect(spy).not.toHaveBeenCalledWith(
+            "session.tools.updateSubagentSettings",
+            expect.anything()
+        );
+    });
+
+    it("rejects inherit-parent subagentModel when the session model is not set", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => stopClient(client));
+
+        vi.spyOn((client as any).connection!, "sendRequest").mockImplementation(
+            async (method: string, params: any) => {
+                if (method === "session.create") {
+                    return { sessionId: params.sessionId, workspacePath: "/workspace" };
+                }
+                throw new Error(`Unexpected method: ${method}`);
+            }
+        );
+
+        await expect(
+            client.createSession({
+                sessionId: "create-with-invalid-subagent-model-policy",
+                subagentModel: { mode: "inherit-parent", agentTypes: ["explore"] },
+                onPermissionRequest: approveAll,
+            })
+        ).rejects.toThrow(/inherit-parent.*requires config\.model/);
+    });
+
     it("registers MCP OAuth interest after cloud create only when an auth handler is configured", async () => {
         const client = new CopilotClient();
         await client.start();

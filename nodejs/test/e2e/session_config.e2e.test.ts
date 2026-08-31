@@ -549,6 +549,34 @@ describe("Session Configuration", async () => {
         await session1.disconnect();
     });
 
+    it("should apply an inherit-parent subagentModel policy on create without error", async () => {
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            model: "claude-sonnet-4.5",
+            subagentModel: {
+                mode: "inherit-parent",
+                agentTypes: ["explore", "general-purpose"],
+            },
+        });
+
+        await session.disconnect();
+    });
+
+    it("should apply a fixed subagentModel policy on resume without error", async () => {
+        const session1 = await client.createSession({ onPermissionRequest: approveAll });
+        const session2 = await client.resumeSession(session1.sessionId, {
+            onPermissionRequest: approveAll,
+            subagentModel: {
+                mode: "fixed",
+                model: "claude-haiku-4.5",
+                agentTypes: ["explore"],
+            },
+        });
+
+        await session2.disconnect();
+        await session1.disconnect();
+    });
+
     it("should enable citations for Anthropic file attachments on create", async () => {
         const handler = new RecordingRequestHandler();
         const citationClient = new CopilotClient({
