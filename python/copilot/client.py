@@ -2411,6 +2411,9 @@ class CopilotClient:
                 on its own and has no effect unless MCP Apps are enabled for
                 the session (see ``enable_mcp_apps``). Omitted from the wire
                 payload entirely when None.
+            feature_flags: Feature-flag values resolved by the host for this
+                session. Re-supply them when resuming after a runtime restart.
+                Sent on the wire as ``featureFlags``.
             exp_assignments: ExP assignment ("flight") data injected by a
                 trusted integrator, in the same JSON shape the Copilot CLI
                 fetches from the experimentation service
@@ -3179,6 +3182,8 @@ class CopilotClient:
                 tool calls or permission prompts that were still pending when the
                 session was last suspended. When False (the default), the runtime
                 treats pending work as interrupted on resume.
+            feature_flags: Feature-flag values resolved by the host to apply
+                on resume. Sent on the wire as ``featureFlags``.
             exp_assignments: ExP assignment ("flight") data injected by a
                 trusted integrator, in the same JSON shape the Copilot CLI
                 fetches from the experimentation service
