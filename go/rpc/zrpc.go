@@ -1361,6 +1361,10 @@ type CanvasSessionContext struct {
 // Experimental: CapiSessionOptions is part of an experimental API and may change or be
 // removed.
 type CapiSessionOptions struct {
+	// Routing preference used when the session model is `auto`. The runtime persists the
+	// preference across cold resume. When omitted, the default routing behavior is used.
+	// Resuming an already-resident session cannot change its preference.
+	AutoTier *AutoTier `json:"autoTier,omitempty"`
 	// Whether to use WebSocket transport for the CAPI Responses API. Enabled by default when
 	// the model advertises `ws:/responses` support; set to `false` to force the HTTP Responses
 	// transport in environments where WebSockets are blocked (e.g. behind a proxy). Setting
@@ -1600,7 +1604,8 @@ type CatalogSearchRequest struct {
 	Kinds []CatalogCandidateKind `json:"kinds,omitzero"`
 	// Maximum number of candidates to return. Defaults to 10 when omitted.
 	Limit *int32 `json:"limit,omitempty"`
-	// Free-text search query. Never written to logs or telemetry.
+	// Free-text search query. Persisted as tool input for session continuity, but omitted from
+	// telemetry.
 	Query string `json:"query"`
 }
 
@@ -1733,6 +1738,10 @@ type CatalogNetworkFailureError struct {
 	Message string `json:"message"`
 	// Categorised failure, low cardinality so it can be aggregated without carrying a URL.
 	Reason CatalogNetworkFailureReason `json:"reason"`
+	// Bounded cooldown in seconds before another catalog request should be attempted, when the
+	// authority supplied a numeric Retry-After value or the runtime applied its documented
+	// fallback.
+	RetryAfterSeconds *int32 `json:"retryAfterSeconds,omitempty"`
 	// HTTP status code, when the failure was a rejected response.
 	StatusCode *int32 `json:"statusCode,omitempty"`
 }
@@ -2599,6 +2608,8 @@ type EnqueueCommandParams struct {
 	// Slash-prefixed command string to enqueue, e.g. '/compact' or '/model gpt-4'. Queued FIFO
 	// with any in-flight items; if the session is idle, processing kicks off immediately.
 	Command string `json:"command"`
+	// Optional user-facing text for the queue row. The command string is shown when omitted.
+	DisplayText *string `json:"displayText,omitempty"`
 }
 
 // Indicates whether the command was accepted into the local execution queue.
@@ -3558,6 +3569,18 @@ func (FactoryRunFailureFactoryLimitReached) Type() FactoryRunFailureType {
 	return FactoryRunFailureTypeFactoryLimitReached
 }
 
+// The extension that owns the factory disconnected while the run was executing, so the host
+// halted it. The run's journaled subagent results are preserved so a resume can reuse them.
+type FactoryRunFailureFactoryProviderDisconnected struct {
+	// Factory run identifier.
+	RunID string `json:"runId"`
+}
+
+func (FactoryRunFailureFactoryProviderDisconnected) factoryRunFailure() {}
+func (FactoryRunFailureFactoryProviderDisconnected) Type() FactoryRunFailureType {
+	return FactoryRunFailureTypeFactoryProviderDisconnected
+}
+
 type FactoryRunFailureFactoryResumeDeclined struct {
 	// Human-readable reason the resume did not proceed.
 	Reason string `json:"reason"`
@@ -3603,9 +3626,12 @@ type FactoryRunRequest struct {
 // Experimental: FactoryRunResult is part of an experimental API and may change or be
 // removed.
 type FactoryRunResult struct {
+	// One-based execution attempt represented by this envelope. Absent before the first attempt
+	// starts or when returned by an older runtime.
+	Attempt *int64 `json:"attempt,omitempty"`
 	// Error message for an errored run.
 	Error *string `json:"error,omitempty"`
-	// Machine-readable failure details for an errored run.
+	// Machine-readable failure details for a halted or errored run.
 	Failure FactoryRunFailure `json:"failure,omitempty"`
 	// Reason for a halted or cancelled run.
 	Reason *string `json:"reason,omitempty"`
@@ -6879,6 +6905,10 @@ type ModelApplyStartupOverlayRequest struct {
 	DeferredResume *bool `json:"deferredResume,omitempty"`
 	// Model required by device-managed policy, when configured.
 	DeviceManagedModel *string `json:"deviceManagedModel,omitempty"`
+	// Startup default model from the enterprise policy helper, when configured. Weakest of the
+	// managed sources: it applies only when neither device nor server policy names a model, and
+	// an explicit user selection still wins.
+	PolicyHelperModel *string `json:"policyHelperModel,omitempty"`
 	// Context tier selected by repository settings, when configured.
 	RepoContextTier *string `json:"repoContextTier,omitempty"`
 	// Model selected by repository settings, when configured.
@@ -6920,6 +6950,12 @@ type ModelBillingPromo struct {
 	// Human-readable promotion message. Does not include the expiry timestamp; consumers may
 	// format endsAt and append it when present.
 	Message *string `json:"message,omitempty"`
+	// Whether the service asked hosts to give this promotion a prominent surface, such as a
+	// dedicated banner, in addition to listing it with the model. `true` requests that surface
+	// and `false` asks for the model list only. Absent means the service expressed no
+	// preference — for example a response that predates the field — so hosts should apply their
+	// own default rather than read it as `false`.
+	ShowBanner *bool `json:"showBanner,omitempty"`
 }
 
 // Token-level pricing information for this model
@@ -9943,10 +9979,8 @@ type RegisterExtensionLaunchProviderResult struct {
 // Internal: RegisterExtensionToolsParams is an internal SDK API and is not part of the
 // public surface.
 type RegisterExtensionToolsParams struct {
-	// In-process ExtensionLoader handle (CLI-only optimization). Marked internal: this field is
-	// excluded from the public SDK surface. When the CLI migrates to a process-separated SDK,
-	// extension discovery/launch moves entirely into the runtime — the CLI passes pure config
-	// (search paths, disabled ids) via SessionOptions instead.
+	// In-process ExtensionLoader handle used only by the CLI and excluded from the public SDK
+	// surface.
 	// Internal: Loader is part of the SDK's internal API surface and is not intended for
 	// external use.
 	Loader any `json:"loader"`
@@ -9962,8 +9996,7 @@ type RegisterExtensionToolsParams struct {
 // Internal: RegisterExtensionToolsResult is an internal SDK API and is not part of the
 // public surface.
 type RegisterExtensionToolsResult struct {
-	// In-process unsubscribe function (CLI-only optimization). Marked internal: replaced by an
-	// explicit `extensions.unregister` RPC in the SDK migration.
+	// In-process unsubscribe function used only by the CLI.
 	// Internal: Unsubscribe is part of the SDK's internal API surface and is not intended for
 	// external use.
 	Unsubscribe any `json:"unsubscribe"`
@@ -10346,6 +10379,18 @@ type SandboxConfigUserPolicyNetworkProxy struct {
 type SandboxConfigUserPolicySeatbelt struct {
 	// Whether the macOS seatbelt profile may access the keychain.
 	KeychainAccess *bool `json:"keychainAccess,omitempty"`
+}
+
+// Managed sandbox enforcement state for a session.
+// Experimental: SandboxEnforcementStatus is part of an experimental API and may change or
+// be removed.
+type SandboxEnforcementStatus struct {
+	// Whether an enforcement failure has permanently blocked the session.
+	Blocked bool `json:"blocked"`
+	// The first sandbox enforcement failure that blocked the session.
+	Reason *string `json:"reason,omitempty"`
+	// Whether the effective managed policy requires an available sandbox backend.
+	Required bool `json:"required"`
 }
 
 // Register an absolute-time scheduled prompt.
@@ -12131,10 +12176,8 @@ func (SessionsOpenAttach) Kind() SessionOpenParamsKind {
 // Experimental: SessionsOpenCloud is part of an experimental API and may change or be
 // removed.
 type SessionsOpenCloud struct {
-	// In-process callback invoked when the cloud task is created (before connection). Marked
-	// internal because a function reference cannot cross the JSON-RPC boundary. Disappears in
-	// the SDK migration: the field is purely cosmetic (it flips a single CLI phase label from
-	// 'creating' to 'connecting') and the wire-clean version just drops the intermediate phase.
+	// In-process callback invoked when the cloud task is created, before connection. Internal
+	// because function references cannot cross the JSON-RPC boundary.
 	// Internal: OnTaskCreated is part of the SDK's internal API surface and is not intended for
 	// external use.
 	OnTaskCreated any `json:"onTaskCreated,omitempty"`
@@ -12868,8 +12911,7 @@ type SessionsPruneOldRequest struct {
 // Experimental: SessionsRegisterExtensionToolsOnSessionOptions is part of an experimental
 // API and may change or be removed.
 type SessionsRegisterExtensionToolsOnSessionOptions struct {
-	// In-process `() => boolean` gating callback (CLI-only optimization). Marked internal:
-	// replaced by runtime-side enable/disable RPCs in the SDK migration.
+	// In-process `() => boolean` gating callback used only by the CLI.
 	// Internal: Enabled is part of the SDK's internal API surface and is not intended for
 	// external use.
 	Enabled any `json:"enabled,omitempty"`
@@ -13696,6 +13738,8 @@ func (SlashCommandAgentPromptResult) Kind() SlashCommandInvocationResultKind {
 type SlashCommandCompletedResult struct {
 	// Optional user-facing message describing the completed command
 	Message *string `json:"message,omitempty"`
+	// Optional target session mode applied without submitting an agent prompt
+	Mode *SessionMode `json:"mode,omitempty"`
 	// True when the invocation mutated user runtime settings; consumers caching settings should
 	// refresh
 	RuntimeSettingsChanged *bool `json:"runtimeSettingsChanged,omitempty"`
@@ -14726,14 +14770,12 @@ type UIElicitationStringOneOfFieldOneOf struct {
 // removed.
 type UIEphemeralQueryRequest struct {
 	// In-process `AbortSignal` forwarded to the model client to cancel an in-flight request.
-	// Marked internal: excluded from the public SDK surface. Replaced by an explicit
-	// cancellation token + cancel RPC in the SDK migration.
+	// Internal and excluded from the public SDK surface.
 	// Internal: AbortSignal is part of the SDK's internal API surface and is not intended for
 	// external use.
 	AbortSignal any `json:"abortSignal,omitempty"`
 	// In-process streaming callback `(text) => void` invoked with each token as the model emits
-	// it. Marked internal: excluded from the public SDK surface. In a process-separated SDK
-	// this is replaced by a streaming RPC that yields chunks and a final answer.
+	// it. Internal and excluded from the public SDK surface.
 	// Internal: OnChunk is part of the SDK's internal API surface and is not intended for
 	// external use.
 	OnChunk any `json:"onChunk,omitempty"`
@@ -15863,6 +15905,19 @@ const (
 	AuthInfoTypeUser            AuthInfoType = "user"
 )
 
+// Routing preference used when the session model is `auto`.
+// Experimental: AutoTier is part of an experimental API and may change or be removed.
+type AutoTier string
+
+const (
+	// Balance efficiency and intelligence.
+	AutoTierBalance AutoTier = "balance"
+	// Optimize for efficiency.
+	AutoTierEfficiency AutoTier = "efficiency"
+	// Optimize for intelligence.
+	AutoTierIntelligence AutoTier = "intelligence"
+)
+
 // Custom input-format kind.
 // Experimental: BuiltinToolFormatType is part of an experimental API and may change or be
 // removed.
@@ -16104,14 +16159,20 @@ const (
 	CatalogNetworkFailureReasonConnectionRefused CatalogNetworkFailureReason = "connection-refused"
 	// The authority's name could not be resolved.
 	CatalogNetworkFailureReasonDns CatalogNetworkFailureReason = "dns"
-	// The authority returned a status the runtime treats as a failure.
+	// The authority returned another status the runtime treats as a failure.
 	CatalogNetworkFailureReasonHTTPStatus CatalogNetworkFailureReason = "http-status"
 	// No network is available, so nothing was attempted.
 	CatalogNetworkFailureReasonOffline CatalogNetworkFailureReason = "offline"
+	// The configured proxy returned 407 and requires authentication.
+	CatalogNetworkFailureReasonProxyAuthenticationRequired CatalogNetworkFailureReason = "proxy-authentication-required"
+	// The authority rate-limited requests and supplied or implied a bounded cooldown.
+	CatalogNetworkFailureReasonRateLimited CatalogNetworkFailureReason = "rate-limited"
 	// A redirect was refused by the runtime's redirect policy.
 	CatalogNetworkFailureReasonRedirectRejected CatalogNetworkFailureReason = "redirect-rejected"
 	// The response exceeded the permitted size.
 	CatalogNetworkFailureReasonResponseTooLarge CatalogNetworkFailureReason = "response-too-large"
+	// The authority returned a transient 5xx response.
+	CatalogNetworkFailureReasonServiceUnavailable CatalogNetworkFailureReason = "service-unavailable"
 	// The request exceeded its time budget.
 	CatalogNetworkFailureReasonTimeout CatalogNetworkFailureReason = "timeout"
 	// The TLS handshake or certificate validation failed.
@@ -16574,6 +16635,7 @@ const (
 	FactoryRunFailureTypeFactoryAccountingIncomplete FactoryRunFailureType = "factory_accounting_incomplete"
 	FactoryRunFailureTypeFactoryDurableFailure       FactoryRunFailureType = "factory_durable_failure"
 	FactoryRunFailureTypeFactoryLimitReached         FactoryRunFailureType = "factory_limit_reached"
+	FactoryRunFailureTypeFactoryProviderDisconnected FactoryRunFailureType = "factory_provider_disconnected"
 	FactoryRunFailureTypeFactoryResumeDeclined       FactoryRunFailureType = "factory_resume_declined"
 )
 
@@ -20708,7 +20770,7 @@ func (a *ServerRPC) Ping(ctx context.Context, params *PingRequest) (*PingResult,
 
 // RegisterExtensionLaunchProvider registers the calling SDK client as the per-entrypoint
 // extension launch provider. Call before creating any sessions. When omitted, the runtime
-// temporarily falls back to its built-in Node launcher for backward compatibility.
+// uses its built-in extension launcher.
 //
 // RPC method: registerExtensionLaunchProvider.
 // Experimental: RegisterExtensionLaunchProvider is an experimental API and may change or be
@@ -21277,6 +21339,9 @@ func (a *CommandsAPI) Enqueue(ctx context.Context, params *EnqueueCommandParams)
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["command"] = params.Command
+		if params.DisplayText != nil {
+			req["displayText"] = *params.DisplayText
+		}
 	}
 	raw, err := a.client.Request(ctx, "session.commands.enqueue", req)
 	if err != nil {
@@ -25064,6 +25129,28 @@ func (a *RemoteAPI) NotifySteerableChanged(ctx context.Context, params *RemoteNo
 	return &result, nil
 }
 
+// Experimental: SandboxAPI contains experimental APIs that may change or be removed.
+type SandboxAPI sessionAPI
+
+// GetEnforcementStatus returns whether managed policy requires sandbox enforcement and
+// whether an enforcement failure has permanently blocked the session.
+//
+// RPC method: session.sandbox.getEnforcementStatus.
+//
+// Returns: Managed sandbox enforcement state for a session.
+func (a *SandboxAPI) GetEnforcementStatus(ctx context.Context) (*SandboxEnforcementStatus, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request(ctx, "session.sandbox.getEnforcementStatus", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SandboxEnforcementStatus
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // Experimental: ScheduleAPI contains experimental APIs that may change or be removed.
 type ScheduleAPI sessionAPI
 
@@ -26613,6 +26700,7 @@ type SessionRPC struct {
 	Provider         *ProviderAPI
 	Queue            *QueueAPI
 	Remote           *RemoteAPI
+	Sandbox          *SandboxAPI
 	Schedule         *ScheduleAPI
 	Shell            *ShellAPI
 	Skills           *SkillsAPI
@@ -26934,6 +27022,7 @@ func NewSessionRPC(client *jsonrpc2.Client, sessionID string) *SessionRPC {
 	r.Provider = (*ProviderAPI)(&r.common)
 	r.Queue = (*QueueAPI)(&r.common)
 	r.Remote = (*RemoteAPI)(&r.common)
+	r.Sandbox = (*SandboxAPI)(&r.common)
 	r.Schedule = (*ScheduleAPI)(&r.common)
 	r.Shell = (*ShellAPI)(&r.common)
 	r.Skills = (*SkillsAPI)(&r.common)
@@ -27437,6 +27526,9 @@ func (a *InternalModelAPI) ApplyStartupOverlay(ctx context.Context, params *Mode
 		}
 		if params.DeviceManagedModel != nil {
 			req["deviceManagedModel"] = *params.DeviceManagedModel
+		}
+		if params.PolicyHelperModel != nil {
+			req["policyHelperModel"] = *params.PolicyHelperModel
 		}
 		if params.RepoContextTier != nil {
 			req["repoContextTier"] = *params.RepoContextTier

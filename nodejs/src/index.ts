@@ -53,6 +53,7 @@ export {
 // surface for those six identifiers is preserved unchanged.
 export type * from "./generated/session-events.js";
 export type {
+    AskUserVariant,
     CommandContext,
     CommandDefinition,
     CommandHandler,
@@ -119,6 +120,7 @@ export type {
     ModelBilling,
     ModelBillingTokenPrices,
     ModelBillingTokenPricesLongContext,
+    AutoTier,
     CapiSessionOptions,
     ModelCapabilities,
     ModelCapabilitiesOverride,
@@ -209,6 +211,8 @@ export type {
     FactoryRunResult,
     FactoryRunStatus,
     FactoryRunSummary,
+    FactoryListRunsOptions,
+    FactoryRunsPage,
     FactoryRunDetail,
     FactoryProgressPage,
     FactoryProgressLine,

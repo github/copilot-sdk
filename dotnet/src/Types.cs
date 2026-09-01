@@ -2398,6 +2398,18 @@ public sealed class CapiSessionOptions
     /// </remarks>
     [JsonPropertyName("enableWebSocketResponses")]
     public bool? EnableWebSocketResponses { get; set; }
+
+    /// <summary>
+    /// Routing tier for model <c>auto</c> with V2 Auto.
+    /// </summary>
+    /// <remarks>
+    /// Requires a runtime that supports Auto tiers; it has no effect outside V2 Auto.
+    /// When omitted, the runtime uses its default on create and preserves the persisted or current
+    /// tier on resume. An explicit tier overrides the persisted tier on a cold resume; a conflicting
+    /// tier on a resident session resume is rejected by the runtime.
+    /// </remarks>
+    [JsonPropertyName("autoTier")]
+    public AutoTier? AutoTier { get; set; }
 }
 
 /// <summary>
@@ -3117,6 +3129,21 @@ public sealed class ManagedSettings
 }
 
 /// <summary>
+/// Selects the model-facing shape of the built-in <c>ask_user</c> tool.
+/// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter<AskUserVariant>))]
+public enum AskUserVariant
+{
+    /// <summary>Use the legacy user-input request flow.</summary>
+    [JsonStringEnumMemberName("legacy")]
+    Legacy,
+
+    /// <summary>Use the elicitation request flow.</summary>
+    [JsonStringEnumMemberName("elicitation")]
+    Elicitation
+}
+
+/// <summary>
 /// Shared configuration properties for creating or resuming a Copilot session.
 /// Use <see cref="SessionConfig"/> when creating a new session, or
 /// <see cref="ResumeSessionConfig"/> when resuming an existing one.
@@ -3205,10 +3232,14 @@ public abstract class SessionConfigBase
         ReasoningEffort = other.ReasoningEffort;
         ReasoningSummary = other.ReasoningSummary;
         ContextTier = other.ContextTier;
+        AskUserVariant = other.AskUserVariant;
         CreateSessionFsProvider = other.CreateSessionFsProvider;
         GitHubToken = other.GitHubToken;
         GitHubTokenProvider = other.GitHubTokenProvider;
         RemoteSession = other.RemoteSession;
+        FeatureFlags = other.FeatureFlags is not null
+            ? new Dictionary<string, bool>(other.FeatureFlags)
+            : null;
         ExpAssignments = other.ExpAssignments;
         EnableManagedSettings = other.EnableManagedSettings;
         ManagedSettings = other.ManagedSettings;
@@ -3372,6 +3403,15 @@ public abstract class SessionConfigBase
     /// <summary>System message configuration for the session.</summary>
     public SystemMessageConfig? SystemMessage { get; set; }
 
+    /// <summary>
+    /// Selects the model-facing shape of the built-in <c>ask_user</c> tool.
+    /// The default is <see cref="GitHub.Copilot.AskUserVariant.Legacy"/>. To use
+    /// <see cref="GitHub.Copilot.AskUserVariant.Elicitation"/>, also provide
+    /// <see cref="OnElicitationRequest"/> so the host can answer structured forms.
+    /// The runtime resolves this option when it creates or cold-resumes the session.
+    /// </summary>
+    public AskUserVariant? AskUserVariant { get; set; }
+
     /// <summary>List of tool names to allow; only these tools will be available when specified.</summary>
     public IList<string>? AvailableTools { get; set; }
 
@@ -3470,7 +3510,11 @@ public abstract class SessionConfigBase
     /// <summary>Handler for permission requests from the server.</summary>
     public Func<PermissionRequest, PermissionInvocation, Task<PermissionDecision>>? OnPermissionRequest { get; set; }
 
-    /// <summary>Handler for user input requests from the agent.</summary>
+    /// <summary>
+    /// Handler for user input requests from the agent. When provided with the default
+    /// <see cref="GitHub.Copilot.AskUserVariant.Legacy"/> variant, enables the
+    /// question-and-answer form of the <c>ask_user</c> tool.
+    /// </summary>
     public Func<UserInputRequest, UserInputInvocation, Task<UserInputResponse>>? OnUserInputRequest { get; set; }
 
     /// <summary>Slash commands registered for this session.</summary>
@@ -3695,6 +3739,12 @@ public abstract class SessionConfigBase
     /// </remarks>
     [EditorBrowsable(EditorBrowsableState.Never)]
     public CopilotExpAssignmentResponse? ExpAssignments { get; set; }
+
+    /// <summary>
+    /// Feature-flag values resolved by the host for this session.
+    /// Re-supply them when resuming after a runtime restart.
+    /// </summary>
+    public IDictionary<string, bool>? FeatureFlags { get; set; }
 
     /// <summary>
     /// Opt-in: when <c>true</c>, the runtime self-fetches enterprise managed

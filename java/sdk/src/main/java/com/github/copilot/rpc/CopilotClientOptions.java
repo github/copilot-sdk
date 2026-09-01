@@ -192,19 +192,20 @@ public class CopilotClientOptions {
     }
 
     /**
-     * Gets the path to the Copilot CLI executable.
+     * Gets the path to an explicitly configured Copilot executable.
      *
-     * @return the CLI path, or {@code null} to use "copilot" from PATH
+     * @return the executable path, or {@code null} to use the bundled runtime
+     *         wrapper
      */
     public String getCliPath() {
         return cliPath;
     }
 
     /**
-     * Sets the path to the Copilot CLI executable.
+     * Sets the path to the Copilot CLI or runtime wrapper executable.
      *
      * @param cliPath
-     *            the path to the CLI executable
+     *            the path to the executable
      * @return this options instance for method chaining
      */
     public CopilotClientOptions setCliPath(String cliPath) {

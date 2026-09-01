@@ -64,7 +64,6 @@ fn canvas_session_config(
 
     ctx.approve_all_session_config()
         .with_request_canvas_renderer(true)
-        .with_request_extensions(true)
         .with_extension_info(ExtensionInfo::new("rust-sdk-tests", "canvas-provider"))
         .with_canvases([decl])
         .with_canvas_handler(handler)

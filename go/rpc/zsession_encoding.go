@@ -575,6 +575,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
+	case SessionEventTypeSessionModeNoticeDelivered:
+		var d SessionModeNoticeDeliveredData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
 	case SessionEventTypeSessionPermissionsChanged:
 		var d SessionPermissionsChangedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {

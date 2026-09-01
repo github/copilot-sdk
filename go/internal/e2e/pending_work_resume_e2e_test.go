@@ -468,7 +468,32 @@ func TestPendingWorkResumeE2E(t *testing.T) {
 			}
 
 			if scenario.disconnectOriginalClient {
+				lockObserver := ctx.NewClient(func(opts *copilot.ClientOptions) {
+					stdio := opts.Connection.(copilot.StdioConnection)
+					opts.Connection = copilot.TCPConnection{Path: stdio.Path}
+				})
+				t.Cleanup(func() { lockObserver.ForceStop() })
+				if err := lockObserver.Start(t.Context()); err != nil {
+					t.Fatalf("Failed to start session lock observer: %v", err)
+				}
+
+				waitForRPCCondition(t, pendingWorkTimeout, "session lock to be held before disconnect", func() (bool, error) {
+					result, err := lockObserver.RPC.Sessions.CheckInUse(
+						t.Context(),
+						&rpc.SessionsCheckInUseRequest{SessionIDs: []string{sessionID}},
+					)
+					return err == nil && containsString(result.InUse, sessionID), err
+				})
+
 				suspendedClient.ForceStop()
+
+				waitForRPCCondition(t, pendingWorkTimeout, "session lock to be released after disconnect", func() (bool, error) {
+					result, err := lockObserver.RPC.Sessions.CheckInUse(
+						t.Context(),
+						&rpc.SessionsCheckInUseRequest{SessionIDs: []string{sessionID}},
+					)
+					return err == nil && !containsString(result.InUse, sessionID), err
+				})
 			}
 
 			resumedClient := ctx.NewClient(func(opts *copilot.ClientOptions) {

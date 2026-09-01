@@ -501,8 +501,7 @@ async fn should_abort_a_session() {
 
 #[tokio::test]
 async fn should_resume_a_session_using_the_same_client() {
-    super::support::with_shared_e2e_context(
-        &E2E,
+    super::support::with_dedicated_e2e_context(
         "session",
         "should_resume_a_session_using_the_same_client",
         |ctx| {
@@ -1752,4 +1751,4 @@ fn secret_number_tool() -> Tool {
         .with_handler(Arc::new(SecretNumberTool))
 }
 static E2E: super::support::SharedE2eGroup =
-    super::support::SharedE2eGroup::standard("session", 30);
+    super::support::SharedE2eGroup::standard("session", 29);

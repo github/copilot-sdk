@@ -26,7 +26,7 @@ import javax.annotation.processing.Generated;
 public record SessionsRegisterExtensionToolsOnSessionParams(
     /** Session to register extension tools on. */
     @JsonProperty("sessionId") String sessionId,
-    /** In-process ExtensionLoader handle (CLI-only optimization). Marked internal: this field is excluded from the public SDK surface. When the CLI migrates to a process-separated SDK, extension discovery/launch moves entirely into the runtime — the CLI passes pure config (search paths, disabled ids) via SessionOptions instead. */
+    /** In-process ExtensionLoader handle used only by the CLI and excluded from the public SDK surface. */
     @JsonProperty("loader") Object loader,
     /** Optional registration options. */
     @JsonProperty("options") SessionsRegisterExtensionToolsOnSessionOptions options

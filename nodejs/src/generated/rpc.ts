@@ -5,7 +5,7 @@
 
 import type { MessageConnection } from "vscode-jsonrpc/node.js";
 
-import type { AbortReason, Attachment, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerSource, McpServerStatus, ModelChangeSource, PermissionMode, PermissionPromptRequest, PermissionRule, ReasoningSummary, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskCompleteData, TaskCompletionOutcome, UserToolSessionApproval, Verbosity } from "./session-events.js";
+import type { AbortReason, Attachment, AutoTier, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerSource, McpServerStatus, ModelChangeSource, PermissionMode, PermissionPromptRequest, PermissionRule, ReasoningSummary, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskCompleteData, TaskCompletionOutcome, UserToolSessionApproval, Verbosity } from "./session-events.js";
 
 /** A value that can be represented losslessly on the SDK JSON wire. */
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
@@ -552,7 +552,13 @@ export type CatalogNetworkFailureReason =
   | "tls"
   /** The connection was refused or reset. */
   | "connection-refused"
-  /** The authority returned a status the runtime treats as a failure. */
+  /** The configured proxy returned 407 and requires authentication. */
+  | "proxy-authentication-required"
+  /** The authority rate-limited requests and supplied or implied a bounded cooldown. */
+  | "rate-limited"
+  /** The authority returned a transient 5xx response. */
+  | "service-unavailable"
+  /** The authority returned another status the runtime treats as a failure. */
   | "http-status"
   /** The response exceeded the permitted size. */
   | "response-too-large"
@@ -1127,6 +1133,16 @@ export type FactoryRunFailure =
        * Factory failure variant discriminator.
        */
       type: "factory_accounting_incomplete";
+    }
+  | {
+      /**
+       * Factory run identifier.
+       */
+      runId: string;
+      /**
+       * Factory failure variant discriminator.
+       */
+      type: "factory_provider_disconnected";
     };
 /**
  * Cumulative resource ceiling that stopped a factory run.
@@ -5487,6 +5503,7 @@ export interface CanvasProviderUnregisterRequest {
  */
 /** @experimental */
 export interface CapiSessionOptions {
+  autoTier?: AutoTier;
   /**
    * Whether to use WebSocket transport for the CAPI Responses API. Enabled by default when the model advertises `ws:/responses` support; set to `false` to force the HTTP Responses transport in environments where WebSockets are blocked (e.g. behind a proxy). Setting this to `false` is equivalent to the `COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES` environment variable.
    */
@@ -5834,6 +5851,10 @@ export interface CatalogNetworkFailureError {
    */
   statusCode?: number;
   /**
+   * Bounded cooldown in seconds before another catalog request should be attempted, when the authority supplied a numeric Retry-After value or the runtime applied its documented fallback.
+   */
+  retryAfterSeconds?: number;
+  /**
    * Human-readable explanation, safe to surface. Never contains a query, URL, handle, or secret.
    */
   message: string;
@@ -5884,7 +5905,7 @@ export interface CatalogPolicyRejectedError {
 export interface CatalogSearchRequest {
   contract: CatalogClientContract;
   /**
-   * Free-text search query. Never written to logs or telemetry.
+   * Free-text search query. Persisted as tool input for session continuity, but omitted from telemetry.
    */
   query: string;
   /**
@@ -6859,6 +6880,10 @@ export interface EnqueueCommandParams {
    * Slash-prefixed command string to enqueue, e.g. '/compact' or '/model gpt-4'. Queued FIFO with any in-flight items; if the session is idle, processing kicks off immediately.
    */
   command: string;
+  /**
+   * Optional user-facing text for the queue row. The command string is shown when omitted.
+   */
+  displayText?: string | null;
 }
 /**
  * Indicates whether the command was accepted into the local execution queue.
@@ -8151,6 +8176,10 @@ export interface FactoryRunResult {
    * Factory run identifier.
    */
   runId: string;
+  /**
+   * One-based execution attempt represented by this envelope. Absent before the first attempt starts or when returned by an older runtime.
+   */
+  attempt?: number;
   status: FactoryRunStatus;
   /**
    * Completed factory result.
@@ -12351,6 +12380,10 @@ export interface ModelBillingPromo {
    * Human-readable promotion message. Does not include the expiry timestamp; consumers may format endsAt and append it when present.
    */
   message?: string;
+  /**
+   * Whether the service asked hosts to give this promotion a prominent surface, such as a dedicated banner, in addition to listing it with the model. `true` requests that surface and `false` asks for the model list only. Absent means the service expressed no preference — for example a response that predates the field — so hosts should apply their own default rather than read it as `false`.
+   */
+  showBanner?: boolean;
 }
 /**
  * Service-published warning text that hosts should display when presenting a model.
@@ -12398,6 +12431,10 @@ export interface ModelApplyStartupOverlayRequest {
    * Model required by server-managed policy, when configured.
    */
   serverManagedModel?: string;
+  /**
+   * Startup default model from the enterprise policy helper, when configured. Weakest of the managed sources: it applies only when neither device nor server policy names a model, and an explicit user selection still wins.
+   */
+  policyHelperModel?: string;
   /**
    * Model selected by repository settings, when configured.
    */
@@ -16042,7 +16079,7 @@ export interface RegisterExtensionToolsParams {
    */
   sessionId: string;
   /**
-   * In-process ExtensionLoader handle (CLI-only optimization). Marked internal: this field is excluded from the public SDK surface. When the CLI migrates to a process-separated SDK, extension discovery/launch moves entirely into the runtime — the CLI passes pure config (search paths, disabled ids) via SessionOptions instead.
+   * In-process ExtensionLoader handle used only by the CLI and excluded from the public SDK surface.
    *
    * @internal
    *
@@ -16060,7 +16097,7 @@ export interface RegisterExtensionToolsParams {
 /** @experimental */
 export interface SessionsRegisterExtensionToolsOnSessionOptions {
   /**
-   * In-process `() => boolean` gating callback (CLI-only optimization). Marked internal: replaced by runtime-side enable/disable RPCs in the SDK migration.
+   * In-process `() => boolean` gating callback used only by the CLI.
    *
    * @internal
    */
@@ -16076,7 +16113,7 @@ export interface SessionsRegisterExtensionToolsOnSessionOptions {
 /** @internal */
 export interface RegisterExtensionToolsResult {
   /**
-   * In-process unsubscribe function (CLI-only optimization). Marked internal: replaced by an explicit `extensions.unregister` RPC in the SDK migration.
+   * In-process unsubscribe function used only by the CLI.
    *
    * @internal
    *
@@ -16587,6 +16624,27 @@ export interface SandboxConfigAuth {
    * Whether to export `GH_TOKEN` so the `gh` CLI authenticates inside the sandbox without the OS keyring the sandbox blocks. Default: false (opt-in).
    */
   gh?: boolean;
+}
+/**
+ * Managed sandbox enforcement state for a session.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SandboxEnforcementStatus".
+ */
+/** @experimental */
+export interface SandboxEnforcementStatus {
+  /**
+   * Whether the effective managed policy requires an available sandbox backend.
+   */
+  required: boolean;
+  /**
+   * Whether an enforcement failure has permanently blocked the session.
+   */
+  blocked: boolean;
+  /**
+   * The first sandbox enforcement failure that blocked the session.
+   */
+  reason?: string;
 }
 /**
  * Register an absolute-time scheduled prompt.
@@ -18634,7 +18692,7 @@ export interface SessionsOpenCloud {
   owner?: string;
   options?: SessionOpenOptions;
   /**
-   * In-process callback invoked when the cloud task is created (before connection). Marked internal because a function reference cannot cross the JSON-RPC boundary. Disappears in the SDK migration: the field is purely cosmetic (it flips a single CLI phase label from 'creating' to 'connecting') and the wire-clean version just drops the intermediate phase.
+   * In-process callback invoked when the cloud task is created, before connection. Internal because function references cannot cross the JSON-RPC boundary.
    *
    * @internal
    */
@@ -20261,6 +20319,7 @@ export interface SlashCommandCompletedResult {
    * Optional user-facing message describing the completed command
    */
   message?: string;
+  mode?: SessionMode;
   /**
    * True when the invocation mutated user runtime settings; consumers caching settings should refresh
    */
@@ -21618,13 +21677,13 @@ export interface UIEphemeralQueryRequest {
    */
   question: string;
   /**
-   * In-process streaming callback `(text) => void` invoked with each token as the model emits it. Marked internal: excluded from the public SDK surface. In a process-separated SDK this is replaced by a streaming RPC that yields chunks and a final answer.
+   * In-process streaming callback `(text) => void` invoked with each token as the model emits it. Internal and excluded from the public SDK surface.
    *
    * @internal
    */
   onChunk?: OpaqueInProcessValue;
   /**
-   * In-process `AbortSignal` forwarded to the model client to cancel an in-flight request. Marked internal: excluded from the public SDK surface. Replaced by an explicit cancellation token + cancel RPC in the SDK migration.
+   * In-process `AbortSignal` forwarded to the model client to cancel an in-flight request. Internal and excluded from the public SDK surface.
    *
    * @internal
    */
@@ -22975,7 +23034,7 @@ export function createServerRpc(connection: MessageConnection) {
                 connection.sendRequest("extensions.disable", params),
         },
         /**
-         * Registers the calling SDK client as the per-entrypoint extension launch provider. Call before creating any sessions. When omitted, the runtime temporarily falls back to its built-in Node launcher for backward compatibility.
+         * Registers the calling SDK client as the per-entrypoint extension launch provider. Call before creating any sessions. When omitted, the runtime uses its built-in extension launcher.
          *
          * @experimental
          */
@@ -23630,6 +23689,16 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
          */
         sendMessages: async (params: SendMessagesRequest): Promise<SendMessagesResult> =>
             connection.sendRequest("session.sendMessages", { sessionId, ...params }),
+        /** @experimental */
+        sandbox: {
+            /**
+             * Returns whether managed policy requires sandbox enforcement and whether an enforcement failure has permanently blocked the session.
+             *
+             * @returns Managed sandbox enforcement state for a session.
+             */
+            getEnforcementStatus: async (): Promise<SandboxEnforcementStatus> =>
+                connection.sendRequest("session.sandbox.getEnforcementStatus", { sessionId }),
+        },
         /**
          * Aborts the current agent turn.
          *

@@ -816,7 +816,7 @@ class GeneratedRpcRecordsCoverageTest {
         var limits = new ModelCapabilitiesLimits(100000L, 8192L, 128000L, null);
         var capabilities = new ModelCapabilities(supports, limits);
         var policy = new ModelPolicy(ModelPolicyState.ENABLED, null);
-        var promo = new ModelBillingPromo("summer-2026", 25.0, "2026-08-01T00:00:00Z", "Summer discount");
+        var promo = new ModelBillingPromo("summer-2026", 25.0, "2026-08-01T00:00:00Z", "Summer discount", true);
         var billing = new ModelBilling(1.0, null, null, promo);
         var modelItem = new Model("gpt-5", "GPT-5", capabilities, policy, billing, null, null, null, null, null, null,
                 null, null);
@@ -834,6 +834,7 @@ class GeneratedRpcRecordsCoverageTest {
         assertEquals(Double.valueOf(25.0), result.models().get(0).billing().promo().discountPercent());
         assertEquals("2026-08-01T00:00:00Z", result.models().get(0).billing().promo().endsAt());
         assertEquals("Summer discount", result.models().get(0).billing().promo().message());
+        assertTrue(result.models().get(0).billing().promo().showBanner());
     }
 
     @Test

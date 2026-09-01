@@ -242,6 +242,7 @@ When resuming a session, you can optionally reconfigure many settings. This is u
 | `availableTools` | Restrict which tools are available |
 | `excludedTools` | Disable specific tools |
 | `provider` | Re-provide BYOK credentials (required for BYOK sessions) |
+| `capi.autoTier` | Override the persisted Auto routing preference on cold resume only |
 | `reasoningEffort` | Adjust reasoning effort level |
 | `streaming` | Enable/disable streaming responses |
 | `workingDirectory` | Change the working directory |
@@ -252,6 +253,21 @@ When resuming a session, you can optionally reconfigure many settings. This is u
 | `skillDirectories` | Directories to load skills from |
 | `disabledSkills` | Skills to disable |
 | `infiniteSessions` | Configure infinite session behavior |
+
+### Auto tier persistence
+
+With `model: "auto"`, the optional `capi.autoTier` setting selects an Auto routing preference: `efficiency`, `balance`, or `intelligence`. In Python, use `capi={"auto_tier": "balance"}`. This requires Copilot CLI `1.0.82-1` or later with V2 Auto routing; V1 Auto requests are unchanged.
+
+The runtime persists the selected tier, so applications do not need to resend it on every resume:
+
+* Omitting the tier when creating a session uses the runtime's default routing behavior.
+* A cold resume restores the persisted tier. Supplying an explicit tier overrides the restored value for the new activation.
+* When resuming a session already resident in the runtime, omitting the tier preserves the current selection, supplying the same tier is a no-op, and supplying a different tier is rejected.
+* Older sessions without a persisted tier retain default routing behavior.
+
+Tier selection is not a live model-switch operation. The SDK forwards the preference; the runtime owns persistence and validation.
+
+The `session.start` and `session.resume` events expose the selected tier in their optional `data.autoTier` field (`data.auto_tier` in Python). When no tier is selected, the field is omitted.
 
 ### Example: changing model on resume
 

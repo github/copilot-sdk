@@ -28,6 +28,7 @@ import uuid
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from pathlib import Path
 from types import TracebackType
 from typing import Any, ClassVar, Literal, NotRequired, TypedDict, cast, overload
 
@@ -177,6 +178,8 @@ ambient authentication.
 _ConnectionState = Literal["disconnected", "connecting", "connected", "error"]
 
 LogLevel = Literal["none", "error", "warning", "info", "debug", "all"]
+AskUserVariant = Literal["legacy", "elicitation"]
+"""Model-facing shape of the runtime's built-in ``ask_user`` tool."""
 
 
 @dataclass
@@ -260,8 +263,22 @@ def _exp_assignment_response_to_dict(
     return wire
 
 
+AutoTier = Literal["efficiency", "balance", "intelligence"]
+"""Routing preference used when the session model is ``auto``."""
+
+
 class CapiSessionOptions(TypedDict, total=False):
     """Provider-scoped Copilot API (CAPI) session options."""
+
+    auto_tier: AutoTier
+    """Routing preference used when the session model is ``auto``.
+
+    Requires a runtime with Auto tier support and V2 Auto routing. When omitted
+    on create, the runtime uses its default routing behavior. The runtime persists
+    this preference across cold resume; an explicit tier on cold resume overrides
+    the persisted value. For an already-resident session, omission preserves the
+    current tier and a different tier is rejected.
+    """
 
     enable_web_socket_responses: bool
     """Whether to use WebSocket transport for the CAPI Responses API.
@@ -289,6 +306,8 @@ def _cloud_session_options_to_dict(options: CloudSessionOptions) -> dict[str, An
 
 def _capi_session_options_to_wire(options: CapiSessionOptions) -> dict[str, Any]:
     wire: dict[str, Any] = {}
+    if "auto_tier" in options:
+        wire["autoTier"] = options["auto_tier"]
     if "enable_web_socket_responses" in options:
         wire["enableWebSocketResponses"] = options["enable_web_socket_responses"]
     return wire
@@ -1354,25 +1373,6 @@ _RUNTIME_SHUTDOWN_TIMEOUT_SECONDS = 10
 _CLI_PROCESS_EXIT_TIMEOUT_SECONDS = 5
 
 
-def _get_or_download_cli(*, include_runtime_lib: bool = False) -> str | None:
-    """Get the cached CLI binary, downloading if necessary.
-
-    Returns the path to the CLI binary, or None if unavailable (dev install
-    with no pinned version, or auto-download disabled).
-
-    When ``include_runtime_lib`` is set, also ensures the native in-process FFI
-    runtime is available (downloading it on first use).
-    """
-    from ._cli_download import get_or_download_cli
-
-    cli_path = get_or_download_cli()
-    if cli_path and include_runtime_lib:
-        from ._cli_download import ensure_runtime_library
-
-        ensure_runtime_library(cli_path)
-    return cli_path
-
-
 def _extract_transform_callbacks(
     system_message: SystemMessageConfig | dict[str, Any] | None,
 ) -> tuple[dict[str, Any] | None, dict[str, SectionTransformFn] | None]:
@@ -1649,6 +1649,7 @@ class CopilotClient:
         self._cli_path_source: str | None = None
         self._ffi_host: FfiRuntimeHost | None = None
         self._inprocess_runtime_path: str | None = None
+        self._inprocess_cli_entrypoint: str | None = None
 
         if isinstance(connection, UriRuntimeConnection):
             if connection.connection_token is not None and len(connection.connection_token) == 0:
@@ -1660,9 +1661,7 @@ class CopilotClient:
             # In-process (FFI): no child process and no per-connection token.
             self._runtime_port = None
             self._effective_connection_token = None
-            self._inprocess_runtime_path = self._resolve_runtime_entrypoint(
-                None, include_runtime_lib=True
-            )
+            self._inprocess_runtime_path = self._resolve_inprocess_runtime()
             if options.use_logged_in_user is None:
                 options.use_logged_in_user = not bool(options.github_token)
         else:
@@ -1683,7 +1682,7 @@ class CopilotClient:
             else:
                 self._effective_connection_token = None
 
-            # Resolve CLI path: explicit > COPILOT_CLI_PATH env var > downloaded binary.
+            # Resolve runtime path: explicit CLI > COPILOT_CLI_PATH > downloaded runtime.
             # Select the environment by identity, not truthiness, so an intentionally
             # empty per-connection or client env stays authoritative (the spawned child
             # receives that empty mapping) instead of falling back to os.environ and
@@ -1728,52 +1727,47 @@ class CopilotClient:
         path: str | None,
         *,
         env: Mapping[str, str] | None = None,
-        include_runtime_lib: bool = False,
     ) -> str:
         """Resolve the runtime executable path (explicit > env > downloaded).
 
         Sets ``self._cli_path_source`` for diagnostics. When
-        ``include_runtime_lib`` is set (in-process transport), also ensures the
-        native runtime library is downloaded alongside the CLI.
-
         Raises:
             RuntimeError: If no runtime path can be resolved.
         """
         if path is not None:
             self._cli_path_source = "explicit"
-            return self._ensure_runtime_lib(path) if include_runtime_lib else path
+            return path
 
         lookup = env if env is not None else os.environ
         env_cli_path = lookup.get("COPILOT_CLI_PATH")
         if env_cli_path:
             self._cli_path_source = "environment"
-            return self._ensure_runtime_lib(env_cli_path) if include_runtime_lib else env_cli_path
+            return env_cli_path
 
-        downloaded_path = _get_or_download_cli(include_runtime_lib=include_runtime_lib)
-        if downloaded_path:
-            self._cli_path_source = "downloaded"
-            return downloaded_path
+        from ._cli_download import ensure_runtime_wrapper
 
-        raise RuntimeError(
-            "Copilot CLI not found. Install a published wheel (which "
-            "auto-downloads the CLI on first use), set COPILOT_CLI_PATH, "
-            "or pass an explicit path via "
-            "RuntimeConnection.for_stdio(path=...) / "
-            "RuntimeConnection.for_tcp(path=...)."
-        )
+        self._cli_path_source = "downloaded"
+        return ensure_runtime_wrapper()
 
-    @staticmethod
-    def _ensure_runtime_lib(cli_path: str) -> str:
-        """Ensure the in-process runtime library sits next to a user-supplied CLI.
+    def _resolve_inprocess_runtime(self) -> str:
+        explicit_cli = os.environ.get("COPILOT_CLI_PATH")
+        if explicit_cli:
+            from ._cli_download import ensure_runtime_library
 
-        For explicit/``COPILOT_CLI_PATH`` entrypoints, the native library may
-        already be bundled (dev ``prebuilds`` layout); otherwise it is fetched on
-        first use. Returns ``cli_path`` unchanged.
-        """
-        from ._cli_download import ensure_runtime_library
+            runtime_path = ensure_runtime_library(explicit_cli)
+            if runtime_path is None:
+                raise RuntimeError(
+                    f"In-process runtime library not found next to '{explicit_cli}'."
+                )
+            self._cli_path_source = "environment"
+            self._inprocess_cli_entrypoint = explicit_cli
+            return runtime_path
 
-        ensure_runtime_library(cli_path)
-        return cli_path
+        from ._cli_download import ensure_runtime_wrapper
+
+        wrapper_path = Path(ensure_runtime_wrapper())
+        self._cli_path_source = "downloaded"
+        return str(wrapper_path.with_name("runtime.node"))
 
     @property
     def rpc(self) -> ServerRpc:
@@ -2209,6 +2203,7 @@ class CopilotClient:
         available_tools: list[str] | ToolSet | None = None,
         excluded_tools: list[str] | ToolSet | None = None,
         on_user_input_request: UserInputHandler | None = None,
+        ask_user_variant: AskUserVariant | None = None,
         hooks: SessionHooks | None = None,
         working_directory: str | None = None,
         additional_directories: list[str] | None = None,
@@ -2271,6 +2266,7 @@ class CopilotClient:
         extension_info: ExtensionInfo | None = None,
         canvas_provider: CanvasProviderIdentity | None = None,
         canvas_handler: CanvasHandler | None = None,
+        feature_flags: dict[str, bool] | None = None,
         exp_assignments: CopilotExpAssignmentResponse | None = None,
         enable_managed_settings: bool | None = None,
         github_mcp_tool_config: GitHubMcpToolConfig | None = None,
@@ -2311,10 +2307,16 @@ class CopilotClient:
                 including custom tools registered via ``tools=``. Ignored if
                 ``available_tools`` is set.
             on_user_input_request: Handler for user input requests.
+            ask_user_variant: Model-facing shape of the ``ask_user`` tool.
+                Accepted values are ``"legacy"`` and ``"elicitation"``. The
+                default is ``"legacy"``. To use ``"elicitation"``, also provide
+                ``on_elicitation_request`` so the host can answer structured forms.
             hooks: Lifecycle hooks for the session.
             working_directory: Working directory for the session.
             provider: Provider configuration for Azure or custom endpoints.
-            capi: CAPI provider-scoped options. WebSocket transport is the
+            capi: CAPI provider-scoped options. Set ``auto_tier`` to ``efficiency``,
+                ``balance``, or ``intelligence`` to select an Auto routing preference
+                on a runtime with Auto tier support. WebSocket transport is the
                 default for the CAPI Responses API whenever the model advertises
                 the ``ws:/responses`` endpoint. Set
                 ``enable_web_socket_responses=False`` to force the HTTP
@@ -2410,6 +2412,9 @@ class CopilotClient:
                 on its own and has no effect unless MCP Apps are enabled for
                 the session (see ``enable_mcp_apps``). Omitted from the wire
                 payload entirely when None.
+            feature_flags: Feature-flag values resolved by the host for this
+                session. Re-supply them when resuming after a runtime restart.
+                Sent on the wire as ``featureFlags``.
             exp_assignments: ExP assignment ("flight") data injected by a
                 trusted integrator, in the same JSON shape the Copilot CLI
                 fetches from the experimentation service
@@ -2465,6 +2470,8 @@ class CopilotClient:
             raise ValueError("on_permission_request must be callable when provided.")
         if github_token is not None and github_token_provider is not None:
             raise ValueError("github_token and github_token_provider are mutually exclusive")
+        if ask_user_variant not in (None, "legacy", "elicitation"):
+            raise ValueError('ask_user_variant must be "legacy" or "elicitation"')
         if not self._client:
             await self.start()
 
@@ -2552,6 +2559,8 @@ class CopilotClient:
         # Enable user input request callback if handler provided
         if on_user_input_request:
             payload["requestUserInput"] = True
+        if ask_user_variant is not None:
+            payload["askUserVariant"] = ask_user_variant
 
         # Enable elicitation request callback if handler provided
         payload["requestElicitation"] = bool(on_elicitation_request)
@@ -2583,6 +2592,9 @@ class CopilotClient:
         # Add cloud session options if provided
         if cloud is not None:
             payload["cloud"] = _cloud_session_options_to_dict(cloud)
+
+        if feature_flags is not None:
+            payload["featureFlags"] = feature_flags
 
         # Add ExP assignment data if provided (trusted integrator)
         if exp_assignments is not None:
@@ -2970,6 +2982,7 @@ class CopilotClient:
         available_tools: list[str] | ToolSet | None = None,
         excluded_tools: list[str] | ToolSet | None = None,
         on_user_input_request: UserInputHandler | None = None,
+        ask_user_variant: AskUserVariant | None = None,
         hooks: SessionHooks | None = None,
         working_directory: str | None = None,
         additional_directories: list[str] | None = None,
@@ -3033,6 +3046,7 @@ class CopilotClient:
         canvas_provider: CanvasProviderIdentity | None = None,
         canvas_handler: CanvasHandler | None = None,
         open_canvases: list[OpenCanvasInstance] | None = None,
+        feature_flags: dict[str, bool] | None = None,
         exp_assignments: CopilotExpAssignmentResponse | None = None,
         enable_managed_settings: bool | None = None,
         github_mcp_tool_config: GitHubMcpToolConfig | None = None,
@@ -3073,10 +3087,17 @@ class CopilotClient:
                 including custom tools registered via ``tools=``. Ignored if
                 ``available_tools`` is set.
             on_user_input_request: Handler for user input requests.
+            ask_user_variant: Model-facing shape of the ``ask_user`` tool.
+                Accepted values are ``"legacy"`` and ``"elicitation"``. The
+                default is ``"legacy"``. To use ``"elicitation"``, also provide
+                ``on_elicitation_request`` so the host can answer structured forms.
             hooks: Lifecycle hooks for the session.
             working_directory: Working directory for the session.
             provider: Provider configuration for Azure or custom endpoints.
-            capi: CAPI provider-scoped options. WebSocket transport is the
+            capi: CAPI provider-scoped options. Omit ``auto_tier`` to preserve the
+                current or persisted Auto routing preference. An explicit tier
+                overrides it on cold resume, but cannot change it on an
+                already-resident session. WebSocket transport is the
                 default for the CAPI Responses API whenever the model advertises
                 the ``ws:/responses`` endpoint. Set
                 ``enable_web_socket_responses=False`` to force the HTTP
@@ -3174,6 +3195,8 @@ class CopilotClient:
                 tool calls or permission prompts that were still pending when the
                 session was last suspended. When False (the default), the runtime
                 treats pending work as interrupted on resume.
+            feature_flags: Feature-flag values resolved by the host to apply
+                on resume. Sent on the wire as ``featureFlags``.
             exp_assignments: ExP assignment ("flight") data injected by a
                 trusted integrator, in the same JSON shape the Copilot CLI
                 fetches from the experimentation service
@@ -3226,6 +3249,8 @@ class CopilotClient:
             raise ValueError("on_permission_request must be callable when provided.")
         if github_token is not None and github_token_provider is not None:
             raise ValueError("github_token and github_token_provider are mutually exclusive")
+        if ask_user_variant not in (None, "legacy", "elicitation"):
+            raise ValueError('ask_user_variant must be "legacy" or "elicitation"')
         if not self._client:
             await self.start()
 
@@ -3341,6 +3366,8 @@ class CopilotClient:
 
         if on_user_input_request:
             payload["requestUserInput"] = True
+        if ask_user_variant is not None:
+            payload["askUserVariant"] = ask_user_variant
 
         # Enable elicitation request callback if handler provided
         payload["requestElicitation"] = bool(on_elicitation_request)
@@ -3367,6 +3394,9 @@ class CopilotClient:
         # Add remote session mode if provided
         if remote_session is not None:
             payload["remoteSession"] = remote_session.value
+
+        if feature_flags is not None:
+            payload["featureFlags"] = feature_flags
 
         # Add ExP assignment data if provided (trusted integrator)
         if exp_assignments is not None:
@@ -4286,7 +4316,6 @@ class CopilotClient:
             env = dict(os.environ)
         else:
             env = dict(opts.env)
-
         # Set auth token in environment if provided
         if opts.github_token:
             env["COPILOT_SDK_AUTH_TOKEN"] = opts.github_token
@@ -4437,6 +4466,7 @@ class CopilotClient:
 
         host = FfiRuntimeHost.create(
             runtime_path,
+            cli_entrypoint=self._inprocess_cli_entrypoint,
             environment=environment or None,
             args=tuple(args),
         )

@@ -29,8 +29,9 @@ runtime:
 python -m copilot download-runtime
 ```
 
-This caches the runtime binary locally. If you skip this step, the SDK will
-attempt to download it automatically on first use as a fallback.
+This caches `copilot-runtime`, its adjacent `runtime.node`, and the compatible
+`copilot` host locally. If you skip this step, the SDK downloads the bundle
+automatically on first managed stdio/TCP use.
 
 To pre-provision the native library required by the in-process (FFI) transport
 (see [In-process (FFI) transport](#in-process-ffi-transport)), pass `--in-process`:
@@ -39,15 +40,15 @@ To pre-provision the native library required by the in-process (FFI) transport
 python -m copilot download-runtime --in-process
 ```
 
-This additionally fetches the native runtime library into the versioned runtime
-cache. Stdio/TCP users never download it. When omitted, it is downloaded
-lazily on first use of the in-process transport.
+This instead provisions the compatible CLI artifact and native runtime library
+used by in-process hosting. When omitted, they are downloaded lazily on first
+use of the in-process transport.
 
 | Platform | Cache path |
 |----------|-----------|
-| Linux | `~/.cache/github-copilot-sdk/cli/<version>/copilot` |
-| macOS | `~/Library/Caches/github-copilot-sdk/cli/<version>/copilot` |
-| Windows | `%LOCALAPPDATA%\github-copilot-sdk\cli\<version>\copilot.exe` |
+| Linux | `~/.cache/github-copilot-sdk/cli/<version>/prebuilds/<platform>/` |
+| macOS | `~/Library/Caches/github-copilot-sdk/cli/<version>/prebuilds/<platform>/` |
+| Windows | `%LOCALAPPDATA%\github-copilot-sdk\cli\<version>\prebuilds\<platform>\` |
 
 ### Environment variables
 
@@ -56,7 +57,8 @@ lazily on first use of the in-process transport.
 | `COPILOT_CLI_PATH` | Use this specific binary instead of downloading |
 | `COPILOT_CLI_EXTRACT_DIR` | Override the cache directory (binary placed directly here) |
 | `COPILOT_SKIP_CLI_DOWNLOAD` | Set to `1` to disable auto-download |
-| `COPILOT_CLI_DOWNLOAD_BASE_URL` | Override the GitHub Releases download URL |
+| `COPILOT_NPM_REGISTRY_URL` | Override the npm registry used for managed out-of-process and in-process runtime downloads |
+| `COPILOT_CLI_DOWNLOAD_BASE_URL` | Override the GitHub Releases download URL used for the root CLI |
 
 ## Run the Sample
 
@@ -223,6 +225,10 @@ All options are kw-only parameters:
 - `RuntimeConnection.for_uri(url, connection_token=None)` — connect to an existing CLI server (e.g. `"localhost:8080"`).
 - `RuntimeConnection.for_inprocess()` — host the runtime in-process via its native C ABI (FFI). See [In-process (FFI) transport](#in-process-ffi-transport).
 
+Managed stdio and TCP connections use the downloaded `copilot-runtime`
+executable with adjacent `runtime.node` by default. An explicit connection
+path or `COPILOT_CLI_PATH` overrides the downloaded runtime.
+
 Child-process connections (`for_stdio`/`for_tcp`) also expose a per-connection
 `env` field for the spawned process. Set it on the returned connection instead of
 the client-level `env` — setting both raises:
@@ -272,6 +278,7 @@ finally:
 These are passed as keyword arguments to `create_session()`:
 
 - `model` (str): Model to use ("gpt-5", "claude-sonnet-4.5", etc.). **Required when using custom provider.**
+- `capi` (CapiSessionOptions): Copilot API options. With `model="auto"`, set `auto_tier` to `"efficiency"`, `"balance"`, or `"intelligence"` to choose a routing preference. Requires a runtime with Auto tier support and V2 Auto routing. Omission preserves default behavior. See [Auto tier persistence](../docs/features/session-persistence.md#auto-tier-persistence) for resume semantics.
 - `reasoning_effort` (str): Reasoning effort level for models that support it ("low", "medium", "high", "xhigh", "max"). Use `list_models()` to check which models support this option.
 - `session_id` (str): Custom session ID
 - `tools` (list): Custom tools exposed to the CLI. Tools with `handler=None` are declaration-only and must be resolved via pending tool-call RPCs.
@@ -283,7 +290,8 @@ These are passed as keyword arguments to `create_session()`:
 - `enable_session_store` (bool): Enables the cross-session store for search and retrieval across sessions. When unset in `"copilot-cli"` mode, the runtime default applies (enabled). In `"empty"` mode, defaults to disabled.
 - `github_token_provider` (callable): Acquires rotating, session-scoped GitHub tokens. Token results require a positive `expiresIn` value in seconds remaining when the callback completes; production tokens typically last eight hours. Cannot be combined with `github_token`.
 - `on_permission_request` (callable): Optional handler called before each tool execution to approve or deny it. When omitted, permission requests are emitted as events and left pending for manual resolution. `PermissionHandler.approve_all` approves requests when managed settings are disabled and raises an error when `enable_managed_settings` is true. Custom handlers can inspect `managed_approval_required` for human-facing confirmation logic. See [Permission Handling](#permission-handling) section.
-- `on_user_input_request` (callable): Handler for user input requests from the agent (enables ask_user tool). See [User Input Requests](#user-input-requests) section.
+- `on_user_input_request` (callable): Handler for legacy question-and-answer requests from the agent. Enables the legacy `ask_user` tool. See [User Input Requests](#user-input-requests) section.
+- `ask_user_variant` (`"legacy"` | `"elicitation"`): Selects the model-facing shape of the `ask_user` tool. Defaults to `"legacy"`; use `"elicitation"` with `on_elicitation_request`. Re-supply this option when cold-resuming a session.
 - `hooks` (SessionHooks): Hook handlers for session lifecycle events. See [Session Hooks](#session-hooks) section.
 
 ```python
@@ -899,7 +907,7 @@ To let a specific custom tool bypass the permission prompt entirely, set `skip_p
 
 ## User Input Requests
 
-Enable the agent to ask questions to the user using the `ask_user` tool by providing an `on_user_input_request` handler:
+Enable the legacy question-and-answer `ask_user` tool by providing an `on_user_input_request` handler:
 
 ```python
 async def handle_user_input(request, invocation):

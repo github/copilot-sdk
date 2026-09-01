@@ -29,8 +29,39 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class CapiSessionOptions {
 
+    @JsonProperty("autoTier")
+    private AutoTier autoTier;
+
     @JsonProperty("enableWebSocketResponses")
     private Boolean enableWebSocketResponses;
+
+    /**
+     * Gets the routing tier for the {@code auto} model (Auto mode V2).
+     *
+     * @return the explicit tier, or {@code null} to leave tier selection to the
+     *         runtime
+     */
+    public AutoTier getAutoTier() {
+        return autoTier;
+    }
+
+    /**
+     * Sets the routing tier, meaningful only with model {@code auto} (Auto mode
+     * V2). Requires a runtime version that supports {@code capi.autoTier}.
+     * <p>
+     * When omitted, the runtime chooses its default on create and preserves the
+     * persisted or current tier on resume. An explicit tier overrides the persisted
+     * tier on cold resume; the runtime rejects a conflicting tier when resuming a
+     * session already resident in memory.
+     *
+     * @param autoTier
+     *            the routing tier, or {@code null} to omit it from the request
+     * @return this config for method chaining
+     */
+    public CapiSessionOptions setAutoTier(AutoTier autoTier) {
+        this.autoTier = autoTier;
+        return this;
+    }
 
     /**
      * Gets whether CAPI Responses API WebSocket transport is enabled.

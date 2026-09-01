@@ -159,8 +159,8 @@ type Host struct {
 
 // Create resolves the native library and prepares the host. environment and
 // args contain SDK-managed runtime options.
-func Create(cliEntrypoint string, environment map[string]string, args []string) (*Host, error) {
-	libraryPath, err := ResolveLibraryPath(cliEntrypoint)
+func Create(runtimeEntrypoint, cliEntrypoint string, environment map[string]string, args []string) (*Host, error) {
+	libraryPath, err := ResolveLibraryPath(runtimeEntrypoint)
 	if err != nil {
 		return nil, err
 	}
@@ -207,18 +207,13 @@ func (h *Host) Start() error {
 	runtime.KeepAlive(argv)
 	runtime.KeepAlive(env)
 	if h.serverID == 0 {
-		return fmt.Errorf("copilot_runtime_host_start failed (library %q, entrypoint %q)", h.libraryPath, h.cliEntrypoint)
+		return fmt.Errorf("copilot_runtime_host_start failed (library %q)", h.libraryPath)
 	}
 
-	// host_start spawned the worker child via libuv's uv_spawn, which installs a
-	// SIGCHLD handler without SA_ONSTACK on its first call. The Go runtime aborts
-	// ("non-Go code set up signal handler without SA_ONSTACK flag") when it later
-	// reaps one of its own os/exec children (e.g. a test-spawned MCP server) and
-	// the delivered SIGCHLD lands on a non-signal stack. Re-add SA_ONSTACK to that
-	// foreign handler now that it exists (implemented on darwin+linux; a no-op on
-	// other platforms, and before the first spawn there is nothing to fix — hence
-	// here rather than at library load).
-	rearmForeignSignalHandlers(h.lib.handle)
+	if h.cliEntrypoint != "" {
+		// A legacy embedded host may install a SIGCHLD handler without SA_ONSTACK.
+		rearmForeignSignalHandlers(h.lib.handle)
+	}
 
 	callbackHandle := sharedOutboundCallback()
 	callbackToken := uintptr(nextOutboundToken.Add(1))
@@ -229,7 +224,9 @@ func (h *Host) Start() error {
 		outboundTargets.Delete(callbackToken)
 		h.callbackToken = 0
 		h.lib.hostShutdown(h.serverID)
-		rearmForeignSignalHandlers(h.lib.handle)
+		if h.cliEntrypoint != "" {
+			rearmForeignSignalHandlers(h.lib.handle)
+		}
 		h.serverID = 0
 		return fmt.Errorf("copilot_runtime_connection_open failed")
 	}
@@ -243,14 +240,12 @@ func (h *Host) Writer() io.WriteCloser { return hostWriter{h} }
 func (h *Host) Reader() io.ReadCloser { return h.recv }
 
 func (h *Host) buildArgv() []byte {
-	// A `.js` entrypoint (dev) is launched via node; the packaged single-file CLI
-	// embeds its own Node and is invoked directly. `--no-auto-update` pins the
-	// worker to the runtime package matching the loaded cdylib (avoids ABI skew).
-	var argv []string
-	if strings.HasSuffix(strings.ToLower(h.cliEntrypoint), ".js") {
-		argv = []string{"node", h.cliEntrypoint, "--embedded-host", "--no-auto-update"}
-	} else {
-		argv = []string{h.cliEntrypoint, "--embedded-host", "--no-auto-update"}
+	argv := make([]string, 0, len(h.args)+4)
+	if h.cliEntrypoint != "" {
+		if strings.HasSuffix(strings.ToLower(h.cliEntrypoint), ".js") {
+			argv = append(argv, "node")
+		}
+		argv = append(argv, h.cliEntrypoint, "--embedded-host", "--no-auto-update")
 	}
 	argv = append(argv, h.args...)
 	b, _ := json.Marshal(argv)
@@ -365,10 +360,10 @@ func (h *Host) Dispose() {
 	}
 	if serverID != 0 {
 		h.lib.hostShutdown(serverID)
-		// libuv may restore a previously saved SIGCHLD action while tearing down
-		// its final child watcher, so repair the process-wide handler again after
-		// shutdown before Go reaps another os/exec child.
-		rearmForeignSignalHandlers(h.lib.handle)
+		if h.cliEntrypoint != "" {
+			// A legacy host may restore its saved SIGCHLD action during shutdown.
+			rearmForeignSignalHandlers(h.lib.handle)
+		}
 	}
 	h.recv.Close()
 }

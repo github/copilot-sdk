@@ -210,6 +210,7 @@ async fn session_commands_enqueue_and_respond_to_queued_command() {
                     .commands()
                     .enqueue(EnqueueCommandParams {
                         command: "/help".to_string(),
+                        display_text: None,
                     })
                     .await
                     .expect("enqueue command");

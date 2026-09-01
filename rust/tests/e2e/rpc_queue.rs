@@ -153,6 +153,7 @@ async fn pendingitems_reports_queued_command_and_remove_and_clear_update_queue()
                     .commands()
                     .enqueue(EnqueueCommandParams {
                         command: first_command,
+                        display_text: None,
                     })
                     .await
                     .expect("enqueue command");
@@ -167,6 +168,7 @@ async fn pendingitems_reports_queued_command_and_remove_and_clear_update_queue()
                     .commands()
                     .enqueue(EnqueueCommandParams {
                         command: second_command.clone(),
+                        display_text: None,
                     })
                     .await
                     .expect("enqueue second command");
@@ -187,6 +189,7 @@ async fn pendingitems_reports_queued_command_and_remove_and_clear_update_queue()
                     .commands()
                     .enqueue(EnqueueCommandParams {
                         command: third_command.clone(),
+                        display_text: None,
                     })
                     .await
                     .expect("enqueue third command");
