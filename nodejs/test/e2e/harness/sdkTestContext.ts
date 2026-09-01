@@ -309,8 +309,13 @@ export async function createSdkTestContext({
             process.chdir(restoreCwd);
             restoreCwd = undefined;
         }
-        // Empty directories but leave them in place for next test
-        await rimraf([join(homeDir, "*"), join(workDir, "*")], { glob: true });
+        // The in-process runtime retains open state files until afterAll shuts it down.
+        // Keep its isolated home intact while it is alive; removing open files on POSIX
+        // can leave later tests using unlinked database state.
+        const cleanupPaths = isInProcess
+            ? [join(workDir, "*")]
+            : [join(homeDir, "*"), join(workDir, "*")];
+        await rimraf(cleanupPaths, { glob: true });
     });
 
     afterAll(async () => {
