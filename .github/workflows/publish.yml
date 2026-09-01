@@ -327,9 +327,6 @@ jobs:
           node-version: "22.x"
       - name: Set up uv
         uses: astral-sh/setup-uv@v7
-      - name: Install Node.js dependencies (for CLI version)
-        working-directory: ./nodejs
-        run: npm ci --ignore-scripts
       - name: Set version
         run: sed -i "s/^version = .*/version = \"${{ needs.version.outputs.version }}\"/" pyproject.toml
       - name: Inject CLI version

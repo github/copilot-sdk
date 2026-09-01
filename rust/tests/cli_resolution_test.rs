@@ -199,7 +199,7 @@ async fn extract_dir_runtime_override_is_honored() {
 
 /// Build-time version pins, when present, must match the selected bundling
 /// implementation's checksum format.
-/// When absent, build.rs falls through to `../nodejs/package-lock.json` —
+/// When absent, build.rs falls through to `../nodejs/package.json` —
 /// both are accepted, this test only checks the pin file's format if it's
 /// there.
 #[test]

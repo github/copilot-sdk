@@ -961,7 +961,7 @@ github-copilot-sdk = { version = "0.1", default-features = false }
 
 1. **Version pin.** `build.rs` reads the CLI version from one of two sources:
    - `cli-version.txt` at the crate root (present in published crate tarballs and vendored slots).
-   - Otherwise, `../nodejs/package-lock.json` (contributor build inside the github/copilot-sdk repo — matches the .NET and Go SDK conventions here).
+   - Otherwise, `../nodejs/package.json` (contributor build inside the github/copilot-sdk repo — matches the .NET and Go SDK conventions here).
 
    The resolved version is baked into the crate via `cargo:rustc-env=COPILOT_SDK_CLI_VERSION` regardless of mode. The runtime resolver consumes it to recompute the on-disk path by convention, so no absolute paths leak into the rlib.
 

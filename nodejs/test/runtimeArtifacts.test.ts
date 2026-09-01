@@ -1,9 +1,18 @@
 import { existsSync, mkdtempSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { createHash } from "node:crypto";
+import { c as createTar } from "tar";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { defaultRuntimeCacheRoot, materializeRuntimeBundle } from "../src/runtimeArtifacts.js";
+import {
+    defaultRuntimeCacheRoot,
+    ensureRuntimeBundle,
+    getRuntimePlatform,
+    getRuntimeReleaseAssetName,
+    materializeRuntimeBundle,
+} from "../src/runtimeArtifacts.js";
+import { COPILOT_CLI_HASHES, COPILOT_CLI_VERSION } from "../src/cliVersion.js";
 
 describe("defaultRuntimeCacheRoot", () => {
     it.each([
@@ -28,6 +37,33 @@ describe("defaultRuntimeCacheRoot", () => {
         ],
     ])("uses the %s user cache directory", (platform, home, environment, expected) => {
         expect(defaultRuntimeCacheRoot(platform, home, environment)).toBe(expected);
+    });
+});
+
+describe("release runtime selection", () => {
+    it("keeps the compiled CLI version aligned with package metadata", () => {
+        const packageJson = JSON.parse(
+            readFileSync(join(import.meta.dirname, "../package.json"), "utf8")
+        );
+        expect(COPILOT_CLI_VERSION).toBe(packageJson.copilotCliVersion);
+        expect(Object.keys(COPILOT_CLI_HASHES)).toHaveLength(8);
+        expect(packageJson.dependencies).not.toHaveProperty("@github/copilot");
+    });
+
+    it.each([
+        ["darwin", "arm64", false, "darwin-arm64"],
+        ["darwin", "x64", false, "darwin-x64"],
+        ["linux", "arm64", false, "linux-arm64"],
+        ["linux", "x64", true, "linuxmusl-x64"],
+        ["win32", "arm64", false, "win32-arm64"],
+    ])("maps %s/%s to %s", (platform, arch, musl, expected) => {
+        expect(getRuntimePlatform(platform, arch, musl)).toBe(expected);
+    });
+
+    it("uses the platform npm tarball published in the CLI release", () => {
+        expect(getRuntimeReleaseAssetName("1.2.3-4", "linux-x64")).toBe(
+            "github-copilot-1.2.3-4-linux-x64.tgz"
+        );
     });
 });
 
@@ -105,5 +141,65 @@ describe("materializeRuntimeBundle", () => {
                 join(sourceDir, "cache")
             )
         ).toThrow(/Copilot runtime\.node not found/);
+    });
+});
+
+describe("ensureRuntimeBundle", () => {
+    it("downloads, verifies, and caches a release runtime", async () => {
+        const sourceRoot = mkdtempSync(join(tmpdir(), "copilot-release-source-"));
+        const packageRoot = join(sourceRoot, "package");
+        const platform = "linux-x64";
+        const prebuilds = join(packageRoot, "prebuilds", platform);
+        mkdirSync(prebuilds, { recursive: true });
+        writeFileSync(join(prebuilds, "copilot-runtime"), "wrapper");
+        writeFileSync(join(prebuilds, "runtime.node"), "runtime");
+        mkdirSync(join(packageRoot, "schemas"), { recursive: true });
+        writeFileSync(join(packageRoot, "schemas", "api.schema.json"), "{}");
+
+        const archivePath = join(sourceRoot, "runtime.tgz");
+        await createTar({ cwd: sourceRoot, file: archivePath, gzip: true }, ["package"]);
+        const archive = readFileSync(archivePath);
+        const version = "1.2.3-4";
+        const assetName = getRuntimeReleaseAssetName(version, platform);
+        const checksum = createHash("sha256").update(archive).digest("hex");
+        const fetcher = vi.fn(async (url: string | URL | Request) => {
+            const value = String(url);
+            return value.endsWith("SHA256SUMS.txt")
+                ? new Response(`${checksum}  ${assetName}\n`)
+                : new Response(archive);
+        });
+        const cacheRoot = join(sourceRoot, "cache");
+
+        const runtimePath = await ensureRuntimeBundle(version, {
+            cacheRoot,
+            fetch: fetcher,
+            platform,
+        });
+        expect(readFileSync(runtimePath, "utf8")).toBe("wrapper");
+        expect(readFileSync(join(dirname(runtimePath), "runtime.node"), "utf8")).toBe("runtime");
+        expect(readFileSync(join(dirname(runtimePath), "schemas", "api.schema.json"), "utf8")).toBe(
+            "{}"
+        );
+
+        await expect(
+            ensureRuntimeBundle(version, { cacheRoot, fetch: fetcher, platform })
+        ).resolves.toBe(runtimePath);
+        expect(fetcher).toHaveBeenCalledTimes(2);
+    });
+
+    it("rejects a release archive that does not match the manifest", async () => {
+        const cacheRoot = mkdtempSync(join(tmpdir(), "copilot-release-mismatch-"));
+        const fetcher = vi.fn(async (url: string | URL | Request) =>
+            String(url).endsWith("SHA256SUMS.txt")
+                ? new Response(
+                      `${"0".repeat(64)}  ${getRuntimeReleaseAssetName("1.2.3", "linux-x64")}\n`
+                  )
+                : new Response("corrupt archive")
+        );
+
+        await expect(
+            ensureRuntimeBundle("1.2.3", { cacheRoot, fetch: fetcher, platform: "linux-x64" })
+        ).rejects.toThrow("Checksum mismatch");
+        expect(existsSync(join(cacheRoot, "1.2.3", "linux-x64"))).toBe(false);
     });
 });

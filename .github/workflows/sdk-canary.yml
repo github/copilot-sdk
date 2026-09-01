@@ -189,36 +189,18 @@ jobs:
       - name: Override runtime version
         run: |
           set -euo pipefail
-          echo "Installing @github/copilot@${RUNTIME_VERSION} (source: ${RUNTIME_SOURCE})"
-          npm install "@github/copilot@${RUNTIME_VERSION}" --save-exact --ignore-scripts
+          echo "Pinning github/copilot-cli release ${RUNTIME_VERSION} (source: ${RUNTIME_SOURCE})"
+          node scripts/set-cli-version.js "$RUNTIME_VERSION"
+          npm install --ignore-scripts
 
-      - name: Verify installed runtime
+      - name: Verify release runtime
         run: |
           set -euo pipefail
-          node -e '
-            const fs = require("fs");
-            const expected = process.env.RUNTIME_VERSION;
-            const pkg = require("./node_modules/@github/copilot/package.json");
-            if (pkg.version !== expected) {
-              console.error(`::error::Installed @github/copilot version ${pkg.version} does not match requested ${expected}`);
-              process.exit(1);
-            }
-            const dir = "./node_modules/@github";
-            const entries = fs.readdirSync(dir).filter((d) => d.startsWith("copilot-"));
-            const plat = process.platform === "win32" ? "win32" : process.platform === "darwin" ? "darwin" : "linux";
-            const arch = process.arch;
-            const match = entries.find((d) => d.includes(plat) && d.includes(arch));
-            if (!match) {
-              console.error(`::error::No @github/copilot platform optional dep for ${plat}-${arch}. Present: ${entries.join(", ") || "(none)"}`);
-              process.exit(1);
-            }
-            const platPkg = require(`${dir}/${match}/package.json`);
-            if (platPkg.version !== expected) {
-              console.error(`::error::Platform package @github/${match} version ${platPkg.version} does not match requested ${expected}`);
-              process.exit(1);
-            }
-            console.log(`Verified @github/copilot@${pkg.version} with platform package @github/${match}@${platPkg.version}`);
-          '
+          runtime_path=$(npm run --silent prepare:runtime -- --print-path)
+          test -x "$runtime_path" || [ "$RUNNER_OS" = "Windows" ]
+          test -s "$(dirname "$runtime_path")/runtime.node"
+          legacy_path=$(npm run --silent prepare:runtime -- --print-legacy-path)
+          node "$legacy_path" --version | grep -F "$RUNTIME_VERSION"
 
       - name: Build SDK
         run: npm run build
@@ -318,16 +300,15 @@ jobs:
           echo "SDK canary version: $SDK_VERSION"
           echo "SDK_VERSION=$SDK_VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Set package version and pin runtime dependency
+      - name: Set package and runtime versions
         env:
           SDK_VERSION: ${{ steps.sdkver.outputs.SDK_VERSION }}
         run: |
           set -euo pipefail
           npm version "$SDK_VERSION" --no-git-tag-version --allow-same-version
-          # Exact pin (no caret) so the published SDK canary depends on precisely
-          # the runtime version that was just tested by the e2e gate.
-          npm pkg set "dependencies.@github/copilot=$RUNTIME_VERSION"
-          echo "Pinned @github/copilot to $(npm pkg get dependencies.@github/copilot)"
+          node scripts/set-cli-version.js "$RUNTIME_VERSION"
+          npm install --package-lock-only --ignore-scripts
+          echo "Pinned github/copilot-cli release to $(npm pkg get copilotCliVersion)"
 
       - name: Build SDK
         run: npm run build

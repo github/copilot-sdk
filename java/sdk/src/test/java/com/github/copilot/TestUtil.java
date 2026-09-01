@@ -39,8 +39,7 @@ public final class TestUtil {
      * <li>Use the {@code COPILOT_CLI_PATH} environment variable when set.</li>
      * <li>Otherwise search the system PATH using {@code where.exe} (Windows) or
      * {@code which} (Linux/macOS).</li>
-     * <li>Walk parent directories looking for
-     * {@code nodejs/node_modules/@github/copilot/npm-loader.js}.</li>
+     * <li>Prepare the release pinned by {@code nodejs/package.json}.</li>
      * </ol>
      *
      * <p>
@@ -65,39 +64,34 @@ public final class TestUtil {
             return copilotInPath;
         }
 
-        // Walk parent directories looking for the CLI in the test harness or nodejs
-        // installation. Mirrors the resolution order in E2ETestContext.getCliPath().
-        String os = System.getProperty("os.name").toLowerCase();
-        String arch = System.getProperty("os.arch").toLowerCase();
-        String platform = os.contains("mac") ? "darwin" : os.contains("win") ? "win32" : "linux";
-        String cpuArch = arch.contains("aarch64") || arch.contains("arm64") ? "arm64" : "x64";
-        String binaryName = os.contains("win") ? "copilot.exe" : "copilot";
-
         Path current = Paths.get(System.getProperty("user.dir"));
         while (current != null) {
-            // Test harness platform-specific binary
-            Path platformBinary = current.resolve(
-                    "test/harness/node_modules/@github/copilot-" + platform + "-" + cpuArch + "/" + binaryName);
-            if (platformBinary.toFile().exists()) {
-                return platformBinary.toString();
-            }
-
-            // Test harness npm-loader.js
-            Path npmLoader = current.resolve("test/harness/node_modules/@github/copilot/npm-loader.js");
-            if (npmLoader.toFile().exists()) {
-                return npmLoader.toString();
-            }
-
-            // nodejs installation (thin loader; resolves the platform-specific
-            // CLI package internally)
-            Path cliPath = current.resolve("nodejs/node_modules/@github/copilot/npm-loader.js");
-            if (cliPath.toFile().exists()) {
-                return cliPath.toString();
+            if (current.resolve("nodejs/package.json").toFile().exists()) {
+                try {
+                    return preparePinnedCli(current);
+                } catch (Exception preparationFailed) {
+                    return null;
+                }
             }
             current = current.getParent();
         }
 
         return null;
+    }
+
+    static String preparePinnedCli(Path repoRoot) throws Exception {
+        boolean isWindows = System.getProperty("os.name").toLowerCase().contains("win");
+        var process = new ProcessBuilder(isWindows ? "npm.cmd" : "npm", "run", "--silent", "prepare:runtime", "--",
+                "--print-path").directory(repoRoot.resolve("nodejs").toFile()).redirectErrorStream(true).start();
+        String output;
+        try (var reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+            output = reader.lines().reduce((first, second) -> second).orElse("").trim();
+        }
+        int exitCode = process.waitFor();
+        if (exitCode != 0 || output.isEmpty()) {
+            throw new IllegalStateException("Failed to prepare the pinned Copilot CLI: " + output);
+        }
+        return output;
     }
 
     /**

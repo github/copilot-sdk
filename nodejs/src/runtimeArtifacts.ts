@@ -10,14 +10,26 @@ import {
     renameSync,
     rmSync,
     statSync,
+    writeFileSync,
 } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, relative, sep } from "node:path";
+import { x as extractTar } from "tar";
+import { COPILOT_CLI_HASHES, COPILOT_CLI_VERSION } from "./cliVersion.js";
 
 export interface RuntimeArtifactSources {
     packageRoot: string;
     platform: string;
 }
+
+export interface EnsureRuntimeBundleOptions {
+    cacheRoot?: string;
+    environment?: NodeJS.ProcessEnv;
+    fetch?: typeof globalThis.fetch;
+    platform?: string;
+}
+
+const runtimeDownloads = new Map<string, Promise<string>>();
 
 const EXCLUDED_TOP_LEVEL = new Set([
     "app.js",
@@ -58,6 +70,10 @@ function validateFile(path: string, label: string): void {
 function validateRuntimeBundle(wrapper: string, runtimeNode: string): void {
     validateFile(wrapper, "Copilot runtime wrapper");
     validateFile(runtimeNode, "Copilot runtime.node");
+}
+
+function sanitizeCacheSegment(value: string): string {
+    return value.replace(/[^a-zA-Z0-9._-]/g, "_");
 }
 
 function isExcluded(relativePath: string): boolean {
@@ -142,15 +158,18 @@ export function defaultRuntimeCacheRoot(
 
 export function materializeRuntimeBundle(
     sources: RuntimeArtifactSources,
-    cacheRoot = defaultRuntimeCacheRoot()
+    cacheRoot = defaultRuntimeCacheRoot(),
+    cacheKey = `${sources.platform}-${sourceFingerprint(collectRuntimeAssets(sources))}`
 ): string {
     const assets = collectRuntimeAssets(sources);
-    const wrapperName = process.platform === "win32" ? "copilot-runtime.exe" : "copilot-runtime";
+    const wrapperName = sources.platform.startsWith("win32")
+        ? "copilot-runtime.exe"
+        : "copilot-runtime";
     const sourceWrapper = assets.find((asset) => asset.relativePath === wrapperName)?.source;
     const sourceRuntimeNode = assets.find((asset) => asset.relativePath === "runtime.node")?.source;
     validateRuntimeBundle(sourceWrapper ?? "", sourceRuntimeNode ?? "");
 
-    const installDir = join(cacheRoot, `${sources.platform}-${sourceFingerprint(assets)}`);
+    const installDir = join(cacheRoot, cacheKey);
     const installedWrapper = join(installDir, wrapperName);
     const installedRuntimeNode = join(installDir, "runtime.node");
     if (existsSync(installDir)) {
@@ -180,4 +199,194 @@ export function materializeRuntimeBundle(
     }
 
     return installedWrapper;
+}
+
+function isMusl(): boolean {
+    if (process.platform !== "linux") {
+        return false;
+    }
+    const report = process.report?.getReport() as
+        | { header?: { glibcVersionRuntime?: string } }
+        | undefined;
+    return report?.header?.glibcVersionRuntime === undefined;
+}
+
+export function getRuntimePlatform(
+    platform = process.platform,
+    arch = process.arch,
+    musl = isMusl()
+): string {
+    if (arch !== "x64" && arch !== "arm64") {
+        throw new Error(`Unsupported Copilot CLI architecture: ${arch}.`);
+    }
+    if (platform === "linux") {
+        return `${musl ? "linuxmusl" : "linux"}-${arch}`;
+    }
+    if (platform === "darwin" || platform === "win32") {
+        return `${platform}-${arch}`;
+    }
+    throw new Error(`Unsupported Copilot CLI platform: ${platform}-${arch}.`);
+}
+
+export function getRuntimeReleaseAssetName(version: string, platform: string): string {
+    return `github-copilot-${version}-${platform}.tgz`;
+}
+
+async function fetchWithRetry(fetcher: typeof globalThis.fetch, url: string): Promise<Response> {
+    let lastError: unknown;
+    for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+            const response = await fetcher(url);
+            if (response.ok) {
+                return response;
+            }
+            await response.body?.cancel();
+            lastError = new Error(`${response.status} ${response.statusText}`);
+            if (
+                response.status >= 400 &&
+                response.status < 500 &&
+                response.status !== 408 &&
+                response.status !== 429
+            ) {
+                break;
+            }
+        } catch (error) {
+            lastError = error;
+        }
+        if (attempt < 2) {
+            await new Promise((resolve) => setTimeout(resolve, 2 ** attempt * 1000));
+        }
+    }
+    throw new Error(`Failed to download ${url}: ${String(lastError)}`);
+}
+
+function checksumForAsset(checksums: string, assetName: string): string {
+    for (const line of checksums.split(/\r?\n/)) {
+        const [digest, name] = line.trim().split(/\s+/, 2);
+        if (name?.replace(/^\*/, "") === assetName && /^[a-f0-9]{64}$/i.test(digest)) {
+            return digest.toLowerCase();
+        }
+    }
+    throw new Error(`SHA256SUMS.txt does not contain ${assetName}.`);
+}
+
+export async function ensureRuntimeBundle(
+    version: string,
+    options: EnsureRuntimeBundleOptions = {}
+): Promise<string> {
+    const platform = options.platform ?? getRuntimePlatform();
+    const cacheRoot = options.cacheRoot ?? defaultRuntimeCacheRoot();
+    const baseUrl = (
+        (options.environment ?? process.env).COPILOT_CLI_DOWNLOAD_BASE_URL ??
+        "https://github.com/github/copilot-cli/releases/download"
+    ).replace(/\/+$/, "");
+    const downloadKey = `${cacheRoot}\0${version}\0${platform}\0${baseUrl}`;
+    if (!options.fetch) {
+        const existing = runtimeDownloads.get(downloadKey);
+        if (existing) {
+            return existing;
+        }
+        const download = ensureRuntimeBundleUncached(version, options);
+        runtimeDownloads.set(downloadKey, download);
+        try {
+            return await download;
+        } finally {
+            runtimeDownloads.delete(downloadKey);
+        }
+    }
+    return ensureRuntimeBundleUncached(version, options);
+}
+
+async function ensureRuntimeBundleUncached(
+    version: string,
+    options: EnsureRuntimeBundleOptions
+): Promise<string> {
+    const platform = options.platform ?? getRuntimePlatform();
+    const cacheRoot = options.cacheRoot ?? defaultRuntimeCacheRoot();
+    const versionRoot = join(cacheRoot, sanitizeCacheSegment(version));
+    const wrapperName = platform.startsWith("win32") ? "copilot-runtime.exe" : "copilot-runtime";
+    const installedWrapper = join(versionRoot, platform, wrapperName);
+    const installedRuntimeNode = join(versionRoot, platform, "runtime.node");
+    if (existsSync(installedWrapper) && existsSync(installedRuntimeNode)) {
+        validateRuntimeBundle(installedWrapper, installedRuntimeNode);
+        makeExecutable(installedWrapper);
+        return installedWrapper;
+    }
+
+    const packageRoot = await ensureCopilotPackage(version, options);
+    return materializeRuntimeBundle({ packageRoot, platform }, versionRoot, platform);
+}
+
+export async function ensureCopilotPackage(
+    version: string,
+    options: EnsureRuntimeBundleOptions = {}
+): Promise<string> {
+    const environment = options.environment ?? process.env;
+    const platform = options.platform ?? getRuntimePlatform();
+    const cacheRoot = options.cacheRoot ?? defaultRuntimeCacheRoot();
+    const versionRoot = join(cacheRoot, sanitizeCacheSegment(version));
+    const cachedPackageRoot = join(versionRoot, "packages", platform);
+    const cachedRuntimeNode = join(cachedPackageRoot, "prebuilds", platform, "runtime.node");
+    if (existsSync(cachedRuntimeNode)) {
+        validateFile(cachedRuntimeNode, "Copilot runtime.node");
+        return cachedPackageRoot;
+    }
+
+    const fetcher = options.fetch ?? globalThis.fetch;
+    if (!fetcher) {
+        throw new Error("This Node.js runtime does not provide fetch().");
+    }
+    mkdirSync(cacheRoot, { recursive: true });
+    const baseUrl = (
+        environment.COPILOT_CLI_DOWNLOAD_BASE_URL ??
+        "https://github.com/github/copilot-cli/releases/download"
+    ).replace(/\/+$/, "");
+    const releaseUrl = `${baseUrl}/v${version}`;
+    const assetName = getRuntimeReleaseAssetName(version, platform);
+    const pinnedChecksum =
+        version === COPILOT_CLI_VERSION ? COPILOT_CLI_HASHES[platform] : undefined;
+    const [checksumsResponse, assetResponse] = await Promise.all([
+        pinnedChecksum
+            ? Promise.resolve(undefined)
+            : fetchWithRetry(fetcher, `${releaseUrl}/SHA256SUMS.txt`),
+        fetchWithRetry(fetcher, `${releaseUrl}/${assetName}`),
+    ]);
+    const archive = Buffer.from(await assetResponse.arrayBuffer());
+    const expectedChecksum =
+        pinnedChecksum ?? checksumForAsset(await checksumsResponse!.text(), assetName);
+    const actualChecksum = createHash("sha256").update(archive).digest("hex");
+    if (actualChecksum !== expectedChecksum) {
+        throw new Error(
+            `Checksum mismatch for ${assetName}: expected ${expectedChecksum}, got ${actualChecksum}.`
+        );
+    }
+
+    const stagingRoot = mkdtempSync(join(cacheRoot, ".download-"));
+    const archivePath = join(stagingRoot, assetName);
+    const packageRoot = join(stagingRoot, "package");
+    writeFileSync(archivePath, archive);
+    try {
+        await extractTar({
+            cwd: stagingRoot,
+            file: archivePath,
+            gzip: true,
+            preservePaths: false,
+            strict: true,
+        });
+        validateFile(
+            join(packageRoot, "prebuilds", platform, "runtime.node"),
+            "Copilot runtime.node"
+        );
+        mkdirSync(dirname(cachedPackageRoot), { recursive: true });
+        try {
+            renameSync(packageRoot, cachedPackageRoot);
+        } catch (error) {
+            if (!existsSync(cachedRuntimeNode)) {
+                throw error;
+            }
+        }
+        return cachedPackageRoot;
+    } finally {
+        rmSync(stagingRoot, { recursive: true, force: true });
+    }
 }

@@ -119,22 +119,19 @@ export function validateSha256Manifest({
 }
 
 export function readPinnedNativeVersion(repoRoot, classifier) {
-  const packageName = `@github/copilot-${classifier}`;
-  const lockPath = path.join(repoRoot, "nodejs", "package-lock.json");
-  let lock;
+  const packagePath = path.join(repoRoot, "nodejs", "package.json");
+  let packageJson;
   try {
-    lock = JSON.parse(fs.readFileSync(lockPath, "utf8"));
+    packageJson = JSON.parse(fs.readFileSync(packagePath, "utf8"));
   } catch (error) {
     throw new Error(
-      `Could not read pinned ${packageName} version from ${lockPath}: ${error.message}`,
+      `Could not read pinned Copilot CLI version from ${packagePath}: ${error.message}`,
     );
   }
 
-  const version = lock.packages?.[`node_modules/${packageName}`]?.version;
+  const version = packageJson.copilotCliVersion;
   if (!version) {
-    throw new Error(
-      `Could not find pinned ${packageName} version in ${lockPath}`,
-    );
+    throw new Error(`Could not find copilotCliVersion in ${packagePath}`);
   }
   return version;
 }

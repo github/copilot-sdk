@@ -8,6 +8,16 @@ To use the SDK, you'll need:
 
 - Node.js ^20.19.0 or >=22.12.0
 
+The SDK downloads its pinned Copilot CLI runtime from the corresponding
+`github/copilot-cli` GitHub Release on first use and caches it in the operating
+system's user cache directory. Set `COPILOT_CLI_PATH` to use an existing
+installation instead, or `COPILOT_CLI_DOWNLOAD_BASE_URL` to use a release
+mirror.
+
+The checked-in release pin is `copilotCliVersion` in `package.json`. Run
+`npm run set:cli-version -- <version>` to update it and regenerate the
+platform SHA-256 map in `src/cliVersion.ts`.
+
 ## Installation
 
 ```bash

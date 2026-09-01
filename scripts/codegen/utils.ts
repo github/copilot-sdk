@@ -12,6 +12,8 @@ import type { JSONSchema7, JSONSchema7Definition } from "json-schema";
 import path from "path";
 import { fileURLToPath } from "url";
 import { promisify } from "util";
+import { COPILOT_CLI_VERSION } from "../../nodejs/src/cliVersion.js";
+import { ensureRuntimeBundle } from "../../nodejs/src/runtimeArtifacts.js";
 
 export const execFileAsync = promisify(execFile);
 
@@ -45,59 +47,23 @@ export type SchemaWithSharedDefinitions<T extends JSONSchema7 = JSONSchema7> = T
 };
 // ── Schema paths ────────────────────────────────────────────────────────────
 
-const SDK_NODE_MODULES = path.join(REPO_ROOT, "nodejs/node_modules");
-
 /**
- * Resolve a JSON schema shipped by the `@github/copilot` CLI package.
- *
- * The CLI package layout changed in 1.0.64-1: the umbrella `@github/copilot`
- * package became a thin loader and its bundled assets (including the JSON
- * schemas) moved into the platform-specific packages installed as optional
- * dependencies, e.g. `@github/copilot-linux-x64` or `@github/copilot-win32-x64`.
- *
- * To support both layouts we look in the umbrella package first (older
- * versions) and then in whichever platform package was installed for the
- * current host.
+ * Resolve a JSON schema from the pinned Copilot CLI GitHub Release.
  */
-async function resolveCopilotSchemaPath(nodeModulesDir: string, fileName: string): Promise<string> {
-    const candidates = [path.join(nodeModulesDir, "@github/copilot/schemas", fileName)];
-
-    const githubScopeDir = path.join(nodeModulesDir, "@github");
-    try {
-        for (const entry of await fs.readdir(githubScopeDir)) {
-            if (entry.startsWith("copilot-")) {
-                candidates.push(path.join(githubScopeDir, entry, "schemas", fileName));
-            }
-        }
-    } catch (err) {
-        const code = (err as NodeJS.ErrnoException).code;
-        if (code !== "ENOENT" && code !== "ENOTDIR") {
-            throw err;
-        }
-        // @github scope directory may not exist yet; fall through to the error below.
-    }
-
-    for (const candidate of candidates) {
-        try {
-            await fs.access(candidate);
-            return candidate;
-        } catch {
-            // Try the next candidate.
-        }
-    }
-
-    throw new Error(
-        `${fileName} not found under ${githubScopeDir}. Run 'npm ci' in nodejs/ first.`
-    );
+async function resolveCopilotSchemaPath(fileName: string): Promise<string> {
+    const runtimePath = await ensureRuntimeBundle(COPILOT_CLI_VERSION);
+    const schemaPath = path.join(path.dirname(runtimePath), "schemas", fileName);
+    await fs.access(schemaPath);
+    return schemaPath;
 }
 
 export async function getSessionEventsSchemaPath(): Promise<string> {
-    return resolveCopilotSchemaPath(SDK_NODE_MODULES, "session-events.schema.json");
+    return resolveCopilotSchemaPath("session-events.schema.json");
 }
 
 export async function getApiSchemaPath(cliArg?: string): Promise<string> {
     if (cliArg) return cliArg;
-    return resolveCopilotSchemaPath(SDK_NODE_MODULES, "api.schema.json");
+    return resolveCopilotSchemaPath("api.schema.json");
 }
 
 // ── Brand casing normalization ──────────────────────────────────────────────

@@ -47,7 +47,7 @@
 - Tools: each SDK has helper APIs to expose functions as tools; prefer the language's `DefineTool`/`@define_tool`/`CopilotTool.DefineTool` patterns (see language READMEs).
 - Infinite sessions are enabled by default and persist workspace state to `~/.copilot/session-state/{sessionId}`; compaction events are emitted (`session.compaction_start`, `session.compaction_complete`). See language READMEs for usage.
 - Streaming: when `streaming`/`Streaming=true` you receive delta events (`assistant.message_delta`, `assistant.reasoning_delta`) and final events (`assistant.message`, `assistant.reasoning`) — tests expect this behavior.
-- Type generation is centralized in `nodejs/scripts/generate-session-types.ts` and requires the `@github/copilot` schema to be present (often via `npm link` or installed package).
+- Type generation is centralized in `scripts/codegen/` and downloads schemas from the pinned `github/copilot-cli` release.
 - Java code style: 4-space indent (Spotless + Eclipse formatter), fluent setter pattern for config classes, Javadoc required on public APIs (enforced by Checkstyle, except `json`/`events` packages).
 - Java handlers return `CompletableFuture` (the Java equivalent of C# `async/await`). When porting from .NET: convert properties → getters/fluent setters, use Jackson (`ObjectMapper`, `@JsonProperty`) for serialization.
 
@@ -64,7 +64,7 @@
 - SDK code: `nodejs/src`, `python/copilot`, `go`, `dotnet/src`, `rust/src`, `java/sdk/src/main/java`
 - Unit tests: `nodejs/test`, `python/*`, `go/*`, `dotnet/test`, `rust/tests`, `java/sdk/src/test/java`
 - E2E tests: `*/e2e/` folders that use the shared replay proxy and `test/snapshots/`, `java/sdk/src/test/java/**/e2e/`
-- Generated types: update schema in `@github/copilot` then run `cd nodejs && npm run generate:session-types` and commit generated files in `src/generated` or language generated location. Java generated types: `java/sdk/src/generated/java`
+- Generated types: update the pinned Copilot CLI version, run `cd nodejs && npm run generate`, and commit generated files in each language's generated location. Java generated types: `java/sdk/src/generated/java`
 
 ## Boundaries — files you must NOT hand-edit ⛔
 
