@@ -184,26 +184,23 @@ describe("Client", () => {
         await client.stop();
     });
 
-    it.skipIf(isInProcessTransport)(
-        "should report error when CLI fails to start",
-        async () => {
-            const client = new CopilotClient({
-                connection: RuntimeConnection.forStdio({
-                    args: ["--nonexistent-flag-for-testing"],
-                }),
-            });
-            onTestFinishedStop(client);
+    it.skipIf(isInProcessTransport)("should report error when CLI fails to start", async () => {
+        const client = new CopilotClient({
+            connection: RuntimeConnection.forStdio({
+                args: ["--nonexistent-flag-for-testing"],
+            }),
+        });
+        onTestFinishedStop(client);
 
-            await expect(client.start()).rejects.toBeInstanceOf(Error);
+        await expect(client.start()).rejects.toBeInstanceOf(Error);
 
-            // Verify subsequent calls also fail (don't hang)
-            try {
-                const session = await client.createSession({ onPermissionRequest: approveAll });
-                await session.send("test");
-                expect.fail("Expected send() to throw an error after CLI exit");
-            } catch (error) {
-                expect(error).toBeInstanceOf(Error);
-            }
+        // Verify subsequent calls also fail (don't hang)
+        try {
+            const session = await client.createSession({ onPermissionRequest: approveAll });
+            await session.send("test");
+            expect.fail("Expected send() to throw an error after CLI exit");
+        } catch (error) {
+            expect(error).toBeInstanceOf(Error);
         }
-    );
+    });
 });
