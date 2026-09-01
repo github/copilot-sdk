@@ -504,6 +504,20 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                     await CleanupCliProcessAsync(cliProcess, stderrPump, errors: null, _logger);
                 }
 
+                if (ex is IOException
+                    && cliProcess is not null
+                    && stderrPump is not null
+                    && !ex.Message.Contains("stderr:", StringComparison.OrdinalIgnoreCase))
+                {
+                    var stderrOutput = GetStderrOutput(stderrPump.Buffer);
+                    if (!string.IsNullOrEmpty(stderrOutput))
+                    {
+                        throw new IOException(
+                            FormatCliExitedMessage("CLI process exited unexpectedly.", stderrOutput),
+                            ex);
+                    }
+                }
+
                 throw;
             }
         }
@@ -684,7 +698,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
     private static async Task CleanupCliProcessAsync(Process childProcess, ProcessStderrPump? stderrPump, List<Exception>? errors, ILogger? logger)
     {
-        stderrPump?.Cancel();
+        var processExited = false;
 
         try
         {
@@ -717,10 +731,17 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                     AddCleanupError(errors, ex, logger);
                 }
             }
+
+            processExited = childProcess.HasExited;
         }
         catch (Exception ex)
         {
             AddCleanupError(errors, ex, logger);
+        }
+
+        if (!processExited)
+        {
+            stderrPump?.Cancel();
         }
 
         if (stderrPump is not null)
@@ -732,6 +753,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             }
             catch (TimeoutException ex)
             {
+                stderrPump.Cancel();
                 if (logger is not null)
                 {
                     LoggingHelpers.LogTiming(logger, LogLevel.Debug, ex,
@@ -1971,13 +1993,15 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
     private static IOException CreateCliExitedException(string message, StringBuilder stderrBuffer)
     {
-        string stderrOutput;
+        return new IOException(FormatCliExitedMessage(message, GetStderrOutput(stderrBuffer)));
+    }
+
+    private static string GetStderrOutput(StringBuilder stderrBuffer)
+    {
         lock (stderrBuffer)
         {
-            stderrOutput = stderrBuffer.ToString().Trim();
+            return stderrBuffer.ToString().Trim();
         }
-
-        return new IOException(FormatCliExitedMessage(message, stderrOutput));
     }
 
     private Task<Connection> EnsureConnectedAsync(CancellationToken cancellationToken)
