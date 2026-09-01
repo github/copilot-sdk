@@ -34,6 +34,7 @@ import {
     registerClientSessionApiHandlers,
 } from "./generated/rpc.js";
 import type {
+    ConnectClientInfo,
     GitHubTelemetryNotification,
     GitHubTokenAcquireRequest,
     GitHubTokenAcquireResult,
@@ -52,6 +53,7 @@ import { ToolSet } from "./toolSet.js";
 import type {
     AutoModeSwitchRequest,
     AutoModeSwitchResponse,
+    CopilotClientInfo,
     CopilotClientMode,
     CopilotClientOptions,
     CustomAgentConfig,
@@ -522,6 +524,7 @@ export class CopilotClient {
         sessionIdleTimeoutSeconds: number;
         enableRemoteSessions: boolean;
         mode: CopilotClientMode;
+        clientInfo?: CopilotClientInfo;
     };
     private isExternalServer: boolean = false;
     private forceStopping: boolean = false;
@@ -778,6 +781,7 @@ export class CopilotClient {
             sessionIdleTimeoutSeconds: options.sessionIdleTimeoutSeconds ?? 0,
             enableRemoteSessions: options.enableRemoteSessions ?? false,
             mode: options.mode ?? "copilot-cli",
+            clientInfo: options.clientInfo,
         };
 
         // Empty mode: validate at construction time that the app supplied a
@@ -2216,6 +2220,7 @@ export class CopilotClient {
             const connectParams: {
                 token?: string;
                 enableGitHubTelemetryForwarding?: boolean;
+                clientInfo?: ConnectClientInfo;
             } = { token: this.effectiveConnectionToken };
             // Opt in to GitHub telemetry forwarding at the connection level when a
             // handler is registered (mirrors the runtime, which reads this flag on the
@@ -2223,6 +2228,12 @@ export class CopilotClient {
             // event is forwarded). Also sent on session.create/resume for older CLIs.
             if (this.onGitHubTelemetry != null) {
                 connectParams.enableGitHubTelemetryForwarding = true;
+            }
+            // Declare the integrating host's identity so the runtime attributes
+            // the telemetry it emits on this connection to a consistent surface
+            // instead of its own build. Omitted when the app didn't supply it.
+            if (this.options.clientInfo != null) {
+                connectParams.clientInfo = this.options.clientInfo;
             }
             const result = await raceAgainstExit(this.internalRpc.connect(connectParams));
             serverVersion = result.protocolVersion;

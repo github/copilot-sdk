@@ -55,10 +55,10 @@ public class CopilotClientOptions {
     private String cliPath;
     private String cliUrl;
     private RuntimeConnection connection;
+    private ClientInfo clientInfo;
     private String copilotHome;
     private String cwd;
-    private Map<String, String> environment;
-    private Executor executor;
+    private Map<String, String> environment;    private Executor executor;
     private String gitHubToken;
     private String logLevel = "info";
     private CopilotClientMode mode = CopilotClientMode.COPILOT_CLI;
@@ -679,6 +679,36 @@ public class CopilotClientOptions {
     }
 
     /**
+     * Gets the integrating host's declared identity.
+     *
+     * @return the client info, or {@code null}
+     * @since 1.6.0
+     */
+    public ClientInfo getClientInfo() {
+        return clientInfo;
+    }
+
+    /**
+     * Declares the integrating host's identity, forwarded to the runtime on the
+     * {@code server.connect} handshake.
+     * <p>
+     * Declaring it lets the telemetry the runtime emits on this connection be
+     * attributed to a consistent surface (the host editor and its Copilot
+     * extension) instead of the runtime's own build. All fields on
+     * {@link ClientInfo} are optional; leave this unset to keep the runtime's
+     * default attribution.
+     *
+     * @param clientInfo
+     *            the host identity to declare
+     * @return this options instance for method chaining
+     * @since 1.6.0
+     */
+    public CopilotClientOptions setClientInfo(ClientInfo clientInfo) {
+        this.clientInfo = Objects.requireNonNull(clientInfo, "clientInfo must not be null");
+        return this;
+    }
+
+    /**
      * Gets the server-wide idle timeout for sessions in seconds.
      *
      * @return an {@link OptionalInt} containing the session idle timeout in
@@ -830,6 +860,7 @@ public class CopilotClientOptions {
         copy.cliPath = this.cliPath;
         copy.cliUrl = this.cliUrl;
         copy.connection = this.connection;
+        copy.clientInfo = this.clientInfo;
         copy.copilotHome = this.copilotHome;
         copy.cwd = this.cwd;
         copy.environment = this.environment != null ? new java.util.HashMap<>(this.environment) : null;

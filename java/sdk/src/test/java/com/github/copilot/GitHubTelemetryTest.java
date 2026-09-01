@@ -24,6 +24,7 @@ import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.github.copilot.generated.rpc.GitHubTelemetryNotification;
+import com.github.copilot.rpc.ClientInfo;
 import com.github.copilot.rpc.CopilotClientOptions;
 import com.github.copilot.rpc.PermissionHandler;
 import com.github.copilot.rpc.ResumeSessionConfig;
@@ -202,6 +203,63 @@ class GitHubTelemetryTest {
             assertFalse(resumeParams.has("enableGitHubTelemetryForwarding"),
                     "resume request should omit the flag when no handler is registered");
         }
+    }
+
+    @Test
+    void connectForwardsDeclaredClientInfo() throws Exception {
+        try (var server = new FakeRuntimeServer();
+                var client = new CopilotClient(new CopilotClientOptions().setCliUrl(server.url())
+                        .setClientInfo(new ClientInfo().setEditorName("JetBrains-IU").setEditorVersion("2026.1")
+                                .setExtensionName("copilot-intellij").setExtensionVersion("1.5.0")))) {
+
+            client.start().get(15, TimeUnit.SECONDS);
+
+            JsonNode connectParams = server.awaitConnect();
+            JsonNode clientInfo = connectParams.path("clientInfo");
+            assertEquals("JetBrains-IU", clientInfo.path("editorName").asText());
+            assertEquals("2026.1", clientInfo.path("editorVersion").asText());
+            assertEquals("copilot-intellij", clientInfo.path("extensionName").asText());
+            assertEquals("1.5.0", clientInfo.path("extensionVersion").asText());
+        }
+    }
+
+    @Test
+    void connectOmitsClientInfoWhenUnset() throws Exception {
+        try (var server = new FakeRuntimeServer();
+                var client = new CopilotClient(new CopilotClientOptions().setCliUrl(server.url()))) {
+
+            client.start().get(15, TimeUnit.SECONDS);
+
+            JsonNode connectParams = server.awaitConnect();
+            assertFalse(connectParams.has("clientInfo"), "connect request should omit clientInfo when none was declared");
+        }
+    }
+
+    @Test
+    void connectOmitsEmptyClientInfoFields() throws Exception {
+        try (var server = new FakeRuntimeServer();
+                var client = new CopilotClient(new CopilotClientOptions().setCliUrl(server.url())
+                        .setClientInfo(new ClientInfo().setEditorName("example-editor")))) {
+
+            client.start().get(15, TimeUnit.SECONDS);
+
+            JsonNode connectParams = server.awaitConnect();
+            JsonNode clientInfo = connectParams.path("clientInfo");
+            assertEquals("example-editor", clientInfo.path("editorName").asText());
+            assertFalse(clientInfo.has("editorVersion"), "unset editorVersion should be omitted");
+            assertFalse(clientInfo.has("extensionName"), "unset extensionName should be omitted");
+            assertFalse(clientInfo.has("extensionVersion"), "unset extensionVersion should be omitted");
+        }
+    }
+
+    @Test
+    void optionsRetainAndCloneClientInfo() {
+        var info = new ClientInfo().setEditorName("example-editor");
+        var options = new CopilotClientOptions().setClientInfo(info);
+        assertSame(info, options.getClientInfo());
+
+        var copy = options.clone();
+        assertSame(info, copy.getClientInfo());
     }
 
     @Test

@@ -2180,7 +2180,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                     // handler is registered (mirrors the runtime, which reads this flag on the
                     // `connect` handshake so the first session's un-replayable `session.start`
                     // event is forwarded). Also sent on session.create/resume for older CLIs.
-                    _options.OnGitHubTelemetry != null ? true : null)],
+                    _options.OnGitHubTelemetry != null ? true : null,
+                    // Declare the integrating host's identity so the runtime attributes the
+                    // telemetry it emits on this connection to a consistent surface instead
+                    // of its own build. Null when the app didn't supply it.
+                    ConnectHandshakeClientInfo.From(_options.ClientInfo))],
                 connection.StderrBuffer,
                 cancellationToken);
             serverVersion = (int)connectResponse.ProtocolVersion;
@@ -3183,7 +3187,42 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
     internal record ConnectHandshakeRequest(
         string? Token,
-        [property: JsonPropertyName("enableGitHubTelemetryForwarding")] bool? EnableGitHubTelemetryForwarding = null);
+        [property: JsonPropertyName("enableGitHubTelemetryForwarding")] bool? EnableGitHubTelemetryForwarding = null,
+        [property: JsonPropertyName("clientInfo")] ConnectHandshakeClientInfo? ClientInfo = null);
+
+    internal record ConnectHandshakeClientInfo(
+        [property: JsonPropertyName("editorName")] string? EditorName = null,
+        [property: JsonPropertyName("editorVersion")] string? EditorVersion = null,
+        [property: JsonPropertyName("extensionName")] string? ExtensionName = null,
+        [property: JsonPropertyName("extensionVersion")] string? ExtensionVersion = null)
+    {
+        /// <summary>
+        /// Maps the public <see cref="CopilotClientInfo"/> onto the connect wire
+        /// shape, dropping empty fields. Returns <see langword="null"/> when no
+        /// identity was supplied so the handshake omits <c>clientInfo</c> and the
+        /// runtime keeps its default attribution.
+        /// </summary>
+        public static ConnectHandshakeClientInfo? From(CopilotClientInfo? info)
+        {
+            if (info is null)
+            {
+                return null;
+            }
+
+            var editorName = NullIfEmpty(info.EditorName);
+            var editorVersion = NullIfEmpty(info.EditorVersion);
+            var extensionName = NullIfEmpty(info.ExtensionName);
+            var extensionVersion = NullIfEmpty(info.ExtensionVersion);
+            if (editorName is null && editorVersion is null && extensionName is null && extensionVersion is null)
+            {
+                return null;
+            }
+
+            return new ConnectHandshakeClientInfo(editorName, editorVersion, extensionName, extensionVersion);
+        }
+
+        private static string? NullIfEmpty(string? value) => string.IsNullOrEmpty(value) ? null : value;
+    }
 
     internal record BuiltinPluginDirectoriesRequest(
         string[] Paths);
@@ -3223,6 +3262,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     [JsonSerializable(typeof(GetSessionMetadataRequest))]
     [JsonSerializable(typeof(GetSessionMetadataResponse))]
     [JsonSerializable(typeof(ConnectHandshakeRequest))]
+    [JsonSerializable(typeof(ConnectHandshakeClientInfo))]
     [JsonSerializable(typeof(BuiltinPluginDirectoriesRequest))]
     [JsonSerializable(typeof(McpOAuthTokenStorageMode))]
     [JsonSerializable(typeof(EmbeddingCacheStorageMode))]

@@ -491,6 +491,43 @@ class TelemetryConfig(TypedDict, total=False):
     """Whether to capture message content. Sets OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT."""  # noqa: E501
 
 
+class ClientInfo(TypedDict, total=False):
+    """Identity of the integrating host, declared on the ``server.connect`` handshake.
+
+    Declaring it lets the telemetry the runtime emits on this connection be
+    attributed to a single, consistent surface (the host editor and its Copilot
+    extension) instead of the runtime's own build. All fields are optional; omit
+    any of them (or the whole object) to keep the runtime's default attribution.
+    """
+
+    editor_name: str
+    """Name of the host editor, e.g. ``"vscode"``."""
+    editor_version: str
+    """Version of the host editor, e.g. ``"1.124.2"``."""
+    extension_name: str
+    """Name of the Copilot extension within the host, e.g. ``"copilot-chat"``."""
+    extension_version: str
+    """Version of the Copilot extension within the host, e.g. ``"0.54.0"``."""
+
+
+def _client_info_to_wire(client_info: "ClientInfo | None") -> dict[str, str] | None:
+    """Map a snake_case :class:`ClientInfo` onto the camelCase connect wire shape.
+
+    Returns ``None`` when no identity was supplied so the caller omits the
+    ``clientInfo`` field entirely and keeps the runtime's default attribution.
+    """
+    if not client_info:
+        return None
+    field_map = {
+        "editor_name": "editorName",
+        "editor_version": "editorVersion",
+        "extension_name": "extensionName",
+        "extension_version": "extensionVersion",
+    }
+    wire = {wire_key: client_info[key] for key, wire_key in field_map.items() if key in client_info}  # type: ignore[literal-required]
+    return wire or None
+
+
 @dataclass
 class RuntimeConnection:
     """Discriminated config describing how to reach the Copilot runtime.
@@ -760,6 +797,7 @@ class _CopilotClientOptions:
     request_handler: CopilotRequestHandler | None = None
     session_idle_timeout_seconds: int | None = None
     enable_remote_sessions: bool = False
+    client_info: ClientInfo | None = None
     on_list_models: Callable[[], list[ModelInfo] | Awaitable[list[ModelInfo]]] | None = None
     on_github_telemetry: Callable[[GitHubTelemetryNotification], None | Awaitable[None]] | None = (
         None
@@ -1514,6 +1552,7 @@ class CopilotClient:
         request_handler: CopilotRequestHandler | None = None,
         session_idle_timeout_seconds: int | None = None,
         enable_remote_sessions: bool = False,
+        client_info: ClientInfo | None = None,
         on_list_models: Callable[[], list[ModelInfo] | Awaitable[list[ModelInfo]]] | None = None,
         on_github_telemetry: Callable[[GitHubTelemetryNotification], None | Awaitable[None]]
         | None = None,
@@ -1563,6 +1602,11 @@ class CopilotClient:
                 Control integration). When ``True``, sessions in a GitHub
                 repository working directory are accessible from GitHub web
                 and mobile.
+            client_info: Identity of the integrating host, forwarded to the
+                runtime on the ``server.connect`` handshake. Declaring it lets
+                the telemetry the runtime emits on this connection be attributed
+                to a consistent surface instead of the runtime's own build. All
+                fields are optional; omit it to keep the default attribution.
             on_list_models: Custom handler for :meth:`list_models`. When
                 provided, the handler is called instead of querying the runtime
                 server.
@@ -1600,6 +1644,7 @@ class CopilotClient:
             request_handler=request_handler,
             session_idle_timeout_seconds=session_idle_timeout_seconds,
             enable_remote_sessions=enable_remote_sessions,
+            client_info=client_info,
             on_list_models=on_list_models,
             on_github_telemetry=on_github_telemetry,
             mode=mode,
@@ -4020,6 +4065,12 @@ class CopilotClient:
             # event is forwarded). Also sent on session.create/resume for older CLIs.
             if self._on_github_telemetry is not None:
                 connect_params["enableGitHubTelemetryForwarding"] = True
+            # Declare the integrating host's identity so the runtime attributes
+            # the telemetry it emits on this connection to a consistent surface
+            # instead of its own build. Omitted when the app didn't supply it.
+            client_info = _client_info_to_wire(self._options.client_info)
+            if client_info is not None:
+                connect_params["clientInfo"] = client_info
             connect_result = _ConnectResult.from_dict(
                 await self._client.request("connect", connect_params)
             )

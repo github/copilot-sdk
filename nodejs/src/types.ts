@@ -306,6 +306,37 @@ export type InternalRuntimeConnection = RuntimeConnection | ParentProcessRuntime
  */
 export type CopilotClientMode = "empty" | "copilot-cli";
 
+/**
+ * Identity of the integrating host, declared once on the `server.connect`
+ * handshake so the telemetry the runtime emits on this connection is attributed
+ * to a single, consistent surface rather than to the runtime's own build.
+ *
+ * All fields are optional; omit any of them (or the whole object) to keep the
+ * runtime's default attribution. Version fields are ignored by the runtime
+ * unless they look like a version string.
+ */
+export interface CopilotClientInfo {
+    /**
+     * Name of the host editor, e.g. `"vscode"`.
+     */
+    editorName?: string;
+
+    /**
+     * Version of the host editor, e.g. `"1.124.2"`.
+     */
+    editorVersion?: string;
+
+    /**
+     * Name of the Copilot extension within the host, e.g. `"copilot-chat"`.
+     */
+    extensionName?: string;
+
+    /**
+     * Version of the Copilot extension within the host, e.g. `"0.54.0"`.
+     */
+    extensionVersion?: string;
+}
+
 export interface CopilotClientOptions {
     /**
      * How to connect to the Copilot runtime. When omitted, defaults to
@@ -476,6 +507,16 @@ export interface CopilotClientOptions {
      * @default false
      */
     enableRemoteSessions?: boolean;
+
+    /**
+     * Identity of the integrating host, forwarded to the runtime on the
+     * `server.connect` handshake. Declaring it lets the telemetry the runtime
+     * emits on this connection be attributed to a single, consistent surface
+     * (e.g. the host editor and its Copilot extension) instead of the runtime's
+     * own build. All fields are optional; omit it to keep the default
+     * attribution.
+     */
+    clientInfo?: CopilotClientInfo;
 
     /**
      * @internal Hook used by `joinSession()` to construct a client that talks

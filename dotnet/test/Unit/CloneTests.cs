@@ -23,6 +23,13 @@ public class CloneTests
             BuiltinPluginDirectories = ["/plugins/core", "/plugins/github"],
             EnableRemoteSessions = true,
             SessionIdleTimeoutSeconds = 600,
+            ClientInfo = new CopilotClientInfo
+            {
+                EditorName = "example-editor",
+                EditorVersion = "1.0.0",
+                ExtensionName = "example-extension",
+                ExtensionVersion = "2.0.0",
+            },
         };
 
         var clone = original.Clone();
@@ -38,6 +45,7 @@ public class CloneTests
         Assert.NotSame(original.BuiltinPluginDirectories, clone.BuiltinPluginDirectories);
         Assert.Equal(original.EnableRemoteSessions, clone.EnableRemoteSessions);
         Assert.Equal(original.SessionIdleTimeoutSeconds, clone.SessionIdleTimeoutSeconds);
+        Assert.Same(original.ClientInfo, clone.ClientInfo);
     }
 
     [Fact]

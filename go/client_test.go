@@ -276,6 +276,88 @@ func TestClient_BuiltinPluginDirectories(t *testing.T) {
 	})
 }
 
+func TestClient_ClientInfo(t *testing.T) {
+	findConnect := func(requests []startupRPCRequest) map[string]any {
+		t.Helper()
+		for _, request := range requests {
+			if request.Method != "connect" {
+				continue
+			}
+			var params map[string]any
+			if err := json.Unmarshal(request.Params, &params); err != nil {
+				t.Fatalf("decode connect params: %v", err)
+			}
+			return params
+		}
+		t.Fatal("connect was not called")
+		return nil
+	}
+
+	t.Run("forwards a declared identity on the connect handshake", func(t *testing.T) {
+		url, requests, cleanup := newStartupRPCServer(t)
+		defer cleanup()
+
+		client := NewClient(&ClientOptions{
+			Connection: URIConnection{URL: url},
+			ClientInfo: &ClientInfo{
+				EditorName:       "JetBrains-IU",
+				EditorVersion:    "2026.1",
+				ExtensionName:    "copilot-intellij",
+				ExtensionVersion: "1.5.0",
+			},
+		})
+		if err := client.Start(t.Context()); err != nil {
+			t.Fatalf("Start failed: %v", err)
+		}
+		defer client.ForceStop()
+
+		params := findConnect(requests())
+		want := map[string]any{
+			"editorName":       "JetBrains-IU",
+			"editorVersion":    "2026.1",
+			"extensionName":    "copilot-intellij",
+			"extensionVersion": "1.5.0",
+		}
+		if !reflect.DeepEqual(params["clientInfo"], want) {
+			t.Fatalf("clientInfo = %v, want %v", params["clientInfo"], want)
+		}
+	})
+
+	t.Run("omits clientInfo when unset", func(t *testing.T) {
+		url, requests, cleanup := newStartupRPCServer(t)
+		defer cleanup()
+
+		client := NewClient(&ClientOptions{Connection: URIConnection{URL: url}})
+		if err := client.Start(t.Context()); err != nil {
+			t.Fatalf("Start failed: %v", err)
+		}
+		defer client.ForceStop()
+
+		if _, ok := findConnect(requests())["clientInfo"]; ok {
+			t.Fatal("clientInfo should be omitted when unset")
+		}
+	})
+
+	t.Run("omits empty fields", func(t *testing.T) {
+		url, requests, cleanup := newStartupRPCServer(t)
+		defer cleanup()
+
+		client := NewClient(&ClientOptions{
+			Connection: URIConnection{URL: url},
+			ClientInfo: &ClientInfo{EditorName: "example-editor"},
+		})
+		if err := client.Start(t.Context()); err != nil {
+			t.Fatalf("Start failed: %v", err)
+		}
+		defer client.ForceStop()
+
+		want := map[string]any{"editorName": "example-editor"}
+		if got := findConnect(requests())["clientInfo"]; !reflect.DeepEqual(got, want) {
+			t.Fatalf("clientInfo = %v, want %v", got, want)
+		}
+	})
+}
+
 type startupRPCRequest struct {
 	Method string
 	Params json.RawMessage

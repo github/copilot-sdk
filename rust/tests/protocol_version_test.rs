@@ -239,3 +239,102 @@ async fn connect_handshake_forwards_auto_generated_token() {
         .unwrap()
         .unwrap();
 }
+
+/// Positive coverage for host-identity forwarding on the `connect`
+/// handshake. A client constructed with a [`ClientInfo`] MUST serialize it
+/// (camelCase) into the outbound `connect` request's `clientInfo` param so
+/// the runtime attributes this connection's telemetry to the host surface.
+#[tokio::test]
+async fn connect_handshake_forwards_client_info() {
+    let (client_write, server_read) = duplex(8192);
+    let (server_write, client_read) = duplex(8192);
+    let client = Client::from_streams_with_client_info(
+        client_read,
+        client_write,
+        std::env::temp_dir(),
+        Some(github_copilot_sdk::ClientInfo {
+            editor_name: Some("JetBrains-IU".to_string()),
+            editor_version: Some("2026.1".to_string()),
+            extension_name: Some("copilot-intellij".to_string()),
+            extension_version: Some("1.5.0".to_string()),
+        }),
+    )
+    .unwrap();
+
+    let mut server_read = server_read;
+    let mut server_write = server_write;
+
+    let verify_handle = tokio::spawn({
+        let client = client.clone();
+        async move { client.verify_protocol_version().await }
+    });
+
+    let req = read_framed(&mut server_read).await;
+    assert_eq!(req["method"], "connect");
+    let client_info = &req["params"]["clientInfo"];
+    assert_eq!(client_info["editorName"], "JetBrains-IU");
+    assert_eq!(client_info["editorVersion"], "2026.1");
+    assert_eq!(client_info["extensionName"], "copilot-intellij");
+    assert_eq!(client_info["extensionVersion"], "1.5.0");
+
+    let response = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": req["id"],
+        "result": { "ok": true, "protocolVersion": 3, "version": "test-1.0.0" },
+    });
+    write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
+
+    tokio::time::timeout(std::time::Duration::from_secs(2), verify_handle)
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap();
+}
+
+/// A [`ClientInfo`] with only some fields set must omit the empty ones from
+/// the wire, and a fully-empty one must drop `clientInfo` entirely so the
+/// runtime keeps its default attribution.
+#[tokio::test]
+async fn connect_handshake_omits_empty_client_info_fields() {
+    let (client_write, server_read) = duplex(8192);
+    let (server_write, client_read) = duplex(8192);
+    let client = Client::from_streams_with_client_info(
+        client_read,
+        client_write,
+        std::env::temp_dir(),
+        Some(github_copilot_sdk::ClientInfo {
+            editor_name: Some("example-editor".to_string()),
+            ..Default::default()
+        }),
+    )
+    .unwrap();
+
+    let mut server_read = server_read;
+    let mut server_write = server_write;
+
+    let verify_handle = tokio::spawn({
+        let client = client.clone();
+        async move { client.verify_protocol_version().await }
+    });
+
+    let req = read_framed(&mut server_read).await;
+    assert_eq!(req["method"], "connect");
+    let client_info = &req["params"]["clientInfo"];
+    assert_eq!(client_info["editorName"], "example-editor");
+    assert!(client_info.get("editorVersion").is_none());
+    assert!(client_info.get("extensionName").is_none());
+    assert!(client_info.get("extensionVersion").is_none());
+
+    let response = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": req["id"],
+        "result": { "ok": true, "protocolVersion": 3, "version": "test-1.0.0" },
+    });
+    write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
+
+    tokio::time::timeout(std::time::Duration::from_secs(2), verify_handle)
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap();
+}

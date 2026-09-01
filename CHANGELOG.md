@@ -7,6 +7,10 @@ See [GitHub Releases](https://github.com/github/copilot-sdk/releases) for the fu
 
 ## [Unreleased]
 
+### Feature: declare host identity with client info
+
+Client options now accept an optional `clientInfo` (`editorName`, `editorVersion`, `extensionName`, `extensionVersion`) across all six SDKs. When set, the SDK forwards it on the `server.connect` handshake so the telemetry the runtime emits on the connection is attributed to the host editor and its Copilot extension instead of the runtime's own build. All fields are optional, and leaving `clientInfo` unset keeps the runtime's default attribution. See [Client info](./docs/features/client-info.md).
+
 ### Feature: Node Agent Factories pagination and run notifications
 
 The experimental Node.js Agent Factories convenience API now supports paginated run history. Existing `session.factory.listRuns()` calls still return the runs array, while calls with `afterSeq`, `beforeSeq`, or `limit` return the full page with cursor and truncation metadata.

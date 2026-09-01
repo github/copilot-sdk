@@ -4197,3 +4197,59 @@ describe("managedSettings serialization", () => {
         });
     });
 });
+
+describe("connect handshake clientInfo", () => {
+    // Drives verifyProtocolVersion() against a stubbed connection so we can
+    // observe the `connect` params without spawning a runtime. `connect` maps to
+    // connection.sendRequest("connect", params) in the generated internal RPC.
+    async function captureConnectParams(
+        options: Partial<Pick<Parameters<typeof CopilotClient>[0] & object, "clientInfo" | "onGitHubTelemetry">> = {}
+    ): Promise<Record<string, unknown>> {
+        const client = new CopilotClient({
+            connection: RuntimeConnection.forUri("localhost:1234"),
+            ...options,
+        });
+        const sendRequest = vi.fn(async (method: string) => {
+            if (method === "connect") return { protocolVersion: 3 };
+            throw new Error(`Unexpected method: ${method}`);
+        });
+        (client as any).connection = { sendRequest };
+
+        await (client as any).verifyProtocolVersion();
+
+        const connectCall = sendRequest.mock.calls.find(([method]) => method === "connect");
+        expect(connectCall, "connect was not called").toBeTruthy();
+        return connectCall![1] as Record<string, unknown>;
+    }
+
+    it("forwards a declared client identity on the connect handshake", async () => {
+        const clientInfo = {
+            editorName: "JetBrains-IU",
+            editorVersion: "2026.1",
+            extensionName: "copilot-intellij",
+            extensionVersion: "1.5.0",
+        };
+
+        const params = await captureConnectParams({ clientInfo });
+
+        expect(params.clientInfo).toEqual(clientInfo);
+    });
+
+    it("omits clientInfo from the handshake when the host declares none", async () => {
+        const params = await captureConnectParams();
+
+        expect(params).not.toHaveProperty("clientInfo");
+    });
+
+    it("keeps telemetry forwarding alongside a declared identity", async () => {
+        const params = await captureConnectParams({
+            clientInfo: { editorName: "example-editor" },
+            onGitHubTelemetry: () => {},
+        });
+
+        expect(params).toMatchObject({
+            clientInfo: { editorName: "example-editor" },
+            enableGitHubTelemetryForwarding: true,
+        });
+    });
+});

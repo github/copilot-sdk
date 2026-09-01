@@ -193,6 +193,13 @@ type ClientOptions struct {
 	// directory are accessible from GitHub web and mobile.
 	// Ignored when connecting to an existing runtime via [URIConnection].
 	EnableRemoteSessions bool
+	// ClientInfo declares the integrating host's identity, forwarded to the
+	// runtime on the `server.connect` handshake. Declaring it lets the
+	// telemetry the runtime emits on this connection be attributed to a
+	// consistent surface (the host editor and its Copilot extension) instead of
+	// the runtime's own build. All fields are optional; leave it nil to keep the
+	// runtime's default attribution.
+	ClientInfo *ClientInfo
 	// Mode controls the default tool surface and feature flags presented to
 	// sessions created by this client. The zero value ([ModeCopilotCli])
 	// matches legacy CLI defaults. Set to [ModeEmpty] to opt in to
@@ -202,6 +209,55 @@ type ClientOptions struct {
 	// SessionFS, or a [URIConnection] so the runtime has persistent storage
 	// for session state.
 	Mode ClientMode
+}
+
+// ClientInfo identifies the integrating host on the `server.connect` handshake.
+//
+// Declaring it lets the telemetry the runtime emits on the connection be
+// attributed to a single, consistent surface instead of the runtime's own
+// build. All fields are optional; an empty field is omitted from the handshake.
+type ClientInfo struct {
+	// EditorName is the name of the host editor, e.g. "vscode".
+	EditorName string
+	// EditorVersion is the version of the host editor, e.g. "1.124.2".
+	EditorVersion string
+	// ExtensionName is the name of the Copilot extension within the host, e.g.
+	// "copilot-chat".
+	ExtensionName string
+	// ExtensionVersion is the version of the Copilot extension within the host,
+	// e.g. "0.54.0".
+	ExtensionVersion string
+}
+
+// toWire maps the public [ClientInfo] onto the generated connect wire shape,
+// omitting empty fields. It returns nil when no identity was supplied so the
+// caller drops the clientInfo field and keeps the runtime's default attribution.
+func (ci *ClientInfo) toWire() *rpc.ConnectClientInfo {
+	if ci == nil {
+		return nil
+	}
+	wire := &rpc.ConnectClientInfo{}
+	populated := false
+	if ci.EditorName != "" {
+		wire.EditorName = &ci.EditorName
+		populated = true
+	}
+	if ci.EditorVersion != "" {
+		wire.EditorVersion = &ci.EditorVersion
+		populated = true
+	}
+	if ci.ExtensionName != "" {
+		wire.ExtensionName = &ci.ExtensionName
+		populated = true
+	}
+	if ci.ExtensionVersion != "" {
+		wire.ExtensionVersion = &ci.ExtensionVersion
+		populated = true
+	}
+	if !populated {
+		return nil
+	}
+	return wire
 }
 
 // CloudSessionRepository is GitHub repository metadata associated with a cloud session.

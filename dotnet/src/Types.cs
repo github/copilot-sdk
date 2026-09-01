@@ -322,6 +322,7 @@ public sealed class CopilotClientOptions
         OnGitHubTelemetry = other.OnGitHubTelemetry;
         SessionIdleTimeoutSeconds = other.SessionIdleTimeoutSeconds;
         EnableRemoteSessions = other.EnableRemoteSessions;
+        ClientInfo = other.ClientInfo;
         Mode = other.Mode;
     }
 
@@ -466,6 +467,16 @@ public sealed class CopilotClientOptions
     public bool EnableRemoteSessions { get; set; }
 
     /// <summary>
+    /// Declares the integrating host's identity, forwarded to the runtime on the
+    /// <c>server.connect</c> handshake. Declaring it lets the telemetry the
+    /// runtime emits on this connection be attributed to a consistent surface
+    /// (the host editor and its Copilot extension) instead of the runtime's own
+    /// build. All fields are optional; leave it <see langword="null"/> to keep
+    /// the runtime's default attribution.
+    /// </summary>
+    public CopilotClientInfo? ClientInfo { get; set; }
+
+    /// <summary>
     /// Creates a shallow clone of this <see cref="CopilotClientOptions"/> instance.
     /// </summary>
     /// <remarks>
@@ -529,6 +540,38 @@ public sealed class TelemetryConfig
     /// Maps to the <c>OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT</c> environment variable.
     /// </remarks>
     public bool? CaptureContent { get; set; }
+}
+
+/// <summary>
+/// Identifies the integrating host on the <c>server.connect</c> handshake.
+/// </summary>
+/// <remarks>
+/// Declaring it lets the telemetry the runtime emits on the connection be
+/// attributed to a single, consistent surface instead of the runtime's own
+/// build. All properties are optional; an unset property is omitted from the
+/// handshake.
+/// </remarks>
+public sealed class CopilotClientInfo
+{
+    /// <summary>
+    /// Name of the host editor, e.g. <c>"vscode"</c>.
+    /// </summary>
+    public string? EditorName { get; set; }
+
+    /// <summary>
+    /// Version of the host editor, e.g. <c>"1.124.2"</c>.
+    /// </summary>
+    public string? EditorVersion { get; set; }
+
+    /// <summary>
+    /// Name of the Copilot extension within the host, e.g. <c>"copilot-chat"</c>.
+    /// </summary>
+    public string? ExtensionName { get; set; }
+
+    /// <summary>
+    /// Version of the Copilot extension within the host, e.g. <c>"0.54.0"</c>.
+    /// </summary>
+    public string? ExtensionVersion { get; set; }
 }
 
 /// <summary>

@@ -1945,6 +1945,10 @@ func (c *Client) verifyProtocolVersion(ctx context.Context) error {
 	if c.options.OnGitHubTelemetry != nil {
 		connectReq.EnableGitHubTelemetryForwarding = Bool(true)
 	}
+	// Declare the integrating host's identity so the runtime attributes the
+	// telemetry it emits on this connection to a consistent surface instead of
+	// its own build. Nil when the app didn't supply it.
+	connectReq.ClientInfo = c.options.ClientInfo.toWire()
 	rawConnectResult, err := c.client.Request(ctx, "connect", connectReq)
 	if err != nil {
 		var rpcErr *jsonrpc2.Error
@@ -1981,8 +1985,9 @@ func (c *Client) verifyProtocolVersion(ctx context.Context) error {
 }
 
 type connectHandshakeRequest struct {
-	Token                           *string `json:"token,omitempty"`
-	EnableGitHubTelemetryForwarding *bool   `json:"enableGitHubTelemetryForwarding,omitempty"`
+	Token                           *string                `json:"token,omitempty"`
+	EnableGitHubTelemetryForwarding *bool                  `json:"enableGitHubTelemetryForwarding,omitempty"`
+	ClientInfo                      *rpc.ConnectClientInfo `json:"clientInfo,omitempty"`
 }
 
 // stderrBufferSize is the maximum number of bytes kept from the CLI process's

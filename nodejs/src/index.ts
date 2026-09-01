@@ -69,6 +69,7 @@ export type {
     UserPromptTransformedHandler,
     UserPromptTransformedHookInput,
     UserPromptTransformedHookOutput,
+    CopilotClientInfo,
     CopilotClientMode,
     CopilotClientOptions,
     CopilotExpAssignmentResponse,
