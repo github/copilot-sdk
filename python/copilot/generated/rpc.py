@@ -1331,8 +1331,11 @@ class CatalogNetworkFailureReason(Enum):
     DNS = "dns"
     HTTP_STATUS = "http-status"
     OFFLINE = "offline"
+    PROXY_AUTHENTICATION_REQUIRED = "proxy-authentication-required"
+    RATE_LIMITED = "rate-limited"
     REDIRECT_REJECTED = "redirect-rejected"
     RESPONSE_TOO_LARGE = "response-too-large"
+    SERVICE_UNAVAILABLE = "service-unavailable"
     TIMEOUT = "timeout"
     TLS = "tls"
 
@@ -1427,12 +1430,15 @@ class CatalogSearchResultReason(Enum):
     NO_CREDENTIAL = "no-credential"
     OFFLINE = "offline"
     PLANNING_UNAVAILABLE = "planning-unavailable"
+    PROXY_AUTHENTICATION_REQUIRED = "proxy-authentication-required"
     PROXY_REJECTED = "proxy-rejected"
+    RATE_LIMITED = "rate-limited"
     REDIRECT_REJECTED = "redirect-rejected"
     REDIRECT_TO_BLOCKED_ADDRESS = "redirect-to-blocked-address"
     RESPONSE_TOO_LARGE = "response-too-large"
     SCHEMA_VIOLATION = "schema-violation"
     SEARCH_UNAVAILABLE = "search-unavailable"
+    SERVICE_UNAVAILABLE = "service-unavailable"
     SIZE_LIMIT_EXCEEDED = "size-limit-exceeded"
     TIMEOUT = "timeout"
     TLS = "tls"
@@ -3355,6 +3361,7 @@ class FactoryRunFailureType(Enum):
     FACTORY_ACCOUNTING_INCOMPLETE = "factory_accounting_incomplete"
     FACTORY_DURABLE_FAILURE = "factory_durable_failure"
     FACTORY_LIMIT_REACHED = "factory_limit_reached"
+    FACTORY_PROVIDER_DISCONNECTED = "factory_provider_disconnected"
     FACTORY_RESUME_DECLINED = "factory_resume_declined"
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -5736,7 +5743,9 @@ class MCPPlanInstallResultReason(Enum):
     OFFLINE = "offline"
     PLANNING_UNAVAILABLE = "planning-unavailable"
     POLICY_FORBIDS = "policy-forbids"
+    PROXY_AUTHENTICATION_REQUIRED = "proxy-authentication-required"
     PROXY_REJECTED = "proxy-rejected"
+    RATE_LIMITED = "rate-limited"
     REDIRECT_REJECTED = "redirect-rejected"
     REDIRECT_TO_BLOCKED_ADDRESS = "redirect-to-blocked-address"
     REMOTE_ENUMERATION_UNAVAILABLE = "remote-enumeration-unavailable"
@@ -5744,6 +5753,7 @@ class MCPPlanInstallResultReason(Enum):
     RESPONSE_TOO_LARGE = "response-too-large"
     SCHEMA_VIOLATION = "schema-violation"
     SEARCH_UNAVAILABLE = "search-unavailable"
+    SERVICE_UNAVAILABLE = "service-unavailable"
     SIZE_LIMIT_EXCEEDED = "size-limit-exceeded"
     STALE = "stale"
     TIMEOUT = "timeout"
@@ -6596,6 +6606,13 @@ class ModelBillingPromo:
     """Human-readable promotion message. Does not include the expiry timestamp; consumers may
     format endsAt and append it when present.
     """
+    show_banner: bool | None = None
+    """Whether the service asked hosts to give this promotion a prominent surface, such as a
+    dedicated banner, in addition to listing it with the model. `true` requests that surface
+    and `false` asks for the model list only. Absent means the service expressed no
+    preference — for example a response that predates the field — so hosts should apply their
+    own default rather than read it as `false`.
+    """
 
     @staticmethod
     def from_dict(obj: Any) -> 'ModelBillingPromo':
@@ -6604,7 +6621,8 @@ class ModelBillingPromo:
         ends_at = from_union([from_str, from_none], obj.get("endsAt"))
         id = from_union([from_str, from_none], obj.get("id"))
         message = from_union([from_str, from_none], obj.get("message"))
-        return ModelBillingPromo(discount_percent, ends_at, id, message)
+        show_banner = from_union([from_bool, from_none], obj.get("showBanner"))
+        return ModelBillingPromo(discount_percent, ends_at, id, message, show_banner)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -6616,6 +6634,8 @@ class ModelBillingPromo:
             result["id"] = from_union([from_str, from_none], self.id)
         if self.message is not None:
             result["message"] = from_union([from_str, from_none], self.message)
+        if self.show_banner is not None:
+            result["showBanner"] = from_union([from_bool, from_none], self.show_banner)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -15112,8 +15132,9 @@ class CatalogSearchRequest:
     """Protocol version and capabilities the caller requires."""
 
     query: str
-    """Free-text search query. Never written to logs or telemetry."""
-
+    """Free-text search query. Persisted as tool input for session continuity, but omitted from
+    telemetry.
+    """
     kinds: list[CatalogCandidateKind] | None = None
     """Restrict results to these candidate kinds. When omitted, every kind the runtime supports
     is searched.
@@ -15402,6 +15423,11 @@ class CatalogNetworkFailureError:
     reason: CatalogNetworkFailureReason
     """Categorised failure, low cardinality so it can be aggregated without carrying a URL."""
 
+    retry_after_seconds: int | None = None
+    """Bounded cooldown in seconds before another catalog request should be attempted, when the
+    authority supplied a numeric Retry-After value or the runtime applied its documented
+    fallback.
+    """
     status_code: int | None = None
     """HTTP status code, when the failure was a rejected response."""
 
@@ -15410,14 +15436,17 @@ class CatalogNetworkFailureError:
         assert isinstance(obj, dict)
         message = from_str(obj.get("message"))
         reason = CatalogNetworkFailureReason(obj.get("reason"))
+        retry_after_seconds = from_union([from_int, from_none], obj.get("retryAfterSeconds"))
         status_code = from_union([from_int, from_none], obj.get("statusCode"))
-        return CatalogNetworkFailureError(message, reason, status_code)
+        return CatalogNetworkFailureError(message, reason, retry_after_seconds, status_code)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["kind"] = self.kind
         result["message"] = from_str(self.message)
         result["reason"] = to_enum(CatalogNetworkFailureReason, self.reason)
+        if self.retry_after_seconds is not None:
+            result["retryAfterSeconds"] = from_union([from_int, from_none], self.retry_after_seconds)
         if self.status_code is not None:
             result["statusCode"] = from_union([from_int, from_none], self.status_code)
         return result
@@ -16969,9 +16998,12 @@ class FactoryRunFailure:
 
     Machine-readable factory run failure.
 
-    Machine-readable failure details for an errored run.
+    Machine-readable failure details for a halted or errored run.
 
     The run stopped because its usage accounting could not be completed.
+
+    The extension that owns the factory disconnected while the run was executing, so the host
+    halted it. The run's journaled subagent results are preserved so a resume can reuse them.
     """
     run_id: str
     """Factory run identifier.
@@ -23737,6 +23769,9 @@ class SlashCommandCompletedResult:
     message: str | None = None
     """Optional user-facing message describing the completed command"""
 
+    mode: SessionMode | None = None
+    """Optional target session mode applied without submitting an agent prompt"""
+
     runtime_settings_changed: bool | None = None
     """True when the invocation mutated user runtime settings; consumers caching settings should
     refresh
@@ -23746,14 +23781,17 @@ class SlashCommandCompletedResult:
     def from_dict(obj: Any) -> 'SlashCommandCompletedResult':
         assert isinstance(obj, dict)
         message = from_union([from_str, from_none], obj.get("message"))
+        mode = from_union([SessionMode, from_none], obj.get("mode"))
         runtime_settings_changed = from_union([from_bool, from_none], obj.get("runtimeSettingsChanged"))
-        return SlashCommandCompletedResult(message, runtime_settings_changed)
+        return SlashCommandCompletedResult(message, mode, runtime_settings_changed)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["kind"] = self.kind
         if self.message is not None:
             result["message"] = from_union([from_str, from_none], self.message)
+        if self.mode is not None:
+            result["mode"] = from_union([lambda x: to_enum(SessionMode, x), from_none], self.mode)
         if self.runtime_settings_changed is not None:
             result["runtimeSettingsChanged"] = from_union([from_bool, from_none], self.runtime_settings_changed)
         return result
@@ -26040,11 +26078,15 @@ class FactoryRunResult:
     status: FactoryRunStatus
     """Current or terminal factory run status."""
 
+    attempt: int | None = None
+    """One-based execution attempt represented by this envelope. Absent before the first attempt
+    starts or when returned by an older runtime.
+    """
     error: str | None = None
     """Error message for an errored run."""
 
     failure: FactoryRunFailure | None = None
-    """Machine-readable failure details for an errored run."""
+    """Machine-readable failure details for a halted or errored run."""
 
     reason: str | None = None
     """Reason for a halted or cancelled run."""
@@ -26060,17 +26102,20 @@ class FactoryRunResult:
         assert isinstance(obj, dict)
         run_id = from_str(obj.get("runId"))
         status = FactoryRunStatus(obj.get("status"))
+        attempt = from_union([from_int, from_none], obj.get("attempt"))
         error = from_union([from_str, from_none], obj.get("error"))
         failure = from_union([FactoryRunFailure.from_dict, from_none], obj.get("failure"))
         reason = from_union([from_str, from_none], obj.get("reason"))
         result = obj.get("result")
         snapshot = obj.get("snapshot")
-        return FactoryRunResult(run_id, status, error, failure, reason, result, snapshot)
+        return FactoryRunResult(run_id, status, attempt, error, failure, reason, result, snapshot)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["runId"] = from_str(self.run_id)
         result["status"] = to_enum(FactoryRunStatus, self.status)
+        if self.attempt is not None:
+            result["attempt"] = from_union([from_int, from_none], self.attempt)
         if self.error is not None:
             result["error"] = from_union([from_str, from_none], self.error)
         if self.failure is not None:
@@ -33964,6 +34009,11 @@ class ModelApplyStartupOverlayRequest:
     device_managed_model: str | None = None
     """Model required by device-managed policy, when configured."""
 
+    policy_helper_model: str | None = None
+    """Startup default model from the enterprise policy helper, when configured. Weakest of the
+    managed sources: it applies only when neither device nor server policy names a model, and
+    an explicit user selection still wins.
+    """
     repo_context_tier: str | None = None
     """Context tier selected by repository settings, when configured."""
 
@@ -33982,11 +34032,12 @@ class ModelApplyStartupOverlayRequest:
         cli_model = from_union([from_str, from_none], obj.get("cliModel"))
         deferred_resume = from_union([from_bool, from_none], obj.get("deferredResume"))
         device_managed_model = from_union([from_str, from_none], obj.get("deviceManagedModel"))
+        policy_helper_model = from_union([from_str, from_none], obj.get("policyHelperModel"))
         repo_context_tier = from_union([from_str, from_none], obj.get("repoContextTier"))
         repo_model = from_union([from_str, from_none], obj.get("repoModel"))
         repo_reasoning_effort = from_union([from_str, from_none], obj.get("repoReasoningEffort"))
         server_managed_model = from_union([from_str, from_none], obj.get("serverManagedModel"))
-        return ModelApplyStartupOverlayRequest(cli_model, deferred_resume, device_managed_model, repo_context_tier, repo_model, repo_reasoning_effort, server_managed_model)
+        return ModelApplyStartupOverlayRequest(cli_model, deferred_resume, device_managed_model, policy_helper_model, repo_context_tier, repo_model, repo_reasoning_effort, server_managed_model)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -33996,6 +34047,8 @@ class ModelApplyStartupOverlayRequest:
             result["deferredResume"] = from_union([from_bool, from_none], self.deferred_resume)
         if self.device_managed_model is not None:
             result["deviceManagedModel"] = from_union([from_str, from_none], self.device_managed_model)
+        if self.policy_helper_model is not None:
+            result["policyHelperModel"] = from_union([from_str, from_none], self.policy_helper_model)
         if self.repo_context_tier is not None:
             result["repoContextTier"] = from_union([from_str, from_none], self.repo_context_tier)
         if self.repo_model is not None:
