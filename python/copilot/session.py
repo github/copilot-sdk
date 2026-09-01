@@ -543,7 +543,7 @@ def _is_mcp_headers_refresh_result(
 
 
 class UserInputRequest(TypedDict, total=False):
-    """Request for user input from the agent (enables ask_user tool)"""
+    """Legacy question-and-answer request from the ask_user tool."""
 
     question: str
     choices: list[str]

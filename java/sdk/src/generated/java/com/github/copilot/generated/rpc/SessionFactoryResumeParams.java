@@ -29,6 +29,10 @@ public record SessionFactoryResumeParams(
     /** Factory run identifier. */
     @JsonProperty("runId") String runId,
     /** Optional per-invocation resource ceiling overrides. */
-    @JsonProperty("limits") FactoryRunLimits limits
+    @JsonProperty("limits") FactoryRunLimits limits,
+    /** Whether to notify the originating session when the factory completes. */
+    @JsonProperty("notifyOnComplete") Boolean notifyOnComplete,
+    /** Whether to emit factory phase names to the session transcript. */
+    @JsonProperty("logPhaseNames") Boolean logPhaseNames
 ) {
 }

@@ -10,10 +10,11 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use super::session_events::{
-    AbortReason, ContextTier, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerSource,
-    McpServerStatus, ModelChangeSource, OmittedBinaryOmittedReason, PermissionMode,
-    PermissionPromptRequest, PermissionRule, ReasoningSummary, SessionLimitsConfig, SessionMode,
-    ShutdownType, SkillSource, TaskCompletionOutcome, UserToolSessionApproval, Verbosity,
+    AbortReason, AutoTier, ContextTier, McpOauthHttpResponse, McpOauthWWWAuthenticateParams,
+    McpServerSource, McpServerStatus, ModelChangeSource, OmittedBinaryOmittedReason,
+    PermissionMode, PermissionPromptRequest, PermissionRule, ReasoningSummary, SessionLimitsConfig,
+    SessionMode, ShutdownType, SkillSource, TaskCompletionOutcome, UserToolSessionApproval,
+    Verbosity,
 };
 use crate::types::{RequestId, SessionEvent, SessionId};
 
@@ -202,6 +203,8 @@ pub mod rpc_methods {
     pub const SESSION_SEND: &str = "session.send";
     /// `session.sendMessages`
     pub const SESSION_SENDMESSAGES: &str = "session.sendMessages";
+    /// `session.sandbox.getEnforcementStatus`
+    pub const SESSION_SANDBOX_GETENFORCEMENTSTATUS: &str = "session.sandbox.getEnforcementStatus";
     /// `session.sendSystemNotification`
     pub const SESSION_SENDSYSTEMNOTIFICATION: &str = "session.sendSystemNotification";
     /// `session.abort`
@@ -253,6 +256,10 @@ pub mod rpc_methods {
     pub const SESSION_FACTORY_RUN: &str = "session.factory.run";
     /// `session.factory.resume`
     pub const SESSION_FACTORY_RESUME: &str = "session.factory.resume";
+    /// `session.factory.runFromTool`
+    pub const SESSION_FACTORY_RUNFROMTOOL: &str = "session.factory.runFromTool";
+    /// `session.factory.resumeFromTool`
+    pub const SESSION_FACTORY_RESUMEFROMTOOL: &str = "session.factory.resumeFromTool";
     /// `session.factory.getRun`
     pub const SESSION_FACTORY_GETRUN: &str = "session.factory.getRun";
     /// `session.factory.listRuns`
@@ -3015,6 +3022,9 @@ pub struct CanvasProviderUnregisterRequest {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CapiSessionOptions {
+    /// Routing preference used when the session model is `auto`. The runtime persists the preference across cold resume. When omitted, the default routing behavior is used. Resuming an already-resident session cannot change its preference.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auto_tier: Option<AutoTier>,
     /// Whether to use WebSocket transport for the CAPI Responses API. Enabled by default when the model advertises `ws:/responses` support; set to `false` to force the HTTP Responses transport in environments where WebSockets are blocked (e.g. behind a proxy). Setting this to `false` is equivalent to the `COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES` environment variable.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_web_socket_responses: Option<bool>,
@@ -4407,6 +4417,9 @@ pub struct DiscoveredMcpServer {
 pub struct EnqueueCommandParams {
     /// Slash-prefixed command string to enqueue, e.g. '/compact' or '/model gpt-4'. Queued FIFO with any in-flight items; if the session is idle, processing kicks off immediately.
     pub command: String,
+    /// Optional user-facing text for the queue row. The command string is shown when omitted.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display_text: Option<String>,
 }
 
 /// Indicates whether the command was accepted into the local execution queue.
@@ -4879,6 +4892,9 @@ pub struct ExternalToolTextResultForLlmContentShellExit {
     pub cwd: Option<String>,
     /// Exit code from the completed shell command
     pub exit_code: i64,
+    /// Path reported in the shell session's filesystem namespace when shell output exceeded the configured large-output threshold.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_file_path: Option<String>,
     /// Output associated with this shell command, if available. May be partial, truncated, or a preview; not guaranteed to be full output.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub output_preview: Option<String>,
@@ -5584,6 +5600,12 @@ pub struct FactoryResumeRequest {
     /// Optional per-invocation resource ceiling overrides.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub limits: Option<FactoryRunLimits>,
+    /// Whether to emit factory phase names to the session transcript.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub log_phase_names: Option<bool>,
+    /// Whether to notify the originating session when the factory completes.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub notify_on_complete: Option<bool>,
     /// Factory run identifier.
     pub run_id: String,
 }
@@ -5708,6 +5730,12 @@ pub struct RunOptions {
     /// Per-invocation resource ceiling overrides.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub limits: Option<FactoryRunLimits>,
+    /// Whether to emit factory phase names to the session transcript.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub log_phase_names: Option<bool>,
+    /// Whether to notify the originating session when the factory completes.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub notify_on_complete: Option<bool>,
     /// Run identifier whose journal and progress should seed this resumed run.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub resume_from_run_id: Option<String>,
@@ -5731,6 +5759,70 @@ pub struct FactoryRunRequest {
     /// Factory invocation options.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub options: Option<RunOptions>,
+}
+
+/// Internal parameters for resuming a factory run from a tool.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct FactoryToolResumeRequest {
+    /// Optional per-invocation resource ceiling overrides.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limits: Option<FactoryRunLimits>,
+    /// Factory run identifier.
+    pub run_id: String,
+    /// Opaque identifier of the originating tool call.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_call_id: Option<String>,
+}
+
+/// Options for an internal tool-originated factory invocation.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct FactoryToolRunOptions {
+    /// Per-invocation resource ceiling overrides.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limits: Option<FactoryRunLimits>,
+    /// Run identifier whose journal and progress should seed this resumed run.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resume_from_run_id: Option<String>,
+}
+
+/// Internal parameters for invoking a registered factory from a tool.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct FactoryToolRunRequest {
+    /// Factory input value.
+    pub args: serde_json::Value,
+    /// Registered factory name.
+    pub name: String,
+    /// Tool-originated factory invocation options.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) options: Option<FactoryToolRunOptions>,
+    /// Opaque identifier of the originating tool call.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_call_id: Option<String>,
 }
 
 /// Optional user prompt to combine with the fleet orchestration instructions.
@@ -14096,7 +14188,7 @@ pub struct RegisterEventInterestResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionsRegisterExtensionToolsOnSessionOptions {
-    /// In-process `() => boolean` gating callback (CLI-only optimization). Marked internal: replaced by runtime-side enable/disable RPCs in the SDK migration.
+    /// In-process `() => boolean` gating callback used only by the CLI.
     #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) enabled: Option<serde_json::Value>,
@@ -14113,7 +14205,7 @@ pub struct SessionsRegisterExtensionToolsOnSessionOptions {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct RegisterExtensionToolsParams {
-    /// In-process ExtensionLoader handle (CLI-only optimization). Marked internal: this field is excluded from the public SDK surface. When the CLI migrates to a process-separated SDK, extension discovery/launch moves entirely into the runtime — the CLI passes pure config (search paths, disabled ids) via SessionOptions instead.
+    /// In-process ExtensionLoader handle used only by the CLI and excluded from the public SDK surface.
     #[doc(hidden)]
     pub(crate) loader: serde_json::Value,
     /// Optional registration options.
@@ -14134,7 +14226,7 @@ pub(crate) struct RegisterExtensionToolsParams {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct RegisterExtensionToolsResult {
-    /// In-process unsubscribe function (CLI-only optimization). Marked internal: replaced by an explicit `extensions.unregister` RPC in the SDK migration.
+    /// In-process unsubscribe function used only by the CLI.
     #[doc(hidden)]
     pub(crate) unsubscribe: serde_json::Value,
 }
@@ -14675,7 +14767,7 @@ pub struct SandboxConfig {
     /// Whether to auto-add the current working directory to readwritePaths. Default: true.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub add_current_working_directory: Option<bool>,
-    /// Whether to auto-grant read access to the tool directories discovered on PATH and in toolchain environment variables (GOROOT, CARGO_HOME, JAVA_HOME, VIRTUAL_ENV, and similar), and to common developer-tool caches, registries, and toolchains in their default home locations (cargo, go, npm, Maven, and more), plus read-write access to (and up-front creation of) the scratch caches builds write on every run (go-build, ccache, sccache, Gradle caches, Cargo lock/tracker files), so builds work without extra configuration; a relocated CARGO_HOME additionally gets its Cargo lock files granted read-write. Set to false to disable every grant listed above: user-installed toolchains (rustup, nvm, pyenv, conda, pipx) then need explicit userPolicy.filesystem entries — readonlyPaths to read them, plus readwriteFiles for a relocated CARGO_HOME's .package-cache and .global-cache, which Cargo locks on every build. Only these developer-tool grants are affected: the working directory (see addCurrentWorkingDirectory), temporary storage, session log paths, and system locations follow their own rules and stay granted, so commands still run. Default: true (enabled by default; set to false to opt out).
+    /// Whether to auto-grant read access to tool directories discovered on PATH and in toolchain environment variables (GOROOT, JAVA_HOME, VIRTUAL_ENV, and similar), and to common developer-tool caches, config, and toolchains. Writable grants cover scratch caches, the Unix GitHub CLI cache, and Cargo's registry, git store, and lock/tracker files. A relocated CARGO_HOME gets the same narrow split: registry and git are read-write; bin is read-only; the home root, config.toml, and credentials.toml stay ungranted. Set to false to disable every grant listed above; user-installed toolchains and caches then need explicit userPolicy.filesystem readonlyPaths and readwritePaths entries. The working directory (see addCurrentWorkingDirectory), temporary storage, session log paths, and system locations follow their own rules and stay granted. Default: true (enabled by default; set to false to opt out).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub allow_dev_tool_access: Option<bool>,
     /// Credential-injection capability flags.
@@ -14686,6 +14778,26 @@ pub struct SandboxConfig {
     /// User-managed sandbox policy fragment merged into the auto-discovered base policy.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub user_policy: Option<SandboxConfigUserPolicy>,
+}
+
+/// Managed sandbox enforcement state for a session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SandboxEnforcementStatus {
+    /// Whether an enforcement failure has permanently blocked the session.
+    pub blocked: bool,
+    /// The first sandbox enforcement failure that blocked the session.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+    /// Whether the effective managed policy requires an available sandbox backend.
+    pub required: bool,
 }
 
 /// Register an absolute-time scheduled prompt.
@@ -17001,7 +17113,7 @@ pub struct SessionsOpenRemote {
 pub struct SessionsOpenCloud {
     /// Create a new cloud (coding-agent) session.
     pub kind: SessionsOpenCloudKind,
-    /// In-process callback invoked when the cloud task is created (before connection). Marked internal because a function reference cannot cross the JSON-RPC boundary. Disappears in the SDK migration: the field is purely cosmetic (it flips a single CLI phase label from 'creating' to 'connecting') and the wire-clean version just drops the intermediate phase.
+    /// In-process callback invoked when the cloud task is created, before connection. Internal because function references cannot cross the JSON-RPC boundary.
     #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) on_task_created: Option<serde_json::Value>,
@@ -19674,15 +19786,9 @@ pub struct ToolsGetBuiltinDescriptorsRequest {
     /// Whether tool descriptors should include authoring metadata.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub include_author: Option<bool>,
-    /// Whether line numbers should be omitted from the view tool descriptor.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub no_view_line_numbers: Option<bool>,
     /// Whether descriptors should favor fewer user-intervention prompts.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reduce_user_intervention: Option<bool>,
-    /// Whether shell commands may only run asynchronously.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub shell_async_only_enabled: Option<bool>,
     /// Shell-specific names and description lines for shell tools.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub shell_config: Option<ToolsShellDescriptorConfig>,
@@ -20176,11 +20282,11 @@ pub struct UIElicitationStringOneOfField {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UIEphemeralQueryRequest {
-    /// In-process `AbortSignal` forwarded to the model client to cancel an in-flight request. Marked internal: excluded from the public SDK surface. Replaced by an explicit cancellation token + cancel RPC in the SDK migration.
+    /// In-process `AbortSignal` forwarded to the model client to cancel an in-flight request. Internal and excluded from the public SDK surface.
     #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) abort_signal: Option<serde_json::Value>,
-    /// In-process streaming callback `(text) => void` invoked with each token as the model emits it. Marked internal: excluded from the public SDK surface. In a process-separated SDK this is replaced by a streaming RPC that yields chunks and a final answer.
+    /// In-process streaming callback `(text) => void` invoked with each token as the model emits it. Internal and excluded from the public SDK surface.
     #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) on_chunk: Option<serde_json::Value>,
@@ -21916,7 +22022,7 @@ pub struct SessionsGetRemoteControlStatusResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct SessionsRegisterExtensionToolsOnSessionResult {
-    /// In-process unsubscribe function (CLI-only optimization). Marked internal: replaced by an explicit `extensions.unregister` RPC in the SDK migration.
+    /// In-process unsubscribe function used only by the CLI.
     #[doc(hidden)]
     pub(crate) unsubscribe: serde_json::Value,
 }
@@ -21964,6 +22070,41 @@ pub struct SessionSendResult {
 pub struct SessionSendMessagesResult {
     /// Unique identifiers assigned to the messages, one per provided message in order. Empty when no messages were provided.
     pub message_ids: Vec<String>,
+}
+
+/// Identifies the target session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionSandboxGetEnforcementStatusParams {
+    /// Target session identifier
+    pub session_id: SessionId,
+}
+
+/// Managed sandbox enforcement state for a session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionSandboxGetEnforcementStatusResult {
+    /// Whether an enforcement failure has permanently blocked the session.
+    pub blocked: bool,
+    /// The first sandbox enforcement failure that blocked the session.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+    /// Whether the effective managed policy requires an available sandbox backend.
+    pub required: bool,
 }
 
 /// Result of aborting the current turn
@@ -22330,6 +22471,55 @@ pub struct SessionFactoryRunResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionFactoryResumeResult {
+    /// Persisted factory name resolved for the resumed run.
+    pub factory_name: String,
+    /// Terminal resumed run envelope.
+    pub run: FactoryRunResult,
+}
+
+/// Complete current or terminal factory run envelope.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionFactoryRunFromToolResult {
+    /// Error message for an errored run.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    /// Machine-readable failure details for an errored run.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub failure: Option<serde_json::Value>,
+    /// Reason for a halted or cancelled run.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+    /// Completed factory result.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub result: Option<serde_json::Value>,
+    /// Factory run identifier.
+    pub run_id: String,
+    /// Partial journal and progress snapshot for a halted, cancelled, or errored run.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub snapshot: Option<serde_json::Value>,
+    /// Current or terminal factory run status.
+    pub status: FactoryRunStatus,
+}
+
+/// Resolved persisted factory identity and resumed run envelope.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionFactoryResumeFromToolResult {
     /// Persisted factory name resolved for the resumed run.
     pub factory_name: String,
     /// Terminal resumed run envelope.

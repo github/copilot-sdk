@@ -5393,6 +5393,32 @@ internal sealed class LogRequest
     public string? Url { get; set; }
 }
 
+/// <summary>Managed sandbox enforcement state for a session.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class SandboxEnforcementStatus
+{
+    /// <summary>Whether an enforcement failure has permanently blocked the session.</summary>
+    [JsonPropertyName("blocked")]
+    public bool Blocked { get; set; }
+
+    /// <summary>The first sandbox enforcement failure that blocked the session.</summary>
+    [JsonPropertyName("reason")]
+    public string? Reason { get; set; }
+
+    /// <summary>Whether the effective managed policy requires an available sandbox backend.</summary>
+    [JsonPropertyName("required")]
+    public bool Required { get; set; }
+}
+
+/// <summary>Identifies the target session.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class SessionSandboxGetEnforcementStatusRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
 /// <summary>Authentication status and account metadata for the session.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class SessionAuthStatus
@@ -6365,6 +6391,14 @@ public sealed class RunOptions
     [JsonPropertyName("limits")]
     public FactoryRunLimits? Limits { get; set; }
 
+    /// <summary>Whether to emit factory phase names to the session transcript.</summary>
+    [JsonPropertyName("logPhaseNames")]
+    public bool? LogPhaseNames { get; set; }
+
+    /// <summary>Whether to notify the originating session when the factory completes.</summary>
+    [JsonPropertyName("notifyOnComplete")]
+    public bool? NotifyOnComplete { get; set; }
+
     /// <summary>Run identifier whose journal and progress should seed this resumed run.</summary>
     [JsonPropertyName("resumeFromRunId")]
     public string? ResumeFromRunId { get; set; }
@@ -6412,6 +6446,14 @@ internal sealed class FactoryResumeRequest
     [JsonPropertyName("limits")]
     public FactoryRunLimits? Limits { get; set; }
 
+    /// <summary>Whether to emit factory phase names to the session transcript.</summary>
+    [JsonPropertyName("logPhaseNames")]
+    public bool? LogPhaseNames { get; set; }
+
+    /// <summary>Whether to notify the originating session when the factory completes.</summary>
+    [JsonPropertyName("notifyOnComplete")]
+    public bool? NotifyOnComplete { get; set; }
+
     /// <summary>Factory run identifier.</summary>
     [JsonPropertyName("runId")]
     public string RunId { get; set; } = string.Empty;
@@ -6419,6 +6461,65 @@ internal sealed class FactoryResumeRequest
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Options for an internal tool-originated factory invocation.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class FactoryToolRunOptions
+{
+    /// <summary>Per-invocation resource ceiling overrides.</summary>
+    [JsonPropertyName("limits")]
+    public FactoryRunLimits? Limits { get; set; }
+
+    /// <summary>Run identifier whose journal and progress should seed this resumed run.</summary>
+    [JsonPropertyName("resumeFromRunId")]
+    public string? ResumeFromRunId { get; set; }
+}
+
+/// <summary>Internal parameters for invoking a registered factory from a tool.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class FactoryToolRunRequest
+{
+    /// <summary>Factory input value.</summary>
+    [JsonPropertyName("args")]
+    public JsonElement Args { get; set; }
+
+    /// <summary>Registered factory name.</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Tool-originated factory invocation options.</summary>
+    [JsonPropertyName("options")]
+    public FactoryToolRunOptions? Options { get; set; }
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>Opaque identifier of the originating tool call.</summary>
+    [JsonPropertyName("toolCallId")]
+    public string? ToolCallId { get; set; }
+}
+
+/// <summary>Internal parameters for resuming a factory run from a tool.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class FactoryToolResumeRequest
+{
+    /// <summary>Optional per-invocation resource ceiling overrides.</summary>
+    [JsonPropertyName("limits")]
+    public FactoryRunLimits? Limits { get; set; }
+
+    /// <summary>Factory run identifier.</summary>
+    [JsonPropertyName("runId")]
+    public string RunId { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>Opaque identifier of the originating tool call.</summary>
+    [JsonPropertyName("toolCallId")]
+    public string? ToolCallId { get; set; }
 }
 
 /// <summary>Parameters for retrieving a factory run.</summary>
@@ -10881,6 +10982,10 @@ public sealed class OptionsUpdateAdditionalContentExclusionPolicy
 [Experimental(Diagnostics.Experimental)]
 public sealed class CapiSessionOptions
 {
+    /// <summary>Routing preference used when the session model is `auto`. The runtime persists the preference across cold resume. When omitted, the default routing behavior is used. Resuming an already-resident session cannot change its preference.</summary>
+    [JsonPropertyName("autoTier")]
+    public AutoTier? AutoTier { get; set; }
+
     /// <summary>Whether to use WebSocket transport for the CAPI Responses API. Enabled by default when the model advertises `ws:/responses` support; set to `false` to force the HTTP Responses transport in environments where WebSockets are blocked (e.g. behind a proxy). Setting this to `false` is equivalent to the `COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES` environment variable.</summary>
     [JsonPropertyName("enableWebSocketResponses")]
     public bool? EnableWebSocketResponses { get; set; }
@@ -11120,7 +11225,7 @@ public sealed class SandboxConfig
     [JsonPropertyName("addCurrentWorkingDirectory")]
     public bool? AddCurrentWorkingDirectory { get; set; }
 
-    /// <summary>Whether to auto-grant read access to the tool directories discovered on PATH and in toolchain environment variables (GOROOT, CARGO_HOME, JAVA_HOME, VIRTUAL_ENV, and similar), and to common developer-tool caches, registries, and toolchains in their default home locations (cargo, go, npm, Maven, and more), plus read-write access to (and up-front creation of) the scratch caches builds write on every run (go-build, ccache, sccache, Gradle caches, Cargo lock/tracker files), so builds work without extra configuration; a relocated CARGO_HOME additionally gets its Cargo lock files granted read-write. Set to false to disable every grant listed above: user-installed toolchains (rustup, nvm, pyenv, conda, pipx) then need explicit userPolicy.filesystem entries — readonlyPaths to read them, plus readwriteFiles for a relocated CARGO_HOME's .package-cache and .global-cache, which Cargo locks on every build. Only these developer-tool grants are affected: the working directory (see addCurrentWorkingDirectory), temporary storage, session log paths, and system locations follow their own rules and stay granted, so commands still run. Default: true (enabled by default; set to false to opt out).</summary>
+    /// <summary>Whether to auto-grant read access to tool directories discovered on PATH and in toolchain environment variables (GOROOT, JAVA_HOME, VIRTUAL_ENV, and similar), and to common developer-tool caches, config, and toolchains. Writable grants cover scratch caches, the Unix GitHub CLI cache, and Cargo's registry, git store, and lock/tracker files. A relocated CARGO_HOME gets the same narrow split: registry and git are read-write; bin is read-only; the home root, config.toml, and credentials.toml stay ungranted. Set to false to disable every grant listed above; user-installed toolchains and caches then need explicit userPolicy.filesystem readonlyPaths and readwritePaths entries. The working directory (see addCurrentWorkingDirectory), temporary storage, session log paths, and system locations follow their own rules and stay granted. Default: true (enabled by default; set to false to opt out).</summary>
     [JsonPropertyName("allowDevToolAccess")]
     public bool? AllowDevToolAccess { get; set; }
 
@@ -12245,10 +12350,6 @@ internal sealed class ToolsGetBuiltinDescriptorsRequest
     [JsonPropertyName("includeAuthor")]
     public bool? IncludeAuthor { get; set; }
 
-    /// <summary>Whether line numbers should be omitted from the view tool descriptor.</summary>
-    [JsonPropertyName("noViewLineNumbers")]
-    public bool? NoViewLineNumbers { get; set; }
-
     /// <summary>Whether descriptors should favor fewer user-intervention prompts.</summary>
     [JsonPropertyName("reduceUserIntervention")]
     public bool? ReduceUserIntervention { get; set; }
@@ -12256,10 +12357,6 @@ internal sealed class ToolsGetBuiltinDescriptorsRequest
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
-
-    /// <summary>Whether shell commands may only run asynchronously.</summary>
-    [JsonPropertyName("shellAsyncOnlyEnabled")]
-    public bool? ShellAsyncOnlyEnabled { get; set; }
 
     /// <summary>Shell-specific names and description lines for shell tools.</summary>
     [JsonPropertyName("shellConfig")]
@@ -12405,6 +12502,11 @@ public partial class ExternalToolTextResultForLlmContentShellExit : ExternalTool
     /// <summary>Exit code from the completed shell command.</summary>
     [JsonPropertyName("exitCode")]
     public required long ExitCode { get; set; }
+
+    /// <summary>Path reported in the shell session's filesystem namespace when shell output exceeded the configured large-output threshold.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("outputFilePath")]
+    public string? OutputFilePath { get; set; }
 
     /// <summary>Output associated with this shell command, if available. May be partial, truncated, or a preview; not guaranteed to be full output.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -13345,6 +13447,10 @@ internal sealed class EnqueueCommandParams
     /// <summary>Slash-prefixed command string to enqueue, e.g. '/compact' or '/model gpt-4'. Queued FIFO with any in-flight items; if the session is idle, processing kicks off immediately.</summary>
     [JsonPropertyName("command")]
     public string Command { get; set; } = string.Empty;
+
+    /// <summary>Optional user-facing text for the queue row. The command string is shown when omitted.</summary>
+    [JsonPropertyName("displayText")]
+    public string? DisplayText { get; set; }
 
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -29482,7 +29588,7 @@ public sealed class ServerRpc
         return await CopilotClient.InvokeRpcAsync<ConnectResult>(_rpc, "connect", [request], cancellationToken);
     }
 
-    /// <summary>Registers the calling SDK client as the per-entrypoint extension launch provider. Call before creating any sessions. When omitted, the runtime temporarily falls back to its built-in Node launcher for backward compatibility.</summary>
+    /// <summary>Registers the calling SDK client as the per-entrypoint extension launch provider. Call before creating any sessions. When omitted, the runtime uses its built-in extension launcher.</summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     [Experimental(Diagnostics.Experimental)]
     public async Task RegisterExtensionLaunchProviderAsync(CancellationToken cancellationToken = default)
@@ -30892,6 +30998,12 @@ public sealed class SessionRpc
 
     internal CopilotSession Session => _session;
 
+    /// <summary>Sandbox APIs.</summary>
+    public SandboxApi Sandbox =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_session), null) ??
+        field;
+
     /// <summary>GitHubAuth APIs.</summary>
     public GitHubAuthApi GitHubAuth =>
         field ??
@@ -31264,6 +31376,29 @@ public sealed class SessionRpc
     }
 }
 
+/// <summary>Provides session-scoped Sandbox APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class SandboxApi
+{
+    private readonly CopilotSession _session;
+
+    internal SandboxApi(CopilotSession session)
+    {
+        _session = session;
+    }
+
+    /// <summary>Returns whether managed policy requires sandbox enforcement and whether an enforcement failure has permanently blocked the session.</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Managed sandbox enforcement state for a session.</returns>
+    public async Task<SandboxEnforcementStatus> GetEnforcementStatusAsync(CancellationToken cancellationToken = default)
+    {
+        _session.ThrowIfDisposed();
+
+        var request = new SessionSandboxGetEnforcementStatusRequest { SessionId = _session.SessionId };
+        return await CopilotClient.InvokeRpcAsync<SandboxEnforcementStatus>(_session.Rpc, "session.sandbox.getEnforcementStatus", [request], cancellationToken);
+    }
+}
+
 /// <summary>Provides session-scoped GitHubAuth APIs.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class GitHubAuthApi
@@ -31598,15 +31733,49 @@ public sealed class FactoryApi
     /// <summary>Resumes a factory run using its persisted name, arguments, journal, and accounting.</summary>
     /// <param name="runId">Factory run identifier.</param>
     /// <param name="limits">Optional per-invocation resource ceiling overrides.</param>
+    /// <param name="notifyOnComplete">Whether to notify the originating session when the factory completes.</param>
+    /// <param name="logPhaseNames">Whether to emit factory phase names to the session transcript.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Resolved persisted factory identity and resumed run envelope.</returns>
-    public async Task<FactoryResumeResult> ResumeAsync(string runId, FactoryRunLimits? limits = null, CancellationToken cancellationToken = default)
+    public async Task<FactoryResumeResult> ResumeAsync(string runId, FactoryRunLimits? limits = null, bool? notifyOnComplete = null, bool? logPhaseNames = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(runId);
         _session.ThrowIfDisposed();
 
-        var request = new FactoryResumeRequest { SessionId = _session.SessionId, RunId = runId, Limits = limits };
+        var request = new FactoryResumeRequest { SessionId = _session.SessionId, RunId = runId, Limits = limits, NotifyOnComplete = notifyOnComplete, LogPhaseNames = logPhaseNames };
         return await CopilotClient.InvokeRpcAsync<FactoryResumeResult>(_session.Rpc, "session.factory.resume", [request], cancellationToken);
+    }
+
+    /// <summary>Internal tool-originated factory invocation.</summary>
+    /// <param name="name">Registered factory name.</param>
+    /// <param name="args">Factory input value.</param>
+    /// <param name="options">Tool-originated factory invocation options.</param>
+    /// <param name="toolCallId">Opaque identifier of the originating tool call.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Complete current or terminal factory run envelope.</returns>
+    internal async Task<FactoryRunResult> RunFromToolAsync(string name, object args, FactoryToolRunOptions? options = null, string? toolCallId = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        ArgumentNullException.ThrowIfNull(args);
+        _session.ThrowIfDisposed();
+
+        var request = new FactoryToolRunRequest { SessionId = _session.SessionId, Name = name, Args = CopilotClient.ToJsonElementForWire(args)!.Value, Options = options, ToolCallId = toolCallId };
+        return await CopilotClient.InvokeRpcAsync<FactoryRunResult>(_session.Rpc, "session.factory.runFromTool", [request], cancellationToken);
+    }
+
+    /// <summary>Internal tool-originated factory resume.</summary>
+    /// <param name="runId">Factory run identifier.</param>
+    /// <param name="limits">Optional per-invocation resource ceiling overrides.</param>
+    /// <param name="toolCallId">Opaque identifier of the originating tool call.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Resolved persisted factory identity and resumed run envelope.</returns>
+    internal async Task<FactoryResumeResult> ResumeFromToolAsync(string runId, FactoryRunLimits? limits = null, string? toolCallId = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(runId);
+        _session.ThrowIfDisposed();
+
+        var request = new FactoryToolResumeRequest { SessionId = _session.SessionId, RunId = runId, Limits = limits, ToolCallId = toolCallId };
+        return await CopilotClient.InvokeRpcAsync<FactoryResumeResult>(_session.Rpc, "session.factory.resumeFromTool", [request], cancellationToken);
     }
 
     /// <summary>Gets the current or settled envelope for a factory run.</summary>
@@ -33426,22 +33595,20 @@ public sealed class ToolsApi
     }
 
     /// <summary>Returns the Rust-owned built-in tool descriptors used to construct the session's offered tool set.</summary>
-    /// <param name="noViewLineNumbers">Whether line numbers should be omitted from the view tool descriptor.</param>
     /// <param name="reduceUserIntervention">Whether descriptors should favor fewer user-intervention prompts.</param>
     /// <param name="includeAuthor">Whether tool descriptors should include authoring metadata.</param>
     /// <param name="skillEmbeddingEnabled">Whether semantic skill lookup is available.</param>
     /// <param name="shellConfig">Shell-specific names and description lines for shell tools.</param>
-    /// <param name="shellAsyncOnlyEnabled">Whether shell commands may only run asynchronously.</param>
     /// <param name="shellSupportsPowerShell7Syntax">Whether the configured shell supports PowerShell 7 syntax.</param>
     /// <param name="shellTimeoutMs">Default shell timeout in milliseconds.</param>
     /// <param name="backgroundTaskNotificationsEnabled">Whether background task completion notifications are enabled.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Rust-owned built-in tool descriptors for the session.</returns>
-    public async Task<ToolsGetBuiltinDescriptorsResult> GetBuiltinDescriptorsAsync(bool? noViewLineNumbers = null, bool? reduceUserIntervention = null, bool? includeAuthor = null, bool? skillEmbeddingEnabled = null, ToolsShellDescriptorConfig? shellConfig = null, bool? shellAsyncOnlyEnabled = null, bool? shellSupportsPowerShell7Syntax = null, double? shellTimeoutMs = null, bool? backgroundTaskNotificationsEnabled = null, CancellationToken cancellationToken = default)
+    public async Task<ToolsGetBuiltinDescriptorsResult> GetBuiltinDescriptorsAsync(bool? reduceUserIntervention = null, bool? includeAuthor = null, bool? skillEmbeddingEnabled = null, ToolsShellDescriptorConfig? shellConfig = null, bool? shellSupportsPowerShell7Syntax = null, double? shellTimeoutMs = null, bool? backgroundTaskNotificationsEnabled = null, CancellationToken cancellationToken = default)
     {
         _session.ThrowIfDisposed();
 
-        var request = new ToolsGetBuiltinDescriptorsRequest { SessionId = _session.SessionId, NoViewLineNumbers = noViewLineNumbers, ReduceUserIntervention = reduceUserIntervention, IncludeAuthor = includeAuthor, SkillEmbeddingEnabled = skillEmbeddingEnabled, ShellConfig = shellConfig, ShellAsyncOnlyEnabled = shellAsyncOnlyEnabled, ShellSupportsPowerShell7Syntax = shellSupportsPowerShell7Syntax, ShellTimeoutMs = shellTimeoutMs, BackgroundTaskNotificationsEnabled = backgroundTaskNotificationsEnabled };
+        var request = new ToolsGetBuiltinDescriptorsRequest { SessionId = _session.SessionId, ReduceUserIntervention = reduceUserIntervention, IncludeAuthor = includeAuthor, SkillEmbeddingEnabled = skillEmbeddingEnabled, ShellConfig = shellConfig, ShellSupportsPowerShell7Syntax = shellSupportsPowerShell7Syntax, ShellTimeoutMs = shellTimeoutMs, BackgroundTaskNotificationsEnabled = backgroundTaskNotificationsEnabled };
         return await CopilotClient.InvokeRpcAsync<ToolsGetBuiltinDescriptorsResult>(_session.Rpc, "session.tools.getBuiltinDescriptors", [request], cancellationToken);
     }
 
@@ -33606,14 +33773,15 @@ public sealed class CommandsApi
 
     /// <summary>Enqueues a slash command for FIFO processing on the local session.</summary>
     /// <param name="command">Slash-prefixed command string to enqueue, e.g. '/compact' or '/model gpt-4'. Queued FIFO with any in-flight items; if the session is idle, processing kicks off immediately.</param>
+    /// <param name="displayText">Optional user-facing text for the queue row. The command string is shown when omitted.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Indicates whether the command was accepted into the local execution queue.</returns>
-    public async Task<EnqueueCommandResult> EnqueueAsync(string command, CancellationToken cancellationToken = default)
+    public async Task<EnqueueCommandResult> EnqueueAsync(string command, string? displayText = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(command);
         _session.ThrowIfDisposed();
 
-        var request = new EnqueueCommandParams { SessionId = _session.SessionId, Command = command };
+        var request = new EnqueueCommandParams { SessionId = _session.SessionId, Command = command, DisplayText = displayText };
         return await CopilotClient.InvokeRpcAsync<EnqueueCommandResult>(_session.Rpc, "session.commands.enqueue", [request], cancellationToken);
     }
 
@@ -35495,6 +35663,9 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.AgentInterruptedCancelPhase), TypeInfoPropertyName = "SessionEventsAgentInterruptedCancelPhase")]
 [JsonSerializable(typeof(GitHub.Copilot.AgentInterruptedData), TypeInfoPropertyName = "SessionEventsAgentInterruptedData")]
 [JsonSerializable(typeof(GitHub.Copilot.AgentInterruptedEvent), TypeInfoPropertyName = "SessionEventsAgentInterruptedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantFusionPhaseCompletedEvent), TypeInfoPropertyName = "SessionEventsAssistantFusionPhaseCompletedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantFusionPhaseFailedEvent), TypeInfoPropertyName = "SessionEventsAssistantFusionPhaseFailedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantFusionPhaseStartedEvent), TypeInfoPropertyName = "SessionEventsAssistantFusionPhaseStartedEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.AssistantIdleData), TypeInfoPropertyName = "SessionEventsAssistantIdleData")]
 [JsonSerializable(typeof(GitHub.Copilot.AssistantIdleEvent), TypeInfoPropertyName = "SessionEventsAssistantIdleEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.AssistantIntentData), TypeInfoPropertyName = "SessionEventsAssistantIntentData")]
@@ -35508,6 +35679,8 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.AssistantMessageStartData), TypeInfoPropertyName = "SessionEventsAssistantMessageStartData")]
 [JsonSerializable(typeof(GitHub.Copilot.AssistantMessageStartEvent), TypeInfoPropertyName = "SessionEventsAssistantMessageStartEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.AssistantMessageToolRequest), TypeInfoPropertyName = "SessionEventsAssistantMessageToolRequest")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantMessageToolRequestCaller), TypeInfoPropertyName = "SessionEventsAssistantMessageToolRequestCaller")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantMessageToolRequestCallerType), TypeInfoPropertyName = "SessionEventsAssistantMessageToolRequestCallerType")]
 [JsonSerializable(typeof(GitHub.Copilot.AssistantMessageToolRequestType), TypeInfoPropertyName = "SessionEventsAssistantMessageToolRequestType")]
 [JsonSerializable(typeof(GitHub.Copilot.AssistantReasoningData), TypeInfoPropertyName = "SessionEventsAssistantReasoningData")]
 [JsonSerializable(typeof(GitHub.Copilot.AssistantReasoningDeltaData), TypeInfoPropertyName = "SessionEventsAssistantReasoningDeltaData")]
@@ -35562,6 +35735,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.AutoModeSwitchRequestedData), TypeInfoPropertyName = "SessionEventsAutoModeSwitchRequestedData")]
 [JsonSerializable(typeof(GitHub.Copilot.AutoModeSwitchRequestedEvent), TypeInfoPropertyName = "SessionEventsAutoModeSwitchRequestedEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.AutoModeSwitchResponse), TypeInfoPropertyName = "SessionEventsAutoModeSwitchResponse")]
+[JsonSerializable(typeof(GitHub.Copilot.AutoTier), TypeInfoPropertyName = "SessionEventsAutoTier")]
 [JsonSerializable(typeof(GitHub.Copilot.AutopilotObjectiveChangedOperation), TypeInfoPropertyName = "SessionEventsAutopilotObjectiveChangedOperation")]
 [JsonSerializable(typeof(GitHub.Copilot.AutopilotObjectiveChangedStatus), TypeInfoPropertyName = "SessionEventsAutopilotObjectiveChangedStatus")]
 [JsonSerializable(typeof(GitHub.Copilot.BinaryAssetReference), TypeInfoPropertyName = "SessionEventsBinaryAssetReference")]
@@ -35626,6 +35800,17 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.FactoryRunStartedEvent), TypeInfoPropertyName = "SessionEventsFactoryRunStartedEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.FactoryRunUpdatedData), TypeInfoPropertyName = "SessionEventsFactoryRunUpdatedData")]
 [JsonSerializable(typeof(GitHub.Copilot.FactoryRunUpdatedEvent), TypeInfoPropertyName = "SessionEventsFactoryRunUpdatedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.FusionAttribution), TypeInfoPropertyName = "SessionEventsFusionAttribution")]
+[JsonSerializable(typeof(GitHub.Copilot.FusionConversationScope), TypeInfoPropertyName = "SessionEventsFusionConversationScope")]
+[JsonSerializable(typeof(GitHub.Copilot.FusionFollowUpAction), TypeInfoPropertyName = "SessionEventsFusionFollowUpAction")]
+[JsonSerializable(typeof(GitHub.Copilot.FusionFollowUpRecommendation), TypeInfoPropertyName = "SessionEventsFusionFollowUpRecommendation")]
+[JsonSerializable(typeof(GitHub.Copilot.FusionPattern), TypeInfoPropertyName = "SessionEventsFusionPattern")]
+[JsonSerializable(typeof(GitHub.Copilot.FusionPhaseKind), TypeInfoPropertyName = "SessionEventsFusionPhaseKind")]
+[JsonSerializable(typeof(GitHub.Copilot.FusionPhaseStatus), TypeInfoPropertyName = "SessionEventsFusionPhaseStatus")]
+[JsonSerializable(typeof(GitHub.Copilot.FusionPhaseUsage), TypeInfoPropertyName = "SessionEventsFusionPhaseUsage")]
+[JsonSerializable(typeof(GitHub.Copilot.FusionProjectionMode), TypeInfoPropertyName = "SessionEventsFusionProjectionMode")]
+[JsonSerializable(typeof(GitHub.Copilot.FusionScores), TypeInfoPropertyName = "SessionEventsFusionScores")]
+[JsonSerializable(typeof(GitHub.Copilot.FusionTurnKind), TypeInfoPropertyName = "SessionEventsFusionTurnKind")]
 [JsonSerializable(typeof(GitHub.Copilot.GitHubMcpToolConfig), TypeInfoPropertyName = "SessionEventsGitHubMcpToolConfig")]
 [JsonSerializable(typeof(GitHub.Copilot.GitHubRepoRef), TypeInfoPropertyName = "SessionEventsGitHubRepoRef")]
 [JsonSerializable(typeof(GitHub.Copilot.HandoffRepository), TypeInfoPropertyName = "SessionEventsHandoffRepository")]
@@ -35767,6 +35952,8 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.SkillsLoadedSkill), TypeInfoPropertyName = "SessionEventsSkillsLoadedSkill")]
 [JsonSerializable(typeof(GitHub.Copilot.SubagentCompletedData), TypeInfoPropertyName = "SessionEventsSubagentCompletedData")]
 [JsonSerializable(typeof(GitHub.Copilot.SubagentCompletedEvent), TypeInfoPropertyName = "SessionEventsSubagentCompletedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.SubagentConfiguredData), TypeInfoPropertyName = "SessionEventsSubagentConfiguredData")]
+[JsonSerializable(typeof(GitHub.Copilot.SubagentConfiguredEvent), TypeInfoPropertyName = "SessionEventsSubagentConfiguredEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.SubagentDeselectedData), TypeInfoPropertyName = "SessionEventsSubagentDeselectedData")]
 [JsonSerializable(typeof(GitHub.Copilot.SubagentDeselectedEvent), TypeInfoPropertyName = "SessionEventsSubagentDeselectedEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.SubagentFailedData), TypeInfoPropertyName = "SessionEventsSubagentFailedData")]
@@ -36017,6 +36204,9 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(FactoryRunResult))]
 [JsonSerializable(typeof(FactoryRunSummary))]
 [JsonSerializable(typeof(FactoryRunTerminal))]
+[JsonSerializable(typeof(FactoryToolResumeRequest))]
+[JsonSerializable(typeof(FactoryToolRunOptions))]
+[JsonSerializable(typeof(FactoryToolRunRequest))]
 [JsonSerializable(typeof(FleetStartRequest))]
 [JsonSerializable(typeof(FleetStartResult))]
 [JsonSerializable(typeof(FolderTrustAddParams))]
@@ -36384,6 +36574,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SandboxConfigUserPolicyNetwork))]
 [JsonSerializable(typeof(SandboxConfigUserPolicyNetworkProxy))]
 [JsonSerializable(typeof(SandboxConfigUserPolicySeatbelt))]
+[JsonSerializable(typeof(SandboxEnforcementStatus))]
 [JsonSerializable(typeof(ScheduleAddAtRequest))]
 [JsonSerializable(typeof(ScheduleAddCronRequest))]
 [JsonSerializable(typeof(ScheduleAddRequest))]
@@ -36520,6 +36711,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SessionQueueRemoveMostRecentRequest))]
 [JsonSerializable(typeof(SessionQueueSnapshotRequest))]
 [JsonSerializable(typeof(SessionRemoteDisableRequest))]
+[JsonSerializable(typeof(SessionSandboxGetEnforcementStatusRequest))]
 [JsonSerializable(typeof(SessionScheduleHasSelfPacedRequest))]
 [JsonSerializable(typeof(SessionScheduleHydrateRequest))]
 [JsonSerializable(typeof(SessionScheduleListRequest))]

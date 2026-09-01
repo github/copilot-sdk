@@ -88,13 +88,13 @@ public final class FfiRuntimeHost implements AutoCloseable {
      * Starts the in-process runtime and opens a connection.
      *
      * @param entrypointPath
-     *            runtime entrypoint path passed in {@code argv_json}
+     *            optional explicit legacy CLI entrypoint passed in
+     *            {@code argv_json}
      * @param options
      *            client options used to construct {@code argv_json} and
      *            {@code env_json}
      */
     public void start(String entrypointPath, CopilotClientOptions options) {
-        Objects.requireNonNull(entrypointPath, "entrypointPath must not be null");
         Objects.requireNonNull(options, "options must not be null");
         if (disposed.get()) {
             throw new IllegalStateException("FfiRuntimeHost is already closed.");
@@ -108,8 +108,7 @@ public final class FfiRuntimeHost implements AutoCloseable {
         int hostHandle = runHostStartOnBlockingThread(argvJson, envJson);
         if (hostHandle == 0) {
             String lib = libraryPath != null ? libraryPath : "<unknown>";
-            throw new IllegalStateException(
-                    "copilot_runtime_host_start failed (library '" + lib + "', entrypoint '" + entrypointPath + "').");
+            throw new IllegalStateException("copilot_runtime_host_start failed (library '" + lib + "').");
         }
 
         // Hold operationLock while publishing handles to serialize with close().
@@ -270,12 +269,14 @@ public final class FfiRuntimeHost implements AutoCloseable {
 
     private static byte[] buildArgvJson(String entrypointPath, CopilotClientOptions options) {
         List<String> argv = new ArrayList<>();
-        if (entrypointPath.toLowerCase().endsWith(".js")) {
-            argv.add("node");
+        if (entrypointPath != null) {
+            if (entrypointPath.toLowerCase().endsWith(".js")) {
+                argv.add("node");
+            }
+            argv.add(entrypointPath);
+            argv.add("--embedded-host");
+            argv.add("--no-auto-update");
         }
-        argv.add(entrypointPath);
-        argv.add("--embedded-host");
-        argv.add("--no-auto-update");
 
         String logLevel = options.getLogLevel();
         if (logLevel != null && !logLevel.isBlank()) {

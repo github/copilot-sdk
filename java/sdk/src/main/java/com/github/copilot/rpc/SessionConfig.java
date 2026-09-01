@@ -47,6 +47,7 @@ public class SessionConfig {
     private String reasoningEffort;
     private String reasoningSummary;
     private String contextTier;
+    private AskUserVariant askUserVariant;
     private List<ToolDefinition> tools;
     private SystemMessageConfig systemMessage;
     private List<String> availableTools;
@@ -254,6 +255,30 @@ public class SessionConfig {
      */
     public SessionConfig setContextTier(String contextTier) {
         this.contextTier = contextTier;
+        return this;
+    }
+
+    /**
+     * Gets the experience used by the built-in {@code ask_user} tool.
+     *
+     * @return the ask-user variant, or {@code null} to use the legacy experience
+     */
+    public AskUserVariant getAskUserVariant() {
+        return askUserVariant;
+    }
+
+    /**
+     * Sets the model-facing shape of the built-in {@code ask_user} tool.
+     * <p>
+     * When unset, the option is omitted and the legacy shape is used. Set an
+     * elicitation handler when selecting {@link AskUserVariant#ELICITATION}.
+     *
+     * @param askUserVariant
+     *            the ask-user variant
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setAskUserVariant(AskUserVariant askUserVariant) {
+        this.askUserVariant = askUserVariant;
         return this;
     }
 
@@ -919,7 +944,9 @@ public class SessionConfig {
     /**
      * Sets a handler for user input requests from the agent.
      * <p>
-     * When provided, enables the ask_user tool for the agent to request user input.
+     * When provided, enables the legacy question-and-answer form of the
+     * {@code ask_user} tool. Use an elicitation handler with
+     * {@link AskUserVariant#ELICITATION}.
      *
      * @param onUserInputRequest
      *            the user input handler
@@ -2219,6 +2246,7 @@ public class SessionConfig {
         copy.reasoningEffort = this.reasoningEffort;
         copy.reasoningSummary = this.reasoningSummary;
         copy.contextTier = this.contextTier;
+        copy.askUserVariant = this.askUserVariant;
         copy.tools = this.tools != null ? new ArrayList<>(this.tools) : null;
         copy.systemMessage = this.systemMessage;
         copy.availableTools = this.availableTools != null ? new ArrayList<>(this.availableTools) : null;

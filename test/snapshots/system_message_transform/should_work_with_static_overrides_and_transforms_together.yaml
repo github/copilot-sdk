@@ -47,7 +47,7 @@ conversations:
           task.
       - role: tool
         tool_call_id: toolcall_1
-        content: 1. Combo test!
+        content: Combo test!
       - role: assistant
         content: |-
           The file `combo.txt` contains:

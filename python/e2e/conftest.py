@@ -1,9 +1,13 @@
 """Shared pytest fixtures for e2e tests."""
 
+import json
 import os
+from pathlib import Path
 
 import pytest
 import pytest_asyncio
+
+import copilot._cli_download as cli_download
 
 from .testharness import E2ETestContext, is_inprocess_transport
 
@@ -15,9 +19,16 @@ from .testharness import E2ETestContext, is_inprocess_transport
 # .NET's InProcessEnvIsolation [ModuleInitializer] and Node's module-init guard.
 # Out-of-process children resolve auth in their own process where the token already
 # outranks HMAC. See https://github.com/github/copilot-sdk/issues/1934.
+if not cli_download.CLI_VERSION:
+    package_lock = json.loads(
+        (Path(__file__).parents[2] / "nodejs" / "package-lock.json").read_text()
+    )
+    cli_download.CLI_VERSION = package_lock["packages"]["node_modules/@github/copilot"]["version"]
+
 if is_inprocess_transport():
     os.environ.pop("COPILOT_HMAC_KEY", None)
     os.environ.pop("CAPI_HMAC_KEY", None)
+    os.environ.pop("COPILOT_CLI_PATH", None)
 
 
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)

@@ -5,6 +5,16 @@ conversations:
       - role: system
         content: ${system}
       - role: user
-        content: "Reply with exactly: RUST_CONTEXT_INFO"
+        content: "Use processing_barrier, then reply with exactly: RUST_CONTEXT_INFO"
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: processing_barrier
+              arguments: "{}"
+      - role: tool
+        tool_call_id: toolcall_0
+        content: PROCESSING_OBSERVED
       - role: assistant
         content: RUST_CONTEXT_INFO

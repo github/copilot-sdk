@@ -45,7 +45,15 @@ public final class SubagentStartedEvent extends SessionEvent {
         /** Model the sub-agent will run with, when known at start. */
         @JsonProperty("model") String model,
         /** Root id of the factory run that spawned this sub-agent, when it was spawned by one. */
-        @JsonProperty("factoryRunId") String factoryRunId
+        @JsonProperty("factoryRunId") String factoryRunId,
+        /** Task-registry ID of the spawning sub-agent. Absent when the root session spawned this child. */
+        @JsonProperty("parentId") String parentId,
+        /** Whether this sub-agent can be resumed. Currently always false. */
+        @JsonProperty("resumable") Boolean resumable,
+        /** Type of the sub-agent selected at spawn time. */
+        @JsonProperty("agentType") String agentType,
+        /** Whether the sub-agent runs synchronously or in the background. */
+        @JsonProperty("executionMode") String executionMode
     ) {
     }
 }

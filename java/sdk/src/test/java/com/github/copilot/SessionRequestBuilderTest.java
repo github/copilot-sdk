@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 
 import com.github.copilot.generated.rpc.ManagedMcpServerConfig;
 import com.github.copilot.generated.rpc.SessionLimitsConfig;
+import com.github.copilot.rpc.AskUserVariant;
 import com.github.copilot.rpc.AutoModeSwitchResponse;
 import com.github.copilot.rpc.CloudSessionOptions;
 import com.github.copilot.rpc.CloudSessionRepository;
@@ -77,6 +78,42 @@ public class SessionRequestBuilderTest {
     void testGitHubTokenProviderResultRedactsToken() {
         var result = GitHubTokenProviderResult.token("do-not-print", 28_800);
         assertFalse(result.toString().contains("do-not-print"));
+    }
+
+    @Test
+    void askUserVariantIsForwardedAndSerializedForCreateAndColdResume() throws Exception {
+        var createRequest = SessionRequestBuilder.buildCreateRequest(
+                new SessionConfig().setAskUserVariant(AskUserVariant.ELICITATION), "create-session");
+        var resumeRequest = SessionRequestBuilder.buildResumeRequest("resume-session",
+                new ResumeSessionConfig().setAskUserVariant(AskUserVariant.LEGACY));
+        var mapper = JsonRpcClient.getObjectMapper();
+
+        assertEquals(AskUserVariant.ELICITATION, createRequest.getAskUserVariant());
+        assertEquals("elicitation",
+                mapper.readTree(mapper.writeValueAsBytes(createRequest)).path("askUserVariant").asText());
+        assertEquals(AskUserVariant.LEGACY, resumeRequest.getAskUserVariant());
+        assertEquals("legacy",
+                mapper.readTree(mapper.writeValueAsBytes(resumeRequest)).path("askUserVariant").asText());
+    }
+
+    @Test
+    void askUserVariantDefaultsToOmittedLegacyBehavior() throws Exception {
+        var mapper = JsonRpcClient.getObjectMapper();
+        var createRequest = SessionRequestBuilder.buildCreateRequest(new SessionConfig(), "create-session");
+        var resumeRequest = SessionRequestBuilder.buildResumeRequest("resume-session", new ResumeSessionConfig());
+
+        assertNull(createRequest.getAskUserVariant());
+        assertFalse(mapper.readTree(mapper.writeValueAsBytes(createRequest)).has("askUserVariant"));
+        assertNull(resumeRequest.getAskUserVariant());
+        assertFalse(mapper.readTree(mapper.writeValueAsBytes(resumeRequest)).has("askUserVariant"));
+    }
+
+    @Test
+    void askUserVariantAcceptsOnlySupportedWireValues() {
+        assertEquals(AskUserVariant.LEGACY, AskUserVariant.fromValue("legacy"));
+        assertEquals(AskUserVariant.ELICITATION, AskUserVariant.fromValue("elicitation"));
+        assertThrows(IllegalArgumentException.class, () -> AskUserVariant.fromValue("ELICITATION"));
+        assertThrows(IllegalArgumentException.class, () -> AskUserVariant.fromValue("unsupported"));
     }
 
     @Test

@@ -29,6 +29,7 @@ from .canvas import (
     OpenCanvasInstance,
 )
 from .client import (
+    AskUserVariant,
     CapiSessionOptions,
     ChildProcessRuntimeConnection,
     CloudSessionOptions,
@@ -234,6 +235,7 @@ __all__ = [
     "AutoModeSwitchHandler",
     "AutoModeSwitchRequest",
     "AutoModeSwitchResponse",
+    "AskUserVariant",
     "BUILTIN_TOOLS_ISOLATED",
     "CanvasAction",
     "CanvasDeclaration",

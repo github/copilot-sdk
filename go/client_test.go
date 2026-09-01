@@ -24,6 +24,35 @@ import (
 
 // This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.test.go instead
 
+func TestResolveRuntimeExecutable(t *testing.T) {
+	t.Run("managed launch requires bundled runtime pair", func(t *testing.T) {
+		_, err := resolveRuntimeExecutable("", "")
+		if err == nil || !strings.Contains(err.Error(), "copilot-runtime and adjacent runtime.node") {
+			t.Fatalf("expected missing managed runtime error, got %v", err)
+		}
+	})
+
+	t.Run("explicit path does not require bundled runtime pair", func(t *testing.T) {
+		path, err := resolveRuntimeExecutable("/explicit/copilot", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if path != "/explicit/copilot" {
+			t.Fatalf("resolveRuntimeExecutable() = %q", path)
+		}
+	})
+
+	t.Run("managed launch selects bundled wrapper", func(t *testing.T) {
+		path, err := resolveRuntimeExecutable("", "/bundle/copilot-runtime")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if path != "/bundle/copilot-runtime" {
+			t.Fatalf("resolveRuntimeExecutable() = %q", path)
+		}
+	})
+}
+
 func TestClient_URLParsing(t *testing.T) {
 	t.Run("should parse port-only URL format", func(t *testing.T) {
 		client := NewClient(&ClientOptions{
@@ -443,6 +472,85 @@ func TestClient_ForwardsCapiOptionsToSessionRequests(t *testing.T) {
 		t.Fatalf("ResumeSessionWithOptions failed: %v", err)
 	}
 	assertCapiEnableWebSocketResponses(t, <-resumeParams)
+}
+
+func TestClient_ForwardsAskUserVariantToSessionRequests(t *testing.T) {
+	rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
+	t.Cleanup(server.Stop)
+	client := &Client{
+		client:   rpcClient,
+		RPC:      rpc.NewServerRPC(rpcClient),
+		sessions: make(map[string]*Session),
+	}
+
+	createParams := make(chan json.RawMessage, 2)
+	server.SetRequestHandler("session.create", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		createParams <- append(json.RawMessage(nil), params...)
+		sessionID := sessionIDFromParams(t, params)
+		return []byte(`{"sessionId":"` + sessionID + `","workspacePath":"/workspace"}`), nil
+	})
+	resumeParams := make(chan json.RawMessage, 2)
+	server.SetRequestHandler("session.resume", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		resumeParams <- append(json.RawMessage(nil), params...)
+		sessionID := sessionIDFromParams(t, params)
+		return []byte(`{"sessionId":"` + sessionID + `","workspacePath":"/workspace"}`), nil
+	})
+
+	if _, err := client.CreateSession(t.Context(), &SessionConfig{
+		SessionID:      "ask-user-create",
+		AskUserVariant: AskUserVariantElicitation,
+	}); err != nil {
+		t.Fatalf("CreateSession failed: %v", err)
+	}
+	if _, err := client.ResumeSession(t.Context(), "ask-user-cold-resume", &ResumeSessionConfig{
+		AskUserVariant: AskUserVariantLegacy,
+	}); err != nil {
+		t.Fatalf("ResumeSession failed: %v", err)
+	}
+	if _, err := client.CreateSession(t.Context(), &SessionConfig{SessionID: "ask-user-default-create"}); err != nil {
+		t.Fatalf("CreateSession with default failed: %v", err)
+	}
+	if _, err := client.ResumeSession(t.Context(), "ask-user-default-cold-resume", nil); err != nil {
+		t.Fatalf("ResumeSession with default failed: %v", err)
+	}
+
+	assertAskUserVariant(t, <-createParams, "elicitation")
+	assertAskUserVariant(t, <-resumeParams, "legacy")
+	assertAskUserVariant(t, <-createParams, "")
+	assertAskUserVariant(t, <-resumeParams, "")
+}
+
+func TestClient_RejectsInvalidAskUserVariant(t *testing.T) {
+	client := &Client{}
+
+	if _, err := client.CreateSession(t.Context(), &SessionConfig{
+		AskUserVariant: AskUserVariant("unknown"),
+	}); err == nil || !strings.Contains(err.Error(), "AskUserVariant") {
+		t.Fatalf("CreateSession error = %v, want invalid AskUserVariant error", err)
+	}
+	if _, err := client.ResumeSession(t.Context(), "cold-resume", &ResumeSessionConfig{
+		AskUserVariant: AskUserVariant("unknown"),
+	}); err == nil || !strings.Contains(err.Error(), "AskUserVariant") {
+		t.Fatalf("ResumeSession error = %v, want invalid AskUserVariant error", err)
+	}
+}
+
+func assertAskUserVariant(t *testing.T, params json.RawMessage, want string) {
+	t.Helper()
+	var payload map[string]any
+	if err := json.Unmarshal(params, &payload); err != nil {
+		t.Fatalf("failed to decode request params: %v", err)
+	}
+	got, present := payload["askUserVariant"]
+	if want == "" {
+		if present {
+			t.Fatalf("askUserVariant = %v, want omitted", got)
+		}
+		return
+	}
+	if got != want {
+		t.Fatalf("askUserVariant = %v, want %q", got, want)
+	}
 }
 
 func TestClient_ForwardsAdditionalDirectoriesToSessionRequests(t *testing.T) {

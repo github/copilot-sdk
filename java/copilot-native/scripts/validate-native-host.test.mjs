@@ -18,6 +18,17 @@ test("accepts Linux x64 with glibc", () => {
   );
 });
 
+test("accepts Linux ARM64 with glibc", () => {
+  assert.equal(
+    validateNativeHost("linux-arm64", {
+      platform: "linux",
+      arch: "arm64",
+      glibcVersionRuntime: "2.39",
+    }),
+    "Validated native build host: linux-arm64 (glibc 2.39)",
+  );
+});
+
 test("accepts Windows x64 without a libc requirement", () => {
   assert.equal(
     validateNativeHost("win32-x64", {
@@ -26,6 +37,17 @@ test("accepts Windows x64 without a libc requirement", () => {
       glibcVersionRuntime: undefined,
     }),
     "Validated native build host: win32-x64",
+  );
+});
+
+test("accepts Windows ARM64 without a libc requirement", () => {
+  assert.equal(
+    validateNativeHost("win32-arm64", {
+      platform: "win32",
+      arch: "arm64",
+      glibcVersionRuntime: undefined,
+    }),
+    "Validated native build host: win32-arm64",
   );
 });
 
@@ -46,6 +68,18 @@ test("rejects Linux x64 with musl or unknown libc", () => {
       validateNativeHost("linux-x64", {
         platform: "linux",
         arch: "x64",
+        glibcVersionRuntime: undefined,
+      }),
+    /requires glibc/,
+  );
+});
+
+test("rejects Linux ARM64 with musl or unknown libc", () => {
+  assert.throws(
+    () =>
+      validateNativeHost("linux-arm64", {
+        platform: "linux",
+        arch: "arm64",
         glibcVersionRuntime: undefined,
       }),
     /requires glibc/,
@@ -76,6 +110,18 @@ test("rejects a non-x64 host", () => {
   );
 });
 
+test("rejects Linux x64 for the Linux ARM64 classifier", () => {
+  assert.throws(
+    () =>
+      validateNativeHost("linux-arm64", {
+        platform: "linux",
+        arch: "x64",
+        glibcVersionRuntime: "2.39",
+      }),
+    /requires Linux ARM64/,
+  );
+});
+
 test("rejects a non-Windows host for the Windows classifier", () => {
   assert.throws(
     () =>
@@ -97,6 +143,18 @@ test("rejects Windows ARM64 for the Windows x64 classifier", () => {
         glibcVersionRuntime: undefined,
       }),
     /requires Windows x64/,
+  );
+});
+
+test("rejects Windows x64 for the Windows ARM64 classifier", () => {
+  assert.throws(
+    () =>
+      validateNativeHost("win32-arm64", {
+        platform: "win32",
+        arch: "x64",
+        glibcVersionRuntime: undefined,
+      }),
+    /requires Windows ARM64/,
   );
 });
 

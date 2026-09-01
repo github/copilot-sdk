@@ -5,7 +5,7 @@
 
 import type { MessageConnection } from "vscode-jsonrpc/node.js";
 
-import type { AbortReason, Attachment, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerSource, McpServerStatus, ModelChangeSource, PermissionMode, PermissionPromptRequest, PermissionRule, ReasoningSummary, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskCompleteData, TaskCompletionOutcome, UserToolSessionApproval, Verbosity } from "./session-events.js";
+import type { AbortReason, Attachment, AutoTier, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerSource, McpServerStatus, ModelChangeSource, PermissionMode, PermissionPromptRequest, PermissionRule, ReasoningSummary, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskCompleteData, TaskCompletionOutcome, UserToolSessionApproval, Verbosity } from "./session-events.js";
 
 /** A value that can be represented losslessly on the SDK JSON wire. */
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
@@ -5501,6 +5501,7 @@ export interface CanvasProviderUnregisterRequest {
  */
 /** @experimental */
 export interface CapiSessionOptions {
+  autoTier?: AutoTier;
   /**
    * Whether to use WebSocket transport for the CAPI Responses API. Enabled by default when the model advertises `ws:/responses` support; set to `false` to force the HTTP Responses transport in environments where WebSockets are blocked (e.g. behind a proxy). Setting this to `false` is equivalent to the `COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES` environment variable.
    */
@@ -6873,6 +6874,10 @@ export interface EnqueueCommandParams {
    * Slash-prefixed command string to enqueue, e.g. '/compact' or '/model gpt-4'. Queued FIFO with any in-flight items; if the session is idle, processing kicks off immediately.
    */
   command: string;
+  /**
+   * Optional user-facing text for the queue row. The command string is shown when omitted.
+   */
+  displayText?: string | null;
 }
 /**
  * Indicates whether the command was accepted into the local execution queue.
@@ -7282,6 +7287,10 @@ export interface ExternalToolTextResultForLlmContentShellExit {
    * Whether outputPreview is known to be incomplete or truncated
    */
   outputTruncated?: boolean;
+  /**
+   * Path reported in the shell session's filesystem namespace when shell output exceeded the configured large-output threshold.
+   */
+  outputFilePath?: string;
 }
 /**
  * Image content block with base64-encoded data
@@ -8101,6 +8110,14 @@ export interface FactoryResumeRequest {
    */
   runId: string;
   limits?: FactoryRunLimits;
+  /**
+   * Whether to notify the originating session when the factory completes.
+   */
+  notifyOnComplete?: boolean;
+  /**
+   * Whether to emit factory phase names to the session transcript.
+   */
+  logPhaseNames?: boolean;
 }
 /**
  * Wire-only per-invocation factory resource ceiling overrides.
@@ -8285,9 +8302,74 @@ export interface FactoryRunRequest {
 export interface RunOptions {
   limits?: FactoryRunLimits;
   /**
+   * Whether to notify the originating session when the factory completes.
+   */
+  notifyOnComplete?: boolean;
+  /**
+   * Whether to emit factory phase names to the session transcript.
+   */
+  logPhaseNames?: boolean;
+  /**
    * Run identifier whose journal and progress should seed this resumed run.
    */
   resumeFromRunId?: string;
+}
+/**
+ * Internal parameters for resuming a factory run from a tool.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryToolResumeRequest".
+ */
+/** @experimental */
+/** @internal */
+export interface FactoryToolResumeRequest {
+  /**
+   * Factory run identifier.
+   */
+  runId: string;
+  limits?: FactoryRunLimits;
+  /**
+   * Opaque identifier of the originating tool call.
+   */
+  toolCallId?: string;
+}
+/**
+ * Options for an internal tool-originated factory invocation.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryToolRunOptions".
+ */
+/** @experimental */
+/** @internal */
+export interface FactoryToolRunOptions {
+  limits?: FactoryRunLimits;
+  /**
+   * Run identifier whose journal and progress should seed this resumed run.
+   */
+  resumeFromRunId?: string;
+}
+/**
+ * Internal parameters for invoking a registered factory from a tool.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryToolRunRequest".
+ */
+/** @experimental */
+/** @internal */
+export interface FactoryToolRunRequest {
+  /**
+   * Registered factory name.
+   */
+  name: string;
+  /**
+   * Factory input value.
+   */
+  args: JsonValue;
+  options?: FactoryToolRunOptions;
+  /**
+   * Opaque identifier of the originating tool call.
+   */
+  toolCallId?: string;
 }
 /**
  * Optional user prompt to combine with the fleet orchestration instructions.
@@ -15983,7 +16065,7 @@ export interface RegisterExtensionToolsParams {
    */
   sessionId: string;
   /**
-   * In-process ExtensionLoader handle (CLI-only optimization). Marked internal: this field is excluded from the public SDK surface. When the CLI migrates to a process-separated SDK, extension discovery/launch moves entirely into the runtime — the CLI passes pure config (search paths, disabled ids) via SessionOptions instead.
+   * In-process ExtensionLoader handle used only by the CLI and excluded from the public SDK surface.
    *
    * @internal
    *
@@ -16001,7 +16083,7 @@ export interface RegisterExtensionToolsParams {
 /** @experimental */
 export interface SessionsRegisterExtensionToolsOnSessionOptions {
   /**
-   * In-process `() => boolean` gating callback (CLI-only optimization). Marked internal: replaced by runtime-side enable/disable RPCs in the SDK migration.
+   * In-process `() => boolean` gating callback used only by the CLI.
    *
    * @internal
    */
@@ -16017,7 +16099,7 @@ export interface SessionsRegisterExtensionToolsOnSessionOptions {
 /** @internal */
 export interface RegisterExtensionToolsResult {
   /**
-   * In-process unsubscribe function (CLI-only optimization). Marked internal: replaced by an explicit `extensions.unregister` RPC in the SDK migration.
+   * In-process unsubscribe function used only by the CLI.
    *
    * @internal
    *
@@ -16395,7 +16477,7 @@ export interface SandboxConfig {
   addCurrentWorkingDirectory?: boolean;
   auth?: SandboxConfigAuth;
   /**
-   * Whether to auto-grant read access to the tool directories discovered on PATH and in toolchain environment variables (GOROOT, CARGO_HOME, JAVA_HOME, VIRTUAL_ENV, and similar), and to common developer-tool caches, registries, and toolchains in their default home locations (cargo, go, npm, Maven, and more), plus read-write access to (and up-front creation of) the scratch caches builds write on every run (go-build, ccache, sccache, Gradle caches, Cargo lock/tracker files), so builds work without extra configuration; a relocated CARGO_HOME additionally gets its Cargo lock files granted read-write. Set to false to disable every grant listed above: user-installed toolchains (rustup, nvm, pyenv, conda, pipx) then need explicit userPolicy.filesystem entries — readonlyPaths to read them, plus readwriteFiles for a relocated CARGO_HOME's .package-cache and .global-cache, which Cargo locks on every build. Only these developer-tool grants are affected: the working directory (see addCurrentWorkingDirectory), temporary storage, session log paths, and system locations follow their own rules and stay granted, so commands still run. Default: true (enabled by default; set to false to opt out).
+   * Whether to auto-grant read access to tool directories discovered on PATH and in toolchain environment variables (GOROOT, JAVA_HOME, VIRTUAL_ENV, and similar), and to common developer-tool caches, config, and toolchains. Writable grants cover scratch caches, the Unix GitHub CLI cache, and Cargo's registry, git store, and lock/tracker files. A relocated CARGO_HOME gets the same narrow split: registry and git are read-write; bin is read-only; the home root, config.toml, and credentials.toml stay ungranted. Set to false to disable every grant listed above; user-installed toolchains and caches then need explicit userPolicy.filesystem readonlyPaths and readwritePaths entries. The working directory (see addCurrentWorkingDirectory), temporary storage, session log paths, and system locations follow their own rules and stay granted. Default: true (enabled by default; set to false to opt out).
    */
   allowDevToolAccess?: boolean;
 }
@@ -16528,6 +16610,27 @@ export interface SandboxConfigAuth {
    * Whether to export `GH_TOKEN` so the `gh` CLI authenticates inside the sandbox without the OS keyring the sandbox blocks. Default: false (opt-in).
    */
   gh?: boolean;
+}
+/**
+ * Managed sandbox enforcement state for a session.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SandboxEnforcementStatus".
+ */
+/** @experimental */
+export interface SandboxEnforcementStatus {
+  /**
+   * Whether the effective managed policy requires an available sandbox backend.
+   */
+  required: boolean;
+  /**
+   * Whether an enforcement failure has permanently blocked the session.
+   */
+  blocked: boolean;
+  /**
+   * The first sandbox enforcement failure that blocked the session.
+   */
+  reason?: string;
 }
 /**
  * Register an absolute-time scheduled prompt.
@@ -18612,7 +18715,7 @@ export interface SessionsOpenCloud {
   owner?: string;
   options?: SessionOpenOptions;
   /**
-   * In-process callback invoked when the cloud task is created (before connection). Marked internal because a function reference cannot cross the JSON-RPC boundary. Disappears in the SDK migration: the field is purely cosmetic (it flips a single CLI phase label from 'creating' to 'connecting') and the wire-clean version just drops the intermediate phase.
+   * In-process callback invoked when the cloud task is created, before connection. Internal because function references cannot cross the JSON-RPC boundary.
    *
    * @internal
    */
@@ -21061,10 +21164,6 @@ export interface ToolsExecuteRequest {
 /** @experimental */
 export interface ToolsGetBuiltinDescriptorsRequest {
   /**
-   * Whether line numbers should be omitted from the view tool descriptor.
-   */
-  noViewLineNumbers?: boolean;
-  /**
    * Whether descriptors should favor fewer user-intervention prompts.
    */
   reduceUserIntervention?: boolean;
@@ -21077,10 +21176,6 @@ export interface ToolsGetBuiltinDescriptorsRequest {
    */
   skillEmbeddingEnabled?: boolean;
   shellConfig?: ToolsShellDescriptorConfig;
-  /**
-   * Whether shell commands may only run asynchronously.
-   */
-  shellAsyncOnlyEnabled?: boolean;
   /**
    * Whether the configured shell supports PowerShell 7 syntax.
    */
@@ -21604,13 +21699,13 @@ export interface UIEphemeralQueryRequest {
    */
   question: string;
   /**
-   * In-process streaming callback `(text) => void` invoked with each token as the model emits it. Marked internal: excluded from the public SDK surface. In a process-separated SDK this is replaced by a streaming RPC that yields chunks and a final answer.
+   * In-process streaming callback `(text) => void` invoked with each token as the model emits it. Internal and excluded from the public SDK surface.
    *
    * @internal
    */
   onChunk?: OpaqueInProcessValue;
   /**
-   * In-process `AbortSignal` forwarded to the model client to cancel an in-flight request. Marked internal: excluded from the public SDK surface. Replaced by an explicit cancellation token + cancel RPC in the SDK migration.
+   * In-process `AbortSignal` forwarded to the model client to cancel an in-flight request. Internal and excluded from the public SDK surface.
    *
    * @internal
    */
@@ -22961,7 +23056,7 @@ export function createServerRpc(connection: MessageConnection) {
                 connection.sendRequest("extensions.disable", params),
         },
         /**
-         * Registers the calling SDK client as the per-entrypoint extension launch provider. Call before creating any sessions. When omitted, the runtime temporarily falls back to its built-in Node launcher for backward compatibility.
+         * Registers the calling SDK client as the per-entrypoint extension launch provider. Call before creating any sessions. When omitted, the runtime uses its built-in extension launcher.
          *
          * @experimental
          */
@@ -23611,6 +23706,16 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
          */
         sendMessages: async (params: SendMessagesRequest): Promise<SendMessagesResult> =>
             connection.sendRequest("session.sendMessages", { sessionId, ...params }),
+        /** @experimental */
+        sandbox: {
+            /**
+             * Returns whether managed policy requires sandbox enforcement and whether an enforcement failure has permanently blocked the session.
+             *
+             * @returns Managed sandbox enforcement state for a session.
+             */
+            getEnforcementStatus: async (): Promise<SandboxEnforcementStatus> =>
+                connection.sendRequest("session.sandbox.getEnforcementStatus", { sessionId }),
+        },
         /**
          * Aborts the current agent turn.
          *
@@ -25607,6 +25712,27 @@ export function createInternalSessionRpc(connection: MessageConnection, sessionI
                 unregister: async (params: CanvasProviderUnregisterRequest): Promise<void> =>
                     connection.sendRequest("session.canvas.provider.unregister", { sessionId, ...params }),
             },
+        },
+        /** @experimental */
+        factory: {
+            /**
+             * Internal tool-originated factory invocation.
+             *
+             * @param params Internal parameters for invoking a registered factory from a tool.
+             *
+             * @returns Complete current or terminal factory run envelope.
+             */
+            runFromTool: async (params: FactoryToolRunRequest): Promise<FactoryRunResult> =>
+                connection.sendRequest("session.factory.runFromTool", { sessionId, ...params }),
+            /**
+             * Internal tool-originated factory resume.
+             *
+             * @param params Internal parameters for resuming a factory run from a tool.
+             *
+             * @returns Resolved persisted factory identity and resumed run envelope.
+             */
+            resumeFromTool: async (params: FactoryToolResumeRequest): Promise<FactoryResumeResult> =>
+                connection.sendRequest("session.factory.resumeFromTool", { sessionId, ...params }),
         },
         /** @experimental */
         model: {

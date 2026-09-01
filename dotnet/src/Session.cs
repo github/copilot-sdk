@@ -1053,7 +1053,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Permission handler or response delivery failed. SessionId={SessionId}, RequestId={RequestId}", SessionId, requestId);
+            LogPermissionHandlerOrDeliveryFailed(ex, SessionId, requestId);
             try
             {
                 await Rpc.Permissions.HandlePendingPermissionRequestAsync(requestId, PermissionDecision.UserNotAvailable());
@@ -2050,6 +2050,9 @@ public sealed partial class CopilotSession : IAsyncDisposable
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "Failed to fetch tool metadata for {toolName}")]
     private partial void LogToolMetadataFetchFailed(Exception exception, string toolName);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Permission handler or response delivery failed. SessionId={SessionId}, RequestId={RequestId}")]
+    private partial void LogPermissionHandlerOrDeliveryFailed(Exception exception, string sessionId, string requestId);
 
     internal record SendMessageRequest
     {

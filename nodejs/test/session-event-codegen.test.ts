@@ -3,10 +3,37 @@ import { describe, expect, it } from "vitest";
 
 import { generateSessionEventsCode as generateCSharpSessionEventsCode } from "../../scripts/codegen/csharp.ts";
 import { generateGoSessionEventsCode } from "../../scripts/codegen/go.ts";
-import { generatePythonSessionEventsCode } from "../../scripts/codegen/python.ts";
+import {
+    generatePythonSessionEventsCode,
+    postProcessExternalRefsForPython,
+} from "../../scripts/codegen/python.ts";
 import { generateSessionEventsCode as generateRustSessionEventsCode } from "../../scripts/codegen/rust.ts";
 
 describe("session event codegen", () => {
+    it("replaces external reference placeholders regardless of acronym casing", () => {
+        const code = `@dataclass
+class ExternalRefMCPOauthHTTPResponse:
+    external_ref_marker_external_ref_mcp_oauth_http_response: str
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'ExternalRefMCPOauthHTTPResponse':
+        value = obj.get("__externalRefMarker___ExternalRef_McpOauthHttpResponse")
+        return ExternalRefMCPOauthHTTPResponse(value)
+
+@dataclass
+class ProbeResult:
+    response: ExternalRefMCPOauthHTTPResponse
+`;
+
+        const processed = postProcessExternalRefsForPython(
+            code,
+            new Map([["__ExternalRef_McpOauthHttpResponse", "McpOauthHttpResponse"]])
+        );
+
+        expect(processed).toContain("response: McpOauthHttpResponse");
+        expect(processed).not.toContain("class ExternalRefMCPOauthHTTPResponse");
+    });
+
     it("maps special schema formats to the expected Python types", () => {
         const schema: JSONSchema7 = {
             definitions: {

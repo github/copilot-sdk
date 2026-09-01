@@ -55,6 +55,7 @@ namespace GitHub.Copilot;
 /// </example>
 public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 {
+    private const string ExplicitBundledCliMarker = ".copilot-explicit-cli";
     /// <summary>
     /// Minimum protocol version this SDK can communicate with.
     /// </summary>
@@ -416,9 +417,19 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                         ffiArgs.Add("--remote");
                     }
 
+                    var explicitCliPath = System.Environment.GetEnvironmentVariable("COPILOT_CLI_PATH");
+                    if (string.IsNullOrEmpty(explicitCliPath))
+                    {
+                        explicitCliPath = null;
+                    }
+                    var ffiRuntimePath = explicitCliPath is null
+                        ? GetBundledNativePath(FfiRuntimeHost.GetRuntimeLibraryFileName(), out var searchedRuntime)
+                            ?? throw new InvalidOperationException(
+                                $"In-process FFI runtime library not found at '{searchedRuntime}'.")
+                        : ResolveRuntimePathForExplicitCli(explicitCliPath);
                     var ffiHost = FfiRuntimeHost.Create(
-                        ResolveCliPathForFfi(),
-                        GetNapiPrebuildsFolderOrThrow(),
+                        ffiRuntimePath,
+                        explicitCliPath,
                         ffiEnvironment,
                         ffiArgs,
                         _logger);
@@ -491,6 +502,20 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 else if (cliProcess is not null)
                 {
                     await CleanupCliProcessAsync(cliProcess, stderrPump, errors: null, _logger);
+                }
+
+                if (ex is IOException
+                    && cliProcess is not null
+                    && stderrPump is not null
+                    && !ex.Message.Contains("stderr:", StringComparison.OrdinalIgnoreCase))
+                {
+                    var stderrOutput = GetStderrOutput(stderrPump.Buffer);
+                    if (!string.IsNullOrEmpty(stderrOutput))
+                    {
+                        throw new IOException(
+                            FormatCliExitedMessage("CLI process exited unexpectedly.", stderrOutput),
+                            ex);
+                    }
                 }
 
                 throw;
@@ -673,7 +698,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
     private static async Task CleanupCliProcessAsync(Process childProcess, ProcessStderrPump? stderrPump, List<Exception>? errors, ILogger? logger)
     {
-        stderrPump?.Cancel();
+        var processExited = false;
 
         try
         {
@@ -706,10 +731,17 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                     AddCleanupError(errors, ex, logger);
                 }
             }
+
+            processExited = childProcess.HasExited;
         }
         catch (Exception ex)
         {
             AddCleanupError(errors, ex, logger);
+        }
+
+        if (!processExited)
+        {
+            stderrPump?.Cancel();
         }
 
         if (stderrPump is not null)
@@ -721,6 +753,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             }
             catch (TimeoutException ex)
             {
+                stderrPump.Cancel();
                 if (logger is not null)
                 {
                     LoggingHelpers.LogTiming(logger, LogLevel.Debug, ex,
@@ -1191,6 +1224,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.EnableCitations,
                 config.EnableFileChangeTracking,
                 wireSystemMessage,
+                config.AskUserVariant,
                 toolFilter.AvailableTools,
                 toolFilter.ExcludedTools,
                 config.ExcludedBuiltInAgents,
@@ -1434,6 +1468,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.EnableCitations,
                 config.EnableFileChangeTracking,
                 wireSystemMessage,
+                config.AskUserVariant,
                 toolFilter.AvailableTools,
                 toolFilter.ExcludedTools,
                 config.ExcludedBuiltInAgents,
@@ -1969,13 +2004,15 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
     private static IOException CreateCliExitedException(string message, StringBuilder stderrBuffer)
     {
-        string stderrOutput;
+        return new IOException(FormatCliExitedMessage(message, GetStderrOutput(stderrBuffer)));
+    }
+
+    private static string GetStderrOutput(StringBuilder stderrBuffer)
+    {
         lock (stderrBuffer)
         {
-            stderrOutput = stderrBuffer.ToString().Trim();
+            return stderrBuffer.ToString().Trim();
         }
-
-        return new IOException(FormatCliExitedMessage(message, stderrOutput));
     }
 
     private Task<Connection> EnsureConnectedAsync(CancellationToken cancellationToken)
@@ -2226,17 +2263,19 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         var tcpConnection = _connection as TcpRuntimeConnection;
         var useStdio = _connection is StdioRuntimeConnection;
 
-        // Use explicit path, COPILOT_CLI_PATH env var (from the connection's
-        // Environment, options.Environment, or process env), or bundled runtime - no PATH fallback
-        var envCliPath =
-            (childProcessConnection.Environment is not null && childProcessConnection.Environment.TryGetValue("COPILOT_CLI_PATH", out var connEnvValue) ? connEnvValue : null)
-            ?? (options.Environment is not null && options.Environment.TryGetValue("COPILOT_CLI_PATH", out var envValue) ? envValue : null)
-            ?? System.Environment.GetEnvironmentVariable("COPILOT_CLI_PATH");
-        var cliPath = childProcessConnection.Path
-            ?? envCliPath
-            ?? GetBundledCliPath(out var searchedPath)
-            ?? throw new InvalidOperationException($"Copilot runtime not found at '{searchedPath}'. Ensure the SDK NuGet package was restored correctly or provide an explicit RuntimeConnection.ForStdio(path: ...) / RuntimeConnection.ForTcp(path: ...).");
-        var cliPathSource = childProcessConnection.Path is not null ? "Options" : envCliPath is not null ? "Environment" : "Bundled";
+        // Explicit CLI paths preserve the legacy launch contract. Otherwise use
+        // the bundled native runtime pair.
+        var configuredEnvironment = childProcessConnection.Environment ?? options.Environment;
+        var envCliPath = configuredEnvironment is not null
+            ? configuredEnvironment.TryGetValue("COPILOT_CLI_PATH", out var configuredCliPath) ? configuredCliPath : null
+            : System.Environment.GetEnvironmentVariable("COPILOT_CLI_PATH");
+        var launch = childProcessConnection.Path is not null
+            ? new RuntimeLaunch(childProcessConnection.Path, "Options")
+            : envCliPath is not null
+                ? new RuntimeLaunch(envCliPath, "Environment")
+                : GetBundledRuntimeLaunch();
+        var cliPath = launch.Executable;
+        var cliPathSource = launch.Source;
         var args = new List<string>();
 
         if (childProcessConnection.Args != null)
@@ -2418,7 +2457,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
     private static string? GetBundledCliPath(out string searchedPath)
     {
-        var binaryName = OperatingSystem.IsWindows() ? "copilot.exe" : "copilot";
+        return GetBundledNativePath(OperatingSystem.IsWindows() ? "copilot.exe" : "copilot", out searchedPath);
+    }
+
+    private static string? GetBundledNativePath(string binaryName, out string searchedPath)
+    {
         // Always use portable RID (e.g., linux-x64) to match the build-time placement,
         // since distro-specific RIDs (e.g., ubuntu.24.04-x64) are normalized at build time.
         var rid = GetPortableRid()
@@ -2426,6 +2469,57 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         searchedPath = Path.Combine(AppContext.BaseDirectory, "runtimes", rid, "native", binaryName);
         return File.Exists(searchedPath) ? searchedPath : null;
     }
+
+    private static RuntimeLaunch GetBundledRuntimeLaunch()
+    {
+        _ = GetBundledNativePath(
+            OperatingSystem.IsWindows() ? "copilot-runtime.exe" : "copilot-runtime",
+            out var searchedWrapper);
+        var directory = Path.GetDirectoryName(searchedWrapper)!;
+        var runtimeNode = Path.Combine(directory, "runtime.node");
+        var explicitCliMarker = Path.Combine(directory, ExplicitBundledCliMarker);
+        if (!File.Exists(searchedWrapper)
+            && !File.Exists(runtimeNode)
+            && File.Exists(explicitCliMarker)
+            && GetBundledCliPath(out _) is { } explicitCli)
+        {
+            return new RuntimeLaunch(explicitCli, "Bundled explicit CLI");
+        }
+        return ValidateRuntimePair(searchedWrapper, "Bundled runtime");
+    }
+
+    private static RuntimeLaunch ValidateRuntimePair(string wrapper, string source)
+    {
+        var runtimeNode = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(wrapper))!, "runtime.node");
+        if (!File.Exists(wrapper))
+        {
+            throw new InvalidOperationException($"Copilot runtime wrapper not found at '{wrapper}'.");
+        }
+        if (!File.Exists(runtimeNode))
+        {
+            throw new InvalidOperationException(
+                $"Copilot runtime wrapper at '{wrapper}' is missing its adjacent runtime.node at '{runtimeNode}'.");
+        }
+        if (new FileInfo(wrapper).Length == 0 || new FileInfo(runtimeNode).Length == 0)
+        {
+            throw new InvalidOperationException("Copilot runtime wrapper and adjacent runtime.node must both be non-empty.");
+        }
+#if NET8_0_OR_GREATER
+        if (!OperatingSystem.IsWindows())
+        {
+            var mode = File.GetUnixFileMode(wrapper);
+            const UnixFileMode executeBits =
+                UnixFileMode.UserExecute | UnixFileMode.GroupExecute | UnixFileMode.OtherExecute;
+            if ((mode & executeBits) == 0)
+            {
+                File.SetUnixFileMode(wrapper, mode | executeBits);
+            }
+        }
+#endif
+        return new RuntimeLaunch(wrapper, source);
+    }
+
+    private sealed record RuntimeLaunch(string Executable, string Source);
 
     private static string? GetPortableRid()
     {
@@ -2450,26 +2544,22 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         return arch != null ? $"{os}-{arch}" : null;
     }
 
-    private string ResolveCliPathForFfi()
+    private static string ResolveRuntimePathForExplicitCli(string cliPath)
     {
-        var envCliPath = _options.Environment is not null && _options.Environment.TryGetValue("COPILOT_CLI_PATH", out var envValue)
-            ? envValue
-            : System.Environment.GetEnvironmentVariable("COPILOT_CLI_PATH");
-        if (!string.IsNullOrEmpty(envCliPath))
+        var fullEntrypoint = Path.GetFullPath(cliPath);
+        var directory = Path.GetDirectoryName(fullEntrypoint)
+            ?? throw new InvalidOperationException($"Could not determine directory for '{cliPath}'.");
+        var flatLibraryPath = Path.Combine(directory, FfiRuntimeHost.GetRuntimeLibraryFileName());
+        if (File.Exists(flatLibraryPath))
         {
-            return envCliPath;
+            return flatLibraryPath;
         }
-
-        // Fall back to the bundled single-file CLI the same way stdio discovers it.
-        // It embeds its own Node and is spawned directly as `copilot --embedded-host`,
-        // with the sibling cdylib loaded in-process (FfiRuntimeHost.Create prefers the
-        // flat `libcopilot_runtime.so`/`copilot_runtime.dll` next to the CLI, falling
-        // back to the dev `prebuilds/<folder>/runtime.node` layout).
-        var bundled = GetBundledCliPath(out var searchedPath);
-        return bundled
-            ?? throw new InvalidOperationException(
-                "In-process FFI hosting requires the Copilot CLI. Set the COPILOT_CLI_PATH "
-                + $"environment variable, or ensure the bundled CLI is present (looked in '{searchedPath}').");
+        var prebuildsLibraryPath = Path.Combine(
+            directory, "prebuilds", GetNapiPrebuildsFolderOrThrow(), "runtime.node");
+        return File.Exists(prebuildsLibraryPath)
+            ? prebuildsLibraryPath
+            : throw new InvalidOperationException(
+                $"FFI runtime library not found. Looked for '{flatLibraryPath}' and '{prebuildsLibraryPath}'.");
     }
 
     /// <summary>
@@ -2879,6 +2969,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         bool? EnableCitations,
         bool? EnableFileChangeTracking,
         SystemMessageConfig? SystemMessage,
+        AskUserVariant? AskUserVariant,
         IList<string>? AvailableTools,
         IList<string>? ExcludedTools,
         [property: JsonPropertyName("excludedBuiltinAgents")] IList<string>? ExcludedBuiltInAgents,
@@ -2995,6 +3086,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         bool? EnableCitations,
         bool? EnableFileChangeTracking,
         SystemMessageConfig? SystemMessage,
+        AskUserVariant? AskUserVariant,
         IList<string>? AvailableTools,
         IList<string>? ExcludedTools,
         [property: JsonPropertyName("excludedBuiltinAgents")] IList<string>? ExcludedBuiltInAgents,

@@ -64,6 +64,7 @@ public class ResumeSessionConfig {
     private String reasoningEffort;
     private String reasoningSummary;
     private String contextTier;
+    private AskUserVariant askUserVariant;
     private ModelCapabilitiesOverride modelCapabilities;
     private PermissionHandler onPermissionRequest;
     private McpAuthHandler onMcpAuthRequest;
@@ -793,6 +794,31 @@ public class ResumeSessionConfig {
      */
     public ResumeSessionConfig setContextTier(String contextTier) {
         this.contextTier = contextTier;
+        return this;
+    }
+
+    /**
+     * Gets the experience used by the built-in {@code ask_user} tool.
+     *
+     * @return the ask-user variant, or {@code null} to use the legacy experience
+     */
+    public AskUserVariant getAskUserVariant() {
+        return askUserVariant;
+    }
+
+    /**
+     * Sets the model-facing shape of the built-in {@code ask_user} tool when the
+     * session is resumed by a new client.
+     * <p>
+     * When unset, the option is omitted and the legacy shape is used. Set an
+     * elicitation handler when selecting {@link AskUserVariant#ELICITATION}.
+     *
+     * @param askUserVariant
+     *            the ask-user variant
+     * @return this config instance for method chaining
+     */
+    public ResumeSessionConfig setAskUserVariant(AskUserVariant askUserVariant) {
+        this.askUserVariant = askUserVariant;
         return this;
     }
 
@@ -2098,6 +2124,7 @@ public class ResumeSessionConfig {
         copy.reasoningEffort = this.reasoningEffort;
         copy.reasoningSummary = this.reasoningSummary;
         copy.contextTier = this.contextTier;
+        copy.askUserVariant = this.askUserVariant;
         copy.modelCapabilities = this.modelCapabilities;
         copy.onPermissionRequest = this.onPermissionRequest;
         copy.onUserInputRequest = this.onUserInputRequest;

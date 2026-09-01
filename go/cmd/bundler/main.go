@@ -19,6 +19,9 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"go/build"
+	"go/parser"
+	"go/token"
 	"io"
 	"net/http"
 	"os"
@@ -33,10 +36,11 @@ import (
 
 const (
 	// Keep these URLs centralized so reviewers can verify all outbound calls in one place.
-	sdkModule         = "github.com/github/copilot-sdk/go"
-	packageLockURLFmt = "https://raw.githubusercontent.com/github/copilot-sdk/%s/nodejs/package-lock.json"
-	tarballURLFmt     = "https://registry.npmjs.org/@github/copilot-%s/-/copilot-%s-%s.tgz"
-	licenseTarballFmt = "https://registry.npmjs.org/@github/copilot/-/copilot-%s.tgz"
+	sdkModule          = "github.com/github/copilot-sdk/go"
+	packageLockURLFmt  = "https://raw.githubusercontent.com/github/copilot-sdk/%s/nodejs/package-lock.json"
+	tarballURLFmt      = "https://registry.npmjs.org/@github/copilot-%s/-/copilot-%s-%s.tgz"
+	licenseTarballFmt  = "https://registry.npmjs.org/@github/copilot/-/copilot-%s.tgz"
+	defaultPackageName = "main"
 )
 
 // Platform info: npm package suffix, binary name
@@ -89,23 +93,27 @@ func main() {
 		return
 	}
 
+	pkgName, err := detectPackageName(*output, goos, goarch)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to detect package name: %v; using package %s\n", err, pkgName)
+	}
+
 	fmt.Printf("Building bundle for %s (CLI version %s)\n", *platform, version)
 
-	binaryPath, sha256Hash, runtimeArtifactPath, runtimeHash, err := buildBundle(info, version, outputPath, goos)
+	bundle, err := buildBundle(info, version, outputPath, goos)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
 
-	var muslBinaryPath, muslRuntimeArtifactPath string
-	var muslBinaryHash, muslRuntimeHash []byte
+	var muslBundle bundleArtifacts
 	if goos == "linux" {
 		muslInfo := platformInfo{
 			npmPlatform: strings.Replace(info.npmPlatform, "linux-", "linuxmusl-", 1),
 			binaryName:  info.binaryName,
 		}
 		muslOutputPath := filepath.Join(*output, defaultOutputFileName(version, "linuxmusl", goarch, info.binaryName))
-		muslBinaryPath, muslBinaryHash, muslRuntimeArtifactPath, muslRuntimeHash, err = buildBundle(
+		muslBundle, err = buildBundle(
 			muslInfo,
 			version,
 			muslOutputPath,
@@ -121,16 +129,24 @@ func main() {
 	if err := generateGoFile(
 		goos,
 		goarch,
-		binaryPath,
+		bundle.binaryPath,
 		version,
-		sha256Hash,
-		runtimeArtifactPath,
-		runtimeHash,
-		muslBinaryPath,
-		muslBinaryHash,
-		muslRuntimeArtifactPath,
-		muslRuntimeHash,
-		"main",
+		bundle.binaryHash,
+		bundle.runtimeArtifactPath,
+		bundle.runtimeHash,
+		bundle.wrapperArtifactPath,
+		bundle.wrapperHash,
+		bundle.assetsArtifactPath,
+		bundle.assetsHash,
+		muslBundle.binaryPath,
+		muslBundle.binaryHash,
+		muslBundle.runtimeArtifactPath,
+		muslBundle.runtimeHash,
+		muslBundle.wrapperArtifactPath,
+		muslBundle.wrapperHash,
+		muslBundle.assetsArtifactPath,
+		muslBundle.assetsHash,
+		pkgName,
 	); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
@@ -184,6 +200,60 @@ func validPlatforms() []string {
 		result = append(result, p)
 	}
 	return result
+}
+
+// detectPackageName reads package clauses from files that match the target
+// platform and build constraints. It returns defaultPackageName with an error
+// when detection fails.
+func detectPackageName(dir, goos, goarch string) (string, error) {
+	if dir == "" {
+		dir = "."
+	}
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return defaultPackageName, fmt.Errorf("failed to read package directory %q: %w", dir, err)
+	}
+
+	buildContext := build.Default
+	buildContext.GOOS = goos
+	buildContext.GOARCH = goarch
+
+	packageName := ""
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".go") ||
+			strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_") ||
+			strings.HasSuffix(name, "_test.go") || strings.HasPrefix(name, "zcopilot_") {
+			continue
+		}
+		matches, err := buildContext.MatchFile(dir, name)
+		if err != nil {
+			return defaultPackageName, fmt.Errorf("failed to evaluate build constraints in %q: %w", filepath.Join(dir, name), err)
+		}
+		if !matches {
+			continue
+		}
+
+		path := filepath.Join(dir, name)
+		file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.PackageClauseOnly)
+		if err != nil {
+			return defaultPackageName, fmt.Errorf("failed to parse package clause in %q: %w", path, err)
+		}
+
+		if packageName == "" {
+			packageName = file.Name.Name
+			continue
+		}
+		if packageName != file.Name.Name {
+			return defaultPackageName, fmt.Errorf("multiple packages %q and %q found in %q", packageName, file.Name.Name, dir)
+		}
+	}
+
+	if packageName == "" {
+		return defaultPackageName, fmt.Errorf("no Go package found in %q", dir)
+	}
+	return packageName, nil
 }
 
 // detectCLIVersion detects the CLI version by:
@@ -286,101 +356,253 @@ func isHex(s string) bool {
 	return true
 }
 
-// buildBundle downloads the CLI binary (and, when the CLI package ships it, the
-// native in-process runtime library) and writes them to outputPath's directory.
-// It returns the CLI bundle path and hash, plus the runtime-library artifact path
-// and hash (both empty when the package does not ship the runtime library).
-func buildBundle(info platformInfo, cliVersion, outputPath, goos string) (string, []byte, string, []byte, error) {
+type bundleArtifacts struct {
+	binaryPath          string
+	binaryHash          []byte
+	runtimeArtifactPath string
+	runtimeHash         []byte
+	wrapperArtifactPath string
+	wrapperHash         []byte
+	assetsArtifactPath  string
+	assetsHash          []byte
+}
+
+// buildBundle downloads the CLI and native runtime artifacts from one platform package.
+func buildBundle(info platformInfo, cliVersion, outputPath, goos string) (bundleArtifacts, error) {
 	outputDir := filepath.Dir(outputPath)
 	if outputDir == "" {
 		outputDir = "."
 	}
 	runtimeArtifactPath := filepath.Join(outputDir, runtimeLibArtifactName(cliVersion, info.npmPlatform, goos))
+	wrapperArtifactPath := filepath.Join(outputDir, runtimeWrapperArtifactName(cliVersion, info.npmPlatform, info.binaryName))
+	assetsArtifactPath := filepath.Join(outputDir, runtimeAssetsArtifactName(cliVersion, info.npmPlatform))
 
-	// Check if output already exists
-	if _, err := os.Stat(outputPath); err == nil {
+	if filesExist(outputPath, runtimeArtifactPath, wrapperArtifactPath, assetsArtifactPath) {
 		// Idempotent output avoids re-downloading in CI or local rebuilds.
-		fmt.Printf("Output %s already exists, skipping download\n", outputPath)
-		sha256Hash, err := sha256FileFromCompressed(outputPath)
+		fmt.Printf("Output runtime bundle for %s already exists, skipping download\n", info.npmPlatform)
+		binaryHash, err := sha256FileFromCompressed(outputPath)
 		if err != nil {
-			return "", nil, "", nil, fmt.Errorf("failed to hash existing output: %w", err)
+			return bundleArtifacts{}, fmt.Errorf("failed to hash existing output: %w", err)
 		}
 		if err := downloadCLILicense(cliVersion, outputPath); err != nil {
-			return "", nil, "", nil, fmt.Errorf("failed to download CLI license: %w", err)
+			return bundleArtifacts{}, fmt.Errorf("failed to download CLI license: %w", err)
 		}
-		// Reuse an existing runtime-library artifact if present.
-		if _, err := os.Stat(runtimeArtifactPath); err == nil {
-			runtimeHash, err := sha256FileFromCompressed(runtimeArtifactPath)
-			if err != nil {
-				return "", nil, "", nil, fmt.Errorf("failed to hash existing runtime library: %w", err)
-			}
-			return outputPath, sha256Hash, runtimeArtifactPath, runtimeHash, nil
+		runtimeHash, err := sha256FileFromCompressed(runtimeArtifactPath)
+		if err != nil {
+			return bundleArtifacts{}, fmt.Errorf("failed to hash existing runtime.node: %w", err)
 		}
-		return outputPath, sha256Hash, "", nil, nil
+		wrapperHash, err := sha256FileFromCompressed(wrapperArtifactPath)
+		if err != nil {
+			return bundleArtifacts{}, fmt.Errorf("failed to hash existing runtime wrapper: %w", err)
+		}
+		assetsHash, err := sha256File(assetsArtifactPath)
+		if err != nil {
+			return bundleArtifacts{}, fmt.Errorf("failed to hash existing runtime assets: %w", err)
+		}
+		return bundleArtifacts{outputPath, binaryHash, runtimeArtifactPath, runtimeHash, wrapperArtifactPath, wrapperHash, assetsArtifactPath, assetsHash}, nil
 	}
+
 	// Create temp directory for download
 	tempDir, err := os.MkdirTemp("", "copilot-bundler-*")
 	if err != nil {
-		return "", nil, "", nil, fmt.Errorf("failed to create temp dir: %w", err)
+		return bundleArtifacts{}, fmt.Errorf("failed to create temp dir: %w", err)
 	}
 	defer os.RemoveAll(tempDir)
 
-	// Download the binary
 	binaryPath, tarballPath, err := downloadCLIBinary(info.npmPlatform, info.binaryName, cliVersion, tempDir)
 	if err != nil {
-		return "", nil, "", nil, fmt.Errorf("failed to download CLI binary: %w", err)
+		return bundleArtifacts{}, fmt.Errorf("failed to download CLI binary: %w", err)
 	}
 
-	// Create output directory if needed
 	if outputDir != "." {
 		if err := os.MkdirAll(outputDir, 0755); err != nil {
-			return "", nil, "", nil, fmt.Errorf("failed to create output directory: %w", err)
+			return bundleArtifacts{}, fmt.Errorf("failed to create output directory: %w", err)
 		}
 	}
 
-	sha256Hash, err := sha256File(binaryPath)
+	binaryHash, err := sha256File(binaryPath)
 	if err != nil {
-		return "", nil, "", nil, fmt.Errorf("failed to hash output binary: %w", err)
+		return bundleArtifacts{}, fmt.Errorf("failed to hash output binary: %w", err)
 	}
 	if err := compressZstdFile(binaryPath, outputPath); err != nil {
-		return "", nil, "", nil, fmt.Errorf("failed to write output binary: %w", err)
+		return bundleArtifacts{}, fmt.Errorf("failed to write output binary: %w", err)
 	}
 	if err := downloadCLILicense(cliVersion, outputPath); err != nil {
-		return "", nil, "", nil, fmt.Errorf("failed to download CLI license: %w", err)
+		return bundleArtifacts{}, fmt.Errorf("failed to download CLI license: %w", err)
 	}
 
-	// Extract the native in-process runtime library from the same tarball, if the
-	// package ships it (older CLI versions do not). Missing is not an error — the
-	// generated file simply omits the runtime embed for that platform.
 	rawLibPath := filepath.Join(tempDir, "runtime.node")
-	found, err := extractOptionalFileFromTarball(tarballPath, tempDir,
-		"package/prebuilds/"+info.npmPlatform+"/runtime.node", "runtime.node")
-	if err != nil {
-		return "", nil, "", nil, fmt.Errorf("failed to extract runtime library: %w", err)
+	if err := extractFileFromTarball(
+		tarballPath,
+		tempDir,
+		"package/prebuilds/"+info.npmPlatform+"/runtime.node",
+		"runtime.node",
+	); err != nil {
+		return bundleArtifacts{}, fmt.Errorf("runtime package is missing prebuilds/%s/runtime.node: %w", info.npmPlatform, err)
 	}
-	var runtimeHash []byte
-	returnedRuntimeArtifact := ""
-	if found {
-		runtimeHash, err = sha256File(rawLibPath)
-		if err != nil {
-			return "", nil, "", nil, fmt.Errorf("failed to hash runtime library: %w", err)
-		}
-		if err := compressZstdFile(rawLibPath, runtimeArtifactPath); err != nil {
-			return "", nil, "", nil, fmt.Errorf("failed to write runtime library: %w", err)
-		}
-		returnedRuntimeArtifact = runtimeArtifactPath
-		fmt.Printf("Successfully created %s\n", runtimeArtifactPath)
-	} else {
-		fmt.Printf("Package %s does not ship a runtime library; in-process transport unavailable for this platform bundle\n", info.npmPlatform)
+	runtimeHash, err := sha256File(rawLibPath)
+	if err != nil {
+		return bundleArtifacts{}, fmt.Errorf("failed to hash runtime.node: %w", err)
+	}
+	if err := compressZstdFile(rawLibPath, runtimeArtifactPath); err != nil {
+		return bundleArtifacts{}, fmt.Errorf("failed to write runtime.node: %w", err)
+	}
+
+	wrapperName := runtimeWrapperName(info.binaryName)
+	rawWrapperPath := filepath.Join(tempDir, wrapperName)
+	if err := extractFileFromTarball(
+		tarballPath,
+		tempDir,
+		"package/prebuilds/"+info.npmPlatform+"/"+wrapperName,
+		wrapperName,
+	); err != nil {
+		return bundleArtifacts{}, fmt.Errorf("runtime package is missing prebuilds/%s/%s: %w", info.npmPlatform, wrapperName, err)
+	}
+	wrapperHash, err := sha256File(rawWrapperPath)
+	if err != nil {
+		return bundleArtifacts{}, fmt.Errorf("failed to hash runtime wrapper: %w", err)
+	}
+	if err := compressZstdFile(rawWrapperPath, wrapperArtifactPath); err != nil {
+		return bundleArtifacts{}, fmt.Errorf("failed to write runtime wrapper: %w", err)
+	}
+	if err := createRuntimeAssetsArchive(tarballPath, assetsArtifactPath, info); err != nil {
+		return bundleArtifacts{}, fmt.Errorf("failed to write runtime assets: %w", err)
+	}
+	assetsHash, err := sha256File(assetsArtifactPath)
+	if err != nil {
+		return bundleArtifacts{}, fmt.Errorf("failed to hash runtime assets: %w", err)
 	}
 
 	fmt.Printf("Successfully created %s\n", outputPath)
-	return outputPath, sha256Hash, returnedRuntimeArtifact, runtimeHash, nil
+	fmt.Printf("Successfully created %s\n", runtimeArtifactPath)
+	fmt.Printf("Successfully created %s\n", wrapperArtifactPath)
+	fmt.Printf("Successfully created %s\n", assetsArtifactPath)
+	return bundleArtifacts{outputPath, binaryHash, runtimeArtifactPath, runtimeHash, wrapperArtifactPath, wrapperHash, assetsArtifactPath, assetsHash}, nil
+}
+
+func filesExist(paths ...string) bool {
+	for _, path := range paths {
+		if _, err := os.Stat(path); err != nil {
+			return false
+		}
+	}
+	return true
 }
 
 // runtimeLibArtifactName builds the compressed runtime-library artifact filename.
 func runtimeLibArtifactName(version, npmPlatform, goos string) string {
 	return fmt.Sprintf("zcopilotruntime_%s_%s.%s.zst", version, npmPlatform, runtimeLibExt(goos))
+}
+
+func runtimeWrapperArtifactName(version, npmPlatform, binaryName string) string {
+	return fmt.Sprintf("zcopilotruntimewrapper_%s_%s_%s.zst", version, npmPlatform, runtimeWrapperName(binaryName))
+}
+
+func runtimeAssetsArtifactName(version, npmPlatform string) string {
+	return fmt.Sprintf("zcopilotruntimeassets_%s_%s.tgz", version, npmPlatform)
+}
+
+func runtimeWrapperName(binaryName string) string {
+	if filepath.Ext(binaryName) == ".exe" {
+		return "copilot-runtime.exe"
+	}
+	return "copilot-runtime"
+}
+
+var hostlessExcludedTopLevel = map[string]bool{
+	"app.js": true, "assets": true, "changelog.json": true, "copilot": true, "copilot.exe": true,
+	"copilot-sdk": true, "foundry-local-sdk": true, "index.js": true, "napi-oop-runtime": true,
+	"LICENSE.md": true, "npm-loader.js": true, "package.json": true, "preloads": true, "pvrecorder": true,
+	"queries": true, "README.md": true, "sdk": true, "sea-loader.js": true, "webview": true,
+}
+
+func hostlessRuntimePath(name, npmPlatform, wrapperName string) (string, bool) {
+	relative, ok := strings.CutPrefix(name, "package/")
+	if !ok {
+		return "", false
+	}
+	parts := strings.Split(relative, "/")
+	topLevel := parts[0]
+	fileName := parts[len(parts)-1]
+	if hostlessExcludedTopLevel[topLevel] ||
+		(strings.HasPrefix(topLevel, "tree-sitter") && strings.HasSuffix(topLevel, ".wasm")) ||
+		(strings.HasPrefix(topLevel, "voice-") && strings.HasSuffix(topLevel, ".js")) ||
+		fileName == "cli-native.node" || fileName == "runtime.node" || fileName == wrapperName ||
+		strings.HasPrefix(fileName, "copilot-runtime-bin") {
+		return "", false
+	}
+	for _, part := range parts {
+		if part == "mediaremote-adapter" {
+			return "", false
+		}
+	}
+	if topLevel == "prebuilds" {
+		if len(parts) < 3 || parts[1] != npmPlatform {
+			return "", false
+		}
+		return strings.Join(parts[2:], "/"), true
+	}
+	return relative, true
+}
+
+func createRuntimeAssetsArchive(tarballPath, outputPath string, info platformInfo) error {
+	sourceFile, err := os.Open(tarballPath)
+	if err != nil {
+		return err
+	}
+	defer sourceFile.Close()
+	gzipReader, err := gzip.NewReader(sourceFile)
+	if err != nil {
+		return err
+	}
+	defer gzipReader.Close()
+	outputFile, err := os.Create(outputPath)
+	if err != nil {
+		return err
+	}
+	defer outputFile.Close()
+	gzipWriter := gzip.NewWriter(outputFile)
+	tarWriter := tar.NewWriter(gzipWriter)
+	count := 0
+	sourceTar := tar.NewReader(gzipReader)
+	for {
+		header, err := sourceTar.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+		if header.Typeflag != tar.TypeReg {
+			continue
+		}
+		destination, include := hostlessRuntimePath(
+			header.Name,
+			info.npmPlatform,
+			runtimeWrapperName(info.binaryName),
+		)
+		if !include {
+			continue
+		}
+		outputHeader := &tar.Header{
+			Name: destination, Mode: header.Mode, Size: header.Size, Typeflag: tar.TypeReg,
+			Uid: 0, Gid: 0,
+		}
+		if err := tarWriter.WriteHeader(outputHeader); err != nil {
+			return err
+		}
+		if _, err := io.Copy(tarWriter, sourceTar); err != nil {
+			return err
+		}
+		count++
+	}
+	if count == 0 {
+		return fmt.Errorf("runtime package contains no retained assets")
+	}
+	if err := tarWriter.Close(); err != nil {
+		return err
+	}
+	return gzipWriter.Close()
 }
 
 // runtimeLibExt returns the shared-library extension for the target OS.
@@ -406,10 +628,18 @@ func generateGoFile(
 	sha256Hash []byte,
 	runtimeArtifactPath string,
 	runtimeHash []byte,
+	wrapperArtifactPath string,
+	wrapperHash []byte,
+	assetsArtifactPath string,
+	assetsHash []byte,
 	muslBinaryPath string,
 	muslBinaryHash []byte,
 	muslRuntimeArtifactPath string,
 	muslRuntimeHash []byte,
+	muslWrapperArtifactPath string,
+	muslWrapperHash []byte,
+	muslAssetsArtifactPath string,
+	muslAssetsHash []byte,
 	pkgName string,
 ) error {
 	binaryName := filepath.Base(binaryPath)
@@ -428,12 +658,20 @@ func generateGoFile(
 		licenseName,
 		cliVersion,
 		hashBase64,
-		"",
-		nil,
-		"",
-		nil,
-		"",
-		nil,
+		runtimeArtifactPath,
+		runtimeHash,
+		wrapperArtifactPath,
+		wrapperHash,
+		assetsArtifactPath,
+		assetsHash,
+		muslBinaryPath,
+		muslBinaryHash,
+		muslRuntimeArtifactPath,
+		muslRuntimeHash,
+		muslWrapperArtifactPath,
+		muslWrapperHash,
+		muslAssetsArtifactPath,
+		muslAssetsHash,
 	)
 	if err := os.WriteFile(defaultPath, []byte(defaultContent), 0644); err != nil {
 		return err
@@ -449,10 +687,18 @@ func generateGoFile(
 		hashBase64,
 		runtimeArtifactPath,
 		runtimeHash,
+		wrapperArtifactPath,
+		wrapperHash,
+		assetsArtifactPath,
+		assetsHash,
 		muslBinaryPath,
 		muslBinaryHash,
 		muslRuntimeArtifactPath,
 		muslRuntimeHash,
+		muslWrapperArtifactPath,
+		muslWrapperHash,
+		muslAssetsArtifactPath,
+		muslAssetsHash,
 	)
 	if err := os.WriteFile(inProcessPath, []byte(inProcessContent), 0644); err != nil {
 		return err
@@ -472,27 +718,59 @@ func generatedGoFileContent(
 	hashBase64,
 	runtimeArtifactPath string,
 	runtimeHash []byte,
+	wrapperArtifactPath string,
+	wrapperHash []byte,
+	assetsArtifactPath string,
+	assetsHash []byte,
 	muslBinaryPath string,
 	muslBinaryHash []byte,
 	muslRuntimeArtifactPath string,
 	muslRuntimeHash []byte,
+	muslWrapperArtifactPath string,
+	muslWrapperHash []byte,
+	muslAssetsArtifactPath string,
+	muslAssetsHash []byte,
 ) string {
 	runtimeEmbed := ""
 	runtimeConfig := ""
 	runtimeReader := ""
-	if runtimeArtifactPath != "" {
+	if runtimeArtifactPath != "" && wrapperArtifactPath != "" && assetsArtifactPath != "" {
 		runtimeArtifactName := filepath.Base(runtimeArtifactPath)
 		runtimeHashBase64 := base64.StdEncoding.EncodeToString(runtimeHash)
+		wrapperArtifactName := filepath.Base(wrapperArtifactPath)
+		wrapperHashBase64 := base64.StdEncoding.EncodeToString(wrapperHash)
+		assetsArtifactName := filepath.Base(assetsArtifactPath)
+		assetsHashBase64 := base64.StdEncoding.EncodeToString(assetsHash)
 		runtimeEmbed = fmt.Sprintf(`
 //go:embed %s
 var localEmbeddedCopilotRuntimeLib []byte
-`, runtimeArtifactName)
+
+//go:embed %s
+var localEmbeddedCopilotRuntimeExecutable []byte
+
+//go:embed %s
+var localEmbeddedCopilotRuntimeAssets []byte
+`, runtimeArtifactName, wrapperArtifactName, assetsArtifactName)
 		runtimeConfig = fmt.Sprintf(`
-		RuntimeLib:     runtimeLibReader(),
-		RuntimeLibHash: mustDecodeBase64(%q),`, runtimeHashBase64)
+		RuntimeLib:            runtimeLibReader(),
+		RuntimeLibHash:        mustDecodeBase64(%q),
+		RuntimeNode:           runtimeLibReader(),
+		RuntimeNodeHash:       mustDecodeBase64(%q),
+		RuntimeExecutable:     runtimeExecutableReader(),
+		RuntimeExecutableHash: mustDecodeBase64(%q),
+		RuntimeAssets:         bytes.NewReader(localEmbeddedCopilotRuntimeAssets),
+		RuntimeAssetsHash:     mustDecodeBase64(%q),`, runtimeHashBase64, runtimeHashBase64, wrapperHashBase64, assetsHashBase64)
 		runtimeReader = `
 func runtimeLibReader() io.Reader {
 	r, err := zstd.NewReader(bytes.NewReader(localEmbeddedCopilotRuntimeLib))
+	if err != nil {
+		panic("failed to create zstd reader: " + err.Error())
+	}
+	return r
+}
+
+func runtimeExecutableReader() io.Reader {
+	r, err := zstd.NewReader(bytes.NewReader(localEmbeddedCopilotRuntimeExecutable))
 	if err != nil {
 		panic("failed to create zstd reader: " + err.Error())
 	}
@@ -504,23 +782,39 @@ func runtimeLibReader() io.Reader {
 	muslEmbed := ""
 	muslConfig := ""
 	muslReaders := ""
-	if muslBinaryPath != "" && muslRuntimeArtifactPath != "" {
+	if muslBinaryPath != "" && muslRuntimeArtifactPath != "" && muslWrapperArtifactPath != "" && muslAssetsArtifactPath != "" {
 		muslBinaryName := filepath.Base(muslBinaryPath)
 		muslBinaryHashBase64 := base64.StdEncoding.EncodeToString(muslBinaryHash)
 		muslRuntimeName := filepath.Base(muslRuntimeArtifactPath)
 		muslRuntimeHashBase64 := base64.StdEncoding.EncodeToString(muslRuntimeHash)
+		muslWrapperName := filepath.Base(muslWrapperArtifactPath)
+		muslWrapperHashBase64 := base64.StdEncoding.EncodeToString(muslWrapperHash)
+		muslAssetsName := filepath.Base(muslAssetsArtifactPath)
+		muslAssetsHashBase64 := base64.StdEncoding.EncodeToString(muslAssetsHash)
 		muslEmbed = fmt.Sprintf(`
 //go:embed %s
 var localEmbeddedCopilotCLILinuxMusl []byte
 
 //go:embed %s
 var localEmbeddedCopilotRuntimeLibLinuxMusl []byte
-`, muslBinaryName, muslRuntimeName)
+
+//go:embed %s
+var localEmbeddedCopilotRuntimeExecutableLinuxMusl []byte
+
+//go:embed %s
+var localEmbeddedCopilotRuntimeAssetsLinuxMusl []byte
+`, muslBinaryName, muslRuntimeName, muslWrapperName, muslAssetsName)
 		muslConfig = fmt.Sprintf(`
-		LinuxMuslCli:            linuxMuslCLIReader(),
-		LinuxMuslCliHash:        mustDecodeBase64(%q),
-		LinuxMuslRuntimeLib:     linuxMuslRuntimeLibReader(),
-		LinuxMuslRuntimeLibHash: mustDecodeBase64(%q),`, muslBinaryHashBase64, muslRuntimeHashBase64)
+		LinuxMuslCli:                   linuxMuslCLIReader(),
+		LinuxMuslCliHash:               mustDecodeBase64(%q),
+		LinuxMuslRuntimeLib:            linuxMuslRuntimeLibReader(),
+		LinuxMuslRuntimeLibHash:        mustDecodeBase64(%q),
+		LinuxMuslRuntimeNode:           linuxMuslRuntimeLibReader(),
+		LinuxMuslRuntimeNodeHash:       mustDecodeBase64(%q),
+		LinuxMuslRuntimeExecutable:     linuxMuslRuntimeExecutableReader(),
+		LinuxMuslRuntimeExecutableHash: mustDecodeBase64(%q),
+		LinuxMuslRuntimeAssets:         bytes.NewReader(localEmbeddedCopilotRuntimeAssetsLinuxMusl),
+		LinuxMuslRuntimeAssetsHash:     mustDecodeBase64(%q),`, muslBinaryHashBase64, muslRuntimeHashBase64, muslRuntimeHashBase64, muslWrapperHashBase64, muslAssetsHashBase64)
 		muslReaders = `
 func linuxMuslCLIReader() io.Reader {
 	r, err := zstd.NewReader(bytes.NewReader(localEmbeddedCopilotCLILinuxMusl))
@@ -532,6 +826,14 @@ func linuxMuslCLIReader() io.Reader {
 
 func linuxMuslRuntimeLibReader() io.Reader {
 	r, err := zstd.NewReader(bytes.NewReader(localEmbeddedCopilotRuntimeLibLinuxMusl))
+	if err != nil {
+		panic("failed to create zstd reader: " + err.Error())
+	}
+	return r
+}
+
+func linuxMuslRuntimeExecutableReader() io.Reader {
+	r, err := zstd.NewReader(bytes.NewReader(localEmbeddedCopilotRuntimeExecutableLinuxMusl))
 	if err != nil {
 		panic("failed to create zstd reader: " + err.Error())
 	}

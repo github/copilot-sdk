@@ -23,6 +23,10 @@ import javax.annotation.processing.Generated;
 public record RunOptions(
     /** Per-invocation resource ceiling overrides. */
     @JsonProperty("limits") FactoryRunLimits limits,
+    /** Whether to notify the originating session when the factory completes. */
+    @JsonProperty("notifyOnComplete") Boolean notifyOnComplete,
+    /** Whether to emit factory phase names to the session transcript. */
+    @JsonProperty("logPhaseNames") Boolean logPhaseNames,
     /** Run identifier whose journal and progress should seed this resumed run. */
     @JsonProperty("resumeFromRunId") String resumeFromRunId
 ) {

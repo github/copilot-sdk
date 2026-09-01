@@ -46,6 +46,9 @@ public final class CreateSessionRequest {
     @JsonProperty("contextTier")
     private String contextTier;
 
+    @JsonProperty("askUserVariant")
+    private AskUserVariant askUserVariant;
+
     @JsonProperty("tools")
     private List<ToolDefinition> tools;
 
@@ -311,6 +314,16 @@ public final class CreateSessionRequest {
     /** Sets the context window tier. @param contextTier the context window tier */
     public void setContextTier(String contextTier) {
         this.contextTier = contextTier;
+    }
+
+    /** Gets the ask-user variant. @return the ask-user variant */
+    public AskUserVariant getAskUserVariant() {
+        return askUserVariant;
+    }
+
+    /** Sets the ask-user variant. @param askUserVariant the ask-user variant */
+    public void setAskUserVariant(AskUserVariant askUserVariant) {
+        this.askUserVariant = askUserVariant;
     }
 
     /** Gets the tools. @return the tool definitions */

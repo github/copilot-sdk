@@ -373,10 +373,11 @@ pub trait McpHeadersRefreshHandler: Send + Sync + 'static {
     ) -> Result<McpHeadersRefreshResult, crate::Error>;
 }
 
-/// Handler for `user_input.requested` events from the `ask_user` tool.
+/// Handler for `user_input.requested` events from the legacy question-and-answer
+/// `ask_user` variant.
 ///
-/// When unset, `requestUserInput: false` goes on the wire and the
-/// `ask_user` tool is disabled for the session.
+/// When unset, `requestUserInput: false` goes on the wire, so this client
+/// cannot handle legacy user-input requests.
 #[async_trait]
 pub trait UserInputHandler: Send + Sync + 'static {
     /// Answer a question on behalf of the user. Return `None` to signal

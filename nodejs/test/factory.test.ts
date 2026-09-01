@@ -435,6 +435,7 @@ describe("factories", () => {
         const guide = readFileSync(new URL("../docs/factories.md", import.meta.url), "utf8");
         const publicApi = readFileSync(new URL("../src/factory.ts", import.meta.url), "utf8");
         const listRunsPagingWording = "newest default page of this session's durable factory runs";
+        const listRunsMetadata = ["oldestSeq", "newestSeq", "hasMoreNewer", "omittedOlder"];
         const resumeCodes = [
             "not_found",
             "non_resumable",
@@ -458,6 +459,9 @@ describe("factories", () => {
 
         for (const document of [normalizedGuide, normalizedPublicApi]) {
             expect(document).toContain(listRunsPagingWording);
+            for (const field of listRunsMetadata) {
+                expect(document).toContain(field);
+            }
         }
 
         expect(normalizedGuide).toContain(
@@ -1500,14 +1504,31 @@ describe("factories", () => {
             revision: 4,
         };
         const detail = { ...summary, phases: [], agents: [], progress };
+        const runsPage = {
+            runs: [summary],
+            oldestSeq: 11,
+            newestSeq: 12,
+            hasMoreNewer: true,
+            omittedOlder: 10,
+        };
         const sendRequest = vi.fn(async (method: string) => {
-            if (method === "session.factory.listRuns") return { runs: [summary] };
+            if (method === "session.factory.listRuns") return runsPage;
             if (method === "session.factory.getRunDetail") return detail;
             return progress;
         });
         const session = new CopilotSession("session-observe", { sendRequest } as never);
 
         await expect(session.factory.listRuns()).resolves.toEqual([summary]);
+        const listedPage = await session.factory.listRuns({
+            afterSeq: 10,
+            beforeSeq: 20,
+            limit: 50,
+        });
+        expect(listedPage).toEqual(runsPage);
+        expect(listedPage.oldestSeq).toBe(11);
+        expect(listedPage.newestSeq).toBe(12);
+        expect(listedPage.hasMoreNewer).toBe(true);
+        expect(listedPage.omittedOlder).toBe(10);
         await expect(session.factory.getRunDetail("run-observe")).resolves.toEqual(detail);
         await expect(
             session.factory.getRunProgress("run-observe", {
@@ -1519,11 +1540,17 @@ describe("factories", () => {
         expect(sendRequest).toHaveBeenNthCalledWith(1, "session.factory.listRuns", {
             sessionId: session.sessionId,
         });
-        expect(sendRequest).toHaveBeenNthCalledWith(2, "session.factory.getRunDetail", {
+        expect(sendRequest).toHaveBeenNthCalledWith(2, "session.factory.listRuns", {
+            sessionId: session.sessionId,
+            afterSeq: 10,
+            beforeSeq: 20,
+            limit: 50,
+        });
+        expect(sendRequest).toHaveBeenNthCalledWith(3, "session.factory.getRunDetail", {
             sessionId: session.sessionId,
             runId: "run-observe",
         });
-        expect(sendRequest).toHaveBeenNthCalledWith(3, "session.factory.getRunProgress", {
+        expect(sendRequest).toHaveBeenNthCalledWith(4, "session.factory.getRunProgress", {
             sessionId: session.sessionId,
             runId: "run-observe",
             phaseId: "p0",
@@ -2132,6 +2159,8 @@ describe("factories", () => {
         await expect(
             session.factory.resume("run-prior", {
                 limits: { maxTotalSubagents: 7 },
+                notifyOnComplete: true,
+                logPhaseNames: true,
             })
         ).resolves.toMatchObject({
             status: "completed",
@@ -2141,13 +2170,20 @@ describe("factories", () => {
             session.factory.run("by-name", {
                 args: { value: 1 },
                 limits: { maxTotalSubagents: 7 },
+                notifyOnComplete: false,
+                logPhaseNames: true,
                 resumeFromRunId: "run-prior",
             })
         ).resolves.toMatchObject({
             status: "completed",
             result: { name: "stored-name", persistedArgs: true },
         });
-        await expect(session.factory.run(factory)).resolves.toMatchObject({
+        await expect(
+            session.factory.run(factory, {
+                notifyOnComplete: true,
+                logPhaseNames: false,
+            })
+        ).resolves.toMatchObject({
             status: "completed",
             result: { name: "friendly-run" },
         });
@@ -2155,17 +2191,25 @@ describe("factories", () => {
             sessionId: session.sessionId,
             runId: "run-prior",
             limits: { maxTotalSubagents: 7 },
+            notifyOnComplete: true,
+            logPhaseNames: true,
         });
         expect(sendRequest).toHaveBeenNthCalledWith(2, "session.factory.resume", {
             sessionId: session.sessionId,
             runId: "run-prior",
             limits: { maxTotalSubagents: 7 },
+            notifyOnComplete: false,
+            logPhaseNames: true,
         });
         expect(sendRequest).toHaveBeenNthCalledWith(3, "session.factory.run", {
             sessionId: session.sessionId,
             name: "friendly-run",
             args: {},
-            options: { limits: undefined },
+            options: {
+                limits: undefined,
+                notifyOnComplete: true,
+                logPhaseNames: false,
+            },
         });
     });
 

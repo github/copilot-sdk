@@ -8,7 +8,7 @@
     <parent>
         <groupId>com.github</groupId>
         <artifactId>copilot-sdk-java-parent</artifactId>
-        <version>1.0.14-preview.1-SNAPSHOT</version>
+        <version>1.0.14-preview.4-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -685,6 +685,18 @@ did not produce the multi-release output. Re-build on JDK 25+ and verify the
             </build>
         </profile>
         <profile>
+            <id>native-linux-arm64</id>
+            <activation>
+                <os>
+                    <name>Linux</name>
+                    <arch>aarch64</arch>
+                </os>
+            </activation>
+            <properties>
+                <copilot.native.classifier>linux-arm64</copilot.native.classifier>
+            </properties>
+        </profile>
+        <profile>
             <id>native-win32-x64</id>
             <activation>
                 <os>
@@ -694,6 +706,18 @@ did not produce the multi-release output. Re-build on JDK 25+ and verify the
             </activation>
             <properties>
                 <copilot.native.classifier>win32-x64</copilot.native.classifier>
+            </properties>
+        </profile>
+        <profile>
+            <id>native-win32-arm64</id>
+            <activation>
+                <os>
+                    <family>Windows</family>
+                    <arch>aarch64</arch>
+                </os>
+            </activation>
+            <properties>
+                <copilot.native.classifier>win32-arm64</copilot.native.classifier>
             </properties>
         </profile>
         <profile>

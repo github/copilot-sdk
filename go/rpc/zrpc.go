@@ -1361,6 +1361,10 @@ type CanvasSessionContext struct {
 // Experimental: CapiSessionOptions is part of an experimental API and may change or be
 // removed.
 type CapiSessionOptions struct {
+	// Routing preference used when the session model is `auto`. The runtime persists the
+	// preference across cold resume. When omitted, the default routing behavior is used.
+	// Resuming an already-resident session cannot change its preference.
+	AutoTier *AutoTier `json:"autoTier,omitempty"`
 	// Whether to use WebSocket transport for the CAPI Responses API. Enabled by default when
 	// the model advertises `ws:/responses` support; set to `false` to force the HTTP Responses
 	// transport in environments where WebSockets are blocked (e.g. behind a proxy). Setting
@@ -2599,6 +2603,8 @@ type EnqueueCommandParams struct {
 	// Slash-prefixed command string to enqueue, e.g. '/compact' or '/model gpt-4'. Queued FIFO
 	// with any in-flight items; if the session is idle, processing kicks off immediately.
 	Command string `json:"command"`
+	// Optional user-facing text for the queue row. The command string is shown when omitted.
+	DisplayText *string `json:"displayText,omitempty"`
 }
 
 // Indicates whether the command was accepted into the local execution queue.
@@ -2980,6 +2986,9 @@ type ExternalToolTextResultForLlmContentShellExit struct {
 	Cwd *string `json:"cwd,omitempty"`
 	// Exit code from the completed shell command
 	ExitCode int64 `json:"exitCode"`
+	// Path reported in the shell session's filesystem namespace when shell output exceeded the
+	// configured large-output threshold.
+	OutputFilePath *string `json:"outputFilePath,omitempty"`
 	// Output associated with this shell command, if available. May be partial, truncated, or a
 	// preview; not guaranteed to be full output.
 	OutputPreview *string `json:"outputPreview,omitempty"`
@@ -3416,6 +3425,10 @@ type FactoryProgressPage struct {
 type FactoryResumeRequest struct {
 	// Optional per-invocation resource ceiling overrides.
 	Limits *FactoryRunLimits `json:"limits,omitempty"`
+	// Whether to emit factory phase names to the session transcript.
+	LogPhaseNames *bool `json:"logPhaseNames,omitempty"`
+	// Whether to notify the originating session when the factory completes.
+	NotifyOnComplete *bool `json:"notifyOnComplete,omitempty"`
 	// Factory run identifier.
 	RunID string `json:"runId"`
 }
@@ -3668,6 +3681,48 @@ type FactoryRunTerminal struct {
 	Reason *string `json:"reason,omitempty"`
 	// Prompt-safe preview of the completed result.
 	ResultPreview *string `json:"resultPreview,omitempty"`
+}
+
+// Internal parameters for resuming a factory run from a tool.
+// Experimental: FactoryToolResumeRequest is part of an experimental API and may change or
+// be removed.
+// Internal: FactoryToolResumeRequest is an internal SDK API and is not part of the public
+// surface.
+type FactoryToolResumeRequest struct {
+	// Optional per-invocation resource ceiling overrides.
+	Limits *FactoryRunLimits `json:"limits,omitempty"`
+	// Factory run identifier.
+	RunID string `json:"runId"`
+	// Opaque identifier of the originating tool call.
+	ToolCallID *string `json:"toolCallId,omitempty"`
+}
+
+// Options for an internal tool-originated factory invocation.
+// Experimental: FactoryToolRunOptions is part of an experimental API and may change or be
+// removed.
+// Internal: FactoryToolRunOptions is an internal SDK API and is not part of the public
+// surface.
+type FactoryToolRunOptions struct {
+	// Per-invocation resource ceiling overrides.
+	Limits *FactoryRunLimits `json:"limits,omitempty"`
+	// Run identifier whose journal and progress should seed this resumed run.
+	ResumeFromRunID *string `json:"resumeFromRunId,omitempty"`
+}
+
+// Internal parameters for invoking a registered factory from a tool.
+// Experimental: FactoryToolRunRequest is part of an experimental API and may change or be
+// removed.
+// Internal: FactoryToolRunRequest is an internal SDK API and is not part of the public
+// surface.
+type FactoryToolRunRequest struct {
+	// Factory input value.
+	Args any `json:"args"`
+	// Registered factory name.
+	Name string `json:"name"`
+	// Tool-originated factory invocation options.
+	Options *FactoryToolRunOptions `json:"options,omitempty"`
+	// Opaque identifier of the originating tool call.
+	ToolCallID *string `json:"toolCallId,omitempty"`
 }
 
 // Content filtering mode to apply to all tools, or a map of tool name to content filtering
@@ -9922,10 +9977,8 @@ type RegisterExtensionLaunchProviderResult struct {
 // Internal: RegisterExtensionToolsParams is an internal SDK API and is not part of the
 // public surface.
 type RegisterExtensionToolsParams struct {
-	// In-process ExtensionLoader handle (CLI-only optimization). Marked internal: this field is
-	// excluded from the public SDK surface. When the CLI migrates to a process-separated SDK,
-	// extension discovery/launch moves entirely into the runtime — the CLI passes pure config
-	// (search paths, disabled ids) via SessionOptions instead.
+	// In-process ExtensionLoader handle used only by the CLI and excluded from the public SDK
+	// surface.
 	// Internal: Loader is part of the SDK's internal API surface and is not intended for
 	// external use.
 	Loader any `json:"loader"`
@@ -9941,8 +9994,7 @@ type RegisterExtensionToolsParams struct {
 // Internal: RegisterExtensionToolsResult is an internal SDK API and is not part of the
 // public surface.
 type RegisterExtensionToolsResult struct {
-	// In-process unsubscribe function (CLI-only optimization). Marked internal: replaced by an
-	// explicit `extensions.unregister` RPC in the SDK migration.
+	// In-process unsubscribe function used only by the CLI.
 	// Internal: Unsubscribe is part of the SDK's internal API surface and is not intended for
 	// external use.
 	Unsubscribe any `json:"unsubscribe"`
@@ -10179,6 +10231,10 @@ type RemoteSessionRepository struct {
 type RunOptions struct {
 	// Per-invocation resource ceiling overrides.
 	Limits *FactoryRunLimits `json:"limits,omitempty"`
+	// Whether to emit factory phase names to the session transcript.
+	LogPhaseNames *bool `json:"logPhaseNames,omitempty"`
+	// Whether to notify the originating session when the factory completes.
+	NotifyOnComplete *bool `json:"notifyOnComplete,omitempty"`
 	// Run identifier whose journal and progress should seed this resumed run.
 	ResumeFromRunID *string `json:"resumeFromRunId,omitempty"`
 }
@@ -10193,20 +10249,16 @@ type RuntimeShutdownResult struct {
 type SandboxConfig struct {
 	// Whether to auto-add the current working directory to readwritePaths. Default: true.
 	AddCurrentWorkingDirectory *bool `json:"addCurrentWorkingDirectory,omitempty"`
-	// Whether to auto-grant read access to the tool directories discovered on PATH and in
-	// toolchain environment variables (GOROOT, CARGO_HOME, JAVA_HOME, VIRTUAL_ENV, and
-	// similar), and to common developer-tool caches, registries, and toolchains in their
-	// default home locations (cargo, go, npm, Maven, and more), plus read-write access to (and
-	// up-front creation of) the scratch caches builds write on every run (go-build, ccache,
-	// sccache, Gradle caches, Cargo lock/tracker files), so builds work without extra
-	// configuration; a relocated CARGO_HOME additionally gets its Cargo lock files granted
-	// read-write. Set to false to disable every grant listed above: user-installed toolchains
-	// (rustup, nvm, pyenv, conda, pipx) then need explicit userPolicy.filesystem entries —
-	// readonlyPaths to read them, plus readwriteFiles for a relocated CARGO_HOME's
-	// .package-cache and .global-cache, which Cargo locks on every build. Only these
-	// developer-tool grants are affected: the working directory (see
-	// addCurrentWorkingDirectory), temporary storage, session log paths, and system locations
-	// follow their own rules and stay granted, so commands still run. Default: true (enabled by
+	// Whether to auto-grant read access to tool directories discovered on PATH and in toolchain
+	// environment variables (GOROOT, JAVA_HOME, VIRTUAL_ENV, and similar), and to common
+	// developer-tool caches, config, and toolchains. Writable grants cover scratch caches, the
+	// Unix GitHub CLI cache, and Cargo's registry, git store, and lock/tracker files. A
+	// relocated CARGO_HOME gets the same narrow split: registry and git are read-write; bin is
+	// read-only; the home root, config.toml, and credentials.toml stay ungranted. Set to false
+	// to disable every grant listed above; user-installed toolchains and caches then need
+	// explicit userPolicy.filesystem readonlyPaths and readwritePaths entries. The working
+	// directory (see addCurrentWorkingDirectory), temporary storage, session log paths, and
+	// system locations follow their own rules and stay granted. Default: true (enabled by
 	// default; set to false to opt out).
 	AllowDevToolAccess *bool `json:"allowDevToolAccess,omitempty"`
 	// Credential-injection capability flags.
@@ -10325,6 +10377,18 @@ type SandboxConfigUserPolicyNetworkProxy struct {
 type SandboxConfigUserPolicySeatbelt struct {
 	// Whether the macOS seatbelt profile may access the keychain.
 	KeychainAccess *bool `json:"keychainAccess,omitempty"`
+}
+
+// Managed sandbox enforcement state for a session.
+// Experimental: SandboxEnforcementStatus is part of an experimental API and may change or
+// be removed.
+type SandboxEnforcementStatus struct {
+	// Whether an enforcement failure has permanently blocked the session.
+	Blocked bool `json:"blocked"`
+	// The first sandbox enforcement failure that blocked the session.
+	Reason *string `json:"reason,omitempty"`
+	// Whether the effective managed policy requires an available sandbox backend.
+	Required bool `json:"required"`
 }
 
 // Register an absolute-time scheduled prompt.
@@ -12116,10 +12180,8 @@ func (SessionsOpenAttach) Kind() SessionOpenParamsKind {
 // Experimental: SessionsOpenCloud is part of an experimental API and may change or be
 // removed.
 type SessionsOpenCloud struct {
-	// In-process callback invoked when the cloud task is created (before connection). Marked
-	// internal because a function reference cannot cross the JSON-RPC boundary. Disappears in
-	// the SDK migration: the field is purely cosmetic (it flips a single CLI phase label from
-	// 'creating' to 'connecting') and the wire-clean version just drops the intermediate phase.
+	// In-process callback invoked when the cloud task is created, before connection. Internal
+	// because function references cannot cross the JSON-RPC boundary.
 	// Internal: OnTaskCreated is part of the SDK's internal API surface and is not intended for
 	// external use.
 	OnTaskCreated any `json:"onTaskCreated,omitempty"`
@@ -12853,8 +12915,7 @@ type SessionsPruneOldRequest struct {
 // Experimental: SessionsRegisterExtensionToolsOnSessionOptions is part of an experimental
 // API and may change or be removed.
 type SessionsRegisterExtensionToolsOnSessionOptions struct {
-	// In-process `() => boolean` gating callback (CLI-only optimization). Marked internal:
-	// replaced by runtime-side enable/disable RPCs in the SDK migration.
+	// In-process `() => boolean` gating callback used only by the CLI.
 	// Internal: Enabled is part of the SDK's internal API surface and is not intended for
 	// external use.
 	Enabled any `json:"enabled,omitempty"`
@@ -14323,12 +14384,8 @@ type ToolsGetBuiltinDescriptorsRequest struct {
 	BackgroundTaskNotificationsEnabled *bool `json:"backgroundTaskNotificationsEnabled,omitempty"`
 	// Whether tool descriptors should include authoring metadata.
 	IncludeAuthor *bool `json:"includeAuthor,omitempty"`
-	// Whether line numbers should be omitted from the view tool descriptor.
-	NoViewLineNumbers *bool `json:"noViewLineNumbers,omitempty"`
 	// Whether descriptors should favor fewer user-intervention prompts.
 	ReduceUserIntervention *bool `json:"reduceUserIntervention,omitempty"`
-	// Whether shell commands may only run asynchronously.
-	ShellAsyncOnlyEnabled *bool `json:"shellAsyncOnlyEnabled,omitempty"`
 	// Shell-specific names and description lines for shell tools.
 	ShellConfig *ToolsShellDescriptorConfig `json:"shellConfig,omitempty"`
 	// Whether the configured shell supports PowerShell 7 syntax.
@@ -14715,14 +14772,12 @@ type UIElicitationStringOneOfFieldOneOf struct {
 // removed.
 type UIEphemeralQueryRequest struct {
 	// In-process `AbortSignal` forwarded to the model client to cancel an in-flight request.
-	// Marked internal: excluded from the public SDK surface. Replaced by an explicit
-	// cancellation token + cancel RPC in the SDK migration.
+	// Internal and excluded from the public SDK surface.
 	// Internal: AbortSignal is part of the SDK's internal API surface and is not intended for
 	// external use.
 	AbortSignal any `json:"abortSignal,omitempty"`
 	// In-process streaming callback `(text) => void` invoked with each token as the model emits
-	// it. Marked internal: excluded from the public SDK surface. In a process-separated SDK
-	// this is replaced by a streaming RPC that yields chunks and a final answer.
+	// it. Internal and excluded from the public SDK surface.
 	// Internal: OnChunk is part of the SDK's internal API surface and is not intended for
 	// external use.
 	OnChunk any `json:"onChunk,omitempty"`
@@ -15850,6 +15905,19 @@ const (
 	AuthInfoTypeToken           AuthInfoType = "token"
 	AuthInfoTypeTokenProvider   AuthInfoType = "token-provider"
 	AuthInfoTypeUser            AuthInfoType = "user"
+)
+
+// Routing preference used when the session model is `auto`.
+// Experimental: AutoTier is part of an experimental API and may change or be removed.
+type AutoTier string
+
+const (
+	// Balance efficiency and intelligence.
+	AutoTierBalance AutoTier = "balance"
+	// Optimize for efficiency.
+	AutoTierEfficiency AutoTier = "efficiency"
+	// Optimize for intelligence.
+	AutoTierIntelligence AutoTier = "intelligence"
 )
 
 // Custom input-format kind.
@@ -20678,7 +20746,7 @@ func (a *ServerRPC) Ping(ctx context.Context, params *PingRequest) (*PingResult,
 
 // RegisterExtensionLaunchProvider registers the calling SDK client as the per-entrypoint
 // extension launch provider. Call before creating any sessions. When omitted, the runtime
-// temporarily falls back to its built-in Node launcher for backward compatibility.
+// uses its built-in extension launcher.
 //
 // RPC method: registerExtensionLaunchProvider.
 // Experimental: RegisterExtensionLaunchProvider is an experimental API and may change or be
@@ -21247,6 +21315,9 @@ func (a *CommandsAPI) Enqueue(ctx context.Context, params *EnqueueCommandParams)
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["command"] = params.Command
+		if params.DisplayText != nil {
+			req["displayText"] = *params.DisplayText
+		}
 	}
 	raw, err := a.client.Request(ctx, "session.commands.enqueue", req)
 	if err != nil {
@@ -21944,6 +22015,12 @@ func (a *FactoryAPI) Resume(ctx context.Context, params *FactoryResumeRequest) (
 	if params != nil {
 		if params.Limits != nil {
 			req["limits"] = *params.Limits
+		}
+		if params.LogPhaseNames != nil {
+			req["logPhaseNames"] = *params.LogPhaseNames
+		}
+		if params.NotifyOnComplete != nil {
+			req["notifyOnComplete"] = *params.NotifyOnComplete
 		}
 		req["runId"] = params.RunID
 	}
@@ -25028,6 +25105,28 @@ func (a *RemoteAPI) NotifySteerableChanged(ctx context.Context, params *RemoteNo
 	return &result, nil
 }
 
+// Experimental: SandboxAPI contains experimental APIs that may change or be removed.
+type SandboxAPI sessionAPI
+
+// GetEnforcementStatus returns whether managed policy requires sandbox enforcement and
+// whether an enforcement failure has permanently blocked the session.
+//
+// RPC method: session.sandbox.getEnforcementStatus.
+//
+// Returns: Managed sandbox enforcement state for a session.
+func (a *SandboxAPI) GetEnforcementStatus(ctx context.Context) (*SandboxEnforcementStatus, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request(ctx, "session.sandbox.getEnforcementStatus", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SandboxEnforcementStatus
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // Experimental: ScheduleAPI contains experimental APIs that may change or be removed.
 type ScheduleAPI sessionAPI
 
@@ -25659,14 +25758,8 @@ func (a *ToolsAPI) GetBuiltinDescriptors(ctx context.Context, params *ToolsGetBu
 		if params.IncludeAuthor != nil {
 			req["includeAuthor"] = *params.IncludeAuthor
 		}
-		if params.NoViewLineNumbers != nil {
-			req["noViewLineNumbers"] = *params.NoViewLineNumbers
-		}
 		if params.ReduceUserIntervention != nil {
 			req["reduceUserIntervention"] = *params.ReduceUserIntervention
-		}
-		if params.ShellAsyncOnlyEnabled != nil {
-			req["shellAsyncOnlyEnabled"] = *params.ShellAsyncOnlyEnabled
 		}
 		if params.ShellConfig != nil {
 			req["shellConfig"] = *params.ShellConfig
@@ -26583,6 +26676,7 @@ type SessionRPC struct {
 	Provider         *ProviderAPI
 	Queue            *QueueAPI
 	Remote           *RemoteAPI
+	Sandbox          *SandboxAPI
 	Schedule         *ScheduleAPI
 	Shell            *ShellAPI
 	Skills           *SkillsAPI
@@ -26904,6 +26998,7 @@ func NewSessionRPC(client *jsonrpc2.Client, sessionID string) *SessionRPC {
 	r.Provider = (*ProviderAPI)(&r.common)
 	r.Queue = (*QueueAPI)(&r.common)
 	r.Remote = (*RemoteAPI)(&r.common)
+	r.Sandbox = (*SandboxAPI)(&r.common)
 	r.Schedule = (*ScheduleAPI)(&r.common)
 	r.Shell = (*ShellAPI)(&r.common)
 	r.Skills = (*SkillsAPI)(&r.common)
@@ -27009,6 +27104,72 @@ func (a *InternalCommandsAPI) FinalizeInvocationEffect(ctx context.Context, para
 		return nil, err
 	}
 	var result CommandsFinalizeInvocationEffectResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: InternalFactoryAPI contains experimental APIs that may change or be removed.
+type InternalFactoryAPI internalSessionAPI
+
+// ResumeFromTool internal tool-originated factory resume.
+//
+// RPC method: session.factory.resumeFromTool.
+//
+// Parameters: Internal parameters for resuming a factory run from a tool.
+//
+// Returns: Resolved persisted factory identity and resumed run envelope.
+// Internal: ResumeFromTool is part of the SDK's internal handshake/plumbing; external
+// callers should not use it.
+func (a *InternalFactoryAPI) ResumeFromTool(ctx context.Context, params *FactoryToolResumeRequest) (*FactoryResumeResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.Limits != nil {
+			req["limits"] = *params.Limits
+		}
+		req["runId"] = params.RunID
+		if params.ToolCallID != nil {
+			req["toolCallId"] = *params.ToolCallID
+		}
+	}
+	raw, err := a.client.Request(ctx, "session.factory.resumeFromTool", req)
+	if err != nil {
+		return nil, err
+	}
+	var result FactoryResumeResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// RunFromTool internal tool-originated factory invocation.
+//
+// RPC method: session.factory.runFromTool.
+//
+// Parameters: Internal parameters for invoking a registered factory from a tool.
+//
+// Returns: Complete current or terminal factory run envelope.
+// Internal: RunFromTool is part of the SDK's internal handshake/plumbing; external callers
+// should not use it.
+func (a *InternalFactoryAPI) RunFromTool(ctx context.Context, params *FactoryToolRunRequest) (*FactoryRunResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["args"] = params.Args
+		req["name"] = params.Name
+		if params.Options != nil {
+			req["options"] = *params.Options
+		}
+		if params.ToolCallID != nil {
+			req["toolCallId"] = *params.ToolCallID
+		}
+	}
+	raw, err := a.client.Request(ctx, "session.factory.runFromTool", req)
+	if err != nil {
+		return nil, err
+	}
+	var result FactoryRunResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -27813,6 +27974,7 @@ type InternalSessionRPC struct {
 
 	Canvas     *InternalCanvasAPI
 	Commands   *InternalCommandsAPI
+	Factory    *InternalFactoryAPI
 	GitHubAuth *InternalGitHubAuthAPI
 	MCP        *InternalMCPAPI
 	Model      *InternalModelAPI
@@ -27858,6 +28020,7 @@ func NewInternalSessionRPC(client *jsonrpc2.Client, sessionID string) *InternalS
 	r.common = internalSessionAPI{client: client, sessionID: sessionID}
 	r.Canvas = (*InternalCanvasAPI)(&r.common)
 	r.Commands = (*InternalCommandsAPI)(&r.common)
+	r.Factory = (*InternalFactoryAPI)(&r.common)
 	r.GitHubAuth = (*InternalGitHubAuthAPI)(&r.common)
 	r.MCP = (*InternalMCPAPI)(&r.common)
 	r.Model = (*InternalModelAPI)(&r.common)

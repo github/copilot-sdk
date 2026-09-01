@@ -1852,6 +1852,18 @@ impl ManagedSettings {
     }
 }
 
+/// Selects the model-facing shape of the built-in `ask_user` tool.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+#[non_exhaustive]
+pub enum AskUserVariant {
+    /// Use the legacy user-input request flow.
+    #[default]
+    Legacy,
+    /// Use the elicitation request flow.
+    Elicitation,
+}
+
 /// Configuration for creating a new session via the `session.create` RPC.
 ///
 /// All fields are optional — the CLI applies sensible defaults.
@@ -1925,6 +1937,11 @@ pub struct SessionConfig {
     pub streaming: Option<bool>,
     /// Custom system message configuration.
     pub system_message: Option<SystemMessageConfig>,
+    /// Selects the model-facing shape of the built-in `ask_user` tool.
+    ///
+    /// When omitted, the runtime uses [`AskUserVariant::Legacy`]. To use
+    /// [`AskUserVariant::Elicitation`], also install an [`ElicitationHandler`].
+    pub ask_user_variant: Option<AskUserVariant>,
     /// Client-defined tool declarations to expose to the agent.
     pub tools: Option<Vec<Tool>>,
     /// Canvas declarations this connection provides to the runtime.
@@ -2189,9 +2206,9 @@ pub struct SessionConfig {
     pub mcp_auth_handler: Option<Arc<dyn McpAuthHandler>>,
     /// Optional dynamic-header handler for host-managed MCP servers.
     pub mcp_headers_handler: Option<Arc<dyn McpHeadersRefreshHandler>>,
-    /// Optional user-input handler. When `None`,
-    /// `requestUserInput: false` goes on the wire and the `ask_user`
-    /// tool is disabled.
+    /// Optional handler for the legacy question-and-answer `ask_user` variant.
+    /// When `None`, `requestUserInput: false` goes on the wire, so this client
+    /// cannot handle legacy user-input requests.
     pub user_input_handler: Option<Arc<dyn UserInputHandler>>,
     /// Optional exit-plan-mode handler. When `None`,
     /// `requestExitPlanMode: false` goes on the wire.
@@ -2246,6 +2263,7 @@ impl std::fmt::Debug for SessionConfig {
             .field("context_tier", &self.context_tier)
             .field("streaming", &self.streaming)
             .field("system_message", &self.system_message)
+            .field("ask_user_variant", &self.ask_user_variant)
             .field("tools", &self.tools)
             .field("canvases", &self.canvases)
             .field(
@@ -2391,6 +2409,7 @@ impl Default for SessionConfig {
             context_tier: None,
             streaming: None,
             system_message: None,
+            ask_user_variant: None,
             tools: None,
             canvases: None,
             canvas_handler: None,
@@ -2561,6 +2580,7 @@ impl SessionConfig {
             context_tier: self.context_tier,
             streaming: self.streaming,
             system_message: self.system_message,
+            ask_user_variant: self.ask_user_variant,
             tools: self.tools,
             canvases: wire_canvases,
             request_canvas_renderer: self.request_canvas_renderer,
@@ -2680,10 +2700,16 @@ impl SessionConfig {
         self
     }
 
-    /// Install a [`UserInputHandler`]. Required for the `ask_user` tool
-    /// to be enabled.
+    /// Install a [`UserInputHandler`] for the legacy question-and-answer
+    /// `ask_user` variant.
     pub fn with_user_input_handler(mut self, handler: Arc<dyn UserInputHandler>) -> Self {
         self.user_input_handler = Some(handler);
+        self
+    }
+
+    /// Select the model-facing shape of the built-in `ask_user` tool.
+    pub fn with_ask_user_variant(mut self, variant: AskUserVariant) -> Self {
+        self.ask_user_variant = Some(variant);
         self
     }
 
@@ -3337,6 +3363,11 @@ pub struct ResumeSessionConfig {
     /// Re-supply the system message so the agent retains workspace context
     /// across CLI process restarts.
     pub system_message: Option<SystemMessageConfig>,
+    /// Selects the model-facing shape of the built-in `ask_user` tool on a cold resume.
+    ///
+    /// When omitted, the runtime uses [`AskUserVariant::Legacy`]. To use
+    /// [`AskUserVariant::Elicitation`], also install an [`ElicitationHandler`].
+    pub ask_user_variant: Option<AskUserVariant>,
     /// Client-defined tool declarations to re-supply on resume.
     pub tools: Option<Vec<Tool>>,
     /// Canvas declarations this connection provides to the runtime.
@@ -3584,6 +3615,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("context_tier", &self.context_tier)
             .field("streaming", &self.streaming)
             .field("system_message", &self.system_message)
+            .field("ask_user_variant", &self.ask_user_variant)
             .field("tools", &self.tools)
             .field("canvases", &self.canvases)
             .field(
@@ -3772,6 +3804,7 @@ impl ResumeSessionConfig {
             context_tier: self.context_tier,
             streaming: self.streaming,
             system_message: self.system_message,
+            ask_user_variant: self.ask_user_variant,
             tools: self.tools,
             canvases: wire_canvases,
             open_canvases: self.open_canvases,
@@ -3880,6 +3913,7 @@ impl ResumeSessionConfig {
             context_tier: None,
             streaming: None,
             system_message: None,
+            ask_user_variant: None,
             tools: None,
             canvases: None,
             canvas_handler: None,
@@ -3988,6 +4022,12 @@ impl ResumeSessionConfig {
     /// Install a [`UserInputHandler`] for the resumed session.
     pub fn with_user_input_handler(mut self, handler: Arc<dyn UserInputHandler>) -> Self {
         self.user_input_handler = Some(handler);
+        self
+    }
+
+    /// Select the model-facing shape of the built-in `ask_user` tool on resume.
+    pub fn with_ask_user_variant(mut self, variant: AskUserVariant) -> Self {
+        self.ask_user_variant = Some(variant);
         self
     }
 
@@ -6301,6 +6341,8 @@ mod tests {
         assert!(!wire.request_auto_mode_switch);
         assert!(!wire.hooks);
         assert!(!wire.request_mcp_apps);
+        let json = serde_json::to_value(&wire).unwrap();
+        assert!(json.get("askUserVariant").is_none());
     }
 
     #[test]
@@ -6317,6 +6359,8 @@ mod tests {
         assert!(!wire.request_auto_mode_switch);
         assert!(!wire.hooks);
         assert!(!wire.request_mcp_apps);
+        let json = serde_json::to_value(&wire).unwrap();
+        assert!(json.get("askUserVariant").is_none());
     }
 
     #[test]
