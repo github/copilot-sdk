@@ -14,6 +14,7 @@ public class RewindE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
 {
     private const string FileName = "rewind-sdk.txt";
     private const string OriginalFileContent = "Original rewind content";
+    private const string PreparedFileContent = "Prepared rewind content";
     private const string FileContent = "SDK rewind content";
 
     [Fact]
@@ -28,15 +29,21 @@ public class RewindE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
         });
 
         var ready = await session.SendAndWaitAsync(
-            new MessageOptions { Prompt = "Reply with exactly: SDK_REWIND_READY" },
+            new MessageOptions
+            {
+                Prompt = $"Use the edit tool to replace the exact contents of {FileName} "
+                    + $"from {OriginalFileContent} to {PreparedFileContent}. "
+                    + "After the tool succeeds, reply with exactly SDK_REWIND_READY.",
+            },
             TimeSpan.FromSeconds(30));
         Assert.Equal("SDK_REWIND_READY", ready?.Data.Content);
+        Assert.Equal(PreparedFileContent, await File.ReadAllTextAsync(filePath));
 
         var response = await session.SendAndWaitAsync(
             new MessageOptions
             {
                 Prompt = $"Use the edit tool to replace the exact contents of {FileName} "
-                    + $"from {OriginalFileContent} to {FileContent}. "
+                    + $"from {PreparedFileContent} to {FileContent}. "
                     + "After the tool succeeds, reply with exactly SDK_REWIND_DONE.",
             },
             TimeSpan.FromSeconds(30));
@@ -87,7 +94,7 @@ public class RewindE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
             Path.GetFullPath(filePath),
             Path.GetFullPath(restoredFile),
             OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
-        Assert.Equal(OriginalFileContent, await File.ReadAllTextAsync(filePath));
+        Assert.Equal(PreparedFileContent, await File.ReadAllTextAsync(filePath));
 
         var events = await session.GetEventsAsync();
         Assert.DoesNotContain(events, sessionEvent => sessionEvent.Id.ToString() == rewindPoint.EventId);

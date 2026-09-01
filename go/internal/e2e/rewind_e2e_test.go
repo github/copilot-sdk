@@ -16,6 +16,7 @@ import (
 const (
 	rewindFileName            = "rewind-sdk.txt"
 	rewindFileOriginalContent = "Original rewind content"
+	rewindFilePreparedContent = "Prepared rewind content"
 	rewindFileContent         = "SDK rewind content"
 )
 
@@ -41,7 +42,9 @@ func TestRewindE2E(t *testing.T) {
 		defer session.Disconnect()
 
 		ready, err := session.SendAndWait(t.Context(), copilot.MessageOptions{
-			Prompt: "Reply with exactly: SDK_REWIND_READY",
+			Prompt: "Use the edit tool to replace the exact contents of " + rewindFileName + " from " +
+				rewindFileOriginalContent + " to " + rewindFilePreparedContent +
+				". After the tool succeeds, reply with exactly SDK_REWIND_READY.",
 		})
 		if err != nil {
 			t.Fatalf("SendAndWait readiness turn failed: %v", err)
@@ -50,10 +53,17 @@ func TestRewindE2E(t *testing.T) {
 		if !ok || readyData.Content != "SDK_REWIND_READY" {
 			t.Fatalf("Expected SDK_REWIND_READY response, got %+v", ready)
 		}
+		content, err := os.ReadFile(filePath)
+		if err != nil {
+			t.Fatalf("Failed to read prepared file: %v", err)
+		}
+		if string(content) != rewindFilePreparedContent {
+			t.Fatalf("Expected file content %q, got %q", rewindFilePreparedContent, content)
+		}
 
 		response, err := session.SendAndWait(t.Context(), copilot.MessageOptions{
 			Prompt: "Use the edit tool to replace the exact contents of " + rewindFileName + " from " +
-				rewindFileOriginalContent + " to " + rewindFileContent +
+				rewindFilePreparedContent + " to " + rewindFileContent +
 				". After the tool succeeds, reply with exactly SDK_REWIND_DONE.",
 		})
 		if err != nil {
@@ -63,7 +73,7 @@ func TestRewindE2E(t *testing.T) {
 		if !ok || responseData.Content != "SDK_REWIND_DONE" {
 			t.Fatalf("Expected SDK_REWIND_DONE response, got %+v", response)
 		}
-		content, err := os.ReadFile(filePath)
+		content, err = os.ReadFile(filePath)
 		if err != nil {
 			t.Fatalf("Failed to read updated file: %v", err)
 		}
@@ -118,8 +128,8 @@ func TestRewindE2E(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to read restored file: %v", err)
 		}
-		if string(content) != rewindFileOriginalContent {
-			t.Fatalf("Expected restored file content %q, got %q", rewindFileOriginalContent, content)
+		if string(content) != rewindFilePreparedContent {
+			t.Fatalf("Expected restored file content %q, got %q", rewindFilePreparedContent, content)
 		}
 
 		events, err := session.GetEvents(t.Context())

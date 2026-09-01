@@ -10,6 +10,7 @@ import { createSdkTestContext } from "./harness/sdkTestContext.js";
 
 const FILE_NAME = "rewind-sdk.txt";
 const ORIGINAL_FILE_CONTENT = "Original rewind content";
+const PREPARED_FILE_CONTENT = "Prepared rewind content";
 const FILE_CONTENT = "SDK rewind content";
 
 function expectSamePath(actual: string, expected: string): void {
@@ -36,12 +37,13 @@ describe("Rewind", async () => {
 
         try {
             const ready = await session.sendAndWait({
-                prompt: "Reply with exactly: SDK_REWIND_READY",
+                prompt: `Use the edit tool to replace the exact contents of ${FILE_NAME} from ${ORIGINAL_FILE_CONTENT} to ${PREPARED_FILE_CONTENT}. After the tool succeeds, reply with exactly SDK_REWIND_READY.`,
             });
             expect(ready?.data.content).toBe("SDK_REWIND_READY");
+            expect(readFileSync(filePath, "utf8")).toBe(PREPARED_FILE_CONTENT);
 
             const response = await session.sendAndWait({
-                prompt: `Use the edit tool to replace the exact contents of ${FILE_NAME} from ${ORIGINAL_FILE_CONTENT} to ${FILE_CONTENT}. After the tool succeeds, reply with exactly SDK_REWIND_DONE.`,
+                prompt: `Use the edit tool to replace the exact contents of ${FILE_NAME} from ${PREPARED_FILE_CONTENT} to ${FILE_CONTENT}. After the tool succeeds, reply with exactly SDK_REWIND_DONE.`,
             });
 
             expect(response?.data.content).toBe("SDK_REWIND_DONE");
@@ -85,7 +87,7 @@ describe("Rewind", async () => {
             expect(rewind.restoredFiles).toHaveLength(1);
             expectSamePath(rewind.restoredFiles[0], filePath);
             expect(existsSync(filePath)).toBe(true);
-            expect(readFileSync(filePath, "utf8")).toBe(ORIGINAL_FILE_CONTENT);
+            expect(readFileSync(filePath, "utf8")).toBe(PREPARED_FILE_CONTENT);
 
             const events = await session.getEvents();
             expect(events.some((event) => event.id === rewindPoint.eventId)).toBe(false);

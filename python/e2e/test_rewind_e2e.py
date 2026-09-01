@@ -22,6 +22,7 @@ pytestmark = pytest.mark.asyncio(loop_scope="module")
 
 FILE_NAME = "rewind-sdk.txt"
 ORIGINAL_FILE_CONTENT = "Original rewind content"
+PREPARED_FILE_CONTENT = "Prepared rewind content"
 FILE_CONTENT = "SDK rewind content"
 
 
@@ -40,13 +41,18 @@ class TestRewind:
         )
 
         try:
-            ready = await session.send_and_wait("Reply with exactly: SDK_REWIND_READY")
+            ready = await session.send_and_wait(
+                f"Use the edit tool to replace the exact contents of {FILE_NAME} "
+                f"from {ORIGINAL_FILE_CONTENT} to {PREPARED_FILE_CONTENT}. "
+                "After the tool succeeds, reply with exactly SDK_REWIND_READY."
+            )
             assert ready is not None
             assert ready.data.content == "SDK_REWIND_READY"
+            assert file_path.read_text(encoding="utf-8") == PREPARED_FILE_CONTENT
 
             response = await session.send_and_wait(
                 f"Use the edit tool to replace the exact contents of {FILE_NAME} "
-                f"from {ORIGINAL_FILE_CONTENT} to {FILE_CONTENT}. "
+                f"from {PREPARED_FILE_CONTENT} to {FILE_CONTENT}. "
                 "After the tool succeeds, reply with exactly SDK_REWIND_DONE."
             )
 
@@ -94,7 +100,7 @@ class TestRewind:
             assert rewind.events_removed is not None and rewind.events_removed > 0
             assert len(rewind.restored_files) == 1
             assert _same_path(rewind.restored_files[0], file_path)
-            assert file_path.read_text(encoding="utf-8") == ORIGINAL_FILE_CONTENT
+            assert file_path.read_text(encoding="utf-8") == PREPARED_FILE_CONTENT
 
             events = await session.get_events()
             assert all(str(event.id) != rewind_point.event_id for event in events)

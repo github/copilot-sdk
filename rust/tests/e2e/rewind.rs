@@ -10,6 +10,7 @@ use super::support::assistant_message_content;
 
 const FILE_NAME: &str = "rewind-sdk.txt";
 const ORIGINAL_FILE_CONTENT: &str = "Original rewind content";
+const PREPARED_FILE_CONTENT: &str = "Prepared rewind content";
 const FILE_CONTENT: &str = "SDK rewind content";
 
 #[tokio::test]
@@ -34,16 +35,24 @@ async fn should_restore_tracked_file_and_conversation() {
                     .expect("create session");
 
                 let ready = session
-                    .send_and_wait("Reply with exactly: SDK_REWIND_READY")
+                    .send_and_wait(format!(
+                        "Use the edit tool to replace the exact contents of {FILE_NAME} from \
+                         {ORIGINAL_FILE_CONTENT} to {PREPARED_FILE_CONTENT}. After the tool \
+                         succeeds, reply with exactly SDK_REWIND_READY."
+                    ))
                     .await
                     .expect("send readiness turn")
                     .expect("readiness response");
                 assert_eq!(assistant_message_content(&ready), "SDK_REWIND_READY");
+                assert_eq!(
+                    std::fs::read_to_string(&file_path).expect("read prepared file"),
+                    PREPARED_FILE_CONTENT
+                );
 
                 let response = session
                     .send_and_wait(format!(
                         "Use the edit tool to replace the exact contents of {FILE_NAME} from \
-                         {ORIGINAL_FILE_CONTENT} to {FILE_CONTENT}. After the tool succeeds, \
+                         {PREPARED_FILE_CONTENT} to {FILE_CONTENT}. After the tool succeeds, \
                          reply with exactly SDK_REWIND_DONE."
                     ))
                     .await
@@ -90,7 +99,7 @@ async fn should_restore_tracked_file_and_conversation() {
                 assert_same_path(&file_path, Path::new(&rewind.restored_files[0]));
                 assert_eq!(
                     std::fs::read_to_string(&file_path).expect("read restored file"),
-                    ORIGINAL_FILE_CONTENT
+                    PREPARED_FILE_CONTENT
                 );
 
                 let events = session.get_events().await.expect("get events after rewind");

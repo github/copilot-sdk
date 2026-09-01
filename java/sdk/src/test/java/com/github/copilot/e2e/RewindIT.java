@@ -36,6 +36,7 @@ class RewindIT {
 
     private static final String FILE_NAME = "rewind-sdk.txt";
     private static final String ORIGINAL_FILE_CONTENT = "Original rewind content";
+    private static final String PREPARED_FILE_CONTENT = "Prepared rewind content";
     private static final String FILE_CONTENT = "SDK rewind content";
 
     private static E2ETestContext ctx;
@@ -65,14 +66,17 @@ class RewindIT {
                                         .setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
                         .get(30, TimeUnit.SECONDS)) {
             AssistantMessageEvent ready = session
-                    .sendAndWait(new MessageOptions().setPrompt("Reply with exactly: SDK_REWIND_READY"), 30_000)
+                    .sendAndWait(new MessageOptions().setPrompt("Use the edit tool to replace the exact contents of "
+                            + FILE_NAME + " from " + ORIGINAL_FILE_CONTENT + " to " + PREPARED_FILE_CONTENT
+                            + ". After the tool succeeds, reply with exactly SDK_REWIND_READY."), 30_000)
                     .get(60, TimeUnit.SECONDS);
             assertNotNull(ready);
             assertEquals("SDK_REWIND_READY", ready.getData().content());
+            assertEquals(PREPARED_FILE_CONTENT, Files.readString(filePath));
 
             AssistantMessageEvent response = session
                     .sendAndWait(new MessageOptions().setPrompt("Use the edit tool to replace the exact contents of "
-                            + FILE_NAME + " from " + ORIGINAL_FILE_CONTENT + " to " + FILE_CONTENT
+                            + FILE_NAME + " from " + PREPARED_FILE_CONTENT + " to " + FILE_CONTENT
                             + ". After the tool succeeds, reply with exactly SDK_REWIND_DONE."), 30_000)
                     .get(60, TimeUnit.SECONDS);
 
@@ -101,7 +105,7 @@ class RewindIT {
             assertTrue(rewind.eventsRemoved() != null && rewind.eventsRemoved() > 0);
             assertEquals(1, rewind.restoredFiles().size());
             assertSamePath(filePath, rewind.restoredFiles().get(0));
-            assertEquals(ORIGINAL_FILE_CONTENT, Files.readString(filePath));
+            assertEquals(PREPARED_FILE_CONTENT, Files.readString(filePath));
 
             var events = session.getMessages().get(10, TimeUnit.SECONDS);
             assertTrue(events.stream().noneMatch(event -> event.getId().toString().equals(rewindPoint.eventId())));
