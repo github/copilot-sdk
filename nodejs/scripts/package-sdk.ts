@@ -16,6 +16,10 @@ const packagePath = join(nodeRoot, "package.json");
 const originalPackage = readFileSync(packagePath, "utf8");
 const packageJson = JSON.parse(originalPackage);
 const sdkVersion = packageJson.version;
+const npmCliPath = process.env.npm_execpath;
+if (!npmCliPath) {
+    throw new Error("package-sdk.ts must be run through an npm script");
+}
 const requestedPlatforms = process.env.COPILOT_SDK_RUNTIME_PLATFORMS?.split(",").filter(Boolean);
 const platforms = requestedPlatforms ?? [...RUNTIME_PLATFORMS];
 const stagingRoot = mkdtempSync(join(tmpdir(), "copilot-sdk-platform-packages-"));
@@ -50,7 +54,7 @@ try {
             join(runtimeRoot, "package.json"),
             `${JSON.stringify(runtimePackage, null, 4)}\n`
         );
-        execFileSync("npm", ["pack", runtimeRoot, "--pack-destination", nodeRoot], {
+        execFileSync(process.execPath, [npmCliPath, "pack", runtimeRoot, "--pack-destination", nodeRoot], {
             stdio: "inherit",
         });
         optionalDependencies[packageName] = sdkVersion;
@@ -58,7 +62,11 @@ try {
 
     packageJson.optionalDependencies = optionalDependencies;
     writeFileSync(packagePath, `${JSON.stringify(packageJson, null, 4)}\n`);
-    execFileSync("npm", ["pack", nodeRoot, "--pack-destination", nodeRoot], { stdio: "inherit" });
+    execFileSync(
+        process.execPath,
+        [npmCliPath, "pack", nodeRoot, "--pack-destination", nodeRoot],
+        { stdio: "inherit" }
+    );
 } finally {
     writeFileSync(packagePath, originalPackage);
     rmSync(stagingRoot, { recursive: true, force: true });
