@@ -418,7 +418,11 @@ jobs:
             echo ""
             echo "| | |"
             echo "| --- | --- |"
-            echo "| Runtime consumed | \`@github/copilot@${RUNTIME_VERSION}\` |"
+            if [ "$RUNTIME_SOURCE" = "public" ]; then
+              echo "| Runtime consumed | \`github/copilot-cli@${RUNTIME_VERSION}\` release assets |"
+            else
+              echo "| Runtime consumed | \`@github/copilot@${RUNTIME_VERSION}\` |"
+            fi
             echo "| Canary SDK produced | \`@github/copilot-sdk@${SDK_VERSION}\` |"
             echo "| Feed | ${FEED_URL} |"
           } >> "$GITHUB_STEP_SUMMARY"
