@@ -20,9 +20,7 @@ from .testharness import E2ETestContext, is_inprocess_transport
 # Out-of-process children resolve auth in their own process where the token already
 # outranks HMAC. See https://github.com/github/copilot-sdk/issues/1934.
 if not cli_download.CLI_VERSION:
-    package_json = json.loads(
-        (Path(__file__).parents[2] / "nodejs" / "package.json").read_text()
-    )
+    package_json = json.loads((Path(__file__).parents[2] / "nodejs" / "package.json").read_text())
     cli_download.CLI_VERSION = package_json["copilotCliVersion"]
 
 if is_inprocess_transport():

@@ -155,9 +155,8 @@ public sealed class E2ETestContext : IAsyncDisposable
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
+            Arguments = "run --silent prepare:runtime -- --print-path",
         };
-        foreach (var argument in new[] { "run", "--silent", "prepare:runtime", "--", "--print-path" })
-            startInfo.ArgumentList.Add(argument);
 
         using var process = Process.Start(startInfo)
             ?? throw new InvalidOperationException("Failed to start Node.js runtime preparation.");

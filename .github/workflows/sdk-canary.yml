@@ -203,8 +203,19 @@ jobs:
         run: |
           set -euo pipefail
           runtime_path=$(npm run --silent prepare:runtime -- --print-path)
-          test -x "$runtime_path" || [ "$RUNNER_OS" = "Windows" ]
-          test -s "$(dirname "$runtime_path")/runtime.node"
+          node -e "
+            const fs = require('node:fs');
+            const path = require('node:path');
+            const runtime = process.argv[1];
+            const runtimeStat = fs.statSync(runtime);
+            if (!runtimeStat.isFile()) throw new Error('Runtime wrapper is not a file');
+            if (process.platform !== 'win32' && (runtimeStat.mode & 0o111) === 0) {
+              throw new Error('Runtime wrapper is not executable');
+            }
+            if (!fs.statSync(path.join(path.dirname(runtime), 'runtime.node')).isFile()) {
+              throw new Error('runtime.node is not adjacent to the runtime wrapper');
+            }
+          " "$runtime_path"
           legacy_path=$(npm run --silent prepare:runtime -- --print-legacy-path)
           node "$legacy_path" --version | grep -F "$RUNTIME_VERSION"
           echo "COPILOT_CLI_PATH=$runtime_path" >> "$GITHUB_ENV"

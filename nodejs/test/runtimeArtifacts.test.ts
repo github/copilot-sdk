@@ -110,18 +110,26 @@ describe("materializeRuntimeBundle", () => {
         const cacheRoot = join(sourceDir, "absent-cache");
         const emptyPath = join(sourceDir, "empty-path");
         mkdirSync(emptyPath);
-        const wrapperName =
-            process.platform === "win32" ? "copilot-runtime.exe" : "copilot-runtime";
-        const prebuilds = join(sourceDir, "prebuilds", "test-platform");
+        const platform = process.platform === "win32" ? "win32-x64" : "test-platform";
+        const wrapperName = platform.startsWith("win32")
+            ? "copilot-runtime.exe"
+            : "copilot-runtime";
+        const prebuilds = join(sourceDir, "prebuilds", platform);
         const wrapper = join(prebuilds, wrapperName);
         const runtimeNode = join(prebuilds, "runtime.node");
         mkdirSync(prebuilds, { recursive: true });
         writeFileSync(wrapper, "wrapper");
         writeFileSync(runtimeNode, "runtime");
-        mkdirSync(join(sourceDir, "ripgrep", "bin", "test-platform"), { recursive: true });
-        writeFileSync(join(sourceDir, "ripgrep", "bin", "test-platform", "rg"), "ripgrep");
+        mkdirSync(join(sourceDir, "ripgrep", "bin", platform), { recursive: true });
+        writeFileSync(join(sourceDir, "ripgrep", "bin", platform, "rg"), "ripgrep");
         mkdirSync(join(sourceDir, "definitions"), { recursive: true });
         writeFileSync(join(sourceDir, "definitions", "future.json"), "{}");
+        mkdirSync(join(sourceDir, "copilot-sdk"), { recursive: true });
+        writeFileSync(join(sourceDir, "copilot-sdk", "extension.js"), "extension SDK");
+        mkdirSync(join(sourceDir, "preloads"), { recursive: true });
+        writeFileSync(join(sourceDir, "preloads", "extension_bootstrap.mjs"), "bootstrap");
+        mkdirSync(join(sourceDir, "sdk"), { recursive: true });
+        writeFileSync(join(sourceDir, "sdk", "index.js"), "legacy SDK");
         writeFileSync(join(sourceDir, "app.js"), "excluded");
         writeFileSync(join(sourceDir, "copilot"), "excluded");
         writeFileSync(join(sourceDir, "copilot.exe"), "excluded");
@@ -138,16 +146,23 @@ describe("materializeRuntimeBundle", () => {
         expect(process.env.COPILOT_RUNTIME_PROVIDER_LIB).toBeUndefined();
 
         const installedWrapper = materializeRuntimeBundle(
-            { packageRoot: sourceDir, platform: "test-platform" },
+            { packageRoot: sourceDir, platform },
             cacheRoot
         );
         const installDir = dirname(installedWrapper);
 
         expect(readFileSync(installedWrapper, "utf8")).toBe("wrapper");
         expect(readFileSync(join(installDir, "runtime.node"), "utf8")).toBe("runtime");
-        expect(
-            readFileSync(join(installDir, "ripgrep", "bin", "test-platform", "rg"), "utf8")
-        ).toBe("ripgrep");
+        expect(readFileSync(join(installDir, "ripgrep", "bin", platform, "rg"), "utf8")).toBe(
+            "ripgrep"
+        );
+        expect(readFileSync(join(installDir, "copilot-sdk", "extension.js"), "utf8")).toBe(
+            "extension SDK"
+        );
+        expect(readFileSync(join(installDir, "preloads", "extension_bootstrap.mjs"), "utf8")).toBe(
+            "bootstrap"
+        );
+        expect(readFileSync(join(installDir, "sdk", "index.js"), "utf8")).toBe("legacy SDK");
         expect(existsSync(join(installDir, "app.js"))).toBe(false);
         expect(existsSync(join(installDir, "copilot"))).toBe(false);
         expect(existsSync(join(installDir, "copilot.exe"))).toBe(false);
@@ -160,9 +175,11 @@ describe("materializeRuntimeBundle", () => {
 
     it("fails clearly when the package has no runtime.node", () => {
         const sourceDir = mkdtempSync(join(tmpdir(), "copilot-runtime-missing-node-"));
-        const wrapperName =
-            process.platform === "win32" ? "copilot-runtime.exe" : "copilot-runtime";
-        const prebuilds = join(sourceDir, "prebuilds", "test-platform");
+        const platform = process.platform === "win32" ? "win32-x64" : "test-platform";
+        const wrapperName = platform.startsWith("win32")
+            ? "copilot-runtime.exe"
+            : "copilot-runtime";
+        const prebuilds = join(sourceDir, "prebuilds", platform);
         const wrapper = join(prebuilds, wrapperName);
         mkdirSync(prebuilds, { recursive: true });
         writeFileSync(wrapper, "wrapper");
@@ -171,7 +188,7 @@ describe("materializeRuntimeBundle", () => {
             materializeRuntimeBundle(
                 {
                     packageRoot: sourceDir,
-                    platform: "test-platform",
+                    platform,
                 },
                 join(sourceDir, "cache")
             )
