@@ -114,6 +114,13 @@ required-features = ["test-support"]
 test = false
 bench = false
 
+[[bin]]
+name = "copilot-host-crash-fixture"
+path = "tests/fixtures/host_crash_fixture.rs"
+required-features = ["test-support"]
+test = false
+bench = false
+
 [build-dependencies]
 base64 = "0.22"
 dirs = "5"
