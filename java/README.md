@@ -351,9 +351,11 @@ It requires a runtime version that supports `capi.autoTier`.
 ```java
 import com.github.copilot.rpc.AutoTier;
 import com.github.copilot.rpc.CapiSessionOptions;
+import com.github.copilot.rpc.PermissionHandler;
 import com.github.copilot.rpc.SessionConfig;
 
 var config = new SessionConfig()
+    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
     .setModel("auto")
     .setCapi(new CapiSessionOptions().setAutoTier(AutoTier.BALANCE));
 ```
