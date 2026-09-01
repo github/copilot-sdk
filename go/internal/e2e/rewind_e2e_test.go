@@ -14,8 +14,9 @@ import (
 )
 
 const (
-	rewindFileName    = "rewind-sdk.txt"
-	rewindFileContent = "SDK rewind content"
+	rewindFileName            = "rewind-sdk.txt"
+	rewindFileOriginalContent = "Original rewind content"
+	rewindFileContent         = "SDK rewind content"
 )
 
 func TestRewindE2E(t *testing.T) {
@@ -24,12 +25,11 @@ func TestRewindE2E(t *testing.T) {
 	t.Cleanup(func() { client.ForceStop() })
 
 	t.Run("should restore tracked file and conversation", func(t *testing.T) {
-		if runtime.GOOS == "windows" {
-			t.Skip("blocked on CLI 1.0.81 file-change tracking regression on Windows")
-		}
-
 		ctx.ConfigureForTest(t)
 		filePath := filepath.Join(ctx.WorkDir, rewindFileName)
+		if err := os.WriteFile(filePath, []byte(rewindFileOriginalContent), 0o600); err != nil {
+			t.Fatalf("Failed to create original file: %v", err)
+		}
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			Model:                    "claude-sonnet-4.5",
 			EnableFileChangeTracking: copilot.Bool(true),
@@ -41,8 +41,9 @@ func TestRewindE2E(t *testing.T) {
 		defer session.Disconnect()
 
 		response, err := session.SendAndWait(t.Context(), copilot.MessageOptions{
-			Prompt: "Use the create tool to create " + rewindFileName + " containing exactly " +
-				rewindFileContent + ". After the tool succeeds, reply with exactly SDK_REWIND_DONE.",
+			Prompt: "Use the edit tool to replace the exact contents of " + rewindFileName + " from " +
+				rewindFileOriginalContent + " to " + rewindFileContent +
+				". After the tool succeeds, reply with exactly SDK_REWIND_DONE.",
 		})
 		if err != nil {
 			t.Fatalf("SendAndWait failed: %v", err)
@@ -53,7 +54,7 @@ func TestRewindE2E(t *testing.T) {
 		}
 		content, err := os.ReadFile(filePath)
 		if err != nil {
-			t.Fatalf("Failed to read created file: %v", err)
+			t.Fatalf("Failed to read updated file: %v", err)
 		}
 		if string(content) != rewindFileContent {
 			t.Fatalf("Expected file content %q, got %q", rewindFileContent, content)
@@ -99,8 +100,12 @@ func TestRewindE2E(t *testing.T) {
 			t.Fatalf("Expected one restored file, got %+v", rewind.RestoredFiles)
 		}
 		assertSameRewindPath(t, filePath, rewind.RestoredFiles[0])
-		if _, err := os.Stat(filePath); !os.IsNotExist(err) {
-			t.Fatalf("Expected rewound file to be removed, stat error: %v", err)
+		content, err = os.ReadFile(filePath)
+		if err != nil {
+			t.Fatalf("Failed to read restored file: %v", err)
+		}
+		if string(content) != rewindFileOriginalContent {
+			t.Fatalf("Expected restored file content %q, got %q", rewindFileOriginalContent, content)
 		}
 
 		events, err := session.GetEvents(t.Context())

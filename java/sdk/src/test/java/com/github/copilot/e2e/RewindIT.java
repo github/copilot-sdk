@@ -9,7 +9,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -37,6 +36,7 @@ import com.github.copilot.rpc.SessionConfig;
 class RewindIT {
 
     private static final String FILE_NAME = "rewind-sdk.txt";
+    private static final String ORIGINAL_FILE_CONTENT = "Original rewind content";
     private static final String FILE_CONTENT = "SDK rewind content";
 
     private static E2ETestContext ctx;
@@ -55,11 +55,9 @@ class RewindIT {
 
     @Test
     void shouldRestoreTrackedFileAndConversation() throws Exception {
-        assumeFalse(System.getProperty("os.name").startsWith("Windows"),
-                "blocked on CLI 1.0.81 file-change tracking regression on Windows");
-
         ctx.configureForTest("rewind", "should_restore_tracked_file_and_conversation");
         Path filePath = ctx.getWorkDir().resolve(FILE_NAME);
+        Files.writeString(filePath, ORIGINAL_FILE_CONTENT);
 
         try (CopilotClient client = ctx.createClient();
                 CopilotSession session = client
@@ -68,10 +66,9 @@ class RewindIT {
                                         .setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
                         .get(30, TimeUnit.SECONDS)) {
             AssistantMessageEvent response = session
-                    .sendAndWait(new MessageOptions().setPrompt(
-                            "Use the create tool to create " + FILE_NAME + " containing exactly " + FILE_CONTENT
-                                    + ". After the tool succeeds, reply with exactly SDK_REWIND_DONE."),
-                            30_000)
+                    .sendAndWait(new MessageOptions().setPrompt("Use the edit tool to replace the exact contents of "
+                            + FILE_NAME + " from " + ORIGINAL_FILE_CONTENT + " to " + FILE_CONTENT
+                            + ". After the tool succeeds, reply with exactly SDK_REWIND_DONE."), 30_000)
                     .get(60, TimeUnit.SECONDS);
 
             assertNotNull(response);
@@ -98,7 +95,7 @@ class RewindIT {
             assertTrue(rewind.eventsRemoved() != null && rewind.eventsRemoved() > 0);
             assertEquals(1, rewind.restoredFiles().size());
             assertSamePath(filePath, rewind.restoredFiles().get(0));
-            assertFalse(Files.exists(filePath));
+            assertEquals(ORIGINAL_FILE_CONTENT, Files.readString(filePath));
 
             var events = session.getMessages().get(10, TimeUnit.SECONDS);
             assertTrue(events.stream().noneMatch(event -> event.getId().toString().equals(rewindPoint.eventId())));

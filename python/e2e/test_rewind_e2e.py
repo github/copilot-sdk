@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import os
-import sys
 from pathlib import Path
 
 import pytest
@@ -22,6 +21,7 @@ from .testharness import E2ETestContext
 pytestmark = pytest.mark.asyncio(loop_scope="module")
 
 FILE_NAME = "rewind-sdk.txt"
+ORIGINAL_FILE_CONTENT = "Original rewind content"
 FILE_CONTENT = "SDK rewind content"
 
 
@@ -31,10 +31,8 @@ def _same_path(left: str | Path, right: str | Path) -> bool:
 
 class TestRewind:
     async def test_should_restore_tracked_file_and_conversation(self, ctx: E2ETestContext):
-        if sys.platform == "win32":
-            pytest.skip("blocked on CLI 1.0.81 file-change tracking regression on Windows")
-
         file_path = Path(ctx.work_dir) / FILE_NAME
+        file_path.write_text(ORIGINAL_FILE_CONTENT, encoding="utf-8")
         session = await ctx.client.create_session(
             model="claude-sonnet-4.5",
             enable_file_change_tracking=True,
@@ -43,7 +41,8 @@ class TestRewind:
 
         try:
             response = await session.send_and_wait(
-                f"Use the create tool to create {FILE_NAME} containing exactly {FILE_CONTENT}. "
+                f"Use the edit tool to replace the exact contents of {FILE_NAME} "
+                f"from {ORIGINAL_FILE_CONTENT} to {FILE_CONTENT}. "
                 "After the tool succeeds, reply with exactly SDK_REWIND_DONE."
             )
 
@@ -89,7 +88,7 @@ class TestRewind:
             assert rewind.events_removed is not None and rewind.events_removed > 0
             assert len(rewind.restored_files) == 1
             assert _same_path(rewind.restored_files[0], file_path)
-            assert not file_path.exists()
+            assert file_path.read_text(encoding="utf-8") == ORIGINAL_FILE_CONTENT
 
             events = await session.get_events()
             assert all(str(event.id) != rewind_point.event_id for event in events)

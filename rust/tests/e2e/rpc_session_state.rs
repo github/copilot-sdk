@@ -1125,20 +1125,19 @@ async fn should_report_processing_and_context_metadata() {
                         .expect("processing before send")
                         .processing
                 );
-                session
-                    .send("Reply with exactly: RUST_CONTEXT_INFO")
-                    .await
-                    .expect("send");
-                wait_for_condition("session processing started", || async {
-                    session
-                        .rpc()
-                        .metadata()
-                        .is_processing()
-                        .await
-                        .expect("processing poll")
-                        .processing
-                })
-                .await;
+                let (send_result, ()) = tokio::join!(
+                    session.send("Reply with exactly: RUST_CONTEXT_INFO"),
+                    wait_for_condition("session processing started", || async {
+                        session
+                            .rpc()
+                            .metadata()
+                            .is_processing()
+                            .await
+                            .expect("processing poll")
+                            .processing
+                    })
+                );
+                send_result.expect("send");
                 wait_for_condition("session processing completed", || async {
                     !session
                         .rpc()

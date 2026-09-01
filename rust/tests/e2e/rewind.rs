@@ -9,15 +9,11 @@ use github_copilot_sdk::rpc::{
 use super::support::assistant_message_content;
 
 const FILE_NAME: &str = "rewind-sdk.txt";
+const ORIGINAL_FILE_CONTENT: &str = "Original rewind content";
 const FILE_CONTENT: &str = "SDK rewind content";
 
 #[tokio::test]
 async fn should_restore_tracked_file_and_conversation() {
-    // TODO(cli-1.0.81): Re-enable when Windows file-change tracking records built-in create tool writes.
-    if cfg!(windows) {
-        return;
-    }
-
     super::support::with_shared_e2e_context(
         &E2E,
         "rewind",
@@ -26,6 +22,7 @@ async fn should_restore_tracked_file_and_conversation() {
             Box::pin(async move {
                 ctx.set_default_copilot_user();
                 let file_path = ctx.work_dir().join(FILE_NAME);
+                std::fs::write(&file_path, ORIGINAL_FILE_CONTENT).expect("write original file");
                 let client = ctx.start_client().await;
                 let session = client
                     .create_session(
@@ -38,9 +35,9 @@ async fn should_restore_tracked_file_and_conversation() {
 
                 let response = session
                     .send_and_wait(format!(
-                        "Use the create tool to create {FILE_NAME} containing exactly \
-                         {FILE_CONTENT}. After the tool succeeds, reply with exactly \
-                         SDK_REWIND_DONE."
+                        "Use the edit tool to replace the exact contents of {FILE_NAME} from \
+                         {ORIGINAL_FILE_CONTENT} to {FILE_CONTENT}. After the tool succeeds, \
+                         reply with exactly SDK_REWIND_DONE."
                     ))
                     .await
                     .expect("send rewind setup prompt")
@@ -83,7 +80,10 @@ async fn should_restore_tracked_file_and_conversation() {
                 assert!(rewind.events_removed.is_some_and(|count| count > 0));
                 assert_eq!(rewind.restored_files.len(), 1);
                 assert_same_path(&file_path, Path::new(&rewind.restored_files[0]));
-                assert!(!file_path.exists());
+                assert_eq!(
+                    std::fs::read_to_string(&file_path).expect("read restored file"),
+                    ORIGINAL_FILE_CONTENT
+                );
 
                 let events = session.get_events().await.expect("get events after rewind");
                 assert!(events.iter().all(|event| event.id != rewind_point.event_id));

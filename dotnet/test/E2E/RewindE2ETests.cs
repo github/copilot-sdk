@@ -13,16 +13,14 @@ public class RewindE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     : E2ETestBase(fixture, "rewind", output)
 {
     private const string FileName = "rewind-sdk.txt";
+    private const string OriginalFileContent = "Original rewind content";
     private const string FileContent = "SDK rewind content";
 
     [Fact]
     public async Task Should_Restore_Tracked_File_And_Conversation()
     {
-        // TODO(cli-1.0.81): Re-enable when Windows file-change tracking records built-in create tool writes.
-        if (OperatingSystem.IsWindows())
-            return;
-
         var filePath = Path.Join(Ctx.WorkDir, FileName);
+        await File.WriteAllTextAsync(filePath, OriginalFileContent);
         await using var session = await CreateSessionAsync(new SessionConfig
         {
             Model = "claude-sonnet-4.5",
@@ -32,7 +30,8 @@ public class RewindE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
         var response = await session.SendAndWaitAsync(
             new MessageOptions
             {
-                Prompt = $"Use the create tool to create {FileName} containing exactly {FileContent}. "
+                Prompt = $"Use the edit tool to replace the exact contents of {FileName} "
+                    + $"from {OriginalFileContent} to {FileContent}. "
                     + "After the tool succeeds, reply with exactly SDK_REWIND_DONE.",
             },
             TimeSpan.FromSeconds(30));
@@ -80,7 +79,7 @@ public class RewindE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
             Path.GetFullPath(filePath),
             Path.GetFullPath(restoredFile),
             OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
-        Assert.False(File.Exists(filePath));
+        Assert.Equal(OriginalFileContent, await File.ReadAllTextAsync(filePath));
 
         var events = await session.GetEventsAsync();
         Assert.DoesNotContain(events, sessionEvent => sessionEvent.Id.ToString() == rewindPoint.EventId);
