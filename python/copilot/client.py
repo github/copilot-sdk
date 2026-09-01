@@ -525,7 +525,9 @@ def _client_info_to_wire(client_info: ClientInfo | None) -> dict[str, str] | Non
         "extension_name": "extensionName",
         "extension_version": "extensionVersion",
     }
-    wire = {wire_key: client_info[key] for key, wire_key in field_map.items() if client_info.get(key)}  # type: ignore[literal-required]
+    wire = {
+        wire_key: client_info[key] for key, wire_key in field_map.items() if client_info.get(key)
+    }  # type: ignore[literal-required]
     return wire or None
 
 
