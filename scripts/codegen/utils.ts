@@ -491,9 +491,10 @@ export function addSandboxAllowBypass<T extends JSONSchema7>(schema: T): T {
     const cloned = cloneSchemaForCodegen(schema);
     const property: JSONSchema7 = {
         description:
-            "Host capability flag (not part of the sandbox policy): when true, exposes a per-command escape hatch so the model can request individual commands run outside the sandbox.",
+            "Host capability flag (not part of the sandbox policy): when set, exposes a per-command escape hatch so the model can request individual commands run outside the sandbox. Stripped from the effective spawn policy.",
         type: "boolean",
     };
+    (property as Record<string, unknown>)["x-copilot-sdk-append-last"] = true;
 
     for (const definitions of [cloned.definitions, cloned.$defs]) {
         if (!definitions) continue;

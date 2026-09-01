@@ -16,11 +16,23 @@ from copilot.rpc import (
     RemoteControlStatusOff,
     RemoteControlStatusResult,
     RemoteSessionMetadataValue,
+    SandboxConfig,
     SessionList,
     SlashCommandTextResult,
     TaskAgentInfo,
     UIElicitationSchemaType,
 )
+
+
+def test_sandbox_config_round_trips_allow_bypass_and_omits_when_absent():
+    configured = SandboxConfig(enabled=True, allow_bypass=True)
+
+    assert configured.to_dict() == {"enabled": True, "allowBypass": True}
+    assert SandboxConfig.from_dict(configured.to_dict()).allow_bypass is True
+    assert SandboxConfig(enabled=True).to_dict() == {"enabled": True}
+
+    legacy_positional = SandboxConfig(True, None, True)
+    assert legacy_positional.to_dict() == {"enabled": True, "allowDevToolAccess": True}
 
 
 @pytest.mark.asyncio
