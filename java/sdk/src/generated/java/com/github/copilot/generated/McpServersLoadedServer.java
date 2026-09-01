@@ -34,8 +34,6 @@ public record McpServersLoadedServer(
     /** Name of the plugin that supplied the effective MCP server config, only when source is plugin */
     @JsonProperty("pluginName") String pluginName,
     /** Version of the plugin that supplied the effective MCP server config, only when source is plugin */
-    @JsonProperty("pluginVersion") String pluginVersion,
-    /** Human-readable display name supplied by a managed server catalog. */
-    @JsonProperty("displayName") String displayName
+    @JsonProperty("pluginVersion") String pluginVersion
 ) {
 }
