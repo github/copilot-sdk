@@ -19,6 +19,8 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"go/parser"
+	"go/token"
 	"io"
 	"net/http"
 	"os"
@@ -33,10 +35,11 @@ import (
 
 const (
 	// Keep these URLs centralized so reviewers can verify all outbound calls in one place.
-	sdkModule         = "github.com/github/copilot-sdk/go"
-	packageLockURLFmt = "https://raw.githubusercontent.com/github/copilot-sdk/%s/nodejs/package-lock.json"
-	tarballURLFmt     = "https://registry.npmjs.org/@github/copilot-%s/-/copilot-%s-%s.tgz"
-	licenseTarballFmt = "https://registry.npmjs.org/@github/copilot/-/copilot-%s.tgz"
+	sdkModule          = "github.com/github/copilot-sdk/go"
+	packageLockURLFmt  = "https://raw.githubusercontent.com/github/copilot-sdk/%s/nodejs/package-lock.json"
+	tarballURLFmt      = "https://registry.npmjs.org/@github/copilot-%s/-/copilot-%s-%s.tgz"
+	licenseTarballFmt  = "https://registry.npmjs.org/@github/copilot/-/copilot-%s.tgz"
+	defaultPackageName = "main"
 )
 
 // Platform info: npm package suffix, binary name
@@ -89,6 +92,11 @@ func main() {
 		return
 	}
 
+	pkgName, err := detectPackageName(*output)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to detect package name: %v; using package %s\n", err, pkgName)
+	}
+
 	fmt.Printf("Building bundle for %s (CLI version %s)\n", *platform, version)
 
 	bundle, err := buildBundle(info, version, outputPath, goos)
@@ -137,7 +145,7 @@ func main() {
 		muslBundle.wrapperHash,
 		muslBundle.assetsArtifactPath,
 		muslBundle.assetsHash,
-		"main",
+		pkgName,
 	); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
@@ -191,6 +199,48 @@ func validPlatforms() []string {
 		result = append(result, p)
 	}
 	return result
+}
+
+// detectPackageName reads package clauses from the output directory.
+// It returns defaultPackageName with an error when detection fails.
+func detectPackageName(dir string) (string, error) {
+	if dir == "" {
+		dir = "."
+	}
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return defaultPackageName, fmt.Errorf("failed to read package directory %q: %w", dir, err)
+	}
+
+	packageName := ""
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".go") ||
+			strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_") ||
+			strings.HasSuffix(name, "_test.go") || strings.HasPrefix(name, "zcopilot_") {
+			continue
+		}
+
+		path := filepath.Join(dir, name)
+		file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.PackageClauseOnly)
+		if err != nil {
+			return defaultPackageName, fmt.Errorf("failed to parse package clause in %q: %w", path, err)
+		}
+
+		if packageName == "" {
+			packageName = file.Name.Name
+			continue
+		}
+		if packageName != file.Name.Name {
+			return defaultPackageName, fmt.Errorf("multiple packages %q and %q found in %q", packageName, file.Name.Name, dir)
+		}
+	}
+
+	if packageName == "" {
+		return defaultPackageName, fmt.Errorf("no Go package found in %q", dir)
+	}
+	return packageName, nil
 }
 
 // detectCLIVersion detects the CLI version by:

@@ -101,6 +101,50 @@ func readTarGz(t *testing.T, path string) map[string]string {
 	}
 }
 
+func TestDetectPackageName(t *testing.T) {
+	dir := t.TempDir()
+	files := map[string]string{
+		"app.go":                      "package application\n",
+		"app_test.go":                 "package application_test\n",
+		"zcopilot_linux_amd64.go":     "package main\n",
+		"_ignored.go":                 "package ignored\n",
+		"zcopilot_inprocess_linux.go": "package main\n",
+	}
+	for name, content := range files {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	got, err := detectPackageName(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "application" {
+		t.Fatalf("detectPackageName() = %q, want %q", got, "application")
+	}
+}
+
+func TestDetectPackageNameFallsBackForMultiplePackages(t *testing.T) {
+	dir := t.TempDir()
+	for name, content := range map[string]string{
+		"one.go": "package one\n",
+		"two.go": "package two\n",
+	} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	got, err := detectPackageName(dir)
+	if err == nil {
+		t.Fatal("detectPackageName() succeeded for a directory containing multiple packages")
+	}
+	if got != defaultPackageName {
+		t.Fatalf("detectPackageName() = %q, want fallback %q", got, defaultPackageName)
+	}
+}
+
 func TestGenerateGoFileEmbedsRuntimeWrapperPair(t *testing.T) {
 	dir := t.TempDir()
 	binaryPath := filepath.Join(dir, "copilot.zst")
