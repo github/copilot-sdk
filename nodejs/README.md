@@ -141,7 +141,8 @@ Create a new conversation session.
 - `gitHubTokenProvider?: GitHubTokenProvider` - Acquires rotating, session-scoped GitHub tokens. Token results require a positive `expiresIn` value in seconds remaining when the callback completes; production tokens typically last eight hours. Cannot be combined with `gitHubToken`.
 - `provider?: ProviderConfig` - Custom API provider configuration (BYOK - Bring Your Own Key). See [Custom Providers](#custom-providers) section.
 - `onPermissionRequest?: PermissionHandler` - Optional handler called before each tool execution to approve or deny it. When omitted, permission requests are emitted as events and left pending for manual resolution. `approveAll` approves requests when managed settings are disabled and throws when `enableManagedSettings` is true. Custom handlers can inspect `managedApprovalRequired` for human-facing confirmation logic. See [Permission Handling](#permission-handling) section.
-- `onUserInputRequest?: UserInputHandler` - Handler for user input requests from the agent. Enables the `ask_user` tool. See [User Input Requests](#user-input-requests) section.
+- `onUserInputRequest?: UserInputHandler` - Handler for legacy question-and-answer requests from the agent. Enables the legacy `ask_user` tool. See [User Input Requests](#user-input-requests) section.
+- `askUserVariant?: "legacy" | "elicitation"` - Selects the model-facing `ask_user` tool shape when creating or cold-resuming a session. Defaults to `"legacy"`; use `"elicitation"` with `onElicitationRequest`.
 - `onElicitationRequest?: ElicitationHandler` - Handler for elicitation requests dispatched by the server. Enables this client to present form-based UI dialogs on behalf of the agent or other session participants. See [Elicitation Requests](#elicitation-requests) section.
 - `hooks?: SessionHooks` - Hook handlers for session lifecycle events. See [Session Hooks](#session-hooks) section.
 
@@ -960,7 +961,7 @@ To let a specific custom tool bypass the permission prompt entirely, set `skipPe
 
 ## User Input Requests
 
-Enable the agent to ask questions to the user using the `ask_user` tool by providing an `onUserInputRequest` handler:
+Enable the legacy question-and-answer `ask_user` tool by providing an `onUserInputRequest` handler:
 
 ```typescript
 const session = await client.createSession({
@@ -992,6 +993,7 @@ Register an `onElicitationRequest` handler to let your client act as an elicitat
 const session = await client.createSession({
     model: "gpt-5",
     onPermissionRequest: approveAll,
+    askUserVariant: "elicitation",
     onElicitationRequest: async (context) => {
         // context.sessionId - Session that triggered the request
         // context.message - Description of what information is needed
@@ -1012,6 +1014,9 @@ const session = await client.createSession({
 // The session now reports elicitation capability
 console.log(session.capabilities.ui?.elicitation); // true
 ```
+
+Set `askUserVariant: "elicitation"` to expose the structured form as the model's
+`ask_user` tool. Omit it to retain the legacy SDK behavior.
 
 When `onElicitationRequest` is provided, the SDK sends `requestElicitation: true` during session create/resume, which enables `session.capabilities.ui.elicitation` on the session.
 

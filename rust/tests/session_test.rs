@@ -24,8 +24,8 @@ use github_copilot_sdk::session_events::{
     SessionManagedSettingsResolvedData,
 };
 use github_copilot_sdk::types::{
-    CanvasProviderIdentity, CloudSessionOptions, CloudSessionRepository, CommandContext,
-    CommandDefinition, CommandHandler, DeliveryMode, DisableBypassPermissionsModes,
+    AskUserVariant, CanvasProviderIdentity, CloudSessionOptions, CloudSessionRepository,
+    CommandContext, CommandDefinition, CommandHandler, DeliveryMode, DisableBypassPermissionsModes,
     ElicitationRequest, ElicitationResult, ExitPlanModeData, ExtensionInfo, ManagedSettings,
     ManagedSettingsPermissions, MessageOptions, PermissionDecisionContext,
     PermissionDecisionOutcome, PermissionDecisionSource, PermissionDecisionSurface, RequestId,
@@ -916,6 +916,60 @@ async fn create_session_sends_new_session_options() {
     write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
 
     timeout(TIMEOUT, create_handle).await.unwrap().unwrap();
+}
+
+#[tokio::test]
+async fn create_session_forwards_ask_user_variant() {
+    let (client, mut server_read, mut server_write) = make_client();
+
+    let create_handle = tokio::spawn({
+        let client = client.clone();
+        async move {
+            client
+                .create_session(
+                    SessionConfig::default().with_ask_user_variant(AskUserVariant::Elicitation),
+                )
+                .await
+                .unwrap()
+        }
+    });
+
+    let request = read_framed(&mut server_read).await;
+    assert_eq!(request["method"], "session.create");
+    assert_eq!(request["params"]["askUserVariant"], "elicitation");
+
+    let session_id = requested_session_id(&request).to_string();
+    server_respond_create(&mut server_write, &request, &session_id).await;
+    timeout(TIMEOUT, create_handle).await.unwrap().unwrap();
+}
+
+#[tokio::test]
+async fn cold_resume_session_forwards_ask_user_variant() {
+    use github_copilot_sdk::types::ResumeSessionConfig;
+
+    let (client, mut server_read, mut server_write) = make_client();
+
+    let resume_handle = tokio::spawn({
+        let client = client.clone();
+        async move {
+            client
+                .resume_session(
+                    ResumeSessionConfig::new(SessionId::from("ask-user-variant"))
+                        .with_ask_user_variant(AskUserVariant::Legacy),
+                )
+                .await
+                .unwrap()
+        }
+    });
+
+    let request = read_framed(&mut server_read).await;
+    assert_eq!(request["method"], "session.resume");
+    assert_eq!(request["params"]["sessionId"], "ask-user-variant");
+    assert_eq!(request["params"]["askUserVariant"], "legacy");
+
+    server_respond_create(&mut server_write, &request, "ask-user-variant").await;
+    respond_to_reload(&mut server_read, &mut server_write).await;
+    timeout(TIMEOUT, resume_handle).await.unwrap().unwrap();
 }
 
 #[tokio::test]

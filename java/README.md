@@ -176,6 +176,11 @@ directly.
 
 `CopilotClientOptions.setCwd(...)` sets the runtime process working directory, which otherwise inherits the current process working directory. `SessionConfig.setWorkingDirectory(...)` sets the session working directory, which otherwise defaults to the runtime process working directory.
 
+`SessionConfig.setAskUserVariant(AskUserVariant.ELICITATION)` selects the
+structured form-based `ask_user` tool when an elicitation handler is also set.
+The default is `AskUserVariant.LEGACY`. Re-supply the option and handler through
+`ResumeSessionConfig` on a cold resume.
+
 For rotating per-session GitHub credentials, use
 `SessionConfig.setGitHubTokenProvider(...)` (or the equivalent
 `ResumeSessionConfig` setter) instead of `setGitHubToken(...)`:

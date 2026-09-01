@@ -177,6 +177,8 @@ ambient authentication.
 _ConnectionState = Literal["disconnected", "connecting", "connected", "error"]
 
 LogLevel = Literal["none", "error", "warning", "info", "debug", "all"]
+AskUserVariant = Literal["legacy", "elicitation"]
+"""Model-facing shape of the runtime's built-in ``ask_user`` tool."""
 
 
 @dataclass
@@ -2225,6 +2227,7 @@ class CopilotClient:
         available_tools: list[str] | ToolSet | None = None,
         excluded_tools: list[str] | ToolSet | None = None,
         on_user_input_request: UserInputHandler | None = None,
+        ask_user_variant: AskUserVariant | None = None,
         hooks: SessionHooks | None = None,
         working_directory: str | None = None,
         additional_directories: list[str] | None = None,
@@ -2327,6 +2330,10 @@ class CopilotClient:
                 including custom tools registered via ``tools=``. Ignored if
                 ``available_tools`` is set.
             on_user_input_request: Handler for user input requests.
+            ask_user_variant: Model-facing shape of the ``ask_user`` tool.
+                Accepted values are ``"legacy"`` and ``"elicitation"``. The
+                default is ``"legacy"``. To use ``"elicitation"``, also provide
+                ``on_elicitation_request`` so the host can answer structured forms.
             hooks: Lifecycle hooks for the session.
             working_directory: Working directory for the session.
             provider: Provider configuration for Azure or custom endpoints.
@@ -2483,6 +2490,8 @@ class CopilotClient:
             raise ValueError("on_permission_request must be callable when provided.")
         if github_token is not None and github_token_provider is not None:
             raise ValueError("github_token and github_token_provider are mutually exclusive")
+        if ask_user_variant not in (None, "legacy", "elicitation"):
+            raise ValueError('ask_user_variant must be "legacy" or "elicitation"')
         if not self._client:
             await self.start()
 
@@ -2570,6 +2579,8 @@ class CopilotClient:
         # Enable user input request callback if handler provided
         if on_user_input_request:
             payload["requestUserInput"] = True
+        if ask_user_variant is not None:
+            payload["askUserVariant"] = ask_user_variant
 
         # Enable elicitation request callback if handler provided
         payload["requestElicitation"] = bool(on_elicitation_request)
@@ -2988,6 +2999,7 @@ class CopilotClient:
         available_tools: list[str] | ToolSet | None = None,
         excluded_tools: list[str] | ToolSet | None = None,
         on_user_input_request: UserInputHandler | None = None,
+        ask_user_variant: AskUserVariant | None = None,
         hooks: SessionHooks | None = None,
         working_directory: str | None = None,
         additional_directories: list[str] | None = None,
@@ -3091,6 +3103,10 @@ class CopilotClient:
                 including custom tools registered via ``tools=``. Ignored if
                 ``available_tools`` is set.
             on_user_input_request: Handler for user input requests.
+            ask_user_variant: Model-facing shape of the ``ask_user`` tool.
+                Accepted values are ``"legacy"`` and ``"elicitation"``. The
+                default is ``"legacy"``. To use ``"elicitation"``, also provide
+                ``on_elicitation_request`` so the host can answer structured forms.
             hooks: Lifecycle hooks for the session.
             working_directory: Working directory for the session.
             provider: Provider configuration for Azure or custom endpoints.
@@ -3247,6 +3263,8 @@ class CopilotClient:
             raise ValueError("on_permission_request must be callable when provided.")
         if github_token is not None and github_token_provider is not None:
             raise ValueError("github_token and github_token_provider are mutually exclusive")
+        if ask_user_variant not in (None, "legacy", "elicitation"):
+            raise ValueError('ask_user_variant must be "legacy" or "elicitation"')
         if not self._client:
             await self.start()
 
@@ -3362,6 +3380,8 @@ class CopilotClient:
 
         if on_user_input_request:
             payload["requestUserInput"] = True
+        if ask_user_variant is not None:
+            payload["askUserVariant"] = ask_user_variant
 
         # Enable elicitation request callback if handler provided
         payload["requestElicitation"] = bool(on_elicitation_request)

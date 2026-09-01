@@ -480,6 +480,10 @@ export type CitationProvider =
 /** @experimental */
 export type CitationLocation = CitationLocationChar | CitationLocationPage | CitationLocationBlock;
 /**
+ * Hosted program caller type
+ */
+export type AssistantMessageToolRequestCallerType = "program";
+/**
  * API endpoint used for this model call, matching CAPI supported_endpoints vocabulary
  */
 export type AssistantUsageApiEndpoint =
@@ -4855,6 +4859,7 @@ export interface AssistantMessageToolRequest {
    * Arguments to pass to the tool, format depends on the tool
    */
   arguments?: JsonValue;
+  caller?: AssistantMessageToolRequestCaller;
   /**
    * Resolved intention summary describing what this specific call does
    */
@@ -4880,6 +4885,16 @@ export interface AssistantMessageToolRequest {
    */
   toolTitle?: string;
   type?: AssistantMessageToolRequestType;
+}
+/**
+ * Hosted program that requested this client tool call
+ */
+export interface AssistantMessageToolRequestCaller {
+  /**
+   * Provider-assigned identifier for the hosted caller.
+   */
+  callerId: string;
+  type: AssistantMessageToolRequestCallerType;
 }
 /**
  * Session event "assistant.message_start". Streaming assistant message start metadata
@@ -7004,7 +7019,7 @@ export interface HookStartData {
    */
   hookType: string;
   /**
-   * Input data passed to the hook
+   * Input data passed to the hook. For postToolUse hooks the retained copy served by session.eventLog.read (and by a resumed session) elides the tool result's inline `contents`/`uiResource` and replaces an over-long `textResultForLlm` with a `[copilot:elided ...]` marker, to keep a multi-megabyte payload out of the durable event log; the live subscription stream still delivers the full value. Read the adjacent tool.execution_complete event for the tool result itself.
    */
   input?: JsonValue;
   /**

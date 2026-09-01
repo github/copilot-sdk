@@ -1258,7 +1258,7 @@ type HookStartData struct {
 	HookInvocationID string `json:"hookInvocationId"`
 	// Type of hook being invoked (e.g., "preToolUse", "postToolUse", "sessionStart")
 	HookType string `json:"hookType"`
-	// Input data passed to the hook
+	// Input data passed to the hook. For postToolUse hooks the retained copy served by session.eventLog.read (and by a resumed session) elides the tool result's inline `contents`/`uiResource` and replaces an over-long `textResultForLlm` with a `[copilot:elided ...]` marker, to keep a multi-megabyte payload out of the durable event log; the live subscription stream still delivers the full value. Read the adjacent tool.execution_complete event for the tool result itself.
 	Input any `json:"input,omitempty"`
 	// Tool call ID of the parent tool invocation when this event originates from a sub-agent
 	ParentToolCallID *string `json:"parentToolCallId,omitempty"`
@@ -2812,6 +2812,8 @@ type AssistantMessageServerTools struct {
 type AssistantMessageToolRequest struct {
 	// Arguments to pass to the tool, format depends on the tool
 	Arguments any `json:"arguments,omitempty"`
+	// Hosted program that requested this client tool call
+	Caller *AssistantMessageToolRequestCaller `json:"caller,omitempty"`
 	// Resolved intention summary describing what this specific call does
 	IntentionSummary *string `json:"intentionSummary,omitempty"`
 	// Name of the MCP server hosting this tool, when the tool is an MCP tool
@@ -2826,6 +2828,14 @@ type AssistantMessageToolRequest struct {
 	ToolTitle *string `json:"toolTitle,omitempty"`
 	// Tool call type: "function" for standard tool calls, "custom" for grammar-based tool calls. Defaults to "function" when absent.
 	Type *AssistantMessageToolRequestType `json:"type,omitempty"`
+}
+
+// Hosted program that requested this client tool call
+type AssistantMessageToolRequestCaller struct {
+	// Provider-assigned identifier for the hosted caller.
+	CallerID string `json:"callerId"`
+	// Kind of hosted caller that requested the client tool call.
+	Type AssistantMessageToolRequestCallerType `json:"type"`
 }
 
 // Per-request cost and usage data from the CAPI copilot_usage response field
@@ -4858,6 +4868,13 @@ const (
 	AgentInterruptedCancelPhaseMidStream AgentInterruptedCancelPhase = "mid_stream"
 	// No output had been produced when the request was cancelled.
 	AgentInterruptedCancelPhasePreFirstToken AgentInterruptedCancelPhase = "pre_first_token"
+)
+
+// Hosted program caller type
+type AssistantMessageToolRequestCallerType string
+
+const (
+	AssistantMessageToolRequestCallerTypeProgram AssistantMessageToolRequestCallerType = "program"
 )
 
 // Tool call type: "function" for standard tool calls, "custom" for grammar-based tool calls. Defaults to "function" when absent.

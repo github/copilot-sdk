@@ -14,7 +14,7 @@ import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * Slash-prefixed command string to enqueue for FIFO processing.
+ * Managed sandbox enforcement state for a session.
  *
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
@@ -23,12 +23,12 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record SessionCommandsEnqueueParams(
-    /** Target session identifier */
-    @JsonProperty("sessionId") String sessionId,
-    /** Slash-prefixed command string to enqueue, e.g. '/compact' or '/model gpt-4'. Queued FIFO with any in-flight items; if the session is idle, processing kicks off immediately. */
-    @JsonProperty("command") String command,
-    /** Optional user-facing text for the queue row. The command string is shown when omitted. */
-    @JsonProperty("displayText") String displayText
+public record SessionSandboxGetEnforcementStatusResult(
+    /** Whether the effective managed policy requires an available sandbox backend. */
+    @JsonProperty("required") Boolean required,
+    /** Whether an enforcement failure has permanently blocked the session. */
+    @JsonProperty("blocked") Boolean blocked,
+    /** The first sandbox enforcement failure that blocked the session. */
+    @JsonProperty("reason") String reason
 ) {
 }

@@ -1266,7 +1266,7 @@ export const defaultJoinSessionPermissionHandler: PermissionHandler =
 // ============================================================================
 
 /**
- * Request for user input from the agent (enables ask_user tool)
+ * Legacy question-and-answer request from the `ask_user` tool.
  */
 export interface UserInputRequest {
     /**
@@ -2257,6 +2257,9 @@ export interface ManagedSettings {
     permissions?: ManagedSettingsPermissions;
 }
 
+/** Selects the model-facing shape of the built-in `ask_user` tool. */
+export type AskUserVariant = "legacy" | "elicitation";
+
 /**
  * Shared configuration fields used by both {@link SessionConfig} (for
  * creating a new session) and {@link ResumeSessionConfig} (for resuming
@@ -2568,9 +2571,19 @@ export interface SessionConfigBase {
 
     /**
      * Handler for user input requests from the agent.
-     * When provided, enables the ask_user tool allowing the agent to ask questions.
+     * When provided with the default `legacy` {@link AskUserVariant}, enables the
+     * question-and-answer form of the `ask_user` tool.
      */
     onUserInputRequest?: UserInputHandler;
+
+    /**
+     * Selects the model-facing shape of the built-in `ask_user` tool.
+     *
+     * The default is `"legacy"`. To use `"elicitation"`, also provide
+     * {@link onElicitationRequest} so the host can answer structured forms.
+     * The runtime resolves this option when it creates or cold-resumes the session.
+     */
+    askUserVariant?: AskUserVariant;
 
     /**
      * Handler for elicitation requests from the agent.

@@ -2533,6 +2533,16 @@ pub struct AssistantMessageServerTools {
     pub raw_content_blocks: Option<Vec<serde_json::Value>>,
 }
 
+/// Hosted program that requested this client tool call
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssistantMessageToolRequestCaller {
+    /// Provider-assigned identifier for the hosted caller.
+    pub caller_id: String,
+    /// Kind of hosted caller that requested the client tool call.
+    pub r#type: AssistantMessageToolRequestCallerType,
+}
+
 /// A tool invocation request from the assistant
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -2540,6 +2550,9 @@ pub struct AssistantMessageToolRequest {
     /// Arguments to pass to the tool, format depends on the tool
     #[serde(skip_serializing_if = "Option::is_none")]
     pub arguments: Option<serde_json::Value>,
+    /// Hosted program that requested this client tool call
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub caller: Option<AssistantMessageToolRequestCaller>,
     /// Resolved intention summary describing what this specific call does
     #[serde(skip_serializing_if = "Option::is_none")]
     pub intention_summary: Option<String>,
@@ -4029,7 +4042,7 @@ pub struct HookStartData {
     pub hook_invocation_id: String,
     /// Type of hook being invoked (e.g., "preToolUse", "postToolUse", "sessionStart")
     pub hook_type: String,
-    /// Input data passed to the hook
+    /// Input data passed to the hook. For postToolUse hooks the retained copy served by session.eventLog.read (and by a resumed session) elides the tool result's inline `contents`/`uiResource` and replaces an over-long `textResultForLlm` with a `[copilot:elided ...]` marker, to keep a multi-megabyte payload out of the durable event log; the live subscription stream still delivers the full value. Read the adjacent tool.execution_complete event for the tool result itself.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub input: Option<serde_json::Value>,
     /// Tool call ID of the parent tool invocation when this event originates from a sub-agent
@@ -6957,6 +6970,17 @@ pub enum CitationProvider {
     /// Citation synthesized client-side by the runtime from tool output.
     #[serde(rename = "client")]
     Client,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Hosted program caller type
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AssistantMessageToolRequestCallerType {
+    #[serde(rename = "program")]
+    Program,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

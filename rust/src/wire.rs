@@ -24,11 +24,11 @@ use crate::generated::api_types::{
 };
 use crate::generated::session_events::ReasoningSummary;
 use crate::types::{
-    CanvasProviderIdentity, CapiSessionOptions, CloudSessionOptions, CustomAgentConfig,
-    DefaultAgentConfig, ExtensionInfo, GitHubMcpToolConfig, InfiniteSessionConfig,
-    LargeToolOutputConfig, McpServerConfig, MemoryConfiguration, NamedProviderConfig,
-    ProviderConfig, ProviderModelConfig, SessionId, SessionLimitsConfig, SystemMessageConfig, Tool,
-    ToolSearchConfig,
+    AskUserVariant, CanvasProviderIdentity, CapiSessionOptions, CloudSessionOptions,
+    CustomAgentConfig, DefaultAgentConfig, ExtensionInfo, GitHubMcpToolConfig,
+    InfiniteSessionConfig, LargeToolOutputConfig, McpServerConfig, MemoryConfiguration,
+    NamedProviderConfig, ProviderConfig, ProviderModelConfig, SessionId, SessionLimitsConfig,
+    SystemMessageConfig, Tool, ToolSearchConfig,
 };
 
 /// Wire representation of a slash command (name + description only). The
@@ -63,6 +63,8 @@ pub(crate) struct SessionCreateWire {
     pub streaming: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub system_message: Option<SystemMessageConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ask_user_variant: Option<AskUserVariant>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tools: Option<Vec<Tool>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -217,6 +219,8 @@ pub(crate) struct SessionResumeWire {
     pub streaming: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub system_message: Option<SystemMessageConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ask_user_variant: Option<AskUserVariant>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tools: Option<Vec<Tool>>,
     #[serde(skip_serializing_if = "Option::is_none")]

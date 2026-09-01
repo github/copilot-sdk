@@ -119,6 +119,7 @@ final class SessionRequestBuilder {
         request.setReasoningEffort(config.getReasoningEffort());
         request.setReasoningSummary(config.getReasoningSummary());
         request.setContextTier(config.getContextTier());
+        request.setAskUserVariant(config.getAskUserVariant());
         request.setTools(config.getTools());
         request.setSystemMessage(config.getSystemMessage());
         request.setAvailableTools(config.getAvailableTools());
@@ -255,6 +256,7 @@ final class SessionRequestBuilder {
         request.setReasoningEffort(config.getReasoningEffort());
         request.setReasoningSummary(config.getReasoningSummary());
         request.setContextTier(config.getContextTier());
+        request.setAskUserVariant(config.getAskUserVariant());
         request.setTools(config.getTools());
         request.setSystemMessage(config.getSystemMessage());
         request.setAvailableTools(config.getAvailableTools());

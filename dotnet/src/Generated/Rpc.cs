@@ -5393,6 +5393,32 @@ internal sealed class LogRequest
     public string? Url { get; set; }
 }
 
+/// <summary>Managed sandbox enforcement state for a session.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class SandboxEnforcementStatus
+{
+    /// <summary>Whether an enforcement failure has permanently blocked the session.</summary>
+    [JsonPropertyName("blocked")]
+    public bool Blocked { get; set; }
+
+    /// <summary>The first sandbox enforcement failure that blocked the session.</summary>
+    [JsonPropertyName("reason")]
+    public string? Reason { get; set; }
+
+    /// <summary>Whether the effective managed policy requires an available sandbox backend.</summary>
+    [JsonPropertyName("required")]
+    public bool Required { get; set; }
+}
+
+/// <summary>Identifies the target session.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class SessionSandboxGetEnforcementStatusRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
 /// <summary>Authentication status and account metadata for the session.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class SessionAuthStatus
@@ -13398,6 +13424,10 @@ internal sealed class EnqueueCommandParams
     /// <summary>Slash-prefixed command string to enqueue, e.g. '/compact' or '/model gpt-4'. Queued FIFO with any in-flight items; if the session is idle, processing kicks off immediately.</summary>
     [JsonPropertyName("command")]
     public string Command { get; set; } = string.Empty;
+
+    /// <summary>Optional user-facing text for the queue row. The command string is shown when omitted.</summary>
+    [JsonPropertyName("displayText")]
+    public string? DisplayText { get; set; }
 
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -29535,7 +29565,7 @@ public sealed class ServerRpc
         return await CopilotClient.InvokeRpcAsync<ConnectResult>(_rpc, "connect", [request], cancellationToken);
     }
 
-    /// <summary>Registers the calling SDK client as the per-entrypoint extension launch provider. Call before creating any sessions. When omitted, the runtime temporarily falls back to its built-in Node launcher for backward compatibility.</summary>
+    /// <summary>Registers the calling SDK client as the per-entrypoint extension launch provider. Call before creating any sessions. When omitted, the runtime uses its built-in extension launcher.</summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     [Experimental(Diagnostics.Experimental)]
     public async Task RegisterExtensionLaunchProviderAsync(CancellationToken cancellationToken = default)
@@ -30945,6 +30975,12 @@ public sealed class SessionRpc
 
     internal CopilotSession Session => _session;
 
+    /// <summary>Sandbox APIs.</summary>
+    public SandboxApi Sandbox =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_session), null) ??
+        field;
+
     /// <summary>GitHubAuth APIs.</summary>
     public GitHubAuthApi GitHubAuth =>
         field ??
@@ -31314,6 +31350,29 @@ public sealed class SessionRpc
 
         var request = new LogRequest { SessionId = _session.SessionId, Message = message, Level = level, Type = type, Ephemeral = ephemeral, Url = url, Tip = tip };
         return await CopilotClient.InvokeRpcAsync<LogResult>(_session.Rpc, "session.log", [request], cancellationToken);
+    }
+}
+
+/// <summary>Provides session-scoped Sandbox APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class SandboxApi
+{
+    private readonly CopilotSession _session;
+
+    internal SandboxApi(CopilotSession session)
+    {
+        _session = session;
+    }
+
+    /// <summary>Returns whether managed policy requires sandbox enforcement and whether an enforcement failure has permanently blocked the session.</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Managed sandbox enforcement state for a session.</returns>
+    public async Task<SandboxEnforcementStatus> GetEnforcementStatusAsync(CancellationToken cancellationToken = default)
+    {
+        _session.ThrowIfDisposed();
+
+        var request = new SessionSandboxGetEnforcementStatusRequest { SessionId = _session.SessionId };
+        return await CopilotClient.InvokeRpcAsync<SandboxEnforcementStatus>(_session.Rpc, "session.sandbox.getEnforcementStatus", [request], cancellationToken);
     }
 }
 
@@ -33691,14 +33750,15 @@ public sealed class CommandsApi
 
     /// <summary>Enqueues a slash command for FIFO processing on the local session.</summary>
     /// <param name="command">Slash-prefixed command string to enqueue, e.g. '/compact' or '/model gpt-4'. Queued FIFO with any in-flight items; if the session is idle, processing kicks off immediately.</param>
+    /// <param name="displayText">Optional user-facing text for the queue row. The command string is shown when omitted.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Indicates whether the command was accepted into the local execution queue.</returns>
-    public async Task<EnqueueCommandResult> EnqueueAsync(string command, CancellationToken cancellationToken = default)
+    public async Task<EnqueueCommandResult> EnqueueAsync(string command, string? displayText = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(command);
         _session.ThrowIfDisposed();
 
-        var request = new EnqueueCommandParams { SessionId = _session.SessionId, Command = command };
+        var request = new EnqueueCommandParams { SessionId = _session.SessionId, Command = command, DisplayText = displayText };
         return await CopilotClient.InvokeRpcAsync<EnqueueCommandResult>(_session.Rpc, "session.commands.enqueue", [request], cancellationToken);
     }
 
@@ -35596,6 +35656,8 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.AssistantMessageStartData), TypeInfoPropertyName = "SessionEventsAssistantMessageStartData")]
 [JsonSerializable(typeof(GitHub.Copilot.AssistantMessageStartEvent), TypeInfoPropertyName = "SessionEventsAssistantMessageStartEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.AssistantMessageToolRequest), TypeInfoPropertyName = "SessionEventsAssistantMessageToolRequest")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantMessageToolRequestCaller), TypeInfoPropertyName = "SessionEventsAssistantMessageToolRequestCaller")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantMessageToolRequestCallerType), TypeInfoPropertyName = "SessionEventsAssistantMessageToolRequestCallerType")]
 [JsonSerializable(typeof(GitHub.Copilot.AssistantMessageToolRequestType), TypeInfoPropertyName = "SessionEventsAssistantMessageToolRequestType")]
 [JsonSerializable(typeof(GitHub.Copilot.AssistantReasoningData), TypeInfoPropertyName = "SessionEventsAssistantReasoningData")]
 [JsonSerializable(typeof(GitHub.Copilot.AssistantReasoningDeltaData), TypeInfoPropertyName = "SessionEventsAssistantReasoningDeltaData")]
@@ -36489,6 +36551,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SandboxConfigUserPolicyNetwork))]
 [JsonSerializable(typeof(SandboxConfigUserPolicyNetworkProxy))]
 [JsonSerializable(typeof(SandboxConfigUserPolicySeatbelt))]
+[JsonSerializable(typeof(SandboxEnforcementStatus))]
 [JsonSerializable(typeof(ScheduleAddAtRequest))]
 [JsonSerializable(typeof(ScheduleAddCronRequest))]
 [JsonSerializable(typeof(ScheduleAddRequest))]
@@ -36625,6 +36688,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SessionQueueRemoveMostRecentRequest))]
 [JsonSerializable(typeof(SessionQueueSnapshotRequest))]
 [JsonSerializable(typeof(SessionRemoteDisableRequest))]
+[JsonSerializable(typeof(SessionSandboxGetEnforcementStatusRequest))]
 [JsonSerializable(typeof(SessionScheduleHasSelfPacedRequest))]
 [JsonSerializable(typeof(SessionScheduleHydrateRequest))]
 [JsonSerializable(typeof(SessionScheduleListRequest))]

@@ -3,28 +3,27 @@
  *--------------------------------------------------------------------------------------------*/
 
 // AUTO-GENERATED FILE - DO NOT EDIT
-// Generated from: api.schema.json
+// Generated from: session-events.schema.json
 
-package com.github.copilot.generated.rpc;
+package com.github.copilot.generated;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * Handle for releasing the extension tool registration.
+ * Hosted program that requested this client tool call
  *
- * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
-@CopilotExperimental
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record SessionsRegisterExtensionToolsOnSessionResult(
-    /** In-process unsubscribe function used only by the CLI. */
-    @JsonProperty("unsubscribe") Object unsubscribe
+public record AssistantMessageToolRequestCaller(
+    /** Kind of hosted caller that requested the client tool call. */
+    @JsonProperty("type") AssistantMessageToolRequestCallerType type,
+    /** Provider-assigned identifier for the hosted caller. */
+    @JsonProperty("callerId") String callerId
 ) {
 }

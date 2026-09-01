@@ -23,6 +23,8 @@ type (
 	AssistantMessageServerTools                                    = rpc.AssistantMessageServerTools
 	AssistantMessageStartData                                      = rpc.AssistantMessageStartData
 	AssistantMessageToolRequest                                    = rpc.AssistantMessageToolRequest
+	AssistantMessageToolRequestCaller                              = rpc.AssistantMessageToolRequestCaller
+	AssistantMessageToolRequestCallerType                          = rpc.AssistantMessageToolRequestCallerType
 	AssistantMessageToolRequestType                                = rpc.AssistantMessageToolRequestType
 	AssistantReasoningData                                         = rpc.AssistantReasoningData
 	AssistantReasoningDeltaData                                    = rpc.AssistantReasoningDeltaData
@@ -424,6 +426,7 @@ const (
 	AgentInterruptedActivityToolCall                                   = rpc.AgentInterruptedActivityToolCall
 	AgentInterruptedCancelPhaseMidStream                               = rpc.AgentInterruptedCancelPhaseMidStream
 	AgentInterruptedCancelPhasePreFirstToken                           = rpc.AgentInterruptedCancelPhasePreFirstToken
+	AssistantMessageToolRequestCallerTypeProgram                       = rpc.AssistantMessageToolRequestCallerTypeProgram
 	AssistantMessageToolRequestTypeCustom                              = rpc.AssistantMessageToolRequestTypeCustom
 	AssistantMessageToolRequestTypeFunction                            = rpc.AssistantMessageToolRequestTypeFunction
 	AssistantUsageAPIEndpointChatCompletions                           = rpc.AssistantUsageAPIEndpointChatCompletions

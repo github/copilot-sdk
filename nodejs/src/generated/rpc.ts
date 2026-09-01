@@ -6860,6 +6860,10 @@ export interface EnqueueCommandParams {
    * Slash-prefixed command string to enqueue, e.g. '/compact' or '/model gpt-4'. Queued FIFO with any in-flight items; if the session is idle, processing kicks off immediately.
    */
   command: string;
+  /**
+   * Optional user-facing text for the queue row. The command string is shown when omitted.
+   */
+  displayText?: string | null;
 }
 /**
  * Indicates whether the command was accepted into the local execution queue.
@@ -16043,7 +16047,7 @@ export interface RegisterExtensionToolsParams {
    */
   sessionId: string;
   /**
-   * In-process ExtensionLoader handle (CLI-only optimization). Marked internal: this field is excluded from the public SDK surface. When the CLI migrates to a process-separated SDK, extension discovery/launch moves entirely into the runtime — the CLI passes pure config (search paths, disabled ids) via SessionOptions instead.
+   * In-process ExtensionLoader handle used only by the CLI and excluded from the public SDK surface.
    *
    * @internal
    *
@@ -16061,7 +16065,7 @@ export interface RegisterExtensionToolsParams {
 /** @experimental */
 export interface SessionsRegisterExtensionToolsOnSessionOptions {
   /**
-   * In-process `() => boolean` gating callback (CLI-only optimization). Marked internal: replaced by runtime-side enable/disable RPCs in the SDK migration.
+   * In-process `() => boolean` gating callback used only by the CLI.
    *
    * @internal
    */
@@ -16077,7 +16081,7 @@ export interface SessionsRegisterExtensionToolsOnSessionOptions {
 /** @internal */
 export interface RegisterExtensionToolsResult {
   /**
-   * In-process unsubscribe function (CLI-only optimization). Marked internal: replaced by an explicit `extensions.unregister` RPC in the SDK migration.
+   * In-process unsubscribe function used only by the CLI.
    *
    * @internal
    *
@@ -16588,6 +16592,27 @@ export interface SandboxConfigAuth {
    * Whether to export `GH_TOKEN` so the `gh` CLI authenticates inside the sandbox without the OS keyring the sandbox blocks. Default: false (opt-in).
    */
   gh?: boolean;
+}
+/**
+ * Managed sandbox enforcement state for a session.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SandboxEnforcementStatus".
+ */
+/** @experimental */
+export interface SandboxEnforcementStatus {
+  /**
+   * Whether the effective managed policy requires an available sandbox backend.
+   */
+  required: boolean;
+  /**
+   * Whether an enforcement failure has permanently blocked the session.
+   */
+  blocked: boolean;
+  /**
+   * The first sandbox enforcement failure that blocked the session.
+   */
+  reason?: string;
 }
 /**
  * Register an absolute-time scheduled prompt.
@@ -18635,7 +18660,7 @@ export interface SessionsOpenCloud {
   owner?: string;
   options?: SessionOpenOptions;
   /**
-   * In-process callback invoked when the cloud task is created (before connection). Marked internal because a function reference cannot cross the JSON-RPC boundary. Disappears in the SDK migration: the field is purely cosmetic (it flips a single CLI phase label from 'creating' to 'connecting') and the wire-clean version just drops the intermediate phase.
+   * In-process callback invoked when the cloud task is created, before connection. Internal because function references cannot cross the JSON-RPC boundary.
    *
    * @internal
    */
@@ -21619,13 +21644,13 @@ export interface UIEphemeralQueryRequest {
    */
   question: string;
   /**
-   * In-process streaming callback `(text) => void` invoked with each token as the model emits it. Marked internal: excluded from the public SDK surface. In a process-separated SDK this is replaced by a streaming RPC that yields chunks and a final answer.
+   * In-process streaming callback `(text) => void` invoked with each token as the model emits it. Internal and excluded from the public SDK surface.
    *
    * @internal
    */
   onChunk?: OpaqueInProcessValue;
   /**
-   * In-process `AbortSignal` forwarded to the model client to cancel an in-flight request. Marked internal: excluded from the public SDK surface. Replaced by an explicit cancellation token + cancel RPC in the SDK migration.
+   * In-process `AbortSignal` forwarded to the model client to cancel an in-flight request. Internal and excluded from the public SDK surface.
    *
    * @internal
    */
@@ -22976,7 +23001,7 @@ export function createServerRpc(connection: MessageConnection) {
                 connection.sendRequest("extensions.disable", params),
         },
         /**
-         * Registers the calling SDK client as the per-entrypoint extension launch provider. Call before creating any sessions. When omitted, the runtime temporarily falls back to its built-in Node launcher for backward compatibility.
+         * Registers the calling SDK client as the per-entrypoint extension launch provider. Call before creating any sessions. When omitted, the runtime uses its built-in extension launcher.
          *
          * @experimental
          */
@@ -23626,6 +23651,16 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
          */
         sendMessages: async (params: SendMessagesRequest): Promise<SendMessagesResult> =>
             connection.sendRequest("session.sendMessages", { sessionId, ...params }),
+        /** @experimental */
+        sandbox: {
+            /**
+             * Returns whether managed policy requires sandbox enforcement and whether an enforcement failure has permanently blocked the session.
+             *
+             * @returns Managed sandbox enforcement state for a session.
+             */
+            getEnforcementStatus: async (): Promise<SandboxEnforcementStatus> =>
+                connection.sendRequest("session.sandbox.getEnforcementStatus", { sessionId }),
+        },
         /**
          * Aborts the current agent turn.
          *

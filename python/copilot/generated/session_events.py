@@ -2450,6 +2450,7 @@ class AssistantMessageToolRequest:
     name: str
     tool_call_id: str
     arguments: Any = None
+    caller: AssistantMessageToolRequestCaller | None = None
     intention_summary: str | None = None
     mcp_server_name: str | None = None
     mcp_tool_name: str | None = None
@@ -2462,6 +2463,7 @@ class AssistantMessageToolRequest:
         name = from_str(obj.get("name"))
         tool_call_id = from_str(obj.get("toolCallId"))
         arguments = obj.get("arguments")
+        caller = from_union([from_none, AssistantMessageToolRequestCaller.from_dict], obj.get("caller"))
         intention_summary = from_union([from_none, from_str], obj.get("intentionSummary"))
         mcp_server_name = from_union([from_none, from_str], obj.get("mcpServerName"))
         mcp_tool_name = from_union([from_none, from_str], obj.get("mcpToolName"))
@@ -2471,6 +2473,7 @@ class AssistantMessageToolRequest:
             name=name,
             tool_call_id=tool_call_id,
             arguments=arguments,
+            caller=caller,
             intention_summary=intention_summary,
             mcp_server_name=mcp_server_name,
             mcp_tool_name=mcp_tool_name,
@@ -2484,6 +2487,8 @@ class AssistantMessageToolRequest:
         result["toolCallId"] = from_str(self.tool_call_id)
         if self.arguments is not None:
             result["arguments"] = self.arguments
+        if self.caller is not None:
+            result["caller"] = from_union([from_none, lambda x: to_class(AssistantMessageToolRequestCaller, x)], self.caller)
         if self.intention_summary is not None:
             result["intentionSummary"] = from_union([from_none, from_str], self.intention_summary)
         if self.mcp_server_name is not None:
@@ -2494,6 +2499,29 @@ class AssistantMessageToolRequest:
             result["toolTitle"] = from_union([from_none, from_str], self.tool_title)
         if self.type is not None:
             result["type"] = from_union([from_none, lambda x: to_enum(AssistantMessageToolRequestType, x)], self.type)
+        return result
+
+
+@dataclass
+class AssistantMessageToolRequestCaller:
+    "Hosted program that requested this client tool call"
+    caller_id: str
+    type: AssistantMessageToolRequestCallerType
+
+    @staticmethod
+    def from_dict(obj: Any) -> "AssistantMessageToolRequestCaller":
+        assert isinstance(obj, dict)
+        caller_id = from_str(obj.get("callerId"))
+        type = parse_enum(AssistantMessageToolRequestCallerType, obj.get("type"))
+        return AssistantMessageToolRequestCaller(
+            caller_id=caller_id,
+            type=type,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["callerId"] = from_str(self.caller_id)
+        result["type"] = to_enum(AssistantMessageToolRequestCallerType, self.type)
         return result
 
 
@@ -11647,6 +11675,11 @@ class AgentInterruptedCancelPhase(Enum):
     MID_STREAM = "mid_stream"
 
 
+class AssistantMessageToolRequestCallerType(Enum):
+    "Hosted program caller type"
+    PROGRAM = "program"
+
+
 class AssistantMessageToolRequestType(Enum):
     "Tool call type: \"function\" for standard tool calls, \"custom\" for grammar-based tool calls. Defaults to \"function\" when absent."
     # Standard function-style tool call.
@@ -12507,6 +12540,8 @@ __all__ = [
     "AssistantMessageServerTools",
     "AssistantMessageStartData",
     "AssistantMessageToolRequest",
+    "AssistantMessageToolRequestCaller",
+    "AssistantMessageToolRequestCallerType",
     "AssistantMessageToolRequestType",
     "AssistantReasoningData",
     "AssistantReasoningDeltaData",

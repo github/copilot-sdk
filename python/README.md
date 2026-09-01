@@ -284,7 +284,8 @@ These are passed as keyword arguments to `create_session()`:
 - `enable_session_store` (bool): Enables the cross-session store for search and retrieval across sessions. When unset in `"copilot-cli"` mode, the runtime default applies (enabled). In `"empty"` mode, defaults to disabled.
 - `github_token_provider` (callable): Acquires rotating, session-scoped GitHub tokens. Token results require a positive `expiresIn` value in seconds remaining when the callback completes; production tokens typically last eight hours. Cannot be combined with `github_token`.
 - `on_permission_request` (callable): Optional handler called before each tool execution to approve or deny it. When omitted, permission requests are emitted as events and left pending for manual resolution. `PermissionHandler.approve_all` approves requests when managed settings are disabled and raises an error when `enable_managed_settings` is true. Custom handlers can inspect `managed_approval_required` for human-facing confirmation logic. See [Permission Handling](#permission-handling) section.
-- `on_user_input_request` (callable): Handler for user input requests from the agent (enables ask_user tool). See [User Input Requests](#user-input-requests) section.
+- `on_user_input_request` (callable): Handler for legacy question-and-answer requests from the agent. Enables the legacy `ask_user` tool. See [User Input Requests](#user-input-requests) section.
+- `ask_user_variant` (`"legacy"` | `"elicitation"`): Selects the model-facing shape of the `ask_user` tool. Defaults to `"legacy"`; use `"elicitation"` with `on_elicitation_request`. Re-supply this option when cold-resuming a session.
 - `hooks` (SessionHooks): Hook handlers for session lifecycle events. See [Session Hooks](#session-hooks) section.
 
 ```python
@@ -900,7 +901,7 @@ To let a specific custom tool bypass the permission prompt entirely, set `skip_p
 
 ## User Input Requests
 
-Enable the agent to ask questions to the user using the `ask_user` tool by providing an `on_user_input_request` handler:
+Enable the legacy question-and-answer `ask_user` tool by providing an `on_user_input_request` handler:
 
 ```python
 async def handle_user_input(request, invocation):
