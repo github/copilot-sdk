@@ -4203,7 +4203,9 @@ describe("connect handshake clientInfo", () => {
     // observe the `connect` params without spawning a runtime. `connect` maps to
     // connection.sendRequest("connect", params) in the generated internal RPC.
     async function captureConnectParams(
-        options: Partial<Pick<Parameters<typeof CopilotClient>[0] & object, "clientInfo" | "onGitHubTelemetry">> = {}
+        options: Partial<
+            Pick<Parameters<typeof CopilotClient>[0] & object, "clientInfo" | "onGitHubTelemetry">
+        > = {}
     ): Promise<Record<string, unknown>> {
         const client = new CopilotClient({
             connection: RuntimeConnection.forUri("localhost:1234"),

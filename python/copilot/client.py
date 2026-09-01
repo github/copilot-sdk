@@ -510,7 +510,7 @@ class ClientInfo(TypedDict, total=False):
     """Version of the Copilot extension within the host, e.g. ``"0.54.0"``."""
 
 
-def _client_info_to_wire(client_info: "ClientInfo | None") -> dict[str, str] | None:
+def _client_info_to_wire(client_info: ClientInfo | None) -> dict[str, str] | None:
     """Map a snake_case :class:`ClientInfo` onto the camelCase connect wire shape.
 
     Returns ``None`` when no identity was supplied so the caller omits the
