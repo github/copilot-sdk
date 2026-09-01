@@ -231,7 +231,8 @@ class GitHubTelemetryTest {
             client.start().get(15, TimeUnit.SECONDS);
 
             JsonNode connectParams = server.awaitConnect();
-            assertFalse(connectParams.has("clientInfo"), "connect request should omit clientInfo when none was declared");
+            assertFalse(connectParams.has("clientInfo"),
+                    "connect request should omit clientInfo when none was declared");
         }
     }
 

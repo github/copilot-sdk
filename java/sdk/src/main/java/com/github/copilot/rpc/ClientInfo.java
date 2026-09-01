@@ -19,9 +19,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * <h2>Example Usage</h2>
  *
  * <pre>{@code
- * var options = new CopilotClientOptions()
- * 		.setClientInfo(new ClientInfo().setEditorName("vscode").setEditorVersion("1.124.2")
- * 				.setExtensionName("copilot-chat").setExtensionVersion("0.54.0"));
+ * var options = new CopilotClientOptions().setClientInfo(new ClientInfo().setEditorName("vscode")
+ * 		.setEditorVersion("1.124.2").setExtensionName("copilot-chat").setExtensionVersion("0.54.0"));
  * }</pre>
  *
  * @see CopilotClientOptions#setClientInfo(ClientInfo)
@@ -128,8 +127,8 @@ public class ClientInfo {
 
     /**
      * Returns whether no field carries a non-empty value, in which case the SDK
-     * omits {@code clientInfo} from the handshake so the runtime keeps its
-     * default attribution.
+     * omits {@code clientInfo} from the handshake so the runtime keeps its default
+     * attribution.
      *
      * @return {@code true} when every field is {@code null} or empty
      */
