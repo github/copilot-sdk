@@ -104,8 +104,10 @@ func readTarGz(t *testing.T, path string) map[string]string {
 func TestDetectPackageName(t *testing.T) {
 	dir := t.TempDir()
 	files := map[string]string{
-		"app.go":                      "package application\n",
+		"app_linux.go":                "package application\n",
 		"app_test.go":                 "package application_test\n",
+		"app_windows.go":              "package windowsapplication\n",
+		"tagged.go":                   "//go:build windows\n\npackage windowsapplication\n",
 		"zcopilot_linux_amd64.go":     "package main\n",
 		"_ignored.go":                 "package ignored\n",
 		"zcopilot_inprocess_linux.go": "package main\n",
@@ -116,12 +118,22 @@ func TestDetectPackageName(t *testing.T) {
 		}
 	}
 
-	got, err := detectPackageName(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got != "application" {
-		t.Fatalf("detectPackageName() = %q, want %q", got, "application")
+	for _, test := range []struct {
+		goos string
+		want string
+	}{
+		{goos: "linux", want: "application"},
+		{goos: "windows", want: "windowsapplication"},
+	} {
+		t.Run(test.goos, func(t *testing.T) {
+			got, err := detectPackageName(dir, test.goos, "amd64")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != test.want {
+				t.Fatalf("detectPackageName() = %q, want %q", got, test.want)
+			}
+		})
 	}
 }
 
@@ -136,7 +148,7 @@ func TestDetectPackageNameFallsBackForMultiplePackages(t *testing.T) {
 		}
 	}
 
-	got, err := detectPackageName(dir)
+	got, err := detectPackageName(dir, "linux", "amd64")
 	if err == nil {
 		t.Fatal("detectPackageName() succeeded for a directory containing multiple packages")
 	}

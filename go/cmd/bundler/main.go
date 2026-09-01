@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"go/build"
 	"go/parser"
 	"go/token"
 	"io"
@@ -92,7 +93,7 @@ func main() {
 		return
 	}
 
-	pkgName, err := detectPackageName(*output)
+	pkgName, err := detectPackageName(*output, goos, goarch)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: failed to detect package name: %v; using package %s\n", err, pkgName)
 	}
@@ -201,9 +202,10 @@ func validPlatforms() []string {
 	return result
 }
 
-// detectPackageName reads package clauses from the output directory.
-// It returns defaultPackageName with an error when detection fails.
-func detectPackageName(dir string) (string, error) {
+// detectPackageName reads package clauses from files that match the target
+// platform and build constraints. It returns defaultPackageName with an error
+// when detection fails.
+func detectPackageName(dir, goos, goarch string) (string, error) {
 	if dir == "" {
 		dir = "."
 	}
@@ -213,12 +215,23 @@ func detectPackageName(dir string) (string, error) {
 		return defaultPackageName, fmt.Errorf("failed to read package directory %q: %w", dir, err)
 	}
 
+	buildContext := build.Default
+	buildContext.GOOS = goos
+	buildContext.GOARCH = goarch
+
 	packageName := ""
 	for _, entry := range entries {
 		name := entry.Name()
 		if entry.IsDir() || !strings.HasSuffix(name, ".go") ||
 			strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_") ||
 			strings.HasSuffix(name, "_test.go") || strings.HasPrefix(name, "zcopilot_") {
+			continue
+		}
+		matches, err := buildContext.MatchFile(dir, name)
+		if err != nil {
+			return defaultPackageName, fmt.Errorf("failed to evaluate build constraints in %q: %w", filepath.Join(dir, name), err)
+		}
+		if !matches {
 			continue
 		}
 
