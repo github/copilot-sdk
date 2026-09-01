@@ -91,6 +91,7 @@ export async function ensureCopilotPackage(
     options: EnsureCopilotPackageOptions = {}
 ): Promise<string> {
     const platform = options.platform ?? getRuntimePlatform();
+    // lgtm[js/trivial-conditional] This generated constant is true for internal canary builds.
     if (version === COPILOT_CLI_VERSION && COPILOT_CLI_USE_NPM_PACKAGE) {
         const packageName = `@github/copilot-${platform}`;
         const packageRoot = resolvePackageRoot(packageName);

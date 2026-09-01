@@ -100,8 +100,6 @@ fs.mkdirSync(resourceDir, { recursive: true });
 
 console.log(`Downloading ${packageName}@${version} ...`);
 const assetName = `github-copilot-${version}-${classifier}.tgz`;
-const tarballName = assetName;
-const tarballPath = path.join(outDir, tarballName);
 const releaseBase = (
   process.env.COPILOT_CLI_DOWNLOAD_BASE_URL ??
   'https://github.com/github/copilot-cli/releases/download'
@@ -120,10 +118,9 @@ if (process.env.COPILOT_CLI_RELEASE_TARBALL) {
 if (!expectedHash || !/^[a-fA-F0-9]{64}$/.test(expectedHash)) {
   throw new Error(`Missing or invalid SHA-256 for ${assetName}`);
 }
-fs.writeFileSync(tarballPath, archive);
 const actual = createHash('sha256').update(archive).digest('hex');
 if (actual !== expectedHash.toLowerCase()) {
-  console.error(`Integrity verification failed for ${tarballPath}`);
+  console.error(`Integrity verification failed for ${assetName}`);
   console.error(`  expected: ${expectedHash}`);
   console.error(`  actual:   ${actual}`);
   process.exit(1);
@@ -131,7 +128,7 @@ if (actual !== expectedHash.toLowerCase()) {
 console.log(`Integrity verified (${expectedHash.slice(0, 20)}...).`);
 
 const inventory = [];
-const members = execFileSync('tar', ['-tzf', tarballPath], { encoding: 'utf8' })
+const members = execFileSync('tar', ['-tzf', '-'], { encoding: 'utf8', input: archive })
   .split(/\r?\n/)
   .filter(Boolean);
 for (const member of members) {
@@ -139,15 +136,19 @@ for (const member of members) {
   if (destinationRelative === null) {
     continue;
   }
-  const listing = execFileSync('tar', ['-tvzf', tarballPath, member], { encoding: 'utf8' }).trim();
+  const listing = execFileSync('tar', ['-tvzf', '-', member], {
+    encoding: 'utf8',
+    input: archive,
+  }).trim();
   if (listing.startsWith('d')) {
     continue;
   }
   if (!listing.startsWith('-')) {
     throw new Error(`Unsupported runtime package entry: ${member}`);
   }
-  const content = execFileSync('tar', ['-xOzf', tarballPath, member], {
+  const content = execFileSync('tar', ['-xOzf', '-', member], {
     encoding: null,
+    input: archive,
     maxBuffer: 512 * 1024 * 1024,
   });
   const destination = path.resolve(resourceDir, destinationRelative);
@@ -163,8 +164,6 @@ for (const member of members) {
 }
 inventory.sort();
 fs.writeFileSync(inventoryPath, `${inventory.join('\n')}\n`);
-
-fs.rmSync(tarballPath, { force: true });
 
 if (!fs.existsSync(runtimePath) || !fs.existsSync(wrapperPath)) {
   throw new Error(`Package ${packageName}@${version} is missing the runtime wrapper pair`);
@@ -231,6 +230,7 @@ async function download(url) {
   let lastError;
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
+      // lgtm[js/file-access-to-http] The repository-pinned CLI version intentionally selects the release asset.
       const response = await fetch(url);
       if (response.ok) {
         return Buffer.from(await response.arrayBuffer());

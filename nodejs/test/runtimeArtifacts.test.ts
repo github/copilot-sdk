@@ -49,6 +49,7 @@ describe("release runtime selection", () => {
             readFileSync(join(import.meta.dirname, "../package.json"), "utf8")
         );
         expect(COPILOT_CLI_VERSION).toBe(packageJson.copilotCliVersion);
+        // lgtm[js/trivial-conditional] This generated constant is true for internal canary builds.
         if (COPILOT_CLI_USE_NPM_PACKAGE) {
             expect(packageJson.dependencies["@github/copilot"]).toBe(COPILOT_CLI_VERSION);
         } else {
