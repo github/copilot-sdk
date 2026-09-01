@@ -5,9 +5,12 @@
 package com.github.copilot;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.InputStreamReader;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.regex.Pattern;
 
 /**
  * Shared test utilities for locating the Copilot CLI binary and other
@@ -75,7 +78,11 @@ public final class TestUtil {
     }
 
     static String preparePinnedCli(Path repoRoot) throws Exception {
-        var process = new ProcessBuilder("node", "node_modules/tsx/dist/cli.mjs", "scripts/prepare-runtime.ts",
+        var nodePath = findExecutableInPath("node");
+        if (nodePath == null) {
+            throw new IllegalStateException("Node.js was not found in PATH");
+        }
+        var process = new ProcessBuilder(nodePath, "node_modules/tsx/dist/cli.mjs", "scripts/prepare-runtime.ts",
                 "--print-path").directory(repoRoot.resolve("nodejs").toFile()).redirectErrorStream(true).start();
         String output;
         try (var reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
@@ -86,6 +93,24 @@ public final class TestUtil {
             throw new IllegalStateException("Failed to prepare the pinned Copilot CLI: " + output);
         }
         return output;
+    }
+
+    private static String findExecutableInPath(String name) {
+        var pathValue = System.getenv("PATH");
+        if (pathValue == null || pathValue.isEmpty()) {
+            return null;
+        }
+
+        var windows = System.getProperty("os.name").toLowerCase().contains("win");
+        var fileName = windows ? name + ".exe" : name;
+        for (var directory : pathValue.split(Pattern.quote(File.pathSeparator))) {
+            var unquotedDirectory = directory.replaceAll("^\"|\"$", "");
+            var candidate = Paths.get(unquotedDirectory, fileName).toAbsolutePath().normalize();
+            if (Files.isRegularFile(candidate) && (windows || Files.isExecutable(candidate))) {
+                return candidate.toString();
+            }
+        }
+        return null;
     }
 
     /**

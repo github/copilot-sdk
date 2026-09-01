@@ -4793,7 +4793,10 @@ class CopilotClient:
             try:
                 await session.disconnect()
             except BaseException:
-                pass
+                logger.debug(
+                    "Error disconnecting session after options update failure",
+                    exc_info=True,
+                )
             raise
 
     async def _set_session_fs_provider(self) -> None:
