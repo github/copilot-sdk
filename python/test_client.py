@@ -1127,23 +1127,54 @@ class TestCreateSessionConfig:
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
-        ("capi", "expected"),
+        ("create_capi", "resume_capi", "expected_create", "expected_resume"),
         [
-            (None, None),
-            ({}, {}),
-            ({"enable_web_socket_responses": False}, {"enableWebSocketResponses": False}),
-            ({"enable_web_socket_responses": True}, {"enableWebSocketResponses": True}),
-            ({"auto_tier": "efficiency"}, {"autoTier": "efficiency"}),
-            ({"auto_tier": "balance"}, {"autoTier": "balance"}),
-            ({"auto_tier": "intelligence"}, {"autoTier": "intelligence"}),
+            (None, None, None, None),
+            ({}, {}, {}, {}),
+            (
+                {"enable_web_socket_responses": False},
+                {"enable_web_socket_responses": True},
+                {"enableWebSocketResponses": False},
+                {"enableWebSocketResponses": True},
+            ),
+            (
+                {"enable_web_socket_responses": True},
+                {"enable_web_socket_responses": False},
+                {"enableWebSocketResponses": True},
+                {"enableWebSocketResponses": False},
+            ),
+            (
+                {"auto_tier": "efficiency"},
+                {"auto_tier": "efficiency"},
+                {"autoTier": "efficiency"},
+                {"autoTier": "efficiency"},
+            ),
+            (
+                {"auto_tier": "balance"},
+                {"auto_tier": "balance"},
+                {"autoTier": "balance"},
+                {"autoTier": "balance"},
+            ),
+            (
+                {"auto_tier": "intelligence"},
+                {"auto_tier": "intelligence"},
+                {"autoTier": "intelligence"},
+                {"autoTier": "intelligence"},
+            ),
             (
                 {"auto_tier": "balance", "enable_web_socket_responses": False},
+                {"auto_tier": "balance", "enable_web_socket_responses": True},
                 {"autoTier": "balance", "enableWebSocketResponses": False},
+                {"autoTier": "balance", "enableWebSocketResponses": True},
             ),
         ],
     )
     async def test_create_and_resume_session_forward_capi_options(
-        self, capi: CapiSessionOptions | None, expected: dict[str, object] | None
+        self,
+        create_capi: CapiSessionOptions | None,
+        resume_capi: CapiSessionOptions | None,
+        expected_create: dict[str, object] | None,
+        expected_resume: dict[str, object] | None,
     ):
         client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()
@@ -1164,16 +1195,19 @@ class TestCreateSessionConfig:
             session = await client.create_session(
                 on_permission_request=PermissionHandler.approve_all,
                 model="auto",
-                capi=capi,
+                capi=create_capi,
             )
             await client.resume_session(
                 session.session_id,
                 on_permission_request=PermissionHandler.approve_all,
-                capi=capi,
+                capi=resume_capi,
             )
 
-            for method in ("session.create", "session.resume"):
-                if capi is None:
+            for method, expected in (
+                ("session.create", expected_create),
+                ("session.resume", expected_resume),
+            ):
+                if expected is None:
                     assert "capi" not in captured[method]
                 else:
                     assert captured[method]["capi"] == expected

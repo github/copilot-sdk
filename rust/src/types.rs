@@ -1403,8 +1403,6 @@ impl ProviderConfig {
     }
 }
 
-impl Copy for AutoTier {}
-
 /// Provider-scoped Copilot API (CAPI) session options.
 ///
 /// WebSocket transport is the default for the CAPI Responses API whenever
@@ -7285,7 +7283,7 @@ mod tests {
             (AutoTier::Balance, "balance"),
             (AutoTier::Intelligence, "intelligence"),
         ] {
-            let exported: crate::AutoTier = tier;
+            let exported: crate::AutoTier = tier.clone();
             let capi = CapiSessionOptions::new().with_auto_tier(exported);
             assert_eq!(capi.auto_tier, Some(tier));
             assert_eq!(
