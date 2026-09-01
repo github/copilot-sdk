@@ -144,6 +144,7 @@ class TestEventForwardCompatibility:
             "server",
             "device",
             "client",
+            "policyHelper",
             "mixed",
             "none",
         ]
