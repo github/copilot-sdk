@@ -536,42 +536,63 @@ func newRuntimeShutdownRpcPair(t *testing.T) (*jsonrpc2.Client, *jsonrpc2.Client
 }
 
 func TestClient_ForwardsCapiOptionsToSessionRequests(t *testing.T) {
-	rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
-	t.Cleanup(server.Stop)
-	client := &Client{
-		client:   rpcClient,
-		RPC:      rpc.NewServerRPC(rpcClient),
-		sessions: make(map[string]*Session),
+	tests := []struct {
+		name string
+		capi *CapiSessionOptions
+		want map[string]any
+	}{
+		{"omitted", nil, nil},
+		{"empty", &CapiSessionOptions{}, map[string]any{}},
+		{"websocket only", &CapiSessionOptions{EnableWebSocketResponses: Bool(false)}, map[string]any{"enableWebSocketResponses": false}},
+		{"efficiency", &CapiSessionOptions{AutoTier: AutoTierEfficiency}, map[string]any{"autoTier": "efficiency"}},
+		{"balance", &CapiSessionOptions{AutoTier: AutoTierBalance}, map[string]any{"autoTier": "balance"}},
+		{"intelligence", &CapiSessionOptions{AutoTier: AutoTierIntelligence}, map[string]any{"autoTier": "intelligence"}},
+		{"efficiency with websocket", &CapiSessionOptions{AutoTier: AutoTierEfficiency, EnableWebSocketResponses: Bool(false)}, map[string]any{"autoTier": "efficiency", "enableWebSocketResponses": false}},
+		{"balance with websocket", &CapiSessionOptions{AutoTier: AutoTierBalance, EnableWebSocketResponses: Bool(false)}, map[string]any{"autoTier": "balance", "enableWebSocketResponses": false}},
+		{"intelligence with websocket", &CapiSessionOptions{AutoTier: AutoTierIntelligence, EnableWebSocketResponses: Bool(false)}, map[string]any{"autoTier": "intelligence", "enableWebSocketResponses": false}},
 	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
+			t.Cleanup(server.Stop)
+			client := &Client{
+				client:   rpcClient,
+				RPC:      rpc.NewServerRPC(rpcClient),
+				sessions: make(map[string]*Session),
+			}
 
-	createParams := make(chan json.RawMessage, 1)
-	server.SetRequestHandler("session.create", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-		createParams <- append(json.RawMessage(nil), params...)
-		sessionID := sessionIDFromParams(t, params)
-		return []byte(`{"sessionId":"` + sessionID + `","workspacePath":"/workspace"}`), nil
-	})
+			createParams := make(chan json.RawMessage, 1)
+			server.SetRequestHandler("session.create", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+				createParams <- append(json.RawMessage(nil), params...)
+				sessionID := sessionIDFromParams(t, params)
+				return []byte(`{"sessionId":"` + sessionID + `","workspacePath":"/workspace"}`), nil
+			})
 
-	_, err := client.CreateSession(t.Context(), &SessionConfig{
-		Capi: &CapiSessionOptions{EnableWebSocketResponses: Bool(false)},
-	})
-	if err != nil {
-		t.Fatalf("CreateSession failed: %v", err)
+			_, err := client.CreateSession(t.Context(), &SessionConfig{
+				Model: "auto",
+				Capi:  tt.capi,
+			})
+			if err != nil {
+				t.Fatalf("CreateSession failed: %v", err)
+			}
+			assertCapiOptions(t, <-createParams, tt.want)
+
+			resumeParams := make(chan json.RawMessage, 1)
+			server.SetRequestHandler("session.resume", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+				resumeParams <- append(json.RawMessage(nil), params...)
+				return []byte(`{"sessionId":"resumed-capi","workspacePath":"/workspace"}`), nil
+			})
+
+			_, err = client.ResumeSessionWithOptions(t.Context(), "resumed-capi", &ResumeSessionConfig{
+				Model: "auto",
+				Capi:  tt.capi,
+			})
+			if err != nil {
+				t.Fatalf("ResumeSessionWithOptions failed: %v", err)
+			}
+			assertCapiOptions(t, <-resumeParams, tt.want)
+		})
 	}
-	assertCapiEnableWebSocketResponses(t, <-createParams)
-
-	resumeParams := make(chan json.RawMessage, 1)
-	server.SetRequestHandler("session.resume", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-		resumeParams <- append(json.RawMessage(nil), params...)
-		return []byte(`{"sessionId":"resumed-capi","workspacePath":"/workspace"}`), nil
-	})
-
-	_, err = client.ResumeSessionWithOptions(t.Context(), "resumed-capi", &ResumeSessionConfig{
-		Capi: &CapiSessionOptions{EnableWebSocketResponses: Bool(false)},
-	})
-	if err != nil {
-		t.Fatalf("ResumeSessionWithOptions failed: %v", err)
-	}
-	assertCapiEnableWebSocketResponses(t, <-resumeParams)
 }
 
 func TestClient_ForwardsAskUserVariantToSessionRequests(t *testing.T) {
@@ -828,7 +849,7 @@ func TestClient_ForwardsNewSessionOptionsToSessionRequests(t *testing.T) {
 	assertNewSessionOptions(t, <-resumeParams, false, false, "task", 15)
 }
 
-func assertCapiEnableWebSocketResponses(t *testing.T, params json.RawMessage) {
+func assertCapiOptions(t *testing.T, params json.RawMessage, want map[string]any) {
 	t.Helper()
 
 	var decoded map[string]any
@@ -836,12 +857,18 @@ func assertCapiEnableWebSocketResponses(t *testing.T, params json.RawMessage) {
 		t.Fatalf("failed to unmarshal request params: %v", err)
 	}
 
+	if want == nil {
+		if _, present := decoded["capi"]; present {
+			t.Fatalf("expected capi to be omitted, got %v", decoded["capi"])
+		}
+		return
+	}
 	capi, ok := decoded["capi"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected capi object in request params, got %T", decoded["capi"])
 	}
-	if capi["enableWebSocketResponses"] != false {
-		t.Fatalf("expected capi.enableWebSocketResponses=false, got %v", capi["enableWebSocketResponses"])
+	if !reflect.DeepEqual(capi, want) {
+		t.Fatalf("expected capi %v, got %v", want, capi)
 	}
 }
 

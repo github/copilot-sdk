@@ -2287,6 +2287,18 @@ func (p ProviderConfig) MarshalJSON() ([]byte, error) {
 	return json.Marshal(aux)
 }
 
+// AutoTier selects the routing tier for model "auto" with V2 Auto.
+type AutoTier = rpc.AutoTier
+
+const (
+	// AutoTierEfficiency selects the efficiency routing tier.
+	AutoTierEfficiency = rpc.AutoTierEfficiency
+	// AutoTierBalance selects the balance routing tier.
+	AutoTierBalance = rpc.AutoTierBalance
+	// AutoTierIntelligence selects the intelligence routing tier.
+	AutoTierIntelligence = rpc.AutoTierIntelligence
+)
+
 // CapiSessionOptions configures provider-scoped Copilot API (CAPI) session behavior.
 //
 // WebSocket transport is the default for the CAPI Responses API whenever the
@@ -2301,6 +2313,14 @@ type CapiSessionOptions struct {
 	// WebSocket transport. Enabled by default when the model advertises
 	// ws:/responses support; set to Bool(false) to force HTTP Responses transport.
 	EnableWebSocketResponses *bool `json:"enableWebSocketResponses,omitempty"`
+
+	// AutoTier selects the routing tier for model "auto" with V2 Auto.
+	// Requires a runtime that supports Auto tiers; it has no effect outside V2 Auto.
+	// When unset, the runtime uses its default on create and preserves the
+	// persisted or current tier on resume. An explicit tier overrides the
+	// persisted tier on a cold resume; a conflicting tier on a resident
+	// session resume is rejected by the runtime.
+	AutoTier AutoTier `json:"autoTier,omitempty"`
 }
 
 // AzureProviderOptions contains Azure-specific provider configuration

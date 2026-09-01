@@ -121,6 +121,7 @@ export type {
     ModelBilling,
     ModelBillingTokenPrices,
     ModelBillingTokenPricesLongContext,
+    AutoTier,
     CapiSessionOptions,
     ModelCapabilities,
     ModelCapabilitiesOverride,

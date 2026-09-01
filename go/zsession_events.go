@@ -71,7 +71,6 @@ type (
 	AutoModeSwitchResponse                                         = rpc.AutoModeSwitchResponse
 	AutopilotObjectiveChangedOperation                             = rpc.AutopilotObjectiveChangedOperation
 	AutopilotObjectiveChangedStatus                                = rpc.AutopilotObjectiveChangedStatus
-	AutoTier                                                       = rpc.AutoTier
 	BinaryAssetReference                                           = rpc.BinaryAssetReference
 	BinaryAssetReferenceType                                       = rpc.BinaryAssetReferenceType
 	BinaryAssetType                                                = rpc.BinaryAssetType
@@ -476,9 +475,6 @@ const (
 	AutopilotObjectiveChangedStatusCapReached                          = rpc.AutopilotObjectiveChangedStatusCapReached
 	AutopilotObjectiveChangedStatusCompleted                           = rpc.AutopilotObjectiveChangedStatusCompleted
 	AutopilotObjectiveChangedStatusPaused                              = rpc.AutopilotObjectiveChangedStatusPaused
-	AutoTierBalance                                                    = rpc.AutoTierBalance
-	AutoTierEfficiency                                                 = rpc.AutoTierEfficiency
-	AutoTierIntelligence                                               = rpc.AutoTierIntelligence
 	BinaryAssetReferenceTypeImage                                      = rpc.BinaryAssetReferenceTypeImage
 	BinaryAssetReferenceTypeResource                                   = rpc.BinaryAssetReferenceTypeResource
 	BinaryAssetTypeImage                                               = rpc.BinaryAssetTypeImage

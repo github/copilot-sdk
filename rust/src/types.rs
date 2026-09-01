@@ -21,6 +21,8 @@ pub use crate::copilot_request_handler::{
     CopilotWebSocketResponse, WebSocketTransform, forward_http,
 };
 use crate::generated::api_types::{CurrentToolMetadata, OpenCanvasInstance};
+/// Routing tier for the `auto` model with Auto mode V2.
+pub use crate::generated::session_events::AutoTier;
 use crate::generated::session_events::ReasoningSummary;
 /// Context window tier for models that support tiered context windows.
 pub use crate::generated::session_events::{ContextTier, SessionLimitsConfig};
@@ -1417,6 +1419,16 @@ impl ProviderConfig {
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct CapiSessionOptions {
+    /// Routing tier, meaningful only with model `auto` (Auto mode V2).
+    /// Requires a runtime version that supports `capi.autoTier`.
+    ///
+    /// When omitted, the runtime chooses its default on create and preserves
+    /// the persisted or current tier on resume. An explicit tier overrides the
+    /// persisted tier on cold resume; the runtime rejects a conflicting tier
+    /// when resuming a session already resident in memory.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auto_tier: Option<AutoTier>,
+
     /// Whether to use WebSocket transport for CAPI Responses API calls.
     ///
     /// When `Some(false)`, the runtime uses HTTP Responses transport even if
@@ -1430,6 +1442,12 @@ impl CapiSessionOptions {
     /// Construct CAPI session options with all fields unset.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Set the routing tier for the `auto` model (Auto mode V2).
+    pub fn with_auto_tier(mut self, auto_tier: AutoTier) -> Self {
+        self.auto_tier = Some(auto_tier);
+        self
     }
 
     /// Set whether to use WebSocket transport for CAPI Responses API calls.
@@ -6034,9 +6052,9 @@ mod tests {
 
     use super::{
         AgentMode, Attachment, AttachmentLineRange, AttachmentSelectionPosition,
-        AttachmentSelectionRange, AzureProviderOptions, CapiSessionOptions, ConnectionState,
-        CopilotExpAssignmentResponse, CustomAgentConfig, DeliveryMode, ExpConfigEntry,
-        ExpFlagValue, ExtensionInfo, GitHubMcpToolConfig, GitHubReferenceType,
+        AttachmentSelectionRange, AutoTier, AzureProviderOptions, CapiSessionOptions,
+        ConnectionState, CopilotExpAssignmentResponse, CustomAgentConfig, DeliveryMode,
+        ExpConfigEntry, ExpFlagValue, ExtensionInfo, GitHubMcpToolConfig, GitHubReferenceType,
         InfiniteSessionConfig, LargeToolOutputConfig, McpServerConfig, McpStdioServerConfig,
         MemoryConfiguration, NamedProviderConfig, PermissionResponseCapability, ProviderConfig,
         ProviderModelConfig, ReasoningSummary, ResumeSessionConfig, SessionConfig, SessionEvent,
@@ -7322,6 +7340,56 @@ mod tests {
         let unset = CapiSessionOptions::new();
         let wire_unset = serde_json::to_value(&unset).unwrap();
         assert!(wire_unset.get("enableWebSocketResponses").is_none());
+        assert!(wire_unset.get("autoTier").is_none());
+        assert_eq!(wire_unset, json!({}));
+    }
+
+    #[test]
+    fn capi_auto_tier_canonical_values_round_trip_and_forward() {
+        for (tier, value) in [
+            (AutoTier::Efficiency, "efficiency"),
+            (AutoTier::Balance, "balance"),
+            (AutoTier::Intelligence, "intelligence"),
+        ] {
+            let exported: crate::AutoTier = tier.clone();
+            let capi = CapiSessionOptions::new().with_auto_tier(exported);
+            assert_eq!(capi.auto_tier, Some(tier));
+            assert_eq!(
+                serde_json::to_value(&capi).unwrap(),
+                json!({"autoTier": value})
+            );
+            assert_eq!(
+                serde_json::from_value::<CapiSessionOptions>(json!({"autoTier": value})).unwrap(),
+                capi
+            );
+
+            let capi = capi.with_enable_web_socket_responses(false);
+            let expected = json!({"autoTier": value, "enableWebSocketResponses": false});
+            let (create, _) = SessionConfig::default()
+                .with_model("auto")
+                .with_capi(capi.clone())
+                .into_wire(Some(SessionId::from("capi-create")))
+                .unwrap();
+            assert_eq!(serde_json::to_value(create).unwrap()["capi"], expected);
+
+            let (resume, _) = ResumeSessionConfig::new(SessionId::from("capi-resume"))
+                .with_capi(capi)
+                .into_wire()
+                .unwrap();
+            assert_eq!(serde_json::to_value(resume).unwrap()["capi"], expected);
+        }
+    }
+
+    #[test]
+    fn capi_auto_tier_accepts_unknown_values_for_forward_compatibility() {
+        for value in ["balanced", "Balance", "unknown"] {
+            assert_eq!(
+                serde_json::from_value::<AutoTier>(json!(value)).unwrap(),
+                AutoTier::Unknown
+            );
+        }
+        let capi: CapiSessionOptions = serde_json::from_value(json!({})).unwrap();
+        assert_eq!(capi.auto_tier, None);
     }
 
     #[test]

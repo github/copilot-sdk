@@ -30,6 +30,7 @@ from .canvas import (
 )
 from .client import (
     AskUserVariant,
+    AutoTier,
     CapiSessionOptions,
     ChildProcessRuntimeConnection,
     ClientInfo,
@@ -232,6 +233,7 @@ __all__ = [
     "AutoModeSwitchRequest",
     "AutoModeSwitchResponse",
     "AskUserVariant",
+    "AutoTier",
     "BUILTIN_TOOLS_ISOLATED",
     "CanvasAction",
     "CanvasDeclaration",

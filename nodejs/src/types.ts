@@ -11,6 +11,7 @@ import type { Canvas } from "./canvas.js";
 import type { SessionFsProvider } from "./sessionFsProvider.js";
 import type { CopilotRequestHandler } from "./copilotRequestHandler.js";
 import type {
+    AutoTier,
     PermissionRequest as GeneratedPermissionRequest,
     PermissionRequestedData as GeneratedPermissionRequestedData,
     PermissionRequestedEvent as GeneratedPermissionRequestedEvent,
@@ -72,7 +73,7 @@ export type {
 export type SessionEvent =
     | Exclude<GeneratedSessionEvent, { type: "permission.requested" }>
     | PermissionRequestedEvent;
-export type { ReasoningSummary } from "./generated/session-events.js";
+export type { AutoTier, ReasoningSummary } from "./generated/session-events.js";
 export type { SessionFsProvider } from "./sessionFsProvider.js";
 export { createSessionFsAdapter } from "./sessionFsProvider.js";
 export type { SessionFsFileInfo } from "./sessionFsProvider.js";
@@ -2170,6 +2171,17 @@ export interface FactoryMeta {
  * provider-level choices are conceptually per-provider rather than global.
  */
 export interface CapiSessionOptions {
+    /**
+     * Routing preference used when the session model is `auto`.
+     * Requires a runtime with Auto tier support and V2 Auto routing.
+     *
+     * When omitted on create, the runtime uses its default routing behavior.
+     * The runtime persists this preference across cold resume; an explicit tier
+     * on cold resume overrides the persisted value. For an already-resident
+     * session, omission preserves the current tier and a different tier is rejected.
+     */
+    autoTier?: AutoTier;
+
     /**
      * Whether to use the WebSocket transport for the CAPI Responses API.
      *

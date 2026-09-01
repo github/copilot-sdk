@@ -2441,6 +2441,18 @@ public sealed class CapiSessionOptions
     /// </remarks>
     [JsonPropertyName("enableWebSocketResponses")]
     public bool? EnableWebSocketResponses { get; set; }
+
+    /// <summary>
+    /// Routing tier for model <c>auto</c> with V2 Auto.
+    /// </summary>
+    /// <remarks>
+    /// Requires a runtime that supports Auto tiers; it has no effect outside V2 Auto.
+    /// When omitted, the runtime uses its default on create and preserves the persisted or current
+    /// tier on resume. An explicit tier overrides the persisted tier on a cold resume; a conflicting
+    /// tier on a resident session resume is rejected by the runtime.
+    /// </remarks>
+    [JsonPropertyName("autoTier")]
+    public AutoTier? AutoTier { get; set; }
 }
 
 /// <summary>
