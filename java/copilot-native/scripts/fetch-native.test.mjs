@@ -15,7 +15,7 @@ const version = '1.0.79';
 const checksum = '0'.repeat(64);
 const runtimeContent = 'runtime content';
 const wrapperContent = 'wrapper content';
-const stagingSchema = 'hostless-runtime-v2';
+const stagingSchema = 'hostless-runtime-v3';
 const scriptPath = fileURLToPath(new URL('./fetch-native.mjs', import.meta.url));
 
 for (const classifier of ['linux-x64', 'linux-arm64', 'win32-x64', 'win32-arm64', 'darwin-arm64']) {
@@ -37,10 +37,10 @@ for (const classifier of ['linux-x64', 'linux-arm64', 'win32-x64', 'win32-arm64'
     assertRestagingAttempted(fixture, result);
   });
 
-  test(`${classifier}: legacy staging schema does not use incremental fast path`, (t) => {
+  test(`${classifier}: v2 staging schema does not use incremental fast path`, (t) => {
     const fixture = createFixture(t, classifier);
     const stampPath = path.join(fixture.stagingDir, classifier, '.version');
-    fs.writeFileSync(stampPath, fs.readFileSync(stampPath, 'utf8').replace(stagingSchema, 'hostless-runtime-v1'));
+    fs.writeFileSync(stampPath, fs.readFileSync(stampPath, 'utf8').replace(stagingSchema, 'hostless-runtime-v2'));
 
     const result = runScript(fixture);
 

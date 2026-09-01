@@ -20,7 +20,7 @@ on:
   workflow_dispatch:
     inputs:
       runtime_version:
-        description: "Exact @github/copilot version to test (e.g. 1.0.69 or 1.0.70-canary.<sha>)"
+        description: "Exact github/copilot-cli release (public) or @github/copilot package version (internal)"
         required: true
         type: string
       runtime_source:

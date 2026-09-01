@@ -66,7 +66,7 @@ const wrapperPath = path.join(resourceDir, wrapperFilename);
 const inventoryPath = path.join(resourceDir, 'runtime-assets.list');
 const platformPropertiesPath = path.join(resourceDir, 'platform.properties');
 const expectedPlatformProperties = `classifier=${classifier}\nversion=${version}\n`;
-const stagingSchema = 'hostless-runtime-v2';
+const stagingSchema = 'hostless-runtime-v3';
 const stampPath = path.join(outDir, '.version');
 
 // Idempotence: skip the download only when every required staged artifact
