@@ -2271,6 +2271,7 @@ class CopilotClient:
         extension_info: ExtensionInfo | None = None,
         canvas_provider: CanvasProviderIdentity | None = None,
         canvas_handler: CanvasHandler | None = None,
+        feature_flags: dict[str, bool] | None = None,
         exp_assignments: CopilotExpAssignmentResponse | None = None,
         enable_managed_settings: bool | None = None,
         github_mcp_tool_config: GitHubMcpToolConfig | None = None,
@@ -2583,6 +2584,9 @@ class CopilotClient:
         # Add cloud session options if provided
         if cloud is not None:
             payload["cloud"] = _cloud_session_options_to_dict(cloud)
+
+        if feature_flags is not None:
+            payload["featureFlags"] = feature_flags
 
         # Add ExP assignment data if provided (trusted integrator)
         if exp_assignments is not None:
@@ -3033,6 +3037,7 @@ class CopilotClient:
         canvas_provider: CanvasProviderIdentity | None = None,
         canvas_handler: CanvasHandler | None = None,
         open_canvases: list[OpenCanvasInstance] | None = None,
+        feature_flags: dict[str, bool] | None = None,
         exp_assignments: CopilotExpAssignmentResponse | None = None,
         enable_managed_settings: bool | None = None,
         github_mcp_tool_config: GitHubMcpToolConfig | None = None,
@@ -3367,6 +3372,9 @@ class CopilotClient:
         # Add remote session mode if provided
         if remote_session is not None:
             payload["remoteSession"] = remote_session.value
+
+        if feature_flags is not None:
+            payload["featureFlags"] = feature_flags
 
         # Add ExP assignment data if provided (trusted integrator)
         if exp_assignments is not None:

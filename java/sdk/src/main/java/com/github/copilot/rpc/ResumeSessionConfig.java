@@ -111,6 +111,7 @@ public class ResumeSessionConfig {
     private String remoteSession;
     private CopilotExpAssignmentResponse expAssignments;
     private Boolean enableManagedSettings;
+    private Map<String, Boolean> featureFlags;
     private ManagedSettings managedSettings;
 
     /**
@@ -1969,6 +1970,23 @@ public class ResumeSessionConfig {
         return this;
     }
 
+    /** Gets host-resolved feature-flag values. @return the feature flags */
+    public Map<String, Boolean> getFeatureFlags() {
+        return featureFlags;
+    }
+
+    /**
+     * Sets feature-flag values resolved by the host to apply on resume.
+     *
+     * @param featureFlags
+     *            the feature flags
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setFeatureFlags(Map<String, Boolean> featureFlags) {
+        this.featureFlags = featureFlags;
+        return this;
+    }
+
     /**
      * Gets whether the runtime self-fetches enterprise managed settings at session
      * bootstrap on resume.
@@ -2102,6 +2120,7 @@ public class ResumeSessionConfig {
         copy.gitHubToken = this.gitHubToken;
         copy.gitHubTokenProvider = this.gitHubTokenProvider;
         copy.remoteSession = this.remoteSession;
+        copy.featureFlags = this.featureFlags != null ? new java.util.HashMap<>(this.featureFlags) : null;
         copy.expAssignments = this.expAssignments;
         copy.enableManagedSettings = this.enableManagedSettings;
         copy.managedSettings = this.managedSettings;

@@ -236,6 +236,9 @@ public final class CreateSessionRequest {
     @JsonProperty("expAssignments")
     private CopilotExpAssignmentResponse expAssignments;
 
+    @JsonProperty("featureFlags")
+    private Map<String, Boolean> featureFlags;
+
     @JsonProperty("enableManagedSettings")
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private Boolean enableManagedSettings;
@@ -1111,6 +1114,16 @@ public final class CreateSessionRequest {
      */
     public void setExpAssignments(CopilotExpAssignmentResponse expAssignments) {
         this.expAssignments = expAssignments;
+    }
+
+    /** Gets host-resolved feature flags. @return the feature flags */
+    public Map<String, Boolean> getFeatureFlags() {
+        return featureFlags;
+    }
+
+    /** Sets host-resolved feature flags. @param featureFlags the feature flags */
+    public void setFeatureFlags(Map<String, Boolean> featureFlags) {
+        this.featureFlags = featureFlags;
     }
 
     /**

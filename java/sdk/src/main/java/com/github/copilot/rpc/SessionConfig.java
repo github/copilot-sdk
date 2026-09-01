@@ -112,6 +112,7 @@ public class SessionConfig {
     private CloudSessionOptions cloud;
     private CopilotExpAssignmentResponse expAssignments;
     private Boolean enableManagedSettings;
+    private Map<String, Boolean> featureFlags;
     private ManagedSettings managedSettings;
 
     /**
@@ -2097,6 +2098,23 @@ public class SessionConfig {
         return this;
     }
 
+    /** Gets host-resolved feature-flag values. @return the feature flags */
+    public Map<String, Boolean> getFeatureFlags() {
+        return featureFlags;
+    }
+
+    /**
+     * Sets feature-flag values resolved by the host for this session.
+     *
+     * @param featureFlags
+     *            the feature flags
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setFeatureFlags(Map<String, Boolean> featureFlags) {
+        this.featureFlags = featureFlags;
+        return this;
+    }
+
     /**
      * Gets whether the runtime self-fetches enterprise managed settings at session
      * bootstrap.
@@ -2243,6 +2261,7 @@ public class SessionConfig {
         copy.gitHubTokenProvider = this.gitHubTokenProvider;
         copy.remoteSession = this.remoteSession;
         copy.cloud = this.cloud;
+        copy.featureFlags = this.featureFlags != null ? new java.util.HashMap<>(this.featureFlags) : null;
         copy.expAssignments = this.expAssignments;
         copy.enableManagedSettings = this.enableManagedSettings;
         copy.managedSettings = this.managedSettings;
