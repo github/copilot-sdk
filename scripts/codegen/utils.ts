@@ -13,7 +13,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { promisify } from "util";
 import { COPILOT_CLI_VERSION } from "../../nodejs/src/cliVersion.js";
-import { ensureRuntimeBundle } from "../../nodejs/src/runtimeArtifacts.js";
+import { ensureCopilotPackage } from "../../nodejs/scripts/releaseArtifacts.js";
 
 export const execFileAsync = promisify(execFile);
 
@@ -51,8 +51,8 @@ export type SchemaWithSharedDefinitions<T extends JSONSchema7 = JSONSchema7> = T
  * Resolve a JSON schema from the pinned Copilot CLI GitHub Release.
  */
 async function resolveCopilotSchemaPath(fileName: string): Promise<string> {
-    const runtimePath = await ensureRuntimeBundle(COPILOT_CLI_VERSION);
-    const schemaPath = path.join(path.dirname(runtimePath), "schemas", fileName);
+    const packageRoot = await ensureCopilotPackage(COPILOT_CLI_VERSION);
+    const schemaPath = path.join(packageRoot, "schemas", fileName);
     await fs.access(schemaPath);
     return schemaPath;
 }

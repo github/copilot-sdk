@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import {
     chmodSync,
     copyFileSync,
@@ -10,17 +9,12 @@ import {
     renameSync,
     rmSync,
     statSync,
-    writeFileSync,
 } from "node:fs";
+import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import { homedir } from "node:os";
 import { dirname, join, relative, sep } from "node:path";
-import { x as extractTar } from "tar";
-import {
-    COPILOT_CLI_HASHES,
-    COPILOT_CLI_USE_NPM_PACKAGE,
-    COPILOT_CLI_VERSION,
-} from "./cliVersion.js";
+import { COPILOT_CLI_USE_NPM_PACKAGE } from "./cliVersion.js";
 
 export interface RuntimeArtifactSources {
     packageRoot: string;
@@ -29,13 +23,21 @@ export interface RuntimeArtifactSources {
 
 export interface EnsureRuntimeBundleOptions {
     cacheRoot?: string;
-    environment?: NodeJS.ProcessEnv;
-    fetch?: typeof globalThis.fetch;
+    packageSearchPaths?: string[];
     platform?: string;
 }
 
-const runtimeDownloads = new Map<string, Promise<string>>();
 const require = createRequire(typeof __filename === "string" ? __filename : import.meta.url);
+export const RUNTIME_PLATFORMS = [
+    "darwin-arm64",
+    "darwin-x64",
+    "linux-arm64",
+    "linux-x64",
+    "linuxmusl-arm64",
+    "linuxmusl-x64",
+    "win32-arm64",
+    "win32-x64",
+] as const;
 
 const EXCLUDED_TOP_LEVEL = new Set([
     "app.js",
@@ -64,7 +66,7 @@ interface RuntimeAsset {
     relativePath: string;
 }
 
-function validateFile(path: string, label: string): void {
+export function validateFile(path: string, label: string): void {
     if (!existsSync(path)) {
         throw new Error(`${label} not found at ${path}.`);
     }
@@ -76,10 +78,6 @@ function validateFile(path: string, label: string): void {
 function validateRuntimeBundle(wrapper: string, runtimeNode: string): void {
     validateFile(wrapper, "Copilot runtime wrapper");
     validateFile(runtimeNode, "Copilot runtime.node");
-}
-
-function sanitizeCacheSegment(value: string): string {
-    return value.replace(/[^a-zA-Z0-9._-]/g, "_");
 }
 
 function isExcluded(relativePath: string): boolean {
@@ -238,42 +236,17 @@ export function getRuntimeReleaseAssetName(version: string, platform: string): s
     return `github-copilot-${version}-${platform}.tgz`;
 }
 
-async function fetchWithRetry(fetcher: typeof globalThis.fetch, url: string): Promise<Response> {
-    let lastError: unknown;
-    for (let attempt = 0; attempt < 3; attempt++) {
-        try {
-            const response = await fetcher(url);
-            if (response.ok) {
-                return response;
-            }
-            await response.body?.cancel();
-            lastError = new Error(`${response.status} ${response.statusText}`);
-            if (
-                response.status >= 400 &&
-                response.status < 500 &&
-                response.status !== 408 &&
-                response.status !== 429
-            ) {
-                break;
-            }
-        } catch (error) {
-            lastError = error;
-        }
-        if (attempt < 2) {
-            await new Promise((resolve) => setTimeout(resolve, 2 ** attempt * 1000));
-        }
-    }
-    throw new Error(`Failed to download ${url}: ${String(lastError)}`);
+export function getRuntimePackageName(platform: string): string {
+    return `@github/copilot-sdk-${platform}`;
 }
 
-function checksumForAsset(checksums: string, assetName: string): string {
-    for (const line of checksums.split(/\r?\n/)) {
-        const [digest, name] = line.trim().split(/\s+/, 2);
-        if (name?.replace(/^\*/, "") === assetName && /^[a-f0-9]{64}$/i.test(digest)) {
-            return digest.toLowerCase();
-        }
-    }
-    throw new Error(`SHA256SUMS.txt does not contain ${assetName}.`);
+export function resolvePackageRoot(
+    packageName: string,
+    searchPaths = require.resolve.paths(packageName) ?? []
+): string | undefined {
+    return searchPaths
+        .map((base) => join(base, ...packageName.split("/")))
+        .find((candidate) => existsSync(join(candidate, "package.json")));
 }
 
 export async function ensureRuntimeBundle(
@@ -281,59 +254,9 @@ export async function ensureRuntimeBundle(
     options: EnsureRuntimeBundleOptions = {}
 ): Promise<string> {
     const platform = options.platform ?? getRuntimePlatform();
-    const cacheRoot = options.cacheRoot ?? defaultRuntimeCacheRoot();
-    const baseUrl = (
-        (options.environment ?? process.env).COPILOT_CLI_DOWNLOAD_BASE_URL ??
-        "https://github.com/github/copilot-cli/releases/download"
-    ).replace(/\/+$/, "");
-    const downloadKey = `${cacheRoot}\0${version}\0${platform}\0${baseUrl}`;
-    if (!options.fetch) {
-        const existing = runtimeDownloads.get(downloadKey);
-        if (existing) {
-            return existing;
-        }
-        const download = ensureRuntimeBundleUncached(version, options);
-        runtimeDownloads.set(downloadKey, download);
-        try {
-            return await download;
-        } finally {
-            runtimeDownloads.delete(downloadKey);
-        }
-    }
-    return ensureRuntimeBundleUncached(version, options);
-}
-
-async function ensureRuntimeBundleUncached(
-    version: string,
-    options: EnsureRuntimeBundleOptions
-): Promise<string> {
-    const platform = options.platform ?? getRuntimePlatform();
-    const cacheRoot = options.cacheRoot ?? defaultRuntimeCacheRoot();
-    const versionRoot = join(cacheRoot, sanitizeCacheSegment(version));
-    const wrapperName = platform.startsWith("win32") ? "copilot-runtime.exe" : "copilot-runtime";
-    const installedWrapper = join(versionRoot, platform, wrapperName);
-    const installedRuntimeNode = join(versionRoot, platform, "runtime.node");
-    if (existsSync(installedWrapper) && existsSync(installedRuntimeNode)) {
-        validateRuntimeBundle(installedWrapper, installedRuntimeNode);
-        makeExecutable(installedWrapper);
-        return installedWrapper;
-    }
-
-    const packageRoot = await ensureCopilotPackage(version, options);
-    return materializeRuntimeBundle({ packageRoot, platform }, versionRoot, platform);
-}
-
-export async function ensureCopilotPackage(
-    version: string,
-    options: EnsureRuntimeBundleOptions = {}
-): Promise<string> {
-    const environment = options.environment ?? process.env;
-    const platform = options.platform ?? getRuntimePlatform();
-    if (version === COPILOT_CLI_VERSION && COPILOT_CLI_USE_NPM_PACKAGE) {
+    if (COPILOT_CLI_USE_NPM_PACKAGE) {
         const packageName = `@github/copilot-${platform}`;
-        const packageRoot = (require.resolve.paths(packageName) ?? [])
-            .map((base) => join(base, ...packageName.split("/")))
-            .find((candidate) => existsSync(join(candidate, "index.js")));
+        const packageRoot = resolvePackageRoot(packageName, options.packageSearchPaths);
         if (!packageRoot) {
             throw new Error(`Could not resolve ${packageName} for Copilot CLI ${version}.`);
         }
@@ -341,72 +264,30 @@ export async function ensureCopilotPackage(
             join(packageRoot, "prebuilds", platform, "runtime.node"),
             "Copilot runtime.node"
         );
-        return packageRoot;
-    }
-    const cacheRoot = options.cacheRoot ?? defaultRuntimeCacheRoot();
-    const versionRoot = join(cacheRoot, sanitizeCacheSegment(version));
-    const cachedPackageRoot = join(versionRoot, "packages", platform);
-    const cachedRuntimeNode = join(cachedPackageRoot, "prebuilds", platform, "runtime.node");
-    if (existsSync(cachedRuntimeNode)) {
-        validateFile(cachedRuntimeNode, "Copilot runtime.node");
-        return cachedPackageRoot;
+        return materializeRuntimeBundle(
+            { packageRoot, platform },
+            options.cacheRoot,
+            `${version}-${platform}`
+        );
     }
 
-    const fetcher = options.fetch ?? globalThis.fetch;
-    if (!fetcher) {
-        throw new Error("This Node.js runtime does not provide fetch().");
-    }
-    mkdirSync(cacheRoot, { recursive: true });
-    const baseUrl = (
-        environment.COPILOT_CLI_DOWNLOAD_BASE_URL ??
-        "https://github.com/github/copilot-cli/releases/download"
-    ).replace(/\/+$/, "");
-    const releaseUrl = `${baseUrl}/v${version}`;
-    const assetName = getRuntimeReleaseAssetName(version, platform);
-    const pinnedChecksum =
-        version === COPILOT_CLI_VERSION ? COPILOT_CLI_HASHES[platform] : undefined;
-    const [checksumsResponse, assetResponse] = await Promise.all([
-        pinnedChecksum
-            ? Promise.resolve(undefined)
-            : fetchWithRetry(fetcher, `${releaseUrl}/SHA256SUMS.txt`),
-        fetchWithRetry(fetcher, `${releaseUrl}/${assetName}`),
-    ]);
-    const archive = Buffer.from(await assetResponse.arrayBuffer());
-    const expectedChecksum =
-        pinnedChecksum ?? checksumForAsset(await checksumsResponse!.text(), assetName);
-    const actualChecksum = createHash("sha256").update(archive).digest("hex");
-    if (actualChecksum !== expectedChecksum) {
+    const packageName = getRuntimePackageName(platform);
+    const packageRoot = resolvePackageRoot(packageName, options.packageSearchPaths);
+    if (!packageRoot) {
         throw new Error(
-            `Checksum mismatch for ${assetName}: expected ${expectedChecksum}, got ${actualChecksum}.`
+            `Could not resolve ${packageName}. Reinstall @github/copilot-sdk so its platform package is installed.`
         );
     }
-
-    const stagingRoot = mkdtempSync(join(cacheRoot, ".download-"));
-    const archivePath = join(stagingRoot, assetName);
-    const packageRoot = join(stagingRoot, "package");
-    writeFileSync(archivePath, archive);
+    const wrapperName = platform.startsWith("win32") ? "copilot-runtime.exe" : "copilot-runtime";
+    const wrapper = join(packageRoot, wrapperName);
     try {
-        await extractTar({
-            cwd: stagingRoot,
-            file: archivePath,
-            gzip: true,
-            preservePaths: false,
-            strict: true,
-        });
-        validateFile(
-            join(packageRoot, "prebuilds", platform, "runtime.node"),
-            "Copilot runtime.node"
+        validateRuntimeBundle(wrapper, join(packageRoot, "runtime.node"));
+    } catch (error) {
+        throw new Error(
+            `${packageName} is missing required Copilot CLI runtime files. Reinstall @github/copilot-sdk.`,
+            { cause: error }
         );
-        mkdirSync(dirname(cachedPackageRoot), { recursive: true });
-        try {
-            renameSync(packageRoot, cachedPackageRoot);
-        } catch (error) {
-            if (!existsSync(cachedRuntimeNode)) {
-                throw error;
-            }
-        }
-        return cachedPackageRoot;
-    } finally {
-        rmSync(stagingRoot, { recursive: true, force: true });
     }
+    makeExecutable(wrapper);
+    return wrapper;
 }

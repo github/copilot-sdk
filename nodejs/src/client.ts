@@ -370,8 +370,8 @@ function getNodeExecPath(): string {
     return process.execPath;
 }
 
-function getBundledRuntimePath(environment: NodeJS.ProcessEnv = process.env): Promise<string> {
-    return ensureRuntimeBundle(COPILOT_CLI_VERSION, { environment });
+function getBundledRuntimePath(): Promise<string> {
+    return ensureRuntimeBundle(COPILOT_CLI_VERSION);
 }
 
 /**
@@ -2561,7 +2561,7 @@ export class CopilotClient {
      * Start the CLI server process
      */
     private async startCLIServer(): Promise<void> {
-        this.resolvedCliPath ??= await getBundledRuntimePath(this.resolvedEnv);
+        this.resolvedCliPath ??= await getBundledRuntimePath();
         return new Promise((resolve, reject) => {
             // Clear stderr buffer for fresh capture
             this.stderrBuffer = "";
@@ -2765,14 +2765,21 @@ export class CopilotClient {
     /** Starts the in-process FFI runtime with SDK-managed typed options. */
     private async startInProcessFfi(): Promise<void> {
         const explicitEntrypoint = this.resolvedEnv.COPILOT_CLI_PATH;
-        const runtimeLibrary = explicitEntrypoint
-            ? join(
-                  dirname(resolve(explicitEntrypoint)),
-                  "prebuilds",
-                  CopilotClient.getNapiPrebuildsFolder(explicitEntrypoint),
-                  "runtime.node"
-              )
-            : join(dirname(await getBundledRuntimePath(this.resolvedEnv)), "runtime.node");
+        let runtimeLibrary: string;
+        if (explicitEntrypoint) {
+            const entrypointDirectory = dirname(resolve(explicitEntrypoint));
+            const adjacentRuntime = join(entrypointDirectory, "runtime.node");
+            runtimeLibrary = existsSync(adjacentRuntime)
+                ? adjacentRuntime
+                : join(
+                      entrypointDirectory,
+                      "prebuilds",
+                      CopilotClient.getNapiPrebuildsFolder(explicitEntrypoint),
+                      "runtime.node"
+                  );
+        } else {
+            runtimeLibrary = join(dirname(await getBundledRuntimePath()), "runtime.node");
+        }
         // Load the FFI host lazily so the native `koffi` addon (and its
         // platform-specific `koffi.node`) is only loaded on the in-process path;
         // out-of-process (stdio/tcp) consumers never touch the native dependency.

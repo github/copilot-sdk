@@ -12,7 +12,7 @@ import { afterAll, afterEach, beforeEach, onTestFailed, TestContext } from "vite
 import { CopilotClient, CopilotClientOptions, RuntimeConnection } from "../../../src";
 import { CapiProxy } from "./CapiProxy";
 import { formatError, retry } from "./sdkTestHelper";
-import { ensureCopilotPackage } from "../../../src/runtimeArtifacts";
+import { ensureCopilotPackage } from "../../../scripts/releaseArtifacts";
 import { COPILOT_CLI_VERSION } from "../../../src/cliVersion";
 
 export const isCI = process.env.GITHUB_ACTIONS === "true";

@@ -58,6 +58,11 @@ jobs:
         working-directory: ./test/harness
         run: npm test
 
+      - name: Prepare Copilot CLI runtime
+        run: |
+          runtime_path=$(npm run --silent prepare:runtime -- --print-path)
+          echo "COPILOT_CLI_PATH=$runtime_path" >> "$GITHUB_ENV"
+
       - name: Warm up PowerShell
         if: runner.os == 'Windows'
         run: pwsh.exe -Command "Write-Host 'PowerShell ready'"

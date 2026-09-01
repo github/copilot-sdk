@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
     defaultRuntimeCacheRoot,
     ensureRuntimeBundle,
+    getRuntimePackageName,
     getRuntimePlatform,
     getRuntimeReleaseAssetName,
     materializeRuntimeBundle,
@@ -18,6 +19,7 @@ import {
     COPILOT_CLI_USE_NPM_PACKAGE,
     COPILOT_CLI_VERSION,
 } from "../src/cliVersion.js";
+import { ensureCopilotPackage } from "../scripts/releaseArtifacts.js";
 
 describe("defaultRuntimeCacheRoot", () => {
     it.each([
@@ -114,6 +116,10 @@ describe("release runtime selection", () => {
             "github-copilot-1.2.3-4-linux-x64.tgz"
         );
     });
+
+    it("uses the SDK platform package namespace", () => {
+        expect(getRuntimePackageName("linux-x64")).toBe("@github/copilot-sdk-linux-x64");
+    });
 });
 
 describe("materializeRuntimeBundle", () => {
@@ -194,7 +200,47 @@ describe("materializeRuntimeBundle", () => {
 });
 
 describe("ensureRuntimeBundle", () => {
-    it("downloads, verifies, and caches a release runtime", async () => {
+    it("resolves the installed platform runtime without network access", async () => {
+        const root = mkdtempSync(join(tmpdir(), "copilot-packaged-runtime-"));
+        const nodeModules = join(root, "node_modules");
+        const platform = "linux-x64";
+        const packageRoot = join(nodeModules, ...getRuntimePackageName(platform).split("/"));
+        mkdirSync(packageRoot, { recursive: true });
+        writeFileSync(join(packageRoot, "package.json"), "{}");
+        writeFileSync(join(packageRoot, "copilot-runtime"), "wrapper");
+        writeFileSync(join(packageRoot, "runtime.node"), "runtime");
+        mkdirSync(join(packageRoot, "schemas"));
+        writeFileSync(join(packageRoot, "schemas", "api.schema.json"), "{}");
+        const fetcher = vi.fn(() => {
+            throw new Error("runtime resolution must not fetch");
+        });
+        vi.stubGlobal("fetch", fetcher);
+
+        const runtimePath = await ensureRuntimeBundle(COPILOT_CLI_VERSION, {
+            packageSearchPaths: [nodeModules],
+            platform,
+        });
+
+        expect(runtimePath).toBe(join(packageRoot, "copilot-runtime"));
+        expect(readFileSync(join(dirname(runtimePath), "runtime.node"), "utf8")).toBe("runtime");
+        expect(fetcher).not.toHaveBeenCalled();
+        vi.unstubAllGlobals();
+    });
+
+    it("fails clearly when the platform package is not installed", async () => {
+        await expect(
+            ensureRuntimeBundle(COPILOT_CLI_VERSION, {
+                packageSearchPaths: [],
+                platform: "linux-x64",
+            })
+        ).rejects.toThrow(
+            "Could not resolve @github/copilot-sdk-linux-x64. Reinstall @github/copilot-sdk"
+        );
+    });
+});
+
+describe("release package acquisition", () => {
+    it("downloads, verifies, and caches a release package for packaging", async () => {
         const sourceRoot = mkdtempSync(join(tmpdir(), "copilot-release-source-"));
         const packageRoot = join(sourceRoot, "package");
         const platform = "linux-x64";
@@ -209,46 +255,43 @@ describe("ensureRuntimeBundle", () => {
         await createTar({ cwd: sourceRoot, file: archivePath, gzip: true }, ["package"]);
         const archive = readFileSync(archivePath);
         const version = "1.2.3-4";
-        const assetName = getRuntimeReleaseAssetName(version, platform);
         const checksum = createHash("sha256").update(archive).digest("hex");
-        const fetcher = vi.fn(async (url: string | URL | Request) => {
-            const value = String(url);
-            return value.endsWith("SHA256SUMS.txt")
-                ? new Response(`${checksum}  ${assetName}\n`)
-                : new Response(archive);
-        });
+        const fetcher = vi.fn(async () => new Response(archive));
         const cacheRoot = join(sourceRoot, "cache");
 
-        const runtimePath = await ensureRuntimeBundle(version, {
+        const downloadedPackage = await ensureCopilotPackage(version, {
             cacheRoot,
+            expectedChecksum: checksum,
             fetch: fetcher,
             platform,
         });
-        expect(readFileSync(runtimePath, "utf8")).toBe("wrapper");
-        expect(readFileSync(join(dirname(runtimePath), "runtime.node"), "utf8")).toBe("runtime");
-        expect(readFileSync(join(dirname(runtimePath), "schemas", "api.schema.json"), "utf8")).toBe(
+        expect(readFileSync(join(downloadedPackage, "schemas", "api.schema.json"), "utf8")).toBe(
             "{}"
         );
 
         await expect(
-            ensureRuntimeBundle(version, { cacheRoot, fetch: fetcher, platform })
-        ).resolves.toBe(runtimePath);
-        expect(fetcher).toHaveBeenCalledTimes(2);
+            ensureCopilotPackage(version, {
+                cacheRoot,
+                expectedChecksum: checksum,
+                fetch: fetcher,
+                platform,
+            })
+        ).resolves.toBe(downloadedPackage);
+        expect(fetcher).toHaveBeenCalledTimes(1);
     });
 
-    it("rejects a release archive that does not match the manifest", async () => {
+    it("rejects a release package that does not match the trusted hash", async () => {
         const cacheRoot = mkdtempSync(join(tmpdir(), "copilot-release-mismatch-"));
-        const fetcher = vi.fn(async (url: string | URL | Request) =>
-            String(url).endsWith("SHA256SUMS.txt")
-                ? new Response(
-                      `${"0".repeat(64)}  ${getRuntimeReleaseAssetName("1.2.3", "linux-x64")}\n`
-                  )
-                : new Response("corrupt archive")
-        );
+        const fetcher = vi.fn(async () => new Response("corrupt archive"));
 
         await expect(
-            ensureRuntimeBundle("1.2.3", { cacheRoot, fetch: fetcher, platform: "linux-x64" })
+            ensureCopilotPackage("1.2.3", {
+                cacheRoot,
+                expectedChecksum: "0".repeat(64),
+                fetch: fetcher,
+                platform: "linux-x64",
+            })
         ).rejects.toThrow("Checksum mismatch");
-        expect(existsSync(join(cacheRoot, "1.2.3", "linux-x64"))).toBe(false);
+        expect(existsSync(join(cacheRoot, "1.2.3", "packages", "linux-x64"))).toBe(false);
     });
 });

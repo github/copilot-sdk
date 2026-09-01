@@ -207,6 +207,7 @@ jobs:
           test -s "$(dirname "$runtime_path")/runtime.node"
           legacy_path=$(npm run --silent prepare:runtime -- --print-legacy-path)
           node "$legacy_path" --version | grep -F "$RUNTIME_VERSION"
+          echo "COPILOT_CLI_PATH=$runtime_path" >> "$GITHUB_ENV"
 
       - name: Build SDK
         run: npm run build
@@ -324,6 +325,10 @@ jobs:
       - name: Build SDK
         run: npm run build
 
+      - name: Package public release runtimes
+        if: env.RUNTIME_SOURCE == 'public'
+        run: npm run pack:release
+
       - name: Azure Login (OIDC -> id-cpd-ci)
         uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
         with:
@@ -365,7 +370,32 @@ jobs:
           fi
 
       - name: Publish SDK canary to internal feed
-        run: npm publish --registry "$FEED_URL"
+        run: |
+          set -euo pipefail
+          if [ "$RUNTIME_SOURCE" = "internal" ]; then
+            npm publish --registry "$FEED_URL"
+            exit
+          fi
+          shopt -s nullglob
+          TARBALLS=(./github-copilot-sdk-*.tgz)
+          if [ "${#TARBALLS[@]}" -ne 9 ]; then
+            echo "::error::Expected nine Node.js package tarballs, found ${#TARBALLS[@]}."
+            exit 1
+          fi
+          MAIN_TARBALL=""
+          for TARBALL in "${TARBALLS[@]}"; do
+            PACKAGE_NAME="$(tar -xOf "$TARBALL" package/package.json | jq -r .name)"
+            if [ "$PACKAGE_NAME" = "@github/copilot-sdk" ]; then
+              MAIN_TARBALL="$TARBALL"
+            else
+              npm publish "$TARBALL" --registry "$FEED_URL"
+            fi
+          done
+          if [ -z "$MAIN_TARBALL" ]; then
+            echo "::error::Main @github/copilot-sdk tarball not found."
+            exit 1
+          fi
+          npm publish "$MAIN_TARBALL" --registry "$FEED_URL"
 
       - name: Summarize published canary
         env:
