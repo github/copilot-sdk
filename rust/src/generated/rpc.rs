@@ -7544,6 +7544,42 @@ impl<'a> SessionRpcModel<'a> {
             .await?;
         Ok(serde_json::from_value(_value)?)
     }
+
+    /// Replaces or clears the host-supplied model allowlist for a running session.
+    ///
+    /// Wire method: `session.model.setAllowedModels`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Host-supplied exact CAPI model IDs to allow for this running session. The runtime intersects the list with repository `.github/allowed_models.txt` policy. Omit or pass null to clear the host restriction; an explicit empty or disjoint list is rejected.
+    ///
+    /// # Returns
+    ///
+    /// The applied host allowlist and effective session model policy after intersection.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn set_allowed_models(
+        &self,
+        params: ModelSetAllowedModelsRequest,
+    ) -> Result<ModelSetAllowedModelsResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_MODEL_SETALLOWEDMODELS,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
 }
 
 /// `session.name.*` RPCs.

@@ -288,6 +288,8 @@ pub mod rpc_methods {
     pub const SESSION_MODEL_SETREASONINGEFFORT: &str = "session.model.setReasoningEffort";
     /// `session.model.list`
     pub const SESSION_MODEL_LIST: &str = "session.model.list";
+    /// `session.model.setAllowedModels`
+    pub const SESSION_MODEL_SETALLOWEDMODELS: &str = "session.model.setAllowedModels";
     /// `session.mode.get`
     pub const SESSION_MODE_GET: &str = "session.mode.get";
     /// `session.mode.set`
@@ -21377,6 +21379,47 @@ pub struct WorkspacesWriteAutopilotObjectiveResult {
     pub operation: String,
 }
 
+/// Host-supplied exact CAPI model IDs to allow for this running session. The runtime intersects the list with repository `.github/allowed_models.txt` policy. Omit or pass null to clear the host restriction; an explicit empty or disjoint list is rejected.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelSetAllowedModelsRequest {
+    /// Exact model IDs to permit, or null to clear the host restriction.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub allowed_models: Option<Vec<String>>,
+}
+
+/// The applied host allowlist and effective session model policy after intersection.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelSetAllowedModelsResult {
+    /// Normalized host allowlist. Omitted when the host restriction was cleared.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub allowed_models: Option<Vec<String>>,
+    /// Effective exact IDs or repository policy patterns after applying the host restriction. Omitted by relay clients whose AHP host applies the policy asynchronously.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub effective_allowed_models: Option<Vec<String>>,
+    /// Effective deterministic fallback model, when the policy defines one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fallback_model: Option<String>,
+    /// Selected session model after reconciling a now-disallowed concrete selection.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model_id: Option<String>,
+}
+
 /// List of Copilot models available to the resolved user, including capabilities and billing metadata.
 ///
 /// <div class="warning">
@@ -22851,6 +22894,31 @@ pub struct SessionModelListResult {
     /// Per-quota snapshots returned alongside the model list, keyed by quota type.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub quota_snapshots: Option<HashMap<String, serde_json::Value>>,
+}
+
+/// The applied host allowlist and effective session model policy after intersection.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionModelSetAllowedModelsResult {
+    /// Normalized host allowlist. Omitted when the host restriction was cleared.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub allowed_models: Option<Vec<String>>,
+    /// Effective exact IDs or repository policy patterns after applying the host restriction. Omitted by relay clients whose AHP host applies the policy asynchronously.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub effective_allowed_models: Option<Vec<String>>,
+    /// Effective deterministic fallback model, when the policy defines one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fallback_model: Option<String>,
+    /// Selected session model after reconciling a now-disallowed concrete selection.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model_id: Option<String>,
 }
 
 /// Identifies the target session.
