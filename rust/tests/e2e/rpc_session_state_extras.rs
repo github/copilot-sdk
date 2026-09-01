@@ -396,6 +396,7 @@ async fn should_report_visibility_as_unsynced_for_local_session() {
                     .visibility()
                     .set(VisibilitySetRequest {
                         status: SessionVisibilityStatus::Unshared,
+                        collaborator_logins: None,
                     })
                     .await
                     .expect("set visibility");

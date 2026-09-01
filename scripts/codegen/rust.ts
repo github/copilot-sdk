@@ -17,6 +17,7 @@ import { fileURLToPath } from "url";
 import { promisify } from "util";
 import type { JSONSchema7, JSONSchema7Definition } from "json-schema";
 import {
+	addCollaboratorLoginsToSessionVisibility,
 	addManagedApprovalRequiredToPermissionRequests,
 	type ApiSchema,
 	type DefinitionCollections,
@@ -2222,8 +2223,10 @@ async function generate(): Promise<void> {
 	const sessionEventsRaw = normalizeSchemaBrandCasing(
 		JSON.parse(await fs.readFile(sessionEventsSchemaPath, "utf-8")),
 	);
-	const apiRaw = normalizeSchemaBrandCasing(
-		JSON.parse(await fs.readFile(apiSchemaPath, "utf-8")) as ApiSchema,
+	const apiRaw = addCollaboratorLoginsToSessionVisibility(
+		normalizeSchemaBrandCasing(
+			JSON.parse(await fs.readFile(apiSchemaPath, "utf-8")) as ApiSchema,
+		),
 	);
 
 	const sessionEventsSchema = propagateInternalVisibility(

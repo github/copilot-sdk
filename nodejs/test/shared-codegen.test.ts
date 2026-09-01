@@ -2,6 +2,7 @@ import type { JSONSchema7 } from "json-schema";
 import { describe, expect, it } from "vitest";
 
 import {
+    addCollaboratorLoginsToSessionVisibility,
     collectDefinitionCollections,
     collectExperimentalOnlyRpcReferencedDefinitionNames,
     collectReachableDefinitionNames,
@@ -13,6 +14,53 @@ import {
 } from "../../scripts/codegen/utils.ts";
 
 describe("shared schema definition codegen utilities", () => {
+    it("adds selected session collaborators without changing legacy request semantics", () => {
+        const schema: JSONSchema7 = {
+            definitions: {
+                VisibilityGetResult: {
+                    type: "object",
+                    required: ["synced"],
+                    properties: {
+                        synced: { type: "boolean" },
+                    },
+                },
+                VisibilitySetRequest: {
+                    type: "object",
+                    required: ["status"],
+                    properties: {
+                        status: { type: "string" },
+                    },
+                },
+                VisibilitySetResult: {
+                    type: "object",
+                    required: ["synced"],
+                    properties: {
+                        synced: { type: "boolean" },
+                    },
+                },
+            },
+        };
+
+        const augmented = addCollaboratorLoginsToSessionVisibility(schema);
+
+        expect(schema.definitions?.VisibilitySetRequest).not.toHaveProperty(
+            "properties.collaboratorLogins"
+        );
+        for (const name of ["VisibilityGetResult", "VisibilitySetRequest", "VisibilitySetResult"]) {
+            expect(augmented.definitions?.[name]).toMatchObject({
+                properties: {
+                    collaboratorLogins: {
+                        type: "array",
+                        items: { type: "string" },
+                    },
+                },
+            });
+        }
+        expect(augmented.definitions?.VisibilitySetRequest).toMatchObject({
+            required: ["status"],
+        });
+    });
+
     it("detects integer schemas bounded to the 32-bit signed range", () => {
         expect(
             isIntegerSchemaBoundedToInt32({

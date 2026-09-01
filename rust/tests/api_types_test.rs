@@ -6,7 +6,8 @@
 use github_copilot_sdk::AutoTier;
 use github_copilot_sdk::rpc::{
     Extension, ExtensionList, ExtensionSource, ExtensionStatus, ExtensionsDisableRequest,
-    ExtensionsEnableRequest, FleetStartRequest, FleetStartResult, TasksStartAgentRequest,
+    ExtensionsEnableRequest, FleetStartRequest, FleetStartResult, SessionVisibilityStatus,
+    TasksStartAgentRequest, VisibilityGetResult, VisibilitySetRequest, VisibilitySetResult,
 };
 use github_copilot_sdk::session_events::{
     PermissionRequest, PermissionRequestedData, SessionEventData, TypedSessionEvent,
@@ -144,6 +145,83 @@ fn permission_event_exposes_managed_approval_required() {
         panic!("expected read permission request");
     };
     assert_eq!(request.managed_approval_required, Some(true));
+}
+
+#[test]
+fn visibility_set_request_round_trips_collaborator_login_wire_shapes() {
+    let cases = [
+        (
+            None,
+            serde_json::json!({
+                "status": "unshared"
+            }),
+        ),
+        (
+            Some(Vec::new()),
+            serde_json::json!({
+                "status": "unshared",
+                "collaboratorLogins": []
+            }),
+        ),
+        (
+            Some(vec!["hubot".to_string(), "octocat".to_string()]),
+            serde_json::json!({
+                "status": "unshared",
+                "collaboratorLogins": ["hubot", "octocat"]
+            }),
+        ),
+    ];
+
+    for (collaborator_logins, wire) in cases {
+        let request = VisibilitySetRequest {
+            status: SessionVisibilityStatus::Unshared,
+            collaborator_logins: collaborator_logins.clone(),
+        };
+        assert_eq!(serde_json::to_value(request).unwrap(), wire);
+
+        let decoded: VisibilitySetRequest = serde_json::from_value(wire).unwrap();
+        assert_eq!(decoded.status, SessionVisibilityStatus::Unshared);
+        assert_eq!(decoded.collaborator_logins, collaborator_logins);
+    }
+}
+
+#[test]
+fn visibility_results_round_trip_collaborator_login_wire_shapes() {
+    let cases = [
+        (
+            None,
+            serde_json::json!({
+                "synced": true,
+                "status": "unshared"
+            }),
+        ),
+        (
+            Some(Vec::new()),
+            serde_json::json!({
+                "synced": true,
+                "status": "unshared",
+                "collaboratorLogins": []
+            }),
+        ),
+        (
+            Some(vec!["hubot".to_string(), "octocat".to_string()]),
+            serde_json::json!({
+                "synced": true,
+                "status": "unshared",
+                "collaboratorLogins": ["hubot", "octocat"]
+            }),
+        ),
+    ];
+
+    for (collaborator_logins, wire) in cases {
+        let get_result: VisibilityGetResult = serde_json::from_value(wire.clone()).unwrap();
+        assert_eq!(get_result.collaborator_logins, collaborator_logins);
+        assert_eq!(serde_json::to_value(get_result).unwrap(), wire);
+
+        let set_result: VisibilitySetResult = serde_json::from_value(wire.clone()).unwrap();
+        assert_eq!(set_result.collaborator_logins, collaborator_logins);
+        assert_eq!(serde_json::to_value(set_result).unwrap(), wire);
+    }
 }
 
 fn running_extension(id: &str, name: &str) -> Extension {

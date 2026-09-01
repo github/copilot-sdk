@@ -12,6 +12,7 @@ import { compile } from "json-schema-to-typescript";
 import path from "path";
 import { fileURLToPath } from "url";
 import {
+    addCollaboratorLoginsToSessionVisibility,
     getApiSchemaPath,
     fixNullableRequiredRefsInApiSchema,
     getNullableInner,
@@ -695,7 +696,9 @@ async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSONSchema
     console.log("TypeScript: generating RPC types...");
 
     const resolvedPath = schemaPath ?? (await getApiSchemaPath());
-    let schema = fixNullableRequiredRefsInApiSchema((await loadSchemaJson(resolvedPath)) as ApiSchema);
+    let schema = fixNullableRequiredRefsInApiSchema(
+        addCollaboratorLoginsToSessionVisibility((await loadSchemaJson(resolvedPath)) as ApiSchema)
+    );
     if (sessionEventsSchema) {
         const sharedDefinitions = findSharedSchemaDefinitions(
             schema as unknown as Record<string, unknown>,

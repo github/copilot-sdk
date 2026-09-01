@@ -20838,6 +20838,9 @@ pub struct VisibilityGetResult {
     pub status: Option<SessionVisibilityStatus>,
     /// Whether the session has been synced to Mission Control (i.e. has a GitHub task). When false, the session cannot be shared and `status`/`shareUrl` are absent.
     pub synced: bool,
+    /// Canonical GitHub logins explicitly granted access, excluding the creator. Meaningful when status is "unshared"; a non-empty list represents specific-person sharing.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub collaborator_logins: Option<Vec<String>>,
 }
 
 /// Desired sharing status for the session.
@@ -20851,8 +20854,11 @@ pub struct VisibilityGetResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VisibilitySetRequest {
-    /// Sharing status to apply. "repo" makes the session visible to repository readers; "unshared" restricts it to the creator and collaborators.
+    /// Sharing status to apply. "repo" makes the session visible to repository collaborators with push access; "unshared" restricts it to the creator and explicitly granted collaborators.
     pub status: SessionVisibilityStatus,
+    /// Canonical GitHub logins to explicitly grant access, excluding the creator. An empty list clears explicit collaborators. When omitted, the request keeps legacy status-only behavior.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub collaborator_logins: Option<Vec<String>>,
 }
 
 /// Effective sharing status and shareable GitHub URL after updating session visibility.
@@ -20874,6 +20880,9 @@ pub struct VisibilitySetResult {
     pub status: Option<SessionVisibilityStatus>,
     /// Whether the session has been synced to Mission Control (i.e. has a GitHub task). When false, the visibility change could not be applied and `status`/`shareUrl` are absent.
     pub synced: bool,
+    /// Canonical GitHub logins explicitly granted access, excluding the creator. Meaningful when status is "unshared"; a non-empty list represents specific-person sharing.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub collaborator_logins: Option<Vec<String>>,
 }
 
 /// A single changed file and its unified diff.
@@ -33041,7 +33050,7 @@ pub enum SessionSource {
     Unknown,
 }
 
-/// Sharing status for a synced session. "repo" makes the session visible to anyone with read access to the repository; "unshared" restricts it to the creator and collaborators.
+/// Sharing status for a synced session. "repo" makes the session visible to repository collaborators with push access; "unshared" restricts it to the creator and explicitly granted collaborators.
 ///
 /// <div class="warning">
 ///
@@ -33051,10 +33060,10 @@ pub enum SessionSource {
 /// </div>
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SessionVisibilityStatus {
-    /// The session is visible to repository readers.
+    /// The session is visible to repository collaborators with push access.
     #[serde(rename = "repo")]
     Repo,
-    /// The session is restricted to its creator and collaborators.
+    /// The session is restricted to its creator and explicitly granted collaborators.
     #[serde(rename = "unshared")]
     Unshared,
     /// Unknown variant for forward compatibility.

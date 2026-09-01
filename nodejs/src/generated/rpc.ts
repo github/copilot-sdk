@@ -3416,16 +3416,16 @@ export type SessionSource =
   /** Return both local and remote sessions. */
   | "all";
 /**
- * Sharing status for a synced session. "repo" makes the session visible to anyone with read access to the repository; "unshared" restricts it to the creator and collaborators.
+ * Sharing status for a synced session. "repo" makes the session visible to repository collaborators with push access; "unshared" restricts it to the creator and explicitly granted collaborators.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SessionVisibilityStatus".
  */
 /** @experimental */
 export type SessionVisibilityStatus =
-  /** The session is visible to repository readers. */
+  /** The session is visible to repository collaborators with push access. */
   | "repo"
-  /** The session is restricted to its creator and collaborators. */
+  /** The session is restricted to its creator and explicitly granted collaborators. */
   | "unshared";
 /**
  * Signal to send (default: SIGTERM)
@@ -22243,6 +22243,10 @@ export interface VisibilityGetResult {
    * Shareable GitHub URL for the session. Present when the session is synced and the URL can be resolved.
    */
   shareUrl?: string;
+  /**
+   * Canonical GitHub logins explicitly granted access, excluding the creator. Meaningful when status is "unshared"; a non-empty list represents specific-person sharing.
+   */
+  collaboratorLogins?: string[];
 }
 /**
  * Desired sharing status for the session.
@@ -22253,6 +22257,10 @@ export interface VisibilityGetResult {
 /** @experimental */
 export interface VisibilitySetRequest {
   status: SessionVisibilityStatus;
+  /**
+   * Canonical GitHub logins to explicitly grant access, excluding the creator. An empty list clears explicit collaborators. When omitted, the request keeps legacy status-only behavior.
+   */
+  collaboratorLogins?: string[];
 }
 /**
  * Effective sharing status and shareable GitHub URL after updating session visibility.
@@ -22271,6 +22279,10 @@ export interface VisibilitySetResult {
    * Shareable GitHub URL for the session. Present when the session is synced and the URL can be resolved.
    */
   shareUrl?: string;
+  /**
+   * Canonical GitHub logins explicitly granted access, excluding the creator. Meaningful when status is "unshared"; a non-empty list represents specific-person sharing.
+   */
+  collaboratorLogins?: string[];
 }
 /**
  * A single changed file and its unified diff.

@@ -518,6 +518,98 @@ export function addManagedApprovalRequiredToPermissionRequests<T extends JSONSch
     return cloned;
 }
 
+const LEGACY_SESSION_VISIBILITY_DESCRIPTION =
+    'Sharing status for a synced session. "repo" makes the session visible to anyone with read access to the repository; "unshared" restricts it to the creator and collaborators.';
+const SESSION_VISIBILITY_DESCRIPTION =
+    'Sharing status for a synced session. "repo" makes the session visible to repository collaborators with push access; "unshared" restricts it to the creator and explicitly granted collaborators.';
+const LEGACY_VISIBILITY_SET_STATUS_DESCRIPTION =
+    'Sharing status to apply. "repo" makes the session visible to repository readers; "unshared" restricts it to the creator and collaborators.';
+const VISIBILITY_SET_STATUS_DESCRIPTION =
+    'Sharing status to apply. "repo" makes the session visible to repository collaborators with push access; "unshared" restricts it to the creator and explicitly granted collaborators.';
+
+/**
+ * Add selected-collaborator visibility metadata until the pinned CLI schema includes it.
+ */
+export function addCollaboratorLoginsToSessionVisibility<T extends JSONSchema7>(schema: T): T {
+    const cloned = cloneSchemaForCodegen(schema);
+    const requestProperty: JSONSchema7 = {
+        description:
+            "Canonical GitHub logins to explicitly grant access, excluding the creator. An empty list clears explicit collaborators. When omitted, the request keeps legacy status-only behavior.",
+        type: "array",
+        items: { type: "string" },
+    };
+    const resultProperty: JSONSchema7 = {
+        description:
+            'Canonical GitHub logins explicitly granted access, excluding the creator. Meaningful when status is "unshared"; a non-empty list represents specific-person sharing.',
+        type: "array",
+        items: { type: "string" },
+    };
+
+    for (const definitions of [cloned.definitions, cloned.$defs]) {
+        if (!definitions) continue;
+
+        const request = definitions.VisibilitySetRequest;
+        if (request && typeof request === "object") {
+            const requestSchema = request as JSONSchema7;
+            requestSchema.properties = {
+                ...requestSchema.properties,
+                collaboratorLogins:
+                    requestSchema.properties?.collaboratorLogins ?? cloneSchemaForCodegen(requestProperty),
+            };
+
+            const status = requestSchema.properties?.status;
+            if (
+                status &&
+                typeof status === "object" &&
+                status.description === LEGACY_VISIBILITY_SET_STATUS_DESCRIPTION
+            ) {
+                status.description = VISIBILITY_SET_STATUS_DESCRIPTION;
+            }
+        }
+
+        for (const name of ["VisibilityGetResult", "VisibilitySetResult"]) {
+            const result = definitions[name];
+            if (!result || typeof result !== "object") continue;
+            const resultSchema = result as JSONSchema7;
+            resultSchema.properties = {
+                ...resultSchema.properties,
+                collaboratorLogins:
+                    resultSchema.properties?.collaboratorLogins ?? cloneSchemaForCodegen(resultProperty),
+            };
+        }
+
+        const visibilityStatus = definitions.SessionVisibilityStatus;
+        if (visibilityStatus && typeof visibilityStatus === "object") {
+            const statusSchema = visibilityStatus as JSONSchema7;
+            if (statusSchema.description === LEGACY_SESSION_VISIBILITY_DESCRIPTION) {
+                statusSchema.description = SESSION_VISIBILITY_DESCRIPTION;
+            }
+
+            const enumDescriptions = (statusSchema as Record<string, unknown>)["x-enumDescriptions"];
+            if (
+                enumDescriptions &&
+                typeof enumDescriptions === "object" &&
+                !Array.isArray(enumDescriptions)
+            ) {
+                const descriptions = enumDescriptions as Record<string, unknown>;
+                if (descriptions.repo === "The session is visible to repository readers.") {
+                    descriptions.repo =
+                        "The session is visible to repository collaborators with push access.";
+                }
+                if (
+                    descriptions.unshared ===
+                    "The session is restricted to its creator and collaborators."
+                ) {
+                    descriptions.unshared =
+                        "The session is restricted to its creator and explicitly granted collaborators.";
+                }
+            }
+        }
+    }
+
+    return cloned;
+}
+
 export function getEnumValueDescriptions(schema: JSONSchema7 | null | undefined): EnumValueDescriptions | undefined {
     if (!schema || typeof schema !== "object") return undefined;
 
