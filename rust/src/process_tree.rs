@@ -1,24 +1,28 @@
-//! Cross-platform ownership of a spawned CLI process tree.
+//! Windows crash-safe ownership of an SDK-spawned CLI process.
 //!
-//! Windows Job Objects retain every nested descendant. Unix process groups
-//! cover descendants that inherit the CLI's group; a process that explicitly
-//! creates a new session or process group is outside that platform primitive.
+//! A Job Object with `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` lets Windows
+//! terminate the CLI when the SDK-hosting process exits abruptly, even when
+//! Rust cleanup code never runs. Other platforms retain Tokio's direct-child
+//! ownership because no equivalent product failure has been demonstrated.
 
 use std::io;
 
 use tokio::process::{Child, Command};
 
-/// Spawns `command` inside an OS primitive that contains the root process and
-/// every descendant it creates.
-pub(crate) fn spawn(command: &mut Command) -> io::Result<(Child, ProcessTree)> {
-    platform::spawn(command).map(|(child, tree)| (child, ProcessTree(Some(tree))))
+pub(crate) fn spawn(command: &mut Command) -> io::Result<(Child, Option<ProcessTree>)> {
+    #[cfg(windows)]
+    {
+        platform::spawn(command).map(|(child, tree)| (child, Some(ProcessTree(Some(tree)))))
+    }
+    #[cfg(not(windows))]
+    {
+        command.spawn().map(|child| (child, None))
+    }
 }
 
-/// Owns the OS containment primitive for one SDK-spawned CLI.
 pub(crate) struct ProcessTree(Option<platform::Tree>);
 
 impl ProcessTree {
-    /// Terminates every process still contained in the tree.
     pub(crate) fn terminate(mut self) -> io::Result<()> {
         self.0.take().expect("process tree is armed").terminate()
     }
@@ -32,56 +36,14 @@ impl Drop for ProcessTree {
     }
 }
 
-#[cfg(test)]
-pub(crate) fn process_alive(pid: u32) -> bool {
-    platform::process_alive(pid)
-}
-
-#[cfg(unix)]
+#[cfg(not(windows))]
 mod platform {
-    use std::io;
-
-    use tokio::process::{Child, Command};
-
-    pub(super) struct Tree {
-        pgid: i32,
-    }
-
-    pub(super) fn spawn(command: &mut Command) -> io::Result<(Child, Tree)> {
-        // The group is established between fork and exec, before the child
-        // can create descendants.
-        command.process_group(0);
-        let child = command.spawn()?;
-        let pid = child.id().ok_or_else(|| {
-            io::Error::new(
-                io::ErrorKind::NotFound,
-                "CLI exited before its process group could be recorded",
-            )
-        })?;
-        Ok((child, Tree { pgid: pid as i32 }))
-    }
+    pub(super) struct Tree;
 
     impl Tree {
-        pub(super) fn terminate(&self) -> io::Result<()> {
-            // Callers must terminate before reaping the root. Its unreaped pid
-            // keeps this process-group id from being reused for an unrelated
-            // group between ownership lookup and signaling.
-            // SAFETY: `killpg` takes an integer process-group identifier and
-            // does not dereference memory.
-            if unsafe { libc::killpg(self.pgid, libc::SIGKILL) } == 0 {
-                return Ok(());
-            }
-            match io::Error::last_os_error() {
-                error if error.raw_os_error() == Some(libc::ESRCH) => Ok(()),
-                error => Err(error),
-            }
+        pub(super) fn terminate(&self) -> std::io::Result<()> {
+            unreachable!("process-tree ownership is Windows-only")
         }
-    }
-
-    #[cfg(test)]
-    pub(super) fn process_alive(pid: u32) -> bool {
-        // SAFETY: signal 0 probes process existence without changing it.
-        unsafe { libc::kill(pid as i32, 0) == 0 }
     }
 }
 
@@ -125,14 +87,12 @@ mod platform {
     }
 
     pub(super) fn spawn(command: &mut Command) -> io::Result<(Child, Tree)> {
-        // Suspension closes the post-spawn assignment race: the root cannot
-        // create descendants until it belongs to the Job Object.
+        // The root cannot run or create descendants before Job assignment.
         command
             .as_std_mut()
             .creation_flags(CREATE_NO_WINDOW | CREATE_SUSPENDED);
         let mut child = command.spawn()?;
-        let result = attach_and_resume(&child);
-        match result {
+        match attach_and_resume(&child) {
             Ok(tree) => Ok((child, tree)),
             Err(error) => {
                 let _ = child.start_kill();
@@ -232,14 +192,84 @@ mod platform {
             }
         }
     }
+}
 
-    #[cfg(test)]
-    pub(super) fn process_alive(pid: u32) -> bool {
-        use windows_sys::Win32::Foundation::WAIT_TIMEOUT;
-        use windows_sys::Win32::System::Threading::{
-            OpenProcess, PROCESS_SYNCHRONIZE, WaitForSingleObject,
+#[cfg(all(test, windows))]
+mod tests {
+    use std::path::Path;
+    use std::time::Duration;
+
+    use tokio::process::Command;
+    use windows_sys::Win32::Foundation::{CloseHandle, WAIT_TIMEOUT};
+    use windows_sys::Win32::System::Threading::{
+        OpenProcess, PROCESS_SYNCHRONIZE, WaitForSingleObject,
+    };
+
+    use super::spawn;
+
+    const HELPER_FILTER: &str = "process_tree::tests::sdk_host_helper_entrypoint";
+
+    #[tokio::test]
+    async fn sdk_host_helper_entrypoint() {
+        let Ok(cli_pid_path) = std::env::var("PROCESS_TREE_CLI_PID_PATH") else {
+            return;
         };
+        let mut command = Command::new("powershell.exe");
+        command.args([
+            "-NoLogo",
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            "Start-Sleep -Seconds 120",
+        ]);
+        let (child, _tree) = spawn(&mut command).expect("spawn owned CLI process");
+        std::fs::write(cli_pid_path, child.id().expect("CLI pid").to_string())
+            .expect("record CLI pid");
+        std::future::pending::<()>().await;
+    }
 
+    #[tokio::test]
+    async fn job_kills_cli_when_sdk_host_is_terminated() {
+        let temp = tempfile::tempdir().expect("create temp directory");
+        let cli_pid_path = temp.path().join("cli.pid");
+        let mut host = Command::new(std::env::current_exe().expect("current test binary"));
+        host.args([HELPER_FILTER, "--exact", "--nocapture"])
+            .env("PROCESS_TREE_CLI_PID_PATH", &cli_pid_path);
+        let mut host = host.spawn().expect("spawn SDK host");
+        let cli_pid = wait_for_pid(&cli_pid_path).await;
+        assert!(process_alive(cli_pid), "CLI must be alive before host exit");
+
+        host.kill().await.expect("terminate SDK host abruptly");
+
+        wait_for_process_exit(cli_pid).await;
+    }
+
+    async fn wait_for_pid(path: &Path) -> u32 {
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(15);
+        loop {
+            if let Ok(value) = std::fs::read_to_string(path) {
+                return value.trim().parse().expect("parse CLI pid");
+            }
+            assert!(
+                tokio::time::Instant::now() < deadline,
+                "SDK host did not record its CLI pid"
+            );
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    }
+
+    async fn wait_for_process_exit(pid: u32) {
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(15);
+        while process_alive(pid) {
+            assert!(
+                tokio::time::Instant::now() < deadline,
+                "CLI survived abrupt SDK host termination"
+            );
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    }
+
+    fn process_alive(pid: u32) -> bool {
         // SAFETY: the process handle is closed before returning.
         unsafe {
             let process = OpenProcess(PROCESS_SYNCHRONIZE, 0, pid);

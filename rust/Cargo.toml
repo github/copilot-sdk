@@ -77,9 +77,6 @@ windows-sys = { version = "0.61", default-features = false, features = [
     "Win32_System_Threading",
 ] }
 
-[target.'cfg(unix)'.dependencies]
-libc = "0.2"
-
 [dev-dependencies]
 rusqlite = { version = "0.35", features = ["bundled"] }
 schemars = "1"
