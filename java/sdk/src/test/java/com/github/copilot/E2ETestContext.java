@@ -596,16 +596,14 @@ public class E2ETestContext implements AutoCloseable {
             return envPath;
         }
 
-        // Fallback: try to find 'copilot' in PATH
-        String copilotInPath = findCopilotInPath();
-        if (copilotInPath != null) {
-            return copilotInPath;
-        }
-
         try {
             return TestUtil.preparePinnedCli(repoRoot);
         } catch (Exception e) {
-            throw new IOException("CLI not found and the pinned release could not be prepared.", e);
+            String copilotInPath = findCopilotInPath();
+            if (copilotInPath != null) {
+                return copilotInPath;
+            }
+            throw new IOException("The pinned CLI could not be prepared and no CLI was found on PATH.", e);
         }
     }
 

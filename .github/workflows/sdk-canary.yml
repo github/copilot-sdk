@@ -384,7 +384,7 @@ jobs:
         run: |
           set -euo pipefail
           if [ "$RUNTIME_SOURCE" = "internal" ]; then
-            npm publish --registry "$FEED_URL"
+            node scripts/npm-release.js publish . canary "$FEED_URL" azure
             exit
           fi
           shopt -s nullglob
@@ -399,14 +399,14 @@ jobs:
             if [ "$PACKAGE_NAME" = "@github/copilot-sdk" ]; then
               MAIN_TARBALL="$TARBALL"
             else
-              npm publish "$TARBALL" --registry "$FEED_URL"
+              node scripts/npm-release.js publish "$TARBALL" canary "$FEED_URL" azure
             fi
           done
           if [ -z "$MAIN_TARBALL" ]; then
             echo "::error::Main @github/copilot-sdk tarball not found."
             exit 1
           fi
-          npm publish "$MAIN_TARBALL" --registry "$FEED_URL"
+          node scripts/npm-release.js publish "$MAIN_TARBALL" canary "$FEED_URL" azure
 
       - name: Summarize published canary
         env:

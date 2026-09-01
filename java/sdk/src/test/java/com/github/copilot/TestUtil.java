@@ -37,9 +37,9 @@ public final class TestUtil {
      * Resolution order:
      * <ol>
      * <li>Use the {@code COPILOT_CLI_PATH} environment variable when set.</li>
+     * <li>Prepare the release pinned by {@code nodejs/package.json}.</li>
      * <li>Otherwise search the system PATH using {@code where.exe} (Windows) or
      * {@code which} (Linux/macOS).</li>
-     * <li>Prepare the release pinned by {@code nodejs/package.json}.</li>
      * </ol>
      *
      * <p>
@@ -59,29 +59,23 @@ public final class TestUtil {
             return envPath;
         }
 
-        String copilotInPath = findCopilotInPath();
-        if (copilotInPath != null) {
-            return copilotInPath;
-        }
-
         Path current = Paths.get(System.getProperty("user.dir"));
         while (current != null) {
             if (current.resolve("nodejs/package.json").toFile().exists()) {
                 try {
                     return preparePinnedCli(current);
                 } catch (Exception preparationFailed) {
-                    return null;
+                    break;
                 }
             }
             current = current.getParent();
         }
 
-        return null;
+        return findCopilotInPath();
     }
 
     static String preparePinnedCli(Path repoRoot) throws Exception {
-        boolean isWindows = System.getProperty("os.name").toLowerCase().contains("win");
-        var process = new ProcessBuilder(isWindows ? "npm.cmd" : "npm", "run", "--silent", "prepare:runtime", "--",
+        var process = new ProcessBuilder("node", "node_modules/tsx/dist/cli.mjs", "scripts/prepare-runtime.ts",
                 "--print-path").directory(repoRoot.resolve("nodejs").toFile()).redirectErrorStream(true).start();
         String output;
         try (var reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {

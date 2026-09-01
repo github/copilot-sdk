@@ -36,6 +36,7 @@ Try the interactive chat sample (from the repo root):
 cd nodejs
 npm ci
 npm run build
+export COPILOT_CLI_PATH="$(npm run --silent prepare:runtime -- --print-path)"
 cd samples
 npm install
 npm start

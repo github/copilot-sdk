@@ -116,6 +116,9 @@ public class MSBuildTargetsTests
             OperatingSystem.IsWindows() ? "copilot-runtime.exe" : "copilot-runtime", "wrapper");
         sandbox.WriteRuntimeCacheAsset("ripgrep", "bin", GetNpmPlatform(), "rg", "ripgrep");
         sandbox.WriteRuntimeCacheAsset("definitions", "future.json", "{}");
+        sandbox.WriteRuntimeCacheAsset("copilot-sdk", "extension.js", "extension");
+        sandbox.WriteRuntimeCacheAsset("preloads", "extension_bootstrap.mjs", "preload");
+        sandbox.WriteRuntimeCacheAsset("sdk", "factory.js", "factory");
         sandbox.WriteRuntimeCacheAsset("app.js", "excluded");
         sandbox.WriteRuntimeCacheAsset("LICENSE.md", "excluded");
         sandbox.WriteRuntimeCacheAsset("README.md", "excluded");
@@ -129,6 +132,9 @@ public class MSBuildTargetsTests
         Assert.True(result.Succeeded, result.FailureMessage());
         Assert.Equal("ripgrep", File.ReadAllText(sandbox.ExpectedRuntimeAsset("ripgrep", "bin", GetNpmPlatform(), "rg")));
         Assert.Equal("{}", File.ReadAllText(sandbox.ExpectedRuntimeAsset("definitions", "future.json")));
+        Assert.Equal("extension", File.ReadAllText(sandbox.ExpectedRuntimeAsset("copilot-sdk", "extension.js")));
+        Assert.Equal("preload", File.ReadAllText(sandbox.ExpectedRuntimeAsset("preloads", "extension_bootstrap.mjs")));
+        Assert.Equal("factory", File.ReadAllText(sandbox.ExpectedRuntimeAsset("sdk", "factory.js")));
         Assert.False(File.Exists(sandbox.ExpectedRuntimeAsset("app.js")));
         Assert.False(File.Exists(sandbox.ExpectedRuntimeAsset("LICENSE.md")));
         Assert.False(File.Exists(sandbox.ExpectedRuntimeAsset("README.md")));

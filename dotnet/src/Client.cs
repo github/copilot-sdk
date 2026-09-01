@@ -2549,12 +2549,17 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         {
             return flatLibraryPath;
         }
+        var adjacentPrebuildPath = Path.Combine(directory, "runtime.node");
+        if (File.Exists(adjacentPrebuildPath))
+        {
+            return adjacentPrebuildPath;
+        }
         var prebuildsLibraryPath = Path.Combine(
             directory, "prebuilds", GetNapiPrebuildsFolderOrThrow(), "runtime.node");
         return File.Exists(prebuildsLibraryPath)
             ? prebuildsLibraryPath
             : throw new InvalidOperationException(
-                $"FFI runtime library not found. Looked for '{flatLibraryPath}' and '{prebuildsLibraryPath}'.");
+                $"FFI runtime library not found. Looked for '{flatLibraryPath}', '{adjacentPrebuildPath}', and '{prebuildsLibraryPath}'.");
     }
 
     /// <summary>
