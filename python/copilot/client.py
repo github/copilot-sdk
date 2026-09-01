@@ -2012,13 +2012,14 @@ class CopilotClient:
             # Check if process exited and capture any remaining stderr
             process = self._cli_process if self._cli_process is not None else self._process
             if process and hasattr(process, "poll"):
+                if isinstance(e, BrokenPipeError) and process.poll() is None:
+                    try:
+                        await asyncio.to_thread(process.wait, timeout=1.0)
+                    except subprocess.TimeoutExpired:
+                        pass
                 return_code = process.poll()
                 if return_code is not None and self._client:
-                    stderr_output = self._client.get_stderr_output()
-                    if stderr_output:
-                        raise RuntimeError(
-                            f"CLI process exited with code {return_code}\nstderr: {stderr_output}"
-                        ) from e
+                    raise RuntimeError(self._client._get_process_exit_error()) from e
             raise
 
     async def stop(self) -> None:
