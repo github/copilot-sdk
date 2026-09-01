@@ -2536,10 +2536,10 @@ impl Client {
         }
 
         let child = self.inner.child.lock().take();
-        let process_tree = self.inner.process_tree.lock().take();
+        let mut process_tree = self.inner.process_tree.lock().take();
         *self.inner.state.lock() = ConnectionState::Disconnected;
         *self.inner.models_cache.lock() = Arc::new(tokio::sync::OnceCell::new());
-        if let Some(process_tree) = &process_tree
+        if let Some(process_tree) = &mut process_tree
             && let Err(error) = process_tree.terminate()
         {
             errors.push(error.into());
@@ -2611,7 +2611,7 @@ impl Client {
     pub fn force_stop(&self) {
         let pid = self.pid();
         info!(pid = ?pid, "force-stopping CLI process");
-        if let Some(process_tree) = self.inner.process_tree.lock().take()
+        if let Some(mut process_tree) = self.inner.process_tree.lock().take()
             && let Err(error) = process_tree.terminate()
         {
             error!(pid = ?pid, %error, "failed to terminate CLI process tree");
@@ -2678,7 +2678,7 @@ impl Client {
 impl Drop for ClientInner {
     fn drop(&mut self) {
         let pid = self.child.lock().as_ref().and_then(Child::id);
-        if let Some(process_tree) = self.process_tree.lock().take()
+        if let Some(mut process_tree) = self.process_tree.lock().take()
             && let Err(error) = process_tree.terminate()
         {
             error!(pid = ?pid, %error, "failed to terminate CLI process tree on drop");

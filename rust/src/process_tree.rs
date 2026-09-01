@@ -11,16 +11,21 @@ use tokio::process::{Child, Command};
 /// Spawns `command` inside an OS primitive that contains the root process and
 /// every descendant it creates.
 pub(crate) fn spawn(command: &mut Command) -> io::Result<(Child, ProcessTree)> {
-    platform::spawn(command).map(|(child, tree)| (child, ProcessTree(tree)))
+    platform::spawn(command).map(|(child, tree)| (child, ProcessTree(Some(tree))))
 }
 
 /// Owns the OS containment primitive for one SDK-spawned CLI.
-pub(crate) struct ProcessTree(platform::Tree);
+pub(crate) struct ProcessTree(Option<platform::Tree>);
 
 impl ProcessTree {
     /// Terminates every process still contained in the tree.
-    pub(crate) fn terminate(&self) -> io::Result<()> {
-        self.0.terminate()
+    pub(crate) fn terminate(&mut self) -> io::Result<()> {
+        let Some(tree) = self.0.as_ref() else {
+            return Ok(());
+        };
+        tree.terminate()?;
+        self.0.take();
+        Ok(())
     }
 }
 
