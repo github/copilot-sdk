@@ -58,7 +58,8 @@ public class CopilotClientOptions {
     private ClientInfo clientInfo;
     private String copilotHome;
     private String cwd;
-    private Map<String, String> environment;    private Executor executor;
+    private Map<String, String> environment;
+    private Executor executor;
     private String gitHubToken;
     private String logLevel = "info";
     private CopilotClientMode mode = CopilotClientMode.COPILOT_CLI;

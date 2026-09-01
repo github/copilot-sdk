@@ -3128,6 +3128,45 @@ class TestGitHubTelemetry:
         assert captured["connect"]["enableGitHubTelemetryForwarding"] is True
 
     @pytest.mark.asyncio
+    async def test_connect_drops_empty_client_info_fields(self):
+        client = CopilotClient(
+            connection=RuntimeConnection.for_stdio(path=CLI_PATH),
+            client_info={"editor_name": "vscode", "editor_version": ""},
+        )
+        captured = {}
+
+        class _FakeClient:
+            async def request(self, method, params, **kwargs):
+                captured[method] = params
+                return {"ok": True, "protocolVersion": 3, "version": "test"}
+
+        client._client = _FakeClient()
+        await client._verify_protocol_version()
+        assert captured["connect"]["clientInfo"] == {"editorName": "vscode"}
+
+    @pytest.mark.asyncio
+    async def test_connect_omits_all_empty_client_info(self):
+        client = CopilotClient(
+            connection=RuntimeConnection.for_stdio(path=CLI_PATH),
+            client_info={
+                "editor_name": "",
+                "editor_version": "",
+                "extension_name": "",
+                "extension_version": "",
+            },
+        )
+        captured = {}
+
+        class _FakeClient:
+            async def request(self, method, params, **kwargs):
+                captured[method] = params
+                return {"ok": True, "protocolVersion": 3, "version": "test"}
+
+        client._client = _FakeClient()
+        await client._verify_protocol_version()
+        assert "clientInfo" not in captured["connect"]
+
+    @pytest.mark.asyncio
     async def test_event_routes_to_handler(self):
         from copilot.generated.rpc import GitHubTelemetryNotification
 

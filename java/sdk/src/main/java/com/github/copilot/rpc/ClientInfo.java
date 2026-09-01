@@ -14,7 +14,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * Declaring it lets the telemetry the runtime emits on the connection be
  * attributed to a single, consistent surface (the host editor and its Copilot
  * extension) instead of the runtime's own build. All fields are optional; an
- * unset field is omitted from the handshake.
+ * empty field is omitted from the handshake.
  *
  * <h2>Example Usage</h2>
  *
@@ -27,7 +27,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * @see CopilotClientOptions#setClientInfo(ClientInfo)
  * @since 1.6.0
  */
-@JsonInclude(JsonInclude.Include.NON_NULL)
+@JsonInclude(JsonInclude.Include.NON_EMPTY)
 public class ClientInfo {
 
     @JsonProperty("editorName")
@@ -127,13 +127,17 @@ public class ClientInfo {
     }
 
     /**
-     * Returns whether no field is set, in which case the SDK omits
-     * {@code clientInfo} from the handshake so the runtime keeps its default
-     * attribution.
+     * Returns whether no field carries a non-empty value, in which case the SDK
+     * omits {@code clientInfo} from the handshake so the runtime keeps its
+     * default attribution.
      *
-     * @return {@code true} when all fields are {@code null}
+     * @return {@code true} when every field is {@code null} or empty
      */
     public boolean isEmpty() {
-        return editorName == null && editorVersion == null && extensionName == null && extensionVersion == null;
+        return isBlank(editorName) && isBlank(editorVersion) && isBlank(extensionName) && isBlank(extensionVersion);
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.isEmpty();
     }
 }

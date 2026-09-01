@@ -304,6 +304,7 @@ async fn connect_handshake_omits_empty_client_info_fields() {
         std::env::temp_dir(),
         Some(github_copilot_sdk::ClientInfo {
             editor_name: Some("example-editor".to_string()),
+            editor_version: Some(String::new()),
             ..Default::default()
         }),
     )
@@ -324,6 +325,54 @@ async fn connect_handshake_omits_empty_client_info_fields() {
     assert!(client_info.get("editorVersion").is_none());
     assert!(client_info.get("extensionName").is_none());
     assert!(client_info.get("extensionVersion").is_none());
+
+    let response = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": req["id"],
+        "result": { "ok": true, "protocolVersion": 3, "version": "test-1.0.0" },
+    });
+    write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
+
+    tokio::time::timeout(std::time::Duration::from_secs(2), verify_handle)
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap();
+}
+
+/// A [`ClientInfo`] whose every field is empty must drop `clientInfo` from the
+/// handshake entirely so the runtime keeps its default attribution.
+#[tokio::test]
+async fn connect_handshake_omits_all_empty_client_info() {
+    let (client_write, server_read) = duplex(8192);
+    let (server_write, client_read) = duplex(8192);
+    let client = Client::from_streams_with_client_info(
+        client_read,
+        client_write,
+        std::env::temp_dir(),
+        Some(github_copilot_sdk::ClientInfo {
+            editor_name: Some(String::new()),
+            editor_version: Some(String::new()),
+            extension_name: Some(String::new()),
+            extension_version: Some(String::new()),
+        }),
+    )
+    .unwrap();
+
+    let mut server_read = server_read;
+    let mut server_write = server_write;
+
+    let verify_handle = tokio::spawn({
+        let client = client.clone();
+        async move { client.verify_protocol_version().await }
+    });
+
+    let req = read_framed(&mut server_read).await;
+    assert_eq!(req["method"], "connect");
+    assert!(
+        req["params"].get("clientInfo").is_none(),
+        "an all-empty clientInfo must be omitted from the handshake"
+    );
 
     let response = serde_json::json!({
         "jsonrpc": "2.0",

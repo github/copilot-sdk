@@ -12,6 +12,7 @@ import {
     createCanvas,
     DisableBypassPermissionsModes,
     RuntimeConnection,
+    type CopilotClientOptions,
     type GitHubTelemetryNotification,
     type ManagedSettings,
     type ModelInfo,
@@ -4203,15 +4204,13 @@ describe("connect handshake clientInfo", () => {
     // observe the `connect` params without spawning a runtime. `connect` maps to
     // connection.sendRequest("connect", params) in the generated internal RPC.
     async function captureConnectParams(
-        options: Partial<
-            Pick<Parameters<typeof CopilotClient>[0] & object, "clientInfo" | "onGitHubTelemetry">
-        > = {}
+        options: Partial<Pick<CopilotClientOptions, "clientInfo" | "onGitHubTelemetry">> = {}
     ): Promise<Record<string, unknown>> {
         const client = new CopilotClient({
             connection: RuntimeConnection.forUri("localhost:1234"),
             ...options,
         });
-        const sendRequest = vi.fn(async (method: string) => {
+        const sendRequest = vi.fn(async (method: string, _params?: unknown) => {
             if (method === "connect") return { protocolVersion: 3 };
             throw new Error(`Unexpected method: ${method}`);
         });
@@ -4241,6 +4240,23 @@ describe("connect handshake clientInfo", () => {
         const params = await captureConnectParams();
 
         expect(params).not.toHaveProperty("clientInfo");
+    });
+
+    it("drops empty fields and omits an all-empty identity", async () => {
+        const allEmpty = await captureConnectParams({
+            clientInfo: {
+                editorName: "",
+                editorVersion: "",
+                extensionName: "",
+                extensionVersion: "",
+            },
+        });
+        expect(allEmpty).not.toHaveProperty("clientInfo");
+
+        const partial = await captureConnectParams({
+            clientInfo: { editorName: "vscode", editorVersion: "" },
+        });
+        expect(partial.clientInfo).toEqual({ editorName: "vscode" });
     });
 
     it("keeps telemetry forwarding alongside a declared identity", async () => {

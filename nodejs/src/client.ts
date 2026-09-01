@@ -262,6 +262,22 @@ function toWireCustomAgents(agents: CustomAgentConfig[] | undefined): unknown[] 
 }
 
 /**
+ * Map the public {@link CopilotClientInfo} onto the generated connect wire
+ * shape, dropping empty fields. Returns `undefined` when no field carries a
+ * non-empty value so the caller omits `clientInfo` from the handshake and keeps
+ * the runtime's default attribution.
+ */
+function clientInfoToWire(info: CopilotClientInfo | undefined): ConnectClientInfo | undefined {
+    if (info == null) return undefined;
+    const wire: ConnectClientInfo = {};
+    if (info.editorName) wire.editorName = info.editorName;
+    if (info.editorVersion) wire.editorVersion = info.editorVersion;
+    if (info.extensionName) wire.extensionName = info.extensionName;
+    if (info.extensionVersion) wire.extensionVersion = info.extensionVersion;
+    return Object.keys(wire).length > 0 ? wire : undefined;
+}
+
+/**
  * Convert a {@link LargeToolOutputConfig} from the public API shape
  * (`outputDirectory`) to the wire shape (`outputDir`).
  */
@@ -2231,9 +2247,11 @@ export class CopilotClient {
             }
             // Declare the integrating host's identity so the runtime attributes
             // the telemetry it emits on this connection to a consistent surface
-            // instead of its own build. Omitted when the app didn't supply it.
-            if (this.options.clientInfo != null) {
-                connectParams.clientInfo = this.options.clientInfo;
+            // instead of its own build. Empty fields are dropped, and an
+            // all-empty identity is omitted entirely.
+            const clientInfo = clientInfoToWire(this.options.clientInfo);
+            if (clientInfo != null) {
+                connectParams.clientInfo = clientInfo;
             }
             const result = await raceAgainstExit(this.internalRpc.connect(connectParams));
             serverVersion = result.protocolVersion;

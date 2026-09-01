@@ -253,6 +253,35 @@ class GitHubTelemetryTest {
     }
 
     @Test
+    void connectDropsEmptyClientInfoFields() throws Exception {
+        try (var server = new FakeRuntimeServer();
+                var client = new CopilotClient(new CopilotClientOptions().setCliUrl(server.url())
+                        .setClientInfo(new ClientInfo().setEditorName("vscode").setEditorVersion("")))) {
+
+            client.start().get(15, TimeUnit.SECONDS);
+
+            JsonNode connectParams = server.awaitConnect();
+            JsonNode clientInfo = connectParams.path("clientInfo");
+            assertEquals("vscode", clientInfo.path("editorName").asText());
+            assertFalse(clientInfo.has("editorVersion"), "empty editorVersion should be dropped");
+        }
+    }
+
+    @Test
+    void connectOmitsAllEmptyClientInfo() throws Exception {
+        try (var server = new FakeRuntimeServer();
+                var client = new CopilotClient(new CopilotClientOptions().setCliUrl(server.url())
+                        .setClientInfo(new ClientInfo().setEditorName("").setEditorVersion("").setExtensionName("")
+                                .setExtensionVersion("")))) {
+
+            client.start().get(15, TimeUnit.SECONDS);
+
+            JsonNode connectParams = server.awaitConnect();
+            assertFalse(connectParams.has("clientInfo"), "connect request should omit an all-empty clientInfo");
+        }
+    }
+
+    @Test
     void optionsRetainAndCloneClientInfo() {
         var info = new ClientInfo().setEditorName("example-editor");
         var options = new CopilotClientOptions().setClientInfo(info);

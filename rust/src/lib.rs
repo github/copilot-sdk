@@ -429,14 +429,34 @@ pub struct ClientInfo {
 }
 
 impl ClientInfo {
-    /// Returns `true` when no field is set, in which case the SDK omits
-    /// `clientInfo` from the handshake and the runtime keeps its default
-    /// attribution.
+    /// Returns `true` when no field carries a non-empty value, in which case the
+    /// SDK omits `clientInfo` from the handshake and the runtime keeps its
+    /// default attribution.
     fn is_empty(&self) -> bool {
-        self.editor_name.is_none()
-            && self.editor_version.is_none()
-            && self.extension_name.is_none()
-            && self.extension_version.is_none()
+        Self::non_empty(&self.editor_name).is_none()
+            && Self::non_empty(&self.editor_version).is_none()
+            && Self::non_empty(&self.extension_name).is_none()
+            && Self::non_empty(&self.extension_version).is_none()
+    }
+
+    /// Clone the field only when it holds a non-empty string, so empty fields are
+    /// dropped from the handshake.
+    fn non_empty(value: &Option<String>) -> Option<String> {
+        value.as_ref().filter(|s| !s.is_empty()).cloned()
+    }
+
+    /// Map onto the generated connect wire shape, dropping empty fields. Returns
+    /// `None` when no field carries a non-empty value.
+    fn to_wire(&self) -> Option<crate::generated::api_types::ConnectClientInfo> {
+        if self.is_empty() {
+            return None;
+        }
+        Some(crate::generated::api_types::ConnectClientInfo {
+            editor_name: Self::non_empty(&self.editor_name),
+            editor_version: Self::non_empty(&self.editor_version),
+            extension_name: Self::non_empty(&self.extension_name),
+            extension_version: Self::non_empty(&self.extension_version),
+        })
     }
 }
 
@@ -2408,18 +2428,13 @@ impl Client {
                 .then_some(true),
             // Declare the integrating host's identity so the runtime attributes
             // the telemetry it emits on this connection to a consistent surface
-            // instead of its own build. `None` when the app didn't supply it.
-            client_info: self.inner.client_info.as_ref().and_then(|info| {
-                if info.is_empty() {
-                    return None;
-                }
-                Some(crate::generated::api_types::ConnectClientInfo {
-                    editor_name: info.editor_name.clone(),
-                    editor_version: info.editor_version.clone(),
-                    extension_name: info.extension_name.clone(),
-                    extension_version: info.extension_version.clone(),
-                })
-            }),
+            // instead of its own build. `None` when the app didn't supply it, and
+            // empty fields are dropped.
+            client_info: self
+                .inner
+                .client_info
+                .as_ref()
+                .and_then(ClientInfo::to_wire),
         };
         let value = self
             .call(

@@ -513,8 +513,9 @@ class ClientInfo(TypedDict, total=False):
 def _client_info_to_wire(client_info: ClientInfo | None) -> dict[str, str] | None:
     """Map a snake_case :class:`ClientInfo` onto the camelCase connect wire shape.
 
-    Returns ``None`` when no identity was supplied so the caller omits the
-    ``clientInfo`` field entirely and keeps the runtime's default attribution.
+    Empty fields are dropped. Returns ``None`` when no field carries a non-empty
+    value so the caller omits the ``clientInfo`` field entirely and keeps the
+    runtime's default attribution.
     """
     if not client_info:
         return None
@@ -524,7 +525,7 @@ def _client_info_to_wire(client_info: ClientInfo | None) -> dict[str, str] | Non
         "extension_name": "extensionName",
         "extension_version": "extensionVersion",
     }
-    wire = {wire_key: client_info[key] for key, wire_key in field_map.items() if key in client_info}  # type: ignore[literal-required]
+    wire = {wire_key: client_info[key] for key, wire_key in field_map.items() if client_info.get(key)}  # type: ignore[literal-required]
     return wire or None
 
 
