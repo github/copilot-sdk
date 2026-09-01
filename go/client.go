@@ -341,6 +341,18 @@ func NewClient(options *ClientOptions) *Client {
 	return client
 }
 
+func resolveRuntimeExecutable(explicitPath, bundledRuntimePath string) (string, error) {
+	if explicitPath != "" {
+		return explicitPath, nil
+	}
+	if bundledRuntimePath == "" {
+		return "", errors.New(
+			"managed Copilot runtime unavailable: the embedded bundle does not contain copilot-runtime and adjacent runtime.node; regenerate the bundle, provide an explicit path, or set COPILOT_CLI_PATH",
+		)
+	}
+	return bundledRuntimePath, nil
+}
+
 const defaultConnectionEnvVar = "COPILOT_SDK_DEFAULT_CONNECTION"
 
 // resolveDefaultConnection selects the transport when no explicit connection
@@ -894,6 +906,9 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.ExtensionSDKPath = config.ExtensionSDKPath
 	req.ExtensionInfo = config.ExtensionInfo
 	req.ExpAssignments = config.ExpAssignments
+	if config.FeatureFlags != nil {
+		req.FeatureFlags = &config.FeatureFlags
+	}
 	req.EnableManagedSettings = config.EnableManagedSettings
 	req.ManagedSettings = config.ManagedSettings
 
@@ -1304,6 +1319,9 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	req.ExtensionSDKPath = config.ExtensionSDKPath
 	req.ExtensionInfo = config.ExtensionInfo
 	req.ExpAssignments = config.ExpAssignments
+	if config.FeatureFlags != nil {
+		req.FeatureFlags = &config.FeatureFlags
+	}
 	req.EnableManagedSettings = config.EnableManagedSettings
 	req.ManagedSettings = config.ManagedSettings
 	if config.OnPermissionRequest != nil {
@@ -1987,14 +2005,13 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 		return c.startInProcess(ctx)
 	}
 
-	cliPath := c.cliPath
-	if cliPath == "" {
-		// If no CLI path is provided, attempt to use the embedded CLI if available
-		cliPath = embeddedcli.Path()
+	bundledRuntimePath := ""
+	if c.cliPath == "" {
+		bundledRuntimePath = embeddedcli.RuntimePath()
 	}
-	if cliPath == "" {
-		// Default to "copilot" in PATH if no embedded CLI is available and no custom path is set
-		cliPath = "copilot"
+	cliPath, err := resolveRuntimeExecutable(c.cliPath, bundledRuntimePath)
+	if err != nil {
+		return err
 	}
 
 	// Start with user-provided CLIArgs, then add SDK-managed args
@@ -2195,24 +2212,21 @@ func (c *Client) startInProcess(ctx context.Context) error {
 		return errors.New("in-process transport unavailable: rebuild with -tags copilot_inprocess on a supported platform")
 	}
 
-	runtimePath := c.cliPath
+	cliEntrypoint := c.cliPath
+	if cliEntrypoint == "" {
+		cliEntrypoint = getEnvValue(c.options.Env, "COPILOT_CLI_PATH")
+	}
+	runtimePath := cliEntrypoint
 	if runtimePath == "" {
-		// The in-process transport does not resolve a bare command name from PATH
-		// (unlike the child-process transport).
-		if p := getEnvValue(c.options.Env, "COPILOT_CLI_PATH"); p != "" {
-			runtimePath = p
-		}
+		runtimePath = embeddedcli.RuntimePath()
 	}
 	if runtimePath == "" {
-		runtimePath = embeddedcli.Path()
-	}
-	if runtimePath == "" {
-		return errors.New("in-process runtime unavailable: set COPILOT_CLI_PATH to a compatible runtime package or build with the bundled embedded runtime")
+		return errors.New("in-process runtime unavailable: build with the bundled embedded runtime or set COPILOT_CLI_PATH to a compatible runtime package")
 	}
 
 	config := c.inProcessHostConfig()
 
-	host, err := createInProcessHost(runtimePath, config)
+	host, err := createInProcessHost(runtimePath, cliEntrypoint, config)
 	if err != nil {
 		return err
 	}

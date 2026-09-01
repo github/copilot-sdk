@@ -11,6 +11,7 @@ import java.io.InputStreamReader;
 import java.net.Socket;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -19,6 +20,7 @@ import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import com.github.copilot.ffi.NativeRuntimeLoader;
 import com.github.copilot.rpc.CopilotClientOptions;
 
 /**
@@ -64,7 +66,7 @@ final class CliServerManager {
     ProcessInfo startCliServer() throws IOException, InterruptedException {
         clearStderrBuffer();
 
-        String cliPath = options.getCliPath() != null ? options.getCliPath() : "copilot";
+        RuntimeLaunch launch = resolveCliLaunch();
         var args = new ArrayList<String>();
 
         if (options.getCliArgs() != null) {
@@ -106,7 +108,7 @@ final class CliServerManager {
             args.add("--remote");
         }
 
-        List<String> command = resolveCliCommand(cliPath, args);
+        List<String> command = resolveCliCommand(launch.executable(), args);
 
         var pb = new ProcessBuilder(command);
         pb.redirectErrorStream(false);
@@ -122,51 +124,7 @@ final class CliServerManager {
             pb.directory(new File(options.getCwd()));
         }
 
-        if (options.getEnvironment() != null) {
-            pb.environment().clear();
-            pb.environment().putAll(options.getEnvironment());
-        }
-        pb.environment().remove("NODE_DEBUG");
-
-        // Set auth token in environment if provided
-        if (options.getGitHubToken() != null && !options.getGitHubToken().isEmpty()) {
-            pb.environment().put("COPILOT_SDK_AUTH_TOKEN", options.getGitHubToken());
-        }
-
-        // Set Copilot home directory if configured
-        if (options.getCopilotHome() != null && !options.getCopilotHome().isEmpty()) {
-            pb.environment().put("COPILOT_HOME", options.getCopilotHome());
-        }
-
-        // Set connection token for TCP mode
-        if (connectionToken != null && !connectionToken.isEmpty()) {
-            pb.environment().put("COPILOT_CONNECTION_TOKEN", connectionToken);
-        }
-
-        // Set telemetry environment variables if configured
-        if (options.getTelemetry() != null) {
-            var telemetry = options.getTelemetry();
-            pb.environment().put("COPILOT_OTEL_ENABLED", "true");
-            if (telemetry.getOtlpEndpoint() != null) {
-                pb.environment().put("OTEL_EXPORTER_OTLP_ENDPOINT", telemetry.getOtlpEndpoint());
-            }
-            if (telemetry.getOtlpProtocol() != null) {
-                pb.environment().put("OTEL_EXPORTER_OTLP_PROTOCOL", telemetry.getOtlpProtocol());
-            }
-            if (telemetry.getFilePath() != null) {
-                pb.environment().put("COPILOT_OTEL_FILE_EXPORTER_PATH", telemetry.getFilePath());
-            }
-            if (telemetry.getExporterType() != null) {
-                pb.environment().put("COPILOT_OTEL_EXPORTER_TYPE", telemetry.getExporterType());
-            }
-            if (telemetry.getSourceName() != null) {
-                pb.environment().put("COPILOT_OTEL_SOURCE_NAME", telemetry.getSourceName());
-            }
-            if (telemetry.getCaptureContent().isPresent()) {
-                pb.environment().put("OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT",
-                        telemetry.getCaptureContent().get() ? "true" : "false");
-            }
-        }
+        configureProcessEnvironment(pb);
 
         Process process = pb.start();
 
@@ -310,6 +268,75 @@ final class CliServerManager {
         return result;
     }
 
+    void configureProcessEnvironment(ProcessBuilder pb) {
+        if (options.getEnvironment() != null) {
+            pb.environment().clear();
+            pb.environment().putAll(options.getEnvironment());
+        }
+        pb.environment().remove("NODE_DEBUG");
+
+        // Set auth token in environment if provided
+        if (options.getGitHubToken() != null && !options.getGitHubToken().isEmpty()) {
+            pb.environment().put("COPILOT_SDK_AUTH_TOKEN", options.getGitHubToken());
+        }
+
+        // Set Copilot home directory if configured
+        if (options.getCopilotHome() != null && !options.getCopilotHome().isEmpty()) {
+            pb.environment().put("COPILOT_HOME", options.getCopilotHome());
+        }
+
+        // Set connection token for TCP mode
+        if (connectionToken != null && !connectionToken.isEmpty()) {
+            pb.environment().put("COPILOT_CONNECTION_TOKEN", connectionToken);
+        }
+
+        // Set telemetry environment variables if configured
+        if (options.getTelemetry() != null) {
+            var telemetry = options.getTelemetry();
+            pb.environment().put("COPILOT_OTEL_ENABLED", "true");
+            if (telemetry.getOtlpEndpoint() != null) {
+                pb.environment().put("OTEL_EXPORTER_OTLP_ENDPOINT", telemetry.getOtlpEndpoint());
+            }
+            if (telemetry.getOtlpProtocol() != null) {
+                pb.environment().put("OTEL_EXPORTER_OTLP_PROTOCOL", telemetry.getOtlpProtocol());
+            }
+            if (telemetry.getFilePath() != null) {
+                pb.environment().put("COPILOT_OTEL_FILE_EXPORTER_PATH", telemetry.getFilePath());
+            }
+            if (telemetry.getExporterType() != null) {
+                pb.environment().put("COPILOT_OTEL_EXPORTER_TYPE", telemetry.getExporterType());
+            }
+            if (telemetry.getSourceName() != null) {
+                pb.environment().put("COPILOT_OTEL_SOURCE_NAME", telemetry.getSourceName());
+            }
+            if (telemetry.getCaptureContent().isPresent()) {
+                pb.environment().put("OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT",
+                        telemetry.getCaptureContent().get() ? "true" : "false");
+            }
+        }
+    }
+
+    RuntimeLaunch resolveCliLaunch() throws IOException {
+        return resolveCliLaunch(System.getenv(NativeRuntimeLoader.COPILOT_CLI_PATH_ENV));
+    }
+
+    RuntimeLaunch resolveCliLaunch(String inheritedCliPath) throws IOException {
+        if (options.getCliPath() != null) {
+            return new RuntimeLaunch(options.getCliPath());
+        }
+
+        var environment = options.getEnvironment();
+        String envCliPath = environment != null
+                ? environment.get(NativeRuntimeLoader.COPILOT_CLI_PATH_ENV)
+                : inheritedCliPath;
+        if (envCliPath != null && !envCliPath.isBlank()) {
+            return new RuntimeLaunch(envCliPath);
+        }
+
+        Path wrapper = NativeRuntimeLoader.resolveRuntimeWrapper();
+        return new RuntimeLaunch(wrapper.toString());
+    }
+
     static URI parseCliUrl(String url) {
         // If it's just a port number, treat as localhost
         try {
@@ -336,5 +363,8 @@ final class CliServerManager {
      *            the detected TCP port (null for stdio mode)
      */
     record ProcessInfo(Process process, Integer port) {
+    }
+
+    record RuntimeLaunch(String executable) {
     }
 }

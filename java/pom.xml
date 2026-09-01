@@ -7,7 +7,7 @@
 
     <groupId>com.github</groupId>
     <artifactId>copilot-sdk-java-parent</artifactId>
-    <version>1.0.14-preview.2-SNAPSHOT</version>
+    <version>1.0.14-preview.4-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <name>GitHub Copilot SDK :: Java :: Parent</name>

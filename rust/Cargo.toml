@@ -70,10 +70,12 @@ tokio-tungstenite = { version = "0.24", default-features = false, features = ["c
 
 [target.'cfg(windows)'.dependencies]
 zip = { version = "2", default-features = false, features = ["deflate"], optional = true }
-# Windows Job Object primitives backing `process_tree`'s CLI process-tree
-# containment (`JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`).
+# Windows Job Object and thread primitives backing `process_tree`'s CLI
+# process-tree containment (`JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`, plus the
+# suspended spawn and initial-thread resume that close the assign race).
 windows-sys = { version = "0.61", default-features = false, features = [
     "Win32_Foundation",
+    "Win32_System_Diagnostics_ToolHelp",
     "Win32_System_JobObjects",
     "Win32_System_Threading",
 ] }
@@ -101,6 +103,28 @@ required-features = ["test-support"]
 [[test]]
 name = "protocol_version_test"
 required-features = ["test-support"]
+
+[[test]]
+name = "extension_launch_provider_test"
+required-features = ["test-support"]
+
+[[test]]
+name = "extension_launch_provider_runtime_test"
+required-features = ["test-support"]
+
+[[bin]]
+name = "copilot-extension-test-fixture"
+path = "tests/fixtures/extension_fixture.rs"
+required-features = ["test-support"]
+test = false
+bench = false
+
+[[bin]]
+name = "copilot-host-crash-fixture"
+path = "tests/fixtures/host_crash_fixture.rs"
+required-features = ["test-support"]
+test = false
+bench = false
 
 [build-dependencies]
 base64 = "0.22"

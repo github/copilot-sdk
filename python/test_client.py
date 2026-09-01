@@ -59,6 +59,27 @@ def test_inprocess_connection_has_no_child_process_options():
     assert not hasattr(connection, "args")
 
 
+def test_explicit_child_process_path_does_not_require_runtime_bundle(tmp_path):
+    explicit = tmp_path / "copilot"
+    connection = RuntimeConnection.for_stdio(path=str(explicit))
+
+    CopilotClient(connection=connection, env={"PATH": str(tmp_path)})
+
+    assert connection.path == str(explicit)
+
+
+def test_copilot_cli_path_does_not_require_runtime_bundle(tmp_path):
+    explicit = tmp_path / "copilot"
+    connection = RuntimeConnection.for_stdio()
+
+    CopilotClient(
+        connection=connection,
+        env={"PATH": str(tmp_path), "COPILOT_CLI_PATH": str(explicit)},
+    )
+
+    assert connection.path == str(explicit)
+
+
 class TestBuiltinPluginDirectories:
     @staticmethod
     async def _start_client(paths=None):
@@ -1388,6 +1409,41 @@ class TestCreateSessionConfig:
 
             assert "expAssignments" not in captured["session.create"]
             assert "expAssignments" not in captured["session.resume"]
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_create_and_resume_session_forward_feature_flags(self):
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        await client.start()
+        try:
+            captured = {}
+
+            async def mock_request(method, params, **kwargs):
+                captured[method] = params
+                if method in ("session.create", "session.resume"):
+                    result = {"sessionId": params.get("sessionId") or "session-1"}
+                    callback = kwargs.get("on_response_inline")
+                    if callback is not None:
+                        callback(result)
+                    return result
+                return {}
+
+            client._client.request = mock_request
+            feature_flags = {"ENABLED_TEST_FLAG": True, "DISABLED_TEST_FLAG": False}
+
+            session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                feature_flags=feature_flags,
+            )
+            await client.resume_session(
+                session.session_id,
+                on_permission_request=PermissionHandler.approve_all,
+                feature_flags=feature_flags,
+            )
+
+            assert captured["session.create"]["featureFlags"] == feature_flags
+            assert captured["session.resume"]["featureFlags"] == feature_flags
         finally:
             await client.force_stop()
 

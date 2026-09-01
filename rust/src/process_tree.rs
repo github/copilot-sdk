@@ -29,13 +29,17 @@
 //!   asymmetry is inherent to the two platforms' process models, not an
 //!   implementation gap here.
 //!
-//! Attaching the Windows Job Object needs a small window after `spawn()` to
-//! call `AssignProcessToJobObject` on the live process handle; a child that
-//! spawns its own descendants faster than that call can still escape
-//! containment. Closing that window requires creating the process suspended
-//! and resuming its primary thread only after assignment, which trades this
-//! narrow race for a more invasive spawn path. This module accepts the race
-//! and assigns immediately after spawn instead.
+//! On Windows, assigning the Job Object needs a live process handle, so it
+//! can only run after `spawn()`. A child that spawned its own descendants
+//! faster than `AssignProcessToJobObject` could run would escape
+//! containment. [`configure`] closes that race by creating the process
+//! suspended (`CREATE_SUSPENDED`); [`attach`] assigns the Job Object and
+//! only then resumes the initial thread, so the child cannot run or create
+//! descendants before it is contained. If Job Object setup itself fails,
+//! [`attach`] still resumes the child and degrades to root-only teardown
+//! rather than leaving it suspended or turning a containment failure into a
+//! hard start failure. On Unix the process group is established by the
+//! kernel at fork (before `exec`), so no equivalent window exists.
 
 use std::io;
 
@@ -104,6 +108,15 @@ impl ProcessTree {
 #[cfg(test)]
 pub(crate) fn process_alive(pid: u32) -> bool {
     platform::process_alive(pid)
+}
+
+/// Resume a child that [`configure`] spawned suspended, without attaching
+/// containment. Test-only: it lets a test that exercises root-only teardown
+/// (no process tree) still let its child run. A no-op on platforms where
+/// [`configure`] does not suspend the child.
+#[cfg(test)]
+pub(crate) fn resume_without_containment(child: &Child) -> io::Result<()> {
+    platform::resume_without_containment(child)
 }
 
 #[cfg(unix)]
@@ -182,14 +195,25 @@ mod platform {
         // SAFETY: signal 0 only probes process existence.
         (unsafe { libc::kill(pid as i32, 0) }) == 0
     }
+
+    #[cfg(test)]
+    pub(super) fn resume_without_containment(_child: &Child) -> io::Result<()> {
+        // Unix `configure` only sets a process group; the child runs
+        // immediately, so there is nothing to resume.
+        Ok(())
+    }
 }
 
 #[cfg(windows)]
 mod platform {
+    use std::os::windows::process::CommandExt;
     use std::{io, ptr};
 
     use tokio::process::{Child, Command};
-    use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
+    use windows_sys::Win32::Foundation::{CloseHandle, HANDLE, INVALID_HANDLE_VALUE};
+    use windows_sys::Win32::System::Diagnostics::ToolHelp::{
+        CreateToolhelp32Snapshot, TH32CS_SNAPTHREAD, THREADENTRY32, Thread32First, Thread32Next,
+    };
     use windows_sys::Win32::System::JobObjects::{
         AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
         JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation,
@@ -200,11 +224,19 @@ mod platform {
         JOBOBJECT_BASIC_ACCOUNTING_INFORMATION, JobObjectBasicAccountingInformation,
         QueryInformationJobObject,
     };
+    use windows_sys::Win32::System::Threading::{
+        CREATE_NO_WINDOW, CREATE_SUSPENDED, OpenThread, ResumeThread, THREAD_SUSPEND_RESUME,
+    };
 
-    pub(super) fn configure(_command: &mut Command) {
-        // Nothing to set on the `Command` itself; the Job Object is
-        // created and assigned to the live process in `attach`, after
-        // `spawn()` returns a process handle.
+    pub(super) fn configure(command: &mut Command) {
+        // Spawn the child suspended so it cannot run or create descendants
+        // before `attach` assigns it to the Job Object; `attach` resumes it
+        // only after assignment, which closes the assign race described in
+        // the module docs. `CREATE_NO_WINDOW` keeps the CLI from flashing a
+        // console window on a windowed host.
+        command
+            .as_std_mut()
+            .creation_flags(CREATE_NO_WINDOW | CREATE_SUSPENDED);
     }
 
     struct OwnedHandle(HANDLE);
@@ -227,6 +259,20 @@ mod platform {
     }
 
     pub(super) fn attach(child: &Child) -> io::Result<Tree> {
+        // `configure` spawned the child suspended. Set up containment while
+        // it is still suspended, then resume it below. Whatever happens to
+        // the Job Object setup, the child must be resumed afterwards or it
+        // stays suspended forever, so on a setup failure we resume it
+        // uncontained and let the caller fall back to root-only teardown
+        // (see the module-level soft-fallback contract).
+        let tree = build_and_assign(child);
+        let resumed = resume_initial_thread(child);
+        let tree = tree?;
+        resumed?;
+        Ok(tree)
+    }
+
+    fn build_and_assign(child: &Child) -> io::Result<Tree> {
         // SAFETY: null attributes and name create a private,
         // non-inheritable Job Object owned solely by this process.
         let raw_job = unsafe { CreateJobObjectW(ptr::null(), ptr::null()) };
@@ -251,8 +297,8 @@ mod platform {
             return Err(io::Error::last_os_error());
         }
 
-        // Assign as soon as we have a live process handle — see the
-        // module-level doc for the residual assign-race this accepts.
+        // Assign while the child is still suspended, so it cannot have
+        // spawned any descendant that escapes the Job Object.
         let process = child.raw_handle().ok_or_else(|| {
             io::Error::new(
                 io::ErrorKind::NotFound,
@@ -266,6 +312,56 @@ mod platform {
         }
 
         Ok(Tree { job })
+    }
+
+    /// Resume the suspended child's initial thread. Called after Job Object
+    /// assignment (or after a failed assignment) so the CLI actually runs.
+    fn resume_initial_thread(child: &Child) -> io::Result<()> {
+        let pid = child.id().ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::NotFound,
+                "CLI process exited before its initial thread could be resumed",
+            )
+        })?;
+
+        // SAFETY: the returned snapshot handle is owned and closed below.
+        let raw_snapshot = unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0) };
+        if raw_snapshot == INVALID_HANDLE_VALUE {
+            return Err(io::Error::last_os_error());
+        }
+        let snapshot = OwnedHandle(raw_snapshot);
+
+        let mut entry = THREADENTRY32 {
+            dwSize: size_of::<THREADENTRY32>() as u32,
+            ..Default::default()
+        };
+        // SAFETY: `entry` has the documented size and stays live throughout
+        // enumeration of the owned snapshot.
+        let mut found = unsafe { Thread32First(snapshot.0, &mut entry) } != 0;
+        while found {
+            if entry.th32OwnerProcessID == pid {
+                // SAFETY: the thread id came from the live system snapshot.
+                let raw_thread =
+                    unsafe { OpenThread(THREAD_SUSPEND_RESUME, 0, entry.th32ThreadID) };
+                if raw_thread.is_null() {
+                    return Err(io::Error::last_os_error());
+                }
+                let thread = OwnedHandle(raw_thread);
+                // SAFETY: `thread.0` is a live handle to the child's own
+                // suspended initial thread.
+                if unsafe { ResumeThread(thread.0) } == u32::MAX {
+                    return Err(io::Error::last_os_error());
+                }
+                return Ok(());
+            }
+            // SAFETY: same valid snapshot and initialized entry as above.
+            found = unsafe { Thread32Next(snapshot.0, &mut entry) } != 0;
+        }
+
+        Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            "CLI initial thread was not found",
+        ))
     }
 
     impl Tree {
@@ -315,6 +411,13 @@ mod platform {
             CloseHandle(process);
             exists
         }
+    }
+
+    #[cfg(test)]
+    pub(super) fn resume_without_containment(child: &Child) -> io::Result<()> {
+        // `configure` spawned the child suspended; resume its initial thread
+        // so it runs, without creating or assigning a Job Object.
+        resume_initial_thread(child)
     }
 }
 

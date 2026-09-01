@@ -24,6 +24,35 @@ import (
 
 // This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.test.go instead
 
+func TestResolveRuntimeExecutable(t *testing.T) {
+	t.Run("managed launch requires bundled runtime pair", func(t *testing.T) {
+		_, err := resolveRuntimeExecutable("", "")
+		if err == nil || !strings.Contains(err.Error(), "copilot-runtime and adjacent runtime.node") {
+			t.Fatalf("expected missing managed runtime error, got %v", err)
+		}
+	})
+
+	t.Run("explicit path does not require bundled runtime pair", func(t *testing.T) {
+		path, err := resolveRuntimeExecutable("/explicit/copilot", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if path != "/explicit/copilot" {
+			t.Fatalf("resolveRuntimeExecutable() = %q", path)
+		}
+	})
+
+	t.Run("managed launch selects bundled wrapper", func(t *testing.T) {
+		path, err := resolveRuntimeExecutable("", "/bundle/copilot-runtime")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if path != "/bundle/copilot-runtime" {
+			t.Fatalf("resolveRuntimeExecutable() = %q", path)
+		}
+	})
+}
+
 func TestClient_URLParsing(t *testing.T) {
 	t.Run("should parse port-only URL format", func(t *testing.T) {
 		client := NewClient(&ClientOptions{
@@ -3981,6 +4010,62 @@ func TestResumeSessionRequest_ExpAssignments(t *testing.T) {
 			t.Error("Expected expAssignments to be omitted when nil")
 		}
 	})
+}
+
+func TestSessionRequests_FeatureFlags(t *testing.T) {
+	featureFlags := map[string]bool{
+		"ENABLED_TEST_FLAG":  true,
+		"DISABLED_TEST_FLAG": false,
+	}
+
+	for _, tc := range []struct {
+		name string
+		req  any
+	}{
+		{"create", createSessionRequest{FeatureFlags: &featureFlags}},
+		{"resume", resumeSessionRequest{SessionID: "s1", FeatureFlags: &featureFlags}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			data, err := json.Marshal(tc.req)
+			if err != nil {
+				t.Fatalf("Failed to marshal: %v", err)
+			}
+			var payload map[string]any
+			if err := json.Unmarshal(data, &payload); err != nil {
+				t.Fatalf("Failed to unmarshal: %v", err)
+			}
+			got := payload["featureFlags"].(map[string]any)
+			if got["ENABLED_TEST_FLAG"] != true || got["DISABLED_TEST_FLAG"] != false {
+				t.Errorf("Unexpected featureFlags: %v", got)
+			}
+		})
+	}
+
+	emptyFlags := map[string]bool{}
+	for _, tc := range []struct {
+		name string
+		req  any
+	}{
+		{"create empty", createSessionRequest{FeatureFlags: &emptyFlags}},
+		{"resume empty", resumeSessionRequest{SessionID: "s1", FeatureFlags: &emptyFlags}},
+		{"create unset", createSessionRequest{}},
+		{"resume unset", resumeSessionRequest{SessionID: "s1"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			data, err := json.Marshal(tc.req)
+			if err != nil {
+				t.Fatalf("Failed to marshal: %v", err)
+			}
+			var payload map[string]any
+			if err := json.Unmarshal(data, &payload); err != nil {
+				t.Fatalf("Failed to unmarshal: %v", err)
+			}
+			_, present := payload["featureFlags"]
+			if strings.Contains(tc.name, "empty") != present {
+				t.Errorf("featureFlags presence = %v for %s", present, tc.name)
+			}
+		})
+	}
 }
 
 func TestIsTerminal(t *testing.T) {
