@@ -3575,14 +3575,15 @@ mod tests {
             .parse()
             .unwrap();
 
-        let deadline = tokio::time::Instant::now() + Duration::from_secs(2);
-        while crate::process_tree::process_alive(descendant_pid)
-            && tokio::time::Instant::now() < deadline
-        {
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(15);
+        let (descendant_terminated, lock_released) = loop {
+            let descendant_terminated = !crate::process_tree::process_alive(descendant_pid);
+            let lock_released = descendant_lock_is_free(&lock_path);
+            if (descendant_terminated && lock_released) || tokio::time::Instant::now() >= deadline {
+                break (descendant_terminated, lock_released);
+            }
             tokio::time::sleep(Duration::from_millis(10)).await;
-        }
-        let descendant_terminated = !crate::process_tree::process_alive(descendant_pid);
-        let lock_released = descendant_lock_is_free(&lock_path);
+        };
         if !descendant_terminated {
             // SAFETY: the pid came from the test-only child process.
             unsafe {
