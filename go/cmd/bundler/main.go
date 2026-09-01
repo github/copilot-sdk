@@ -115,6 +115,10 @@ func main() {
 			os.Exit(1)
 		}
 	}
+	if err := downloadCLILicense(version, outputPath); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: failed to download CLI license: %v\n", err)
+		os.Exit(1)
+	}
 
 	// Generate the Go file with embed directive
 	if err := generateGoFile(
@@ -321,9 +325,6 @@ func buildBundle(info platformInfo, cliVersion, outputPath, goos string) (bundle
 		if err != nil {
 			return bundleArtifacts{}, fmt.Errorf("failed to hash existing output: %w", err)
 		}
-		if err := downloadCLILicense(cliVersion, outputPath); err != nil {
-			return bundleArtifacts{}, fmt.Errorf("failed to download CLI license: %w", err)
-		}
 		runtimeHash, err := sha256FileFromCompressed(runtimeArtifactPath)
 		if err != nil {
 			return bundleArtifacts{}, fmt.Errorf("failed to hash existing runtime.node: %w", err)
@@ -363,9 +364,6 @@ func buildBundle(info platformInfo, cliVersion, outputPath, goos string) (bundle
 	}
 	if err := compressZstdFile(binaryPath, outputPath); err != nil {
 		return bundleArtifacts{}, fmt.Errorf("failed to write output binary: %w", err)
-	}
-	if err := downloadCLILicense(cliVersion, outputPath); err != nil {
-		return bundleArtifacts{}, fmt.Errorf("failed to download CLI license: %w", err)
 	}
 
 	rawLibPath := filepath.Join(tempDir, "runtime.node")
