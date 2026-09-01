@@ -201,12 +201,13 @@ use github_copilot_sdk::{Client, ClientInfo, ClientOptions};
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let _client = Client::start(
-        ClientOptions::new().with_client_info(ClientInfo {
-            editor_name: Some("JetBrains-IU".to_string()),
-            editor_version: Some("2026.1".to_string()),
-            extension_name: Some("copilot-intellij".to_string()),
-            extension_version: Some("1.5.0".to_string()),
-        }),
+        ClientOptions::new().with_client_info(
+            ClientInfo::new()
+                .with_editor_name("JetBrains-IU")
+                .with_editor_version("2026.1")
+                .with_extension_name("copilot-intellij")
+                .with_extension_version("1.5.0"),
+        ),
     )
     .await?;
     Ok(())
@@ -218,12 +219,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 use github_copilot_sdk::{Client, ClientInfo, ClientOptions};
 
 let client = Client::start(
-    ClientOptions::new().with_client_info(ClientInfo {
-        editor_name: Some("JetBrains-IU".to_string()),
-        editor_version: Some("2026.1".to_string()),
-        extension_name: Some("copilot-intellij".to_string()),
-        extension_version: Some("1.5.0".to_string()),
-    }),
+    ClientOptions::new().with_client_info(
+        ClientInfo::new()
+            .with_editor_name("JetBrains-IU")
+            .with_editor_version("2026.1")
+            .with_extension_name("copilot-intellij")
+            .with_extension_version("1.5.0"),
+    ),
 )
 .await?;
 ```

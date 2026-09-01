@@ -356,6 +356,24 @@ func TestClient_ClientInfo(t *testing.T) {
 			t.Fatalf("clientInfo = %v, want %v", got, want)
 		}
 	})
+
+	t.Run("omits clientInfo when all fields empty", func(t *testing.T) {
+		url, requests, cleanup := newStartupRPCServer(t)
+		defer cleanup()
+
+		client := NewClient(&ClientOptions{
+			Connection: URIConnection{URL: url},
+			ClientInfo: &ClientInfo{},
+		})
+		if err := client.Start(t.Context()); err != nil {
+			t.Fatalf("Start failed: %v", err)
+		}
+		defer client.ForceStop()
+
+		if _, ok := findConnect(requests())["clientInfo"]; ok {
+			t.Fatal("clientInfo should be omitted when all fields are empty")
+		}
+	})
 }
 
 type startupRPCRequest struct {

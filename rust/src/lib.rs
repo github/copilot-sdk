@@ -417,7 +417,12 @@ pub struct ClientOptions {
 /// attributed to a single, consistent surface instead of the runtime's own
 /// build. All fields are optional; an empty field is omitted from the
 /// handshake.
+///
+/// The struct is `#[non_exhaustive]`, so construct it with [`ClientInfo::new`]
+/// and the `with_*` builder methods rather than a struct literal. This lets the
+/// SDK add identity fields in future releases without a breaking change.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct ClientInfo {
     /// Name of the host editor, e.g. `"vscode"`.
     pub editor_name: Option<String>,
@@ -430,6 +435,36 @@ pub struct ClientInfo {
 }
 
 impl ClientInfo {
+    /// Create an empty `ClientInfo`. Populate fields with the `with_*` builder
+    /// methods; every field is optional.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set the host editor name, e.g. `"vscode"`.
+    pub fn with_editor_name(mut self, editor_name: impl Into<String>) -> Self {
+        self.editor_name = Some(editor_name.into());
+        self
+    }
+
+    /// Set the host editor version, e.g. `"1.124.2"`.
+    pub fn with_editor_version(mut self, editor_version: impl Into<String>) -> Self {
+        self.editor_version = Some(editor_version.into());
+        self
+    }
+
+    /// Set the Copilot extension name within the host, e.g. `"copilot-chat"`.
+    pub fn with_extension_name(mut self, extension_name: impl Into<String>) -> Self {
+        self.extension_name = Some(extension_name.into());
+        self
+    }
+
+    /// Set the Copilot extension version within the host, e.g. `"0.54.0"`.
+    pub fn with_extension_version(mut self, extension_version: impl Into<String>) -> Self {
+        self.extension_version = Some(extension_version.into());
+        self
+    }
+
     /// Returns `true` when no field carries a non-empty value, in which case the
     /// SDK omits `clientInfo` from the handshake and the runtime keeps its
     /// default attribution.

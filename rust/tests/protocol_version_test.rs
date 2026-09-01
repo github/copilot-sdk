@@ -252,12 +252,13 @@ async fn connect_handshake_forwards_client_info() {
         client_read,
         client_write,
         std::env::temp_dir(),
-        Some(github_copilot_sdk::ClientInfo {
-            editor_name: Some("JetBrains-IU".to_string()),
-            editor_version: Some("2026.1".to_string()),
-            extension_name: Some("copilot-intellij".to_string()),
-            extension_version: Some("1.5.0".to_string()),
-        }),
+        Some(
+            github_copilot_sdk::ClientInfo::new()
+                .with_editor_name("JetBrains-IU")
+                .with_editor_version("2026.1")
+                .with_extension_name("copilot-intellij")
+                .with_extension_version("1.5.0"),
+        ),
     )
     .unwrap();
 
@@ -302,11 +303,11 @@ async fn connect_handshake_omits_empty_client_info_fields() {
         client_read,
         client_write,
         std::env::temp_dir(),
-        Some(github_copilot_sdk::ClientInfo {
-            editor_name: Some("example-editor".to_string()),
-            editor_version: Some(String::new()),
-            ..Default::default()
-        }),
+        Some(
+            github_copilot_sdk::ClientInfo::new()
+                .with_editor_name("example-editor")
+                .with_editor_version(""),
+        ),
     )
     .unwrap();
 
@@ -350,12 +351,13 @@ async fn connect_handshake_omits_all_empty_client_info() {
         client_read,
         client_write,
         std::env::temp_dir(),
-        Some(github_copilot_sdk::ClientInfo {
-            editor_name: Some(String::new()),
-            editor_version: Some(String::new()),
-            extension_name: Some(String::new()),
-            extension_version: Some(String::new()),
-        }),
+        Some(
+            github_copilot_sdk::ClientInfo::new()
+                .with_editor_name("")
+                .with_editor_version("")
+                .with_extension_name("")
+                .with_extension_version(""),
+        ),
     )
     .unwrap();
 

@@ -176,9 +176,8 @@ public sealed class GitHubTelemetryTests
         await client.StartAsync();
 
         var connectParams = server.LastConnectParams ?? throw new InvalidOperationException("connect was not captured.");
-        var present = connectParams.TryGetProperty("clientInfo", out var clientInfo);
-        Assert.True(
-            !present || clientInfo.ValueKind == JsonValueKind.Null,
+        Assert.False(
+            connectParams.TryGetProperty("clientInfo", out _),
             "connect request should omit clientInfo when none was declared");
     }
 
