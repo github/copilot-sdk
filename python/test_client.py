@@ -59,6 +59,27 @@ def test_inprocess_connection_has_no_child_process_options():
     assert not hasattr(connection, "args")
 
 
+def test_explicit_child_process_path_does_not_require_runtime_bundle(tmp_path):
+    explicit = tmp_path / "copilot"
+    connection = RuntimeConnection.for_stdio(path=str(explicit))
+
+    CopilotClient(connection=connection, env={"PATH": str(tmp_path)})
+
+    assert connection.path == str(explicit)
+
+
+def test_copilot_cli_path_does_not_require_runtime_bundle(tmp_path):
+    explicit = tmp_path / "copilot"
+    connection = RuntimeConnection.for_stdio()
+
+    CopilotClient(
+        connection=connection,
+        env={"PATH": str(tmp_path), "COPILOT_CLI_PATH": str(explicit)},
+    )
+
+    assert connection.path == str(explicit)
+
+
 class TestBuiltinPluginDirectories:
     @staticmethod
     async def _start_client(paths=None):

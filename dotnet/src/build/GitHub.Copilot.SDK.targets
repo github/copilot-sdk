@@ -38,6 +38,8 @@
     <_CopilotPlatform Condition="'$(_CopilotRid)' == 'osx-arm64'">darwin-arm64</_CopilotPlatform>
     <_CopilotBinary Condition="$(_CopilotRid.StartsWith('win-'))">copilot.exe</_CopilotBinary>
     <_CopilotBinary Condition="'$(_CopilotBinary)' == ''">copilot</_CopilotBinary>
+    <_CopilotRuntimeWrapper Condition="$(_CopilotRid.StartsWith('win-'))">copilot-runtime.exe</_CopilotRuntimeWrapper>
+    <_CopilotRuntimeWrapper Condition="'$(_CopilotRuntimeWrapper)' == ''">copilot-runtime</_CopilotRuntimeWrapper>
     <!-- FFI in-process hosting cdylib, renamed from the tarball's napi-style
          prebuilds/<platform>/runtime.node to the natural platform shared-library
          name (what the Rust cdylib would be called if napi didn't rename it to
@@ -134,11 +136,44 @@
            tarball's prebuilds/<npm-platform>/runtime.node to a flat, natural
            shared-library name next to the CLI binary. -->
       <_CopilotRuntimeNodePath>$(_CopilotCacheDir)\prebuilds\$(_CopilotPlatform)\runtime.node</_CopilotRuntimeNodePath>
+      <_CopilotRuntimeWrapperPath Condition="'$(_CopilotRuntimeWrapperPath)' == ''">$(_CopilotCacheDir)\prebuilds\$(_CopilotPlatform)\$(_CopilotRuntimeWrapper)</_CopilotRuntimeWrapperPath>
+      <_CopilotRuntimeAssetManifest>$(_CopilotOutputDir)\.copilot-runtime-assets</_CopilotRuntimeAssetManifest>
+      <_CopilotExplicitCliMarker>$(_CopilotOutputDir)\.copilot-explicit-cli</_CopilotExplicitCliMarker>
     </PropertyGroup>
     <Error Condition="!Exists('$(_CopilotCliBinaryPath)')" Text="Copilot CLI binary not found at '$(_CopilotCliBinaryPath)'. Set CopilotCliBinaryPath to an existing CLI binary for the current RID, or remove CopilotSkipCliDownload=true to let the SDK download it." />
+    <Error Condition="Exists('$(_CopilotRuntimeWrapperPath)') != Exists('$(_CopilotRuntimeNodePath)')" Text="Incomplete Copilot runtime bundle in '$(_CopilotCacheDir)\prebuilds\$(_CopilotPlatform)': $(_CopilotRuntimeWrapper) and runtime.node are both required." />
+    <ReadLinesFromFile File="$(_CopilotRuntimeAssetManifest)" Condition="Exists('$(_CopilotRuntimeAssetManifest)')">
+      <Output TaskParameter="Lines" ItemName="_CopilotPreviousRuntimeAsset" />
+    </ReadLinesFromFile>
+    <ItemGroup>
+      <_CopilotSafePreviousRuntimeAsset Include="@(_CopilotPreviousRuntimeAsset)"
+                                        Condition="!$([System.IO.Path]::IsPathRooted('%(Identity)')) And !$([System.String]::Copy('%(Identity)').Contains('..'))" />
+    </ItemGroup>
+    <Delete Files="@(_CopilotSafePreviousRuntimeAsset->'$(_CopilotOutputDir)\%(Identity)')" />
+    <Delete Files="$(_CopilotRuntimeAssetManifest)" />
+    <ItemGroup Condition="Exists('$(_CopilotRuntimeWrapperPath)') And Exists('$(_CopilotRuntimeNodePath)')">
+      <_CopilotRuntimeRootAsset Include="$(_CopilotCacheDir)\**\*"
+                                Exclude="$(_CopilotCacheDir)\app.js;$(_CopilotCacheDir)\assets\**\*;$(_CopilotCacheDir)\changelog.json;$(_CopilotCacheDir)\copilot;$(_CopilotCacheDir)\copilot.exe;$(_CopilotCacheDir)\copilot-sdk\**\*;$(_CopilotCacheDir)\copilot.tgz;$(_CopilotCacheDir)\foundry-local-sdk\**\*;$(_CopilotCacheDir)\index.js;$(_CopilotCacheDir)\LICENSE.md;$(_CopilotCacheDir)\napi-oop-runtime\**\*;$(_CopilotCacheDir)\npm-loader.js;$(_CopilotCacheDir)\package.json;$(_CopilotCacheDir)\prebuilds\**\*;$(_CopilotCacheDir)\preloads\**\*;$(_CopilotCacheDir)\pvrecorder\**\*;$(_CopilotCacheDir)\queries\**\*;$(_CopilotCacheDir)\README.md;$(_CopilotCacheDir)\sdk\**\*;$(_CopilotCacheDir)\sea-loader.js;$(_CopilotCacheDir)\tree-sitter*.wasm;$(_CopilotCacheDir)\voice-*.js;$(_CopilotCacheDir)\webview\**\*" />
+      <_CopilotRuntimePrebuildAsset Include="$(_CopilotCacheDir)\prebuilds\$(_CopilotPlatform)\**\*"
+                                    Exclude="$(_CopilotCacheDir)\prebuilds\$(_CopilotPlatform)\cli-native.node;$(_CopilotCacheDir)\prebuilds\$(_CopilotPlatform)\mediaremote-adapter\**\*;$(_CopilotCacheDir)\prebuilds\$(_CopilotPlatform)\copilot-runtime-bin*" />
+    </ItemGroup>
     <MakeDir Directories="$(_CopilotOutputDir)" />
+    <WriteLinesToFile File="$(_CopilotExplicitCliMarker)" Lines="explicit" Overwrite="true"
+                      Condition="'$(CopilotCliBinaryPath)' != ''" />
+    <Delete Files="$(_CopilotExplicitCliMarker)" Condition="'$(CopilotCliBinaryPath)' == ''" />
     <Copy SourceFiles="$(_CopilotCliBinaryPath)" DestinationFiles="$(_CopilotOutputDir)\$(_CopilotBinary)" SkipUnchangedFiles="true" />
     <Copy SourceFiles="$(_CopilotRuntimeNodePath)" DestinationFiles="$(_CopilotOutputDir)\$(_CopilotRuntimeLib)" SkipUnchangedFiles="true" Condition="Exists('$(_CopilotRuntimeNodePath)')" />
+    <Copy SourceFiles="@(_CopilotRuntimeRootAsset)"
+          DestinationFiles="@(_CopilotRuntimeRootAsset->'$(_CopilotOutputDir)\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(_CopilotRuntimePrebuildAsset)"
+          DestinationFiles="@(_CopilotRuntimePrebuildAsset->'$(_CopilotOutputDir)\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+    <WriteLinesToFile File="$(_CopilotRuntimeAssetManifest)"
+                      Lines="@(_CopilotRuntimeRootAsset->'%(RecursiveDir)%(Filename)%(Extension)');@(_CopilotRuntimePrebuildAsset->'%(RecursiveDir)%(Filename)%(Extension)')"
+                      Overwrite="true"
+                      Condition="'@(_CopilotRuntimeRootAsset)' != '' Or '@(_CopilotRuntimePrebuildAsset)' != ''" />
+    <Delete Files="$(_CopilotOutputDir)\$(_CopilotRuntimeLib)" Condition="!Exists('$(_CopilotRuntimeNodePath)')" />
   </Target>
 
   <!-- Register CLI binary as content so it flows through project references.
@@ -148,17 +183,39 @@
       <_CopilotCacheDir Condition="'$(_CopilotCacheDir)' == ''">$(IntermediateOutputPath)copilot-cli\$(CopilotCliVersion)\$(_CopilotPlatform)</_CopilotCacheDir>
       <_CopilotCliBinaryPath Condition="'$(_CopilotCliBinaryPath)' == ''">$(_CopilotCacheDir)\$(_CopilotBinary)</_CopilotCliBinaryPath>
       <_CopilotRuntimeNodePath>$(_CopilotCacheDir)\prebuilds\$(_CopilotPlatform)\runtime.node</_CopilotRuntimeNodePath>
+      <_CopilotRuntimeWrapperPath Condition="'$(_CopilotRuntimeWrapperPath)' == ''">$(_CopilotCacheDir)\prebuilds\$(_CopilotPlatform)\$(_CopilotRuntimeWrapper)</_CopilotRuntimeWrapperPath>
+      <_CopilotExplicitCliMarker>$(_CopilotCacheDir)\.copilot-explicit-cli</_CopilotExplicitCliMarker>
     </PropertyGroup>
     <Error Condition="!Exists('$(_CopilotCliBinaryPath)')" Text="Copilot CLI binary not found at '$(_CopilotCliBinaryPath)'. Set CopilotCliBinaryPath to an existing CLI binary for the current RID, or remove CopilotSkipCliDownload=true to let the SDK download it." />
+    <Error Condition="Exists('$(_CopilotRuntimeWrapperPath)') != Exists('$(_CopilotRuntimeNodePath)')" Text="Incomplete Copilot runtime bundle in '$(_CopilotCacheDir)\prebuilds\$(_CopilotPlatform)': $(_CopilotRuntimeWrapper) and runtime.node are both required." />
+    <MakeDir Directories="$(_CopilotCacheDir)" Condition="'$(CopilotCliBinaryPath)' != ''" />
+    <WriteLinesToFile File="$(_CopilotExplicitCliMarker)" Lines="explicit" Overwrite="true"
+                      Condition="'$(CopilotCliBinaryPath)' != ''" />
     <ItemGroup>
+      <_CopilotRuntimeRootAsset Include="$(_CopilotCacheDir)\**\*"
+                                Exclude="$(_CopilotCacheDir)\app.js;$(_CopilotCacheDir)\assets\**\*;$(_CopilotCacheDir)\changelog.json;$(_CopilotCacheDir)\copilot;$(_CopilotCacheDir)\copilot.exe;$(_CopilotCacheDir)\copilot-sdk\**\*;$(_CopilotCacheDir)\copilot.tgz;$(_CopilotCacheDir)\foundry-local-sdk\**\*;$(_CopilotCacheDir)\index.js;$(_CopilotCacheDir)\LICENSE.md;$(_CopilotCacheDir)\napi-oop-runtime\**\*;$(_CopilotCacheDir)\npm-loader.js;$(_CopilotCacheDir)\package.json;$(_CopilotCacheDir)\prebuilds\**\*;$(_CopilotCacheDir)\preloads\**\*;$(_CopilotCacheDir)\pvrecorder\**\*;$(_CopilotCacheDir)\queries\**\*;$(_CopilotCacheDir)\README.md;$(_CopilotCacheDir)\sdk\**\*;$(_CopilotCacheDir)\sea-loader.js;$(_CopilotCacheDir)\tree-sitter*.wasm;$(_CopilotCacheDir)\voice-*.js;$(_CopilotCacheDir)\webview\**\*"
+                                Condition="Exists('$(_CopilotRuntimeWrapperPath)') And Exists('$(_CopilotRuntimeNodePath)')" />
+      <_CopilotRuntimePrebuildAsset Include="$(_CopilotCacheDir)\prebuilds\$(_CopilotPlatform)\**\*"
+                                    Exclude="$(_CopilotCacheDir)\prebuilds\$(_CopilotPlatform)\cli-native.node;$(_CopilotCacheDir)\prebuilds\$(_CopilotPlatform)\mediaremote-adapter\**\*;$(_CopilotCacheDir)\prebuilds\$(_CopilotPlatform)\copilot-runtime-bin*"
+                                    Condition="Exists('$(_CopilotRuntimeWrapperPath)') And Exists('$(_CopilotRuntimeNodePath)')" />
       <ContentWithTargetPath Include="$(_CopilotCliBinaryPath)" 
                              TargetPath="runtimes\$(_CopilotRid)\native\$(_CopilotBinary)"
                              CopyToOutputDirectory="PreserveNewest" />
+      <ContentWithTargetPath Include="$(_CopilotExplicitCliMarker)"
+                             TargetPath="runtimes\$(_CopilotRid)\native\.copilot-explicit-cli"
+                             CopyToOutputDirectory="PreserveNewest"
+                             Condition="'$(CopilotCliBinaryPath)' != ''" />
       <!-- FFI cdylib (only when the tarball ships it); see _CopyCopilotCliToOutput. -->
       <ContentWithTargetPath Include="$(_CopilotRuntimeNodePath)"
                              TargetPath="runtimes\$(_CopilotRid)\native\$(_CopilotRuntimeLib)"
                              CopyToOutputDirectory="PreserveNewest"
                              Condition="Exists('$(_CopilotRuntimeNodePath)')" />
+      <ContentWithTargetPath Include="@(_CopilotRuntimeRootAsset)"
+                             TargetPath="runtimes\$(_CopilotRid)\native\%(RecursiveDir)%(Filename)%(Extension)"
+                             CopyToOutputDirectory="PreserveNewest" />
+      <ContentWithTargetPath Include="@(_CopilotRuntimePrebuildAsset)"
+                             TargetPath="runtimes\$(_CopilotRid)\native\%(RecursiveDir)%(Filename)%(Extension)"
+                             CopyToOutputDirectory="PreserveNewest" />
     </ItemGroup>
   </Target>
 </Project>

@@ -61,6 +61,28 @@ describe("approveAll", () => {
 });
 
 describe("CopilotClient", () => {
+    it.each([
+        {
+            source: "connection path",
+            connection: RuntimeConnection.forStdio({ path: "/explicit/copilot" }),
+            env: {},
+            expected: "/explicit/copilot",
+        },
+        {
+            source: "COPILOT_CLI_PATH",
+            connection: RuntimeConnection.forStdio(),
+            env: { COPILOT_CLI_PATH: "/environment/copilot" },
+            expected: "/environment/copilot",
+        },
+    ])(
+        "preserves explicit child-process override from $source",
+        ({ connection, env, expected }) => {
+            const client = new CopilotClient({ connection, env });
+
+            expect((client as any).resolvedCliPath).toBe(expected);
+        }
+    );
+
     async function startWithMockConnection(
         builtinPluginDirectories?: readonly string[]
     ): Promise<ReturnType<typeof vi.fn>> {

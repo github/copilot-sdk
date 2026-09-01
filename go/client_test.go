@@ -24,6 +24,35 @@ import (
 
 // This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.test.go instead
 
+func TestResolveRuntimeExecutable(t *testing.T) {
+	t.Run("managed launch requires bundled runtime pair", func(t *testing.T) {
+		_, err := resolveRuntimeExecutable("", "")
+		if err == nil || !strings.Contains(err.Error(), "copilot-runtime and adjacent runtime.node") {
+			t.Fatalf("expected missing managed runtime error, got %v", err)
+		}
+	})
+
+	t.Run("explicit path does not require bundled runtime pair", func(t *testing.T) {
+		path, err := resolveRuntimeExecutable("/explicit/copilot", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if path != "/explicit/copilot" {
+			t.Fatalf("resolveRuntimeExecutable() = %q", path)
+		}
+	})
+
+	t.Run("managed launch selects bundled wrapper", func(t *testing.T) {
+		path, err := resolveRuntimeExecutable("", "/bundle/copilot-runtime")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if path != "/bundle/copilot-runtime" {
+			t.Fatalf("resolveRuntimeExecutable() = %q", path)
+		}
+	})
+}
+
 func TestClient_URLParsing(t *testing.T) {
 	t.Run("should parse port-only URL format", func(t *testing.T) {
 		client := NewClient(&ClientOptions{

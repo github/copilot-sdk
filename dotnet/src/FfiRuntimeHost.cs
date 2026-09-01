@@ -17,11 +17,9 @@ namespace GitHub.Copilot;
 /// and communicating over stdio/TCP.
 /// </summary>
 /// <remarks>
-/// The Rust <c>host_start</c> export spawns the residual TypeScript worker itself —
-/// typically the packaged single-file CLI (<c>copilot --embedded-host</c>, which embeds
-/// its own Node) or, for dev, <c>node dist-cli/index.js --embedded-host</c> — so the .NET
-/// host never launches Node directly. JSON-RPC frames are pumped across the ABI: writes go
-/// to <c>connection_write</c>; inbound frames arrive on a native callback that feeds
+/// The Rust <c>host_start</c> export constructs the server synchronously in this
+/// process. JSON-RPC frames are pumped across the ABI: writes go to
+/// <c>connection_write</c>; inbound frames arrive on a native callback that feeds
 /// <see cref="ReceiveStream"/>.
 /// <para>
 /// The native interop layer has two implementations selected by target framework. On
@@ -41,7 +39,7 @@ internal sealed partial class FfiRuntimeHost : IDisposable
     private const string LibraryName = "copilot_runtime";
 
     private readonly ILogger _logger;
-    private readonly string _cliEntrypoint;
+    private readonly string? _cliEntrypoint;
     private readonly string _libraryPath;
     private readonly IReadOnlyDictionary<string, string>? _environment;
     private readonly IReadOnlyList<string> _args;
@@ -53,7 +51,7 @@ internal sealed partial class FfiRuntimeHost : IDisposable
     private uint _connectionId;
     private bool _disposed;
 
-    private FfiRuntimeHost(string libraryPath, string cliEntrypoint, IReadOnlyDictionary<string, string>? environment, IReadOnlyList<string> args, ILogger logger)
+    private FfiRuntimeHost(string libraryPath, string? cliEntrypoint, IReadOnlyDictionary<string, string>? environment, IReadOnlyList<string> args, ILogger logger)
     {
         _libraryPath = libraryPath;
         _cliEntrypoint = cliEntrypoint;
@@ -70,35 +68,22 @@ internal sealed partial class FfiRuntimeHost : IDisposable
         ?? throw new InvalidOperationException("FfiRuntimeHost has not been started.");
 
     /// <summary>
-    /// Loads the cdylib next to the given CLI entrypoint and prepares the FFI host.
-    /// The entrypoint is either the packaged single-file CLI binary (e.g.
-    /// <c>runtimes/&lt;rid&gt;/native/copilot</c>) or, for dev, a <c>.js</c> file (e.g.
-    /// <c>dist-cli/index.js</c>) launched via <c>node</c>. The cdylib is resolved
-    /// relative to the entrypoint directory, preferring the flat, natural
-    /// shared-library name the .NET build emits (e.g. <c>libcopilot_runtime.so</c>)
-    /// and falling back to the dev tarball layout
-    /// <c>prebuilds/&lt;prebuildsFolder&gt;/runtime.node</c>, where
-    /// <paramref name="prebuildsFolder"/> is the napi-rs
-    /// <c>&lt;node-platform&gt;-&lt;arch&gt;</c> folder name (e.g. <c>win32-x64</c>).
+    /// Loads the runtime cdylib and prepares the FFI host.
     /// </summary>
-    public static FfiRuntimeHost Create(string cliEntrypoint, string prebuildsFolder, IReadOnlyDictionary<string, string>? environment, IReadOnlyList<string> args, ILogger logger)
+    public static FfiRuntimeHost Create(string libraryPath, string? cliEntrypoint, IReadOnlyDictionary<string, string>? environment, IReadOnlyList<string> args, ILogger logger)
     {
-        var fullEntrypoint = Path.GetFullPath(cliEntrypoint);
-        var distDir = Path.GetDirectoryName(fullEntrypoint)
-            ?? throw new InvalidOperationException($"Could not determine directory for '{cliEntrypoint}'.");
-
-        // Bundled .NET layout: flat, natural shared-library name next to the CLI.
-        var flatLibraryPath = Path.Combine(distDir, GetRuntimeLibraryFileName());
-        // Dev/tarball layout: dist-cli/prebuilds/<node-platform>-<arch>/runtime.node.
-        var prebuildsLibraryPath = Path.Combine(distDir, "prebuilds", prebuildsFolder, "runtime.node");
-
-        var libraryPath = File.Exists(flatLibraryPath) ? flatLibraryPath
-            : File.Exists(prebuildsLibraryPath) ? prebuildsLibraryPath
-            : throw new InvalidOperationException(
-                $"FFI runtime library not found. Looked for '{flatLibraryPath}' and '{prebuildsLibraryPath}'.");
-
-        PrepareNativeLibrary(libraryPath);
-        return new FfiRuntimeHost(libraryPath, fullEntrypoint, environment, args, logger);
+        var fullLibraryPath = Path.GetFullPath(libraryPath);
+        if (!File.Exists(fullLibraryPath))
+        {
+            throw new InvalidOperationException($"FFI runtime library not found at '{fullLibraryPath}'.");
+        }
+        PrepareNativeLibrary(fullLibraryPath);
+        return new FfiRuntimeHost(
+            fullLibraryPath,
+            cliEntrypoint is null ? null : Path.GetFullPath(cliEntrypoint),
+            environment,
+            args,
+            logger);
     }
 
     /// <summary>
@@ -106,7 +91,7 @@ internal sealed partial class FfiRuntimeHost : IDisposable
     /// emitted by the .NET build (the .node file renamed to what the Rust cdylib
     /// would be called on this OS).
     /// </summary>
-    private static string GetRuntimeLibraryFileName()
+    internal static string GetRuntimeLibraryFileName()
     {
         if (OperatingSystem.IsWindows()) return "copilot_runtime.dll";
         if (OperatingSystem.IsMacOS()) return "libcopilot_runtime.dylib";
@@ -114,14 +99,11 @@ internal sealed partial class FfiRuntimeHost : IDisposable
     }
 
     /// <summary>
-    /// Starts the in-process runtime: spawns the CLI worker via the Rust host,
-    /// waits for readiness, and opens the FFI JSON-RPC connection.
+    /// Starts the in-process Rust runtime and opens the FFI JSON-RPC connection.
     /// </summary>
     public async Task StartAsync(CancellationToken cancellationToken)
     {
-        // host_start blocks until the worker connects back and signals readiness
-        // (up to ~30s), and connection_open must run outside any async runtime, so
-        // perform the blocking FFI handshake on a background thread.
+        // Keep synchronous native startup off the caller's async context.
         await Task.Run(() =>
         {
             var argvJson = BuildArgvJson(_cliEntrypoint, _args);
@@ -131,7 +113,7 @@ internal sealed partial class FfiRuntimeHost : IDisposable
             if (_serverId == 0)
             {
                 throw new InvalidOperationException(
-                    $"copilot_runtime_host_start failed (library '{_libraryPath}', entrypoint '{_cliEntrypoint}').");
+                    $"copilot_runtime_host_start failed (library '{_libraryPath}').");
             }
 
             _connectionId = NativeOpenConnection(_serverId);
@@ -154,24 +136,22 @@ internal sealed partial class FfiRuntimeHost : IDisposable
         }
     }
 
-    private static byte[] BuildArgvJson(string cliEntrypoint, IReadOnlyList<string> args)
+    private static byte[] BuildArgvJson(string? cliEntrypoint, IReadOnlyList<string> args)
     {
-        // A .js entrypoint (dev / dist-cli) is launched via node; the packaged
-        // single-file CLI binary embeds its own Node and is invoked directly.
-        var isJsFile = cliEntrypoint.EndsWith(".js", StringComparison.OrdinalIgnoreCase);
         using var stream = new MemoryStream();
         using (var writer = new Utf8JsonWriter(stream))
         {
             writer.WriteStartArray();
-            if (isJsFile)
+            if (cliEntrypoint is not null)
             {
-                writer.WriteStringValue("node");
+                if (cliEntrypoint.EndsWith(".js", StringComparison.OrdinalIgnoreCase))
+                {
+                    writer.WriteStringValue("node");
+                }
+                writer.WriteStringValue(cliEntrypoint);
+                writer.WriteStringValue("--embedded-host");
+                writer.WriteStringValue("--no-auto-update");
             }
-            writer.WriteStringValue(cliEntrypoint);
-            writer.WriteStringValue("--embedded-host");
-            // Pin the worker to the bundled pkg matching the loaded cdylib, instead of
-            // drifting to a newer version under the user's ~/.copilot/pkg (ABI skew).
-            writer.WriteStringValue("--no-auto-update");
             foreach (var arg in args)
             {
                 writer.WriteStringValue(arg);

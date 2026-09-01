@@ -20,7 +20,11 @@ Java SDK for programmatic control of GitHub Copilot CLI, enabling you to build A
 To use the SDK, you'll need:
 
 - Java 17 or later. **JDK 25 recommended**. The distributed jar is a multi-release jar (MR-JAR) and is compiled on JDK 25 with `maven.compiler.release` set to 17. This means, when run on JDK 25 and later, the SDK automatically uses virtual threads for its default internal executor.
-- GitHub Copilot CLI 1.0.55-5 or later installed and in `PATH` (or provide custom `cliPath`)
+
+Managed stdio and TCP connections materialize the platform classifier's
+`copilot-runtime[.exe]` and adjacent `runtime.node` by default. An explicit
+`cliPath` or `COPILOT_CLI_PATH` environment variable overrides the bundled
+runtime.
 
 ## Installation
 
@@ -32,14 +36,14 @@ Replace `${copilot.sdk.version}` with the latest release from Maven Central.
 <dependency>
     <groupId>com.github</groupId>
     <artifactId>copilot-sdk-java</artifactId>
-    <version>1.0.13-preview.2</version>
+    <version>1.0.13-preview.4</version>
 </dependency>
 ```
 
 ### Gradle
 
 ```groovy
-implementation 'com.github:copilot-sdk-java:1.0.13-preview.2'
+implementation 'com.github:copilot-sdk-java:1.0.13-preview.4'
 ```
 
 #### Snapshot Builds
@@ -58,7 +62,7 @@ Snapshot builds of the next development version are published to Maven Central S
 <dependency>
     <groupId>com.github</groupId>
     <artifactId>copilot-sdk-java</artifactId>
-    <version>1.0.14-preview.2-SNAPSHOT</version>
+    <version>1.0.14-preview.4-SNAPSHOT</version>
 </dependency>
 ```
 
@@ -67,7 +71,7 @@ Snapshot builds of the next development version are published to Maven Central S
 Replace `${copilot.sdk.version}` with the latest release from Maven Central.
 
 ```groovy
-implementation 'com.github:copilot-sdk-java:1.0.14-preview.2-SNAPSHOT'
+implementation 'com.github:copilot-sdk-java:1.0.14-preview.4-SNAPSHOT'
 ```
 
 ## In-process mode (experimental)
@@ -186,9 +190,11 @@ For rotating per-session GitHub credentials, use
 `ResumeSessionConfig` setter) instead of `setGitHubToken(...)`:
 
 ```java
-var config = new SessionConfig().setGitHubTokenProvider(args ->
-    acquireForHost(args.host()).thenApply(token ->
-        GitHubTokenProviderResult.token(token, 8 * 60 * 60)));
+var config = new SessionConfig()
+    .setGitHubTokenProvider(args ->
+        acquireForHost(args.host()).thenApply(token ->
+            GitHubTokenProviderResult.token(token, 8 * 60 * 60)))
+    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL);
 ```
 
 The remaining lifetime is required and must be positive when the callback
@@ -595,7 +601,7 @@ mvn clean verify -Dcopilot.native.libc=glibc
 mvn clean package -pl copilot-native -DskipTests -Dcopilot.native.libc=glibc -Dcopilot.native.skip.download=true
 ```
 
-On Linux, the classifier JAR contains `runtime.node`, `platform.properties`, and `copilot` under `native/linux-x64` or `native/linux-arm64`. On Windows, it contains those resources under `native/win32-x64` or `native/win32-arm64`, with the CLI named `copilot.exe`. On Apple Silicon macOS, it contains them under `native/darwin-arm64`. The placeholder JAR remains OS-neutral and contains no native binaries. Unsupported hosts retain the placeholder-only behavior.
+Each classifier JAR includes `runtime.node`, `platform.properties`, and `copilot-runtime` (or `copilot-runtime.exe`) under its `native/<classifier>` directory. It does not contain the legacy `copilot` SEA. The placeholder JAR remains OS-neutral and contains no native binaries. Unsupported hosts retain the placeholder-only behavior.
 
 ## License
 

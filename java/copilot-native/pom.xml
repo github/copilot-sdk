@@ -8,7 +8,7 @@
     <parent>
         <groupId>com.github</groupId>
         <artifactId>copilot-sdk-java-parent</artifactId>
-        <version>1.0.14-preview.2-SNAPSHOT</version>
+        <version>1.0.14-preview.4-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -126,7 +126,7 @@
                     <!--
                         Additional classifier JAR containing
                         native/<classifier>/runtime.node,
-                        native/<classifier>/copilot or copilot.exe, and
+                        native/<classifier>/copilot-runtime or copilot-runtime.exe, and
                         native/<classifier>/platform.properties.
                     -->
                     <execution>
@@ -203,12 +203,15 @@
                                     </resourceexists>
                                 </condition>
                                 <fail unless="native.properties.present" message="Classifier JAR is missing native/${copilot.native.classifier}/platform.properties" />
-                                <condition property="native.cli.present">
+                                <condition property="native.wrapper.filename" value="copilot-runtime.exe" else="copilot-runtime">
+                                    <matches string="${copilot.native.classifier}" pattern="^win32-" />
+                                </condition>
+                                <condition property="native.wrapper.present">
                                     <resourceexists>
-                                        <zipentry zipfile="${project.build.directory}/${project.build.finalName}-${copilot.native.classifier}.jar" name="native/${copilot.native.classifier}/${copilot.native.cli.filename}" />
+                                        <zipentry zipfile="${project.build.directory}/${project.build.finalName}-${copilot.native.classifier}.jar" name="native/${copilot.native.classifier}/${native.wrapper.filename}" />
                                     </resourceexists>
                                 </condition>
-                                <fail unless="native.cli.present" message="Classifier JAR is missing native/${copilot.native.classifier}/${copilot.native.cli.filename}" />
+                                <fail unless="native.wrapper.present" message="Classifier JAR is missing native/${copilot.native.classifier}/${native.wrapper.filename}" />
                                 <condition property="placeholder.jar.polluted">
                                     <resourceexists>
                                         <zipentry zipfile="${project.build.directory}/${project.build.finalName}.jar" name="native/${copilot.native.classifier}/runtime.node" />
@@ -243,7 +246,6 @@
             <id>inprocess</id>
             <properties>
                 <copilot.native.classifier>linux-x64</copilot.native.classifier>
-                <copilot.native.cli.filename>copilot</copilot.native.cli.filename>
             </properties>
             <build>
                 <plugins>
@@ -306,7 +308,6 @@
             </activation>
             <properties>
                 <copilot.native.classifier>linux-x64</copilot.native.classifier>
-                <copilot.native.cli.filename>copilot</copilot.native.cli.filename>
             </properties>
             <build>
                 <plugins>
@@ -420,7 +421,6 @@
             </activation>
             <properties>
                 <copilot.native.classifier>win32-x64</copilot.native.classifier>
-                <copilot.native.cli.filename>copilot.exe</copilot.native.cli.filename>
             </properties>
             <build>
                 <plugins>
@@ -530,7 +530,6 @@
             </activation>
             <properties>
                 <copilot.native.classifier>darwin-arm64</copilot.native.classifier>
-                <copilot.native.cli.filename>copilot</copilot.native.cli.filename>
             </properties>
             <build>
                 <plugins>

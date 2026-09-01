@@ -50,10 +50,10 @@ import com.github.copilot.rpc.SessionConfig;
  *
  * <p>
  * Run with {@code mvn verify -Pinprocess} from the {@code java} reactor root,
- * which builds the {@code copilot-sdk-java-runtime} artifact and sets
- * {@code COPILOT_CLI_PATH} to the pinned CLI whose sibling {@code runtime.node}
- * this test loads, and forces {@code forkCount=1} because the FFI host and env
- * guard mutate process-global state.
+ * which builds the {@code copilot-sdk-java-runtime} artifact and sets the
+ * classifier JAR containing {@code runtime.node}, and forces
+ * {@code forkCount=1} because the FFI host and env guard mutate process-global
+ * state.
  *
  * <p>
  * {@link RequireInProcess} disables this test unless the {@code -Pinprocess}
@@ -86,11 +86,6 @@ class InProcessTransportIT {
         // replay proxy, mirroring how a session-level in-process test would
         // redirect COPILOT_API_URL. `ping` never reaches the network, but this
         // demonstrates the guard's intended usage for future in-process tests.
-        // COPILOT_CLI_PATH is intentionally NOT set here: NativeRuntimeLoader and
-        // CopilotClient.resolveInProcessEntrypoint() read it via
-        // System.getenv(), which is a JVM-startup-time snapshot that native
-        // setenv() calls made after the JVM starts cannot update — it must be
-        // set before the JVM starts (see the -Pinprocess Maven profile).
         try (InProcessEnvGuard envGuard = new InProcessEnvGuard(Map.of("COPILOT_API_URL", ctx.getProxyUrl()))) {
             CopilotClientOptions options = new CopilotClientOptions().setConnection(RuntimeConnection.forInProcess());
             try (CopilotClient client = new CopilotClient(options)) {

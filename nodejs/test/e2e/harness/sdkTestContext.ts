@@ -50,6 +50,29 @@ function getCliPathForTests(): string | undefined {
     return undefined;
 }
 
+function getCliPlatformPackageNames(): string[] {
+    const variants =
+        process.platform === "linux"
+            ? process.report?.getReport().header.glibcVersionRuntime
+                ? ["linux", "linuxmusl"]
+                : ["linuxmusl", "linux"]
+            : [process.platform];
+    return variants.map((variant) => `@github/copilot-${variant}-${process.arch}`);
+}
+
+/** Resolves the legacy SEA only for tests that explicitly exercise Node-hosted features. */
+export function getLegacyCliPathForTests(): string {
+    const cliName = process.platform === "win32" ? "copilot.exe" : "copilot";
+    const githubModules = resolve(__dirname, "../../../node_modules/@github");
+    for (const packageName of getCliPlatformPackageNames()) {
+        const cliPath = join(githubModules, packageName.slice("@github/".length), cliName);
+        if (fs.existsSync(cliPath)) {
+            return cliPath;
+        }
+    }
+    throw new Error("Legacy Copilot CLI binary not found in the installed platform package.");
+}
+
 export async function createSdkTestContext({
     logLevel,
     useStdio,
@@ -286,8 +309,13 @@ export async function createSdkTestContext({
             process.chdir(restoreCwd);
             restoreCwd = undefined;
         }
-        // Empty directories but leave them in place for next test
-        await rimraf([join(homeDir, "*"), join(workDir, "*")], { glob: true });
+        // The in-process runtime retains open state files until afterAll shuts it down.
+        // Keep its isolated home intact while it is alive; removing open files on POSIX
+        // can leave later tests using unlinked database state.
+        const cleanupPaths = isInProcess
+            ? [join(workDir, "*")]
+            : [join(homeDir, "*"), join(workDir, "*")];
+        await rimraf(cleanupPaths, { glob: true });
     });
 
     afterAll(async () => {
