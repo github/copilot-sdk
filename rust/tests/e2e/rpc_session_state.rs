@@ -1,5 +1,7 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
+use async_trait::async_trait;
 use github_copilot_sdk::rpc::{
     AuthInfoType, HistoryTruncateRequest, LspInitializeRequest, MetadataContextInfoRequest,
     MetadataRecomputeContextTokensRequest, MetadataRecordContextChangeRequest,
@@ -16,8 +18,14 @@ use github_copilot_sdk::session_events::{
     SessionTitleChangedData, SessionWorkspaceFileChangedData, ShutdownType,
     WorkspaceFileChangedOperation,
 };
+use github_copilot_sdk::tool::ToolHandler;
+use github_copilot_sdk::{Error, Tool, ToolInvocation, ToolResult};
+use serde_json::json;
+use tokio::sync::{Mutex, mpsc, oneshot};
 
-use super::support::{assistant_message_content, wait_for_condition, wait_for_event};
+use super::support::{
+    assistant_message_content, recv_with_timeout, wait_for_condition, wait_for_event,
+};
 
 const MODEL_ID: &str = "claude-sonnet-4.5";
 
@@ -1111,8 +1119,28 @@ async fn should_report_processing_and_context_metadata() {
             Box::pin(async move {
                 ctx.set_default_copilot_user();
                 let client = ctx.start_client().await;
+                let (entered_tx, mut entered_rx) = mpsc::unbounded_channel();
+                let (release_tx, release_rx) = oneshot::channel();
                 let session = client
-                    .create_session(ctx.approve_all_session_config().with_model(MODEL_ID))
+                    .create_session(
+                        ctx.approve_all_session_config()
+                            .with_model(MODEL_ID)
+                            .with_tools(vec![
+                                Tool::new("processing_barrier")
+                                    .with_description(
+                                        "Blocks until the processing state has been observed",
+                                    )
+                                    .with_parameters(json!({
+                                        "type": "object",
+                                        "properties": {},
+                                        "additionalProperties": false
+                                    }))
+                                    .with_handler(Arc::new(ProcessingBarrierTool {
+                                        entered_tx,
+                                        release_rx: Mutex::new(Some(release_rx)),
+                                    })),
+                            ]),
+                    )
                     .await
                     .expect("create session");
 
@@ -1125,19 +1153,21 @@ async fn should_report_processing_and_context_metadata() {
                         .expect("processing before send")
                         .processing
                 );
-                let (send_result, ()) = tokio::join!(
-                    session.send("Reply with exactly: RUST_CONTEXT_INFO"),
-                    wait_for_condition("session processing started", || async {
-                        session
-                            .rpc()
-                            .metadata()
-                            .is_processing()
-                            .await
-                            .expect("processing poll")
-                            .processing
-                    })
+                session
+                    .send("Use processing_barrier, then reply with exactly: RUST_CONTEXT_INFO")
+                    .await
+                    .expect("send");
+                recv_with_timeout(&mut entered_rx, "processing barrier entry").await;
+                assert!(
+                    session
+                        .rpc()
+                        .metadata()
+                        .is_processing()
+                        .await
+                        .expect("processing during tool call")
+                        .processing
                 );
-                send_result.expect("send");
+                release_tx.send(()).expect("release processing barrier");
                 wait_for_condition("session processing completed", || async {
                     !session
                         .rpc()
@@ -1177,6 +1207,26 @@ async fn should_report_processing_and_context_metadata() {
         },
     )
     .await;
+}
+
+struct ProcessingBarrierTool {
+    entered_tx: mpsc::UnboundedSender<()>,
+    release_rx: Mutex<Option<oneshot::Receiver<()>>>,
+}
+
+#[async_trait]
+impl ToolHandler for ProcessingBarrierTool {
+    async fn call(&self, _invocation: ToolInvocation) -> Result<ToolResult, Error> {
+        let _ = self.entered_tx.send(());
+        self.release_rx
+            .lock()
+            .await
+            .take()
+            .expect("processing barrier called once")
+            .await
+            .expect("processing barrier released");
+        Ok(ToolResult::Text("PROCESSING_OBSERVED".to_string()))
+    }
 }
 
 fn expect_err_contains<T>(result: Result<T, github_copilot_sdk::Error>, expected: &str) {
