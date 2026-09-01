@@ -95,8 +95,8 @@ test('stages retained package assets and excludes CLI-only content', (t) => {
   execFileSync('tar', ['-czf', tarball, '-C', path.dirname(packageRoot), 'package']);
   const packageChecksum = createHash('sha256').update(fs.readFileSync(tarball)).digest('hex');
   fs.writeFileSync(
-    path.join(fixture.repoRoot, 'nodejs', 'copilot-cli.json'),
-    JSON.stringify({ version, runtimeHashes: { [classifier]: packageChecksum } }),
+    path.join(fixture.repoRoot, 'nodejs', 'package.json'),
+    JSON.stringify({ copilotCliVersion: version }),
   );
   fs.rmSync(path.join(fixture.stagingDir, classifier), { recursive: true, force: true });
 
@@ -127,8 +127,8 @@ function createFixture(t, classifier) {
   fs.mkdirSync(resourceDir, { recursive: true });
 
   fs.writeFileSync(
-    path.join(repoRoot, 'nodejs', 'copilot-cli.json'),
-    JSON.stringify({ version, runtimeHashes: { [classifier]: checksum } }),
+    path.join(repoRoot, 'nodejs', 'package.json'),
+    JSON.stringify({ copilotCliVersion: version }),
   );
 
   const runtimePath = path.join(resourceDir, 'runtime.node');

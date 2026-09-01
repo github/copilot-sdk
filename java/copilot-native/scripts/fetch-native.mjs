@@ -6,9 +6,9 @@
  * Downloads the native runtime artifacts for one platform classifier.
  *
  * Steps:
- *   1. Read the pinned version and trusted hash from `nodejs/copilot-cli.json`.
- *   2. Download the platform npm tarball from the matching release.
- *   3. Verify the downloaded tarball against the checked-in SHA-256.
+ *   1. Read the pinned version from `nodejs/package.json`.
+ *   2. Download the platform npm tarball and `SHA256SUMS.txt` from the matching release.
+ *   3. Verify the downloaded tarball against the release checksum.
  *   4. Stage the hostless runtime tree, flattening the selected prebuild directory
  *      beside the package's retained top-level runtime assets.
  *   5. Write an inventory consumed by the SDK's generic classpath extractor.
@@ -51,12 +51,12 @@ if (!repoRoot || !stagingDir || !classifier) {
   process.exit(1);
 }
 
-const manifestPath = path.join(repoRoot, 'nodejs', 'copilot-cli.json');
+const packagePath = path.join(repoRoot, 'nodejs', 'package.json');
 const packageName = `@github/copilot-${classifier}`;
-const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-const version = manifest.version;
+const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
+const version = packageJson.copilotCliVersion;
 if (!version) {
-  console.error(`Could not find version in ${manifestPath}`);
+  console.error(`Could not find copilotCliVersion in ${packagePath}`);
   process.exit(1);
 }
 
@@ -116,7 +116,8 @@ if (process.env.COPILOT_CLI_RELEASE_TARBALL) {
   expectedHash = process.env.COPILOT_CLI_RELEASE_SHA256;
 } else {
   const releaseUrl = `${releaseBase}/v${version}`;
-  expectedHash = manifest.runtimeHashes?.[classifier];
+  const checksums = (await download(`${releaseUrl}/SHA256SUMS.txt`)).toString('utf8');
+  expectedHash = findChecksum(checksums, assetName);
   archive = await download(`${releaseUrl}/${assetName}`);
 }
 if (!expectedHash || !/^[a-fA-F0-9]{64}$/.test(expectedHash)) {
@@ -250,4 +251,14 @@ async function download(url) {
     }
   }
   throw new Error(`Failed to download ${url}: ${lastError}`);
+}
+
+function findChecksum(checksums, assetName) {
+  for (const line of checksums.split(/\r?\n/)) {
+    const [hash, name] = line.trim().split(/\s+/, 2);
+    if (name?.replace(/^\*/, '') === assetName && /^[a-fA-F0-9]{64}$/.test(hash)) {
+      return hash.toLowerCase();
+    }
+  }
+  throw new Error(`SHA256SUMS.txt does not contain ${assetName}`);
 }

@@ -163,7 +163,7 @@ jobs:
 
           git commit -m "Update Copilot CLI to $VERSION
 
-          - Updated the Node.js CLI release pin and trusted hashes
+          - Updated the Node.js CLI release pin
           - Re-ran code generators
           - Formatted generated code"
 
@@ -174,7 +174,7 @@ jobs:
 
           ### Changes
           - Updated the release pin in `nodejs/package.json`
-          - Updated trusted release hashes in `nodejs/copilot-cli.json`
+          - Validated the release assets listed in `SHA256SUMS.txt`
           - Re-ran all code generators (`scripts/codegen`)
           - Formatted generated output
           - Updated Java codegen dependency, POM property, and regenerated Java types

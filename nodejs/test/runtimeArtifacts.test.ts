@@ -14,11 +14,7 @@ import {
     getRuntimeReleaseAssetName,
     materializeRuntimeBundle,
 } from "../src/runtimeArtifacts.js";
-import {
-    COPILOT_CLI_HASHES,
-    COPILOT_CLI_USE_NPM_PACKAGE,
-    COPILOT_CLI_VERSION,
-} from "../src/cliVersion.js";
+import { COPILOT_CLI_USE_NPM_PACKAGE, COPILOT_CLI_VERSION } from "../src/cliVersion.js";
 import { ensureCopilotPackage } from "../scripts/releaseArtifacts.js";
 
 describe("defaultRuntimeCacheRoot", () => {
@@ -52,21 +48,10 @@ describe("release runtime selection", () => {
         const packageJson = JSON.parse(
             readFileSync(join(import.meta.dirname, "../package.json"), "utf8")
         );
-        const manifest = JSON.parse(
-            readFileSync(join(import.meta.dirname, "../copilot-cli.json"), "utf8")
-        );
         expect(COPILOT_CLI_VERSION).toBe(packageJson.copilotCliVersion);
-        expect(manifest.version).toBe(COPILOT_CLI_VERSION);
-        expect(manifest.runtimeHashes).toEqual(COPILOT_CLI_HASHES);
-        expect(COPILOT_CLI_USE_NPM_PACKAGE).toBe(manifest.source === "npm-package");
         if (COPILOT_CLI_USE_NPM_PACKAGE) {
-            expect(COPILOT_CLI_HASHES).toEqual({});
-            expect(manifest.cliHashes).toEqual({});
             expect(packageJson.dependencies["@github/copilot"]).toBe(COPILOT_CLI_VERSION);
         } else {
-            expect(manifest.source).toBe("github-release");
-            expect(Object.keys(COPILOT_CLI_HASHES)).toHaveLength(8);
-            expect(Object.keys(manifest.cliHashes)).toHaveLength(6);
             expect(packageJson.dependencies).not.toHaveProperty("@github/copilot");
         }
     });
@@ -90,12 +75,7 @@ describe("release runtime selection", () => {
         expect(JSON.parse(readFileSync(join(root, "package.json"), "utf8"))).toMatchObject({
             copilotCliVersion: "9.9.9-canary.test",
         });
-        expect(JSON.parse(readFileSync(join(root, "copilot-cli.json"), "utf8"))).toEqual({
-            version: "9.9.9-canary.test",
-            source: "npm-package",
-            runtimeHashes: {},
-            cliHashes: {},
-        });
+        expect(existsSync(join(root, "copilot-cli.json"))).toBe(false);
         expect(readFileSync(join(root, "src", "cliVersion.ts"), "utf8")).toContain(
             "COPILOT_CLI_USE_NPM_PACKAGE = true"
         );
@@ -255,13 +235,17 @@ describe("release package acquisition", () => {
         await createTar({ cwd: sourceRoot, file: archivePath, gzip: true }, ["package"]);
         const archive = readFileSync(archivePath);
         const version = "1.2.3-4";
+        const assetName = getRuntimeReleaseAssetName(version, platform);
         const checksum = createHash("sha256").update(archive).digest("hex");
-        const fetcher = vi.fn(async () => new Response(archive));
+        const fetcher = vi.fn(async (input: string | URL | Request) =>
+            String(input).endsWith("/SHA256SUMS.txt")
+                ? new Response(`${checksum}  ${assetName}\n`)
+                : new Response(archive)
+        );
         const cacheRoot = join(sourceRoot, "cache");
 
         const downloadedPackage = await ensureCopilotPackage(version, {
             cacheRoot,
-            expectedChecksum: checksum,
             fetch: fetcher,
             platform,
         });
@@ -272,22 +256,25 @@ describe("release package acquisition", () => {
         await expect(
             ensureCopilotPackage(version, {
                 cacheRoot,
-                expectedChecksum: checksum,
                 fetch: fetcher,
                 platform,
             })
         ).resolves.toBe(downloadedPackage);
-        expect(fetcher).toHaveBeenCalledTimes(1);
+        expect(fetcher).toHaveBeenCalledTimes(2);
     });
 
-    it("rejects a release package that does not match the trusted hash", async () => {
+    it("rejects a release package that does not match SHA256SUMS.txt", async () => {
         const cacheRoot = mkdtempSync(join(tmpdir(), "copilot-release-mismatch-"));
-        const fetcher = vi.fn(async () => new Response("corrupt archive"));
+        const assetName = getRuntimeReleaseAssetName("1.2.3", "linux-x64");
+        const fetcher = vi.fn(async (input: string | URL | Request) =>
+            String(input).endsWith("/SHA256SUMS.txt")
+                ? new Response(`${"0".repeat(64)}  ${assetName}\n`)
+                : new Response("corrupt archive")
+        );
 
         await expect(
             ensureCopilotPackage("1.2.3", {
                 cacheRoot,
-                expectedChecksum: "0".repeat(64),
                 fetch: fetcher,
                 platform: "linux-x64",
             })

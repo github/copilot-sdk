@@ -30,8 +30,6 @@ const cliAssets = [
     "copilot-win32-x64.zip",
 ];
 const useNpmPackage = mode === "--npm-package";
-let runtimeHashes = {};
-let cliHashes = {};
 if (!useNpmPackage) {
     const checksumsUrl = `https://github.com/github/copilot-cli/releases/download/v${version}/SHA256SUMS.txt`;
     const response = await fetch(checksumsUrl);
@@ -47,35 +45,19 @@ if (!useNpmPackage) {
             .filter(([hash, name]) => /^[a-fA-F0-9]{64}$/.test(hash) && name)
             .map(([hash, name]) => [name.replace(/^\*/, ""), hash.toLowerCase()])
     );
-    const hashForAsset = (assetName) => {
-        const hash = checksums.get(assetName);
-        if (!hash) {
+    for (const assetName of [
+        ...runtimePlatforms.map((platform) => `github-copilot-${version}-${platform}.tgz`),
+        ...cliAssets,
+    ]) {
+        if (!checksums.has(assetName)) {
             throw new Error(`SHA256SUMS.txt does not contain ${assetName}`);
         }
-        return hash;
-    };
-    runtimeHashes = Object.fromEntries(
-        runtimePlatforms.map((platform) => [
-            platform,
-            hashForAsset(`github-copilot-${version}-${platform}.tgz`),
-        ])
-    );
-    cliHashes = Object.fromEntries(
-        cliAssets.map((assetName) => [assetName, hashForAsset(assetName)])
-    );
+    }
 }
 const packagePath = join(nodeRoot, "package.json");
 const packageJson = JSON.parse(readFileSync(packagePath, "utf8"));
 packageJson.copilotCliVersion = version;
 writeFileSync(packagePath, `${JSON.stringify(packageJson, null, 4)}\n`);
-
-const manifest = {
-    version,
-    source: useNpmPackage ? "npm-package" : "github-release",
-    runtimeHashes,
-    cliHashes,
-};
-writeFileSync(join(nodeRoot, "copilot-cli.json"), `${JSON.stringify(manifest, null, 4)}\n`);
 
 const sourcePath = join(nodeRoot, "src", "cliVersion.ts");
 writeFileSync(
@@ -84,8 +66,6 @@ writeFileSync(
         `export const COPILOT_CLI_VERSION = ${JSON.stringify(version)};`,
         "",
         `export const COPILOT_CLI_USE_NPM_PACKAGE = ${useNpmPackage};`,
-        "",
-        `export const COPILOT_CLI_HASHES: Readonly<Record<string, string>> = ${JSON.stringify(runtimeHashes, null, 4)};`,
         "",
     ].join("\n")
 );

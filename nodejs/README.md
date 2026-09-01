@@ -15,9 +15,9 @@ starting the SDK performs no runtime download. Set `COPILOT_CLI_PATH` to use an
 existing installation instead.
 
 The checked-in release pin is `copilotCliVersion` in `package.json`. Run
-`npm run set:cli-version -- <version>` to update it and regenerate the
-trusted platform SHA-256 manifest in `copilot-cli.json` and the compiled
-metadata in `src/cliVersion.ts`.
+`npm run set:cli-version -- <version>` to update it and regenerate the compiled
+metadata in `src/cliVersion.ts`. Packaging verifies release assets against the
+release's `SHA256SUMS.txt`.
 
 `npm run pack:release` builds the main package and all platform packages. Set
 `COPILOT_CLI_DOWNLOAD_BASE_URL` to use a release mirror while packaging.

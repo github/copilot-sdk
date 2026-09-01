@@ -9,21 +9,17 @@ import {
     resolvePackageRoot,
     validateFile,
 } from "../src/runtimeArtifacts.js";
-import {
-    COPILOT_CLI_HASHES,
-    COPILOT_CLI_USE_NPM_PACKAGE,
-    COPILOT_CLI_VERSION,
-} from "../src/cliVersion.js";
+import { COPILOT_CLI_USE_NPM_PACKAGE, COPILOT_CLI_VERSION } from "../src/cliVersion.js";
 
 export interface EnsureCopilotPackageOptions {
     cacheRoot?: string;
     environment?: NodeJS.ProcessEnv;
-    expectedChecksum?: string;
     fetch?: typeof globalThis.fetch;
     platform?: string;
 }
 
 const packageDownloads = new Map<string, Promise<string>>();
+const checksumDownloads = new Map<string, Promise<Map<string, string>>>();
 
 async function fetchWithRetry(fetcher: typeof globalThis.fetch, url: string): Promise<Response> {
     let lastError: unknown;
@@ -51,6 +47,43 @@ async function fetchWithRetry(fetcher: typeof globalThis.fetch, url: string): Pr
         }
     }
     throw new Error(`Failed to download ${url}: ${String(lastError)}`);
+}
+
+async function getReleaseChecksum(
+    version: string,
+    assetName: string,
+    baseUrl: string,
+    fetcher: typeof globalThis.fetch
+): Promise<string | undefined> {
+    const key = `${baseUrl}\0${version}`;
+    let checksums = checksumDownloads.get(key);
+    if (!checksums) {
+        checksums = downloadReleaseChecksums(version, baseUrl, fetcher);
+        checksumDownloads.set(key, checksums);
+        try {
+            return (await checksums).get(assetName);
+        } catch (error) {
+            checksumDownloads.delete(key);
+            throw error;
+        }
+    }
+    return (await checksums).get(assetName);
+}
+
+async function downloadReleaseChecksums(
+    version: string,
+    baseUrl: string,
+    fetcher: typeof globalThis.fetch
+): Promise<Map<string, string>> {
+    const response = await fetchWithRetry(fetcher, `${baseUrl}/v${version}/SHA256SUMS.txt`);
+    const checksums = new Map<string, string>();
+    for (const line of (await response.text()).split(/\r?\n/)) {
+        const [hash, name] = line.trim().split(/\s+/, 2);
+        if (/^[a-fA-F0-9]{64}$/.test(hash) && name) {
+            checksums.set(name.replace(/^\*/, ""), hash.toLowerCase());
+        }
+    }
+    return checksums;
 }
 
 export async function ensureCopilotPackage(
@@ -94,8 +127,7 @@ export async function ensureCopilotPackage(
             platform,
             cacheRoot,
             baseUrl,
-            globalThis.fetch,
-            options.expectedChecksum
+            globalThis.fetch
         );
         packageDownloads.set(key, download);
         try {
@@ -104,14 +136,7 @@ export async function ensureCopilotPackage(
             packageDownloads.delete(key);
         }
     }
-    return downloadCopilotPackage(
-        version,
-        platform,
-        cacheRoot,
-        baseUrl,
-        options.fetch,
-        options.expectedChecksum
-    );
+    return downloadCopilotPackage(version, platform, cacheRoot, baseUrl, options.fetch);
 }
 
 async function downloadCopilotPackage(
@@ -119,18 +144,15 @@ async function downloadCopilotPackage(
     platform: string,
     cacheRoot: string,
     baseUrl: string,
-    fetcher: typeof globalThis.fetch,
-    checksumOverride?: string
+    fetcher: typeof globalThis.fetch
 ): Promise<string> {
     if (!fetcher) {
         throw new Error("This Node.js runtime does not provide fetch().");
     }
     const assetName = getRuntimeReleaseAssetName(version, platform);
-    const expectedChecksum =
-        checksumOverride ??
-        (version === COPILOT_CLI_VERSION ? COPILOT_CLI_HASHES[platform] : undefined);
+    const expectedChecksum = await getReleaseChecksum(version, assetName, baseUrl, fetcher);
     if (!expectedChecksum) {
-        throw new Error(`No trusted SHA-256 is pinned for ${assetName}.`);
+        throw new Error(`SHA256SUMS.txt does not contain ${assetName}.`);
     }
     const response = await fetchWithRetry(fetcher, `${baseUrl}/v${version}/${assetName}`);
     const archive = Buffer.from(await response.arrayBuffer());

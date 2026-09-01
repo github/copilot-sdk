@@ -961,12 +961,12 @@ github-copilot-sdk = { version = "0.1", default-features = false }
 
 1. **Version pin.** `build.rs` reads the CLI version from one of two sources:
    - `cli-version.txt` at the crate root (present in published crate tarballs and vendored slots).
-   - Otherwise, `../nodejs/copilot-cli.json` (contributor build inside the github/copilot-sdk repo).
+   - Otherwise, `../nodejs/package.json` (contributor build inside the github/copilot-sdk repo).
 
    The resolved version is baked into the crate via `cargo:rustc-env=COPILOT_SDK_CLI_VERSION` regardless of mode. The runtime resolver consumes it to recompute the on-disk path by convention, so no absolute paths leak into the rlib.
 
 2. **Build time:** `build.rs` downloads the platform-specific release archive and
-   verifies its SHA-256 against the checked-in manifest or publish snapshot.
+   verifies its SHA-256 against the release's `SHA256SUMS.txt` or the publish snapshot.
    Then:
    - **`bundled-cli` on (default):** creates and embeds a minimal archive containing the CLI executable, `copilot-runtime[.exe]`, and `runtime.node`.
    - **`bundled-in-process` on:** the archive additionally contains the platform-native runtime library (`.dll`, `.so`, or `.dylib`).
