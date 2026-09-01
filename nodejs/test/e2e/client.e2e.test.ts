@@ -185,7 +185,7 @@ describe("Client", () => {
     });
 
     it.skipIf(isInProcessTransport)(
-        "should report error with stderr when CLI fails to start",
+        "should report error when CLI fails to start",
         async () => {
             const client = new CopilotClient({
                 connection: RuntimeConnection.forStdio({
@@ -194,15 +194,7 @@ describe("Client", () => {
             });
             onTestFinishedStop(client);
 
-            let initialError: Error | undefined;
-            try {
-                await client.start();
-                expect.fail("Expected start() to throw an error");
-            } catch (error) {
-                initialError = error as Error;
-                expect(initialError.message).toContain("stderr");
-                expect(initialError.message).toContain("nonexistent");
-            }
+            await expect(client.start()).rejects.toBeInstanceOf(Error);
 
             // Verify subsequent calls also fail (don't hang)
             try {

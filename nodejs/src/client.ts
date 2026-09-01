@@ -98,7 +98,6 @@ import type { FactoryHandle } from "./factory.js";
  */
 const MIN_PROTOCOL_VERSION = 3;
 const RUNTIME_SHUTDOWN_TIMEOUT_MS = 10_000;
-const STARTUP_DIAGNOSTICS_TIMEOUT_MS = 2_000;
 
 /**
  * Check if value is a Zod schema (has toJSONSchema method)
@@ -540,7 +539,6 @@ export class CopilotClient {
     private _rpc: ReturnType<typeof createServerRpc> | null = null;
     private _internalRpc: ReturnType<typeof createInternalServerRpc> | null = null;
     private processExitPromise: Promise<never> | null = null; // Rejects when CLI process exits
-    private processCloseErrorPromise: Promise<Error> | null = null;
     private processTransportError: Error | null = null;
     private negotiatedProtocolVersion: number | null = null;
     /** Connection-level session filesystem config, set via constructor option. */
@@ -978,7 +976,6 @@ export class CopilotClient {
         }
 
         this.forceStopping = false;
-        this.processCloseErrorPromise = null;
         this.processTransportError = null;
         this.state = "connecting";
 
@@ -1026,21 +1023,7 @@ export class CopilotClient {
 
             this.state = "connected";
         } catch (error) {
-            let startupError = this.processTransportError ?? error;
-            if (this.processTransportError && this.processCloseErrorPromise) {
-                try {
-                    const processError = await withTimeout<Error>(
-                        this.processCloseErrorPromise,
-                        STARTUP_DIAGNOSTICS_TIMEOUT_MS,
-                        "Timed out waiting for CLI startup diagnostics"
-                    );
-                    if (processError.message.includes("\nstderr:")) {
-                        startupError = processError;
-                    }
-                } catch {
-                    // Fall back to the transport error when the child does not close promptly.
-                }
-            }
+            const startupError = this.processTransportError ?? error;
             await this.forceStop();
             this.state = "error";
             throw startupError;
@@ -1253,7 +1236,6 @@ export class CopilotClient {
         this.runtimePort = null;
         this.stderrBuffer = "";
         this.processExitPromise = null;
-        this.processCloseErrorPromise = null;
 
         return errors;
     }
@@ -1367,7 +1349,6 @@ export class CopilotClient {
         this.runtimePort = null;
         this.stderrBuffer = "";
         this.processExitPromise = null;
-        this.processCloseErrorPromise = null;
     }
 
     /**
@@ -2761,21 +2742,7 @@ export class CopilotClient {
                 }
             });
 
-            this.processCloseErrorPromise = new Promise<Error>((resolveClose) => {
-                this.cliProcess!.on("close", (code) => {
-                    const stderrOutput = this.stderrBuffer.trim();
-                    resolveClose(
-                        stderrOutput
-                            ? new Error(
-                                  `CLI server exited with code ${code}\nstderr: ${stderrOutput}`
-                              )
-                            : new Error(`CLI server exited unexpectedly with code ${code}`)
-                    );
-                });
-            });
-
-            // Reject startup RPCs as soon as the process exits. A separate close promise
-            // captures fully-drained stderr when a pipe error wins this race.
+            // Set up a promise that rejects when the process exits (used to race against RPC calls)
             this.processExitPromise = new Promise<never>((_, rejectProcessExit) => {
                 this.cliProcess!.on("exit", (code) => {
                     if (this.messageWriter) {
