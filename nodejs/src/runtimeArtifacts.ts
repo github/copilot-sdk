@@ -12,10 +12,15 @@ import {
     statSync,
     writeFileSync,
 } from "node:fs";
+import { createRequire } from "node:module";
 import { homedir } from "node:os";
 import { dirname, join, relative, sep } from "node:path";
 import { x as extractTar } from "tar";
-import { COPILOT_CLI_HASHES, COPILOT_CLI_VERSION } from "./cliVersion.js";
+import {
+    COPILOT_CLI_HASHES,
+    COPILOT_CLI_USE_NPM_PACKAGE,
+    COPILOT_CLI_VERSION,
+} from "./cliVersion.js";
 
 export interface RuntimeArtifactSources {
     packageRoot: string;
@@ -30,6 +35,7 @@ export interface EnsureRuntimeBundleOptions {
 }
 
 const runtimeDownloads = new Map<string, Promise<string>>();
+const require = createRequire(typeof __filename === "string" ? __filename : import.meta.url);
 
 const EXCLUDED_TOP_LEVEL = new Set([
     "app.js",
@@ -323,6 +329,20 @@ export async function ensureCopilotPackage(
 ): Promise<string> {
     const environment = options.environment ?? process.env;
     const platform = options.platform ?? getRuntimePlatform();
+    if (version === COPILOT_CLI_VERSION && COPILOT_CLI_USE_NPM_PACKAGE) {
+        const packageName = `@github/copilot-${platform}`;
+        const packageRoot = (require.resolve.paths(packageName) ?? [])
+            .map((base) => join(base, ...packageName.split("/")))
+            .find((candidate) => existsSync(join(candidate, "index.js")));
+        if (!packageRoot) {
+            throw new Error(`Could not resolve ${packageName} for Copilot CLI ${version}.`);
+        }
+        validateFile(
+            join(packageRoot, "prebuilds", platform, "runtime.node"),
+            "Copilot runtime.node"
+        );
+        return packageRoot;
+    }
     const cacheRoot = options.cacheRoot ?? defaultRuntimeCacheRoot();
     const versionRoot = join(cacheRoot, sanitizeCacheSegment(version));
     const cachedPackageRoot = join(versionRoot, "packages", platform);

@@ -165,7 +165,7 @@ jobs:
           tenant-id: "${{ vars.CPD_ID_TENANT_ID }}"
           allow-no-subscriptions: true
 
-      # Route ONLY @github/* (the runtime + its 8 platform packages) to the
+      # Route ONLY @github/* (the runtime + its platform packages) to the
       # internal feed via a scoped registry. All other deps (e.g. detect-libc)
       # still resolve from public npm. A global --registry would break because
       # detect-libc is not on the feed.
@@ -189,9 +189,15 @@ jobs:
       - name: Override runtime version
         run: |
           set -euo pipefail
-          echo "Pinning github/copilot-cli release ${RUNTIME_VERSION} (source: ${RUNTIME_SOURCE})"
-          node scripts/set-cli-version.js "$RUNTIME_VERSION"
-          npm install --ignore-scripts
+          if [ "$RUNTIME_SOURCE" = "internal" ]; then
+            echo "Installing internal @github/copilot@${RUNTIME_VERSION}"
+            npm install "@github/copilot@${RUNTIME_VERSION}" --save-exact --ignore-scripts
+            node scripts/set-cli-version.js "$RUNTIME_VERSION" --npm-package
+          else
+            echo "Pinning github/copilot-cli release ${RUNTIME_VERSION}"
+            node scripts/set-cli-version.js "$RUNTIME_VERSION"
+            npm install --ignore-scripts
+          fi
 
       - name: Verify release runtime
         run: |
@@ -239,6 +245,7 @@ jobs:
       id-token: write
     env:
       RUNTIME_VERSION: ${{ needs.resolve.outputs.RUNTIME_VERSION }}
+      RUNTIME_SOURCE: ${{ needs.resolve.outputs.RUNTIME_SOURCE }}
     defaults:
       run:
         shell: bash
@@ -306,8 +313,12 @@ jobs:
         run: |
           set -euo pipefail
           npm version "$SDK_VERSION" --no-git-tag-version --allow-same-version
-          node scripts/set-cli-version.js "$RUNTIME_VERSION"
-          npm install --package-lock-only --ignore-scripts
+          if [ "$RUNTIME_SOURCE" = "internal" ]; then
+            npm pkg set "dependencies.@github/copilot=$RUNTIME_VERSION"
+            node scripts/set-cli-version.js "$RUNTIME_VERSION" --npm-package
+          else
+            node scripts/set-cli-version.js "$RUNTIME_VERSION"
+          fi
           echo "Pinned github/copilot-cli release to $(npm pkg get copilotCliVersion)"
 
       - name: Build SDK

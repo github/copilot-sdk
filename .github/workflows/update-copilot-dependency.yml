@@ -161,19 +161,20 @@ jobs:
             exit 0
           fi
 
-          git commit -m "Update @github/copilot to $VERSION
+          git commit -m "Update Copilot CLI to $VERSION
 
-          - Updated the Node.js CLI release pin
+          - Updated the Node.js CLI release pin and trusted hashes
           - Re-ran code generators
           - Formatted generated code"
 
           git push origin "$BRANCH" --force-with-lease
 
           PR_BODY=$(cat <<'BODY_EOF'
-          Automated update of `@github/copilot` to version `PLACEHOLDER_VERSION`.
+          Automated update of the Copilot CLI release to version `PLACEHOLDER_VERSION`.
 
           ### Changes
-          - Updated the Copilot CLI release pin in `nodejs/package.json`
+          - Updated the release pin in `nodejs/package.json`
+          - Updated trusted release hashes in `nodejs/copilot-cli.json`
           - Re-ran all code generators (`scripts/codegen`)
           - Formatted generated output
           - Updated Java codegen dependency, POM property, and regenerated Java types

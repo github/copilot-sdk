@@ -8,22 +8,19 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RUST_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 REPO_ROOT="$(cd "${RUST_DIR}/.." && pwd)"
-PACKAGE_FILE="${REPO_ROOT}/nodejs/package.json"
+MANIFEST_FILE="${REPO_ROOT}/nodejs/copilot-cli.json"
 OUTPUT="${RUST_DIR}/cli-version-in-process.txt"
 
-if [[ ! -f "${PACKAGE_FILE}" ]]; then
-  echo "error: ${PACKAGE_FILE} not found" >&2
+if [[ ! -f "${MANIFEST_FILE}" ]]; then
+  echo "error: ${MANIFEST_FILE} not found" >&2
   exit 1
 fi
 
-VERSION="$(node -e "console.log(require('${PACKAGE_FILE}').copilotCliVersion)")"
+VERSION="$(node -e "console.log(require('${MANIFEST_FILE}').version)")"
 if [[ -z "${VERSION}" ]]; then
-  echo "error: could not read copilotCliVersion from ${PACKAGE_FILE}" >&2
+  echo "error: could not read version from ${MANIFEST_FILE}" >&2
   exit 1
 fi
-
-CHECKSUMS_URL="https://github.com/github/copilot-cli/releases/download/v${VERSION}/SHA256SUMS.txt"
-SHA256SUMS="$(curl -fsSL --retry 3 --retry-delay 2 "${CHECKSUMS_URL}")"
 
 PACKAGES=(
   "copilot-darwin-arm64"
@@ -44,10 +41,9 @@ trap 'rm -f "${TEMP_OUTPUT}"' EXIT
   echo "version=${VERSION}"
   for package in "${PACKAGES[@]}"; do
     platform="${package#copilot-}"
-    asset="github-copilot-${VERSION}-${platform}.tgz"
-    hash="$(printf '%s\n' "${SHA256SUMS}" | awk -v a="${asset}" '$2 == a { print $1 }')"
+    hash="$(node -e "console.log(require(process.argv[1]).runtimeHashes[process.argv[2]] || '')" "${MANIFEST_FILE}" "${platform}")"
     if [[ -z "${hash}" ]]; then
-      echo "error: SHA256SUMS.txt missing entry for ${asset}" >&2
+      echo "error: ${MANIFEST_FILE} missing trusted hash for ${platform}" >&2
       exit 1
     fi
     echo "${package}=${hash}"

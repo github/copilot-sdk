@@ -1175,29 +1175,23 @@ fn cli_path(repo_root: &Path) -> std::io::Result<PathBuf> {
         }
     }
 
-    // The `@github/copilot` package is a thin loader; the runnable `index.js`
-    // ships in a platform-specific `@github/copilot-<platform>-<arch>` package,
-    // exactly one of which is installed. Resolve whichever one is present.
-    let github_dir = repo_root
-        .join("nodejs")
-        .join("node_modules")
-        .join("@github");
-    if let Ok(entries) = std::fs::read_dir(&github_dir) {
-        for entry in entries.flatten() {
-            if entry.file_name().to_string_lossy().starts_with("copilot-") {
-                let candidate = entry.path().join("index.js");
-                if candidate.exists() {
-                    return Ok(candidate);
-                }
-            }
+    let npm = if cfg!(windows) { "npm.cmd" } else { "npm" };
+    let output = std::process::Command::new(npm)
+        .args(["run", "--silent", "prepare:runtime", "--", "--print-path"])
+        .current_dir(repo_root.join("nodejs"))
+        .output()?;
+    if output.status.success() {
+        let path = PathBuf::from(String::from_utf8_lossy(&output.stdout).trim());
+        if path.is_file() {
+            return Ok(path);
         }
     }
 
     Err(std::io::Error::new(
         std::io::ErrorKind::NotFound,
         format!(
-            "CLI not found under {}; run npm install in nodejs first",
-            github_dir.display()
+            "failed to prepare the pinned Copilot CLI: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
         ),
     ))
 }

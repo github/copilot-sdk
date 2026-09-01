@@ -21,12 +21,12 @@ pub(crate) fn main() {
     // The package file is only the source-of-truth in this repo's
     // contributor builds; everywhere else `cli-version.txt` is canonical.
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR is set");
-    let package_file = Path::new(&manifest_dir)
+    let release_manifest = Path::new(&manifest_dir)
         .join("..")
         .join("nodejs")
-        .join("package.json");
-    if package_file.is_file() {
-        println!("cargo:rerun-if-changed={}", package_file.display());
+        .join("copilot-cli.json");
+    if release_manifest.is_file() {
+        println!("cargo:rerun-if-changed={}", release_manifest.display());
     }
 
     // Hard opt-out: disable the entire download / bundle / cache mechanism
@@ -66,10 +66,8 @@ pub(crate) fn main() {
     //      makes the publish workflow the trust boundary — an attacker who
     //      later re-points the release tag can't silently poison consumer
     //      builds.
-    //   2. Sibling `../nodejs/package.json` (contributor build inside
-    //      the github/copilot-sdk repo; live SHA256SUMS.txt fetch). Matches
-    //      the .NET `_GetCopilotCliVersion` MSBuild target and the Go
-    //      `cmd/bundler` tool.
+    //   2. Sibling `../nodejs/copilot-cli.json` (contributor build inside
+    //      the github/copilot-sdk repo).
     let (version, expected_hash) = resolve_version_and_hash(platform.asset_name);
 
     // Bake the version into the crate regardless of mode. This is the
@@ -194,16 +192,13 @@ fn resolve_version_and_hash(asset_name: &str) -> (String, String) {
             .unwrap_or_else(|e| panic!("invalid {}: {e}", snapshot.display()));
     }
 
-    // 2. Package metadata fallback (contributor build inside github/copilot-sdk) —
-    //    read version, fetch live SHA256SUMS.
-    let package_file = Path::new(&manifest_dir)
+    // 2. Checked-in release manifest (contributor build inside github/copilot-sdk).
+    let release_manifest = Path::new(&manifest_dir)
         .join("..")
         .join("nodejs")
-        .join("package.json");
-    if package_file.is_file() {
-        let version = read_version_from_package_json(&package_file);
-        let hash = fetch_live_sha256(&version, asset_name);
-        return (version, hash);
+        .join("copilot-cli.json");
+    if release_manifest.is_file() {
+        return read_version_and_hash_from_manifest(&release_manifest, asset_name);
     }
 
     panic!(
@@ -212,9 +207,9 @@ fn resolve_version_and_hash(asset_name: &str) -> (String, String) {
          - {} (missing)\n\
          - {} (missing)\n\
          In a published crate or vendored slot, `cli-version.txt` should be present.\n\
-         Inside the github/copilot-sdk repo, `../nodejs/package.json` is the source.",
+         Inside the github/copilot-sdk repo, `../nodejs/copilot-cli.json` is the source.",
         snapshot.display(),
-        package_file.display(),
+        release_manifest.display(),
     );
 }
 
@@ -247,30 +242,18 @@ fn parse_snapshot(contents: &str, asset_name: &str) -> Result<(String, String), 
     Ok((version, hash))
 }
 
-/// Read the pinned Copilot CLI version from `nodejs/package.json`.
-fn read_version_from_package_json(path: &Path) -> String {
+fn read_version_and_hash_from_manifest(path: &Path, asset_name: &str) -> (String, String) {
     let contents = std::fs::read_to_string(path)
         .unwrap_or_else(|e| panic!("failed to read {}: {e}", path.display()));
-    let key = "\"copilotCliVersion\"";
-    let key_pos = contents
-        .find(key)
-        .unwrap_or_else(|| panic!("{} does not contain {key}", path.display()));
-    let after_key = &contents[key_pos + key.len()..];
-    let q1 = after_key.find('"').expect("malformed copilotCliVersion");
-    let after_q1 = &after_key[q1 + 1..];
-    let q2 = after_q1.find('"').expect("malformed copilotCliVersion");
-    after_q1[..q2].to_string()
-}
-
-/// Fetch the live `SHA256SUMS.txt` for the given version from GitHub Releases
-/// and pluck out the entry for `asset_name`.
-fn fetch_live_sha256(version: &str, asset_name: &str) -> String {
-    let base_url = format!("https://github.com/github/copilot-cli/releases/download/v{version}");
-    let checksums_url = format!("{base_url}/SHA256SUMS.txt");
-    let checksums = download_with_retry(&checksums_url);
-    let checksums_text =
-        std::str::from_utf8(&checksums).expect("checksums file is not valid UTF-8");
-    find_sha256_for_asset(checksums_text, asset_name)
+    let manifest: serde_json::Value = serde_json::from_str(&contents)
+        .unwrap_or_else(|e| panic!("failed to parse {}: {e}", path.display()));
+    let version = manifest["version"]
+        .as_str()
+        .unwrap_or_else(|| panic!("version is missing in {}", path.display()));
+    let hash = manifest["cliHashes"][asset_name]
+        .as_str()
+        .unwrap_or_else(|| panic!("trusted hash for {asset_name} is missing in {}", path.display()));
+    (version.to_string(), hash.to_string())
 }
 
 #[derive(Clone, Copy)]
@@ -630,18 +613,6 @@ fn try_download(url: &str) -> Result<Vec<u8>, DownloadError> {
             transient: true,
         }),
     }
-}
-
-fn find_sha256_for_asset(sums: &str, asset_name: &str) -> String {
-    for line in sums.lines() {
-        // Format: "<hash>  <filename>" (two spaces)
-        if let Some((hash, name)) = line.split_once("  ")
-            && name.trim() == asset_name
-        {
-            return hash.trim().to_string();
-        }
-    }
-    panic!("SHA256SUMS.txt does not contain an entry for {asset_name}");
 }
 
 fn sha256(data: &[u8]) -> [u8; 32] {

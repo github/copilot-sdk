@@ -16,7 +16,8 @@ mirror.
 
 The checked-in release pin is `copilotCliVersion` in `package.json`. Run
 `npm run set:cli-version -- <version>` to update it and regenerate the
-platform SHA-256 map in `src/cliVersion.ts`.
+trusted platform SHA-256 manifest in `copilot-cli.json` and the compiled
+metadata in `src/cliVersion.ts`.
 
 ## Installation
 

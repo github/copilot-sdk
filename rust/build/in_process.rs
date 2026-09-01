@@ -21,12 +21,12 @@ pub(crate) fn main() {
     // The package file is only the source-of-truth in this repo's
     // contributor builds; everywhere else `cli-version-in-process.txt` is canonical.
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR is set");
-    let package_file = Path::new(&manifest_dir)
+    let release_manifest = Path::new(&manifest_dir)
         .join("..")
         .join("nodejs")
-        .join("package.json");
-    if package_file.is_file() {
-        println!("cargo:rerun-if-changed={}", package_file.display());
+        .join("copilot-cli.json");
+    if release_manifest.is_file() {
+        println!("cargo:rerun-if-changed={}", release_manifest.display());
     }
 
     // Hard opt-out: disable the entire download / bundle / cache mechanism
@@ -66,8 +66,8 @@ pub(crate) fn main() {
     //      makes the publish workflow the trust boundary — an attacker who
     //      later re-points the release tag can't silently poison consumer
     //      builds.
-    //   2. Sibling `../nodejs/package.json` (contributor build inside
-    //      the github/copilot-sdk repo), combined with the release checksums.
+    //   2. Sibling `../nodejs/copilot-cli.json` (contributor build inside
+    //      the github/copilot-sdk repo).
     let (version, expected_hash) = resolve_version_and_hash(platform.package_name);
 
     // Bake the version into the crate regardless of mode. This is the
@@ -199,7 +199,8 @@ fn build_embedded_archive(package: &[u8], platform: Platform, include_runtime: b
         .mtime(0)
         .write(Vec::new(), flate2::Compression::default());
     let mut archive = tar::Builder::new(encoder);
-    let runtime = append_hostless_runtime_tree(&mut archive, package, platform);
+    let (runtime, wrapper) = append_hostless_runtime_tree(&mut archive, package, platform);
+    append_archive_file(&mut archive, platform.binary_name, &wrapper, 0o755);
     if include_runtime {
         append_archive_file(
             &mut archive,
@@ -220,10 +221,11 @@ fn append_hostless_runtime_tree<W: Write>(
     archive: &mut tar::Builder<W>,
     package: &[u8],
     platform: Platform,
-) -> Vec<u8> {
+) -> (Vec<u8>, Vec<u8>) {
     let decoder = flate2::read::GzDecoder::new(package);
     let mut source = tar::Archive::new(decoder);
     let mut runtime = None;
+    let mut wrapper = None;
     for entry in source
         .entries()
         .unwrap_or_else(|e| panic!("failed to read npm package entries: {e}"))
@@ -247,6 +249,9 @@ fn append_hostless_runtime_tree<W: Write>(
         if destination == Path::new("runtime.node") {
             runtime = Some(bytes.clone());
         }
+        if destination == Path::new(platform.runtime_wrapper_name()) {
+            wrapper = Some(bytes.clone());
+        }
         append_archive_file(
             archive,
             destination
@@ -256,12 +261,21 @@ fn append_hostless_runtime_tree<W: Write>(
             mode,
         );
     }
-    runtime.unwrap_or_else(|| {
-        panic!(
-            "package `{}` does not contain prebuilds/<platform>/runtime.node",
-            platform.package_name
-        )
-    })
+    (
+        runtime.unwrap_or_else(|| {
+            panic!(
+                "package `{}` does not contain prebuilds/<platform>/runtime.node",
+                platform.package_name
+            )
+        }),
+        wrapper.unwrap_or_else(|| {
+            panic!(
+                "package `{}` does not contain prebuilds/<platform>/{}",
+                platform.package_name,
+                platform.runtime_wrapper_name()
+            )
+        }),
+    )
 }
 
 fn hostless_runtime_path(source: &str, platform: Platform) -> Option<PathBuf> {
@@ -347,19 +361,16 @@ fn resolve_version_and_hash(package_name: &str) -> (String, String) {
             .unwrap_or_else(|e| panic!("invalid {}: {e}", snapshot.display()));
     }
 
-    // 2. Package metadata fallback (contributor build inside github/copilot-sdk).
-    let package_file = Path::new(&manifest_dir)
+    // 2. Checked-in release manifest (contributor build inside github/copilot-sdk).
+    let release_manifest = Path::new(&manifest_dir)
         .join("..")
         .join("nodejs")
-        .join("package.json");
-    if package_file.is_file() {
-        let version = read_version_from_package_json(&package_file);
+        .join("copilot-cli.json");
+    if release_manifest.is_file() {
         let platform = package_name
             .strip_prefix("copilot-")
             .expect("platform package names start with copilot-");
-        let asset_name = format!("github-copilot-{version}-{platform}.tgz");
-        let hash = fetch_live_sha256(&version, &asset_name);
-        return (version, hash);
+        return read_version_and_hash_from_manifest(&release_manifest, platform);
     }
 
     panic!(
@@ -368,9 +379,9 @@ fn resolve_version_and_hash(package_name: &str) -> (String, String) {
          - {} (missing)\n\
          - {} (missing)\n\
          In a published crate or vendored slot, `cli-version-in-process.txt` should be present.\n\
-         Inside the github/copilot-sdk repo, `../nodejs/package.json` is the source.",
+         Inside the github/copilot-sdk repo, `../nodejs/copilot-cli.json` is the source.",
         snapshot.display(),
-        package_file.display(),
+        release_manifest.display(),
     );
 }
 
@@ -403,31 +414,23 @@ fn parse_snapshot(contents: &str, package_name: &str) -> Result<(String, String)
     Ok((version, hash))
 }
 
-fn read_version_from_package_json(path: &Path) -> String {
+fn read_version_and_hash_from_manifest(path: &Path, platform: &str) -> (String, String) {
     let contents = std::fs::read_to_string(path)
         .unwrap_or_else(|e| panic!("failed to read {}: {e}", path.display()));
-    let package: serde_json::Value = serde_json::from_str(&contents)
+    let manifest: serde_json::Value = serde_json::from_str(&contents)
         .unwrap_or_else(|e| panic!("failed to parse {}: {e}", path.display()));
-    package["copilotCliVersion"]
+    let version = manifest["version"]
         .as_str()
-        .unwrap_or_else(|| panic!("copilotCliVersion is missing in {}", path.display()))
-        .to_string()
-}
-
-fn fetch_live_sha256(version: &str, asset_name: &str) -> String {
-    let checksums_url = format!(
-        "https://github.com/github/copilot-cli/releases/download/v{version}/SHA256SUMS.txt"
-    );
-    let checksums = download_with_retry(&checksums_url);
-    let checksums_text =
-        std::str::from_utf8(&checksums).expect("checksums file is not valid UTF-8");
-    checksums_text
-        .lines()
-        .find_map(|line| {
-            let (hash, name) = line.split_once(char::is_whitespace)?;
-            (name.trim_start().trim_start_matches('*') == asset_name).then(|| hash.to_string())
-        })
-        .unwrap_or_else(|| panic!("SHA256SUMS.txt has no entry for {asset_name}"))
+        .unwrap_or_else(|| panic!("version is missing in {}", path.display()));
+    let hash = manifest["runtimeHashes"][platform]
+        .as_str()
+        .unwrap_or_else(|| {
+            panic!(
+                "trusted hash for {platform} is missing in {}",
+                path.display()
+            )
+        });
+    (version.to_string(), hash.to_string())
 }
 
 #[derive(Clone, Copy)]

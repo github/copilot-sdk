@@ -6,10 +6,9 @@
  * Downloads the native runtime artifacts for one platform classifier.
  *
  * Steps:
- *   1. Read the pinned version from `nodejs/package.json`.
- *   2. Download the platform npm tarball and checksums from the matching
- *      `github/copilot-cli` release.
- *   3. Verify the downloaded tarball against the release SHA-256.
+ *   1. Read the pinned version and trusted hash from `nodejs/copilot-cli.json`.
+ *   2. Download the platform npm tarball from the matching release.
+ *   3. Verify the downloaded tarball against the checked-in SHA-256.
  *   4. Stage the hostless runtime tree, flattening the selected prebuild directory
  *      beside the package's retained top-level runtime assets.
  *   5. Write an inventory consumed by the SDK's generic classpath extractor.
@@ -52,12 +51,12 @@ if (!repoRoot || !stagingDir || !classifier) {
   process.exit(1);
 }
 
-const packagePath = path.join(repoRoot, 'nodejs', 'package.json');
+const manifestPath = path.join(repoRoot, 'nodejs', 'copilot-cli.json');
 const packageName = `@github/copilot-${classifier}`;
-const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
-const version = packageJson.copilotCliVersion;
+const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+const version = manifest.version;
 if (!version) {
-  console.error(`Could not find copilotCliVersion in ${packagePath}`);
+  console.error(`Could not find version in ${manifestPath}`);
   process.exit(1);
 }
 
@@ -117,12 +116,8 @@ if (process.env.COPILOT_CLI_RELEASE_TARBALL) {
   expectedHash = process.env.COPILOT_CLI_RELEASE_SHA256;
 } else {
   const releaseUrl = `${releaseBase}/v${version}`;
-  const [checksums, downloadedArchive] = await Promise.all([
-    download(`${releaseUrl}/SHA256SUMS.txt`).then((data) => data.toString('utf8')),
-    download(`${releaseUrl}/${assetName}`),
-  ]);
-  expectedHash = checksumForAsset(checksums, assetName);
-  archive = downloadedArchive;
+  expectedHash = manifest.runtimeHashes?.[classifier];
+  archive = await download(`${releaseUrl}/${assetName}`);
 }
 if (!expectedHash || !/^[a-fA-F0-9]{64}$/.test(expectedHash)) {
   throw new Error(`Missing or invalid SHA-256 for ${assetName}`);
@@ -232,16 +227,6 @@ function digestTree(directory) {
     hash.update(relative).update('\0').update(fs.readFileSync(file)).update('\0');
   }
   return `sha512-${hash.digest('base64')}`;
-}
-
-function checksumForAsset(checksums, assetName) {
-  for (const line of checksums.split(/\r?\n/)) {
-    const [hash, name] = line.trim().split(/\s+/, 2);
-    if (name?.replace(/^\*/, '') === assetName && /^[a-fA-F0-9]{64}$/.test(hash)) {
-      return hash;
-    }
-  }
-  throw new Error(`SHA256SUMS.txt does not contain ${assetName}`);
 }
 
 async function download(url) {

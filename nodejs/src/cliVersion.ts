@@ -1,5 +1,7 @@
 export const COPILOT_CLI_VERSION = "1.0.83-1";
 
+export const COPILOT_CLI_USE_NPM_PACKAGE = false;
+
 export const COPILOT_CLI_HASHES: Readonly<Record<string, string>> = {
     "darwin-arm64": "d8bd725ed870fe1ad4c55070857a4efa03dc3327e07e3aacc62a9b67379bc2d0",
     "darwin-x64": "6ff4e3b42f74106392e3a8b8709bf8506bc1a9b9459cdc3ac01dffd4c464186f",

@@ -2,6 +2,7 @@ import { existsSync, mkdtempSync, mkdirSync, readFileSync, statSync, writeFileSy
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { createHash } from "node:crypto";
+import { spawnSync } from "node:child_process";
 import { c as createTar } from "tar";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -12,7 +13,11 @@ import {
     getRuntimeReleaseAssetName,
     materializeRuntimeBundle,
 } from "../src/runtimeArtifacts.js";
-import { COPILOT_CLI_HASHES, COPILOT_CLI_VERSION } from "../src/cliVersion.js";
+import {
+    COPILOT_CLI_HASHES,
+    COPILOT_CLI_USE_NPM_PACKAGE,
+    COPILOT_CLI_VERSION,
+} from "../src/cliVersion.js";
 
 describe("defaultRuntimeCacheRoot", () => {
     it.each([
@@ -45,9 +50,53 @@ describe("release runtime selection", () => {
         const packageJson = JSON.parse(
             readFileSync(join(import.meta.dirname, "../package.json"), "utf8")
         );
+        const manifest = JSON.parse(
+            readFileSync(join(import.meta.dirname, "../copilot-cli.json"), "utf8")
+        );
         expect(COPILOT_CLI_VERSION).toBe(packageJson.copilotCliVersion);
-        expect(Object.keys(COPILOT_CLI_HASHES)).toHaveLength(8);
-        expect(packageJson.dependencies).not.toHaveProperty("@github/copilot");
+        expect(manifest.version).toBe(COPILOT_CLI_VERSION);
+        expect(manifest.runtimeHashes).toEqual(COPILOT_CLI_HASHES);
+        expect(COPILOT_CLI_USE_NPM_PACKAGE).toBe(manifest.source === "npm-package");
+        if (COPILOT_CLI_USE_NPM_PACKAGE) {
+            expect(COPILOT_CLI_HASHES).toEqual({});
+            expect(manifest.cliHashes).toEqual({});
+            expect(packageJson.dependencies["@github/copilot"]).toBe(COPILOT_CLI_VERSION);
+        } else {
+            expect(manifest.source).toBe("github-release");
+            expect(Object.keys(COPILOT_CLI_HASHES)).toHaveLength(8);
+            expect(Object.keys(manifest.cliHashes)).toHaveLength(6);
+            expect(packageJson.dependencies).not.toHaveProperty("@github/copilot");
+        }
+    });
+
+    it("can pin an internal npm package without contacting GitHub Releases", () => {
+        const root = mkdtempSync(join(tmpdir(), "copilot-cli-version-"));
+        mkdirSync(join(root, "scripts"), { recursive: true });
+        mkdirSync(join(root, "src"), { recursive: true });
+        writeFileSync(join(root, "package.json"), "{}\n");
+        writeFileSync(
+            join(root, "scripts", "set-cli-version.js"),
+            readFileSync(join(import.meta.dirname, "../scripts/set-cli-version.js"))
+        );
+
+        const result = spawnSync(
+            process.execPath,
+            [join(root, "scripts", "set-cli-version.js"), "9.9.9-canary.test", "--npm-package"],
+            { encoding: "utf8" }
+        );
+        expect(result.status, result.stderr).toBe(0);
+        expect(JSON.parse(readFileSync(join(root, "package.json"), "utf8"))).toMatchObject({
+            copilotCliVersion: "9.9.9-canary.test",
+        });
+        expect(JSON.parse(readFileSync(join(root, "copilot-cli.json"), "utf8"))).toEqual({
+            version: "9.9.9-canary.test",
+            source: "npm-package",
+            runtimeHashes: {},
+            cliHashes: {},
+        });
+        expect(readFileSync(join(root, "src", "cliVersion.ts"), "utf8")).toContain(
+            "COPILOT_CLI_USE_NPM_PACKAGE = true"
+        );
     });
 
     it.each([

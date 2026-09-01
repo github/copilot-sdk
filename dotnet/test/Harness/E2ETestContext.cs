@@ -5,7 +5,6 @@
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 
 namespace GitHub.Copilot.Test.Harness;
@@ -149,41 +148,33 @@ public sealed class E2ETestContext : IAsyncDisposable
         var envPath = Environment.GetEnvironmentVariable("COPILOT_CLI_PATH");
         if (!string.IsNullOrEmpty(envPath)) return envPath;
 
-        // As of CLI 1.0.64-1 the @github/copilot package is a thin loader; the
-        // runnable index.js ships in the installed platform package.
-        var githubModules = Path.Join(repoRoot, "nodejs", "node_modules", "@github");
-        var packagePrefix = GetCliPackagePrefix();
-        var candidates = Directory.Exists(githubModules)
-            ? Directory.EnumerateDirectories(githubModules, $"{packagePrefix}-*", SearchOption.TopDirectoryOnly)
-                .Select(directory => Path.Join(directory, "index.js"))
-                .Where(File.Exists)
-                .ToArray()
-            : [];
-
-        return candidates.Length switch
+        var startInfo = new ProcessStartInfo
         {
-            1 => candidates[0],
-            0 => throw new InvalidOperationException(
-                $"CLI package matching '{packagePrefix}-*' not found under {githubModules}. " +
-                "Run 'npm install' in the nodejs directory first."),
-            _ => throw new InvalidOperationException(
-                $"Multiple CLI packages matching '{packagePrefix}-*' found under {githubModules}: " +
-                string.Join(", ", candidates.Select(Path.GetDirectoryName))),
+            FileName = OperatingSystem.IsWindows() ? "npm.cmd" : "npm",
+            WorkingDirectory = Path.Join(repoRoot, "nodejs"),
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
         };
-    }
+        foreach (var argument in new[] { "run", "--silent", "prepare:runtime", "--", "--print-path" })
+            startInfo.ArgumentList.Add(argument);
 
-    private static string GetCliPackagePrefix()
-    {
-        var platform = OperatingSystem.IsWindows()
-            ? "win32"
-            : OperatingSystem.IsMacOS()
-                ? "darwin"
-                : OperatingSystem.IsLinux()
-                    ? RuntimeInformation.RuntimeIdentifier.StartsWith("linux-musl-", StringComparison.Ordinal)
-                        ? "linuxmusl"
-                        : "linux"
-                    : throw new PlatformNotSupportedException("Unsupported operating system for Copilot CLI E2E tests.");
-        return $"copilot-{platform}";
+        using var process = Process.Start(startInfo)
+            ?? throw new InvalidOperationException("Failed to start Node.js runtime preparation.");
+        var stdout = process.StandardOutput.ReadToEndAsync();
+        var stderr = process.StandardError.ReadToEndAsync();
+        process.WaitForExit();
+        var output = stdout.GetAwaiter().GetResult();
+        var lines = output.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries);
+        var cliPath = lines.Length == 0 ? string.Empty : lines[^1].Trim();
+        var error = stderr.GetAwaiter().GetResult().Trim();
+        if (process.ExitCode != 0 || string.IsNullOrEmpty(cliPath))
+            throw new InvalidOperationException(
+                $"Failed to prepare the pinned Copilot CLI: {error}");
+        if (!File.Exists(cliPath))
+            throw new InvalidOperationException(
+                $"Pinned Copilot CLI was not created at {cliPath}.");
+        return cliPath;
     }
 
     public async Task ConfigureForTestAsync(string testFile, [CallerMemberName] string? testName = null)
