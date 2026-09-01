@@ -188,7 +188,7 @@ public sealed class GitHubTelemetryTests
         await using var client = new CopilotClient(new CopilotClientOptions
         {
             Connection = RuntimeConnection.ForUri(server.Url),
-            ClientInfo = new CopilotClientInfo { EditorName = "example-editor" },
+            ClientInfo = new CopilotClientInfo { EditorName = "example-editor", EditorVersion = "" },
         });
         await client.StartAsync();
 
@@ -198,6 +198,29 @@ public sealed class GitHubTelemetryTests
         Assert.False(clientInfo.TryGetProperty("editorVersion", out _));
         Assert.False(clientInfo.TryGetProperty("extensionName", out _));
         Assert.False(clientInfo.TryGetProperty("extensionVersion", out _));
+    }
+
+    [Fact]
+    public async Task Connect_Omits_All_Empty_ClientInfo()
+    {
+        await using var server = await FakeTelemetryServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions
+        {
+            Connection = RuntimeConnection.ForUri(server.Url),
+            ClientInfo = new CopilotClientInfo
+            {
+                EditorName = "",
+                EditorVersion = "",
+                ExtensionName = "",
+                ExtensionVersion = "",
+            },
+        });
+        await client.StartAsync();
+
+        var connectParams = server.LastConnectParams ?? throw new InvalidOperationException("connect was not captured.");
+        Assert.False(
+            connectParams.TryGetProperty("clientInfo", out _),
+            "connect request should omit an all-empty clientInfo");
     }
 
     [Fact]

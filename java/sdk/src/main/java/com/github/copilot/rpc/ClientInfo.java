@@ -4,6 +4,7 @@
 
 package com.github.copilot.rpc;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
@@ -132,6 +133,7 @@ public class ClientInfo {
      *
      * @return {@code true} when every field is {@code null} or empty
      */
+    @JsonIgnore
     public boolean isEmpty() {
         return isBlank(editorName) && isBlank(editorVersion) && isBlank(extensionName) && isBlank(extensionVersion);
     }

@@ -216,6 +216,7 @@ class GitHubTelemetryTest {
 
             JsonNode connectParams = server.awaitConnect();
             JsonNode clientInfo = connectParams.path("clientInfo");
+            assertEquals(4, clientInfo.size(), "clientInfo should carry only the four declared fields");
             assertEquals("JetBrains-IU", clientInfo.path("editorName").asText());
             assertEquals("2026.1", clientInfo.path("editorVersion").asText());
             assertEquals("copilot-intellij", clientInfo.path("extensionName").asText());
@@ -263,6 +264,7 @@ class GitHubTelemetryTest {
 
             JsonNode connectParams = server.awaitConnect();
             JsonNode clientInfo = connectParams.path("clientInfo");
+            assertEquals(1, clientInfo.size(), "clientInfo should carry only the non-empty field");
             assertEquals("vscode", clientInfo.path("editorName").asText());
             assertFalse(clientInfo.has("editorVersion"), "empty editorVersion should be dropped");
         }
