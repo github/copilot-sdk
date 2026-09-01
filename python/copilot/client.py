@@ -519,15 +519,15 @@ def _client_info_to_wire(client_info: ClientInfo | None) -> dict[str, str] | Non
     """
     if not client_info:
         return None
-    field_map = {
-        "editor_name": "editorName",
-        "editor_version": "editorVersion",
-        "extension_name": "extensionName",
-        "extension_version": "extensionVersion",
-    }
-    wire = {
-        wire_key: client_info[key] for key, wire_key in field_map.items() if client_info.get(key)
-    }  # type: ignore[literal-required]
+    wire: dict[str, str] = {}
+    if client_info.get("editor_name"):
+        wire["editorName"] = client_info["editor_name"]
+    if client_info.get("editor_version"):
+        wire["editorVersion"] = client_info["editor_version"]
+    if client_info.get("extension_name"):
+        wire["extensionName"] = client_info["extension_name"]
+    if client_info.get("extension_version"):
+        wire["extensionVersion"] = client_info["extension_version"]
     return wire or None
 
 
