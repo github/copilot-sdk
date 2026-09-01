@@ -33,6 +33,13 @@ async fn should_restore_tracked_file_and_conversation() {
                     .await
                     .expect("create session");
 
+                let ready = session
+                    .send_and_wait("Reply with exactly: SDK_REWIND_READY")
+                    .await
+                    .expect("send readiness turn")
+                    .expect("readiness response");
+                assert_eq!(assistant_message_content(&ready), "SDK_REWIND_READY");
+
                 let response = session
                     .send_and_wait(format!(
                         "Use the edit tool to replace the exact contents of {FILE_NAME} from \
@@ -50,8 +57,9 @@ async fn should_restore_tracked_file_and_conversation() {
 
                 let rewind_points = wait_for_rewind_points(&session).await;
                 assert!(rewind_points.file_change_tracking_enabled);
-                assert_eq!(rewind_points.points.len(), 1);
-                let rewind_point = &rewind_points.points[0];
+                assert_eq!(rewind_points.points.len(), 2);
+                let rewind_point = &rewind_points.points[1];
+                assert!(rewind_point.turn_changed_files);
                 assert!(rewind_point.can_restore_files);
                 assert_eq!(rewind_point.file_count, 1);
 
@@ -108,10 +116,10 @@ async fn wait_for_rewind_points(
             .await
             .expect("list rewind points");
         if result.unavailable_reason.is_none()
-            && result
-                .points
-                .first()
-                .is_some_and(|point| point.can_restore_files && point.file_count == 1)
+            && result.points.len() == 2
+            && result.points[1].turn_changed_files
+            && result.points[1].can_restore_files
+            && result.points[1].file_count == 1
         {
             return result;
         }

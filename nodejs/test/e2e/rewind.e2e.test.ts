@@ -35,6 +35,11 @@ describe("Rewind", async () => {
         });
 
         try {
+            const ready = await session.sendAndWait({
+                prompt: "Reply with exactly: SDK_REWIND_READY",
+            });
+            expect(ready?.data.content).toBe("SDK_REWIND_READY");
+
             const response = await session.sendAndWait({
                 prompt: `Use the edit tool to replace the exact contents of ${FILE_NAME} from ${ORIGINAL_FILE_CONTENT} to ${FILE_CONTENT}. After the tool succeeds, reply with exactly SDK_REWIND_DONE.`,
             });
@@ -48,7 +53,9 @@ describe("Rewind", async () => {
             while (
                 Date.now() < deadline &&
                 (rewindPoints.unavailableReason !== undefined ||
-                    !rewindPoints.points[0]?.canRestoreFiles)
+                    rewindPoints.points.length !== 2 ||
+                    !rewindPoints.points[1]?.turnChangedFiles ||
+                    !rewindPoints.points[1]?.canRestoreFiles)
             ) {
                 await new Promise((resolveDelay) => setTimeout(resolveDelay, 100));
                 rewindPoints = await session.rpc.history.listRewindPoints();
@@ -56,8 +63,9 @@ describe("Rewind", async () => {
 
             expect(rewindPoints.unavailableReason).toBeUndefined();
             expect(rewindPoints.fileChangeTrackingEnabled).toBe(true);
-            expect(rewindPoints.points).toHaveLength(1);
-            const rewindPoint = rewindPoints.points[0];
+            expect(rewindPoints.points).toHaveLength(2);
+            const rewindPoint = rewindPoints.points[1];
+            expect(rewindPoint.turnChangedFiles).toBe(true);
             expect(rewindPoint.canRestoreFiles).toBe(true);
             expect(rewindPoint.fileCount).toBe(1);
 

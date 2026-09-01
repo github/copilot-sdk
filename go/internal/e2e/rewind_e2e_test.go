@@ -40,6 +40,17 @@ func TestRewindE2E(t *testing.T) {
 		}
 		defer session.Disconnect()
 
+		ready, err := session.SendAndWait(t.Context(), copilot.MessageOptions{
+			Prompt: "Reply with exactly: SDK_REWIND_READY",
+		})
+		if err != nil {
+			t.Fatalf("SendAndWait readiness turn failed: %v", err)
+		}
+		readyData, ok := ready.Data.(*copilot.AssistantMessageData)
+		if !ok || readyData.Content != "SDK_REWIND_READY" {
+			t.Fatalf("Expected SDK_REWIND_READY response, got %+v", ready)
+		}
+
 		response, err := session.SendAndWait(t.Context(), copilot.MessageOptions{
 			Prompt: "Use the edit tool to replace the exact contents of " + rewindFileName + " from " +
 				rewindFileOriginalContent + " to " + rewindFileContent +
@@ -64,10 +75,13 @@ func TestRewindE2E(t *testing.T) {
 		if !rewindPoints.FileChangeTrackingEnabled {
 			t.Fatal("Expected file change tracking to be enabled")
 		}
-		if len(rewindPoints.Points) != 1 {
-			t.Fatalf("Expected one rewind point, got %+v", rewindPoints.Points)
+		if len(rewindPoints.Points) != 2 {
+			t.Fatalf("Expected two rewind points, got %+v", rewindPoints.Points)
 		}
-		rewindPoint := rewindPoints.Points[0]
+		rewindPoint := rewindPoints.Points[1]
+		if !rewindPoint.TurnChangedFiles {
+			t.Fatalf("Expected the edit turn to report changed files, got %+v", rewindPoint)
+		}
 		if !rewindPoint.CanRestoreFiles || rewindPoint.FileCount != 1 {
 			t.Fatalf("Expected one restorable file, got %+v", rewindPoint)
 		}
@@ -129,9 +143,10 @@ func waitForRewindPoints(t *testing.T, session *copilot.Session) *rpc.HistoryLis
 			t.Fatalf("ListRewindPoints failed: %v", err)
 		}
 		if result.UnavailableReason == nil &&
-			len(result.Points) == 1 &&
-			result.Points[0].CanRestoreFiles &&
-			result.Points[0].FileCount == 1 {
+			len(result.Points) == 2 &&
+			result.Points[1].TurnChangedFiles &&
+			result.Points[1].CanRestoreFiles &&
+			result.Points[1].FileCount == 1 {
 			return result
 		}
 		if time.Now().After(deadline) {

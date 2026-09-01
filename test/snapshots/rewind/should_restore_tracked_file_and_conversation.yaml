@@ -5,6 +5,10 @@ conversations:
       - role: system
         content: ${system}
       - role: user
+        content: "Reply with exactly: SDK_REWIND_READY"
+      - role: assistant
+        content: SDK_REWIND_READY
+      - role: user
         content: Use the edit tool to replace the exact contents of rewind-sdk.txt from Original rewind content to SDK rewind
           content. After the tool succeeds, reply with exactly SDK_REWIND_DONE.
       - role: assistant

@@ -40,6 +40,10 @@ class TestRewind:
         )
 
         try:
+            ready = await session.send_and_wait("Reply with exactly: SDK_REWIND_READY")
+            assert ready is not None
+            assert ready.data.content == "SDK_REWIND_READY"
+
             response = await session.send_and_wait(
                 f"Use the edit tool to replace the exact contents of {FILE_NAME} "
                 f"from {ORIGINAL_FILE_CONTENT} to {FILE_CONTENT}. "
@@ -58,16 +62,18 @@ class TestRewind:
             deadline = asyncio.get_running_loop().time() + 30
             while asyncio.get_running_loop().time() < deadline and not (
                 rewind_points.unavailable_reason is None
-                and rewind_points.points
-                and rewind_points.points[0].can_restore_files
+                and len(rewind_points.points) == 2
+                and rewind_points.points[1].turn_changed_files
+                and rewind_points.points[1].can_restore_files
             ):
                 await asyncio.sleep(0.1)
                 rewind_points = await session.rpc.history.list_rewind_points()
 
             assert rewind_points.unavailable_reason is None
             assert rewind_points.file_change_tracking_enabled
-            assert len(rewind_points.points) == 1
-            rewind_point = rewind_points.points[0]
+            assert len(rewind_points.points) == 2
+            rewind_point = rewind_points.points[1]
+            assert rewind_point.turn_changed_files
             assert rewind_point.can_restore_files
             assert rewind_point.file_count == 1
 

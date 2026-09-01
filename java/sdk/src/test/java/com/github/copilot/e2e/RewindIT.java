@@ -5,7 +5,6 @@
 package com.github.copilot.e2e;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -65,6 +64,12 @@ class RewindIT {
                                 new SessionConfig().setModel("claude-sonnet-4.5").setEnableFileChangeTracking(true)
                                         .setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
                         .get(30, TimeUnit.SECONDS)) {
+            AssistantMessageEvent ready = session
+                    .sendAndWait(new MessageOptions().setPrompt("Reply with exactly: SDK_REWIND_READY"), 30_000)
+                    .get(60, TimeUnit.SECONDS);
+            assertNotNull(ready);
+            assertEquals("SDK_REWIND_READY", ready.getData().content());
+
             AssistantMessageEvent response = session
                     .sendAndWait(new MessageOptions().setPrompt("Use the edit tool to replace the exact contents of "
                             + FILE_NAME + " from " + ORIGINAL_FILE_CONTENT + " to " + FILE_CONTENT
@@ -77,8 +82,9 @@ class RewindIT {
 
             SessionHistoryListRewindPointsResult rewindPoints = waitForRewindPoints(session);
             assertTrue(Boolean.TRUE.equals(rewindPoints.fileChangeTrackingEnabled()));
-            assertEquals(1, rewindPoints.points().size());
-            var rewindPoint = rewindPoints.points().get(0);
+            assertEquals(2, rewindPoints.points().size());
+            var rewindPoint = rewindPoints.points().get(1);
+            assertTrue(Boolean.TRUE.equals(rewindPoint.turnChangedFiles()));
             assertTrue(Boolean.TRUE.equals(rewindPoint.canRestoreFiles()));
             assertEquals(1L, rewindPoint.fileCount());
 
@@ -107,16 +113,19 @@ class RewindIT {
         SessionHistoryListRewindPointsResult result;
         do {
             result = session.getRpc().history.listRewindPoints().get(10, TimeUnit.SECONDS);
-            if (result.unavailableReason() == null && !result.points().isEmpty()
-                    && Boolean.TRUE.equals(result.points().get(0).canRestoreFiles())) {
+            if (result.unavailableReason() == null && result.points().size() == 2
+                    && Boolean.TRUE.equals(result.points().get(1).turnChangedFiles())
+                    && Boolean.TRUE.equals(result.points().get(1).canRestoreFiles())) {
                 return result;
             }
             TimeUnit.MILLISECONDS.sleep(100);
         } while (System.nanoTime() < deadline);
 
         assertNull(result.unavailableReason(), "Timed out waiting for rewind points to become available");
-        assertFalse(result.points().isEmpty(), "Timed out waiting for a rewind point");
-        assertTrue(Boolean.TRUE.equals(result.points().get(0).canRestoreFiles()),
+        assertTrue(result.points().size() >= 2, "Timed out waiting for both rewind points");
+        assertTrue(Boolean.TRUE.equals(result.points().get(1).turnChangedFiles()),
+                "Timed out waiting for the edit turn to capture file changes");
+        assertTrue(Boolean.TRUE.equals(result.points().get(1).canRestoreFiles()),
                 "Timed out waiting for rewind file restoration to become available");
         return result;
     }

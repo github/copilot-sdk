@@ -27,6 +27,11 @@ public class RewindE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
             EnableFileChangeTracking = true,
         });
 
+        var ready = await session.SendAndWaitAsync(
+            new MessageOptions { Prompt = "Reply with exactly: SDK_REWIND_READY" },
+            TimeSpan.FromSeconds(30));
+        Assert.Equal("SDK_REWIND_READY", ready?.Data.Content);
+
         var response = await session.SendAndWaitAsync(
             new MessageOptions
             {
@@ -46,9 +51,10 @@ public class RewindE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
             {
                 rewindPoints = await session.Rpc.History.ListRewindPointsAsync();
                 return rewindPoints.UnavailableReason is null
-                    && rewindPoints.Points.Count == 1
-                    && rewindPoints.Points[0].CanRestoreFiles
-                    && rewindPoints.Points[0].FileCount == 1;
+                    && rewindPoints.Points.Count == 2
+                    && rewindPoints.Points[1].TurnChangedFiles
+                    && rewindPoints.Points[1].CanRestoreFiles
+                    && rewindPoints.Points[1].FileCount == 1;
             },
             timeout: TimeSpan.FromSeconds(30),
             timeoutMessage: "Timed out waiting for a restorable file rewind point.",
@@ -56,7 +62,9 @@ public class RewindE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
 
         Assert.NotNull(rewindPoints);
         Assert.True(rewindPoints.FileChangeTrackingEnabled);
-        var rewindPoint = Assert.Single(rewindPoints.Points);
+        Assert.Equal(2, rewindPoints.Points.Count);
+        var rewindPoint = rewindPoints.Points[1];
+        Assert.True(rewindPoint.TurnChangedFiles);
         Assert.True(rewindPoint.CanRestoreFiles);
         Assert.Equal(1, rewindPoint.FileCount);
 
