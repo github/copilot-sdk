@@ -1,29 +1,27 @@
 # Client info
 
-When your application embeds the SDK, the runtime emits its own telemetry for the work it does on your behalf. By default that telemetry is attributed to the runtime's own build, not to your host. If you ship the SDK inside an editor or a larger tool, declaring a **client info** identity lets the runtime attribute the telemetry it emits on a connection to a consistent surface: your host editor and its Copilot extension.
-
-This guide explains what client info is, when to set it, and how to declare it in each language.
+Client info identifies the editor or extension that hosts your Copilot SDK application. Set the optional `clientInfo` client option to attribute runtime telemetry for that connection to your host instead of the runtime's own build.
 
 ## When to set client info
 
-Set client info when you embed the SDK in a host that already has its own identity, for example an editor, an IDE plugin, or a desktop application. Declaring it keeps the runtime's telemetry attributed to your host instead of the SDK build it happens to bundle.
+Set client info when you embed the SDK in an editor, an extension, or another application with its own identity.
 
-You can leave it unset. When you do, the runtime keeps its default attribution, which is the right choice for scripts, one-off tools, and back-end jobs that don't represent a distinct host surface.
+Leave client info unset for scripts, one-off tools, and back-end jobs that do not represent a distinct host. The runtime then keeps its default attribution.
 
-All four fields are optional and independent. Send the ones you know and omit the rest; an empty identity is dropped from the handshake entirely.
+Client info has four optional string fields. Set the fields you know and omit the rest. The SDK includes client info in the `server.connect` handshake only when at least one field has a non-empty value.
 
 | Field | Example | Meaning |
 |---|---|---|
-| `editorName` | `"vscode"` | Name of the host editor. |
-| `editorVersion` | `"1.124.2"` | Version of the host editor. |
-| `extensionName` | `"copilot-chat"` | Name of the Copilot extension within the host. |
-| `extensionVersion` | `"0.54.0"` | Version of the Copilot extension within the host. |
+| `editorName` | `"vscode"` | Name of the host editor |
+| `editorVersion` | `"1.124.2"` | Version of the host editor |
+| `extensionName` | `"copilot-chat"` | Name of the Copilot extension within the host |
+| `extensionVersion` | `"0.54.0"` | Version of the Copilot extension within the host |
 
-Client info is declared once, on the `server.connect` handshake, so it applies for the lifetime of the connection.
+The SDK sends client info once when it establishes the connection. The identity applies for the lifetime of that connection.
 
-## Declaring client info
+## Configure client info
 
-Pass client info in the client options. The SDK forwards it to the runtime when the connection is established.
+Pass client info when you create the client:
 
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
@@ -234,6 +232,6 @@ let client = Client::start(
 
 ## Notes
 
-* Client info is advisory. The runtime may ignore fields that don't look like the value it expects (for example, a version string that isn't version-shaped).
-* Setting client info does not change what the runtime records, only how the telemetry it already emits is attributed.
-* Every field is optional. A client info with no fields set is treated the same as not setting it at all.
+* Client info is advisory. The runtime can ignore values that do not match the expected format, such as an invalid version string.
+* Setting client info changes how the runtime attributes its telemetry. It does not change what the runtime records.
+* If every field is unset or empty, the SDK omits client info from the handshake and the runtime keeps its default attribution.
