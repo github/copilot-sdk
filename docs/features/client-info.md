@@ -24,7 +24,7 @@ The SDK sends client info once when it establishes the connection. The identity 
 Pass client info when you create the client:
 
 <details open>
-<summary><strong>Node.js / TypeScript</strong></summary>
+<summary><strong>TypeScript</strong></summary>
 
 <!-- docs-validate: hidden -->
 ```typescript
