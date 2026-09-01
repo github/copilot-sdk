@@ -4090,14 +4090,19 @@ async fn create_session_pair_with_hooks(
 
 #[tokio::test]
 async fn hooks_invoke_dispatches_to_session_hooks() {
-    use github_copilot_sdk::hooks::{HookEvent, HookOutput, PreToolUseOutput, SessionHooks};
+    use github_copilot_sdk::hooks::{
+        HookEvent, HookOutput, HookResponseSent, PreToolUseOutput, SessionHooks,
+    };
 
-    struct PolicyHooks;
+    struct PolicyHooks {
+        response_sent: tokio::sync::mpsc::UnboundedSender<HookResponseSent>,
+    }
     #[async_trait]
     impl SessionHooks for PolicyHooks {
         async fn on_hook(&self, event: HookEvent) -> HookOutput {
             match event {
-                HookEvent::PreToolUse { input, .. } => {
+                HookEvent::PreToolUse { input, ctx } => {
+                    assert_eq!(ctx.request_id, 300);
                     if input.tool_name == "rm" {
                         HookOutput::PreToolUse(PreToolUseOutput {
                             permission_decision: Some("deny".to_string()),
@@ -4111,9 +4116,18 @@ async fn hooks_invoke_dispatches_to_session_hooks() {
                 _ => HookOutput::None,
             }
         }
+
+        async fn on_hook_response_sent(&self, response: HookResponseSent) {
+            self.response_sent.send(response).unwrap();
+        }
     }
 
-    let (_session, mut server) = create_session_pair_with_hooks(Arc::new(PolicyHooks)).await;
+    let (response_sent_tx, mut response_sent_rx) =
+        tokio::sync::mpsc::unbounded_channel::<HookResponseSent>();
+    let (_session, mut server) = create_session_pair_with_hooks(Arc::new(PolicyHooks {
+        response_sent: response_sent_tx,
+    }))
+    .await;
 
     // Send a hooks.invoke request for a denied tool
     server
@@ -4141,6 +4155,12 @@ async fn hooks_invoke_dispatches_to_session_hooks() {
         response["result"]["output"]["permissionDecisionReason"],
         "destructive"
     );
+    let response_sent = timeout(TIMEOUT, response_sent_rx.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(response_sent.request_id, 300);
+    assert_eq!(response_sent.hook_type, "preToolUse");
 }
 
 #[tokio::test]
