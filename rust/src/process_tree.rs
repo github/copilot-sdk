@@ -11,22 +11,24 @@ use tokio::process::{Child, Command};
 /// Spawns `command` inside an OS primitive that contains the root process and
 /// every descendant it creates.
 pub(crate) fn spawn(command: &mut Command) -> io::Result<(Child, ProcessTree)> {
-    platform::spawn(command).map(|(child, tree)| (child, ProcessTree(tree)))
+    platform::spawn(command).map(|(child, tree)| (child, ProcessTree(Some(tree))))
 }
 
 /// Owns the OS containment primitive for one SDK-spawned CLI.
-pub(crate) struct ProcessTree(platform::Tree);
+pub(crate) struct ProcessTree(Option<platform::Tree>);
 
 impl ProcessTree {
     /// Terminates every process still contained in the tree.
-    pub(crate) fn terminate(&self) -> io::Result<()> {
-        self.0.terminate()
+    pub(crate) fn terminate(mut self) -> io::Result<()> {
+        self.0.take().expect("process tree is armed").terminate()
     }
 }
 
 impl Drop for ProcessTree {
     fn drop(&mut self) {
-        let _ = self.terminate();
+        if let Some(tree) = self.0.take() {
+            let _ = tree.terminate();
+        }
     }
 }
 
@@ -85,10 +87,9 @@ mod platform {
 
 #[cfg(windows)]
 mod platform {
-    use std::io;
     use std::mem::size_of;
     use std::os::windows::process::CommandExt;
-    use std::ptr;
+    use std::{io, ptr};
 
     use tokio::process::{Child, Command};
     use windows_sys::Win32::Foundation::{CloseHandle, HANDLE, INVALID_HANDLE_VALUE};

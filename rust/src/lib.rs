@@ -2663,7 +2663,7 @@ impl Client {
         let process_tree = self.inner.process_tree.lock().take();
         *self.inner.state.lock() = ConnectionState::Disconnected;
         *self.inner.models_cache.lock() = Arc::new(tokio::sync::OnceCell::new());
-        if let Some(process_tree) = &process_tree
+        if let Some(process_tree) = process_tree
             && let Err(error) = process_tree.terminate()
         {
             errors.push(error.into());
@@ -3584,21 +3584,25 @@ mod tests {
             ],
         );
         #[cfg(windows)]
-        let (program, prefix_args) = (
-            PathBuf::from("powershell.exe"),
-            vec![
-                "-NoLogo".to_string(),
-                "-NoProfile".to_string(),
-                "-NonInteractive".to_string(),
-                "-Command".to_string(),
+        let (program, prefix_args) = (PathBuf::from("powershell.exe"), {
+            let script = temp.join("failed-start.ps1");
+            std::fs::write(
+                &script,
                 "$child = Start-Process powershell.exe -ArgumentList @( \
-                 '-NoLogo','-NoProfile','-NonInteractive','-Command', \
-                 'Start-Sleep -Seconds 120') -PassThru; \
-                 Set-Content -LiteralPath $env:DESCENDANT_PID $child.Id; \
-                 Set-Content -LiteralPath $env:READY ready"
-                    .to_string(),
-            ],
-        );
+                     '-NoLogo','-NoProfile','-NonInteractive','-Command', \
+                     'Start-Sleep -Seconds 120') -PassThru\n\
+                     Set-Content -LiteralPath $env:DESCENDANT_PID $child.Id\n\
+                     Set-Content -LiteralPath $env:READY ready\n",
+            )
+            .unwrap();
+            vec![
+                "-NoLogo".into(),
+                "-NoProfile".into(),
+                "-NonInteractive".into(),
+                "-File".into(),
+                script.into_os_string(),
+            ]
+        });
 
         ClientOptions::default()
             .with_program(CliProgram::Path(program))
