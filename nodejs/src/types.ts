@@ -2928,6 +2928,12 @@ export interface SessionConfigBase {
     createSessionFsProvider?: (session: CopilotSession) => SessionFsProvider;
 
     /**
+     * Feature-flag values resolved by the host for this session.
+     * Re-supply them when resuming after a runtime restart.
+     */
+    featureFlags?: Record<string, boolean>;
+
+    /**
      * ExP assignment ("flight") data injected by a trusted integrator, in the
      * same JSON shape the Copilot CLI fetches from the experimentation service
      * (`CopilotExpAssignmentResponse`). When supplied, the runtime feeds it

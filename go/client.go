@@ -906,6 +906,9 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.ExtensionSDKPath = config.ExtensionSDKPath
 	req.ExtensionInfo = config.ExtensionInfo
 	req.ExpAssignments = config.ExpAssignments
+	if config.FeatureFlags != nil {
+		req.FeatureFlags = &config.FeatureFlags
+	}
 	req.EnableManagedSettings = config.EnableManagedSettings
 	req.ManagedSettings = config.ManagedSettings
 
@@ -1316,6 +1319,9 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	req.ExtensionSDKPath = config.ExtensionSDKPath
 	req.ExtensionInfo = config.ExtensionInfo
 	req.ExpAssignments = config.ExpAssignments
+	if config.FeatureFlags != nil {
+		req.FeatureFlags = &config.FeatureFlags
+	}
 	req.EnableManagedSettings = config.EnableManagedSettings
 	req.ManagedSettings = config.ManagedSettings
 	if config.OnPermissionRequest != nil {

@@ -3268,6 +3268,9 @@ public abstract class SessionConfigBase
         GitHubToken = other.GitHubToken;
         GitHubTokenProvider = other.GitHubTokenProvider;
         RemoteSession = other.RemoteSession;
+        FeatureFlags = other.FeatureFlags is not null
+            ? new Dictionary<string, bool>(other.FeatureFlags)
+            : null;
         ExpAssignments = other.ExpAssignments;
         EnableManagedSettings = other.EnableManagedSettings;
         ManagedSettings = other.ManagedSettings;
@@ -3767,6 +3770,12 @@ public abstract class SessionConfigBase
     /// </remarks>
     [EditorBrowsable(EditorBrowsableState.Never)]
     public CopilotExpAssignmentResponse? ExpAssignments { get; set; }
+
+    /// <summary>
+    /// Feature-flag values resolved by the host for this session.
+    /// Re-supply them when resuming after a runtime restart.
+    /// </summary>
+    public IDictionary<string, bool>? FeatureFlags { get; set; }
 
     /// <summary>
     /// Opt-in: when <c>true</c>, the runtime self-fetches enterprise managed

@@ -33,6 +33,7 @@ pub mod hooks;
 mod jsonrpc;
 /// Permission-policy helpers that produce a [`handler::PermissionHandler`].
 pub mod permission;
+mod process_tree;
 /// BYOK bearer-token provider callbacks.
 pub mod provider_token;
 mod provider_token_dispatch;
@@ -1134,6 +1135,7 @@ impl std::fmt::Debug for Client {
 
 struct ClientInner {
     child: parking_lot::Mutex<Option<Child>>,
+    process_tree: parking_lot::Mutex<Option<process_tree::ProcessTree>>,
     #[cfg(feature = "bundled-in-process")]
     /// In-process FFI runtime host, set only for [`Transport::InProcess`].
     /// Closing it tears down the native runtime connection.
@@ -1374,6 +1376,7 @@ impl Client {
                     reader,
                     writer,
                     None,
+                    None,
                     working_directory,
                     options.on_list_models,
                     extension_launch_provider.clone(),
@@ -1390,7 +1393,7 @@ impl Client {
                 port,
                 connection_token: _,
             } => {
-                let (mut child, actual_port, spawn_elapsed, port_wait_elapsed) =
+                let (mut child, tree, actual_port, spawn_elapsed, port_wait_elapsed) =
                     Self::spawn_tcp(&program, &options, &working_directory, port).await?;
                 timings.process_spawn_ms = Some(StartupTimings::millis(spawn_elapsed));
                 timings.port_wait_ms = Some(StartupTimings::millis(port_wait_elapsed));
@@ -1407,6 +1410,7 @@ impl Client {
                     reader,
                     writer,
                     Some(child),
+                    tree,
                     working_directory,
                     options.on_list_models,
                     extension_launch_provider.clone(),
@@ -1420,7 +1424,7 @@ impl Client {
                 )?
             }
             Transport::Stdio => {
-                let (mut child, spawn_elapsed) =
+                let (mut child, tree, spawn_elapsed) =
                     Self::spawn_stdio(&program, &options, &working_directory)?;
                 timings.process_spawn_ms = Some(StartupTimings::millis(spawn_elapsed));
                 let stdin = child.stdin.take().expect("stdin is piped");
@@ -1430,6 +1434,7 @@ impl Client {
                     stdout,
                     stdin,
                     Some(child),
+                    tree,
                     working_directory,
                     options.on_list_models,
                     extension_launch_provider.clone(),
@@ -1496,6 +1501,7 @@ impl Client {
                     let client = Self::from_transport(
                         reader,
                         writer,
+                        None,
                         None,
                         working_directory,
                         options.on_list_models,
@@ -1639,6 +1645,7 @@ impl Client {
             reader,
             writer,
             None,
+            None,
             cwd,
             None,
             None,
@@ -1665,6 +1672,7 @@ impl Client {
         Self::from_transport(
             reader,
             writer,
+            None,
             None,
             cwd,
             None,
@@ -1697,6 +1705,7 @@ impl Client {
             reader,
             writer,
             None,
+            None,
             cwd,
             None,
             None,
@@ -1724,6 +1733,7 @@ impl Client {
             reader,
             writer,
             None,
+            None,
             cwd,
             None,
             None,
@@ -1750,6 +1760,7 @@ impl Client {
         Self::from_transport(
             reader,
             writer,
+            None,
             None,
             cwd,
             None,
@@ -1807,6 +1818,7 @@ impl Client {
         reader: impl AsyncRead + Unpin + Send + 'static,
         writer: impl AsyncWrite + Unpin + Send + 'static,
         child: Option<Child>,
+        process_tree: Option<process_tree::ProcessTree>,
         cwd: PathBuf,
         on_list_models: Option<Arc<dyn ListModelsHandler>>,
         extension_launch_provider: Option<
@@ -1842,6 +1854,7 @@ impl Client {
         let client = Self {
             inner: Arc::new(ClientInner {
                 child: parking_lot::Mutex::new(child),
+                process_tree: parking_lot::Mutex::new(process_tree),
                 #[cfg(feature = "bundled-in-process")]
                 ffi_host: parking_lot::Mutex::new(None),
                 rpc,
@@ -1981,13 +1994,6 @@ impl Client {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
 
-        #[cfg(windows)]
-        {
-            use std::os::windows::process::CommandExt;
-            const CREATE_NO_WINDOW: u32 = 0x08000000;
-            command.as_std_mut().creation_flags(CREATE_NO_WINDOW);
-        }
-
         command
     }
 
@@ -2044,7 +2050,7 @@ impl Client {
         program: &Path,
         options: &ClientOptions,
         working_directory: &Path,
-    ) -> Result<(Child, Duration)> {
+    ) -> Result<(Child, Option<process_tree::ProcessTree>, Duration)> {
         info!(cwd = ?working_directory, program = %program.display(), "spawning copilot CLI (stdio)");
         let mut command = Self::build_command(program, options, working_directory);
         command
@@ -2056,13 +2062,13 @@ impl Client {
             .args(&options.extra_args)
             .stdin(Stdio::piped());
         let spawn_start = Instant::now();
-        let child = command.spawn()?;
+        let (child, tree) = process_tree::spawn(&mut command)?;
         let spawn_elapsed = spawn_start.elapsed();
         debug!(
             elapsed_ms = spawn_elapsed.as_millis(),
             "Client::spawn_stdio subprocess spawned"
         );
-        Ok((child, spawn_elapsed))
+        Ok((child, tree, spawn_elapsed))
     }
 
     async fn spawn_tcp(
@@ -2070,7 +2076,13 @@ impl Client {
         options: &ClientOptions,
         working_directory: &Path,
         port: u16,
-    ) -> Result<(Child, u16, Duration, Duration)> {
+    ) -> Result<(
+        Child,
+        Option<process_tree::ProcessTree>,
+        u16,
+        Duration,
+        Duration,
+    )> {
         info!(cwd = ?working_directory, program = %program.display(), port = %port, "spawning copilot CLI (tcp)");
         let mut command = Self::build_command(program, options, working_directory);
         command
@@ -2082,7 +2094,7 @@ impl Client {
             .args(&options.extra_args)
             .stdin(Stdio::null());
         let spawn_start = Instant::now();
-        let mut child = command.spawn()?;
+        let (mut child, tree) = process_tree::spawn(&mut command)?;
         let spawn_elapsed = spawn_start.elapsed();
         debug!(
             elapsed_ms = spawn_elapsed.as_millis(),
@@ -2129,7 +2141,7 @@ impl Client {
             "Client::spawn_tcp TCP port wait complete"
         );
         info!(port = %actual_port, "CLI server listening");
-        Ok((child, actual_port, spawn_elapsed, port_wait_elapsed))
+        Ok((child, tree, actual_port, spawn_elapsed, port_wait_elapsed))
     }
 
     fn drain_stderr(child: &mut Child) {
@@ -2680,11 +2692,12 @@ impl Client {
     /// Cooperatively shut down the client and the CLI child process.
     ///
     /// Walks every still-registered session and sends `session.destroy`
-    /// for each one, asks SDK-owned runtimes to shut down, then kills the
-    /// CLI child. Errors from per-session destroys, runtime shutdown, and
-    /// the final child-kill are collected into
-    /// [`StopErrors`] rather than short-circuiting on the first failure
-    /// — so callers see the full picture of teardown.
+    /// for each one, asks SDK-owned runtimes to shut down, terminates the
+    /// Windows-owned CLI Job Object when present, and reaps the root process.
+    /// Errors from per-session destroys, runtime shutdown, and final process
+    /// termination are collected into [`StopErrors`] rather than
+    /// short-circuiting on the first failure — so callers see the full picture
+    /// of teardown.
     ///
     /// If you have already called [`Session::disconnect`] on every
     /// session this client created, the per-session destroy step is a
@@ -2773,8 +2786,14 @@ impl Client {
         }
 
         let child = self.inner.child.lock().take();
+        let process_tree = self.inner.process_tree.lock().take();
         *self.inner.state.lock() = ConnectionState::Disconnected;
         *self.inner.models_cache.lock() = Arc::new(tokio::sync::OnceCell::new());
+        if let Some(process_tree) = process_tree
+            && let Err(error) = process_tree.terminate()
+        {
+            errors.push(error.into());
+        }
         if let Some(mut child) = child {
             match child.try_wait() {
                 Ok(Some(_status)) => {}
@@ -2815,10 +2834,9 @@ impl Client {
     ///
     /// Synchronous fallback when [`stop`](Self::stop) is unsuitable — for
     /// example when the awaiting tokio runtime is shutting down or the
-    /// process is wedged on I/O. Sends a kill signal without awaiting
-    /// reaper completion and immediately drops all per-session router
-    /// state so dependent tasks observe a closed channel rather than a
-    /// hang.
+    /// process is wedged on I/O. Terminates the Windows-owned CLI Job Object
+    /// when present and immediately drops all per-session router state so
+    /// dependent tasks observe a closed channel rather than a hang.
     ///
     /// # Cancel safety
     ///
@@ -2844,6 +2862,11 @@ impl Client {
         let pid = self.pid();
         info!(pid = ?pid, "force-stopping CLI process");
         self.inner.extension_launch_provider.clear();
+        if let Some(process_tree) = self.inner.process_tree.lock().take()
+            && let Err(error) = process_tree.terminate()
+        {
+            error!(pid = ?pid, %error, "failed to terminate CLI process tree");
+        }
         if let Some(mut child) = self.inner.child.lock().take()
             && let Err(e) = child.start_kill()
         {
@@ -2905,8 +2928,13 @@ impl Client {
 
 impl Drop for ClientInner {
     fn drop(&mut self) {
+        let pid = self.child.lock().as_ref().and_then(Child::id);
+        if let Some(process_tree) = self.process_tree.lock().take()
+            && let Err(error) = process_tree.terminate()
+        {
+            error!(pid = ?pid, %error, "failed to terminate CLI process tree on drop");
+        }
         if let Some(ref mut child) = *self.child.lock() {
-            let pid = child.id();
             if let Err(e) = child.start_kill() {
                 error!(pid = ?pid, error = %e, "failed to kill CLI process on drop");
             } else {
@@ -3566,6 +3594,7 @@ mod tests {
             client_read,
             client_write,
             Some(child),
+            None,
             temp.path().to_path_buf(),
             None,
             None,
@@ -3656,6 +3685,7 @@ mod tests {
         Client {
             inner: Arc::new(ClientInner {
                 child: parking_lot::Mutex::new(None),
+                process_tree: parking_lot::Mutex::new(None),
                 #[cfg(feature = "bundled-in-process")]
                 ffi_host: parking_lot::Mutex::new(None),
                 rpc: {
