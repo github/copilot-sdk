@@ -3433,7 +3433,6 @@ mod tests {
             Some(process_tree),
             temp.keep(),
             None,
-            None,
             false,
             false,
             None,
