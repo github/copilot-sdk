@@ -2266,6 +2266,7 @@ class CopilotClient:
         extension_info: ExtensionInfo | None = None,
         canvas_provider: CanvasProviderIdentity | None = None,
         canvas_handler: CanvasHandler | None = None,
+        feature_flags: dict[str, bool] | None = None,
         exp_assignments: CopilotExpAssignmentResponse | None = None,
         enable_managed_settings: bool | None = None,
         github_mcp_tool_config: GitHubMcpToolConfig | None = None,
@@ -2411,6 +2412,9 @@ class CopilotClient:
                 on its own and has no effect unless MCP Apps are enabled for
                 the session (see ``enable_mcp_apps``). Omitted from the wire
                 payload entirely when None.
+            feature_flags: Feature-flag values resolved by the host for this
+                session. Re-supply them when resuming after a runtime restart.
+                Sent on the wire as ``featureFlags``.
             exp_assignments: ExP assignment ("flight") data injected by a
                 trusted integrator, in the same JSON shape the Copilot CLI
                 fetches from the experimentation service
@@ -2588,6 +2592,9 @@ class CopilotClient:
         # Add cloud session options if provided
         if cloud is not None:
             payload["cloud"] = _cloud_session_options_to_dict(cloud)
+
+        if feature_flags is not None:
+            payload["featureFlags"] = feature_flags
 
         # Add ExP assignment data if provided (trusted integrator)
         if exp_assignments is not None:
@@ -3039,6 +3046,7 @@ class CopilotClient:
         canvas_provider: CanvasProviderIdentity | None = None,
         canvas_handler: CanvasHandler | None = None,
         open_canvases: list[OpenCanvasInstance] | None = None,
+        feature_flags: dict[str, bool] | None = None,
         exp_assignments: CopilotExpAssignmentResponse | None = None,
         enable_managed_settings: bool | None = None,
         github_mcp_tool_config: GitHubMcpToolConfig | None = None,
@@ -3187,6 +3195,8 @@ class CopilotClient:
                 tool calls or permission prompts that were still pending when the
                 session was last suspended. When False (the default), the runtime
                 treats pending work as interrupted on resume.
+            feature_flags: Feature-flag values resolved by the host to apply
+                on resume. Sent on the wire as ``featureFlags``.
             exp_assignments: ExP assignment ("flight") data injected by a
                 trusted integrator, in the same JSON shape the Copilot CLI
                 fetches from the experimentation service
@@ -3384,6 +3394,9 @@ class CopilotClient:
         # Add remote session mode if provided
         if remote_session is not None:
             payload["remoteSession"] = remote_session.value
+
+        if feature_flags is not None:
+            payload["featureFlags"] = feature_flags
 
         # Add ExP assignment data if provided (trusted integrator)
         if exp_assignments is not None:

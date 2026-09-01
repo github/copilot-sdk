@@ -1574,6 +1574,9 @@ type SessionConfig struct {
 	// intended for trusted out-of-process integrators, and is not intended for
 	// general external use.
 	ExpAssignments *CopilotExpAssignmentResponse
+	// FeatureFlags contains feature-flag values resolved by the host for this session.
+	// Re-supply them when resuming after a runtime restart.
+	FeatureFlags map[string]bool
 	// EnableManagedSettings, when set to true, opts the runtime into
 	// self-fetching enterprise managed settings (bypass-permissions policy) at
 	// session bootstrap using the session's GitHubToken. Requires GitHubToken to
@@ -2105,6 +2108,9 @@ type ResumeSessionConfig struct {
 	// intended for trusted out-of-process integrators, and is not intended for
 	// general external use.
 	ExpAssignments *CopilotExpAssignmentResponse
+	// FeatureFlags contains host-resolved feature-flag values to apply on resume.
+	// See SessionConfig.FeatureFlags.
+	FeatureFlags map[string]bool
 	// EnableManagedSettings injects the same opt-in flag on resume. See
 	// SessionConfig.EnableManagedSettings. Re-supply on resume so the runtime
 	// re-applies the managed-settings self-fetch after a CLI process restart.
@@ -2598,6 +2604,7 @@ type createSessionRequest struct {
 	ExtensionInfo                      *ExtensionInfo                         `json:"extensionInfo,omitempty"`
 	CanvasProvider                     *CanvasProviderIdentity                `json:"canvasProvider,omitempty"`
 	ExpAssignments                     *CopilotExpAssignmentResponse          `json:"expAssignments,omitempty"`
+	FeatureFlags                       *map[string]bool                       `json:"featureFlags,omitempty"`
 	EnableManagedSettings              *bool                                  `json:"enableManagedSettings,omitempty"`
 	ManagedSettings                    *ManagedSettings                       `json:"managedSettings,omitempty"`
 	Traceparent                        string                                 `json:"traceparent,omitempty"`
@@ -2698,6 +2705,7 @@ type resumeSessionRequest struct {
 	ExtensionInfo                      *ExtensionInfo                         `json:"extensionInfo,omitempty"`
 	CanvasProvider                     *CanvasProviderIdentity                `json:"canvasProvider,omitempty"`
 	ExpAssignments                     *CopilotExpAssignmentResponse          `json:"expAssignments,omitempty"`
+	FeatureFlags                       *map[string]bool                       `json:"featureFlags,omitempty"`
 	EnableManagedSettings              *bool                                  `json:"enableManagedSettings,omitempty"`
 	ManagedSettings                    *ManagedSettings                       `json:"managedSettings,omitempty"`
 	Traceparent                        string                                 `json:"traceparent,omitempty"`

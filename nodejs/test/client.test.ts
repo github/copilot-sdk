@@ -1332,6 +1332,39 @@ describe("CopilotClient", () => {
         expect(resumePayload.expAssignments).toBeUndefined();
     });
 
+    it("forwards featureFlags in session.create and session.resume", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => stopClient(client));
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId };
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+        const featureFlags = { ENABLED_TEST_FLAG: true, DISABLED_TEST_FLAG: false };
+
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            featureFlags,
+        });
+        await client.resumeSession(session.sessionId, {
+            onPermissionRequest: approveAll,
+            featureFlags,
+        });
+
+        const createPayload = spy.mock.calls.find(
+            ([method]) => method === "session.create"
+        )![1] as any;
+        const resumePayload = spy.mock.calls.find(
+            ([method]) => method === "session.resume"
+        )![1] as any;
+        expect(createPayload.featureFlags).toEqual(featureFlags);
+        expect(resumePayload.featureFlags).toEqual(featureFlags);
+    });
+
     it.each([
         undefined,
         {},
