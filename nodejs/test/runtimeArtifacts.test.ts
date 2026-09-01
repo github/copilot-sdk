@@ -1,6 +1,6 @@
 import { existsSync, mkdtempSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { c as createTar } from "tar";
@@ -150,10 +150,12 @@ describe("materializeRuntimeBundle", () => {
             { packageRoot: sourceDir, platform },
             cacheRoot
         );
-        const installDir = dirname(installedWrapper);
+        const installDir = resolve(dirname(installedWrapper), "..", "..");
 
         expect(readFileSync(installedWrapper, "utf8")).toBe("wrapper");
-        expect(readFileSync(join(installDir, "runtime.node"), "utf8")).toBe("runtime");
+        expect(readFileSync(join(installDir, "prebuilds", platform, "runtime.node"), "utf8")).toBe(
+            "runtime"
+        );
         expect(readFileSync(join(installDir, "ripgrep", "bin", platform, "rg"), "utf8")).toBe(
             "ripgrep"
         );
@@ -203,10 +205,11 @@ describe("ensureRuntimeBundle", () => {
         const nodeModules = join(root, "node_modules");
         const platform = "linux-x64";
         const packageRoot = join(nodeModules, ...getRuntimePackageName(platform).split("/"));
-        mkdirSync(packageRoot, { recursive: true });
+        const prebuilds = join(packageRoot, "prebuilds", platform);
+        mkdirSync(prebuilds, { recursive: true });
         writeFileSync(join(packageRoot, "package.json"), "{}");
-        writeFileSync(join(packageRoot, "copilot-runtime"), "wrapper");
-        writeFileSync(join(packageRoot, "runtime.node"), "runtime");
+        writeFileSync(join(prebuilds, "copilot-runtime"), "wrapper");
+        writeFileSync(join(prebuilds, "runtime.node"), "runtime");
         mkdirSync(join(packageRoot, "schemas"));
         writeFileSync(join(packageRoot, "schemas", "api.schema.json"), "{}");
         const fetcher = vi.fn(() => {
@@ -219,7 +222,7 @@ describe("ensureRuntimeBundle", () => {
             platform,
         });
 
-        expect(runtimePath).toBe(join(packageRoot, "copilot-runtime"));
+        expect(runtimePath).toBe(join(prebuilds, "copilot-runtime"));
         expect(readFileSync(join(dirname(runtimePath), "runtime.node"), "utf8")).toBe("runtime");
         expect(fetcher).not.toHaveBeenCalled();
         vi.unstubAllGlobals();

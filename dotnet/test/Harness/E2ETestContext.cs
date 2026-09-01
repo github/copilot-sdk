@@ -144,18 +144,24 @@ public sealed class E2ETestContext : IAsyncDisposable
     }
 
     private static string GetCliPath(string repoRoot)
+        => PrepareCliPath(repoRoot, "--print-path");
+
+    public string GetLegacyCliPath()
+        => PrepareCliPath(_repoRoot, "--print-legacy-path");
+
+    private static string PrepareCliPath(string repoRoot, string option)
     {
         var envPath = Environment.GetEnvironmentVariable("COPILOT_CLI_PATH");
-        if (!string.IsNullOrEmpty(envPath)) return envPath;
+        if (option == "--print-path" && !string.IsNullOrEmpty(envPath)) return envPath;
 
         var startInfo = new ProcessStartInfo
         {
-            FileName = OperatingSystem.IsWindows() ? "npm.cmd" : "npm",
+            FileName = "node",
             WorkingDirectory = Path.Join(repoRoot, "nodejs"),
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
-            Arguments = "run --silent prepare:runtime -- --print-path",
+            Arguments = $"node_modules/tsx/dist/cli.mjs scripts/prepare-runtime.ts {option}",
         };
 
         using var process = Process.Start(startInfo)

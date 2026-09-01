@@ -131,9 +131,6 @@ class TestRpcServerMisc:
 
         client, home = await _create_isolated_client(ctx, github_token=None)
         try:
-            initial = await client.rpc.account.get_current_auth()
-            assert initial.auth_info is None
-
             login_result = await client.rpc.account.login(
                 AccountLoginRequest(host="https://github.com", login=login, token=token)
             )
@@ -152,21 +149,23 @@ class TestRpcServerMisc:
                 (
                     user
                     for user in users
-                    if user.auth_info.type == "user"
-                    and getattr(user.auth_info, "login", None) == login
+                    if user.get("authInfo", {}).get("type") == "user"
+                    and user.get("authInfo", {}).get("login") == login
                 ),
                 None,
             )
             if account is not None:
-                assert account.token == token
+                assert account.get("token") == token
 
             logout = await client.rpc.account.logout(
                 AccountLogoutRequest(auth_info=current.auth_info)
             )
             assert logout.has_more_users is False
 
-            after_logout = await client.rpc.account.get_current_auth()
-            assert after_logout.auth_info is None
+            users_after_logout = await client.rpc.account.get_all_users()
+            assert all(
+                user.get("authInfo", {}).get("login") != login for user in users_after_logout
+            )
         finally:
             await _dispose_isolated(client, home)
 

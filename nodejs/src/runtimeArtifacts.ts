@@ -109,14 +109,12 @@ function collectRuntimeAssets(sources: RuntimeArtifactSources): RuntimeAsset[] {
             }
 
             const parts = sourceRelative.split(sep);
-            let relativePath = sourceRelative;
             if (parts[0] === "prebuilds") {
                 if (parts[1] !== sources.platform || parts.length < 3) {
                     continue;
                 }
-                relativePath = parts.slice(2).join(sep);
             }
-            assets.push({ source, relativePath });
+            assets.push({ source, relativePath: sourceRelative });
         }
     };
     visit(sources.packageRoot);
@@ -166,13 +164,18 @@ export function materializeRuntimeBundle(
     const wrapperName = sources.platform.startsWith("win32")
         ? "copilot-runtime.exe"
         : "copilot-runtime";
-    const sourceWrapper = assets.find((asset) => asset.relativePath === wrapperName)?.source;
-    const sourceRuntimeNode = assets.find((asset) => asset.relativePath === "runtime.node")?.source;
+    const prebuildDir = join("prebuilds", sources.platform);
+    const wrapperRelative = join(prebuildDir, wrapperName);
+    const runtimeNodeRelative = join(prebuildDir, "runtime.node");
+    const sourceWrapper = assets.find((asset) => asset.relativePath === wrapperRelative)?.source;
+    const sourceRuntimeNode = assets.find(
+        (asset) => asset.relativePath === runtimeNodeRelative
+    )?.source;
     validateRuntimeBundle(sourceWrapper ?? "", sourceRuntimeNode ?? "");
 
     const installDir = join(cacheRoot, cacheKey);
-    const installedWrapper = join(installDir, wrapperName);
-    const installedRuntimeNode = join(installDir, "runtime.node");
+    const installedWrapper = join(installDir, wrapperRelative);
+    const installedRuntimeNode = join(installDir, runtimeNodeRelative);
     if (existsSync(installDir)) {
         validateRuntimeBundle(installedWrapper, installedRuntimeNode);
         makeExecutable(installedWrapper);
@@ -187,7 +190,7 @@ export function materializeRuntimeBundle(
             mkdirSync(dirname(destination), { recursive: true });
             copyFileSync(asset.source, destination);
         }
-        const stagedWrapper = join(stagingDir, wrapperName);
+        const stagedWrapper = join(stagingDir, wrapperRelative);
         makeExecutable(stagedWrapper);
         renameSync(stagingDir, installDir);
     } catch (error) {
@@ -277,9 +280,10 @@ export async function ensureRuntimeBundle(
         );
     }
     const wrapperName = platform.startsWith("win32") ? "copilot-runtime.exe" : "copilot-runtime";
-    const wrapper = join(packageRoot, wrapperName);
+    const prebuildDir = join(packageRoot, "prebuilds", platform);
+    const wrapper = join(prebuildDir, wrapperName);
     try {
-        validateRuntimeBundle(wrapper, join(packageRoot, "runtime.node"));
+        validateRuntimeBundle(wrapper, join(prebuildDir, "runtime.node"));
     } catch (error) {
         throw new Error(
             `${packageName} is missing required Copilot CLI runtime files. Reinstall @github/copilot-sdk.`,

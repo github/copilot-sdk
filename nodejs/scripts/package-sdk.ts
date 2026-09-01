@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { COPILOT_CLI_VERSION } from "../src/cliVersion.js";
 import {
@@ -27,13 +27,12 @@ try {
             throw new Error(`Unsupported runtime platform: ${platform}`);
         }
         const releasePackage = await ensureCopilotPackage(COPILOT_CLI_VERSION, { platform });
-        const runtimeRoot = dirname(
-            materializeRuntimeBundle(
-                { packageRoot: releasePackage, platform },
-                stagingRoot,
-                platform
-            )
+        const runtimeWrapper = materializeRuntimeBundle(
+            { packageRoot: releasePackage, platform },
+            stagingRoot,
+            platform
         );
+        const runtimeRoot = resolve(dirname(runtimeWrapper), "..", "..");
         const packageName = getRuntimePackageName(platform);
         const [osName, cpu] = platform.replace("linuxmusl", "linux").split("-");
         const runtimePackage = {
