@@ -107,7 +107,7 @@ const normalizedToolNames: Record<string, string> = {
  * Default model to use when no stored data is available for a given test.
  * This enables responding to /models without needing to have a capture file.
  */
-const defaultModel = "claude-sonnet-4.5";
+const defaultModel = "claude-sonnet-5";
 
 /**
  * An HTTP proxy that not only captures HTTP exchanges, but also stores them in a file on disk and
@@ -415,10 +415,19 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
         // Handle /models endpoint
         // Use stored models if available, otherwise use default model
         if (options.requestOptions.path === "/models") {
-          const models =
+          let models =
             state.storedData?.models && state.storedData.models.length > 0
               ? state.storedData.models
               : [defaultModel];
+          // Historical captures used Sonnet 4.5 as the default. Keep it available
+          // for explicit selection, but offer a supported default for unpinned
+          // sessions without rewriting model-independent conversation captures.
+          if (
+            models.includes("claude-sonnet-4.5") &&
+            !models.includes(defaultModel)
+          ) {
+            models = [defaultModel, ...models];
+          }
           const modelsResponse = createGetModelsResponse(models);
           const body = JSON.stringify(modelsResponse);
           const headers = {

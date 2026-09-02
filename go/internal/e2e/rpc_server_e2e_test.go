@@ -64,12 +64,12 @@ func TestRPCServerE2E(t *testing.T) {
 			if strings.TrimSpace(model.Name) == "" {
 				t.Errorf("Model %q has empty Name", model.ID)
 			}
-			if model.ID == "claude-sonnet-4.5" {
+			if model.ID == "claude-sonnet-5" {
 				hasClaude = true
 			}
 		}
 		if !hasClaude {
-			t.Errorf("Expected models list to contain 'claude-sonnet-4.5'")
+			t.Errorf("Expected models list to contain 'claude-sonnet-5'")
 		}
 	})
 
