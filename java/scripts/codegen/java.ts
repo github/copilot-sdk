@@ -252,6 +252,7 @@ interface JavaTypeResult {
 // Set before each schema generation pass; used by schemaTypeToJava and helpers.
 let currentDefinitions: Record<string, JSONSchema7> = {};
 const pendingStandaloneTypes = new Map<string, JSONSchema7>();
+const promotedNestedUnionTypes = new Set<string>();
 const generatedSessionEventTypeNames = new Set<string>();
 
 // Cross-schema definitions: keyed by schema filename (e.g. "session-events.schema.json"),
@@ -300,14 +301,14 @@ function resolveMethodParamsSchema(method: RpcMethodNode): JSONSchema7 | undefin
     if (!params || typeof params !== "object") return undefined;
     if (params.properties) return params;
     if (!Array.isArray(params.anyOf)) return undefined;
-    const objectVariants = resolveAnyOfVariants(params.anyOf as JSONSchema7[]).filter((variant) => !!variant.properties);
+    const objectVariants = resolveUnionVariants(params.anyOf as JSONSchema7[]).filter((variant) => !!variant.properties);
     return hasOmissionSentinel(params) && objectVariants.length === 1 ? objectVariants[0] : undefined;
 }
 
 function resolveMethodParamsUnionSchema(method: RpcMethodNode): JSONSchema7 | undefined {
     const params = resolveRef(method.params ?? undefined);
     if (!params || typeof params !== "object" || !Array.isArray(params.anyOf)) return undefined;
-    const variants = resolveAnyOfVariants(params.anyOf as JSONSchema7[]);
+    const variants = resolveUnionVariants(params.anyOf as JSONSchema7[]);
     return variants.length > 1 && findDiscriminator(variants) ? params : undefined;
 }
 
@@ -365,8 +366,8 @@ function findDiscriminator(variants: JSONSchema7[]): DiscriminatorInfo | null {
 /**
  * Resolve anyOf variants, handling $ref to definitions.
  */
-function resolveAnyOfVariants(anyOf: JSONSchema7[]): JSONSchema7[] {
-    return anyOf
+function resolveUnionVariants(variants: JSONSchema7[]): JSONSchema7[] {
+    return variants
         .map((v) => {
             if (v.$ref) {
                 const name = v.$ref.replace(/^#\/definitions\//, "");
@@ -375,6 +376,42 @@ function resolveAnyOfVariants(anyOf: JSONSchema7[]): JSONSchema7[] {
             return v;
         })
         .filter((v) => v.type !== "null");
+}
+
+function collectPromotedNestedUnionTypes(root: unknown): void {
+    const visitedDefinitions = new Set<string>();
+    const visit = (node: unknown): void => {
+        if (Array.isArray(node)) {
+            for (const item of node) visit(item);
+            return;
+        }
+        if (!node || typeof node !== "object") return;
+
+        const schema = node as JSONSchema7;
+        if (schema.$ref?.startsWith("#/definitions/")) {
+            const name = schema.$ref.slice("#/definitions/".length);
+            if (visitedDefinitions.has(name)) return;
+            visitedDefinitions.add(name);
+            const definition = currentDefinitions[name];
+            if (definition) {
+                const union = definition.anyOf ?? definition.oneOf;
+                if (
+                    union
+                    && Array.isArray(union)
+                    && findDiscriminator(resolveUnionVariants(union as JSONSchema7[]))
+                ) {
+                    promotedNestedUnionTypes.add(name);
+                }
+                visit(definition);
+            }
+            return;
+        }
+
+        for (const value of Object.values(node as Record<string, unknown>)) {
+            visit(value);
+        }
+    };
+    visit(root);
 }
 
 /**
@@ -386,8 +423,8 @@ async function generatePolymorphicResultClass(
     packageName: string,
     packageDir: string
 ): Promise<void> {
-    const anyOf = schema.anyOf as JSONSchema7[];
-    const variants = resolveAnyOfVariants(anyOf);
+    const union = (schema.anyOf ?? schema.oneOf) as JSONSchema7[];
+    const variants = resolveUnionVariants(union);
     const discriminator = findDiscriminator(variants);
 
     if (!discriminator) {
@@ -408,7 +445,7 @@ async function generatePolymorphicResultClass(
         variantInfos.push({ discriminatorValue: discValue, variantClassName, schema: variantSchema });
     }
 
-    // Generate the abstract base class
+    // Generate the polymorphic base class
     const baseLines: string[] = [];
     baseLines.push(COPYRIGHT);
     baseLines.push("");
@@ -608,6 +645,18 @@ function schemaTypeToJava(
         const name = schema.$ref.replace(/^#\/definitions\//, "");
         const resolved = currentDefinitions[name];
         if (resolved) {
+            const resolvedUnion = resolved.anyOf ?? resolved.oneOf;
+            if (
+                promotedNestedUnionTypes.has(name)
+                && resolvedUnion
+                && Array.isArray(resolvedUnion)
+            ) {
+                const variants = resolveUnionVariants(resolvedUnion as JSONSchema7[]);
+                if (variants.length > 1 && findDiscriminator(variants)) {
+                    pendingStandaloneTypes.set(name, resolved);
+                    return { javaType: name, imports };
+                }
+            }
             // Enum or object types → register for standalone generation, return ref name
             if ((resolved.type === "string" && resolved.enum) ||
                 (resolved.type === "object" && resolved.properties)) {
@@ -622,17 +671,25 @@ function schemaTypeToJava(
         return { javaType: name, imports };
     }
 
-    if (schema.anyOf) {
-        const hasNull = schema.anyOf.some((s) => typeof s === "object" && (s as JSONSchema7).type === "null");
-        const nonNull = schema.anyOf.filter((s) => typeof s === "object" && (s as JSONSchema7).type !== "null");
+    const union = schema.anyOf ?? schema.oneOf;
+    if (union) {
+        const hasNull = union.some((s) => typeof s === "object" && (s as JSONSchema7).type === "null");
+        const nonNull = union.filter((s) => typeof s === "object" && (s as JSONSchema7).type !== "null");
         if (nonNull.length === 1) {
             const result = schemaTypeToJava(nonNull[0] as JSONSchema7, required && !hasNull, context, propName, nestedTypes);
             return result;
         }
-        // Multi-branch anyOf: fall through to Object, matching the C# generator's
-        // behavior.  Java has no union types, so Object is the correct erasure for
-        // anyOf[string, object] and similar multi-variant schemas.
-        console.warn(`[codegen] ${context}.${propName}: anyOf with ${nonNull.length} non-null branches — falling back to Object`);
+        const variants = resolveUnionVariants(nonNull as JSONSchema7[]);
+        if (
+            variants.length > 1
+            && findDiscriminator(variants)
+            && schema.title
+            && promotedNestedUnionTypes.has(schema.title)
+        ) {
+            pendingStandaloneTypes.set(schema.title, schema);
+            return { javaType: schema.title, imports };
+        }
+        console.warn(`[codegen] ${context}.${propName}: union with ${nonNull.length} non-null branches — falling back to Object`);
         return { javaType: "Object", imports };
     }
 
@@ -1183,12 +1240,15 @@ async function generatePendingStandaloneTypes(
                 await generateStandaloneEnum(name, schema, packageName, packageDir, headerComment);
             } else if (schema.type === "object" && schema.properties) {
                 await generateStandaloneRecord(name, schema, packageName, packageDir, headerComment);
-            } else if (schema.anyOf && Array.isArray(schema.anyOf)) {
-                const variants = resolveAnyOfVariants(schema.anyOf as JSONSchema7[]);
+            } else if (
+                (schema.anyOf && Array.isArray(schema.anyOf))
+                || (schema.oneOf && Array.isArray(schema.oneOf))
+            ) {
+                const variants = resolveUnionVariants((schema.anyOf ?? schema.oneOf) as JSONSchema7[]);
                 if (variants.length > 1 && findDiscriminator(variants)) {
                     await generatePolymorphicResultClass(name, schema, packageName, packageDir);
                 } else {
-                    console.warn(`[codegen] Cannot generate standalone type for ${name}: anyOf without discriminator`);
+                    console.warn(`[codegen] Cannot generate standalone type for ${name}: union without discriminator`);
                 }
             } else {
                 console.warn(`[codegen] Cannot generate standalone type for ${name}: type=${schema.type}`);
@@ -1391,7 +1451,16 @@ async function generateRpcTypes(schemaPath: string): Promise<void> {
     // Set module-level definitions for $ref resolution
     currentDefinitions = (schema.definitions ?? {}) as Record<string, JSONSchema7>;
     pendingStandaloneTypes.clear();
+    promotedNestedUnionTypes.clear();
     crossSchemaDefinitions.clear();
+    for (const section of [schema.server, schema.session, schema.clientSession, schema.clientGlobal]) {
+        if (!section) continue;
+        for (const [, method] of collectRpcMethods(section)) {
+            if (method.rpcMethod === "catalog.search") {
+                collectPromotedNestedUnionTypes(method);
+            }
+        }
+    }
 
     // Load cross-schema definitions (session-events) so that cross-schema $ref values
     // like "session-events.schema.json#/definitions/Foo" can be resolved.
@@ -1477,7 +1546,7 @@ async function generateRpcTypes(schemaPath: string): Promise<void> {
                     pendingStandaloneTypes.set(resultRefName, resultSchema);
                 } else if (resultRefName && resultSchema.anyOf && Array.isArray(resultSchema.anyOf)) {
                     // anyOf discriminated union → generate polymorphic hierarchy
-                    const variants = resolveAnyOfVariants(resultSchema.anyOf as JSONSchema7[]);
+                    const variants = resolveUnionVariants(resultSchema.anyOf as JSONSchema7[]);
                     if (variants.length > 1 && findDiscriminator(variants)) {
                         if (!generatedClasses.has(resultRefName)) {
                             generatedClasses.set(resultRefName, true);
@@ -1645,7 +1714,7 @@ function wrapperResultClassName(method: RpcMethodNode): string {
             }
             // anyOf discriminated union → use the definition name
             if (resolved.anyOf && Array.isArray(resolved.anyOf)) {
-                const variants = resolveAnyOfVariants(resolved.anyOf as JSONSchema7[]);
+                const variants = resolveUnionVariants(resolved.anyOf as JSONSchema7[]);
                 if (variants.length > 1 && findDiscriminator(variants)) {
                     return refName;
                 }

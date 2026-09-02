@@ -23710,6 +23710,18 @@ export interface SessionFsSqliteExistsRequest {
   sessionId: string;
 }
 
+const FORBIDDEN_CATALOG_RESPONSE_FIELDS = new Set(["card", "cardData", "rawCard"]);
+
+function sanitizeCatalogSearchResult(value: unknown): unknown {
+    if (Array.isArray(value)) return value.map(sanitizeCatalogSearchResult);
+    if (value === null || typeof value !== "object") return value;
+    return Object.fromEntries(
+        Object.entries(value)
+            .filter(([key]) => !FORBIDDEN_CATALOG_RESPONSE_FIELDS.has(key))
+            .map(([key, child]) => [key, sanitizeCatalogSearchResult(child)]),
+    );
+}
+
 /** Create typed server-scoped RPC methods (no session required). */
 export function createServerRpc(connection: MessageConnection) {
     return {
@@ -23935,7 +23947,9 @@ export function createServerRpc(connection: MessageConnection) {
              * @returns Outcome of a catalog.search call: either bounded inert candidates, or one typed refusal. Never a partial success.
              */
             search: async (params: CatalogSearchRequest): Promise<CatalogSearchResult> =>
-                connection.sendRequest("catalog.search", params),
+                sanitizeCatalogSearchResult(
+                    await connection.sendRequest("catalog.search", params),
+                ) as CatalogSearchResult,
         },
         /** @experimental */
         plugins: {

@@ -413,6 +413,7 @@ function postProcessRefBasedDiscriminatedUnionsForPython(
     const acronymCandidates = (name: string): string[] => {
         const substitutions: Array<[RegExp, string]> = [
             [/Api/g, "API"],
+            [/Ai/g, "AI"],
             [/Mcp/g, "MCP"],
             [/Url/g, "URL"],
             [/Json/g, "JSON"],

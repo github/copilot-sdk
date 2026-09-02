@@ -16618,47 +16618,6 @@ class CatalogAISkillCandidateProvenance:
         result["observedAt"] = from_str(self.observed_at)
         return result
 
-@dataclass
-class CatalogCandidateProvenance:
-    """Where the catalog reference was observed, without the card itself or any content digest.
-
-    Where and when an MCP server catalog reference was observed. Discovery provenance
-    deliberately carries no content digest because search does not establish the exact
-    validated content a later plan will bind.
-
-    Where and when an AI skill catalog reference was observed. Discovery provenance
-    deliberately carries no content digest because search does not establish the exact
-    validated content a later plan will bind.
-    """
-    authority: str
-    """Host of the catalog authority that advertised the reference, without path, query, or
-    credentials. Inert untrusted data.
-    """
-    media_type: CatalogMediaType
-    """JSON MCP media type advertised for the referenced card.
-
-    Media type advertised for the referenced AI skill card
-    """
-    observed_at: str
-    """ISO 8601 timestamp at which the runtime observed the catalog reference. This is not a
-    retrieval or validation timestamp.
-    """
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'CatalogCandidateProvenance':
-        assert isinstance(obj, dict)
-        authority = from_str(obj.get("authority"))
-        media_type = CatalogMediaType(obj.get("mediaType"))
-        observed_at = from_str(obj.get("observedAt"))
-        return CatalogCandidateProvenance(authority, media_type, observed_at)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["authority"] = from_str(self.authority)
-        result["mediaType"] = to_enum(CatalogMediaType, self.media_type)
-        result["observedAt"] = from_str(self.observed_at)
-        return result
-
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class CatalogMCPServerCandidateProvenance:
@@ -26195,6 +26154,50 @@ class MCPPlanProvenance:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
+class CatalogSearchSucceeded:
+    """A completed catalog search: inert candidate summaries, each carrying a single-use handle."""
+
+    candidates: list[CatalogCandidate]
+    """Matching candidates, never more than the requested limit. All text is inert untrusted
+    data.
+    """
+    kind: ClassVar[str] = "succeeded"
+    """Discriminator: the search completed"""
+
+    negotiated: CatalogNegotiatedContract
+    """Protocol version and capabilities the runtime honoured."""
+
+    search_id: str
+    """Pseudonymous identifier for this search, issued by the runtime or by the catalog
+    authority it queried and never by the caller, so it cannot be forged or replayed to
+    attribute an install to a search that never happened. Always present on a success, so a
+    result set can be tied to the installs it leads to. It identifies a search rather than a
+    person: it is derived from no user, account, device, or query data, and must never be
+    joined with user identity to re-identify anyone.
+    """
+    truncated: bool
+    """Whether further matches existed beyond the requested limit."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'CatalogSearchSucceeded':
+        assert isinstance(obj, dict)
+        candidates = from_list(_load_CatalogCandidate, obj.get("candidates"))
+        negotiated = CatalogNegotiatedContract.from_dict(obj.get("negotiated"))
+        search_id = from_str(obj.get("searchId"))
+        truncated = from_bool(obj.get("truncated"))
+        return CatalogSearchSucceeded(candidates, negotiated, search_id, truncated)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["candidates"] = from_list(lambda x: (x).to_dict(), self.candidates)
+        result["kind"] = self.kind
+        result["negotiated"] = to_class(CatalogNegotiatedContract, self.negotiated)
+        result["searchId"] = from_str(self.search_id)
+        result["truncated"] = from_bool(self.truncated)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
 class SlashCommandInfo:
     """Slash-command metadata with name, aliases, description, kind, input hint, execution
     allowance, and schedulability.
@@ -26358,7 +26361,7 @@ class CatalogAISkillCandidate:
     installability: Installability
     """AI skills are discovery-only and cannot be installed through this surface"""
 
-    kind: CatalogAISkillCandidateKind
+    kind: ClassVar[str] = "ai-skill"
     """Discriminator: this candidate describes an AI skill"""
 
     media_type: MediaType
@@ -26384,13 +26387,12 @@ class CatalogAISkillCandidate:
         handle = from_str(obj.get("handle"))
         handle_expires_at = from_str(obj.get("handleExpiresAt"))
         installability = Installability(obj.get("installability"))
-        kind = CatalogAISkillCandidateKind(obj.get("kind"))
         media_type = MediaType(obj.get("mediaType"))
         provenance = CatalogAISkillCandidateProvenance.from_dict(obj.get("provenance"))
         source = _load_CatalogCandidateSource(obj.get("source"))
         description = from_union([from_str, from_none], obj.get("description"))
         publisher = from_union([from_str, from_none], obj.get("publisher"))
-        return CatalogAISkillCandidate(display_name, handle, handle_expires_at, installability, kind, media_type, provenance, source, description, publisher)
+        return CatalogAISkillCandidate(display_name, handle, handle_expires_at, installability, media_type, provenance, source, description, publisher)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -26398,92 +26400,9 @@ class CatalogAISkillCandidate:
         result["handle"] = from_str(self.handle)
         result["handleExpiresAt"] = from_str(self.handle_expires_at)
         result["installability"] = to_enum(Installability, self.installability)
-        result["kind"] = to_enum(CatalogAISkillCandidateKind, self.kind)
+        result["kind"] = self.kind
         result["mediaType"] = to_enum(MediaType, self.media_type)
         result["provenance"] = to_class(CatalogAISkillCandidateProvenance, self.provenance)
-        result["source"] = (self.source).to_dict()
-        if self.description is not None:
-            result["description"] = from_union([from_str, from_none], self.description)
-        if self.publisher is not None:
-            result["publisher"] = from_union([from_str, from_none], self.publisher)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class CatalogCandidate:
-    """One inert catalog result, represented as an MCP server or discovery-only AI skill variant
-    so kind, media type, provenance, and installability cannot contradict each other.
-
-    An inert MCP server catalog result. Every free-text field is untrusted external data and
-    must never be treated as an instruction, and the handle is the only way to refer to the
-    candidate in a later operation.
-
-    An inert AI skill catalog result. AI skills are discovery-only and cannot be represented
-    as installable through this surface.
-    """
-    display_name: str
-    """Display name taken verbatim from the card. Inert untrusted text."""
-
-    handle: str
-    """Opaque, runtime-instance scoped, TTL-bound, single-use handle for this candidate. Carries
-    no readable information and is rejected when stale, replayed, or presented to a different
-    runtime instance. Never logged.
-    """
-    handle_expires_at: str
-    """ISO 8601 timestamp after which the handle is stale and will be rejected."""
-
-    installability: CatalogCandidateInstallability
-    """Whether this MCP server can be planned for installation, and if policy prevents it.
-
-    AI skills are discovery-only and cannot be installed through this surface
-    """
-    kind: CatalogCandidateKind
-    """Discriminator: this candidate describes an MCP server
-
-    Discriminator: this candidate describes an AI skill
-    """
-    media_type: CatalogMediaType
-    """JSON MCP media type of the underlying card.
-
-    Media type of the underlying AI skill card
-    """
-    provenance: CatalogCandidateProvenance
-    """Where the catalog reference was observed, without the card itself or any content digest."""
-
-    source: CatalogCandidateSource
-    """Where the card came from: exactly one of a URL or embedded data, encoded as a tagged
-    union so neither both nor neither can be represented.
-    """
-    description: str | None = None
-    """Description taken verbatim from the card. Inert untrusted text."""
-
-    publisher: str | None = None
-    """Publisher taken verbatim from the card. Inert untrusted text."""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'CatalogCandidate':
-        assert isinstance(obj, dict)
-        display_name = from_str(obj.get("displayName"))
-        handle = from_str(obj.get("handle"))
-        handle_expires_at = from_str(obj.get("handleExpiresAt"))
-        installability = CatalogCandidateInstallability(obj.get("installability"))
-        kind = CatalogCandidateKind(obj.get("kind"))
-        media_type = CatalogMediaType(obj.get("mediaType"))
-        provenance = CatalogCandidateProvenance.from_dict(obj.get("provenance"))
-        source = _load_CatalogCandidateSource(obj.get("source"))
-        description = from_union([from_str, from_none], obj.get("description"))
-        publisher = from_union([from_str, from_none], obj.get("publisher"))
-        return CatalogCandidate(display_name, handle, handle_expires_at, installability, kind, media_type, provenance, source, description, publisher)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["displayName"] = from_str(self.display_name)
-        result["handle"] = from_str(self.handle)
-        result["handleExpiresAt"] = from_str(self.handle_expires_at)
-        result["installability"] = to_enum(CatalogCandidateInstallability, self.installability)
-        result["kind"] = to_enum(CatalogCandidateKind, self.kind)
-        result["mediaType"] = to_enum(CatalogMediaType, self.media_type)
-        result["provenance"] = to_class(CatalogCandidateProvenance, self.provenance)
         result["source"] = (self.source).to_dict()
         if self.description is not None:
             result["description"] = from_union([from_str, from_none], self.description)
@@ -26512,7 +26431,7 @@ class CatalogMCPServerCandidate:
     installability: CatalogMCPServerInstallabilityEnum
     """Whether this MCP server can be planned for installation, and if policy prevents it."""
 
-    kind: CatalogMCPServerCandidateKind
+    kind: ClassVar[str] = "mcp-server"
     """Discriminator: this candidate describes an MCP server"""
 
     media_type: MCPServerCardMediaType
@@ -26538,13 +26457,12 @@ class CatalogMCPServerCandidate:
         handle = from_str(obj.get("handle"))
         handle_expires_at = from_str(obj.get("handleExpiresAt"))
         installability = CatalogMCPServerInstallabilityEnum(obj.get("installability"))
-        kind = CatalogMCPServerCandidateKind(obj.get("kind"))
         media_type = MCPServerCardMediaType(obj.get("mediaType"))
         provenance = CatalogMCPServerCandidateProvenance.from_dict(obj.get("provenance"))
         source = _load_CatalogCandidateSource(obj.get("source"))
         description = from_union([from_str, from_none], obj.get("description"))
         publisher = from_union([from_str, from_none], obj.get("publisher"))
-        return CatalogMCPServerCandidate(display_name, handle, handle_expires_at, installability, kind, media_type, provenance, source, description, publisher)
+        return CatalogMCPServerCandidate(display_name, handle, handle_expires_at, installability, media_type, provenance, source, description, publisher)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -26552,7 +26470,7 @@ class CatalogMCPServerCandidate:
         result["handle"] = from_str(self.handle)
         result["handleExpiresAt"] = from_str(self.handle_expires_at)
         result["installability"] = to_enum(CatalogMCPServerInstallabilityEnum, self.installability)
-        result["kind"] = to_enum(CatalogMCPServerCandidateKind, self.kind)
+        result["kind"] = self.kind
         result["mediaType"] = to_enum(MCPServerCardMediaType, self.media_type)
         result["provenance"] = to_class(CatalogMCPServerCandidateProvenance, self.provenance)
         result["source"] = (self.source).to_dict()
@@ -30793,50 +30711,6 @@ class CanvasProviderOpenRequest:
             result["input"] = self.input
         if self.session is not None:
             result["session"] = from_union([lambda x: to_class(CanvasSessionContext, x), from_none], self.session)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class CatalogSearchSucceeded:
-    """A completed catalog search: inert candidate summaries, each carrying a single-use handle."""
-
-    candidates: list[CatalogCandidate]
-    """Matching candidates, never more than the requested limit. All text is inert untrusted
-    data.
-    """
-    kind: ClassVar[str] = "succeeded"
-    """Discriminator: the search completed"""
-
-    negotiated: CatalogNegotiatedContract
-    """Protocol version and capabilities the runtime honoured."""
-
-    search_id: str
-    """Pseudonymous identifier for this search, issued by the runtime or by the catalog
-    authority it queried and never by the caller, so it cannot be forged or replayed to
-    attribute an install to a search that never happened. Always present on a success, so a
-    result set can be tied to the installs it leads to. It identifies a search rather than a
-    person: it is derived from no user, account, device, or query data, and must never be
-    joined with user identity to re-identify anyone.
-    """
-    truncated: bool
-    """Whether further matches existed beyond the requested limit."""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'CatalogSearchSucceeded':
-        assert isinstance(obj, dict)
-        candidates = from_list(CatalogCandidate.from_dict, obj.get("candidates"))
-        negotiated = CatalogNegotiatedContract.from_dict(obj.get("negotiated"))
-        search_id = from_str(obj.get("searchId"))
-        truncated = from_bool(obj.get("truncated"))
-        return CatalogSearchSucceeded(candidates, negotiated, search_id, truncated)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["candidates"] = from_list(lambda x: to_class(CatalogCandidate, x), self.candidates)
-        result["kind"] = self.kind
-        result["negotiated"] = to_class(CatalogNegotiatedContract, self.negotiated)
-        result["searchId"] = from_str(self.search_id)
-        result["truncated"] = from_bool(self.truncated)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -37796,7 +37670,7 @@ class RPC:
         catalog_ai_skill_candidate_provenance = CatalogAISkillCandidateProvenance.from_dict(obj.get("CatalogAiSkillCandidateProvenance"))
         catalog_authentication_required_error = CatalogAuthenticationRequiredError.from_dict(obj.get("CatalogAuthenticationRequiredError"))
         catalog_authentication_required_reason = CatalogAuthenticationRequiredReason(obj.get("CatalogAuthenticationRequiredReason"))
-        catalog_candidate = CatalogCandidate.from_dict(obj.get("CatalogCandidate"))
+        catalog_candidate = _load_CatalogCandidate(obj.get("CatalogCandidate"))
         catalog_candidate_kind = CatalogCandidateKind(obj.get("CatalogCandidateKind"))
         catalog_candidate_source = _load_CatalogCandidateSource(obj.get("CatalogCandidateSource"))
         catalog_candidate_source_embedded = CatalogCandidateSourceEmbedded.from_dict(obj.get("CatalogCandidateSourceEmbedded"))
@@ -39016,7 +38890,7 @@ class RPC:
         result["CatalogAiSkillCandidateProvenance"] = to_class(CatalogAISkillCandidateProvenance, self.catalog_ai_skill_candidate_provenance)
         result["CatalogAuthenticationRequiredError"] = to_class(CatalogAuthenticationRequiredError, self.catalog_authentication_required_error)
         result["CatalogAuthenticationRequiredReason"] = to_enum(CatalogAuthenticationRequiredReason, self.catalog_authentication_required_reason)
-        result["CatalogCandidate"] = to_class(CatalogCandidate, self.catalog_candidate)
+        result["CatalogCandidate"] = (self.catalog_candidate).to_dict()
         result["CatalogCandidateKind"] = to_enum(CatalogCandidateKind, self.catalog_candidate_kind)
         result["CatalogCandidateSource"] = (self.catalog_candidate_source).to_dict()
         result["CatalogCandidateSourceEmbedded"] = to_class(CatalogCandidateSourceEmbedded, self.catalog_candidate_source_embedded)
@@ -40181,6 +40055,17 @@ def _load_AuthInfo(obj: Any) -> "AuthInfo":
         case "gh-cli": return GhCLIAuthInfo.from_dict(obj)
         case "api-key": return APIKeyAuthInfo.from_dict(obj)
         case _: raise ValueError(f"Unknown AuthInfo type: {kind!r}")
+
+# One inert catalog result, represented as an MCP server or discovery-only AI skill variant so kind, media type, provenance, and installability cannot contradict each other.
+CatalogCandidate = CatalogMCPServerCandidate | CatalogAISkillCandidate
+
+def _load_CatalogCandidate(obj: Any) -> "CatalogCandidate":
+    assert isinstance(obj, dict)
+    kind = obj.get("kind")
+    match kind:
+        case "mcp-server": return CatalogMCPServerCandidate.from_dict(obj)
+        case "ai-skill": return CatalogAISkillCandidate.from_dict(obj)
+        case _: raise ValueError(f"Unknown CatalogCandidate kind: {kind!r}")
 
 # Where a candidate's card came from. Exactly one of a URL or embedded data: the union has no variant carrying both, and no variant carrying neither, so the rule holds structurally rather than by validation.
 CatalogCandidateSource = CatalogCandidateSourceURL | CatalogCandidateSourceEmbedded
@@ -43548,7 +43433,6 @@ __all__ = [
     "CatalogCandidate",
     "CatalogCandidateInstallability",
     "CatalogCandidateKind",
-    "CatalogCandidateProvenance",
     "CatalogCandidateSource",
     "CatalogCandidateSourceEmbedded",
     "CatalogCandidateSourceKind",

@@ -885,6 +885,20 @@ function hasInternalMethods(node: Record<string, unknown>): boolean {
 }
 
     if (schema.server) {
+        if (collectRpcMethods(schema.server).some((method) => method.rpcMethod === "catalog.search")) {
+            lines.push(`const FORBIDDEN_CATALOG_RESPONSE_FIELDS = new Set(["card", "cardData", "rawCard"]);`);
+            lines.push("");
+            lines.push(`function sanitizeCatalogSearchResult(value: unknown): unknown {`);
+            lines.push(`    if (Array.isArray(value)) return value.map(sanitizeCatalogSearchResult);`);
+            lines.push(`    if (value === null || typeof value !== "object") return value;`);
+            lines.push(`    return Object.fromEntries(`);
+            lines.push(`        Object.entries(value)`);
+            lines.push(`            .filter(([key]) => !FORBIDDEN_CATALOG_RESPONSE_FIELDS.has(key))`);
+            lines.push(`            .map(([key, child]) => [key, sanitizeCatalogSearchResult(child)]),`);
+            lines.push(`    );`);
+            lines.push(`}`);
+            lines.push("");
+        }
         lines.push(`/** Create typed server-scoped RPC methods (no session required). */`);
         lines.push(`export function createServerRpc(connection: MessageConnection) {`);
         lines.push(`    return {`);
@@ -1016,7 +1030,13 @@ function emitGroup(
                 includeExperimental: (value as RpcMethod).stability === "experimental" && !parentExperimental,
             });
             lines.push(`${indent}${key}: async (${sigParams.join(", ")}): Promise<${resultType}> =>`);
-            lines.push(`${indent}    connection.sendRequest("${rpcMethod}", ${bodyArg}),`);
+            if (rpcMethod === "catalog.search") {
+                lines.push(`${indent}    sanitizeCatalogSearchResult(`);
+                lines.push(`${indent}        await connection.sendRequest("${rpcMethod}", ${bodyArg}),`);
+                lines.push(`${indent}    ) as ${resultType},`);
+            } else {
+                lines.push(`${indent}    connection.sendRequest("${rpcMethod}", ${bodyArg}),`);
+            }
         } else if (typeof value === "object" && value !== null) {
             const groupExperimental = isNodeFullyExperimental(value as Record<string, unknown>);
             const groupDeprecated = isNodeFullyDeprecated(value as Record<string, unknown>);

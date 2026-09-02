@@ -7,6 +7,15 @@ import pytest
 
 from copilot.rpc import (
     BuiltinToolInputSchemaType,
+    CatalogAISkillCandidate,
+    CatalogAuthenticationRequiredError,
+    CatalogCandidateSourceEmbedded,
+    CatalogCandidateSourceURL,
+    CatalogClientContract,
+    CatalogMCPServerCandidate,
+    CatalogNetworkFailureError,
+    CatalogSearchRequest,
+    CatalogSearchSucceeded,
     CommandsApi,
     CommandsInvokeRequest,
     CommandsRespondToQueuedCommandRequest,
@@ -17,11 +26,15 @@ from copilot.rpc import (
     RemoteControlStatusResult,
     RemoteSessionMetadataValue,
     SandboxConfig,
+    ServerCatalogApi,
     SessionList,
     SlashCommandTextResult,
     TaskAgentInfo,
     UIElicitationSchemaType,
 )
+
+OPAQUE_MCP_HANDLE = "opaque:mcp/01-do-not-parse"
+OPAQUE_SKILL_HANDLE = "opaque:skill/02-do-not-parse"
 
 
 def test_sandbox_config_round_trips_allow_bypass_and_omits_when_absent():
@@ -140,3 +153,120 @@ def test_queued_command_result_serializes_boolean_discriminator(
 
     assert request.to_dict()["result"]["handled"] is expected_handled
     assert isinstance(round_tripped.result, type(variant))
+
+
+@pytest.mark.asyncio
+async def test_catalog_search_preserves_typed_candidates_and_opaque_handles():
+    client = AsyncMock()
+    client.request = AsyncMock(
+        return_value={
+            "kind": "succeeded",
+            "searchId": "search-01",
+            "candidates": [
+                {
+                    "kind": "mcp-server",
+                    "handle": OPAQUE_MCP_HANDLE,
+                    "handleExpiresAt": "2026-09-02T12:00:00Z",
+                    "mediaType": "application/mcp-server-card+json",
+                    "installability": "installable",
+                    "displayName": "Example MCP",
+                    "rawCard": {"secret": "must-not-survive"},
+                    "source": {
+                        "kind": "url",
+                        "url": "https://catalog.example/mcp.json",
+                    },
+                    "provenance": {
+                        "authority": "catalog.example",
+                        "observedAt": "2026-09-02T11:00:00Z",
+                        "mediaType": "application/mcp-server-card+json",
+                    },
+                },
+                {
+                    "kind": "ai-skill",
+                    "handle": OPAQUE_SKILL_HANDLE,
+                    "handleExpiresAt": "2026-09-02T12:00:00Z",
+                    "mediaType": "application/ai-skill",
+                    "installability": "not-installable-kind",
+                    "displayName": "Example skill",
+                    "rawCard": {"secret": "must-not-survive"},
+                    "source": {"kind": "embedded"},
+                    "provenance": {
+                        "authority": "catalog.example",
+                        "observedAt": "2026-09-02T11:00:00Z",
+                        "mediaType": "application/ai-skill",
+                    },
+                },
+            ],
+            "truncated": False,
+            "negotiated": {
+                "runtimeProtocolVersion": 1,
+                "grantedCapabilities": [
+                    "mcp-server-card",
+                    "ai-skill-discovery",
+                ],
+            },
+        }
+    )
+    api = ServerCatalogApi(client)
+
+    result = await api.search(
+        CatalogSearchRequest(
+            contract=CatalogClientContract(
+                protocol_version=1,
+                required_capabilities=[],
+            ),
+            query="example",
+        )
+    )
+
+    assert isinstance(result, CatalogSearchSucceeded)
+    mcp, skill = result.candidates
+    assert isinstance(mcp, CatalogMCPServerCandidate)
+    assert isinstance(skill, CatalogAISkillCandidate)
+    assert mcp.handle == OPAQUE_MCP_HANDLE
+    assert skill.handle == OPAQUE_SKILL_HANDLE
+    assert isinstance(mcp.source, CatalogCandidateSourceURL)
+    assert isinstance(skill.source, CatalogCandidateSourceEmbedded)
+    for candidate in result.to_dict()["candidates"]:
+        assert {"card", "cardData", "rawCard"}.isdisjoint(candidate)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("payload", "expected_type"),
+    [
+        (
+            {
+                "kind": "authentication-required",
+                "reason": "no-credential",
+                "message": "Sign in is required.",
+            },
+            CatalogAuthenticationRequiredError,
+        ),
+        (
+            {
+                "kind": "network-failure",
+                "reason": "timeout",
+                "retryAfterSeconds": 30,
+                "message": "The catalogue timed out.",
+            },
+            CatalogNetworkFailureError,
+        ),
+    ],
+)
+async def test_catalog_search_preserves_refusals_and_failures(payload, expected_type):
+    client = AsyncMock()
+    client.request = AsyncMock(return_value=payload)
+    api = ServerCatalogApi(client)
+
+    result = await api.search(
+        CatalogSearchRequest(
+            contract=CatalogClientContract(
+                protocol_version=1,
+                required_capabilities=[],
+            ),
+            query="example",
+        )
+    )
+
+    assert isinstance(result, expected_type)
