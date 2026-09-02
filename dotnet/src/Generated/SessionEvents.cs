@@ -26,6 +26,7 @@ namespace GitHub.Copilot;
     IgnoreUnrecognizedTypeDiscriminators = true)]
 [JsonDerivedType(typeof(AbortEvent), "abort")]
 [JsonDerivedType(typeof(AgentInterruptedEvent), "agent.interrupted")]
+[JsonDerivedType(typeof(AssistantFusionPhaseActivityEvent), "assistant.fusion_phase_activity")]
 [JsonDerivedType(typeof(AssistantFusionPhaseCompletedEvent), "assistant.fusion_phase_completed")]
 [JsonDerivedType(typeof(AssistantFusionPhaseFailedEvent), "assistant.fusion_phase_failed")]
 [JsonDerivedType(typeof(AssistantFusionPhaseStartedEvent), "assistant.fusion_phase_started")]
@@ -94,6 +95,7 @@ namespace GitHub.Copilot;
 [JsonDerivedType(typeof(SessionCanvasUnavailableEvent), "session.canvas.unavailable")]
 [JsonDerivedType(typeof(SessionCompactionCompleteEvent), "session.compaction_complete")]
 [JsonDerivedType(typeof(SessionCompactionStartEvent), "session.compaction_start")]
+[JsonDerivedType(typeof(SessionCompletionReceiptEvent), "session.completion_receipt")]
 [JsonDerivedType(typeof(SessionContextChangedEvent), "session.context_changed")]
 [JsonDerivedType(typeof(SessionContextClearedEvent), "session.context_cleared")]
 [JsonDerivedType(typeof(SessionCustomAgentsUpdatedEvent), "session.custom_agents_updated")]
@@ -601,6 +603,20 @@ public sealed partial class SessionTaskCompleteEvent : SessionEvent
     public required SessionTaskCompleteData Data { get; set; }
 }
 
+/// <summary>Behavior-neutral record of structured runtime facts present when an agent completion decision is accepted.</summary>
+/// <remarks>Represents the <c>session.completion_receipt</c> event.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public sealed partial class SessionCompletionReceiptEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "session.completion_receipt";
+
+    /// <summary>The <c>session.completion_receipt</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required SessionCompletionReceiptData Data { get; set; }
+}
+
 /// <summary>Experimental transient signal that HydraFusion routing has started for an eligible turn.</summary>
 /// <remarks>Represents the <c>session.fusion_route_started</c> event.</remarks>
 [Experimental(Diagnostics.Experimental)]
@@ -747,6 +763,20 @@ public sealed partial class AssistantFusionPhaseStartedEvent : SessionEvent
     /// <summary>The <c>assistant.fusion_phase_started</c> event payload.</summary>
     [JsonPropertyName("data")]
     public required AssistantFusionPhaseStartedData Data { get; set; }
+}
+
+/// <summary>Experimental content-safe activity signal for a running HydraFusion phase.</summary>
+/// <remarks>Represents the <c>assistant.fusion_phase_activity</c> event.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public sealed partial class AssistantFusionPhaseActivityEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "assistant.fusion_phase_activity";
+
+    /// <summary>The <c>assistant.fusion_phase_activity</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required AssistantFusionPhaseActivityData Data { get; set; }
 }
 
 /// <summary>Experimental durable HydraFusion phase output and lossless replay checkpoint.</summary>
@@ -2893,6 +2923,44 @@ public sealed partial class SessionTaskCompleteData
     public string? Summary { get; set; }
 }
 
+/// <summary>Behavior-neutral record of structured runtime facts present when an agent completion decision is accepted.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed partial class SessionCompletionReceiptData
+{
+    /// <summary>One-based accepted completion receipt ordinal in the durable session history.</summary>
+    [JsonPropertyName("attempt")]
+    public required long Attempt { get; set; }
+
+    /// <summary>Inclusive durable event range summarized by this receipt.</summary>
+    [JsonPropertyName("eventRange")]
+    public required CompletionReceiptEventRange EventRange { get; set; }
+
+    /// <summary>Number of failed structured tool completions in the covered range.</summary>
+    [JsonPropertyName("failedToolCount")]
+    public required long FailedToolCount { get; set; }
+
+    /// <summary>Final structured tool completion in the covered range, when one exists.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("finalTool")]
+    public CompletionReceiptFinalTool? FinalTool { get; set; }
+
+    /// <summary>Version of the completion receipt payload.</summary>
+    [JsonPropertyName("schemaVersion")]
+    public required long SchemaVersion { get; set; }
+
+    /// <summary>Identifier of the assistant turn-end event that supplied the accepted completion boundary. This is the receipt's idempotency key, and always equals eventRange.endEventId.</summary>
+    [JsonPropertyName("sourceEventId")]
+    public required string SourceEventId { get; set; }
+
+    /// <summary>Runtime reason the completion decision was accepted.</summary>
+    [JsonPropertyName("stopReason")]
+    public required CompletionReceiptStopReason StopReason { get; set; }
+
+    /// <summary>Number of successful structured tool completions in the covered range.</summary>
+    [JsonPropertyName("successfulToolCount")]
+    public required long SuccessfulToolCount { get; set; }
+}
+
 /// <summary>Experimental transient signal that HydraFusion routing has started for an eligible turn.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed partial class SessionFusionRouteStartedData
@@ -2984,6 +3052,12 @@ public sealed partial class SessionFusionResolvedData
     /// <summary>Validated orchestration pattern selected for the turn.</summary>
     [JsonPropertyName("pattern")]
     public required FusionPattern Pattern { get; set; }
+
+    /// <summary>Presentation-neutral phase plan for clients that render workflow progress.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("phasePlan")]
+    public FusionPhasePlanStep[]? PhasePlan { get; set; }
 
     /// <summary>Version of the validated execution-plan format.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -3155,6 +3229,11 @@ public sealed partial class UserMessageData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("isAutopilotContinuation")]
     public bool? IsAutopilotContinuation { get; set; }
+
+    /// <summary>Stable identity of the logical user message, matching the ID returned by send and retained by pending queue snapshots.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("messageId")]
+    public string? MessageId { get; set; }
 
     /// <summary>Path-backed native document attachments that stayed on the tagged_files path flow because native upload could not read them or would exceed the request size limit.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -3335,6 +3414,49 @@ public sealed partial class AssistantFusionPhaseStartedData
     /// <summary>Semantic role assigned to the phase.</summary>
     [JsonPropertyName("role")]
     public required string Role { get; set; }
+}
+
+/// <summary>Experimental content-safe activity signal for a running HydraFusion phase.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed partial class AssistantFusionPhaseActivityData
+{
+    /// <summary>Kind of real activity observed.</summary>
+    [JsonPropertyName("activity")]
+    public required FusionPhaseActivityKind Activity { get; set; }
+
+    /// <summary>Conversation scope in which the phase executes.</summary>
+    [JsonPropertyName("conversationScope")]
+    public required FusionConversationScope ConversationScope { get; set; }
+
+    /// <summary>Identifier of the HydraFusion turn containing the phase.</summary>
+    [JsonPropertyName("fusionId")]
+    public required string FusionId { get; set; }
+
+    /// <summary>HydraFusion orchestration pattern containing the phase.</summary>
+    [JsonPropertyName("pattern")]
+    public required FusionPattern Pattern { get; set; }
+
+    /// <summary>Stable identifier for the concrete phase.</summary>
+    [JsonPropertyName("phaseId")]
+    public required string PhaseId { get; set; }
+
+    /// <summary>Kind of phase currently executing.</summary>
+    [JsonPropertyName("phaseKind")]
+    public required FusionPhaseKind PhaseKind { get; set; }
+
+    /// <summary>Semantic role assigned to the phase.</summary>
+    [JsonPropertyName("role")]
+    public required string Role { get; set; }
+
+    /// <summary>Opaque hashed correlation token for matching tool-started and tool-completed activity within this Fusion activity stream. It is not the tool call identifier exposed by tool lifecycle events.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("toolCallId")]
+    public string? ToolCallId { get; set; }
+
+    /// <summary>Cumulative private response bytes observed for this model call. The event never includes response text.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("totalResponseSizeBytes")]
+    public long? TotalResponseSizeBytes { get; set; }
 }
 
 /// <summary>Experimental durable HydraFusion phase output and lossless replay checkpoint.</summary>
@@ -4655,6 +4777,11 @@ public sealed partial class SubagentCompletedData
     [JsonPropertyName("model")]
     public string? Model { get; set; }
 
+    /// <summary>Why an explicit task-call model did not become the effective model.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("modelOverrideReason")]
+    public string? ModelOverrideReason { get; set; }
+
     /// <summary>Tool call ID of the parent tool invocation that spawned this sub-agent.</summary>
     [JsonPropertyName("toolCallId")]
     public required string ToolCallId { get; set; }
@@ -4720,6 +4847,11 @@ public sealed partial class SubagentFailedData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("model")]
     public string? Model { get; set; }
+
+    /// <summary>Why an explicit task-call model did not become the effective model.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("modelOverrideReason")]
+    public string? ModelOverrideReason { get; set; }
 
     /// <summary>Tool call ID of the parent tool invocation that spawned this sub-agent.</summary>
     [JsonPropertyName("toolCallId")]
@@ -4900,6 +5032,11 @@ public sealed partial class SystemNotificationData
 /// <summary>Permission request notification requiring client approval with request details.</summary>
 public sealed partial class PermissionRequestedData
 {
+    /// <summary>Agent mode captured from the owning turn when permission evaluation began.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("agentMode")]
+    public SessionMode? AgentMode { get; set; }
+
     /// <summary>Details of the permission being requested.</summary>
     [JsonPropertyName("permissionRequest")]
     public required PermissionRequest PermissionRequest { get; set; }
@@ -6238,6 +6375,42 @@ public sealed partial class CompactionCompleteCompactionTokensUsed
     public long? OutputTokens { get; set; }
 }
 
+/// <summary>Inclusive durable event range summarized by a completion receipt.</summary>
+/// <remarks>Nested data type for <c>CompletionReceiptEventRange</c>.</remarks>
+public sealed partial class CompletionReceiptEventRange
+{
+    /// <summary>Identifier of the assistant turn-end event that ends the covered exchange. Always equals the receipt's sourceEventId, so either field is a valid join key.</summary>
+    [JsonPropertyName("endEventId")]
+    public required string EndEventId { get; set; }
+
+    /// <summary>Identifier of the user message that starts the covered exchange.</summary>
+    [JsonPropertyName("startEventId")]
+    public required string StartEventId { get; set; }
+}
+
+/// <summary>Final structured tool completion in the covered event range.</summary>
+/// <remarks>Nested data type for <c>CompletionReceiptFinalTool</c>.</remarks>
+public sealed partial class CompletionReceiptFinalTool
+{
+    /// <summary>Process exit code from a structured shell result, when available.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("exitCode")]
+    public long? ExitCode { get; set; }
+
+    /// <summary>Structured success or failure status from the tool completion event.</summary>
+    [JsonPropertyName("status")]
+    public required CompletionReceiptToolStatus Status { get; set; }
+
+    /// <summary>Unique identifier of the completed tool call.</summary>
+    [JsonPropertyName("toolCallId")]
+    public required string ToolCallId { get; set; }
+
+    /// <summary>Tool name from the matching tool execution start event, when available.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("toolName")]
+    public string? ToolName { get; set; }
+}
+
 /// <summary>Durable server recommendation for subsequent HydraFusion turns.</summary>
 /// <remarks>Nested data type for <c>FusionFollowUpRecommendation</c>.</remarks>
 [Experimental(Diagnostics.Experimental)]
@@ -6250,6 +6423,28 @@ public sealed partial class FusionFollowUpRecommendation
     /// <summary>Recommended routing action for the next user-message turn.</summary>
     [JsonPropertyName("userTurn")]
     public required FusionFollowUpAction UserTurn { get; set; }
+}
+
+/// <summary>Presentation-neutral phase planned for a HydraFusion turn.</summary>
+/// <remarks>Nested data type for <c>FusionPhasePlanStep</c>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public sealed partial class FusionPhasePlanStep
+{
+    /// <summary>Whether the phase executes only when an earlier phase requests it.</summary>
+    [JsonPropertyName("conditional")]
+    public required bool Conditional { get; set; }
+
+    /// <summary>Kind of phase that may execute.</summary>
+    [JsonPropertyName("kind")]
+    public required FusionPhaseKind Kind { get; set; }
+
+    /// <summary>Semantic role assigned to the phase.</summary>
+    [JsonPropertyName("role")]
+    public required string Role { get; set; }
+
+    /// <summary>Conversation scope in which the phase executes.</summary>
+    [JsonPropertyName("scope")]
+    public required FusionConversationScope Scope { get; set; }
 }
 
 /// <summary>Validated HydraFusion routing capability scores.</summary>
@@ -10170,7 +10365,7 @@ public sealed partial class SkillsLoadedSkill
     public required bool UserInvocable { get; set; }
 }
 
-/// <summary>A single loaded custom agent in `session.custom_agents_updated`, with identity, source, tools, invocability, and model override.</summary>
+/// <summary>A single loaded custom agent in `session.custom_agents_updated`, with identity, source, tools, invocability, and authored model configuration.</summary>
 /// <remarks>Nested data type for <c>CustomAgentsUpdatedAgent</c>.</remarks>
 public sealed partial class CustomAgentsUpdatedAgent
 {
@@ -10190,6 +10385,16 @@ public sealed partial class CustomAgentsUpdatedAgent
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("model")]
     public string? Model { get; set; }
+
+    /// <summary>Whether authored models are preferences or required constraints.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("modelPolicy")]
+    public AgentModelPolicy? ModelPolicy { get; set; }
+
+    /// <summary>Authored model ids in priority order, if configured.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("models")]
+    public string[]? Models { get; set; }
 
     /// <summary>Internal name of the agent.</summary>
     [JsonPropertyName("name")]
@@ -11469,6 +11674,140 @@ public readonly struct TaskCompletionOutcome : IEquatable<TaskCompletionOutcome>
     }
 }
 
+/// <summary>Structured terminal status from a tool completion event.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct CompletionReceiptToolStatus : IEquatable<CompletionReceiptToolStatus>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="CompletionReceiptToolStatus"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="CompletionReceiptToolStatus"/>.</param>
+    [JsonConstructor]
+    public CompletionReceiptToolStatus(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="CompletionReceiptToolStatus"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The tool completed successfully.</summary>
+    public static CompletionReceiptToolStatus Success { get; } = new("success");
+
+    /// <summary>The tool failed without a more specific structured status.</summary>
+    public static CompletionReceiptToolStatus Failure { get; } = new("failure");
+
+    /// <summary>The tool exceeded its time budget.</summary>
+    public static CompletionReceiptToolStatus Timeout { get; } = new("timeout");
+
+    /// <summary>The user rejected the tool call.</summary>
+    public static CompletionReceiptToolStatus Rejected { get; } = new("rejected");
+
+    /// <summary>The permissions service denied the tool call.</summary>
+    public static CompletionReceiptToolStatus Denied { get; } = new("denied");
+
+    /// <summary>Returns a value indicating whether two <see cref="CompletionReceiptToolStatus"/> instances are equivalent.</summary>
+    public static bool operator ==(CompletionReceiptToolStatus left, CompletionReceiptToolStatus right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="CompletionReceiptToolStatus"/> instances are not equivalent.</summary>
+    public static bool operator !=(CompletionReceiptToolStatus left, CompletionReceiptToolStatus right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is CompletionReceiptToolStatus other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(CompletionReceiptToolStatus other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{CompletionReceiptToolStatus}"/> for serializing <see cref="CompletionReceiptToolStatus"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<CompletionReceiptToolStatus>
+    {
+        /// <inheritdoc />
+        public override CompletionReceiptToolStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, CompletionReceiptToolStatus value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(CompletionReceiptToolStatus));
+        }
+    }
+}
+
+/// <summary>Runtime reason the completion decision was accepted.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct CompletionReceiptStopReason : IEquatable<CompletionReceiptStopReason>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="CompletionReceiptStopReason"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="CompletionReceiptStopReason"/>.</param>
+    [JsonConstructor]
+    public CompletionReceiptStopReason(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="CompletionReceiptStopReason"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The model reached a natural terminal response.</summary>
+    public static CompletionReceiptStopReason Natural { get; } = new("natural");
+
+    /// <summary>A terminal tool ended the interaction.</summary>
+    public static CompletionReceiptStopReason TerminalTool { get; } = new("terminal_tool");
+
+    /// <summary>The configured agentStop continuation limit was reached.</summary>
+    public static CompletionReceiptStopReason AgentStopBlockLimit { get; } = new("agent_stop_block_limit");
+
+    /// <summary>Returns a value indicating whether two <see cref="CompletionReceiptStopReason"/> instances are equivalent.</summary>
+    public static bool operator ==(CompletionReceiptStopReason left, CompletionReceiptStopReason right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="CompletionReceiptStopReason"/> instances are not equivalent.</summary>
+    public static bool operator !=(CompletionReceiptStopReason left, CompletionReceiptStopReason right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is CompletionReceiptStopReason other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(CompletionReceiptStopReason other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{CompletionReceiptStopReason}"/> for serializing <see cref="CompletionReceiptStopReason"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<CompletionReceiptStopReason>
+    {
+        /// <inheritdoc />
+        public override CompletionReceiptStopReason Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, CompletionReceiptStopReason value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(CompletionReceiptStopReason));
+        }
+    }
+}
+
 /// <summary>Kind of turn for which HydraFusion routing is running.</summary>
 [Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -11654,6 +11993,145 @@ public readonly struct FusionPattern : IEquatable<FusionPattern>
         public override void Write(Utf8JsonWriter writer, FusionPattern value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(FusionPattern));
+        }
+    }
+}
+
+/// <summary>HydraFusion phase kind.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct FusionPhaseKind : IEquatable<FusionPhaseKind>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="FusionPhaseKind"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="FusionPhaseKind"/>.</param>
+    [JsonConstructor]
+    public FusionPhaseKind(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="FusionPhaseKind"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Primary solver phase.</summary>
+    public static FusionPhaseKind Primary { get; } = new("primary");
+
+    /// <summary>Read-only cascade judge phase.</summary>
+    public static FusionPhaseKind Judge { get; } = new("judge");
+
+    /// <summary>Cascade repair phase.</summary>
+    public static FusionPhaseKind Repair { get; } = new("repair");
+
+    /// <summary>Initial critique-pattern draft phase.</summary>
+    public static FusionPhaseKind Draft { get; } = new("draft");
+
+    /// <summary>Read-only critique phase.</summary>
+    public static FusionPhaseKind Critic { get; } = new("critic");
+
+    /// <summary>Critique-pattern revision phase.</summary>
+    public static FusionPhaseKind Revision { get; } = new("revision");
+
+    /// <summary>Follow-up phase continuing from the resolved model.</summary>
+    public static FusionPhaseKind FollowUp { get; } = new("follow_up");
+
+    /// <summary>Returns a value indicating whether two <see cref="FusionPhaseKind"/> instances are equivalent.</summary>
+    public static bool operator ==(FusionPhaseKind left, FusionPhaseKind right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="FusionPhaseKind"/> instances are not equivalent.</summary>
+    public static bool operator !=(FusionPhaseKind left, FusionPhaseKind right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is FusionPhaseKind other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(FusionPhaseKind other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{FusionPhaseKind}"/> for serializing <see cref="FusionPhaseKind"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<FusionPhaseKind>
+    {
+        /// <inheritdoc />
+        public override FusionPhaseKind Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, FusionPhaseKind value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(FusionPhaseKind));
+        }
+    }
+}
+
+/// <summary>Conversation scope in which a HydraFusion phase executes.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct FusionConversationScope : IEquatable<FusionConversationScope>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="FusionConversationScope"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="FusionConversationScope"/>.</param>
+    [JsonConstructor]
+    public FusionConversationScope(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="FusionConversationScope"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Canonical root conversation history.</summary>
+    public static FusionConversationScope Root { get; } = new("root");
+
+    /// <summary>Isolated read-only review history that does not enter the root conversation.</summary>
+    public static FusionConversationScope Review { get; } = new("review");
+
+    /// <summary>Returns a value indicating whether two <see cref="FusionConversationScope"/> instances are equivalent.</summary>
+    public static bool operator ==(FusionConversationScope left, FusionConversationScope right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="FusionConversationScope"/> instances are not equivalent.</summary>
+    public static bool operator !=(FusionConversationScope left, FusionConversationScope right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is FusionConversationScope other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(FusionConversationScope other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{FusionConversationScope}"/> for serializing <see cref="FusionConversationScope"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<FusionConversationScope>
+    {
+        /// <inheritdoc />
+        public override FusionConversationScope Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, FusionConversationScope value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(FusionConversationScope));
         }
     }
 }
@@ -12103,43 +12581,46 @@ public readonly struct ModelCallFailureTransport : IEquatable<ModelCallFailureTr
     }
 }
 
-/// <summary>Conversation scope in which a HydraFusion phase executes.</summary>
+/// <summary>Content-safe activity observed while a HydraFusion phase is running.</summary>
 [Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
-public readonly struct FusionConversationScope : IEquatable<FusionConversationScope>
+public readonly struct FusionPhaseActivityKind : IEquatable<FusionPhaseActivityKind>
 {
     private readonly string? _value;
 
-    /// <summary>Initializes a new instance of the <see cref="FusionConversationScope"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="FusionConversationScope"/>.</param>
+    /// <summary>Initializes a new instance of the <see cref="FusionPhaseActivityKind"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="FusionPhaseActivityKind"/>.</param>
     [JsonConstructor]
-    public FusionConversationScope(string value)
+    public FusionPhaseActivityKind(string value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
 
-    /// <summary>Gets the value associated with this <see cref="FusionConversationScope"/>.</summary>
+    /// <summary>Gets the value associated with this <see cref="FusionPhaseActivityKind"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Canonical root conversation history.</summary>
-    public static FusionConversationScope Root { get; } = new("root");
+    /// <summary>The provider produced additional private output bytes.</summary>
+    public static FusionPhaseActivityKind ModelOutput { get; } = new("model_output");
 
-    /// <summary>Isolated read-only review history that does not enter the root conversation.</summary>
-    public static FusionConversationScope Review { get; } = new("review");
+    /// <summary>A tool began executing inside the phase.</summary>
+    public static FusionPhaseActivityKind ToolStarted { get; } = new("tool_started");
 
-    /// <summary>Returns a value indicating whether two <see cref="FusionConversationScope"/> instances are equivalent.</summary>
-    public static bool operator ==(FusionConversationScope left, FusionConversationScope right) => left.Equals(right);
+    /// <summary>A tool finished executing inside the phase.</summary>
+    public static FusionPhaseActivityKind ToolCompleted { get; } = new("tool_completed");
 
-    /// <summary>Returns a value indicating whether two <see cref="FusionConversationScope"/> instances are not equivalent.</summary>
-    public static bool operator !=(FusionConversationScope left, FusionConversationScope right) => !(left == right);
+    /// <summary>Returns a value indicating whether two <see cref="FusionPhaseActivityKind"/> instances are equivalent.</summary>
+    public static bool operator ==(FusionPhaseActivityKind left, FusionPhaseActivityKind right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="FusionPhaseActivityKind"/> instances are not equivalent.</summary>
+    public static bool operator !=(FusionPhaseActivityKind left, FusionPhaseActivityKind right) => !(left == right);
 
     /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is FusionConversationScope other && Equals(other);
+    public override bool Equals(object? obj) => obj is FusionPhaseActivityKind other && Equals(other);
 
     /// <inheritdoc />
-    public bool Equals(FusionConversationScope other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+    public bool Equals(FusionPhaseActivityKind other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
 
     /// <inheritdoc />
     public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
@@ -12147,97 +12628,20 @@ public readonly struct FusionConversationScope : IEquatable<FusionConversationSc
     /// <inheritdoc />
     public override string ToString() => Value;
 
-    /// <summary>Provides a <see cref="JsonConverter{FusionConversationScope}"/> for serializing <see cref="FusionConversationScope"/> instances.</summary>
+    /// <summary>Provides a <see cref="JsonConverter{FusionPhaseActivityKind}"/> for serializing <see cref="FusionPhaseActivityKind"/> instances.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<FusionConversationScope>
+    public sealed class Converter : JsonConverter<FusionPhaseActivityKind>
     {
         /// <inheritdoc />
-        public override FusionConversationScope Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        public override FusionPhaseActivityKind Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
             return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, FusionConversationScope value, JsonSerializerOptions options)
+        public override void Write(Utf8JsonWriter writer, FusionPhaseActivityKind value, JsonSerializerOptions options)
         {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(FusionConversationScope));
-        }
-    }
-}
-
-/// <summary>HydraFusion phase kind.</summary>
-[Experimental(Diagnostics.Experimental)]
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct FusionPhaseKind : IEquatable<FusionPhaseKind>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="FusionPhaseKind"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="FusionPhaseKind"/>.</param>
-    [JsonConstructor]
-    public FusionPhaseKind(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="FusionPhaseKind"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>Primary solver phase.</summary>
-    public static FusionPhaseKind Primary { get; } = new("primary");
-
-    /// <summary>Read-only cascade judge phase.</summary>
-    public static FusionPhaseKind Judge { get; } = new("judge");
-
-    /// <summary>Cascade repair phase.</summary>
-    public static FusionPhaseKind Repair { get; } = new("repair");
-
-    /// <summary>Initial critique-pattern draft phase.</summary>
-    public static FusionPhaseKind Draft { get; } = new("draft");
-
-    /// <summary>Read-only critique phase.</summary>
-    public static FusionPhaseKind Critic { get; } = new("critic");
-
-    /// <summary>Critique-pattern revision phase.</summary>
-    public static FusionPhaseKind Revision { get; } = new("revision");
-
-    /// <summary>Follow-up phase continuing from the resolved model.</summary>
-    public static FusionPhaseKind FollowUp { get; } = new("follow_up");
-
-    /// <summary>Returns a value indicating whether two <see cref="FusionPhaseKind"/> instances are equivalent.</summary>
-    public static bool operator ==(FusionPhaseKind left, FusionPhaseKind right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="FusionPhaseKind"/> instances are not equivalent.</summary>
-    public static bool operator !=(FusionPhaseKind left, FusionPhaseKind right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is FusionPhaseKind other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(FusionPhaseKind other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{FusionPhaseKind}"/> for serializing <see cref="FusionPhaseKind"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<FusionPhaseKind>
-    {
-        /// <inheritdoc />
-        public override FusionPhaseKind Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, FusionPhaseKind value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(FusionPhaseKind));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(FusionPhaseActivityKind));
         }
     }
 }
@@ -15251,6 +15655,67 @@ public readonly struct SkillSource : IEquatable<SkillSource>
     }
 }
 
+/// <summary>Whether configured models are advisory preferences or required constraints.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct AgentModelPolicy : IEquatable<AgentModelPolicy>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="AgentModelPolicy"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="AgentModelPolicy"/>.</param>
+    [JsonConstructor]
+    public AgentModelPolicy(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="AgentModelPolicy"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Treat the authored models as advisory preferences that callers may override.</summary>
+    public static AgentModelPolicy Preferred { get; } = new("preferred");
+
+    /// <summary>Require subagent execution to use one of the authored models.</summary>
+    public static AgentModelPolicy Required { get; } = new("required");
+
+    /// <summary>Returns a value indicating whether two <see cref="AgentModelPolicy"/> instances are equivalent.</summary>
+    public static bool operator ==(AgentModelPolicy left, AgentModelPolicy right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="AgentModelPolicy"/> instances are not equivalent.</summary>
+    public static bool operator !=(AgentModelPolicy left, AgentModelPolicy right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is AgentModelPolicy other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(AgentModelPolicy other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{AgentModelPolicy}"/> for serializing <see cref="AgentModelPolicy"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<AgentModelPolicy>
+    {
+        /// <inheritdoc />
+        public override AgentModelPolicy Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, AgentModelPolicy value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AgentModelPolicy));
+        }
+    }
+}
+
 /// <summary>Configuration source: user, workspace, plugin, or builtin.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
@@ -15604,6 +16069,8 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(AbortEvent))]
 [JsonSerializable(typeof(AgentInterruptedData))]
 [JsonSerializable(typeof(AgentInterruptedEvent))]
+[JsonSerializable(typeof(AssistantFusionPhaseActivityData))]
+[JsonSerializable(typeof(AssistantFusionPhaseActivityEvent))]
 [JsonSerializable(typeof(AssistantFusionPhaseCompletedData))]
 [JsonSerializable(typeof(AssistantFusionPhaseCompletedEvent))]
 [JsonSerializable(typeof(AssistantFusionPhaseFailedData))]
@@ -15698,6 +16165,8 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(CompactionCompleteCompactionTokensUsed))]
 [JsonSerializable(typeof(CompactionCompleteCompactionTokensUsedCopilotUsage))]
 [JsonSerializable(typeof(CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail))]
+[JsonSerializable(typeof(CompletionReceiptEventRange))]
+[JsonSerializable(typeof(CompletionReceiptFinalTool))]
 [JsonSerializable(typeof(CustomAgentsUpdatedAgent))]
 [JsonSerializable(typeof(ElicitationCompletedData))]
 [JsonSerializable(typeof(ElicitationCompletedEvent))]
@@ -15724,6 +16193,7 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(FactoryRunUpdatedEvent))]
 [JsonSerializable(typeof(FusionAttribution))]
 [JsonSerializable(typeof(FusionFollowUpRecommendation))]
+[JsonSerializable(typeof(FusionPhasePlanStep))]
 [JsonSerializable(typeof(FusionPhaseUsage))]
 [JsonSerializable(typeof(FusionScores))]
 [JsonSerializable(typeof(FusionStagedTerminal))]
@@ -15851,6 +16321,8 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(SessionCompactionCompleteEvent))]
 [JsonSerializable(typeof(SessionCompactionStartData))]
 [JsonSerializable(typeof(SessionCompactionStartEvent))]
+[JsonSerializable(typeof(SessionCompletionReceiptData))]
+[JsonSerializable(typeof(SessionCompletionReceiptEvent))]
 [JsonSerializable(typeof(SessionContextChangedData))]
 [JsonSerializable(typeof(SessionContextChangedEvent))]
 [JsonSerializable(typeof(SessionContextClearedData))]

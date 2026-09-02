@@ -23,6 +23,8 @@ import javax.annotation.processing.Generated;
 public record QueuePendingItems(
     /** Stable opaque id for the canonical queued item. Batch rows share one id. */
     @JsonProperty("id") String id,
+    /** Stable identity of the queued user message. Present for message rows and absent for slash commands and model changes. */
+    @JsonProperty("messageId") String messageId,
     /** Whether this item is a queued user message or a queued slash command / model change */
     @JsonProperty("kind") QueuePendingItemsKind kind,
     /** Human-readable text to display for this queue entry in the UI */

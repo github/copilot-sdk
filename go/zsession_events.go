@@ -12,6 +12,8 @@ type (
 	AgentInterruptedActivity                                       = rpc.AgentInterruptedActivity
 	AgentInterruptedCancelPhase                                    = rpc.AgentInterruptedCancelPhase
 	AgentInterruptedData                                           = rpc.AgentInterruptedData
+	AgentModelPolicy                                               = rpc.AgentModelPolicy
+	AssistantFusionPhaseActivityData                               = rpc.AssistantFusionPhaseActivityData
 	AssistantFusionPhaseCompletedData                              = rpc.AssistantFusionPhaseCompletedData
 	AssistantFusionPhaseFailedData                                 = rpc.AssistantFusionPhaseFailedData
 	AssistantFusionPhaseStartedData                                = rpc.AssistantFusionPhaseStartedData
@@ -97,6 +99,10 @@ type (
 	CompactionCompleteCompactionTokensUsed                         = rpc.CompactionCompleteCompactionTokensUsed
 	CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail  = rpc.CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail
 	CompactionTrigger                                              = rpc.CompactionTrigger
+	CompletionReceiptEventRange                                    = rpc.CompletionReceiptEventRange
+	CompletionReceiptFinalTool                                     = rpc.CompletionReceiptFinalTool
+	CompletionReceiptStopReason                                    = rpc.CompletionReceiptStopReason
+	CompletionReceiptToolStatus                                    = rpc.CompletionReceiptToolStatus
 	ContextTier                                                    = rpc.ContextTier
 	CustomAgentsUpdatedAgent                                       = rpc.CustomAgentsUpdatedAgent
 	ElicitationCompletedAction                                     = rpc.ElicitationCompletedAction
@@ -126,7 +132,9 @@ type (
 	FusionFollowUpAction                                           = rpc.FusionFollowUpAction
 	FusionFollowUpRecommendation                                   = rpc.FusionFollowUpRecommendation
 	FusionPattern                                                  = rpc.FusionPattern
+	FusionPhaseActivityKind                                        = rpc.FusionPhaseActivityKind
 	FusionPhaseKind                                                = rpc.FusionPhaseKind
+	FusionPhasePlanStep                                            = rpc.FusionPhasePlanStep
 	FusionPhaseStatus                                              = rpc.FusionPhaseStatus
 	FusionPhaseUsage                                               = rpc.FusionPhaseUsage
 	FusionScores                                                   = rpc.FusionScores
@@ -265,6 +273,7 @@ type (
 	SessionCanvasUnavailableData                                   = rpc.SessionCanvasUnavailableData
 	SessionCompactionCompleteData                                  = rpc.SessionCompactionCompleteData
 	SessionCompactionStartData                                     = rpc.SessionCompactionStartData
+	SessionCompletionReceiptData                                   = rpc.SessionCompletionReceiptData
 	SessionContextChangedData                                      = rpc.SessionContextChangedData
 	SessionContextClearedData                                      = rpc.SessionContextClearedData
 	SessionCustomAgentsUpdatedData                                 = rpc.SessionCustomAgentsUpdatedData
@@ -427,6 +436,8 @@ const (
 	AgentInterruptedActivityToolCall                                   = rpc.AgentInterruptedActivityToolCall
 	AgentInterruptedCancelPhaseMidStream                               = rpc.AgentInterruptedCancelPhaseMidStream
 	AgentInterruptedCancelPhasePreFirstToken                           = rpc.AgentInterruptedCancelPhasePreFirstToken
+	AgentModelPolicyPreferred                                          = rpc.AgentModelPolicyPreferred
+	AgentModelPolicyRequired                                           = rpc.AgentModelPolicyRequired
 	AssistantMessageToolRequestCallerTypeProgram                       = rpc.AssistantMessageToolRequestCallerTypeProgram
 	AssistantMessageToolRequestTypeCustom                              = rpc.AssistantMessageToolRequestTypeCustom
 	AssistantMessageToolRequestTypeFunction                            = rpc.AssistantMessageToolRequestTypeFunction
@@ -491,6 +502,14 @@ const (
 	CompactionTriggerMemoryPressure                                    = rpc.CompactionTriggerMemoryPressure
 	CompactionTriggerModelSwitch                                       = rpc.CompactionTriggerModelSwitch
 	CompactionTriggerThreshold                                         = rpc.CompactionTriggerThreshold
+	CompletionReceiptStopReasonAgentStopBlockLimit                     = rpc.CompletionReceiptStopReasonAgentStopBlockLimit
+	CompletionReceiptStopReasonNatural                                 = rpc.CompletionReceiptStopReasonNatural
+	CompletionReceiptStopReasonTerminalTool                            = rpc.CompletionReceiptStopReasonTerminalTool
+	CompletionReceiptToolStatusDenied                                  = rpc.CompletionReceiptToolStatusDenied
+	CompletionReceiptToolStatusFailure                                 = rpc.CompletionReceiptToolStatusFailure
+	CompletionReceiptToolStatusRejected                                = rpc.CompletionReceiptToolStatusRejected
+	CompletionReceiptToolStatusSuccess                                 = rpc.CompletionReceiptToolStatusSuccess
+	CompletionReceiptToolStatusTimeout                                 = rpc.CompletionReceiptToolStatusTimeout
 	ContextTierDefault                                                 = rpc.ContextTierDefault
 	ContextTierLongContext                                             = rpc.ContextTierLongContext
 	ElicitationCompletedActionAccept                                   = rpc.ElicitationCompletedActionAccept
@@ -524,6 +543,9 @@ const (
 	FusionPatternCascade                                               = rpc.FusionPatternCascade
 	FusionPatternCritique                                              = rpc.FusionPatternCritique
 	FusionPatternSingle                                                = rpc.FusionPatternSingle
+	FusionPhaseActivityKindModelOutput                                 = rpc.FusionPhaseActivityKindModelOutput
+	FusionPhaseActivityKindToolCompleted                               = rpc.FusionPhaseActivityKindToolCompleted
+	FusionPhaseActivityKindToolStarted                                 = rpc.FusionPhaseActivityKindToolStarted
 	FusionPhaseKindCritic                                              = rpc.FusionPhaseKindCritic
 	FusionPhaseKindDraft                                               = rpc.FusionPhaseKindDraft
 	FusionPhaseKindFollowUp                                            = rpc.FusionPhaseKindFollowUp
@@ -671,6 +693,7 @@ const (
 	ScheduleOriginUser                                                 = rpc.ScheduleOriginUser
 	SessionEventTypeAbort                                              = rpc.SessionEventTypeAbort
 	SessionEventTypeAgentInterrupted                                   = rpc.SessionEventTypeAgentInterrupted
+	SessionEventTypeAssistantFusionPhaseActivity                       = rpc.SessionEventTypeAssistantFusionPhaseActivity
 	SessionEventTypeAssistantFusionPhaseCompleted                      = rpc.SessionEventTypeAssistantFusionPhaseCompleted
 	SessionEventTypeAssistantFusionPhaseFailed                         = rpc.SessionEventTypeAssistantFusionPhaseFailed
 	SessionEventTypeAssistantFusionPhaseStarted                        = rpc.SessionEventTypeAssistantFusionPhaseStarted
@@ -737,6 +760,7 @@ const (
 	SessionEventTypeSessionCanvasUnavailable                           = rpc.SessionEventTypeSessionCanvasUnavailable
 	SessionEventTypeSessionCompactionComplete                          = rpc.SessionEventTypeSessionCompactionComplete
 	SessionEventTypeSessionCompactionStart                             = rpc.SessionEventTypeSessionCompactionStart
+	SessionEventTypeSessionCompletionReceipt                           = rpc.SessionEventTypeSessionCompletionReceipt
 	SessionEventTypeSessionContextChanged                              = rpc.SessionEventTypeSessionContextChanged
 	SessionEventTypeSessionContextCleared                              = rpc.SessionEventTypeSessionContextCleared
 	SessionEventTypeSessionCustomAgentsUpdated                         = rpc.SessionEventTypeSessionCustomAgentsUpdated

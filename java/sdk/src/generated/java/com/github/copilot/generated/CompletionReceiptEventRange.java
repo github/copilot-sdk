@@ -3,9 +3,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 // AUTO-GENERATED FILE - DO NOT EDIT
-// Generated from: api.schema.json
+// Generated from: session-events.schema.json
 
-package com.github.copilot.generated.rpc;
+package com.github.copilot.generated;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -13,21 +13,17 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Subagent model, reasoning effort, and context tier settings
+ * Inclusive durable event range summarized by a completion receipt.
  *
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record SubagentSettingsEntry(
-    /** Model override for matching subagents */
-    @JsonProperty("model") String model,
-    /** Whether the configured model strategy is preferred or required */
-    @JsonProperty("modelPolicy") AgentModelPolicy modelPolicy,
-    /** Reasoning effort override for matching subagents */
-    @JsonProperty("effortLevel") String effortLevel,
-    /** Context tier override for matching subagents */
-    @JsonProperty("contextTier") SubagentSettingsEntryContextTier contextTier
+public record CompletionReceiptEventRange(
+    /** Identifier of the user message that starts the covered exchange. */
+    @JsonProperty("startEventId") String startEventId,
+    /** Identifier of the assistant turn-end event that ends the covered exchange. Always equals the receipt's sourceEventId, so either field is a valid join key. */
+    @JsonProperty("endEventId") String endEventId
 ) {
 }

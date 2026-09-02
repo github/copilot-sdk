@@ -40,6 +40,8 @@ public final class PermissionRequestedEvent extends SessionEvent {
         @JsonProperty("permissionRequest") Object permissionRequest,
         /** Derived user-facing permission prompt details for UI consumers */
         @JsonProperty("promptRequest") Object promptRequest,
+        /** Agent mode captured from the owning turn when permission evaluation began. */
+        @JsonProperty("agentMode") SessionMode agentMode,
         /** Neutral risk metadata supplied by the tool host. Consumers may display this value but must not use it to bypass the permission decision. */
         @JsonProperty("riskAssessment") Object riskAssessment,
         /** When true, this permission was already resolved by a permissionRequest hook and requires no client action */
