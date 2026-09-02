@@ -88,6 +88,24 @@ class CopilotExperimentalProcessorTest {
             }
             """;
 
+    private static final String CATALOGUE_SEARCH_CONSUMER = """
+            package consumer;
+            import com.github.copilot.generated.rpc.CatalogAiSkillCandidate;
+            import com.github.copilot.generated.rpc.CatalogCandidate;
+            import com.github.copilot.generated.rpc.CatalogCandidateSource;
+            import com.github.copilot.generated.rpc.CatalogCandidateSourceEmbedded;
+            import com.github.copilot.generated.rpc.CatalogSearchResult;
+            import com.github.copilot.generated.rpc.CatalogSearchSucceeded;
+            public class CatalogueSearchConsumer {
+                private CatalogSearchResult result;
+                private CatalogSearchSucceeded success;
+                private CatalogCandidate candidate;
+                private CatalogAiSkillCandidate skill;
+                private CatalogCandidateSource source;
+                private CatalogCandidateSourceEmbedded embedded;
+            }
+            """;
+
     @Test
     void failsByDefault_whenFieldOrSignatureUsesExperimentalType() {
         DiagnosticCollector<JavaFileObject> diagnostics = compile(
@@ -146,6 +164,21 @@ class CopilotExperimentalProcessorTest {
 
         boolean hasError = diagnostics.getDiagnostics().stream().anyMatch(d -> d.getKind() == Diagnostic.Kind.ERROR);
         assertFalse(hasError, "Expected no errors with opt-in flag, got: " + diagnostics.getDiagnostics());
+    }
+
+    @Test
+    void failsByDefault_whenCatalogueSearchTypesAreUsed() {
+        DiagnosticCollector<JavaFileObject> diagnostics = compile(
+                List.of(inMemorySource("consumer.CatalogueSearchConsumer", CATALOGUE_SEARCH_CONSUMER)),
+                Collections.emptyList());
+
+        String messages = diagnostics.getDiagnostics().stream().filter(d -> d.getKind() == Diagnostic.Kind.ERROR)
+                .map(d -> d.getMessage(null)).reduce("", (left, right) -> left + "\n" + right);
+        for (String typeName : List.of("CatalogSearchResult", "CatalogSearchSucceeded", "CatalogCandidate",
+                "CatalogAiSkillCandidate", "CatalogCandidateSource", "CatalogCandidateSourceEmbedded")) {
+            assertTrue(messages.contains("'" + typeName + "'"),
+                    "Expected experimental error for " + typeName + ", got: " + diagnostics.getDiagnostics());
+        }
     }
 
     private DiagnosticCollector<JavaFileObject> compile(List<JavaFileObject> sources, List<String> extraOptions) {

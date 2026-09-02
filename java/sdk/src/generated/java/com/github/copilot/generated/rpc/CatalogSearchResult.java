@@ -10,10 +10,13 @@ package com.github.copilot.generated.rpc;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
  * Outcome of a catalog.search call: either bounded inert candidates, or one typed refusal. Never a partial success.
+ *
+ * @apiNote This type is experimental and may change in a future version.
  *
  * @since 1.0.0
  */
@@ -31,6 +34,7 @@ import javax.annotation.processing.Generated;
     @JsonSubTypes.Type(value = CatalogContractViolationError.class, name = "contract-violation"),
     @JsonSubTypes.Type(value = CatalogUnavailableError.class, name = "unavailable")
 })
+@CopilotExperimental
 @JsonIgnoreProperties(ignoreUnknown = true)
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 public abstract class CatalogSearchResult {

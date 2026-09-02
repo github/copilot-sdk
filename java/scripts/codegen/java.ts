@@ -252,10 +252,15 @@ interface JavaTypeResult {
 // Set before each schema generation pass; used by schemaTypeToJava and helpers.
 let currentDefinitions: Record<string, JSONSchema7> = {};
 const pendingStandaloneTypes = new Map<string, JSONSchema7>();
+const pendingStandaloneTypeStabilities = new Map<string, string>();
 const generatedSessionEventTypeNames = new Set<string>();
 const NESTED_POLYMORPHIC_TYPE_OVERRIDES = new Set([
     "CatalogCandidate",
     "CatalogCandidateSource",
+]);
+const POLYMORPHIC_STABILITY_PROPAGATION_OVERRIDES = new Set([
+    "CatalogSearchResult",
+    ...NESTED_POLYMORPHIC_TYPE_OVERRIDES,
 ]);
 
 // Cross-schema definitions: keyed by schema filename (e.g. "session-events.schema.json"),
@@ -388,7 +393,8 @@ async function generatePolymorphicResultClass(
     className: string,
     schema: JSONSchema7,
     packageName: string,
-    packageDir: string
+    packageDir: string,
+    stability?: string
 ): Promise<void> {
     const anyOf = schema.anyOf as JSONSchema7[];
     const variants = resolveAnyOfVariants(anyOf);
@@ -424,11 +430,18 @@ async function generatePolymorphicResultClass(
     baseLines.push(`import com.fasterxml.jackson.annotation.JsonIgnoreProperties;`);
     baseLines.push(`import com.fasterxml.jackson.annotation.JsonSubTypes;`);
     baseLines.push(`import com.fasterxml.jackson.annotation.JsonTypeInfo;`);
+    if (stability === "experimental") {
+        baseLines.push(`import com.github.copilot.CopilotExperimental;`);
+    }
     baseLines.push(`import javax.annotation.processing.Generated;`);
     baseLines.push("");
     if (schema.description) {
         baseLines.push(`/**`);
         baseLines.push(` * ${schema.description}`);
+        if (stability === "experimental") {
+            baseLines.push(` *`);
+            baseLines.push(` * @apiNote This type is experimental and may change in a future version.`);
+        }
         baseLines.push(` *`);
         baseLines.push(` * @since 1.0.0`);
         baseLines.push(` */`);
@@ -446,6 +459,9 @@ async function generatePolymorphicResultClass(
         baseLines.push(`    @JsonSubTypes.Type(value = ${v.variantClassName}.class, name = "${v.discriminatorValue}")${comma}`);
     }
     baseLines.push(`})`);
+    if (stability === "experimental") {
+        baseLines.push(`@CopilotExperimental`);
+    }
     baseLines.push(`@JsonIgnoreProperties(ignoreUnknown = true)`);
     baseLines.push(GENERATED_ANNOTATION);
     baseLines.push(`public abstract class ${className} {`);
@@ -463,7 +479,7 @@ async function generatePolymorphicResultClass(
 
     // Generate each variant subclass
     for (const variant of variantInfos) {
-        await generatePolymorphicVariantClass(variant.variantClassName, variant.schema, variant.discriminatorValue, discriminator.property, className, packageName, packageDir);
+        await generatePolymorphicVariantClass(variant.variantClassName, variant.schema, variant.discriminatorValue, discriminator.property, className, packageName, packageDir, stability);
     }
 }
 
@@ -477,7 +493,8 @@ async function generatePolymorphicVariantClass(
     discriminatorProperty: string,
     baseClassName: string,
     packageName: string,
-    packageDir: string
+    packageDir: string,
+    stability?: string
 ): Promise<void> {
     const allImports = new Set<string>([
         "com.fasterxml.jackson.annotation.JsonIgnoreProperties",
@@ -485,6 +502,9 @@ async function generatePolymorphicVariantClass(
         "com.fasterxml.jackson.annotation.JsonProperty",
         "javax.annotation.processing.Generated",
     ]);
+    if (stability === "experimental") {
+        allImports.add("com.github.copilot.CopilotExperimental");
+    }
     const nestedTypes = new Map<string, JavaClassDef>();
 
     // Collect fields (excluding the discriminator property)
@@ -501,7 +521,7 @@ async function generatePolymorphicVariantClass(
             if (propName === discriminatorProperty) continue;
             if (typeof propSchema !== "object") continue;
             const prop = propSchema as JSONSchema7;
-            const result = schemaTypeToJava(prop, false, className, propName, nestedTypes);
+            const result = schemaTypeToJava(prop, false, className, propName, nestedTypes, stability);
             for (const imp of result.imports) allImports.add(imp);
             fields.push({
                 jsonName: propName,
@@ -529,15 +549,26 @@ async function generatePolymorphicVariantClass(
     if (schema.description) {
         lines.push(`/**`);
         lines.push(` * ${schema.description}`);
+        if (stability === "experimental") {
+            lines.push(` *`);
+            lines.push(` * @apiNote This type is experimental and may change in a future version.`);
+        }
         lines.push(` *`);
         lines.push(` * @since 1.0.0`);
         lines.push(` */`);
     } else {
         lines.push(`/**`);
         lines.push(` * Variant {@code ${discriminatorValue}} of {@link ${baseClassName}}.`);
+        if (stability === "experimental") {
+            lines.push(` *`);
+            lines.push(` * @apiNote This type is experimental and may change in a future version.`);
+        }
         lines.push(` *`);
         lines.push(` * @since 1.0.0`);
         lines.push(` */`);
+    }
+    if (stability === "experimental") {
+        lines.push(`@CopilotExperimental`);
     }
     lines.push(`@JsonIgnoreProperties(ignoreUnknown = true)`);
     lines.push(`@JsonInclude(JsonInclude.Include.NON_NULL)`);
@@ -592,7 +623,8 @@ function schemaTypeToJava(
     required: boolean,
     context: string,
     propName: string,
-    nestedTypes: Map<string, JavaClassDef>
+    nestedTypes: Map<string, JavaClassDef>,
+    stability?: string
 ): JavaTypeResult {
     const imports = new Set<string>();
 
@@ -628,10 +660,13 @@ function schemaTypeToJava(
                     && variants.length > 1
                     && findDiscriminator(variants))) {
                 pendingStandaloneTypes.set(name, resolved);
+                if (stability && POLYMORPHIC_STABILITY_PROPAGATION_OVERRIDES.has(name)) {
+                    pendingStandaloneTypeStabilities.set(name, stability);
+                }
                 return { javaType: name, imports };
             }
             // Other types (primitives, arrays, maps, anyOf unions) → resolve and recurse
-            return schemaTypeToJava(resolved, required, context, propName, nestedTypes);
+            return schemaTypeToJava(resolved, required, context, propName, nestedTypes, stability);
         }
         // Unresolved $ref — return name as-is
         console.warn(`[codegen] Unresolved $ref: ${schema.$ref}`);
@@ -642,7 +677,7 @@ function schemaTypeToJava(
         const hasNull = schema.anyOf.some((s) => typeof s === "object" && (s as JSONSchema7).type === "null");
         const nonNull = schema.anyOf.filter((s) => typeof s === "object" && (s as JSONSchema7).type !== "null");
         if (nonNull.length === 1) {
-            const result = schemaTypeToJava(nonNull[0] as JSONSchema7, required && !hasNull, context, propName, nestedTypes);
+            const result = schemaTypeToJava(nonNull[0] as JSONSchema7, required && !hasNull, context, propName, nestedTypes, stability);
             return result;
         }
         // Multi-branch anyOf: fall through to Object, matching the C# generator's
@@ -678,7 +713,7 @@ function schemaTypeToJava(
         const nonNullTypes = schema.type.filter((t) => t !== "null");
         if (nonNullTypes.length === 1) {
             const baseSchema = { ...schema, type: nonNullTypes[0] };
-            return schemaTypeToJava(baseSchema as JSONSchema7, required, context, propName, nestedTypes);
+            return schemaTypeToJava(baseSchema as JSONSchema7, required, context, propName, nestedTypes, stability);
         }
     }
 
@@ -700,7 +735,7 @@ function schemaTypeToJava(
         const items = schema.items as JSONSchema7 | undefined;
         if (items) {
             // Always pass required=false so primitives are boxed (List<Long>, not List<long>)
-            const itemResult = schemaTypeToJava(items, false, context, propName + "Item", nestedTypes);
+            const itemResult = schemaTypeToJava(items, false, context, propName + "Item", nestedTypes, stability);
             imports.add("java.util.List");
             for (const imp of itemResult.imports) imports.add(imp);
             return { javaType: `List<${itemResult.javaType}>`, imports };
@@ -728,7 +763,7 @@ function schemaTypeToJava(
                 ? schema.additionalProperties as JSONSchema7
                 : { type: "object" } as JSONSchema7;
             // Always pass required=false so primitives are boxed (Map<String, Long>, not Map<String, long>)
-            const valueResult = schemaTypeToJava(valueSchema, false, context, propName + "Value", nestedTypes);
+            const valueResult = schemaTypeToJava(valueSchema, false, context, propName + "Value", nestedTypes, stability);
             imports.add("java.util.Map");
             for (const imp of valueResult.imports) imports.add(imp);
             return { javaType: `Map<String, ${valueResult.javaType}>`, imports };
@@ -807,6 +842,7 @@ async function generateSessionEvents(schemaPath: string): Promise<void> {
     // Set module-level definitions for $ref resolution
     currentDefinitions = (schema.definitions ?? {}) as Record<string, JSONSchema7>;
     pendingStandaloneTypes.clear();
+    pendingStandaloneTypeStabilities.clear();
 
     const variants = extractEventVariants(schema);
     const packageName = "com.github.copilot.generated";
@@ -1202,7 +1238,13 @@ async function generatePendingStandaloneTypes(
             } else if (schema.anyOf && Array.isArray(schema.anyOf)) {
                 const variants = resolveAnyOfVariants(schema.anyOf as JSONSchema7[]);
                 if (variants.length > 1 && findDiscriminator(variants)) {
-                    await generatePolymorphicResultClass(name, schema, packageName, packageDir);
+                    await generatePolymorphicResultClass(
+                        name,
+                        schema,
+                        packageName,
+                        packageDir,
+                        pendingStandaloneTypeStabilities.get(name)
+                    );
                 } else {
                     console.warn(`[codegen] Cannot generate standalone type for ${name}: anyOf without discriminator`);
                 }
@@ -1348,7 +1390,8 @@ function generateRpcClass(
     schema: JSONSchema7,
     _nestedTypes: Map<string, { code: string }>,
     _packageName: string,
-    visibility: "public" | "internal" = "public"
+    visibility: "public" | "internal" = "public",
+    stability?: string
 ): { code: string; imports: Set<string> } {
     const imports = new Set<string>();
     const localNestedTypes = new Map<string, JavaClassDef>();
@@ -1360,7 +1403,7 @@ function generateRpcClass(
         if (typeof propSchema !== "object") return [];
         const prop = propSchema as JSONSchema7;
         // Record components are always boxed (nullable by design).
-        const result = schemaTypeToJava(prop, false, className, propName, localNestedTypes);
+        const result = schemaTypeToJava(prop, false, className, propName, localNestedTypes, stability);
         for (const imp of result.imports) imports.add(imp);
         return [{ propName, javaName: toCamelCase(propName), javaType: result.javaType, description: prop.description }];
     });
@@ -1407,6 +1450,7 @@ async function generateRpcTypes(schemaPath: string): Promise<void> {
     // Set module-level definitions for $ref resolution
     currentDefinitions = (schema.definitions ?? {}) as Record<string, JSONSchema7>;
     pendingStandaloneTypes.clear();
+    pendingStandaloneTypeStabilities.clear();
     crossSchemaDefinitions.clear();
 
     // Load cross-schema definitions (session-events) so that cross-schema $ref values
@@ -1456,7 +1500,15 @@ async function generateRpcTypes(schemaPath: string): Promise<void> {
                 const paramsClassName = `${className}Params`;
                 if (!generatedClasses.has(paramsClassName)) {
                     generatedClasses.set(paramsClassName, true);
-                    await generatePolymorphicResultClass(paramsClassName, paramsUnionSchema, packageName, packageDir);
+                    await generatePolymorphicResultClass(
+                        paramsClassName,
+                        paramsUnionSchema,
+                        packageName,
+                        packageDir,
+                        POLYMORPHIC_STABILITY_PROPAGATION_OVERRIDES.has(paramsClassName)
+                            ? method.stability
+                            : undefined
+                    );
                     allFiles.push(`${paramsClassName}.java`);
                 }
                 paramsSchema = null;
@@ -1497,7 +1549,15 @@ async function generateRpcTypes(schemaPath: string): Promise<void> {
                     if (variants.length > 1 && findDiscriminator(variants)) {
                         if (!generatedClasses.has(resultRefName)) {
                             generatedClasses.set(resultRefName, true);
-                            await generatePolymorphicResultClass(resultRefName, resultSchema, packageName, packageDir);
+                            await generatePolymorphicResultClass(
+                                resultRefName,
+                                resultSchema,
+                                packageName,
+                                packageDir,
+                                POLYMORPHIC_STABILITY_PROPAGATION_OVERRIDES.has(resultRefName)
+                                    ? method.stability
+                                    : undefined
+                            );
                         }
                     }
                 } else if (resultRefName && resultSchema.type === "object" && !resultSchema.properties) {
@@ -1536,7 +1596,7 @@ async function generateRpcDataClass(
     deprecated?: boolean
 ): Promise<string> {
     const nestedTypes = new Map<string, { code: string }>();
-    const { code, imports } = generateRpcClass(className, schema, nestedTypes, packageName);
+    const { code, imports } = generateRpcClass(className, schema, nestedTypes, packageName, "public", stability);
 
     const lines: string[] = [];
     lines.push(COPYRIGHT);

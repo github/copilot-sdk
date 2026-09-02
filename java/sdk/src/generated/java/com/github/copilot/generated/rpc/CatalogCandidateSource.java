@@ -10,10 +10,13 @@ package com.github.copilot.generated.rpc;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
  * Where a candidate's card came from. Exactly one of a URL or embedded data: the union has no variant carrying both, and no variant carrying neither, so the rule holds structurally rather than by validation.
+ *
+ * @apiNote This type is experimental and may change in a future version.
  *
  * @since 1.0.0
  */
@@ -22,6 +25,7 @@ import javax.annotation.processing.Generated;
     @JsonSubTypes.Type(value = CatalogCandidateSourceUrl.class, name = "url"),
     @JsonSubTypes.Type(value = CatalogCandidateSourceEmbedded.class, name = "embedded")
 })
+@CopilotExperimental
 @JsonIgnoreProperties(ignoreUnknown = true)
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 public abstract class CatalogCandidateSource {

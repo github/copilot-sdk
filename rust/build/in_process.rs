@@ -572,7 +572,7 @@ fn install_cached_file_path(
     install_dir: &Path,
     relative_path: &Path,
     bytes: &[u8],
-    executable: bool,
+    _executable: bool,
 ) {
     assert!(
         !relative_path.is_absolute()
@@ -627,7 +627,7 @@ fn install_cached_file_path(
         }
 
         #[cfg(unix)]
-        if executable {
+        if _executable {
             use std::os::unix::fs::PermissionsExt;
             if let Err(e) = f.set_permissions(std::fs::Permissions::from_mode(0o755)) {
                 let _ = std::fs::remove_file(&staging_path);
