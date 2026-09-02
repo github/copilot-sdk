@@ -12,7 +12,7 @@ jobs:
     name: ".NET SDK Build and Format"
     if: github.event.repository.fork == false
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 20
     defaults:
       run:
         shell: bash
@@ -128,7 +128,7 @@ jobs:
     # A hung test used to run until the runner died (~50 min) and the dying
     # runner never uploaded its logs, so the failures were undiagnosable.
     # Every healthy cell finishes well under 15 min.
-    timeout-minutes: 20
+    timeout-minutes: 25
     defaults:
       run:
         shell: bash
