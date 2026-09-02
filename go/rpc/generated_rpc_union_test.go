@@ -14,6 +14,7 @@ func TestExternalToolResultJSONUnion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal string result: %v", err)
 	}
+
 	if string(raw) != `"tool result"` {
 		t.Fatalf("marshal string result = %s", raw)
 	}
@@ -43,6 +44,96 @@ func TestExternalToolResultJSONUnion(t *testing.T) {
 	decodedObjectValue, ok := decodedObject.(*ExternalToolTextResultForLlm)
 	if !ok || decodedObjectValue.TextResultForLlm != "expanded" {
 		t.Fatalf("unmarshal object result = %#v", decodedObject)
+	}
+}
+
+func TestCatalogSearchResultJSONUnion(t *testing.T) {
+	result, err := unmarshalCatalogSearchResult([]byte(`{
+		"kind":"succeeded",
+		"searchId":"search-1",
+		"candidates":[
+			{
+				"kind":"mcp-server",
+				"handle":"mcp-handle",
+				"handleExpiresAt":"2026-09-02T12:00:00Z",
+				"mediaType":"application/mcp-server-card+json",
+				"installability":"installable",
+				"displayName":"Example MCP",
+				"source":{"kind":"url","url":"https://example.com/mcp.json"},
+				"provenance":{
+					"authority":"example.com",
+					"observedAt":"2026-09-02T11:00:00Z",
+					"mediaType":"application/mcp-server-card+json"
+				}
+			},
+			{
+				"kind":"ai-skill",
+				"handle":"skill-handle",
+				"handleExpiresAt":"2026-09-02T12:00:00Z",
+				"mediaType":"application/ai-skill",
+				"installability":"not-installable-kind",
+				"displayName":"Example skill",
+				"source":{"kind":"embedded"},
+				"provenance":{
+					"authority":"example.com",
+					"observedAt":"2026-09-02T11:00:00Z",
+					"mediaType":"application/ai-skill"
+				}
+			}
+		],
+		"truncated":false,
+		"negotiated":{
+			"runtimeProtocolVersion":1,
+			"grantedCapabilities":["mcp-server-card","ai-skill-discovery"]
+		}
+	}`))
+	if err != nil {
+		t.Fatalf("unmarshal successful catalogue search: %v", err)
+	}
+	success, ok := result.(*CatalogSearchSucceeded)
+	if !ok {
+		t.Fatalf("catalogue search result = %T, want *CatalogSearchSucceeded", result)
+	}
+	mcpCandidate, ok := success.Candidates[0].(*CatalogMCPServerCandidate)
+	if !ok {
+		t.Fatalf("first candidate = %T, want *CatalogMCPServerCandidate", success.Candidates[0])
+	}
+	if mcpCandidate.Handle != "mcp-handle" {
+		t.Fatalf("MCP candidate handle = %q, want mcp-handle", mcpCandidate.Handle)
+	}
+	if _, ok := mcpCandidate.Source.(*CatalogCandidateSourceURL); !ok {
+		t.Fatalf("MCP candidate source = %T, want *CatalogCandidateSourceURL", mcpCandidate.Source)
+	}
+	skillCandidate, ok := success.Candidates[1].(*CatalogAiSkillCandidate)
+	if !ok {
+		t.Fatalf("second candidate = %T, want *CatalogAiSkillCandidate", success.Candidates[1])
+	}
+	if skillCandidate.Handle != "skill-handle" {
+		t.Fatalf("skill candidate handle = %q, want skill-handle", skillCandidate.Handle)
+	}
+	embedded, ok := skillCandidate.Source.(*CatalogCandidateSourceEmbedded)
+	if !ok {
+		t.Fatalf("skill candidate source = %T, want *CatalogCandidateSourceEmbedded", skillCandidate.Source)
+	}
+	encodedSource, err := json.Marshal(embedded)
+	if err != nil {
+		t.Fatalf("marshal embedded candidate source: %v", err)
+	}
+	if string(encodedSource) != `{"kind":"embedded"}` {
+		t.Fatalf("embedded candidate source = %s, want kind only", encodedSource)
+	}
+
+	refusal, err := unmarshalCatalogSearchResult([]byte(`{
+		"kind":"unsupported-kind",
+		"message":"AI skills are unavailable",
+		"requestedKinds":["ai-skill"],
+		"supportedKinds":["mcp-server"]
+	}`))
+	if err != nil {
+		t.Fatalf("unmarshal catalogue refusal: %v", err)
+	}
+	if _, ok := refusal.(*CatalogUnsupportedKindError); !ok {
+		t.Fatalf("catalogue refusal = %T, want *CatalogUnsupportedKindError", refusal)
 	}
 }
 

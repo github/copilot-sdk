@@ -4875,7 +4875,7 @@ pub struct ExternalToolTextResultForLlmContentResourceLinkIcon {
     /// MIME type of the icon image
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mime_type: Option<String>,
-    /// Available icon sizes (e.g., ['16x16', '32x32'])
+    /// Available icon sizes (e.g., \['16x16', '32x32'\])
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sizes: Option<Vec<String>>,
     /// URL or path to the icon image
@@ -14784,7 +14784,7 @@ pub struct SandboxConfigUserPolicyNetwork {
     /// Whether outbound network traffic is allowed at all.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub allow_outbound: Option<bool>,
-    /// HTTP proxy for sandboxed process traffic. Linux restricts egress to the proxy endpoint, requires that endpoint to be reachable over IPv4 (the [::] dual-stack wildcard is accepted and routed through the IPv4 gateway), and does not support proxy credentials. macOS relies on applications honoring proxy environment variables. Windows also configures a per-AppContainer WinHTTP proxy, but enforcement depends on the application's networking stack. Configure supported credentials in the separate `username` and `password` fields. A credential-free http:// loopback URL uses the localhost proxy form, while an https:// or authenticated loopback URL uses the URL form.
+    /// HTTP proxy for sandboxed process traffic. Linux restricts egress to the proxy endpoint, requires that endpoint to be reachable over IPv4 (the \[::\] dual-stack wildcard is accepted and routed through the IPv4 gateway), and does not support proxy credentials. macOS relies on applications honoring proxy environment variables. Windows also configures a per-AppContainer WinHTTP proxy, but enforcement depends on the application's networking stack. Configure supported credentials in the separate `username` and `password` fields. A credential-free http:// loopback URL uses the localhost proxy form, while an https:// or authenticated loopback URL uses the URL form.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub proxy: Option<SandboxConfigUserPolicyNetworkProxy>,
 }

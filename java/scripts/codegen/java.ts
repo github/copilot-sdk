@@ -253,6 +253,10 @@ interface JavaTypeResult {
 let currentDefinitions: Record<string, JSONSchema7> = {};
 const pendingStandaloneTypes = new Map<string, JSONSchema7>();
 const generatedSessionEventTypeNames = new Set<string>();
+const NESTED_POLYMORPHIC_TYPE_OVERRIDES = new Set([
+    "CatalogCandidate",
+    "CatalogCandidateSource",
+]);
 
 // Cross-schema definitions: keyed by schema filename (e.g. "session-events.schema.json"),
 // value is the definitions map from that schema. Populated by generateRpcTypes so that
@@ -429,7 +433,12 @@ async function generatePolymorphicResultClass(
         baseLines.push(` * @since 1.0.0`);
         baseLines.push(` */`);
     }
-    baseLines.push(`@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "${discriminator.property}", visible = true)`);
+    const typeInfoInclude = NESTED_POLYMORPHIC_TYPE_OVERRIDES.has(className)
+        ? ", include = JsonTypeInfo.As.EXISTING_PROPERTY"
+        : "";
+    baseLines.push(
+        `@JsonTypeInfo(use = JsonTypeInfo.Id.NAME${typeInfoInclude}, property = "${discriminator.property}", visible = true)`
+    );
     baseLines.push(`@JsonSubTypes({`);
     for (let i = 0; i < variantInfos.length; i++) {
         const v = variantInfos[i];
@@ -608,9 +617,16 @@ function schemaTypeToJava(
         const name = schema.$ref.replace(/^#\/definitions\//, "");
         const resolved = currentDefinitions[name];
         if (resolved) {
-            // Enum or object types → register for standalone generation, return ref name
+            const variants = Array.isArray(resolved.anyOf)
+                ? resolveAnyOfVariants(resolved.anyOf as JSONSchema7[])
+                : [];
+            // Java needs named hierarchies for nested catalogue unions; other nested unions
+            // retain their established Object representation until migrated deliberately.
             if ((resolved.type === "string" && resolved.enum) ||
-                (resolved.type === "object" && resolved.properties)) {
+                (resolved.type === "object" && resolved.properties) ||
+                (NESTED_POLYMORPHIC_TYPE_OVERRIDES.has(name)
+                    && variants.length > 1
+                    && findDiscriminator(variants))) {
                 pendingStandaloneTypes.set(name, resolved);
                 return { javaType: name, imports };
             }

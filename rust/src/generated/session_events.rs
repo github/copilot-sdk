@@ -3687,7 +3687,7 @@ pub struct ToolExecutionCompleteContentResourceLinkIcon {
     /// MIME type of the icon image
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mime_type: Option<String>,
-    /// Available icon sizes (e.g., ['16x16', '32x32'])
+    /// Available icon sizes (e.g., \['16x16', '32x32'\])
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sizes: Option<Vec<String>>,
     /// URL or path to the icon image

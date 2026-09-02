@@ -250,7 +250,12 @@ fn pin_file_when_present_is_well_formed() {
         }
     }
     assert!(saw_version, "{filename} missing `version=` line");
-    assert_eq!(package_count, 6);
+    let expected_package_count = if cfg!(feature = "bundled-in-process") {
+        8
+    } else {
+        6
+    };
+    assert_eq!(package_count, expected_package_count);
 }
 
 /// With `bundled-cli` on AND a supported target, `install_bundled_cli`

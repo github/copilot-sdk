@@ -5,8 +5,9 @@
 
 use github_copilot_sdk::AutoTier;
 use github_copilot_sdk::rpc::{
-    Extension, ExtensionList, ExtensionSource, ExtensionStatus, ExtensionsDisableRequest,
-    ExtensionsEnableRequest, FleetStartRequest, FleetStartResult, TasksStartAgentRequest,
+    CatalogCandidate, CatalogCandidateSource, CatalogSearchResult, Extension, ExtensionList,
+    ExtensionSource, ExtensionStatus, ExtensionsDisableRequest, ExtensionsEnableRequest,
+    FleetStartRequest, FleetStartResult, TasksStartAgentRequest,
 };
 use github_copilot_sdk::session_events::{
     PermissionRequest, PermissionRequestedData, SessionEventData, TypedSessionEvent,
@@ -144,6 +145,83 @@ fn permission_event_exposes_managed_approval_required() {
         panic!("expected read permission request");
     };
     assert_eq!(request.managed_approval_required, Some(true));
+}
+
+#[test]
+fn catalog_search_deserializes_typed_candidates_handles_and_refusals() {
+    let result: CatalogSearchResult = serde_json::from_value(serde_json::json!({
+        "kind": "succeeded",
+        "searchId": "search-1",
+        "candidates": [
+            {
+                "kind": "mcp-server",
+                "handle": "mcp-handle",
+                "handleExpiresAt": "2026-09-02T12:00:00Z",
+                "mediaType": "application/mcp-server-card+json",
+                "installability": "installable",
+                "displayName": "Example MCP",
+                "source": {"kind": "url", "url": "https://example.com/mcp.json"},
+                "provenance": {
+                    "authority": "example.com",
+                    "observedAt": "2026-09-02T11:00:00Z",
+                    "mediaType": "application/mcp-server-card+json"
+                }
+            },
+            {
+                "kind": "ai-skill",
+                "handle": "skill-handle",
+                "handleExpiresAt": "2026-09-02T12:00:00Z",
+                "mediaType": "application/ai-skill",
+                "installability": "not-installable-kind",
+                "displayName": "Example skill",
+                "source": {"kind": "embedded"},
+                "provenance": {
+                    "authority": "example.com",
+                    "observedAt": "2026-09-02T11:00:00Z",
+                    "mediaType": "application/ai-skill"
+                }
+            }
+        ],
+        "truncated": false,
+        "negotiated": {
+            "runtimeProtocolVersion": 1,
+            "grantedCapabilities": ["mcp-server-card", "ai-skill-discovery"]
+        }
+    }))
+    .unwrap();
+
+    let CatalogSearchResult::Succeeded(success) = result else {
+        panic!("expected successful catalogue search");
+    };
+    let CatalogCandidate::McpServer(mcp_candidate) = &success.candidates[0] else {
+        panic!("expected MCP server candidate");
+    };
+    assert_eq!(mcp_candidate.handle, "mcp-handle");
+    assert!(matches!(
+        mcp_candidate.source,
+        CatalogCandidateSource::Url(_)
+    ));
+    let CatalogCandidate::AiSkill(skill_candidate) = &success.candidates[1] else {
+        panic!("expected AI skill candidate");
+    };
+    assert_eq!(skill_candidate.handle, "skill-handle");
+    assert!(matches!(
+        skill_candidate.source,
+        CatalogCandidateSource::Embedded(_)
+    ));
+    assert_eq!(
+        serde_json::to_value(&skill_candidate.source).unwrap(),
+        serde_json::json!({"kind": "embedded"})
+    );
+
+    let refusal: CatalogSearchResult = serde_json::from_value(serde_json::json!({
+        "kind": "unsupported-kind",
+        "message": "AI skills are unavailable",
+        "requestedKinds": ["ai-skill"],
+        "supportedKinds": ["mcp-server"]
+    }))
+    .unwrap();
+    assert!(matches!(refusal, CatalogSearchResult::UnsupportedKind(_)));
 }
 
 fn running_extension(id: &str, name: &str) -> Extension {

@@ -377,11 +377,7 @@ function tryEmitRustUnion(
 	}
 
 	const lines: string[] = [];
-	if (schema.description) {
-		for (const line of schema.description.split(/\r?\n/)) {
-			lines.push(`/// ${line}`);
-		}
-	}
+	pushRustDoc(lines, schema.description);
 	pushRustExperimentalDocs(lines, isSchemaExperimental(schema) || ctx.experimentalTypeNames.has(enumName));
 	lines.push("#[derive(Debug, Clone, Serialize, Deserialize)]");
 	lines.push("#[serde(untagged)]");
@@ -468,7 +464,13 @@ function pushRustExperimentalDocs(
 
 function pushRustDoc(lines: string[], text: string | undefined, indent = ""): void {
 	if (!text) return;
-	for (const paragraph of text.trim().split(/\r?\n/)) {
+	const escaped = text
+		.split(/(`[^`]*`)/g)
+		.map((segment, index) => index % 2 === 0
+			? segment.replace(/\[([^\]]+)\](?!\()/g, "\\[$1\\]")
+			: segment)
+		.join("");
+	for (const paragraph of escaped.trim().split(/\r?\n/)) {
 		if (paragraph.trim().length === 0) {
 			lines.push(`${indent}///`);
 		} else {
@@ -923,11 +925,7 @@ function emitRustStruct(
 	const required = new Set(schema.required || []);
 	const lines: string[] = [];
 	const desc = description || schema.description;
-	if (desc) {
-		for (const line of desc.split(/\r?\n/)) {
-			lines.push(`/// ${line}`);
-		}
-	}
+	pushRustDoc(lines, desc);
 	pushRustExperimentalDocs(lines, isSchemaExperimental(schema) || ctx.experimentalTypeNames.has(typeName));
 	if (isSchemaDeprecated(schema)) {
 		lines.push(...rustDeprecatedAttributes());
@@ -970,11 +968,7 @@ function emitRustStruct(
 	lines.push(`${structVis} struct ${typeName} {`);
 
 	for (const { propName, prop, isReq, rustField, rustType } of fields) {
-		if (prop.description) {
-			for (const line of prop.description.split(/\r?\n/)) {
-				lines.push(`    /// ${line}`);
-			}
-		}
+		pushRustDoc(lines, prop.description, "    ");
 		pushRustExperimentalDocs(lines, isSchemaExperimental(prop), "    ");
 		const propIsInternal = isSchemaInternal(prop);
 		if (propIsInternal) {
@@ -1029,11 +1023,7 @@ function emitRustStringEnum(
 	ctx.generatedNames.add(enumName);
 
 	const lines: string[] = [];
-	if (description) {
-		for (const line of description.split(/\r?\n/)) {
-			lines.push(`/// ${line}`);
-		}
-	}
+	pushRustDoc(lines, description);
 	pushRustExperimentalDocs(lines, experimental || ctx.experimentalTypeNames.has(enumName));
 	lines.push(
 		"#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]",
@@ -1078,11 +1068,7 @@ function emitRustConstStringEnum(
 	ctx.generatedNames.add(enumName);
 
 	const lines: string[] = [];
-	if (description) {
-		for (const line of description.split(/\r?\n/)) {
-			lines.push(`/// ${line}`);
-		}
-	}
+	pushRustDoc(lines, description);
 	lines.push(
 		"#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]",
 	);

@@ -7,6 +7,14 @@ import pytest
 
 from copilot.rpc import (
     BuiltinToolInputSchemaType,
+    CatalogAISkillCandidate,
+    CatalogCandidateSourceEmbedded,
+    CatalogCandidateSourceURL,
+    CatalogClientContract,
+    CatalogMCPServerCandidate,
+    CatalogSearchRequest,
+    CatalogSearchSucceeded,
+    CatalogUnsupportedKindError,
     CommandsApi,
     CommandsInvokeRequest,
     CommandsRespondToQueuedCommandRequest,
@@ -16,6 +24,7 @@ from copilot.rpc import (
     RemoteControlStatusOff,
     RemoteControlStatusResult,
     RemoteSessionMetadataValue,
+    ServerCatalogApi,
     SessionList,
     SlashCommandTextResult,
     TaskAgentInfo,
@@ -34,6 +43,87 @@ async def test_commands_invoke_deserializes_slash_command_result():
     assert isinstance(result, SlashCommandTextResult)
     assert result.text == "hello"
     assert result.markdown is True
+
+
+@pytest.mark.asyncio
+async def test_catalog_search_preserves_typed_candidates_handles_and_refusals():
+    client = AsyncMock()
+    client.request = AsyncMock(
+        return_value={
+            "kind": "succeeded",
+            "searchId": "search-1",
+            "candidates": [
+                {
+                    "kind": "mcp-server",
+                    "handle": "mcp-handle",
+                    "handleExpiresAt": "2026-09-02T12:00:00Z",
+                    "mediaType": "application/mcp-server-card+json",
+                    "installability": "installable",
+                    "displayName": "Example MCP",
+                    "source": {
+                        "kind": "url",
+                        "url": "https://example.com/mcp.json",
+                    },
+                    "provenance": {
+                        "authority": "example.com",
+                        "observedAt": "2026-09-02T11:00:00Z",
+                        "mediaType": "application/mcp-server-card+json",
+                    },
+                },
+                {
+                    "kind": "ai-skill",
+                    "handle": "skill-handle",
+                    "handleExpiresAt": "2026-09-02T12:00:00Z",
+                    "mediaType": "application/ai-skill",
+                    "installability": "not-installable-kind",
+                    "displayName": "Example skill",
+                    "source": {"kind": "embedded"},
+                    "provenance": {
+                        "authority": "example.com",
+                        "observedAt": "2026-09-02T11:00:00Z",
+                        "mediaType": "application/ai-skill",
+                    },
+                },
+            ],
+            "truncated": False,
+            "negotiated": {
+                "runtimeProtocolVersion": 1,
+                "grantedCapabilities": [
+                    "mcp-server-card",
+                    "ai-skill-discovery",
+                ],
+            },
+        }
+    )
+    api = ServerCatalogApi(client)
+    request = CatalogSearchRequest(
+        contract=CatalogClientContract(
+            protocol_version=1,
+            required_capabilities=["mcp-server-card"],
+        ),
+        query="example",
+    )
+
+    result = await api.search(request)
+
+    assert isinstance(result, CatalogSearchSucceeded)
+    mcp_candidate, skill_candidate = result.candidates
+    assert isinstance(mcp_candidate, CatalogMCPServerCandidate)
+    assert mcp_candidate.handle == "mcp-handle"
+    assert isinstance(mcp_candidate.source, CatalogCandidateSourceURL)
+    assert isinstance(skill_candidate, CatalogAISkillCandidate)
+    assert skill_candidate.handle == "skill-handle"
+    assert isinstance(skill_candidate.source, CatalogCandidateSourceEmbedded)
+    assert skill_candidate.source.to_dict() == {"kind": "embedded"}
+
+    client.request.return_value = {
+        "kind": "unsupported-kind",
+        "message": "AI skills are unavailable",
+        "requestedKinds": ["ai-skill"],
+        "supportedKinds": ["mcp-server"],
+    }
+    refusal = await api.search(request)
+    assert isinstance(refusal, CatalogUnsupportedKindError)
 
 
 def test_remote_control_status_deserializes_string_discriminated_union():

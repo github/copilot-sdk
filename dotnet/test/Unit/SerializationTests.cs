@@ -18,6 +18,78 @@ namespace GitHub.Copilot.Test.Unit;
 public class SerializationTests
 {
     [Fact]
+    public void CatalogSearchResult_DeserializesTypedCandidatesHandlesAndRefusals()
+    {
+        var options = GetSerializerOptions();
+        var json = """
+            {
+              "kind": "succeeded",
+              "searchId": "search-1",
+              "candidates": [
+                {
+                  "kind": "mcp-server",
+                  "handle": "mcp-handle",
+                  "handleExpiresAt": "2026-09-02T12:00:00Z",
+                  "mediaType": "application/mcp-server-card+json",
+                  "installability": "installable",
+                  "displayName": "Example MCP",
+                  "source": { "kind": "url", "url": "https://example.com/mcp.json" },
+                  "provenance": {
+                    "authority": "example.com",
+                    "observedAt": "2026-09-02T11:00:00Z",
+                    "mediaType": "application/mcp-server-card+json"
+                  }
+                },
+                {
+                  "kind": "ai-skill",
+                  "handle": "skill-handle",
+                  "handleExpiresAt": "2026-09-02T12:00:00Z",
+                  "mediaType": "application/ai-skill",
+                  "installability": "not-installable-kind",
+                  "displayName": "Example skill",
+                  "source": { "kind": "embedded" },
+                  "provenance": {
+                    "authority": "example.com",
+                    "observedAt": "2026-09-02T11:00:00Z",
+                    "mediaType": "application/ai-skill"
+                  }
+                }
+              ],
+              "truncated": false,
+              "negotiated": {
+                "runtimeProtocolVersion": 1,
+                "grantedCapabilities": ["mcp-server-card", "ai-skill-discovery"]
+              }
+            }
+            """;
+
+        var result = JsonSerializer.Deserialize<CatalogSearchResult>(json, options);
+
+        var success = Assert.IsType<CatalogSearchResultSucceeded>(result);
+        var mcpCandidate = Assert.IsType<CatalogCandidateMcpServer>(success.Candidates[0]);
+        Assert.Equal("mcp-handle", mcpCandidate.Handle);
+        Assert.IsType<CatalogCandidateSourceUrl>(mcpCandidate.Source);
+        var skillCandidate = Assert.IsType<CatalogCandidateAiSkill>(success.Candidates[1]);
+        Assert.Equal("skill-handle", skillCandidate.Handle);
+        Assert.IsType<CatalogCandidateSourceEmbedded>(skillCandidate.Source);
+        Assert.Equal(
+            """{"kind":"embedded"}""",
+            JsonSerializer.Serialize<CatalogCandidateSource>(skillCandidate.Source, options));
+
+        var refusal = JsonSerializer.Deserialize<CatalogSearchResult>(
+            """
+            {
+              "kind": "unsupported-kind",
+              "message": "AI skills are unavailable",
+              "requestedKinds": ["ai-skill"],
+              "supportedKinds": ["mcp-server"]
+            }
+            """,
+            options);
+        Assert.IsType<CatalogSearchResultUnsupportedKind>(refusal);
+    }
+
+    [Fact]
     public void ProviderConfig_CanSerializeHeaders_WithSdkOptions()
     {
         var options = GetSerializerOptions();
