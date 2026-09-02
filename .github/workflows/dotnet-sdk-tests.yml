@@ -104,7 +104,11 @@ jobs:
           - os: macos-latest
             transport: default
             backend: capi
-            shard: "2b1"
+            shard: "2b1a"
+          - os: macos-latest
+            transport: default
+            backend: capi
+            shard: "2b1b"
           - os: macos-latest
             transport: default
             backend: capi
@@ -207,9 +211,13 @@ jobs:
                 initials=(B E F G)
                 shard_filter=""
                 ;;
-              2b1)
+              2b1a)
                 initials=(O P)
-                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.Rewind|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcA|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcE|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcM|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcQ|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcR"
+                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.Rewind|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcA|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcE"
+                ;;
+              2b1b)
+                initials=()
+                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcM|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcQ|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcR"
                 ;;
               2b2)
                 initials=()
