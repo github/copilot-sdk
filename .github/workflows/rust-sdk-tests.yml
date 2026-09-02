@@ -119,11 +119,11 @@ jobs:
           prefix-key: v1-rust-no-bin
           cache-bin: false
 
-      - name: Read pinned @github/copilot CLI version
+      - name: Read pinned Copilot CLI version
         id: cli-version
         working-directory: ./nodejs
         run: |
-          version=$(node -p "require('./package-lock.json').packages['node_modules/@github/copilot'].version")
+          version=$(node -p "require('./package.json').copilotCliVersion")
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "Pinned CLI version: $version"
 
@@ -168,11 +168,11 @@ jobs:
           prefix-key: v1-rust-no-bin
           cache-bin: false
 
-      - name: Read pinned @github/copilot CLI version
+      - name: Read pinned Copilot CLI version
         id: cli-version
         working-directory: ./nodejs
         run: |
-          version=$(node -p "require('./package-lock.json').packages['node_modules/@github/copilot'].version")
+          version=$(node -p "require('./package.json').copilotCliVersion")
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "Pinned CLI version: $version"
 
