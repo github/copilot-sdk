@@ -104,11 +104,27 @@ jobs:
           - os: macos-latest
             transport: default
             backend: capi
-            shard: "2b1a-permission-provider"
+            shard: "2b-pending"
           - os: macos-latest
             transport: default
             backend: capi
-            shard: "2b1a-rewind"
+            shard: "2b-permission"
+          - os: macos-latest
+            transport: default
+            backend: capi
+            shard: "2b-auth"
+          - os: macos-latest
+            transport: default
+            backend: capi
+            shard: "2b-hooks"
+          - os: macos-latest
+            transport: default
+            backend: capi
+            shard: "2b-unit-p"
+          - os: macos-latest
+            transport: default
+            backend: capi
+            shard: "2b-provider"
           - os: macos-latest
             transport: default
             backend: capi
@@ -246,22 +262,29 @@ jobs:
                 initials=(B E F G)
                 shard_filter=""
                 ;;
-              2b1a-permission-provider)
+              2b-pending)
                 initials=()
-                shard_filter=""
-                individual_filters=(
-                  "FullyQualifiedName~GitHub.Copilot.Test.E2E.PendingWorkResumeE2ETests"
-                  "FullyQualifiedName~GitHub.Copilot.Test.E2E.PerSessionAuthE2ETests"
-                  "FullyQualifiedName~GitHub.Copilot.Test.E2E.PermissionE2ETests"
-                  "FullyQualifiedName~GitHub.Copilot.Test.E2E.PreMcpToolCallHookE2ETests"
-                  "FullyQualifiedName~GitHub.Copilot.Test.E2E.ProviderEndpointE2ETests"
-                  "FullyQualifiedName~GitHub.Copilot.Test.Unit.PermissionHandlerTests"
-                  "FullyQualifiedName~GitHub.Copilot.Test.Unit.PublicDtoTests"
-                )
+                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.PendingWorkResumeE2ETests"
                 ;;
-              2b1a-rewind)
+              2b-permission)
                 initials=()
-                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.Rewind"
+                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.PermissionE2ETests"
+                ;;
+              2b-auth)
+                initials=()
+                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.PerSessionAuthE2ETests"
+                ;;
+              2b-hooks)
+                initials=()
+                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.PreMcpToolCallHookE2ETests"
+                ;;
+              2b-unit-p)
+                initials=()
+                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.Unit.P"
+                ;;
+              2b-provider)
+                initials=(O)
+                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.ProviderEndpointE2ETests|FullyQualifiedName~GitHub.Copilot.Test.E2E.RewindE2ETests|FullyQualifiedName~GitHub.Copilot.Test.Unit.R"
                 ;;
               2b1a-rpc-a)
                 initials=()
