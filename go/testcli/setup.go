@@ -94,9 +94,9 @@ func setup() error {
 	if err := npmregistry.ExtractPackage(archivePath, stagingDir); err != nil {
 		return fmt.Errorf("extracting @github/copilot-%s@%s: %w", platform, metadata.version, err)
 	}
-	cliPath := filepath.Join(stagingDir, testCLIBinaryName())
+	stagingCLIPath := filepath.Join(stagingDir, testCLIBinaryName())
 	if runtime.GOOS != "windows" {
-		if err := os.Chmod(cliPath, 0755); err != nil {
+		if err := os.Chmod(stagingCLIPath, 0755); err != nil {
 			return fmt.Errorf("making Copilot test runtime executable: %w", err)
 		}
 	}
@@ -105,14 +105,13 @@ func setup() error {
 	if err := os.WriteFile(filepath.Join(stagingDir, ".integrity"), []byte(metadata.integrity+"\n"), 0644); err != nil {
 		return fmt.Errorf("writing Copilot test runtime integrity: %w", err)
 	}
-	cliPath, ok := installedTestRuntimePath(stagingDir, platform, metadata)
-	if !ok {
+	if _, ok := installedTestRuntimePath(stagingDir, platform, metadata); !ok {
 		return fmt.Errorf("download did not contain a complete @github/copilot-%s@%s package", platform, metadata.version)
 	}
 	if err := os.Rename(stagingDir, installDir); err != nil {
 		return fmt.Errorf("installing Copilot test runtime: %w", err)
 	}
-	cliPath = filepath.Join(installDir, testCLIBinaryName())
+	cliPath := filepath.Join(installDir, testCLIBinaryName())
 	if err := os.Setenv("COPILOT_CLI_PATH", cliPath); err != nil {
 		return fmt.Errorf("configuring Copilot test runtime: %w", err)
 	}
