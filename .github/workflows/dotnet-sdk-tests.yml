@@ -245,7 +245,6 @@ jobs:
           )
 
           filter="$DOTNET_TEST_FILTER"
-          individual_filters=()
           if [[ "$DOTNET_TEST_SHARD" != "full" ]]; then
             case "$DOTNET_TEST_SHARD" in
               1)
@@ -327,14 +326,6 @@ jobs:
                 shard_filter=""
                 ;;
             esac
-
-            if (( ${#individual_filters[@]} > 0 )); then
-              for individual_filter in "${individual_filters[@]}"; do
-                combined_filter="${filter:+(${filter})&}(${individual_filter})"
-                dotnet test test/GitHub.Copilot.SDK.Test.csproj "${args[@]}" --filter "$combined_filter"
-              done
-              exit 0
-            fi
 
             for namespace in E2E Unit; do
               for initial in "${initials[@]}"; do
