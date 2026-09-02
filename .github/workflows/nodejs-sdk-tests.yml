@@ -53,6 +53,11 @@ jobs:
         working-directory: ./test/harness
         run: npm ci --ignore-scripts
 
+      - name: Run test harness tests
+        if: runner.os == 'Linux' && matrix.transport == 'default'
+        working-directory: ./test/harness
+        run: npm test
+
       - name: Warm up PowerShell
         if: runner.os == 'Windows'
         run: pwsh.exe -Command "Write-Host 'PowerShell ready'"
