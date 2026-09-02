@@ -113,6 +113,7 @@ namespace GitHub.Copilot;
 [JsonDerivedType(typeof(SessionMcpServerStatusChangedEvent), "session.mcp_server_status_changed")]
 [JsonDerivedType(typeof(SessionMcpServersLoadedEvent), "session.mcp_servers_loaded")]
 [JsonDerivedType(typeof(SessionModeChangedEvent), "session.mode_changed")]
+[JsonDerivedType(typeof(SessionModeNoticeDeliveredEvent), "session.mode_notice_delivered")]
 [JsonDerivedType(typeof(SessionModelChangeEvent), "session.model_change")]
 [JsonDerivedType(typeof(SessionPermissionsChangedEvent), "session.permissions_changed")]
 [JsonDerivedType(typeof(SessionPlanChangedEvent), "session.plan_changed")]
@@ -376,6 +377,19 @@ public sealed partial class SessionModeChangedEvent : SessionEvent
     /// <summary>The <c>session.mode_changed</c> event payload.</summary>
     [JsonPropertyName("data")]
     public required SessionModeChangedData Data { get; set; }
+}
+
+/// <summary>Records that a mode transition notice reached the model so cache-stable mode tools can remain offered across resume.</summary>
+/// <remarks>Represents the <c>session.mode_notice_delivered</c> event.</remarks>
+public sealed partial class SessionModeNoticeDeliveredEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "session.mode_notice_delivered";
+
+    /// <summary>The <c>session.mode_notice_delivered</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required SessionModeNoticeDeliveredData Data { get; set; }
 }
 
 /// <summary>Session limits update details. Null clears the limits.</summary>
@@ -1546,7 +1560,7 @@ public sealed partial class SessionAutoModeResolvedEvent : SessionEvent
     public required SessionAutoModeResolvedData Data { get; set; }
 }
 
-/// <summary>Enterprise managed-settings resolution: the effective managed settings the session applied and which channels contributed, so SDK clients can show users what is enterprise-managed. Fires whenever managed policy is (re)applied — at session start, on resume, and on account switch. This is an ephemeral live snapshot (delivered to subscribers but not persisted to the session event log), because at session start it resolves before `session.start` is emitted. Device values take precedence over server values per ordinary key, while permissions compose restrictively across device, server, and SDK-client layers. The account-scoped `getManagedSettings()` API does not include session-local client injection. Marked experimental while the managed-settings surface stabilizes.</summary>
+/// <summary>Enterprise managed-settings resolution: the effective managed settings the session applied and which channels contributed, so SDK clients can show users what is enterprise-managed. Fires whenever managed policy is (re)applied — at session start, on resume, and on account switch. This is an ephemeral live snapshot (delivered to subscribers but not persisted to the session event log), because at session start it resolves before `session.start` is emitted. Device values take precedence over server values, then the policy helper, per ordinary key, while permissions compose restrictively across device, server, policy-helper, and SDK-client layers. The account-scoped `getManagedSettings()` API does not include session-local client injection. Marked experimental while the managed-settings surface stabilizes.</summary>
 /// <remarks>Represents the <c>session.managed_settings_resolved</c> event.</remarks>
 [Experimental(Diagnostics.Experimental)]
 public sealed partial class SessionManagedSettingsResolvedEvent : SessionEvent
@@ -2344,6 +2358,19 @@ public sealed partial class SessionModeChangedData
     /// <summary>The session mode the agent is operating in.</summary>
     [JsonPropertyName("previousMode")]
     public required SessionMode PreviousMode { get; set; }
+}
+
+/// <summary>Records that a mode transition notice reached the model so cache-stable mode tools can remain offered across resume.</summary>
+public sealed partial class SessionModeNoticeDeliveredData
+{
+    /// <summary>Model-visible transition notice persisted for a mid-turn delivery.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("content")]
+    public string? Content { get; set; }
+
+    /// <summary>Mode established by the delivered transition notice.</summary>
+    [JsonPropertyName("mode")]
+    public required SessionMode Mode { get; set; }
 }
 
 /// <summary>Session limits update details. Null clears the limits.</summary>
@@ -5410,7 +5437,7 @@ public sealed partial class SessionAutoModeResolvedData
     public bool? StickyOverride { get; set; }
 }
 
-/// <summary>Enterprise managed-settings resolution: the effective managed settings the session applied and which channels contributed, so SDK clients can show users what is enterprise-managed. Fires whenever managed policy is (re)applied — at session start, on resume, and on account switch. This is an ephemeral live snapshot (delivered to subscribers but not persisted to the session event log), because at session start it resolves before `session.start` is emitted. Device values take precedence over server values per ordinary key, while permissions compose restrictively across device, server, and SDK-client layers. The account-scoped `getManagedSettings()` API does not include session-local client injection. Marked experimental while the managed-settings surface stabilizes.</summary>
+/// <summary>Enterprise managed-settings resolution: the effective managed settings the session applied and which channels contributed, so SDK clients can show users what is enterprise-managed. Fires whenever managed policy is (re)applied — at session start, on resume, and on account switch. This is an ephemeral live snapshot (delivered to subscribers but not persisted to the session event log), because at session start it resolves before `session.start` is emitted. Device values take precedence over server values, then the policy helper, per ordinary key, while permissions compose restrictively across device, server, policy-helper, and SDK-client layers. The account-scoped `getManagedSettings()` API does not include session-local client injection. Marked experimental while the managed-settings surface stabilizes.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed partial class SessionManagedSettingsResolvedData
 {
@@ -5440,6 +5467,11 @@ public sealed partial class SessionManagedSettingsResolvedData
     [JsonPropertyName("permissionsAllowIntersected")]
     public bool? PermissionsAllowIntersected { get; set; }
 
+    /// <summary>Whether the policy-helper managed-settings layer was present. The policy helper is the weakest channel: it fills keys no enterprise source set and can never replace one.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("policyHelperManaged")]
+    public bool? PolicyHelperManaged { get; set; }
+
     /// <summary>Whether the effective sandbox policy forces the sandbox on *only* because managed policy could not be determined, rather than because the policy requires it. Lets clients tell a user whose `--no-sandbox` was overridden that the sandbox stayed on as a fail-closed fallback, instead of attributing it to an administrator who set no such policy.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("sandboxEnabledByUndeterminedPolicy")]
@@ -5454,7 +5486,7 @@ public sealed partial class SessionManagedSettingsResolvedData
     [JsonPropertyName("settings")]
     public JsonElement? Settings { get; set; }
 
-    /// <summary>Channel summary: `server`, `device`, or `client` when exactly one channel contributed; `mixed` when multiple channels contributed; otherwise `none`. Consult the per-channel booleans for exact provenance.</summary>
+    /// <summary>Channel summary: `server`, `device`, `client`, or `policyHelper` when exactly one channel contributed; `mixed` when multiple channels contributed; otherwise `none`. Consult the per-channel booleans for exact provenance.</summary>
     [JsonPropertyName("source")]
     public required ManagedSettingsResolvedSource Source { get; set; }
 }
@@ -7068,7 +7100,7 @@ public sealed partial class FusionAttribution
 [Experimental(Diagnostics.Experimental)]
 public sealed partial class AssistantMessageReasoningBlocks
 {
-    /// <summary>Provider-native reasoning content blocks (e.g. Anthropic `thinking` / `redacted_thinking`) preserved verbatim, in order. A single response can carry several, each signed over the content preceding it, so dropping or reordering any of them invalidates the rest.</summary>
+    /// <summary>Provider-native reasoning items or content blocks preserved verbatim, in order. A single response can carry several, and provider signatures or identifiers may depend on their exact content and ordering.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("blocks")]
     public JsonElement[]? Blocks { get; set; }
@@ -14833,7 +14865,10 @@ public readonly struct ManagedSettingsResolvedSource : IEquatable<ManagedSetting
     /// <summary>Only session-local SDK-host injection contributed.</summary>
     public static ManagedSettingsResolvedSource Client { get; } = new("client");
 
-    /// <summary>More than one channel contributed. Ordinary keys resolve device over server per key, while permissions compose restrictively across all present layers.</summary>
+    /// <summary>A policy helper registered by device or server policy contributed. Device registration takes priority when present.</summary>
+    public static ManagedSettingsResolvedSource PolicyHelper { get; } = new("policyHelper");
+
+    /// <summary>More than one channel contributed. Ordinary keys resolve device over server over policy helper per key, while permissions compose restrictively across all present layers.</summary>
     public static ManagedSettingsResolvedSource Mixed { get; } = new("mixed");
 
     /// <summary>No managed policy is in force (no channel contributed).</summary>
@@ -15861,6 +15896,8 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(SessionMcpServersLoadedEvent))]
 [JsonSerializable(typeof(SessionModeChangedData))]
 [JsonSerializable(typeof(SessionModeChangedEvent))]
+[JsonSerializable(typeof(SessionModeNoticeDeliveredData))]
+[JsonSerializable(typeof(SessionModeNoticeDeliveredEvent))]
 [JsonSerializable(typeof(SessionModelChangeData))]
 [JsonSerializable(typeof(SessionModelChangeEvent))]
 [JsonSerializable(typeof(SessionPermissionsChangedData))]

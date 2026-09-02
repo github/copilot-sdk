@@ -181,7 +181,7 @@ test("rejects missing native resources", (t) => {
         expectedFilename: artifactName,
         repoRoot: fixture.repoRoot,
       }),
-    /copilot\.exe/,
+    /copilot-runtime\.exe/,
   );
 });
 
@@ -189,7 +189,7 @@ test("rejects incorrect pinned package metadata", (t) => {
   const fixture = createFixture(t);
   writeStoredZip(fixture.jarPath, [
     ["native/win32-x64/runtime.node", "runtime"],
-    ["native/win32-x64/copilot.exe", "cli"],
+    ["native/win32-x64/copilot-runtime.exe", "runtime wrapper"],
     [
       "native/win32-x64/platform.properties",
       "classifier=win32-x64\nversion=0.0.1\n",
@@ -217,7 +217,7 @@ test("rejects Linux resources in a Windows classifier", (t) => {
   });
   writeStoredZip(fixture.jarPath, [
     ["native/win32-x64/runtime.node", "runtime"],
-    ["native/win32-x64/copilot.exe", "cli"],
+    ["native/win32-x64/copilot-runtime.exe", "runtime wrapper"],
     [
       "native/win32-x64/platform.properties",
       "classifier=win32-x64\nversion=9.8.7\n",
@@ -245,7 +245,7 @@ test("rejects Windows resources in a Linux classifier", (t) => {
   const linuxJarPath = path.join(fixture.root, linuxArtifactName);
   writeStoredZip(linuxJarPath, [
     ["native/linux-x64/runtime.node", "runtime"],
-    ["native/linux-x64/copilot", "cli"],
+    ["native/linux-x64/copilot-runtime", "runtime wrapper"],
     [
       "native/linux-x64/platform.properties",
       "classifier=linux-x64\nversion=9.8.6\n",
@@ -459,7 +459,7 @@ test("local publication validation rejects cross-classifier contamination", (t) 
     path.join(publicationDirectory, `${artifactId}-${version}-linux-x64.jar`),
     [
       ["native/linux-x64/runtime.node", "runtime"],
-      ["native/linux-x64/copilot", "cli"],
+      ["native/linux-x64/copilot-runtime", "runtime wrapper"],
       [
         "native/linux-x64/platform.properties",
         "classifier=linux-x64\nversion=9.8.6\n",

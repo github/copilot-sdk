@@ -107,7 +107,7 @@ const normalizedToolNames: Record<string, string> = {
  * Default model to use when no stored data is available for a given test.
  * This enables responding to /models without needing to have a capture file.
  */
-const defaultModel = "claude-sonnet-4.5";
+const defaultModel = "claude-sonnet-5";
 
 /**
  * An HTTP proxy that not only captures HTTP exchanges, but also stores them in a file on disk and

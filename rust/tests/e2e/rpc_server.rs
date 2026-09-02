@@ -70,7 +70,7 @@ async fn should_call_rpc_models_list_with_typed_result() {
                     result
                         .models
                         .iter()
-                        .any(|model| model.id == "claude-sonnet-4.5")
+                        .any(|model| model.id == "claude-sonnet-5")
                 );
                 assert!(result.models.iter().all(|model| !model.name.is_empty()));
                 client.stop().await.expect("stop client");

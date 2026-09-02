@@ -183,6 +183,7 @@ const (
 	SessionEventTypeSessionMCPServerStatusChanged  SessionEventType = "session.mcp_server_status_changed"
 	SessionEventTypeSessionModeChanged             SessionEventType = "session.mode_changed"
 	SessionEventTypeSessionModelChange             SessionEventType = "session.model_change"
+	SessionEventTypeSessionModeNoticeDelivered     SessionEventType = "session.mode_notice_delivered"
 	// Experimental: SessionEventTypeSessionPermissionsChanged identifies an experimental event
 	// that may change or be removed.
 	SessionEventTypeSessionPermissionsChanged     SessionEventType = "session.permissions_changed"
@@ -768,7 +769,7 @@ func (*PendingMessagesModifiedData) Type() SessionEventType {
 	return SessionEventTypePendingMessagesModified
 }
 
-// Enterprise managed-settings resolution: the effective managed settings the session applied and which channels contributed, so SDK clients can show users what is enterprise-managed. Fires whenever managed policy is (re)applied — at session start, on resume, and on account switch. This is an ephemeral live snapshot (delivered to subscribers but not persisted to the session event log), because at session start it resolves before `session.start` is emitted. Device values take precedence over server values per ordinary key, while permissions compose restrictively across device, server, and SDK-client layers. The account-scoped `getManagedSettings()` API does not include session-local client injection. Marked experimental while the managed-settings surface stabilizes.
+// Enterprise managed-settings resolution: the effective managed settings the session applied and which channels contributed, so SDK clients can show users what is enterprise-managed. Fires whenever managed policy is (re)applied — at session start, on resume, and on account switch. This is an ephemeral live snapshot (delivered to subscribers but not persisted to the session event log), because at session start it resolves before `session.start` is emitted. Device values take precedence over server values, then the policy helper, per ordinary key, while permissions compose restrictively across device, server, policy-helper, and SDK-client layers. The account-scoped `getManagedSettings()` API does not include session-local client injection. Marked experimental while the managed-settings surface stabilizes.
 // Experimental: SessionManagedSettingsResolvedData is part of an experimental API and may change or be removed.
 type SessionManagedSettingsResolvedData struct {
 	// Whether enterprise policy disables bypass-permissions ("yolo") mode for this session. Deny-wins across layers, and forced on when `failClosed` is true.
@@ -783,13 +784,15 @@ type SessionManagedSettingsResolvedData struct {
 	ManagedKeys []string `json:"managedKeys"`
 	// Whether at least two managed sources supplied permission allowlists, so enforcement intersects them and the flattened settings payload omits `permissions.allow`.
 	PermissionsAllowIntersected *bool `json:"permissionsAllowIntersected,omitempty"`
+	// Whether the policy-helper managed-settings layer was present. The policy helper is the weakest channel: it fills keys no enterprise source set and can never replace one.
+	PolicyHelperManaged *bool `json:"policyHelperManaged,omitempty"`
 	// Whether the effective sandbox policy forces the sandbox on *only* because managed policy could not be determined, rather than because the policy requires it. Lets clients tell a user whose `--no-sandbox` was overridden that the sandbox stayed on as a fail-closed fallback, instead of attributing it to an administrator who set no such policy.
 	SandboxEnabledByUndeterminedPolicy *bool `json:"sandboxEnabledByUndeterminedPolicy,omitempty"`
 	// Whether the server (account/org) managed-settings layer was present
 	ServerManaged bool `json:"serverManaged"`
 	// The effective (resolved) managed settings values, so clients can render exactly what is enforced. Absent when no managed policy is in force.
 	Settings any `json:"settings,omitempty"`
-	// Channel summary: `server`, `device`, or `client` when exactly one channel contributed; `mixed` when multiple channels contributed; otherwise `none`. Consult the per-channel booleans for exact provenance.
+	// Channel summary: `server`, `device`, `client`, or `policyHelper` when exactly one channel contributed; `mixed` when multiple channels contributed; otherwise `none`. Consult the per-channel booleans for exact provenance.
 	Source ManagedSettingsResolvedSource `json:"source"`
 }
 
@@ -1960,6 +1963,19 @@ type CommandQueuedData struct {
 func (*CommandQueuedData) sessionEventData()      {}
 func (*CommandQueuedData) Type() SessionEventType { return SessionEventTypeCommandQueued }
 
+// Records that a mode transition notice reached the model so cache-stable mode tools can remain offered across resume.
+type SessionModeNoticeDeliveredData struct {
+	// Model-visible transition notice persisted for a mid-turn delivery
+	Content *string `json:"content,omitempty"`
+	// Mode established by the delivered transition notice
+	Mode SessionMode `json:"mode"`
+}
+
+func (*SessionModeNoticeDeliveredData) sessionEventData() {}
+func (*SessionModeNoticeDeliveredData) Type() SessionEventType {
+	return SessionEventTypeSessionModeNoticeDelivered
+}
+
 // Registered command dispatch request routed to the owning client
 type CommandExecuteData struct {
 	// Raw argument string after the command name
@@ -2787,7 +2803,7 @@ func (*SessionWorkspaceFileChangedData) Type() SessionEventType {
 // Neutral provider-tagged reasoning content blocks preserved verbatim for round-tripping
 // Experimental: AssistantMessageReasoningBlocks is part of an experimental API and may change or be removed.
 type AssistantMessageReasoningBlocks struct {
-	// Provider-native reasoning content blocks (e.g. Anthropic `thinking` / `redacted_thinking`) preserved verbatim, in order. A single response can carry several, each signed over the content preceding it, so dropping or reordering any of them invalidates the rest.
+	// Provider-native reasoning items or content blocks preserved verbatim, in order. A single response can carry several, and provider signatures or identifiers may depend on their exact content and ordering.
 	Blocks []any `json:"blocks,omitzero"`
 	// Model provider that produced these reasoning blocks.
 	Provider string `json:"provider"`
@@ -5284,10 +5300,12 @@ const (
 	ManagedSettingsResolvedSourceClient ManagedSettingsResolvedSource = "client"
 	// Only the device MDM/plist/registry/file channel contributed.
 	ManagedSettingsResolvedSourceDevice ManagedSettingsResolvedSource = "device"
-	// More than one channel contributed. Ordinary keys resolve device over server per key, while permissions compose restrictively across all present layers.
+	// More than one channel contributed. Ordinary keys resolve device over server over policy helper per key, while permissions compose restrictively across all present layers.
 	ManagedSettingsResolvedSourceMixed ManagedSettingsResolvedSource = "mixed"
 	// No managed policy is in force (no channel contributed).
 	ManagedSettingsResolvedSourceNone ManagedSettingsResolvedSource = "none"
+	// A policy helper registered by device or server policy contributed. Device registration takes priority when present.
+	ManagedSettingsResolvedSourcePolicyHelper ManagedSettingsResolvedSource = "policyHelper"
 	// Only the server/account channel contributed.
 	ManagedSettingsResolvedSourceServer ManagedSettingsResolvedSource = "server"
 )

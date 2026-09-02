@@ -40,7 +40,7 @@ describe("Session-scoped RPC", async () => {
     it("should call session rpc model getcurrent", async () => {
         const session = await client.createSession({
             onPermissionRequest: approveAll,
-            model: "claude-sonnet-4.5",
+            model: "claude-sonnet-5",
         });
 
         const result = await session.rpc.model.getCurrent();
@@ -65,7 +65,7 @@ describe("Session-scoped RPC", async () => {
         it("should call session rpc model switchto", async () => {
             const session = await switchClient.createSession({
                 onPermissionRequest: approveAll,
-                model: "claude-sonnet-4.5",
+                model: "claude-sonnet-5",
             });
 
             const before = await session.rpc.model.getCurrent();
@@ -315,14 +315,14 @@ describe("Session-scoped RPC", async () => {
         const branch = `rpc-context-${randomUUID()}`;
         const session = await client.createSession({
             onPermissionRequest: approveAll,
-            model: "claude-sonnet-4.5",
+            model: "claude-sonnet-5",
             workingDirectory: firstDirectory,
         });
         try {
             const initialSnapshot = await session.rpc.metadata.snapshot();
             expect(initialSnapshot.sessionId).toBe(session.sessionId);
             expect(initialSnapshot.currentMode).toBe("interactive");
-            expect(initialSnapshot.selectedModel).toBe("claude-sonnet-4.5");
+            expect(initialSnapshot.selectedModel).toBe("claude-sonnet-5");
             expect(initialSnapshot.isRemote).toBe(false);
             expect(initialSnapshot.alreadyInUse).toBe(false);
             expect(Date.parse(initialSnapshot.startTime)).not.toBeNaN();
@@ -446,7 +446,7 @@ describe("Session-scoped RPC", async () => {
     it("should set reasoning effort and auto name", async () => {
         const session = await client.createSession({
             onPermissionRequest: approveAll,
-            model: "claude-sonnet-4.5",
+            model: "claude-sonnet-5",
         });
         try {
             const reasoning = await session.rpc.model.setReasoningEffort({
@@ -455,7 +455,7 @@ describe("Session-scoped RPC", async () => {
             expect(reasoning.reasoningEffort).toBe("high");
 
             const currentModel = await session.rpc.model.getCurrent();
-            expect(currentModel.modelId).toBe("claude-sonnet-4.5");
+            expect(currentModel.modelId).toBe("claude-sonnet-5");
             expect(currentModel.reasoningEffort).toBe("high");
 
             const autoName = `Auto Session ${randomUUID()}`;
@@ -734,11 +734,11 @@ describe("Session-scoped RPC", async () => {
         const contextInfo = await session.rpc.metadata.contextInfo({
             promptTokenLimit: 128_000,
             outputTokenLimit: 4_096,
-            selectedModel: "claude-sonnet-4.5",
+            selectedModel: "claude-sonnet-5",
         });
         expect(contextInfo.contextInfo).not.toBeNull();
         if (contextInfo.contextInfo) {
-            expect(contextInfo.contextInfo.modelName).toBe("claude-sonnet-4.5");
+            expect(contextInfo.contextInfo.modelName).toBe("claude-sonnet-5");
             expect(contextInfo.contextInfo.promptTokenLimit).toBe(128_000);
             expect(contextInfo.contextInfo.limit).toBeGreaterThanOrEqual(
                 contextInfo.contextInfo.promptTokenLimit
@@ -755,7 +755,7 @@ describe("Session-scoped RPC", async () => {
         }
 
         const recomputed = await session.rpc.metadata.recomputeContextTokens({
-            modelId: "claude-sonnet-4.5",
+            modelId: "claude-sonnet-5",
         });
         expect(recomputed.systemTokenCount).toBeGreaterThan(0);
         expect(recomputed.messagesTokenCount).toBeGreaterThan(0);

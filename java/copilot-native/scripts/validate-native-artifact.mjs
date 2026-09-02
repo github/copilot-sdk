@@ -27,13 +27,13 @@ export function validateNativeClassifierJar({
   }
 
   const archive = readJar(jarPath);
-  const cliFilename = classifier.startsWith("win32")
-    ? "copilot.exe"
-    : "copilot";
+  const runtimeFilename = classifier.startsWith("win32")
+    ? "copilot-runtime.exe"
+    : "copilot-runtime";
   const resourcePrefix = `native/${classifier}/`;
   const requiredEntries = [
     `${resourcePrefix}runtime.node`,
-    `${resourcePrefix}${cliFilename}`,
+    `${resourcePrefix}${runtimeFilename}`,
     `${resourcePrefix}platform.properties`,
   ];
 

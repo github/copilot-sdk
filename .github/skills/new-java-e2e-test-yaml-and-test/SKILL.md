@@ -33,7 +33,7 @@ The format is:
 
 ```yaml
 models:
-  - claude-sonnet-4.5
+  - claude-sonnet-5
 conversations:
   - messages:
       - role: system

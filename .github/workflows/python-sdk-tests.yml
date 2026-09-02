@@ -4,9 +4,6 @@ env:
   PYTHONUTF8: 1
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
   workflow_call:
 
@@ -27,6 +24,7 @@ jobs:
         python-version: ["3.11"]
         transport: ["default", "inprocess"]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     defaults:
       run:
         shell: bash

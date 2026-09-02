@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URI;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -479,21 +480,13 @@ public final class CopilotClient implements AutoCloseable {
     private static InProcessTransport openInProcessTransport(CopilotClientOptions options) throws IOException {
         FfiRuntimeHost host = new FfiRuntimeHost();
         try {
-            host.start(resolveInProcessEntrypoint(), options);
+            Path explicitEntrypoint = NativeRuntimeLoader.resolveConfiguredEntrypoint();
+            host.start(explicitEntrypoint == null ? null : explicitEntrypoint.toString(), options);
         } catch (RuntimeException | Error e) {
             host.close();
             throw e;
         }
         return new InProcessTransport(host.getReceiveStream(), host.getSendStream(), host);
-    }
-
-    /**
-     * Resolves the runtime entrypoint handed to the in-process host. The copilot
-     * CLI executable is resolved from the same bundled location as
-     * {@code runtime.node} — no environment variables or PATH search.
-     */
-    private static String resolveInProcessEntrypoint() throws IOException {
-        return NativeRuntimeLoader.resolveEntrypoint().toString();
     }
 
     private static void closeRuntimeHost(AutoCloseable host) {
@@ -648,6 +641,13 @@ public final class CopilotClient implements AutoCloseable {
             // with servers that read the flag there instead.
             if (this.options.getOnGitHubTelemetry() != null) {
                 connectParams.put("enableGitHubTelemetryForwarding", true);
+            }
+            // Declare the integrating application's identity so the runtime attributes the
+            // telemetry it emits on this connection to a consistent surface instead of
+            // its own build. Omitted when the app didn't supply it (or supplied no fields).
+            var clientInfo = this.options.getClientInfo();
+            if (clientInfo != null && !clientInfo.isEmpty()) {
+                connectParams.put("clientInfo", clientInfo);
             }
             var connectResponse = connection.rpc.invoke("connect", connectParams, ConnectResult.class).get(30,
                     TimeUnit.SECONDS);

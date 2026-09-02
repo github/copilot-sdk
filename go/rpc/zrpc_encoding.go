@@ -1606,6 +1606,12 @@ func unmarshalFactoryRunFailure(data []byte) (FactoryRunFailure, error) {
 			return nil, err
 		}
 		return &d, nil
+	case FactoryRunFailureTypeFactoryProviderDisconnected:
+		var d FactoryRunFailureFactoryProviderDisconnected
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
 	case FactoryRunFailureTypeFactoryResumeDeclined:
 		var d FactoryRunFailureFactoryResumeDeclined
 		if err := json.Unmarshal(data, &d); err != nil {
@@ -1661,6 +1667,17 @@ func (r FactoryRunFailureFactoryLimitReached) MarshalJSON() ([]byte, error) {
 	})
 }
 
+func (r FactoryRunFailureFactoryProviderDisconnected) MarshalJSON() ([]byte, error) {
+	type alias FactoryRunFailureFactoryProviderDisconnected
+	return json.Marshal(struct {
+		Type FactoryRunFailureType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
 func (r FactoryRunFailureFactoryResumeDeclined) MarshalJSON() ([]byte, error) {
 	type alias FactoryRunFailureFactoryResumeDeclined
 	return json.Marshal(struct {
@@ -1698,6 +1715,7 @@ func (r *FactoryRunTerminal) UnmarshalJSON(data []byte) error {
 
 func (r *FactoryRunResult) UnmarshalJSON(data []byte) error {
 	type rawFactoryRunResult struct {
+		Attempt  *int64           `json:"attempt,omitempty"`
 		Error    *string          `json:"error,omitempty"`
 		Failure  json.RawMessage  `json:"failure,omitempty"`
 		Reason   *string          `json:"reason,omitempty"`
@@ -1710,6 +1728,7 @@ func (r *FactoryRunResult) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
 	}
+	r.Attempt = raw.Attempt
 	r.Error = raw.Error
 	if raw.Failure != nil {
 		value, err := unmarshalFactoryRunFailure(raw.Failure)

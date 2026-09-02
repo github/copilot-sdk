@@ -77,7 +77,7 @@ class TestRpcSessionStateExtras:
         client = _make_authed_client(ctx, token)
         try:
             async with await client.create_session(
-                model="claude-sonnet-4.5",
+                model="claude-sonnet-5",
                 on_permission_request=PermissionHandler.approve_all,
                 github_token=token,
             ) as session:
@@ -86,8 +86,7 @@ class TestRpcSessionStateExtras:
                 assert result.list is not None
                 assert len(result.list) > 0
                 assert any(
-                    "claude-sonnet-4.5" in json.dumps(model, sort_keys=True)
-                    for model in result.list
+                    "claude-sonnet-5" in json.dumps(model, sort_keys=True) for model in result.list
                 )
         finally:
             await _stop_client(client)
@@ -126,7 +125,7 @@ class TestRpcSessionStateExtras:
                             provider=provider_name,
                             id=model_id,
                             name="SDK Runtime Model",
-                            model_id="claude-sonnet-4.5",
+                            model_id="claude-sonnet-5",
                             wire_model="wire-sdk-runtime-model",
                             max_context_window_tokens=4096,
                             max_prompt_tokens=3072,

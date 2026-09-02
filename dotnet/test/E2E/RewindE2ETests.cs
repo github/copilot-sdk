@@ -13,26 +13,37 @@ public class RewindE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     : E2ETestBase(fixture, "rewind", output)
 {
     private const string FileName = "rewind-sdk.txt";
+    private const string OriginalFileContent = "Original rewind content";
+    private const string PreparedFileContent = "Prepared rewind content";
     private const string FileContent = "SDK rewind content";
 
     [Fact]
     public async Task Should_Restore_Tracked_File_And_Conversation()
     {
-        // TODO(cli-1.0.81): Re-enable when Windows file-change tracking records built-in create tool writes.
-        if (OperatingSystem.IsWindows())
-            return;
-
         var filePath = Path.Join(Ctx.WorkDir, FileName);
+        await File.WriteAllTextAsync(filePath, OriginalFileContent);
         await using var session = await CreateSessionAsync(new SessionConfig
         {
-            Model = "claude-sonnet-4.5",
+            Model = "claude-sonnet-5",
             EnableFileChangeTracking = true,
         });
+
+        var ready = await session.SendAndWaitAsync(
+            new MessageOptions
+            {
+                Prompt = $"Use the edit tool to replace the exact contents of {FileName} "
+                    + $"from {OriginalFileContent} to {PreparedFileContent}. "
+                    + "After the tool succeeds, reply with exactly SDK_REWIND_READY.",
+            },
+            TimeSpan.FromSeconds(30));
+        Assert.Equal("SDK_REWIND_READY", ready?.Data.Content);
+        Assert.Equal(PreparedFileContent, await File.ReadAllTextAsync(filePath));
 
         var response = await session.SendAndWaitAsync(
             new MessageOptions
             {
-                Prompt = $"Use the create tool to create {FileName} containing exactly {FileContent}. "
+                Prompt = $"Use the edit tool to replace the exact contents of {FileName} "
+                    + $"from {PreparedFileContent} to {FileContent}. "
                     + "After the tool succeeds, reply with exactly SDK_REWIND_DONE.",
             },
             TimeSpan.FromSeconds(30));
@@ -47,9 +58,10 @@ public class RewindE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
             {
                 rewindPoints = await session.Rpc.History.ListRewindPointsAsync();
                 return rewindPoints.UnavailableReason is null
-                    && rewindPoints.Points.Count == 1
-                    && rewindPoints.Points[0].CanRestoreFiles
-                    && rewindPoints.Points[0].FileCount == 1;
+                    && rewindPoints.Points.Count == 2
+                    && rewindPoints.Points[1].TurnChangedFiles
+                    && rewindPoints.Points[1].CanRestoreFiles
+                    && rewindPoints.Points[1].FileCount == 1;
             },
             timeout: TimeSpan.FromSeconds(30),
             timeoutMessage: "Timed out waiting for a restorable file rewind point.",
@@ -57,7 +69,9 @@ public class RewindE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
 
         Assert.NotNull(rewindPoints);
         Assert.True(rewindPoints.FileChangeTrackingEnabled);
-        var rewindPoint = Assert.Single(rewindPoints.Points);
+        Assert.Equal(2, rewindPoints.Points.Count);
+        var rewindPoint = rewindPoints.Points[1];
+        Assert.True(rewindPoint.TurnChangedFiles);
         Assert.True(rewindPoint.CanRestoreFiles);
         Assert.Equal(1, rewindPoint.FileCount);
 
@@ -80,7 +94,7 @@ public class RewindE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
             Path.GetFullPath(filePath),
             Path.GetFullPath(restoredFile),
             OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
-        Assert.False(File.Exists(filePath));
+        Assert.Equal(PreparedFileContent, await File.ReadAllTextAsync(filePath));
 
         var events = await session.GetEventsAsync();
         Assert.DoesNotContain(events, sessionEvent => sessionEvent.Id.ToString() == rewindPoint.EventId);

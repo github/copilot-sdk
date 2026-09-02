@@ -1,9 +1,6 @@
 name: "Go SDK Tests"
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
   workflow_call:
 
@@ -22,6 +19,7 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
         transport: ["default", "inprocess"]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     defaults:
       run:
         shell: bash

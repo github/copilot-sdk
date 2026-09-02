@@ -1591,6 +1591,42 @@ Always include PINEAPPLE_COCONUT_42.
       }
     });
 
+    test.each([false, true])(
+      "defaults to Sonnet 5 without stored models (capture exists: %s)",
+      async (captureExists) => {
+        const cachePath = path.join(tempDir, "cache.yaml");
+        if (captureExists) {
+          await writeFile(
+            cachePath,
+            yaml.stringify({
+              models: [],
+              conversations: [],
+            } satisfies NormalizedData),
+          );
+        }
+
+        const proxy = new ReplayingCapiProxy(
+          "http://localhost:9999",
+          cachePath,
+          workDir,
+        );
+        const proxyUrl = await proxy.start();
+
+        try {
+          const response = await makeRequest(proxyUrl, "/models", {
+            method: "GET",
+          });
+          expect(response.status).toBe(200);
+          const parsed = JSON.parse(response.body) as {
+            data: Array<{ id: string }>;
+          };
+          expect(parsed.data.map((model) => model.id)).toEqual(["claude-sonnet-5"]);
+        } finally {
+          await proxy.stop();
+        }
+      },
+    );
+
     test("returns cached models for /models endpoint", async () => {
       const cachePath = path.join(tempDir, "cache.yaml");
       const cacheContent = yaml.stringify({

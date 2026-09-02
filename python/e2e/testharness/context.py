@@ -191,7 +191,6 @@ class E2ETestContext:
             {
                 "GH_TOKEN": DEFAULT_GITHUB_TOKEN,
                 "GITHUB_TOKEN": DEFAULT_GITHUB_TOKEN,
-                "COPILOT_CLI_PATH": self.cli_path,
                 "COPILOT_HMAC_KEY": "",
                 "CAPI_HMAC_KEY": "",
             }
@@ -274,11 +273,13 @@ class E2ETestContext:
         if self._proxy:
             await self._proxy.configure(abs_snapshot_path, self.work_dir)
 
-        # Clear temp directories between tests (but leave them in place)
-        # Use ignore_errors=True / suppress(OSError) to handle race conditions
-        # where files (e.g., SQLite session-store.db on Windows) may still be
-        # held open by a background process during cleanup.
-        for base_dir in (self.home_dir, self.work_dir):
+        # Keep the in-process runtime's isolated home intact until teardown stops
+        # the runtime. Removing its open state files on POSIX can leave later tests
+        # using unlinked database state.
+        cleanup_dirs = (
+            (self.work_dir,) if self._client_inprocess else (self.home_dir, self.work_dir)
+        )
+        for base_dir in cleanup_dirs:
             base_path = Path(base_dir)
             base_path.mkdir(parents=True, exist_ok=True)
             for item in base_path.iterdir():

@@ -98,7 +98,7 @@ describe("Sessions", () => {
     it("should create and disconnect sessions", async () => {
         await using session = await client.createSession({
             onPermissionRequest: approveAll,
-            model: "claude-sonnet-4.5",
+            model: "claude-sonnet-5",
         });
         expect(session.sessionId).toMatch(/^[a-f0-9-]+$/);
 
@@ -107,7 +107,7 @@ describe("Sessions", () => {
         expect(sessionStartEvents).toMatchObject([
             {
                 type: "session.start",
-                data: { sessionId: session.sessionId, selectedModel: "claude-sonnet-4.5" },
+                data: { sessionId: session.sessionId, selectedModel: "claude-sonnet-5" },
             },
         ]);
 

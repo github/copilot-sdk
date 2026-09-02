@@ -45,6 +45,9 @@ public final class CreateSessionRequest {
     @JsonProperty("contextTier")
     private String contextTier;
 
+    @JsonProperty("askUserVariant")
+    private AskUserVariant askUserVariant;
+
     @JsonProperty("tools")
     private List<ToolDefinition> tools;
 
@@ -236,6 +239,9 @@ public final class CreateSessionRequest {
     @JsonProperty("expAssignments")
     private CopilotExpAssignmentResponse expAssignments;
 
+    @JsonProperty("featureFlags")
+    private Map<String, Boolean> featureFlags;
+
     @JsonProperty("enableManagedSettings")
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private Boolean enableManagedSettings;
@@ -307,6 +313,16 @@ public final class CreateSessionRequest {
     /** Sets the context window tier. @param contextTier the context window tier */
     public void setContextTier(String contextTier) {
         this.contextTier = contextTier;
+    }
+
+    /** Gets the ask-user variant. @return the ask-user variant */
+    public AskUserVariant getAskUserVariant() {
+        return askUserVariant;
+    }
+
+    /** Sets the ask-user variant. @param askUserVariant the ask-user variant */
+    public void setAskUserVariant(AskUserVariant askUserVariant) {
+        this.askUserVariant = askUserVariant;
     }
 
     /** Gets the tools. @return the tool definitions */
@@ -1111,6 +1127,16 @@ public final class CreateSessionRequest {
      */
     public void setExpAssignments(CopilotExpAssignmentResponse expAssignments) {
         this.expAssignments = expAssignments;
+    }
+
+    /** Gets host-resolved feature flags. @return the feature flags */
+    public Map<String, Boolean> getFeatureFlags() {
+        return featureFlags;
+    }
+
+    /** Sets host-resolved feature flags. @param featureFlags the feature flags */
+    public void setFeatureFlags(Map<String, Boolean> featureFlags) {
+        this.featureFlags = featureFlags;
     }
 
     /**

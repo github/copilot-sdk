@@ -12,7 +12,7 @@ use github_copilot_sdk::session_events::PermissionMode;
 
 use super::support::{assistant_message_content, with_e2e_context};
 
-const MODEL_ID: &str = "claude-sonnet-4.5";
+const MODEL_ID: &str = "claude-sonnet-5";
 
 #[tokio::test]
 async fn should_list_models_for_session() {
