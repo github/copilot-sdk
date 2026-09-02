@@ -22,6 +22,7 @@ from copilot import (
     ModelBillingTokenPrices,
     ModelBillingTokenPricesLongContext,
     RuntimeConnection,
+    SandboxConfig,
     StdioRuntimeConnection,
     define_tool,
 )
@@ -1107,6 +1108,7 @@ class TestCreateSessionConfig:
         await client.start()
         try:
             captured = {}
+            options_updates = []
 
             async def mock_request(method, params, **kwargs):
                 captured[method] = params
@@ -1116,6 +1118,9 @@ class TestCreateSessionConfig:
                     if callback is not None:
                         callback(result)
                     return result
+                if method == "session.options.update":
+                    options_updates.append(params)
+                    return {"success": True}
                 return {}
 
             client._client.request = mock_request
@@ -1125,6 +1130,10 @@ class TestCreateSessionConfig:
                 enable_file_change_tracking=True,
                 excluded_builtin_agents=["explore"],
                 session_limits={"max_ai_credits": 30},
+                sandbox_config=SandboxConfig(
+                    enabled=True,
+                    add_current_working_directory=False,
+                ),
             )
             await client.resume_session(
                 session.session_id,
@@ -1133,16 +1142,26 @@ class TestCreateSessionConfig:
                 enable_file_change_tracking=False,
                 excluded_builtin_agents=["task"],
                 session_limits={"max_ai_credits": 15},
+                sandbox_config=SandboxConfig(enabled=False),
             )
 
             assert captured["session.create"]["enableCitations"] is True
             assert captured["session.create"]["enableFileChangeTracking"] is True
             assert captured["session.create"]["excludedBuiltinAgents"] == ["explore"]
             assert captured["session.create"]["sessionLimits"] == {"maxAiCredits": 30}
+            assert captured["session.create"]["sandboxConfig"] == {
+                "enabled": True,
+                "addCurrentWorkingDirectory": False,
+            }
             assert captured["session.resume"]["enableCitations"] is False
             assert captured["session.resume"]["enableFileChangeTracking"] is False
             assert captured["session.resume"]["excludedBuiltinAgents"] == ["task"]
             assert captured["session.resume"]["sessionLimits"] == {"maxAiCredits": 15}
+            assert captured["session.resume"]["sandboxConfig"] == {"enabled": False}
+            assert [update["sandboxConfig"] for update in options_updates] == [
+                {"enabled": True, "addCurrentWorkingDirectory": False},
+                {"enabled": False},
+            ]
         finally:
             await client.force_stop()
 

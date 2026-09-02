@@ -869,6 +869,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.EnableCitations = config.EnableCitations
 	req.EnableFileChangeTracking = config.EnableFileChangeTracking
 	req.SessionLimits = config.SessionLimits
+	req.SandboxConfig = config.SandboxConfig
 	req.IsExperimentalMode = config.EnableExperimentalMode
 	req.SkipCustomInstructions = config.SkipCustomInstructions
 	req.CustomAgentsLocalOnly = config.CustomAgentsLocalOnly
@@ -1149,6 +1150,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 		CustomAgentsLocalOnly:  config.CustomAgentsLocalOnly,
 		CoauthorEnabled:        config.CoauthorEnabled,
 		ManageScheduleEnabled:  config.ManageScheduleEnabled,
+		SandboxConfig:          config.SandboxConfig,
 		IncludedBuiltinSkills:  config.IncludedBuiltinSkills,
 	}); err != nil {
 		return nil, err
@@ -1248,6 +1250,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	req.EnableCitations = config.EnableCitations
 	req.EnableFileChangeTracking = config.EnableFileChangeTracking
 	req.SessionLimits = config.SessionLimits
+	req.SandboxConfig = config.SandboxConfig
 	if config.Streaming != nil {
 		req.Streaming = config.Streaming
 	}
@@ -1459,6 +1462,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 		CustomAgentsLocalOnly:  config.CustomAgentsLocalOnly,
 		CoauthorEnabled:        config.CoauthorEnabled,
 		ManageScheduleEnabled:  config.ManageScheduleEnabled,
+		SandboxConfig:          config.SandboxConfig,
 		IncludedBuiltinSkills:  config.IncludedBuiltinSkills,
 	}); err != nil {
 		restoreReplacedSession()

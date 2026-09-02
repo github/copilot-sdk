@@ -77,6 +77,7 @@ from .generated.rpc import (
     ModelBillingTokenPricesLongContext,  # noqa: F401
     OpenCanvasInstance,
     RemoteSessionMode,
+    SandboxConfig,
     ServerRpc,
     _ConnectResult,
     _HookInvokeRequest,
@@ -2216,6 +2217,7 @@ class CopilotClient:
         enable_file_change_tracking: bool | None = None,
         excluded_builtin_agents: list[str] | None = None,
         session_limits: SessionLimitsConfig | None = None,
+        sandbox_config: SandboxConfig | None = None,
         skip_custom_instructions: bool | None = None,
         custom_agents_local_only: bool | None = None,
         coauthor_enabled: bool | None = None,
@@ -2347,6 +2349,8 @@ class CopilotClient:
                 name is configured.
             session_limits: **Experimental.** Limits applied to this session's
                 current accounting window.
+            sandbox_config: **Experimental.** Resolved sandbox configuration applied
+                when the session is created.
             model_capabilities: Override individual model capabilities resolved by the runtime.
             streaming: Whether to enable streaming responses.
             include_sub_agent_streaming_events: Whether to include sub-agent streaming
@@ -2654,6 +2658,8 @@ class CopilotClient:
             payload["excludedBuiltinAgents"] = excluded_builtin_agents
         if session_limits is not None:
             payload["sessionLimits"] = _session_limits_to_wire(session_limits)
+        if sandbox_config is not None:
+            payload["sandboxConfig"] = sandbox_config.to_dict()
 
         # Add model capabilities override if provided
         if model_capabilities:
@@ -2950,7 +2956,8 @@ class CopilotClient:
             custom_agents_local_only,
             coauthor_enabled,
             manage_schedule_enabled,
-            included_builtin_skills,
+            included_builtin_skills=included_builtin_skills,
+            sandbox_config=sandbox_config,
         )
         self._commit_github_token_provider(
             session.session_id, github_token_provider_registration_id
@@ -2995,6 +3002,7 @@ class CopilotClient:
         enable_file_change_tracking: bool | None = None,
         excluded_builtin_agents: list[str] | None = None,
         session_limits: SessionLimitsConfig | None = None,
+        sandbox_config: SandboxConfig | None = None,
         skip_custom_instructions: bool | None = None,
         custom_agents_local_only: bool | None = None,
         coauthor_enabled: bool | None = None,
@@ -3129,6 +3137,8 @@ class CopilotClient:
                 same name is configured.
             session_limits: **Experimental.** Limits applied to this session's
                 current accounting window.
+            sandbox_config: **Experimental.** Resolved sandbox configuration applied
+                when the session is resumed.
             model_capabilities: Override individual model capabilities resolved by the runtime.
             streaming: Whether to enable streaming responses.
             include_sub_agent_streaming_events: Whether to include sub-agent streaming
@@ -3344,6 +3354,8 @@ class CopilotClient:
             payload["excludedBuiltinAgents"] = excluded_builtin_agents
         if session_limits is not None:
             payload["sessionLimits"] = _session_limits_to_wire(session_limits)
+        if sandbox_config is not None:
+            payload["sandboxConfig"] = sandbox_config.to_dict()
         if model_capabilities:
             payload["modelCapabilities"] = _capabilities_to_dict(model_capabilities)
         if streaming is not None:
@@ -3633,7 +3645,8 @@ class CopilotClient:
             custom_agents_local_only,
             coauthor_enabled,
             manage_schedule_enabled,
-            included_builtin_skills,
+            included_builtin_skills=included_builtin_skills,
+            sandbox_config=sandbox_config,
         )
         self._commit_github_token_provider(session_id, github_token_provider_registration_id)
 
@@ -4692,6 +4705,7 @@ class CopilotClient:
         coauthor_enabled: bool | None,
         manage_schedule_enabled: bool | None,
         included_builtin_skills: list[str] | None = None,
+        sandbox_config: SandboxConfig | None = None,
     ) -> None:
         """Apply empty-mode safe defaults (or caller-supplied overrides in
         copilot-cli mode) via ``session.options.update`` after create/resume.
@@ -4709,8 +4723,9 @@ class CopilotClient:
             manage_schedule_enabled,
             included_builtin_skills,
         )
-        if patch is None:
+        if patch is None and sandbox_config is None:
             return
+        patch = patch or {}
 
         params = SessionUpdateOptionsParams()
         if "skipCustomInstructions" in patch:
@@ -4726,6 +4741,7 @@ class CopilotClient:
                 SessionInstalledPlugin.from_dict(p) if isinstance(p, dict) else p
                 for p in patch["installedPlugins"]
             ]
+        params.sandbox_config = sandbox_config
         if "includedBuiltinSkills" in patch:
             skills = patch["includedBuiltinSkills"]
             params.included_builtin_skills = list(skills) if skills is not None else None

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -157,6 +158,34 @@ func assertAnthropicDocumentCitationsEnabled(t *testing.T, requestBody string) {
 
 func float64Ref(value float64) *float64 {
 	return &value
+}
+
+func assertNextShellExecutionResult(t *testing.T, session *copilot.Session, prompt string, expected string) {
+	t.Helper()
+
+	existingEvents, err := session.GetEvents(t.Context())
+	if err != nil {
+		t.Fatalf("GetEvents before shell execution failed: %v", err)
+	}
+	if _, err := session.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: prompt}); err != nil {
+		t.Fatalf("SendAndWait failed: %v", err)
+	}
+
+	events, err := session.GetEvents(t.Context())
+	if err != nil {
+		t.Fatalf("GetEvents failed: %v", err)
+	}
+	for _, event := range events[len(existingEvents):] {
+		completed, ok := event.Data.(*copilot.ToolExecutionCompleteData)
+		if !ok {
+			continue
+		}
+		if completed.Result == nil || !strings.Contains(completed.Result.Content, expected) {
+			t.Fatalf("Expected tool call %q result to contain %q, got %#v", completed.ToolCallID, expected, completed.Result)
+		}
+		return
+	}
+	t.Fatal("Expected tool.execution_complete after sandbox shell prompt")
 }
 
 func TestSessionConfigE2E(t *testing.T) {
@@ -335,6 +364,73 @@ func TestSessionConfigNewOptionsE2E(t *testing.T) {
 
 		exchange := sendAndGetNextExchange(t, ctx, session2, "Acknowledge the current session limits.")
 		assertSessionLimitsStatus(t, exchange, "30 AI credits")
+	})
+
+	t.Run("should apply sandbox config on create and resume", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("process sandboxing is not supported on Windows")
+		}
+		ctx.ConfigureForTest(t)
+		enabledProbe := "/var/tmp/sandbox-create-enabled.txt"
+		disabledProbe := "/var/tmp/sandbox-create-disabled.txt"
+		resumeProbe := "/var/tmp/sandbox-resume-enabled.txt"
+		t.Cleanup(func() {
+			_ = os.Remove(enabledProbe)
+			_ = os.Remove(disabledProbe)
+			_ = os.Remove(resumeProbe)
+		})
+
+		enabledSession, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			WorkingDirectory:    ctx.WorkDir,
+			SandboxConfig: &rpc.SandboxConfig{
+				Enabled: true,
+				UserPolicy: &rpc.SandboxConfigUserPolicy{
+					Filesystem: &rpc.SandboxConfigUserPolicyFilesystem{DeniedPaths: []string{enabledProbe}},
+				},
+			},
+		})
+		if err != nil {
+			t.Fatalf("CreateSession failed: %v", err)
+		}
+		defer enabledSession.Disconnect()
+		assertNextShellExecutionResult(t, enabledSession, "Check sandbox access for sandbox-create-enabled.txt.", "sandbox-blocked")
+
+		disabledSession, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			WorkingDirectory:    ctx.WorkDir,
+			SandboxConfig: &rpc.SandboxConfig{
+				Enabled: false,
+				UserPolicy: &rpc.SandboxConfigUserPolicy{
+					Filesystem: &rpc.SandboxConfigUserPolicyFilesystem{DeniedPaths: []string{disabledProbe}},
+				},
+			},
+		})
+		if err != nil {
+			t.Fatalf("CreateSession failed: %v", err)
+		}
+		defer disabledSession.Disconnect()
+		assertNextShellExecutionResult(t, disabledSession, "Check sandbox access for sandbox-create-disabled.txt.", "sandbox-accessible")
+
+		resumedSession, err := client.ResumeSessionWithOptions(t.Context(), disabledSession.SessionID, &copilot.ResumeSessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			WorkingDirectory:    ctx.WorkDir,
+			SandboxConfig: &rpc.SandboxConfig{
+				Enabled: true,
+				UserPolicy: &rpc.SandboxConfigUserPolicy{
+					Filesystem: &rpc.SandboxConfigUserPolicyFilesystem{DeniedPaths: []string{resumeProbe}},
+				},
+			},
+		})
+		if err != nil {
+			t.Fatalf("ResumeSessionWithOptions failed: %v", err)
+		}
+		defer resumedSession.Disconnect()
+		assertNextShellExecutionResult(t, resumedSession, "Check sandbox access for sandbox-resume-enabled.txt.", "sandbox-blocked")
+
+		if resumedSession.SessionID != disabledSession.SessionID {
+			t.Errorf("Expected resumed session ID %q, got %q", disabledSession.SessionID, resumedSession.SessionID)
+		}
 	})
 
 	t.Run("should apply excluded built in agents on create", func(t *testing.T) {

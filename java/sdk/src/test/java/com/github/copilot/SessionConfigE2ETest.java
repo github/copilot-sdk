@@ -8,6 +8,7 @@ import static com.github.copilot.CopilotRequestTestSupport.SYNTHETIC_TEXT;
 import static com.github.copilot.CopilotRequestTestSupport.newLlmClient;
 import static com.github.copilot.CopilotRequestTestSupport.setupCapiAuth;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -24,6 +25,10 @@ import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.copilot.generated.ToolExecutionCompleteEvent;
+import com.github.copilot.generated.rpc.SandboxConfig;
+import com.github.copilot.generated.rpc.SandboxConfigUserPolicy;
+import com.github.copilot.generated.rpc.SandboxConfigUserPolicyFilesystem;
 import com.github.copilot.generated.rpc.SessionLimitsConfig;
 import com.github.copilot.rpc.BlobAttachment;
 import com.github.copilot.rpc.MessageOptions;
@@ -40,6 +45,18 @@ public class SessionConfigE2ETest {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private static E2ETestContext ctx;
+
+    private static void assertNextShellExecutionResult(CopilotSession session, String prompt, String expected)
+            throws Exception {
+        int eventCount = session.getMessages().get(60, TimeUnit.SECONDS).size();
+        session.sendAndWait(new MessageOptions().setPrompt(prompt)).get(60, TimeUnit.SECONDS);
+        var events = session.getMessages().get(60, TimeUnit.SECONDS);
+        var completions = events.subList(eventCount, events.size()).stream()
+                .filter(ToolExecutionCompleteEvent.class::isInstance).map(ToolExecutionCompleteEvent.class::cast)
+                .toList();
+        assertEquals(1, completions.size(), "Expected one tool.execution_complete after sandbox shell prompt");
+        assertTrue(completions.get(0).getData().result().content().contains(expected));
+    }
 
     @BeforeAll
     static void setup() throws Exception {
@@ -203,6 +220,67 @@ public class SessionConfigE2ETest {
             } finally {
                 session2.close();
                 session1.close();
+            }
+        }
+    }
+
+    @Test
+    void testShouldApplySandboxConfigOnCreateAndResume() throws Exception {
+        assumeFalse(System.getProperty("os.name", "").toLowerCase().contains("win"),
+                "Process sandboxing is not supported on Windows");
+        ctx.configureForTest("session_config", "should_apply_sandbox_config_on_create_and_resume");
+
+        try (CopilotClient client = ctx.createClient()) {
+            Path enabledProbePath = Path.of("/var/tmp/sandbox-create-enabled.txt");
+            Path disabledProbePath = Path.of("/var/tmp/sandbox-create-disabled.txt");
+            Path resumeProbePath = Path.of("/var/tmp/sandbox-resume-enabled.txt");
+            List<Path> probes = List.of(enabledProbePath, disabledProbePath, resumeProbePath);
+            for (Path probe : probes) {
+                Files.deleteIfExists(probe);
+            }
+            String enabledProbe = enabledProbePath.toString();
+            String disabledProbe = disabledProbePath.toString();
+            String resumeProbe = resumeProbePath.toString();
+            CopilotSession enabledSession = client
+                    .createSession(new SessionConfig().setWorkingDirectory(ctx.getWorkDir().toString())
+                            .setSandboxConfig(new SandboxConfig(true,
+                                    new SandboxConfigUserPolicy(new SandboxConfigUserPolicyFilesystem(null, null,
+                                            List.of(enabledProbe), null), null, null, null),
+                                    null, null, null))
+                            .setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
+                    .get();
+            assertNextShellExecutionResult(enabledSession, "Check sandbox access for sandbox-create-enabled.txt.",
+                    "sandbox-blocked");
+            CopilotSession disabledSession = client
+                    .createSession(new SessionConfig().setWorkingDirectory(ctx.getWorkDir().toString())
+                            .setSandboxConfig(new SandboxConfig(false,
+                                    new SandboxConfigUserPolicy(new SandboxConfigUserPolicyFilesystem(null, null,
+                                            List.of(disabledProbe), null), null, null, null),
+                                    null, null, null))
+                            .setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
+                    .get();
+            assertNextShellExecutionResult(disabledSession, "Check sandbox access for sandbox-create-disabled.txt.",
+                    "sandbox-accessible");
+            CopilotSession resumedSession = client.resumeSession(disabledSession.getSessionId(),
+                    new ResumeSessionConfig().setWorkingDirectory(ctx.getWorkDir().toString())
+                            .setSandboxConfig(new SandboxConfig(true,
+                                    new SandboxConfigUserPolicy(new SandboxConfigUserPolicyFilesystem(null, null,
+                                            List.of(resumeProbe), null), null, null, null),
+                                    null, null, null))
+                            .setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
+                    .get();
+
+            try {
+                assertNextShellExecutionResult(resumedSession, "Check sandbox access for sandbox-resume-enabled.txt.",
+                        "sandbox-blocked");
+                assertEquals(disabledSession.getSessionId(), resumedSession.getSessionId());
+            } finally {
+                resumedSession.close();
+                disabledSession.close();
+                enabledSession.close();
+                for (Path probe : probes) {
+                    Files.deleteIfExists(probe);
+                }
             }
         }
     }

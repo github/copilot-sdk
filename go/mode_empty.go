@@ -230,6 +230,10 @@ func (c *Client) applyResumeDefaultsForMode(config *ResumeSessionConfig) {
 func (c *Client) updateSessionOptionsForMode(ctx context.Context, session *Session, base optBackInFields) error {
 	patch := &rpc.SessionUpdateOptionsParams{}
 	hasAny := false
+	if base.SandboxConfig != nil {
+		patch.SandboxConfig = base.SandboxConfig
+		hasAny = true
+	}
 	if c.options.Mode == ModeEmpty {
 		if base.SkipCustomInstructions != nil {
 			patch.SkipCustomInstructions = base.SkipCustomInstructions
@@ -307,5 +311,6 @@ type optBackInFields struct {
 	CustomAgentsLocalOnly  *bool
 	CoauthorEnabled        *bool
 	ManageScheduleEnabled  *bool
+	SandboxConfig          *rpc.SandboxConfig
 	IncludedBuiltinSkills  []string
 }

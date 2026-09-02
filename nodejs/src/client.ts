@@ -1502,6 +1502,9 @@ export class CopilotClient {
         config: SessionConfigBase
     ): Promise<void> {
         const patch: SessionUpdateOptionsParams = {};
+        if (config.sandboxConfig !== undefined) {
+            patch.sandboxConfig = config.sandboxConfig;
+        }
         if (this.options.mode === "empty") {
             patch.skipCustomInstructions = config.skipCustomInstructions ?? true;
             patch.customAgentsLocalOnly = config.customAgentsLocalOnly ?? true;
@@ -1701,6 +1704,7 @@ export class CopilotClient {
                 enableCitations: config.enableCitations,
                 enableFileChangeTracking: config.enableFileChangeTracking,
                 sessionLimits: config.sessionLimits,
+                sandboxConfig: config.sandboxConfig,
                 modelCapabilities: config.modelCapabilities,
                 largeOutput: toWireLargeOutput(config.largeOutput),
                 requestPermission: !!config.onPermissionRequest,
@@ -1944,6 +1948,7 @@ export class CopilotClient {
                 enableCitations: config.enableCitations,
                 enableFileChangeTracking: config.enableFileChangeTracking,
                 sessionLimits: config.sessionLimits,
+                sandboxConfig: config.sandboxConfig,
                 tools: config.tools?.map((tool) => ({
                     name: tool.name,
                     description: tool.description,

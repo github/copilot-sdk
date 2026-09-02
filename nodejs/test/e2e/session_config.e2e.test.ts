@@ -1,12 +1,13 @@
-import { describe, expect, it } from "vitest";
-import { writeFile, mkdir } from "fs/promises";
+import { mkdir, rm, writeFile } from "fs/promises";
 import { join } from "path";
+import { describe, expect, it } from "vitest";
 import {
     approveAll,
     CopilotClient,
     CopilotRequestHandler,
     RuntimeConnection,
     type CopilotRequestContext,
+    type CopilotSession,
 } from "../../src/index.js";
 import { createSdkTestContext, DEFAULT_GITHUB_TOKEN } from "./harness/sdkTestContext.js";
 import { retry } from "./harness/sdkTestHelper.js";
@@ -24,6 +25,19 @@ describe("Session Configuration", async () => {
             1_200
         );
         return openAiEndpoint.getExchanges();
+    }
+
+    async function expectNextShellExecutionResult(
+        session: CopilotSession,
+        prompt: string,
+        expected: string
+    ) {
+        const eventCount = (await session.getEvents()).length;
+        await session.sendAndWait({ prompt });
+        const completion = (await session.getEvents())
+            .slice(eventCount)
+            .find((event) => event.type === "tool.execution_complete");
+        expect(completion?.data.result?.content).toContain(expected);
     }
 
     it("should use workingDirectory for tool execution", async () => {
@@ -865,6 +879,67 @@ describe("Session Configuration", async () => {
             await session2.disconnect();
         }
     });
+
+    it.skipIf(process.platform === "win32")(
+        "should apply sandbox config on create and resume",
+        async () => {
+            const enabledProbe = "/var/tmp/sandbox-create-enabled.txt";
+            const disabledProbe = "/var/tmp/sandbox-create-disabled.txt";
+            const resumeProbe = "/var/tmp/sandbox-resume-enabled.txt";
+            const probes = [enabledProbe, disabledProbe, resumeProbe];
+            await Promise.all(probes.map((probe) => rm(probe, { force: true })));
+            try {
+                const enabledSession = await client.createSession({
+                    onPermissionRequest: approveAll,
+                    workingDirectory: workDir,
+                    sandboxConfig: {
+                        enabled: true,
+                        userPolicy: { filesystem: { deniedPaths: [enabledProbe] } },
+                    },
+                });
+                await expectNextShellExecutionResult(
+                    enabledSession,
+                    "Check sandbox access for sandbox-create-enabled.txt.",
+                    "sandbox-blocked"
+                );
+
+                const disabledSession = await client.createSession({
+                    onPermissionRequest: approveAll,
+                    workingDirectory: workDir,
+                    sandboxConfig: {
+                        enabled: false,
+                        userPolicy: { filesystem: { deniedPaths: [disabledProbe] } },
+                    },
+                });
+                await expectNextShellExecutionResult(
+                    disabledSession,
+                    "Check sandbox access for sandbox-create-disabled.txt.",
+                    "sandbox-accessible"
+                );
+                const resumedSession = await client.resumeSession(disabledSession.sessionId, {
+                    onPermissionRequest: approveAll,
+                    workingDirectory: workDir,
+                    sandboxConfig: {
+                        enabled: true,
+                        userPolicy: { filesystem: { deniedPaths: [resumeProbe] } },
+                    },
+                });
+                await expectNextShellExecutionResult(
+                    resumedSession,
+                    "Check sandbox access for sandbox-resume-enabled.txt.",
+                    "sandbox-blocked"
+                );
+
+                expect(resumedSession.sessionId).toBe(disabledSession.sessionId);
+
+                await resumedSession.disconnect();
+                await disabledSession.disconnect();
+                await enabledSession.disconnect();
+            } finally {
+                await Promise.all(probes.map((probe) => rm(probe, { force: true })));
+            }
+        }
+    );
 
     it("should apply GitHub MCP tool config on create", async () => {
         const session = await client.createSession({

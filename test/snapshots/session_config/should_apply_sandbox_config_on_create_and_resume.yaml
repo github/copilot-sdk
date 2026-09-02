@@ -1,0 +1,128 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Check sandbox access for sandbox-create-enabled.txt.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: ${shell}
+              arguments: '{"command":"(printf probe > /var/tmp/sandbox-create-enabled.txt) 2>/dev/null && echo sandbox-accessible || echo sandbox-blocked","description":"Check enabled sandbox policy"}'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Check sandbox access for sandbox-create-enabled.txt.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: ${shell}
+              arguments: '{"command":"(printf probe > /var/tmp/sandbox-create-enabled.txt) 2>/dev/null && echo sandbox-accessible || echo sandbox-blocked","description":"Check enabled sandbox policy"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: |-
+          sandbox-blocked
+          <exited with exit code 0>
+      - role: assistant
+        content: sandbox-blocked
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Check sandbox access for sandbox-create-disabled.txt.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: ${shell}
+              arguments: '{"command":"(printf probe > /var/tmp/sandbox-create-disabled.txt) 2>/dev/null && echo sandbox-accessible || echo sandbox-blocked","description":"Check disabled sandbox policy"}'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Check sandbox access for sandbox-create-disabled.txt.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: ${shell}
+              arguments: '{"command":"(printf probe > /var/tmp/sandbox-create-disabled.txt) 2>/dev/null && echo sandbox-accessible || echo sandbox-blocked","description":"Check disabled sandbox policy"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: |-
+          sandbox-accessible
+          <exited with exit code 0>
+      - role: assistant
+        content: sandbox-accessible
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Check sandbox access for sandbox-create-disabled.txt.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: ${shell}
+              arguments: '{"command":"(printf probe > /var/tmp/sandbox-create-disabled.txt) 2>/dev/null && echo sandbox-accessible || echo sandbox-blocked","description":"Check disabled sandbox policy"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: |-
+          sandbox-accessible
+          <exited with exit code 0>
+      - role: assistant
+        content: sandbox-accessible
+      - role: user
+        content: Check sandbox access for sandbox-resume-enabled.txt.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_1
+            type: function
+            function:
+              name: ${shell}
+              arguments: '{"command":"(printf probe > /var/tmp/sandbox-resume-enabled.txt) 2>/dev/null && echo sandbox-accessible || echo sandbox-blocked","description":"Check resumed sandbox policy"}'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Check sandbox access for sandbox-create-disabled.txt.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: ${shell}
+              arguments: '{"command":"(printf probe > /var/tmp/sandbox-create-disabled.txt) 2>/dev/null && echo sandbox-accessible || echo sandbox-blocked","description":"Check disabled sandbox policy"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: |-
+          sandbox-accessible
+          <exited with exit code 0>
+      - role: assistant
+        content: sandbox-accessible
+      - role: user
+        content: Check sandbox access for sandbox-resume-enabled.txt.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_1
+            type: function
+            function:
+              name: ${shell}
+              arguments: '{"command":"(printf probe > /var/tmp/sandbox-resume-enabled.txt) 2>/dev/null && echo sandbox-accessible || echo sandbox-blocked","description":"Check resumed sandbox policy"}'
+      - role: tool
+        tool_call_id: toolcall_1
+        content: |-
+          sandbox-blocked
+          <exited with exit code 0>
+      - role: assistant
+        content: sandbox-blocked

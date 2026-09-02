@@ -1079,6 +1079,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         IList<SessionInstalledPlugin>? installedPlugins = null;
         IList<string>? includedBuiltinSkills = null;
 
+        if (config.SandboxConfig is not null)
+        {
+            hasAnyPatch = true;
+        }
+
         if (_options.Mode == CopilotClientMode.Empty)
         {
             skipCustomInstructions = config.SkipCustomInstructions ?? true;
@@ -1109,6 +1114,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 coauthorEnabled: coauthorEnabled,
                 manageScheduleEnabled: manageScheduleEnabled,
                 installedPlugins: installedPlugins,
+                sandboxConfig: config.SandboxConfig,
                 includedBuiltinSkills: includedBuiltinSkills,
                 cancellationToken: cancellationToken).ConfigureAwait(false);
 #pragma warning restore GHCP001
@@ -1260,6 +1266,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.DisabledSkills,
                 config.InfiniteSessions,
                 config.SessionLimits,
+                SandboxConfig: config.SandboxConfig,
                 Commands: config.Commands?.Select(c => new CommandWireDefinition(c.Name, c.Description ?? string.Empty)).ToList(),
                 RequestElicitation: config.OnElicitationRequest != null,
                 RequestMcpApps: config.EnableMcpApps ? true : null,
@@ -1501,6 +1508,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.DisabledSkills,
                 config.InfiniteSessions,
                 config.SessionLimits,
+                SandboxConfig: config.SandboxConfig,
                 Commands: config.Commands?.Select(c => new CommandWireDefinition(c.Name, c.Description ?? string.Empty)).ToList(),
                 RequestElicitation: config.OnElicitationRequest != null,
                 RequestMcpApps: config.EnableMcpApps ? true : null,
@@ -2997,6 +3005,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         IList<string>? DisabledSkills,
         InfiniteSessionConfig? InfiniteSessions,
         SessionLimitsConfig? SessionLimits,
+        SandboxConfig? SandboxConfig = null,
         IList<CommandWireDefinition>? Commands = null,
         bool? RequestElicitation = null,
         bool? RequestMcpApps = null,
@@ -3115,6 +3124,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         IList<string>? DisabledSkills,
         InfiniteSessionConfig? InfiniteSessions,
         SessionLimitsConfig? SessionLimits,
+        SandboxConfig? SandboxConfig = null,
         IList<CommandWireDefinition>? Commands = null,
         bool? RequestElicitation = null,
         bool? RequestMcpApps = null,

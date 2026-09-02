@@ -21,6 +21,18 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     private static readonly byte[] Png1X1 = Convert.FromBase64String(
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==");
 
+    private static async Task AssertNextShellExecutionResultAsync(
+        CopilotSession session,
+        string prompt,
+        string expected)
+    {
+        var eventCount = (await session.GetEventsAsync()).Count;
+        await session.SendAndWaitAsync(new MessageOptions { Prompt = prompt });
+        var completion = Assert.Single(
+            (await session.GetEventsAsync()).Skip(eventCount).OfType<ToolExecutionCompleteEvent>());
+        Assert.Contains(expected, completion.Data.Result?.Content ?? string.Empty, StringComparison.Ordinal);
+    }
+
     [Fact]
     // TODO(BYOK): Anthropic Messages history diverged after enabling vision via SetModel. Verify
     // that model capability overrides work for provider-backed sessions before keeping this CAPI-only.
@@ -522,6 +534,77 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         {
             await session2.DisposeAsync();
         }
+    }
+
+    [Fact]
+    public async Task Should_Apply_Sandbox_Config_On_Create_And_Resume()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var enabledProbe = "/var/tmp/sandbox-create-enabled.txt";
+        var disabledProbe = "/var/tmp/sandbox-create-disabled.txt";
+        var resumeProbe = "/var/tmp/sandbox-resume-enabled.txt";
+        var probes = new[] { enabledProbe, disabledProbe, resumeProbe };
+        foreach (var probe in probes) File.Delete(probe);
+        await using var enabledSession = await CreateSessionAsync(new SessionConfig
+        {
+            WorkingDirectory = Ctx.WorkDir,
+            SandboxConfig = new SandboxConfig
+            {
+                Enabled = true,
+                UserPolicy = new SandboxConfigUserPolicy
+                {
+                    Filesystem = new SandboxConfigUserPolicyFilesystem { DeniedPaths = [enabledProbe] },
+                },
+            },
+        });
+        await AssertNextShellExecutionResultAsync(
+            enabledSession,
+            "Check sandbox access for sandbox-create-enabled.txt.",
+            "sandbox-blocked");
+
+        await using var disabledSession = await CreateSessionAsync(new SessionConfig
+        {
+            WorkingDirectory = Ctx.WorkDir,
+            SandboxConfig = new SandboxConfig
+            {
+                Enabled = false,
+                UserPolicy = new SandboxConfigUserPolicy
+                {
+                    Filesystem = new SandboxConfigUserPolicyFilesystem { DeniedPaths = [disabledProbe] },
+                },
+            },
+        });
+        await AssertNextShellExecutionResultAsync(
+            disabledSession,
+            "Check sandbox access for sandbox-create-disabled.txt.",
+            "sandbox-accessible");
+        var sessionId = disabledSession.SessionId;
+        await SuspendAndUntrackSessionForResumeAsync(disabledSession);
+
+        var session2 = await ResumeSessionAsync(sessionId, new ResumeSessionConfig
+        {
+            WorkingDirectory = Ctx.WorkDir,
+            SandboxConfig = new SandboxConfig
+            {
+                Enabled = true,
+                UserPolicy = new SandboxConfigUserPolicy
+                {
+                    Filesystem = new SandboxConfigUserPolicyFilesystem { DeniedPaths = [resumeProbe] },
+                },
+            },
+        });
+        await AssertNextShellExecutionResultAsync(
+            session2,
+            "Check sandbox access for sandbox-resume-enabled.txt.",
+            "sandbox-blocked");
+
+        Assert.Equal(sessionId, session2.SessionId);
+        await session2.DisposeAsync();
+        foreach (var probe in probes) File.Delete(probe);
     }
 
     [Fact]

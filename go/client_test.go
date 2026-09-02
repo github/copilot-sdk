@@ -714,6 +714,11 @@ func TestClient_ForwardsNewSessionOptionsToSessionRequests(t *testing.T) {
 	}
 
 	createParams := make(chan json.RawMessage, 1)
+	updateParams := make(chan json.RawMessage, 2)
+	server.SetRequestHandler("session.options.update", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		updateParams <- append(json.RawMessage(nil), params...)
+		return []byte(`{"success":true}`), nil
+	})
 	server.SetRequestHandler("session.create", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
 		createParams <- append(json.RawMessage(nil), params...)
 		sessionID := sessionIDFromParams(t, params)
@@ -725,11 +730,20 @@ func TestClient_ForwardsNewSessionOptionsToSessionRequests(t *testing.T) {
 		EnableCitations:          Bool(true),
 		EnableFileChangeTracking: Bool(true),
 		SessionLimits:            &rpc.SessionLimitsConfig{MaxAiCredits: float64Ptr(30)},
+		SandboxConfig: &rpc.SandboxConfig{
+			Enabled: true,
+			UserPolicy: &rpc.SandboxConfigUserPolicy{
+				Network: &rpc.SandboxConfigUserPolicyNetwork{
+					Proxy: &rpc.SandboxConfigUserPolicyNetworkProxy{URL: "http://127.0.0.1:4321"},
+				},
+			},
+		},
 	})
 	if err != nil {
 		t.Fatalf("CreateSession failed: %v", err)
 	}
-	assertNewSessionOptions(t, <-createParams, true, true, "explore", 30)
+	assertNewSessionOptions(t, <-createParams, true, true, "explore", 30, "http://127.0.0.1:4321")
+	assertSandboxConfig(t, <-updateParams, "http://127.0.0.1:4321")
 
 	resumeParams := make(chan json.RawMessage, 1)
 	server.SetRequestHandler("session.resume", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
@@ -742,11 +756,20 @@ func TestClient_ForwardsNewSessionOptionsToSessionRequests(t *testing.T) {
 		EnableCitations:          Bool(false),
 		EnableFileChangeTracking: Bool(false),
 		SessionLimits:            &rpc.SessionLimitsConfig{MaxAiCredits: float64Ptr(15)},
+		SandboxConfig: &rpc.SandboxConfig{
+			Enabled: true,
+			UserPolicy: &rpc.SandboxConfigUserPolicy{
+				Network: &rpc.SandboxConfigUserPolicyNetwork{
+					Proxy: &rpc.SandboxConfigUserPolicyNetworkProxy{URL: "http://127.0.0.1:4322"},
+				},
+			},
+		},
 	})
 	if err != nil {
 		t.Fatalf("ResumeSessionWithOptions failed: %v", err)
 	}
-	assertNewSessionOptions(t, <-resumeParams, false, false, "task", 15)
+	assertNewSessionOptions(t, <-resumeParams, false, false, "task", 15, "http://127.0.0.1:4322")
+	assertSandboxConfig(t, <-updateParams, "http://127.0.0.1:4322")
 }
 
 func assertCapiOptions(t *testing.T, params json.RawMessage, want map[string]any) {
@@ -779,6 +802,7 @@ func assertNewSessionOptions(
 	expectedFileChangeTracking bool,
 	expectedAgent string,
 	expectedCredits float64,
+	expectedProxyURL string,
 ) {
 	t.Helper()
 
@@ -802,6 +826,38 @@ func assertNewSessionOptions(
 	}
 	if limits["maxAiCredits"] != expectedCredits {
 		t.Fatalf("expected sessionLimits.maxAiCredits=%v, got %v", expectedCredits, limits["maxAiCredits"])
+	}
+	assertDecodedSandboxConfig(t, decoded, expectedProxyURL)
+}
+
+func assertSandboxConfig(t *testing.T, params json.RawMessage, expectedProxyURL string) {
+	t.Helper()
+
+	var decoded map[string]any
+	if err := json.Unmarshal(params, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal request params: %v", err)
+	}
+	assertDecodedSandboxConfig(t, decoded, expectedProxyURL)
+}
+
+func assertDecodedSandboxConfig(t *testing.T, decoded map[string]any, expectedProxyURL string) {
+	t.Helper()
+
+	sandbox, ok := decoded["sandboxConfig"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected sandboxConfig object, got %T", decoded["sandboxConfig"])
+	}
+	policy, ok := sandbox["userPolicy"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected sandboxConfig.userPolicy object, got %T", sandbox["userPolicy"])
+	}
+	network, ok := policy["network"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected sandboxConfig.userPolicy.network object, got %T", policy["network"])
+	}
+	proxy, ok := network["proxy"].(map[string]any)
+	if !ok || proxy["url"] != expectedProxyURL {
+		t.Fatalf("expected sandboxConfig proxy URL %q, got %#v", expectedProxyURL, network["proxy"])
 	}
 }
 

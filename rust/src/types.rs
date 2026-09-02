@@ -2132,6 +2132,8 @@ pub struct SessionConfig {
     pub enable_file_change_tracking: Option<bool>,
     /// **Experimental.** Limits applied to this session's current accounting window.
     pub session_limits: Option<SessionLimitsConfig>,
+    /// **Experimental.** Resolved sandbox configuration applied when the session is created.
+    pub sandbox_config: Option<SandboxConfig>,
     /// Per-property overrides for model capabilities, deep-merged over
     /// runtime defaults.
     pub model_capabilities: Option<crate::generated::api_types::ModelCapabilitiesOverride>,
@@ -2340,6 +2342,10 @@ impl std::fmt::Debug for SessionConfig {
                 &self.enable_file_change_tracking,
             )
             .field("session_limits", &self.session_limits)
+            .field(
+                "sandbox_config",
+                &self.sandbox_config.as_ref().map(|_| "<configured>"),
+            )
             .field("model_capabilities", &self.model_capabilities)
             .field("memory", &self.memory)
             .field("config_directory", &self.config_directory)
@@ -2467,6 +2473,7 @@ impl Default for SessionConfig {
             enable_citations: None,
             enable_file_change_tracking: None,
             session_limits: None,
+            sandbox_config: None,
             model_capabilities: None,
             memory: None,
             config_directory: None,
@@ -2642,6 +2649,7 @@ impl SessionConfig {
             enable_citations: self.enable_citations,
             enable_file_change_tracking: self.enable_file_change_tracking,
             session_limits: self.session_limits,
+            sandbox_config: self.sandbox_config,
             model_capabilities: self.model_capabilities,
             memory: self.memory,
             config_dir: self.config_directory,
@@ -3185,6 +3193,12 @@ impl SessionConfig {
         self
     }
 
+    /// **Experimental.** Set the sandbox configuration for this session.
+    pub fn with_sandbox_config(mut self, config: SandboxConfig) -> Self {
+        self.sandbox_config = Some(config);
+        self
+    }
+
     /// Set per-property overrides for model capabilities.
     pub fn with_model_capabilities(
         mut self,
@@ -3502,6 +3516,8 @@ pub struct ResumeSessionConfig {
     pub enable_file_change_tracking: Option<bool>,
     /// **Experimental.** Limits applied to this session's current accounting window.
     pub session_limits: Option<SessionLimitsConfig>,
+    /// **Experimental.** Resolved sandbox configuration applied when the session is resumed.
+    pub sandbox_config: Option<SandboxConfig>,
     /// Per-property model capability overrides on resume.
     pub model_capabilities: Option<crate::generated::api_types::ModelCapabilitiesOverride>,
     /// Per-session configuration for the runtime memory feature on resume.
@@ -3677,6 +3693,10 @@ impl std::fmt::Debug for ResumeSessionConfig {
                 &self.enable_file_change_tracking,
             )
             .field("session_limits", &self.session_limits)
+            .field(
+                "sandbox_config",
+                &self.sandbox_config.as_ref().map(|_| "<configured>"),
+            )
             .field("model_capabilities", &self.model_capabilities)
             .field("memory", &self.memory)
             .field("config_directory", &self.config_directory)
@@ -3853,6 +3873,7 @@ impl ResumeSessionConfig {
             enable_citations: self.enable_citations,
             enable_file_change_tracking: self.enable_file_change_tracking,
             session_limits: self.session_limits,
+            sandbox_config: self.sandbox_config,
             model_capabilities: self.model_capabilities,
             memory: self.memory,
             config_dir: self.config_directory,
@@ -3955,6 +3976,7 @@ impl ResumeSessionConfig {
             enable_citations: None,
             enable_file_change_tracking: None,
             session_limits: None,
+            sandbox_config: None,
             model_capabilities: None,
             memory: None,
             config_directory: None,
@@ -4471,6 +4493,12 @@ impl ResumeSessionConfig {
     /// **Experimental.** Set limits for this session's current accounting window.
     pub fn with_session_limits(mut self, limits: SessionLimitsConfig) -> Self {
         self.session_limits = Some(limits);
+        self
+    }
+
+    /// **Experimental.** Set the sandbox configuration for this resumed session.
+    pub fn with_sandbox_config(mut self, config: SandboxConfig) -> Self {
+        self.sandbox_config = Some(config);
         self
     }
 
@@ -5946,7 +5974,11 @@ pub use crate::generated::api_types::{
     ModelCapabilitiesSupports, ModelList, ModelPolicy, PermissionDecision,
     PermissionDecisionApproveOnce, PermissionDecisionContext, PermissionDecisionOutcome,
     PermissionDecisionReject, PermissionDecisionSource, PermissionDecisionSurface,
-    PermissionDecisionUserNotAvailable, PermissionResponseCapability,
+    PermissionDecisionUserNotAvailable, PermissionResponseCapability, SandboxConfig,
+    SandboxConfigAuth, SandboxConfigUserPolicy, SandboxConfigUserPolicyExperimental,
+    SandboxConfigUserPolicyExperimentalSeatbelt, SandboxConfigUserPolicyFilesystem,
+    SandboxConfigUserPolicyNetwork, SandboxConfigUserPolicyNetworkProxy,
+    SandboxConfigUserPolicySeatbelt,
 };
 
 /// Permission categories the CLI may request approval for.
@@ -6057,8 +6089,10 @@ mod tests {
         ExpConfigEntry, ExpFlagValue, ExtensionInfo, GitHubMcpToolConfig, GitHubReferenceType,
         InfiniteSessionConfig, LargeToolOutputConfig, McpServerConfig, McpStdioServerConfig,
         MemoryConfiguration, NamedProviderConfig, PermissionResponseCapability, ProviderConfig,
-        ProviderModelConfig, ReasoningSummary, ResumeSessionConfig, SessionConfig, SessionEvent,
-        SessionId, SystemMessageConfig, Tool, ToolBinaryResult, ToolResult, ToolResultExpanded,
+        ProviderModelConfig, ReasoningSummary, ResumeSessionConfig, SandboxConfig,
+        SandboxConfigUserPolicy, SandboxConfigUserPolicyNetwork,
+        SandboxConfigUserPolicyNetworkProxy, SessionConfig, SessionEvent, SessionId,
+        SystemMessageConfig, Tool, ToolBinaryResult, ToolResult, ToolResultExpanded,
         ToolResultResponse, ensure_attachment_display_names,
     };
     use crate::generated::session_events::TypedSessionEvent;
@@ -6374,6 +6408,54 @@ mod tests {
             .expect("resume config has no duplicate handlers");
         let unset_resume_json = serde_json::to_value(&unset_resume_wire).unwrap();
         assert!(unset_resume_json.get("customAgentsLocalOnly").is_none());
+    }
+
+    #[test]
+    fn sandbox_config_serializes_on_create_and_resume() {
+        let sandbox_config = SandboxConfig {
+            enabled: true,
+            user_policy: Some(SandboxConfigUserPolicy {
+                network: Some(SandboxConfigUserPolicyNetwork {
+                    allow_outbound: Some(false),
+                    allow_local_network: Some(false),
+                    proxy: Some(SandboxConfigUserPolicyNetworkProxy {
+                        url: "http://127.0.0.1:4321".to_string(),
+                        username: None,
+                        password: None,
+                    }),
+                }),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+
+        let create_config = SessionConfig::default().with_sandbox_config(sandbox_config.clone());
+        let (create_wire, _) = create_config
+            .into_wire(Some(SessionId::from("create-sandbox")))
+            .expect("create config has no duplicate handlers");
+        let create_json = serde_json::to_value(&create_wire).unwrap();
+        assert_eq!(
+            create_json["sandboxConfig"]["userPolicy"]["network"]["proxy"]["url"],
+            "http://127.0.0.1:4321"
+        );
+
+        let resume_config = ResumeSessionConfig::new(SessionId::from("resume-sandbox"))
+            .with_sandbox_config(sandbox_config);
+        let (resume_wire, _) = resume_config
+            .into_wire()
+            .expect("resume config has no duplicate handlers");
+        let resume_json = serde_json::to_value(&resume_wire).unwrap();
+        assert_eq!(resume_json["sandboxConfig"]["enabled"], true);
+
+        let (unset_wire, _) = SessionConfig::default()
+            .into_wire(Some(SessionId::from("sandbox-unset")))
+            .expect("unset config has no duplicate handlers");
+        assert!(
+            serde_json::to_value(&unset_wire)
+                .unwrap()
+                .get("sandboxConfig")
+                .is_none()
+        );
     }
 
     #[test]

@@ -903,11 +903,14 @@ impl Client {
         }
         config.custom_agents_local_only =
             crate::mode::resolve_custom_agents_local_only(mode, config.custom_agents_local_only);
-        let opt_skip_custom_instructions = config.skip_custom_instructions;
-        let opt_custom_agents_local_only = config.custom_agents_local_only;
-        let opt_coauthor_enabled = config.coauthor_enabled;
-        let opt_manage_schedule_enabled = config.manage_schedule_enabled;
-        let opt_included_builtin_skills = config.included_builtin_skills.take();
+        let post_create_options = ModePostCreateOptions {
+            skip_custom_instructions: config.skip_custom_instructions,
+            custom_agents_local_only: config.custom_agents_local_only,
+            coauthor_enabled: config.coauthor_enabled,
+            manage_schedule_enabled: config.manage_schedule_enabled,
+            sandbox_config: config.sandbox_config.clone(),
+            included_builtin_skills: config.included_builtin_skills.take(),
+        };
         let (mut wire, mut runtime) = config.into_wire(local_session_id.clone())?;
         wire.enable_github_telemetry_forwarding =
             self.inner.on_github_telemetry.is_some().then_some(true);
@@ -1104,16 +1107,7 @@ impl Client {
             event_tx,
             github_token_registration: ParkingLotMutex::new(github_token_registration),
         };
-        apply_mode_post_create_patch(
-            &session,
-            mode,
-            opt_skip_custom_instructions,
-            opt_custom_agents_local_only,
-            opt_coauthor_enabled,
-            opt_manage_schedule_enabled,
-            opt_included_builtin_skills,
-        )
-        .await?;
+        apply_mode_post_create_patch(&session, mode, post_create_options).await?;
         if let Some(registration) = session.github_token_registration.lock().as_ref() {
             registration.claim(session.id.clone());
         } else {
@@ -1191,11 +1185,14 @@ impl Client {
         }
         config.custom_agents_local_only =
             crate::mode::resolve_custom_agents_local_only(mode, config.custom_agents_local_only);
-        let opt_skip_custom_instructions = config.skip_custom_instructions;
-        let opt_custom_agents_local_only = config.custom_agents_local_only;
-        let opt_coauthor_enabled = config.coauthor_enabled;
-        let opt_manage_schedule_enabled = config.manage_schedule_enabled;
-        let opt_included_builtin_skills = config.included_builtin_skills.take();
+        let post_create_options = ModePostCreateOptions {
+            skip_custom_instructions: config.skip_custom_instructions,
+            custom_agents_local_only: config.custom_agents_local_only,
+            coauthor_enabled: config.coauthor_enabled,
+            manage_schedule_enabled: config.manage_schedule_enabled,
+            sandbox_config: config.sandbox_config.clone(),
+            included_builtin_skills: config.included_builtin_skills.take(),
+        };
         let (mut wire, mut runtime) = config.into_wire()?;
         wire.enable_github_telemetry_forwarding =
             self.inner.on_github_telemetry.is_some().then_some(true);
@@ -1379,16 +1376,7 @@ impl Client {
             event_tx,
             github_token_registration: ParkingLotMutex::new(github_token_registration),
         };
-        apply_mode_post_create_patch(
-            &session,
-            mode,
-            opt_skip_custom_instructions,
-            opt_custom_agents_local_only,
-            opt_coauthor_enabled,
-            opt_manage_schedule_enabled,
-            opt_included_builtin_skills,
-        )
-        .await?;
+        apply_mode_post_create_patch(&session, mode, post_create_options).await?;
         if let Some(registration) = session.github_token_registration.lock().as_ref() {
             registration.claim(session.id.clone());
         } else {
@@ -1400,23 +1388,22 @@ impl Client {
 
 type CommandHandlerMap = HashMap<String, Arc<dyn CommandHandler>>;
 
+#[derive(Default)]
+struct ModePostCreateOptions {
+    skip_custom_instructions: Option<bool>,
+    custom_agents_local_only: Option<bool>,
+    coauthor_enabled: Option<bool>,
+    manage_schedule_enabled: Option<bool>,
+    sandbox_config: Option<crate::SandboxConfig>,
+    included_builtin_skills: Option<Vec<String>>,
+}
+
 async fn apply_mode_post_create_patch(
     session: &Session,
     mode: crate::ClientMode,
-    opt_skip_custom_instructions: Option<bool>,
-    opt_custom_agents_local_only: Option<bool>,
-    opt_coauthor_enabled: Option<bool>,
-    opt_manage_schedule_enabled: Option<bool>,
-    opt_included_builtin_skills: Option<Vec<String>>,
+    options: ModePostCreateOptions,
 ) -> Result<(), Error> {
-    let Some(patch) = build_mode_post_create_patch(
-        mode,
-        opt_skip_custom_instructions,
-        opt_custom_agents_local_only,
-        opt_coauthor_enabled,
-        opt_manage_schedule_enabled,
-        opt_included_builtin_skills,
-    ) else {
+    let Some(patch) = build_mode_post_create_patch(mode, options) else {
         return Ok(());
     };
     if let Err(error) = session.rpc().options().update(patch).await {
@@ -1437,41 +1424,48 @@ async fn apply_mode_post_create_patch(
 /// forwarded.
 fn build_mode_post_create_patch(
     mode: crate::ClientMode,
-    opt_skip_custom_instructions: Option<bool>,
-    opt_custom_agents_local_only: Option<bool>,
-    opt_coauthor_enabled: Option<bool>,
-    opt_manage_schedule_enabled: Option<bool>,
-    opt_included_builtin_skills: Option<Vec<String>>,
+    options: ModePostCreateOptions,
 ) -> Option<crate::generated::api_types::SessionUpdateOptionsParams> {
     use crate::generated::api_types::SessionUpdateOptionsParams;
-    let mut patch = SessionUpdateOptionsParams::default();
+    let ModePostCreateOptions {
+        skip_custom_instructions,
+        custom_agents_local_only,
+        coauthor_enabled,
+        manage_schedule_enabled,
+        sandbox_config,
+        included_builtin_skills,
+    } = options;
+    let mut patch = SessionUpdateOptionsParams {
+        sandbox_config,
+        ..SessionUpdateOptionsParams::default()
+    };
     let should_send = if mode == crate::ClientMode::Empty {
-        patch.skip_custom_instructions = Some(opt_skip_custom_instructions.unwrap_or(true));
-        patch.custom_agents_local_only = Some(opt_custom_agents_local_only.unwrap_or(true));
-        patch.coauthor_enabled = Some(opt_coauthor_enabled.unwrap_or(false));
-        patch.manage_schedule_enabled = Some(opt_manage_schedule_enabled.unwrap_or(false));
+        patch.skip_custom_instructions = Some(skip_custom_instructions.unwrap_or(true));
+        patch.custom_agents_local_only = Some(custom_agents_local_only.unwrap_or(true));
+        patch.coauthor_enabled = Some(coauthor_enabled.unwrap_or(false));
+        patch.manage_schedule_enabled = Some(manage_schedule_enabled.unwrap_or(false));
         patch.installed_plugins = Some(Vec::new());
-        patch.included_builtin_skills = Some(opt_included_builtin_skills.unwrap_or_default());
+        patch.included_builtin_skills = Some(included_builtin_skills.unwrap_or_default());
         true
     } else {
-        let mut any = false;
-        if let Some(v) = opt_skip_custom_instructions {
+        let mut any = patch.sandbox_config.is_some();
+        if let Some(v) = skip_custom_instructions {
             patch.skip_custom_instructions = Some(v);
             any = true;
         }
-        if let Some(v) = opt_custom_agents_local_only {
+        if let Some(v) = custom_agents_local_only {
             patch.custom_agents_local_only = Some(v);
             any = true;
         }
-        if let Some(v) = opt_coauthor_enabled {
+        if let Some(v) = coauthor_enabled {
             patch.coauthor_enabled = Some(v);
             any = true;
         }
-        if let Some(v) = opt_manage_schedule_enabled {
+        if let Some(v) = manage_schedule_enabled {
             patch.manage_schedule_enabled = Some(v);
             any = true;
         }
-        if let Some(v) = opt_included_builtin_skills {
+        if let Some(v) = included_builtin_skills {
             patch.included_builtin_skills = Some(v);
             any = true;
         }
@@ -2659,8 +2653,8 @@ mod tests {
     use serde_json::json;
 
     use super::{
-        build_mode_post_create_patch, has_managed_settings, is_autopilot_continuation_idle,
-        permission_request_data, permission_response_params,
+        ModePostCreateOptions, build_mode_post_create_patch, has_managed_settings,
+        is_autopilot_continuation_idle, permission_request_data, permission_response_params,
     };
     use crate::handler::PermissionResult;
     use crate::types::{
@@ -2693,9 +2687,11 @@ mod tests {
 
     #[test]
     fn empty_mode_post_patch_sets_empty_included_builtin_skills() {
-        let patch =
-            build_mode_post_create_patch(crate::ClientMode::Empty, None, None, None, None, None)
-                .expect("empty mode always sends a patch");
+        let patch = build_mode_post_create_patch(
+            crate::ClientMode::Empty,
+            ModePostCreateOptions::default(),
+        )
+        .expect("empty mode always sends a patch");
         assert_eq!(
             patch.included_builtin_skills,
             Some(Vec::new()),
@@ -2711,11 +2707,14 @@ mod tests {
     fn empty_mode_post_patch_preserves_explicit_builtin_skill_allowlist() {
         let patch = build_mode_post_create_patch(
             crate::ClientMode::Empty,
-            Some(false),
-            Some(false),
-            Some(true),
-            Some(true),
-            Some(vec!["code-review".to_string()]),
+            ModePostCreateOptions {
+                skip_custom_instructions: Some(false),
+                custom_agents_local_only: Some(false),
+                coauthor_enabled: Some(true),
+                manage_schedule_enabled: Some(true),
+                included_builtin_skills: Some(vec!["code-review".to_string()]),
+                ..Default::default()
+            },
         )
         .expect("empty mode always sends a patch");
         assert_eq!(
@@ -2730,22 +2729,17 @@ mod tests {
         assert!(
             build_mode_post_create_patch(
                 crate::ClientMode::CopilotCli,
-                None,
-                None,
-                None,
-                None,
-                None
+                ModePostCreateOptions::default(),
             )
             .is_none()
         );
         // A field set -> patch sent, but skills field stays absent.
         let patch = build_mode_post_create_patch(
             crate::ClientMode::CopilotCli,
-            Some(true),
-            None,
-            None,
-            None,
-            None,
+            ModePostCreateOptions {
+                skip_custom_instructions: Some(true),
+                ..Default::default()
+            },
         )
         .expect("a set field triggers a patch");
         assert_eq!(patch.included_builtin_skills, None);
@@ -2755,11 +2749,10 @@ mod tests {
 
         let patch = build_mode_post_create_patch(
             crate::ClientMode::CopilotCli,
-            None,
-            None,
-            None,
-            None,
-            Some(vec!["code-review".to_string()]),
+            ModePostCreateOptions {
+                included_builtin_skills: Some(vec!["code-review".to_string()]),
+                ..Default::default()
+            },
         )
         .expect("an explicit allowlist triggers a patch");
         assert_eq!(

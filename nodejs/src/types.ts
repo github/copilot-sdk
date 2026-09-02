@@ -28,10 +28,22 @@ import type {
     ModelBillingTokenPrices,
     OpenCanvasInstance,
     RemoteSessionMode,
+    SandboxConfig,
     CurrentToolMetadata,
 } from "./generated/rpc.js";
 import type { ToolSet } from "./toolSet.js";
 export type { RemoteSessionMode } from "./generated/rpc.js";
+export type {
+    SandboxConfig,
+    SandboxConfigAuth,
+    SandboxConfigUserPolicy,
+    SandboxConfigUserPolicyExperimental,
+    SandboxConfigUserPolicyExperimentalSeatbelt,
+    SandboxConfigUserPolicyFilesystem,
+    SandboxConfigUserPolicyNetwork,
+    SandboxConfigUserPolicyNetworkProxy,
+    SandboxConfigUserPolicySeatbelt,
+} from "./generated/rpc.js";
 export type { CurrentToolMetadata } from "./generated/rpc.js";
 export type {
     GitHubTokenAcquireReason,
@@ -2304,6 +2316,13 @@ export interface SessionConfigBase {
 
     /** Per-property overrides for model capabilities, deep-merged over runtime defaults. */
     modelCapabilities?: ModelCapabilitiesOverride;
+
+    /**
+     * Resolved sandbox configuration applied when the session is created or resumed.
+     *
+     * @experimental
+     */
+    sandboxConfig?: SandboxConfig;
 
     /**
      * Configuration for handling large tool outputs. When a tool produces

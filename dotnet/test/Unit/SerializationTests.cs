@@ -485,7 +485,18 @@ public class SerializationTests
             ("EnableCitations", true),
             ("EnableFileChangeTracking", true),
             ("ExcludedBuiltInAgents", excludedAgents),
-            ("SessionLimits", new SessionLimitsConfig { MaxAiCredits = 12.5 }));
+            ("SessionLimits", new SessionLimitsConfig { MaxAiCredits = 12.5 }),
+            ("SandboxConfig", new SandboxConfig
+            {
+                Enabled = true,
+                UserPolicy = new SandboxConfigUserPolicy
+                {
+                    Network = new SandboxConfigUserPolicyNetwork
+                    {
+                        Proxy = new SandboxConfigUserPolicyNetworkProxy { Url = "http://127.0.0.1:4321" },
+                    },
+                },
+            }));
 
         var createJson = JsonSerializer.Serialize(createRequest, createRequestType, options);
         using var createDocument = JsonDocument.Parse(createJson);
@@ -494,6 +505,9 @@ public class SerializationTests
         Assert.True(createRoot.GetProperty("enableFileChangeTracking").GetBoolean());
         Assert.Equal("explore", createRoot.GetProperty("excludedBuiltinAgents")[0].GetString());
         Assert.Equal(12.5, createRoot.GetProperty("sessionLimits").GetProperty("maxAiCredits").GetDouble());
+        Assert.Equal(
+            "http://127.0.0.1:4321",
+            createRoot.GetProperty("sandboxConfig").GetProperty("userPolicy").GetProperty("network").GetProperty("proxy").GetProperty("url").GetString());
 
         var resumeRequestType = GetNestedType(typeof(CopilotClient), "ResumeSessionRequest");
         var resumeRequest = CreateInternalRequest(
@@ -502,7 +516,18 @@ public class SerializationTests
             ("EnableCitations", true),
             ("EnableFileChangeTracking", true),
             ("ExcludedBuiltInAgents", excludedAgents),
-            ("SessionLimits", new SessionLimitsConfig { MaxAiCredits = 7.25 }));
+            ("SessionLimits", new SessionLimitsConfig { MaxAiCredits = 7.25 }),
+            ("SandboxConfig", new SandboxConfig
+            {
+                Enabled = true,
+                UserPolicy = new SandboxConfigUserPolicy
+                {
+                    Network = new SandboxConfigUserPolicyNetwork
+                    {
+                        Proxy = new SandboxConfigUserPolicyNetworkProxy { Url = "http://127.0.0.1:4322" },
+                    },
+                },
+            }));
 
         var resumeJson = JsonSerializer.Serialize(resumeRequest, resumeRequestType, options);
         using var resumeDocument = JsonDocument.Parse(resumeJson);
@@ -511,6 +536,9 @@ public class SerializationTests
         Assert.True(resumeRoot.GetProperty("enableFileChangeTracking").GetBoolean());
         Assert.Equal("task", resumeRoot.GetProperty("excludedBuiltinAgents")[1].GetString());
         Assert.Equal(7.25, resumeRoot.GetProperty("sessionLimits").GetProperty("maxAiCredits").GetDouble());
+        Assert.Equal(
+            "http://127.0.0.1:4322",
+            resumeRoot.GetProperty("sandboxConfig").GetProperty("userPolicy").GetProperty("network").GetProperty("proxy").GetProperty("url").GetString());
     }
 
     [Fact]
