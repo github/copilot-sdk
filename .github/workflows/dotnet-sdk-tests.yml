@@ -128,35 +128,35 @@ jobs:
           - os: macos-latest
             transport: default
             backend: capi
-            shard: "2b1a-rpc-a"
+            shard: "2b-rpc-additional"
           - os: macos-latest
             transport: default
             backend: capi
-            shard: "2b1a-rpc-e"
+            shard: "2b-rpc-agent"
           - os: macos-latest
             transport: default
             backend: capi
-            shard: "2b1b-mcp-and-skills"
+            shard: "2b-rpc-event-log"
           - os: macos-latest
             transport: default
             backend: capi
-            shard: "2b1b-mcp-config"
+            shard: "2b-rpc-event-effects"
           - os: macos-latest
             transport: default
             backend: capi
-            shard: "2b1b-mcp-lifecycle"
+            shard: "2b-rpc-mcp-skills"
           - os: macos-latest
             transport: default
             backend: capi
-            shard: "2b1b-queue"
+            shard: "2b-rpc-mcp-config"
           - os: macos-latest
             transport: default
             backend: capi
-            shard: "2b1b-remote"
+            shard: "2b-rpc-mcp-lifecycle"
           - os: macos-latest
             transport: default
             backend: capi
-            shard: "2b2"
+            shard: "2b-rpc-q-z"
           # Standalone extension tests require the legacy JavaScript entrypoint.
           # Keep its subprocess tree isolated from the rest of the O/P/R shard.
           - os: macos-latest
@@ -286,38 +286,37 @@ jobs:
                 initials=(O)
                 shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.ProviderEndpointE2ETests|FullyQualifiedName~GitHub.Copilot.Test.E2E.RewindE2ETests|FullyQualifiedName~GitHub.Copilot.Test.Unit.R"
                 ;;
-              2b1a-rpc-a)
+              2b-rpc-additional)
                 initials=()
-                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcA"
+                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcAdditionalEdgeCasesE2ETests"
                 ;;
-              2b1a-rpc-e)
+              2b-rpc-agent)
                 initials=()
-                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcE"
-                shard_exclusion="FullyQualifiedName!~GitHub.Copilot.Test.E2E.RpcExtensionsLoadedE2ETests"
+                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcAgentE2ETests"
                 ;;
-              2b1b-mcp-and-skills)
+              2b-rpc-event-log)
+                initials=()
+                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcEventLogE2ETests"
+                ;;
+              2b-rpc-event-effects)
+                initials=()
+                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcEventSideEffectsE2ETests"
+                ;;
+              2b-rpc-mcp-skills)
                 initials=()
                 shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcMcpAndSkillsE2ETests"
                 ;;
-              2b1b-mcp-config)
+              2b-rpc-mcp-config)
                 initials=()
                 shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcMcpConfigE2ETests"
                 ;;
-              2b1b-mcp-lifecycle)
+              2b-rpc-mcp-lifecycle)
                 initials=()
                 shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcMcpLifecycleE2ETests"
                 ;;
-              2b1b-queue)
+              2b-rpc-q-z)
                 initials=()
-                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcQ"
-                ;;
-              2b1b-remote)
-                initials=()
-                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcR"
-                ;;
-              2b2)
-                initials=()
-                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcS|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcT|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcU|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcW|FullyQualifiedName~GitHub.Copilot.Test.Unit.R"
+                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcQueueE2ETests|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcRemoteE2ETests|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcScheduleE2ETests|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcServerE2ETests|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcServerMiscE2ETests|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcServerPluginsE2ETests|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcServerRemoteControlE2ETests|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcSessionStateE2ETests|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcSessionStateExtrasE2ETests|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcShellAndFleetE2ETests|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcShellEdgeCaseE2ETests|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcShellUserRequestedE2ETests|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcTasksAndHandlersE2ETests|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcUiEphemeralQueryE2ETests|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcWorkspaceCheckpointsE2ETests"
                 ;;
               extensions)
                 initials=()
