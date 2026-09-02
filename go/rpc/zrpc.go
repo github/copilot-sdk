@@ -19468,14 +19468,18 @@ func (a *ServerLlmInferenceAPI) SetProvider(ctx context.Context) (*LlmInferenceS
 // removed.
 type ServerManagedSettingsAPI serverAPI
 
-// ClearCache wipes the persistent enterprise managed-settings cache for every account (the
-// whole `<cacheHome>/managed-settings` directory) and drops this runtime process's
-// in-memory retained server policy, so the next managed-settings read for any account
-// re-fetches from the network instead of serving a cached response. Mirrors the cache
-// invalidation a sign-out performs, but across all accounts rather than just the one
-// signing out — the primitive behind a host "sync account policy" / "force refresh policy"
-// action. Device/MDM-scoped layers describe the machine, not the account, so they are left
-// untouched. Best-effort: a disabled or already-absent cache is a no-op.
+// ClearCache force-refreshes enterprise managed settings for every account: wipes the
+// persistent server-policy cache (the whole `<cacheHome>/managed-settings` directory) and
+// drops this runtime process's in-memory retained server policy. It does not itself fetch
+// policy — the effect is that the next time a session resolves managed settings for an
+// account, that resolution re-fetches the account's org policy from the network instead of
+// serving a cached response. Note that `managedSettings.read` returns only device/MDM
+// settings and never triggers the account server-policy fetch, so a host implementing "sync
+// account policy" should start a fresh session resolution rather than treat a subsequent
+// `managedSettings.read` as the refreshed org policy. Mirrors the invalidation a sign-out
+// performs, broadened from the one signing-out account to all of them; device/MDM layers
+// describe the machine, not the account, and are left untouched. Rejects if the on-disk
+// cache cannot be removed.
 //
 // RPC method: managedSettings.clearCache.
 func (a *ServerManagedSettingsAPI) ClearCache(ctx context.Context) (*ManagedSettingsClearCacheResult, error) {
