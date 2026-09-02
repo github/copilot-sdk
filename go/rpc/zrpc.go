@@ -4705,6 +4705,11 @@ type LspInitializeRequest struct {
 	WorkingDirectory *string `json:"workingDirectory,omitempty"`
 }
 
+// Experimental: ManagedSettingsClearCacheResult is part of an experimental API and may
+// change or be removed.
+type ManagedSettingsClearCacheResult struct {
+}
+
 // Validated device-managed settings discovered before a session exists.
 // Experimental: ManagedSettingsReadResult is part of an experimental API and may change or
 // be removed.
@@ -19462,6 +19467,28 @@ func (a *ServerLlmInferenceAPI) SetProvider(ctx context.Context) (*LlmInferenceS
 // Experimental: ServerManagedSettingsAPI contains experimental APIs that may change or be
 // removed.
 type ServerManagedSettingsAPI serverAPI
+
+// ClearCache wipes the persistent enterprise managed-settings cache for every account (the
+// whole `<cacheHome>/managed-settings` directory) and drops this runtime process's
+// in-memory retained server policy, so the next managed-settings read for any account
+// re-fetches from the network instead of serving a cached response. Mirrors the cache
+// invalidation a sign-out performs, but across all accounts rather than just the one
+// signing out — the primitive behind a host "sync account policy" / "force refresh policy"
+// action. Device/MDM-scoped layers describe the machine, not the account, so they are left
+// untouched. Best-effort: a disabled or already-absent cache is a no-op.
+//
+// RPC method: managedSettings.clearCache.
+func (a *ServerManagedSettingsAPI) ClearCache(ctx context.Context) (*ManagedSettingsClearCacheResult, error) {
+	raw, err := a.client.Request(ctx, "managedSettings.clearCache", nil)
+	if err != nil {
+		return nil, err
+	}
+	var result ManagedSettingsClearCacheResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
 
 // Read discovers device-managed settings from production MDM and managed-file sources,
 // validates them against the runtime-owned managed-settings schema, and returns the

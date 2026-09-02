@@ -122,6 +122,8 @@ pub mod rpc_methods {
     pub const USER_SETTINGS_SET: &str = "user.settings.set";
     /// `managedSettings.read`
     pub const MANAGEDSETTINGS_READ: &str = "managedSettings.read";
+    /// `managedSettings.clearCache`
+    pub const MANAGEDSETTINGS_CLEARCACHE: &str = "managedSettings.clearCache";
     /// `runtime.shutdown`
     pub const RUNTIME_SHUTDOWN: &str = "runtime.shutdown";
     /// `sessionFs.setProvider`

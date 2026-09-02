@@ -30509,6 +30509,13 @@ public sealed class ServerManagedSettingsApi
     {
         return await CopilotClient.InvokeRpcAsync<ManagedSettingsReadResult>(_rpc, "managedSettings.read", [], cancellationToken);
     }
+
+    /// <summary>Wipes the persistent enterprise managed-settings cache for every account (the whole `&lt;cacheHome&gt;/managed-settings` directory) and drops this runtime process's in-memory retained server policy, so the next managed-settings read for any account re-fetches from the network instead of serving a cached response. Mirrors the cache invalidation a sign-out performs, but across all accounts rather than just the one signing out — the primitive behind a host "sync account policy" / "force refresh policy" action. Device/MDM-scoped layers describe the machine, not the account, so they are left untouched. Best-effort: a disabled or already-absent cache is a no-op.</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    public async Task ClearCacheAsync(CancellationToken cancellationToken = default)
+    {
+        await CopilotClient.InvokeRpcAsync(_rpc, "managedSettings.clearCache", [], cancellationToken);
+    }
 }
 
 /// <summary>Provides server-scoped Runtime APIs.</summary>

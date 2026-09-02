@@ -859,6 +859,26 @@ impl<'a> ClientRpcManagedSettings<'a> {
             .await?;
         Ok(serde_json::from_value(_value)?)
     }
+
+    /// Wipes the persistent enterprise managed-settings cache for every account (the whole `<cacheHome>/managed-settings` directory) and drops this runtime process's in-memory retained server policy, so the next managed-settings read for any account re-fetches from the network instead of serving a cached response. Mirrors the cache invalidation a sign-out performs, but across all accounts rather than just the one signing out — the primitive behind a host "sync account policy" / "force refresh policy" action. Device/MDM-scoped layers describe the machine, not the account, so they are left untouched. Best-effort: a disabled or already-absent cache is a no-op.
+    ///
+    /// Wire method: `managedSettings.clearCache`.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn clear_cache(&self) -> Result<(), Error> {
+        let wire_params = serde_json::json!({});
+        let _value = self
+            .client
+            .call(rpc_methods::MANAGEDSETTINGS_CLEARCACHE, Some(wire_params))
+            .await?;
+        Ok(())
+    }
 }
 
 /// `mcp.*` RPCs.
