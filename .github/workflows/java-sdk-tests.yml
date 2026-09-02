@@ -1,15 +1,6 @@
 name: "Java SDK Tests"
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - "java/**"
-      - "test/**"
-      - ".github/workflows/java-sdk-tests.yml"
-      - ".github/actions/setup-copilot/**"
-      - ".github/actions/java-test-report/**"
   workflow_dispatch:
   workflow_call:
 
