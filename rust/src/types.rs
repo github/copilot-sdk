@@ -2001,7 +2001,7 @@ pub struct SessionConfig {
     /// Non-secret host-managed HTTP MCP servers keyed by stable managed identity.
     ///
     /// Credentials are supplied dynamically through
-    /// [`McpHeadersRefreshHandler`](crate::handler::McpHeadersRefreshHandler).
+    /// [`McpHeadersRefreshHandler`].
     pub managed_mcp_servers: Option<HashMap<String, ManagedMcpServerConfig>>,
     /// Controls how MCP OAuth tokens are stored for this session.
     ///

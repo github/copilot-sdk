@@ -2448,7 +2448,7 @@ class CopilotSession:
                 )
             )
         except (JsonRpcError, ProcessExitedError, OSError):
-            pass
+            pass  # The runtime connection is gone, so the pending request cannot be answered.
 
     async def _execute_command_and_respond(
         self,
