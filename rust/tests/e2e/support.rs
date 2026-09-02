@@ -674,7 +674,7 @@ impl E2eContext {
 impl SharedE2eState {
     async fn prepare_test(&mut self, category: &str, snapshot_name: &str) -> std::io::Result<()> {
         self.cleanup_sessions().await?;
-        clear_directory_contents(self.context.work_dir())?;
+        clear_directory_contents(self.context.work_dir()).await?;
         self.context.configure(category, snapshot_name)?;
         self.context.set_default_copilot_user();
         Ok(())
@@ -682,7 +682,7 @@ impl SharedE2eState {
 
     async fn cleanup_after_test(&mut self) -> std::io::Result<()> {
         self.cleanup_sessions().await?;
-        clear_directory_contents(self.context.work_dir())
+        clear_directory_contents(self.context.work_dir()).await
     }
 
     async fn cleanup_sessions(&self) -> std::io::Result<()> {
@@ -782,17 +782,34 @@ fn is_filtered_test_run() -> bool {
     })
 }
 
-fn clear_directory_contents(directory: &Path) -> std::io::Result<()> {
+async fn clear_directory_contents(directory: &Path) -> std::io::Result<()> {
     for entry in std::fs::read_dir(directory)? {
         let entry = entry?;
         let path = entry.path();
-        if entry.file_type()?.is_dir() {
-            std::fs::remove_dir_all(path)?;
-        } else {
-            std::fs::remove_file(path)?;
+        let is_directory = entry.file_type()?.is_dir();
+
+        for attempt in 1..=20 {
+            let result = if is_directory {
+                std::fs::remove_dir_all(&path)
+            } else {
+                std::fs::remove_file(&path)
+            };
+
+            match result {
+                Ok(()) => break,
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => break,
+                Err(error) if is_transient_windows_file_lock(&error) && attempt < 20 => {
+                    tokio::time::sleep(Duration::from_millis(50)).await;
+                }
+                Err(error) => return Err(error),
+            }
         }
     }
     Ok(())
+}
+
+fn is_transient_windows_file_lock(error: &std::io::Error) -> bool {
+    cfg!(windows) && matches!(error.raw_os_error(), Some(5 | 32 | 145))
 }
 
 impl Drop for E2eContext {
