@@ -215,6 +215,7 @@ jobs:
           )
 
           filter="$DOTNET_TEST_FILTER"
+          individual_filters=()
           if [[ "$DOTNET_TEST_SHARD" != "full" ]]; then
             case "$DOTNET_TEST_SHARD" in
               1)
@@ -232,8 +233,17 @@ jobs:
                 shard_filter=""
                 ;;
               2b1a-permission-provider)
-                initials=(O P)
+                initials=()
                 shard_filter=""
+                individual_filters=(
+                  "FullyQualifiedName~GitHub.Copilot.Test.E2E.PendingWorkResumeE2ETests"
+                  "FullyQualifiedName~GitHub.Copilot.Test.E2E.PerSessionAuthE2ETests"
+                  "FullyQualifiedName~GitHub.Copilot.Test.E2E.PermissionE2ETests"
+                  "FullyQualifiedName~GitHub.Copilot.Test.E2E.PreMcpToolCallHookE2ETests"
+                  "FullyQualifiedName~GitHub.Copilot.Test.E2E.ProviderEndpointE2ETests"
+                  "FullyQualifiedName~GitHub.Copilot.Test.Unit.PermissionHandlerTests"
+                  "FullyQualifiedName~GitHub.Copilot.Test.Unit.PublicDtoTests"
+                )
                 ;;
               2b1a-rewind)
                 initials=()
@@ -249,7 +259,12 @@ jobs:
                 ;;
               2b1b-mcp)
                 initials=()
-                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcM"
+                shard_filter=""
+                individual_filters=(
+                  "FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcMcpAndSkillsE2ETests"
+                  "FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcMcpConfigE2ETests"
+                  "FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcMcpLifecycleE2ETests"
+                )
                 ;;
               2b1b-queue)
                 initials=()
@@ -268,6 +283,14 @@ jobs:
                 shard_filter=""
                 ;;
             esac
+
+            if (( ${#individual_filters[@]} > 0 )); then
+              for individual_filter in "${individual_filters[@]}"; do
+                combined_filter="${filter:+(${filter})&}(${individual_filter})"
+                dotnet test test/GitHub.Copilot.SDK.Test.csproj "${args[@]}" --filter "$combined_filter"
+              done
+              exit 0
+            fi
 
             for namespace in E2E Unit; do
               for initial in "${initials[@]}"; do
