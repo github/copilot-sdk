@@ -328,12 +328,12 @@ export interface CopilotClientInfo {
     applicationVersion?: string;
 
     /**
-     * Name of the Copilot integration within the application, e.g. `"copilot-assistant"`.
+     * Optional name of a specific integration within the application, such as an extension or plugin.
      */
     integrationName?: string;
 
     /**
-     * Version of the Copilot integration within the application, e.g. `"1.5.0"`.
+     * Optional version of the integration identified by `integrationName`.
      */
     integrationVersion?: string;
 }

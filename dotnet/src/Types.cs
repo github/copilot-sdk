@@ -564,12 +564,12 @@ public sealed class CopilotClientInfo
     public string? ApplicationVersion { get; set; }
 
     /// <summary>
-    /// Name of the Copilot integration within the application.
+    /// Optionally specifies a named integration within the application, such as an extension or plugin.
     /// </summary>
     public string? IntegrationName { get; set; }
 
     /// <summary>
-    /// Version of the Copilot integration within the application.
+    /// Optionally specifies the version of that integration.
     /// </summary>
     public string? IntegrationVersion { get; set; }
 }

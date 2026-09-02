@@ -221,9 +221,10 @@ type ClientInfo struct {
 	ApplicationName string
 	// ApplicationVersion is the version of the application using the SDK.
 	ApplicationVersion string
-	// IntegrationName is the name of the Copilot integration within the application.
+	// IntegrationName optionally identifies a specific integration within the
+	// application, such as an extension or plugin.
 	IntegrationName string
-	// IntegrationVersion is the version of the Copilot integration within the application.
+	// IntegrationVersion is the optional version of the named integration.
 	IntegrationVersion string
 }
 

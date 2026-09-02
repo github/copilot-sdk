@@ -85,7 +85,8 @@ public class ClientInfo {
     }
 
     /**
-     * Gets the name of the Copilot integration within the application.
+     * Gets the optional name of a specific integration within the application,
+     * such as an extension or plugin.
      *
      * @return the integration name, or {@code null}
      */
@@ -95,7 +96,8 @@ public class ClientInfo {
     }
 
     /**
-     * Sets the name of the Copilot integration within the application.
+     * Sets the optional name of a specific integration within the application,
+     * such as an extension or plugin.
      *
      * @param integrationName
      *            the integration name
@@ -108,7 +110,7 @@ public class ClientInfo {
     }
 
     /**
-     * Gets the version of the Copilot integration within the application.
+     * Gets the optional version of the named integration.
      *
      * @return the integration version, or {@code null}
      */
@@ -118,7 +120,7 @@ public class ClientInfo {
     }
 
     /**
-     * Sets the version of the Copilot integration within the application.
+     * Sets the optional version of the named integration.
      *
      * @param integrationVersion
      *            the integration version

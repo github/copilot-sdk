@@ -521,9 +521,9 @@ class ClientInfo(TypedDict, total=False):
     application_version: str
     """Version of the application using the SDK, e.g. ``"2.4.0"``."""
     integration_name: str
-    """Name of the Copilot integration, e.g. ``"copilot-assistant"``."""
+    """Optional name of an application integration, such as an extension or plugin."""
     integration_version: str
-    """Version of the Copilot integration, e.g. ``"1.5.0"``."""
+    """Optional version of the integration named by ``integration_name``."""
 
 
 def _client_info_to_wire(client_info: ClientInfo | None) -> dict[str, str] | None:

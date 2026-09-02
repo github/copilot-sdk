@@ -428,9 +428,10 @@ pub struct ClientInfo {
     pub application_name: Option<String>,
     /// Version of the application using the SDK.
     pub application_version: Option<String>,
-    /// Name of the Copilot integration within the application.
+    /// Optional name of a specific integration within the application, such as an
+    /// extension or plugin.
     pub integration_name: Option<String>,
-    /// Version of the Copilot integration within the application.
+    /// Optional version of the integration identified by [`Self::integration_name`].
     pub integration_version: Option<String>,
 }
 
@@ -453,13 +454,15 @@ impl ClientInfo {
         self
     }
 
-    /// Set the name of the Copilot integration within the application.
+    /// Set the name of a specific integration within the application, such as an
+    /// extension or plugin.
     pub fn with_integration_name(mut self, integration_name: impl Into<String>) -> Self {
         self.integration_name = Some(integration_name.into());
         self
     }
 
-    /// Set the version of the Copilot integration within the application.
+    /// Set the version of the integration identified by
+    /// [`Self::with_integration_name`].
     pub fn with_integration_version(mut self, integration_version: impl Into<String>) -> Self {
         self.integration_version = Some(integration_version.into());
         self
