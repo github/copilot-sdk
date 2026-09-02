@@ -270,10 +270,10 @@ function toWireCustomAgents(agents: CustomAgentConfig[] | undefined): unknown[] 
 function clientInfoToWire(info: CopilotClientInfo | undefined): ConnectClientInfo | undefined {
     if (info == null) return undefined;
     const wire: ConnectClientInfo = {};
-    if (info.editorName) wire.editorName = info.editorName;
-    if (info.editorVersion) wire.editorVersion = info.editorVersion;
-    if (info.extensionName) wire.extensionName = info.extensionName;
-    if (info.extensionVersion) wire.extensionVersion = info.extensionVersion;
+    if (info.applicationName) wire.editorName = info.applicationName;
+    if (info.applicationVersion) wire.editorVersion = info.applicationVersion;
+    if (info.integrationName) wire.extensionName = info.integrationName;
+    if (info.integrationVersion) wire.extensionVersion = info.integrationVersion;
     return Object.keys(wire).length > 0 ? wire : undefined;
 }
 
@@ -2247,7 +2247,7 @@ export class CopilotClient {
             if (this.onGitHubTelemetry != null) {
                 connectParams.enableGitHubTelemetryForwarding = true;
             }
-            // Declare the integrating host's identity so the runtime attributes
+            // Declare the integrating application's identity so the runtime attributes
             // the telemetry it emits on this connection to a consistent surface
             // instead of its own build. Empty fields are dropped, and an
             // all-empty identity is omitted entirely.

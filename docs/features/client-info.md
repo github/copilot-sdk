@@ -1,21 +1,21 @@
 # Client info
 
-Client info identifies the editor or extension that hosts your Copilot SDK application. Set the optional `clientInfo` client option to attribute runtime telemetry for that connection to your host instead of the runtime's own build.
+Client info identifies the application using the Copilot SDK and, when applicable, the Copilot integration within it. Set the optional `clientInfo` client option to attribute runtime telemetry for that connection to your application instead of the runtime's own build.
 
 ## When to set client info
 
-Set client info when you embed the SDK in an editor, an extension, or another application with its own identity.
+Set client info when your SDK application represents a distinct product, service, or integration whose runtime activity should be attributed consistently.
 
-Leave client info unset for scripts, one-off tools, and back-end jobs that do not represent a distinct host. The runtime then keeps its default attribution.
+Leave client info unset for scripts, one-off tools, and jobs that do not represent a distinct application. The runtime then keeps its default attribution.
 
 Client info has four optional string fields. Set the fields you know and omit the rest. The SDK includes client info in the `server.connect` handshake only when at least one field has a non-empty value.
 
 | Field | Example | Meaning |
 |---|---|---|
-| `editorName` | `"vscode"` | Name of the host editor |
-| `editorVersion` | `"1.124.2"` | Version of the host editor |
-| `extensionName` | `"copilot-chat"` | Name of the Copilot extension within the host |
-| `extensionVersion` | `"0.54.0"` | Version of the Copilot extension within the host |
+| `applicationName` | `"acme-developer-portal"` | Name of the application using the SDK |
+| `applicationVersion` | `"2.4.0"` | Version of the application using the SDK |
+| `integrationName` | `"copilot-assistant"` | Name of the Copilot integration within the application |
+| `integrationVersion` | `"1.5.0"` | Version of the Copilot integration within the application |
 
 The SDK sends client info once when it establishes the connection. The identity applies for the lifetime of that connection.
 
@@ -33,10 +33,10 @@ import { CopilotClient } from "@github/copilot-sdk";
 async function main() {
   const client = new CopilotClient({
     clientInfo: {
-      editorName: "JetBrains-IU",
-      editorVersion: "2026.1",
-      extensionName: "copilot-intellij",
-      extensionVersion: "1.5.0",
+      applicationName: "acme-developer-portal",
+      applicationVersion: "2.4.0",
+      integrationName: "copilot-assistant",
+      integrationVersion: "1.5.0",
     },
   });
 
@@ -52,10 +52,10 @@ import { CopilotClient } from "@github/copilot-sdk";
 
 const client = new CopilotClient({
   clientInfo: {
-    editorName: "JetBrains-IU",
-    editorVersion: "2026.1",
-    extensionName: "copilot-intellij",
-    extensionVersion: "1.5.0",
+    applicationName: "acme-developer-portal",
+    applicationVersion: "2.4.0",
+    integrationName: "copilot-assistant",
+    integrationVersion: "1.5.0",
   },
 });
 
@@ -73,10 +73,10 @@ from copilot import CopilotClient
 
 client = CopilotClient(
     client_info={
-        "editor_name": "JetBrains-IU",
-        "editor_version": "2026.1",
-        "extension_name": "copilot-intellij",
-        "extension_version": "1.5.0",
+        "application_name": "acme-developer-portal",
+        "application_version": "2.4.0",
+        "integration_name": "copilot-assistant",
+        "integration_version": "1.5.0",
     },
 )
 await client.start()
@@ -101,10 +101,10 @@ func main() {
 	ctx := context.Background()
 	client := copilot.NewClient(&copilot.ClientOptions{
 		ClientInfo: &copilot.ClientInfo{
-			EditorName:       "JetBrains-IU",
-			EditorVersion:    "2026.1",
-			ExtensionName:    "copilot-intellij",
-			ExtensionVersion: "1.5.0",
+			ApplicationName:    "acme-developer-portal",
+			ApplicationVersion: "2.4.0",
+			IntegrationName:    "copilot-assistant",
+			IntegrationVersion: "1.5.0",
 		},
 	})
 	if err := client.Start(ctx); err != nil {
@@ -117,10 +117,10 @@ func main() {
 ```go
 client := copilot.NewClient(&copilot.ClientOptions{
     ClientInfo: &copilot.ClientInfo{
-        EditorName:       "JetBrains-IU",
-        EditorVersion:    "2026.1",
-        ExtensionName:    "copilot-intellij",
-        ExtensionVersion: "1.5.0",
+        ApplicationName:    "acme-developer-portal",
+        ApplicationVersion: "2.4.0",
+        IntegrationName:    "copilot-assistant",
+        IntegrationVersion: "1.5.0",
     },
 })
 if err := client.Start(ctx); err != nil {
@@ -140,10 +140,10 @@ await using var client = new CopilotClient(new CopilotClientOptions
 {
     ClientInfo = new CopilotClientInfo
     {
-        EditorName = "JetBrains-IU",
-        EditorVersion = "2026.1",
-        ExtensionName = "copilot-intellij",
-        ExtensionVersion = "1.5.0",
+        ApplicationName = "acme-developer-portal",
+        ApplicationVersion = "2.4.0",
+        IntegrationName = "copilot-assistant",
+        IntegrationVersion = "1.5.0",
     },
 });
 
@@ -165,10 +165,10 @@ public class ClientInfoExample {
     public static void main(String[] args) throws Exception {
         var options = new CopilotClientOptions()
             .setClientInfo(new ClientInfo()
-                .setEditorName("JetBrains-IU")
-                .setEditorVersion("2026.1")
-                .setExtensionName("copilot-intellij")
-                .setExtensionVersion("1.5.0"));
+                .setApplicationName("acme-developer-portal")
+                .setApplicationVersion("2.4.0")
+                .setIntegrationName("copilot-assistant")
+                .setIntegrationVersion("1.5.0"));
 
         var client = new CopilotClient(options);
         client.start().get();
@@ -180,10 +180,10 @@ public class ClientInfoExample {
 ```java
 var options = new CopilotClientOptions()
     .setClientInfo(new ClientInfo()
-        .setEditorName("JetBrains-IU")
-        .setEditorVersion("2026.1")
-        .setExtensionName("copilot-intellij")
-        .setExtensionVersion("1.5.0"));
+        .setApplicationName("acme-developer-portal")
+        .setApplicationVersion("2.4.0")
+        .setIntegrationName("copilot-assistant")
+        .setIntegrationVersion("1.5.0"));
 
 var client = new CopilotClient(options);
 client.start().get();
@@ -203,10 +203,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let _client = Client::start(
         ClientOptions::new().with_client_info(
             ClientInfo::new()
-                .with_editor_name("JetBrains-IU")
-                .with_editor_version("2026.1")
-                .with_extension_name("copilot-intellij")
-                .with_extension_version("1.5.0"),
+                .with_application_name("acme-developer-portal")
+                .with_application_version("2.4.0")
+                .with_integration_name("copilot-assistant")
+                .with_integration_version("1.5.0"),
         ),
     )
     .await?;
@@ -221,10 +221,10 @@ use github_copilot_sdk::{Client, ClientInfo, ClientOptions};
 let client = Client::start(
     ClientOptions::new().with_client_info(
         ClientInfo::new()
-            .with_editor_name("JetBrains-IU")
-            .with_editor_version("2026.1")
-            .with_extension_name("copilot-intellij")
-            .with_extension_version("1.5.0"),
+            .with_application_name("acme-developer-portal")
+            .with_application_version("2.4.0")
+            .with_integration_name("copilot-assistant")
+            .with_integration_version("1.5.0"),
     ),
 )
 .await?;

@@ -149,19 +149,19 @@ public sealed class GitHubTelemetryTests
             Connection = RuntimeConnection.ForUri(server.Url),
             ClientInfo = new CopilotClientInfo
             {
-                EditorName = "JetBrains-IU",
-                EditorVersion = "2026.1",
-                ExtensionName = "copilot-intellij",
-                ExtensionVersion = "1.5.0",
+                ApplicationName = "acme-developer-portal",
+                ApplicationVersion = "2.4.0",
+                IntegrationName = "copilot-assistant",
+                IntegrationVersion = "1.5.0",
             },
         });
         await client.StartAsync();
 
         var connectParams = server.LastConnectParams ?? throw new InvalidOperationException("connect was not captured.");
         Assert.True(connectParams.TryGetProperty("clientInfo", out var clientInfo));
-        Assert.Equal("JetBrains-IU", clientInfo.GetProperty("editorName").GetString());
-        Assert.Equal("2026.1", clientInfo.GetProperty("editorVersion").GetString());
-        Assert.Equal("copilot-intellij", clientInfo.GetProperty("extensionName").GetString());
+        Assert.Equal("acme-developer-portal", clientInfo.GetProperty("editorName").GetString());
+        Assert.Equal("2.4.0", clientInfo.GetProperty("editorVersion").GetString());
+        Assert.Equal("copilot-assistant", clientInfo.GetProperty("extensionName").GetString());
         Assert.Equal("1.5.0", clientInfo.GetProperty("extensionVersion").GetString());
     }
 
@@ -188,13 +188,13 @@ public sealed class GitHubTelemetryTests
         await using var client = new CopilotClient(new CopilotClientOptions
         {
             Connection = RuntimeConnection.ForUri(server.Url),
-            ClientInfo = new CopilotClientInfo { EditorName = "example-editor", EditorVersion = "" },
+            ClientInfo = new CopilotClientInfo { ApplicationName = "example-app", ApplicationVersion = "" },
         });
         await client.StartAsync();
 
         var connectParams = server.LastConnectParams ?? throw new InvalidOperationException("connect was not captured.");
         Assert.True(connectParams.TryGetProperty("clientInfo", out var clientInfo));
-        Assert.Equal("example-editor", clientInfo.GetProperty("editorName").GetString());
+        Assert.Equal("example-app", clientInfo.GetProperty("editorName").GetString());
         Assert.False(clientInfo.TryGetProperty("editorVersion", out _));
         Assert.False(clientInfo.TryGetProperty("extensionName", out _));
         Assert.False(clientInfo.TryGetProperty("extensionVersion", out _));
@@ -209,10 +209,10 @@ public sealed class GitHubTelemetryTests
             Connection = RuntimeConnection.ForUri(server.Url),
             ClientInfo = new CopilotClientInfo
             {
-                EditorName = "",
-                EditorVersion = "",
-                ExtensionName = "",
-                ExtensionVersion = "",
+                ApplicationName = "",
+                ApplicationVersion = "",
+                IntegrationName = "",
+                IntegrationVersion = "",
             },
         });
         await client.StartAsync();

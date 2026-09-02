@@ -308,7 +308,7 @@ export type InternalRuntimeConnection = RuntimeConnection | ParentProcessRuntime
 export type CopilotClientMode = "empty" | "copilot-cli";
 
 /**
- * Identity of the integrating host, declared once on the `server.connect`
+ * Identity of the integrating application, declared once on the `server.connect`
  * handshake so the telemetry the runtime emits on this connection is attributed
  * to a single, consistent surface rather than to the runtime's own build.
  *
@@ -318,24 +318,24 @@ export type CopilotClientMode = "empty" | "copilot-cli";
  */
 export interface CopilotClientInfo {
     /**
-     * Name of the host editor, e.g. `"vscode"`.
+     * Name of the application using the SDK, e.g. `"acme-developer-portal"`.
      */
-    editorName?: string;
+    applicationName?: string;
 
     /**
-     * Version of the host editor, e.g. `"1.124.2"`.
+     * Version of the application using the SDK, e.g. `"2.4.0"`.
      */
-    editorVersion?: string;
+    applicationVersion?: string;
 
     /**
-     * Name of the Copilot extension within the host, e.g. `"copilot-chat"`.
+     * Name of the Copilot integration within the application, e.g. `"copilot-assistant"`.
      */
-    extensionName?: string;
+    integrationName?: string;
 
     /**
-     * Version of the Copilot extension within the host, e.g. `"0.54.0"`.
+     * Version of the Copilot integration within the application, e.g. `"1.5.0"`.
      */
-    extensionVersion?: string;
+    integrationVersion?: string;
 }
 
 export interface CopilotClientOptions {
@@ -510,11 +510,11 @@ export interface CopilotClientOptions {
     enableRemoteSessions?: boolean;
 
     /**
-     * Identity of the integrating host, forwarded to the runtime on the
+     * Identity of the integrating application, forwarded to the runtime on the
      * `server.connect` handshake. Declaring it lets the telemetry the runtime
      * emits on this connection be attributed to a single, consistent surface
-     * (e.g. the host editor and its Copilot extension) instead of the runtime's
-     * own build. All fields are optional; omit it to keep the default
+     * (e.g. the application and its Copilot integration) instead of the
+     * runtime's own build. All fields are optional; omit it to keep the default
      * attribution.
      */
     clientInfo?: CopilotClientInfo;

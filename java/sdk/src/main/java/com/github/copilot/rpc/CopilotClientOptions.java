@@ -680,7 +680,7 @@ public class CopilotClientOptions {
     }
 
     /**
-     * Gets the integrating host's declared identity.
+     * Gets the integrating application's declared identity.
      *
      * @return the client info, or {@code null}
      * @since 1.6.0
@@ -690,17 +690,17 @@ public class CopilotClientOptions {
     }
 
     /**
-     * Declares the integrating host's identity, forwarded to the runtime on the
+     * Declares the integrating application's identity, forwarded to the runtime on the
      * {@code server.connect} handshake.
      * <p>
      * Declaring it lets the telemetry the runtime emits on this connection be
-     * attributed to a consistent surface (the host editor and its Copilot
-     * extension) instead of the runtime's own build. All fields on
+     * attributed to a consistent surface (the application and its Copilot
+     * integration) instead of the runtime's own build. All fields on
      * {@link ClientInfo} are optional; leave this unset to keep the runtime's
      * default attribution.
      *
      * @param clientInfo
-     *            the host identity to declare
+     *            the application identity to declare
      * @return this options instance for method chaining
      * @since 1.6.0
      */

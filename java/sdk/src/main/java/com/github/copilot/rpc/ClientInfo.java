@@ -9,19 +9,20 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
- * Identity of the integrating host, declared on the {@code server.connect}
+ * Identity of the integrating application, declared on the {@code server.connect}
  * handshake.
  * <p>
  * Declaring it lets the telemetry the runtime emits on the connection be
- * attributed to a single, consistent surface (the host editor and its Copilot
- * extension) instead of the runtime's own build. All fields are optional; an
+ * attributed to a single, consistent surface (the application and its Copilot
+ * integration) instead of the runtime's own build. All fields are optional; an
  * empty field is omitted from the handshake.
  *
  * <h2>Example Usage</h2>
  *
  * <pre>{@code
- * var options = new CopilotClientOptions().setClientInfo(new ClientInfo().setEditorName("vscode")
- * 		.setEditorVersion("1.124.2").setExtensionName("copilot-chat").setExtensionVersion("0.54.0"));
+ * var options = new CopilotClientOptions().setClientInfo(new ClientInfo()
+ * 		.setApplicationName("acme-developer-portal").setApplicationVersion("2.4.0")
+ * 		.setIntegrationName("copilot-assistant").setIntegrationVersion("1.5.0"));
  * }</pre>
  *
  * @see CopilotClientOptions#setClientInfo(ClientInfo)
@@ -30,99 +31,103 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
 public class ClientInfo {
 
+    private String applicationName;
+
+    private String applicationVersion;
+
+    private String integrationName;
+
+    private String integrationVersion;
+
+    /**
+     * Gets the name of the application using the SDK.
+     *
+     * @return the application name, or {@code null}
+     */
     @JsonProperty("editorName")
-    private String editorName;
+    public String getApplicationName() {
+        return applicationName;
+    }
 
+    /**
+     * Sets the name of the application using the SDK.
+     *
+     * @param applicationName
+     *            the application name
+     * @return this client info for method chaining
+     */
+    @JsonProperty("editorName")
+    public ClientInfo setApplicationName(String applicationName) {
+        this.applicationName = applicationName;
+        return this;
+    }
+
+    /**
+     * Gets the version of the application using the SDK.
+     *
+     * @return the application version, or {@code null}
+     */
     @JsonProperty("editorVersion")
-    private String editorVersion;
+    public String getApplicationVersion() {
+        return applicationVersion;
+    }
 
+    /**
+     * Sets the version of the application using the SDK.
+     *
+     * @param applicationVersion
+     *            the application version
+     * @return this client info for method chaining
+     */
+    @JsonProperty("editorVersion")
+    public ClientInfo setApplicationVersion(String applicationVersion) {
+        this.applicationVersion = applicationVersion;
+        return this;
+    }
+
+    /**
+     * Gets the name of the Copilot integration within the application.
+     *
+     * @return the integration name, or {@code null}
+     */
     @JsonProperty("extensionName")
-    private String extensionName;
+    public String getIntegrationName() {
+        return integrationName;
+    }
 
+    /**
+     * Sets the name of the Copilot integration within the application.
+     *
+     * @param integrationName
+     *            the integration name
+     * @return this client info for method chaining
+     */
+    @JsonProperty("extensionName")
+    public ClientInfo setIntegrationName(String integrationName) {
+        this.integrationName = integrationName;
+        return this;
+    }
+
+    /**
+     * Gets the version of the Copilot integration within the application.
+     *
+     * @return the integration version, or {@code null}
+     */
     @JsonProperty("extensionVersion")
-    private String extensionVersion;
-
-    /**
-     * Gets the name of the host editor.
-     *
-     * @return the editor name (e.g., {@code "vscode"}), or {@code null}
-     */
-    public String getEditorName() {
-        return editorName;
+    public String getIntegrationVersion() {
+        return integrationVersion;
     }
 
     /**
-     * Sets the name of the host editor.
+     * Sets the version of the Copilot integration within the application.
      *
-     * @param editorName
-     *            the editor name (e.g., {@code "vscode"})
+     * @param integrationVersion
+     *            the integration version
      * @return this client info for method chaining
      */
-    public ClientInfo setEditorName(String editorName) {
-        this.editorName = editorName;
-        return this;
-    }
-
-    /**
-     * Gets the version of the host editor.
-     *
-     * @return the editor version (e.g., {@code "1.124.2"}), or {@code null}
-     */
-    public String getEditorVersion() {
-        return editorVersion;
-    }
-
-    /**
-     * Sets the version of the host editor.
-     *
-     * @param editorVersion
-     *            the editor version (e.g., {@code "1.124.2"})
-     * @return this client info for method chaining
-     */
-    public ClientInfo setEditorVersion(String editorVersion) {
-        this.editorVersion = editorVersion;
-        return this;
-    }
-
-    /**
-     * Gets the name of the Copilot extension within the host.
-     *
-     * @return the extension name (e.g., {@code "copilot-chat"}), or {@code null}
-     */
-    public String getExtensionName() {
-        return extensionName;
-    }
-
-    /**
-     * Sets the name of the Copilot extension within the host.
-     *
-     * @param extensionName
-     *            the extension name (e.g., {@code "copilot-chat"})
-     * @return this client info for method chaining
-     */
-    public ClientInfo setExtensionName(String extensionName) {
-        this.extensionName = extensionName;
-        return this;
-    }
-
-    /**
-     * Gets the version of the Copilot extension within the host.
-     *
-     * @return the extension version (e.g., {@code "0.54.0"}), or {@code null}
-     */
-    public String getExtensionVersion() {
-        return extensionVersion;
-    }
-
-    /**
-     * Sets the version of the Copilot extension within the host.
-     *
-     * @param extensionVersion
-     *            the extension version (e.g., {@code "0.54.0"})
-     * @return this client info for method chaining
-     */
-    public ClientInfo setExtensionVersion(String extensionVersion) {
-        this.extensionVersion = extensionVersion;
+    @JsonProperty("extensionVersion")
+    public ClientInfo setIntegrationVersion(String integrationVersion) {
+        this.integrationVersion = integrationVersion;
         return this;
     }
 
@@ -135,7 +140,8 @@ public class ClientInfo {
      */
     @JsonIgnore
     public boolean isEmpty() {
-        return isBlank(editorName) && isBlank(editorVersion) && isBlank(extensionName) && isBlank(extensionVersion);
+        return isBlank(applicationName) && isBlank(applicationVersion) && isBlank(integrationName)
+                && isBlank(integrationVersion);
     }
 
     private static boolean isBlank(String value) {

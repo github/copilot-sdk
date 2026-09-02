@@ -300,10 +300,10 @@ func TestClient_ClientInfo(t *testing.T) {
 		client := NewClient(&ClientOptions{
 			Connection: URIConnection{URL: url},
 			ClientInfo: &ClientInfo{
-				EditorName:       "JetBrains-IU",
-				EditorVersion:    "2026.1",
-				ExtensionName:    "copilot-intellij",
-				ExtensionVersion: "1.5.0",
+				ApplicationName:    "acme-developer-portal",
+				ApplicationVersion: "2.4.0",
+				IntegrationName:    "copilot-assistant",
+				IntegrationVersion: "1.5.0",
 			},
 		})
 		if err := client.Start(t.Context()); err != nil {
@@ -313,9 +313,9 @@ func TestClient_ClientInfo(t *testing.T) {
 
 		params := findConnect(requests())
 		want := map[string]any{
-			"editorName":       "JetBrains-IU",
-			"editorVersion":    "2026.1",
-			"extensionName":    "copilot-intellij",
+			"editorName":       "acme-developer-portal",
+			"editorVersion":    "2.4.0",
+			"extensionName":    "copilot-assistant",
 			"extensionVersion": "1.5.0",
 		}
 		if !reflect.DeepEqual(params["clientInfo"], want) {
@@ -344,14 +344,14 @@ func TestClient_ClientInfo(t *testing.T) {
 
 		client := NewClient(&ClientOptions{
 			Connection: URIConnection{URL: url},
-			ClientInfo: &ClientInfo{EditorName: "example-editor"},
+			ClientInfo: &ClientInfo{ApplicationName: "example-app"},
 		})
 		if err := client.Start(t.Context()); err != nil {
 			t.Fatalf("Start failed: %v", err)
 		}
 		defer client.ForceStop()
 
-		want := map[string]any{"editorName": "example-editor"}
+		want := map[string]any{"editorName": "example-app"}
 		if got := findConnect(requests())["clientInfo"]; !reflect.DeepEqual(got, want) {
 			t.Fatalf("clientInfo = %v, want %v", got, want)
 		}

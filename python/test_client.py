@@ -3156,10 +3156,10 @@ class TestGitHubTelemetry:
         client = CopilotClient(
             connection=RuntimeConnection.for_stdio(path=CLI_PATH),
             client_info={
-                "editor_name": "JetBrains-IU",
-                "editor_version": "2026.1",
-                "extension_name": "copilot-intellij",
-                "extension_version": "1.5.0",
+                "application_name": "acme-developer-portal",
+                "application_version": "2.4.0",
+                "integration_name": "copilot-assistant",
+                "integration_version": "1.5.0",
             },
         )
         captured = {}
@@ -3172,9 +3172,9 @@ class TestGitHubTelemetry:
         client._client = _FakeClient()
         await client._verify_protocol_version()
         assert captured["connect"]["clientInfo"] == {
-            "editorName": "JetBrains-IU",
-            "editorVersion": "2026.1",
-            "extensionName": "copilot-intellij",
+            "editorName": "acme-developer-portal",
+            "editorVersion": "2.4.0",
+            "extensionName": "copilot-assistant",
             "extensionVersion": "1.5.0",
         }
 
@@ -3196,7 +3196,7 @@ class TestGitHubTelemetry:
     async def test_connect_forwards_partial_client_info_with_forwarding(self):
         client = CopilotClient(
             connection=RuntimeConnection.for_stdio(path=CLI_PATH),
-            client_info={"editor_name": "example-editor"},
+            client_info={"application_name": "example-app"},
             on_github_telemetry=lambda _notification: None,
         )
         captured = {}
@@ -3208,14 +3208,14 @@ class TestGitHubTelemetry:
 
         client._client = _FakeClient()
         await client._verify_protocol_version()
-        assert captured["connect"]["clientInfo"] == {"editorName": "example-editor"}
+        assert captured["connect"]["clientInfo"] == {"editorName": "example-app"}
         assert captured["connect"]["enableGitHubTelemetryForwarding"] is True
 
     @pytest.mark.asyncio
     async def test_connect_drops_empty_client_info_fields(self):
         client = CopilotClient(
             connection=RuntimeConnection.for_stdio(path=CLI_PATH),
-            client_info={"editor_name": "vscode", "editor_version": ""},
+            client_info={"application_name": "example-app", "application_version": ""},
         )
         captured = {}
 
@@ -3226,17 +3226,17 @@ class TestGitHubTelemetry:
 
         client._client = _FakeClient()
         await client._verify_protocol_version()
-        assert captured["connect"]["clientInfo"] == {"editorName": "vscode"}
+        assert captured["connect"]["clientInfo"] == {"editorName": "example-app"}
 
     @pytest.mark.asyncio
     async def test_connect_omits_all_empty_client_info(self):
         client = CopilotClient(
             connection=RuntimeConnection.for_stdio(path=CLI_PATH),
             client_info={
-                "editor_name": "",
-                "editor_version": "",
-                "extension_name": "",
-                "extension_version": "",
+                "application_name": "",
+                "application_version": "",
+                "integration_name": "",
+                "integration_version": "",
             },
         )
         captured = {}

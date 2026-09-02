@@ -209,17 +209,18 @@ class GitHubTelemetryTest {
     void connectForwardsDeclaredClientInfo() throws Exception {
         try (var server = new FakeRuntimeServer();
                 var client = new CopilotClient(new CopilotClientOptions().setCliUrl(server.url())
-                        .setClientInfo(new ClientInfo().setEditorName("JetBrains-IU").setEditorVersion("2026.1")
-                                .setExtensionName("copilot-intellij").setExtensionVersion("1.5.0")))) {
+                        .setClientInfo(new ClientInfo().setApplicationName("acme-developer-portal")
+                                .setApplicationVersion("2.4.0").setIntegrationName("copilot-assistant")
+                                .setIntegrationVersion("1.5.0")))) {
 
             client.start().get(15, TimeUnit.SECONDS);
 
             JsonNode connectParams = server.awaitConnect();
             JsonNode clientInfo = connectParams.path("clientInfo");
             assertEquals(4, clientInfo.size(), "clientInfo should carry only the four declared fields");
-            assertEquals("JetBrains-IU", clientInfo.path("editorName").asText());
-            assertEquals("2026.1", clientInfo.path("editorVersion").asText());
-            assertEquals("copilot-intellij", clientInfo.path("extensionName").asText());
+            assertEquals("acme-developer-portal", clientInfo.path("editorName").asText());
+            assertEquals("2.4.0", clientInfo.path("editorVersion").asText());
+            assertEquals("copilot-assistant", clientInfo.path("extensionName").asText());
             assertEquals("1.5.0", clientInfo.path("extensionVersion").asText());
         }
     }
@@ -241,13 +242,13 @@ class GitHubTelemetryTest {
     void connectOmitsEmptyClientInfoFields() throws Exception {
         try (var server = new FakeRuntimeServer();
                 var client = new CopilotClient(new CopilotClientOptions().setCliUrl(server.url())
-                        .setClientInfo(new ClientInfo().setEditorName("example-editor")))) {
+                        .setClientInfo(new ClientInfo().setApplicationName("example-app")))) {
 
             client.start().get(15, TimeUnit.SECONDS);
 
             JsonNode connectParams = server.awaitConnect();
             JsonNode clientInfo = connectParams.path("clientInfo");
-            assertEquals("example-editor", clientInfo.path("editorName").asText());
+            assertEquals("example-app", clientInfo.path("editorName").asText());
             assertFalse(clientInfo.has("editorVersion"), "unset editorVersion should be omitted");
             assertFalse(clientInfo.has("extensionName"), "unset extensionName should be omitted");
             assertFalse(clientInfo.has("extensionVersion"), "unset extensionVersion should be omitted");
@@ -258,14 +259,14 @@ class GitHubTelemetryTest {
     void connectDropsEmptyClientInfoFields() throws Exception {
         try (var server = new FakeRuntimeServer();
                 var client = new CopilotClient(new CopilotClientOptions().setCliUrl(server.url())
-                        .setClientInfo(new ClientInfo().setEditorName("vscode").setEditorVersion("")))) {
+                        .setClientInfo(new ClientInfo().setApplicationName("example-app").setApplicationVersion("")))) {
 
             client.start().get(15, TimeUnit.SECONDS);
 
             JsonNode connectParams = server.awaitConnect();
             JsonNode clientInfo = connectParams.path("clientInfo");
             assertEquals(1, clientInfo.size(), "clientInfo should carry only the non-empty field");
-            assertEquals("vscode", clientInfo.path("editorName").asText());
+            assertEquals("example-app", clientInfo.path("editorName").asText());
             assertFalse(clientInfo.has("editorVersion"), "empty editorVersion should be dropped");
         }
     }
@@ -274,8 +275,8 @@ class GitHubTelemetryTest {
     void connectOmitsAllEmptyClientInfo() throws Exception {
         try (var server = new FakeRuntimeServer();
                 var client = new CopilotClient(new CopilotClientOptions().setCliUrl(server.url())
-                        .setClientInfo(new ClientInfo().setEditorName("").setEditorVersion("").setExtensionName("")
-                                .setExtensionVersion("")))) {
+                        .setClientInfo(new ClientInfo().setApplicationName("").setApplicationVersion("")
+                                .setIntegrationName("").setIntegrationVersion("")))) {
 
             client.start().get(15, TimeUnit.SECONDS);
 
@@ -286,7 +287,7 @@ class GitHubTelemetryTest {
 
     @Test
     void optionsRetainAndCloneClientInfo() {
-        var info = new ClientInfo().setEditorName("example-editor");
+        var info = new ClientInfo().setApplicationName("example-app");
         var options = new CopilotClientOptions().setClientInfo(info);
         assertSame(info, options.getClientInfo());
 

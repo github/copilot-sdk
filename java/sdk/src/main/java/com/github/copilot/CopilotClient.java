@@ -642,7 +642,7 @@ public final class CopilotClient implements AutoCloseable {
             if (this.options.getOnGitHubTelemetry() != null) {
                 connectParams.put("enableGitHubTelemetryForwarding", true);
             }
-            // Declare the integrating host's identity so the runtime attributes the
+            // Declare the integrating application's identity so the runtime attributes the
             // telemetry it emits on this connection to a consistent surface instead of
             // its own build. Omitted when the app didn't supply it (or supplied no fields).
             var clientInfo = this.options.getClientInfo();
