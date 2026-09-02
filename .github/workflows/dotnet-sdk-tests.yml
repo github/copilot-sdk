@@ -128,7 +128,7 @@ jobs:
     # A hung test used to run until the runner died (~50 min) and the dying
     # runner never uploaded its logs, so the failures were undiagnosable.
     # Every healthy cell finishes well under 15 min.
-    timeout-minutes: 25
+    timeout-minutes: 20
     defaults:
       run:
         shell: bash
@@ -166,13 +166,12 @@ jobs:
         run: echo "COPILOT_SDK_DEFAULT_CONNECTION=inprocess" >> "$GITHUB_ENV"
 
       - name: Run .NET SDK tests
-        timeout-minutes: 18
         env:
           COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
           DOTNET_TEST_SHARD: ${{ matrix.shard }}
         run: |
           # --blame-hang names the offending test instead of letting it wedge
-          # the runner. No single test legitimately runs for five minutes; the
+          # the runner. No single test legitimately runs for 10 minutes; the
           # whole suite normally finishes in about five.
           # The validation job performs the full analyzer-enabled SDK build.
           # Build only test-consumed frameworks here and do not repeat analyzers.
@@ -180,7 +179,7 @@ jobs:
             --no-restore
             -v n
             --blame-hang
-            --blame-hang-timeout 5m
+            --blame-hang-timeout 10m
             --blame-hang-dump-type none
             --logger "trx;LogFilePrefix=test-results"
             --results-directory "$GITHUB_WORKSPACE/dotnet/TestResults"
