@@ -690,8 +690,8 @@ public class CopilotClientOptions {
     }
 
     /**
-     * Declares the integrating application's identity, forwarded to the runtime on the
-     * {@code server.connect} handshake.
+     * Declares the integrating application's identity, forwarded to the runtime on
+     * the {@code server.connect} handshake.
      * <p>
      * Declaring it lets the telemetry the runtime emits on this connection be
      * attributed to a consistent surface (the application and its Copilot

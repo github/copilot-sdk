@@ -9,8 +9,8 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
- * Identity of the integrating application, declared on the {@code server.connect}
- * handshake.
+ * Identity of the integrating application, declared on the
+ * {@code server.connect} handshake.
  * <p>
  * Declaring it lets the telemetry the runtime emits on the connection be
  * attributed to a single, consistent surface (the application and its Copilot
@@ -20,9 +20,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * <h2>Example Usage</h2>
  *
  * <pre>{@code
- * var options = new CopilotClientOptions().setClientInfo(new ClientInfo()
- * 		.setApplicationName("acme-developer-portal").setApplicationVersion("2.4.0")
- * 		.setIntegrationName("copilot-assistant").setIntegrationVersion("1.5.0"));
+ * var options = new CopilotClientOptions().setClientInfo(new ClientInfo().setApplicationName("acme-developer-portal")
+ * 		.setApplicationVersion("2.4.0").setIntegrationName("copilot-assistant").setIntegrationVersion("1.5.0"));
  * }</pre>
  *
  * @see CopilotClientOptions#setClientInfo(ClientInfo)
