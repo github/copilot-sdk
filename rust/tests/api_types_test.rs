@@ -3,14 +3,15 @@
 
 #![allow(clippy::unwrap_used)]
 
-use github_copilot_sdk::AutoTier;
 use github_copilot_sdk::rpc::{
-    Extension, ExtensionList, ExtensionSource, ExtensionStatus, ExtensionsDisableRequest,
-    ExtensionsEnableRequest, FleetStartRequest, FleetStartResult, TasksStartAgentRequest,
+    AgentInfo, AgentList, Extension, ExtensionList, ExtensionSource, ExtensionStatus,
+    ExtensionsDisableRequest, ExtensionsEnableRequest, FleetStartRequest, FleetStartResult,
+    ServerAgentList, TasksStartAgentRequest,
 };
 use github_copilot_sdk::session_events::{
     PermissionRequest, PermissionRequestedData, SessionEventData, TypedSessionEvent,
 };
+use github_copilot_sdk::{AutoTier, CustomAgentHandoff};
 
 #[test]
 fn session_events_deserialize_auto_tier() {
@@ -49,6 +50,89 @@ fn session_events_deserialize_auto_tier() {
             assert_eq!(actual, tier);
         }
     }
+}
+
+#[test]
+fn agent_info_handoffs_round_trip_in_order() {
+    let wire = serde_json::json!({
+        "id": "planner",
+        "name": "planner",
+        "displayName": "Planner",
+        "description": "Plans work",
+        "handoffs": [
+            {
+                "label": "Implement",
+                "agent": "implementer"
+            },
+            {
+                "label": "Review",
+                "agent": "reviewer",
+                "prompt": "Review the implementation.",
+                "send": true,
+                "model": "gpt-5.4"
+            }
+        ]
+    });
+
+    let info: AgentInfo = serde_json::from_value(wire.clone()).unwrap();
+    let handoffs: &[CustomAgentHandoff] = info.handoffs.as_deref().unwrap();
+    assert_eq!(handoffs.len(), 2);
+    assert_eq!(handoffs[0].label, "Implement");
+    assert_eq!(handoffs[0].agent, "implementer");
+    assert_eq!(handoffs[0].send, None);
+    assert_eq!(handoffs[1].label, "Review");
+    assert_eq!(
+        handoffs[1].prompt.as_deref(),
+        Some("Review the implementation.")
+    );
+    assert_eq!(handoffs[1].send, Some(true));
+    assert_eq!(handoffs[1].model.as_deref(), Some("gpt-5.4"));
+    assert_eq!(serde_json::to_value(info).unwrap(), wire);
+}
+
+#[test]
+fn agent_info_omits_handoffs_when_absent() {
+    let info: AgentInfo = serde_json::from_value(serde_json::json!({
+        "id": "planner",
+        "name": "planner",
+        "displayName": "Planner",
+        "description": "Plans work"
+    }))
+    .unwrap();
+    assert!(info.handoffs.is_none());
+    assert!(
+        serde_json::to_value(info)
+            .unwrap()
+            .get("handoffs")
+            .is_none()
+    );
+}
+
+#[test]
+fn agent_list_rpcs_expose_handoffs() {
+    let wire = serde_json::json!({
+        "agents": [{
+            "id": "planner",
+            "name": "planner",
+            "displayName": "Planner",
+            "description": "Plans work",
+            "handoffs": [{
+                "label": "Implement",
+                "agent": "implementer"
+            }]
+        }]
+    });
+
+    let discovered: ServerAgentList = serde_json::from_value(wire.clone()).unwrap();
+    let session_agents: AgentList = serde_json::from_value(wire).unwrap();
+    assert_eq!(
+        discovered.agents[0].handoffs.as_ref().unwrap()[0].agent,
+        "implementer"
+    );
+    assert_eq!(
+        session_agents.agents[0].handoffs.as_ref().unwrap()[0].agent,
+        "implementer"
+    );
 }
 
 #[test]

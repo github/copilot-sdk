@@ -626,8 +626,8 @@ impl Serialize for CommandDefinition {
 
 /// Configures a custom agent (sub-agent) for the session.
 ///
-/// Custom agents have their own prompt, tool allowlist, and optionally
-/// their own MCP servers and skill set. The agent named in
+/// Custom agents have their own prompt, tool allowlist, handoff actions, and
+/// optionally their own MCP servers and skill set. The agent named in
 /// [`SessionConfig::agent`] (or the runtime default) is the active one
 /// when the session starts.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -656,6 +656,9 @@ pub struct CustomAgentConfig {
     /// Skill names to preload into this agent's context at startup.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub skills: Option<Vec<String>>,
+    /// Actions that transfer the conversation to another custom agent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub handoffs: Option<Vec<CustomAgentHandoff>>,
     /// Model identifier for this agent (e.g. `"claude-haiku-4.5"`).
     ///
     /// When set, the runtime will attempt to use this model for the agent,
@@ -727,6 +730,15 @@ impl CustomAgentConfig {
         S: Into<String>,
     {
         self.skills = Some(skills.into_iter().map(Into::into).collect());
+        self
+    }
+
+    /// Set the handoff actions in display order.
+    pub fn with_handoffs<I>(mut self, handoffs: I) -> Self
+    where
+        I: IntoIterator<Item = CustomAgentHandoff>,
+    {
+        self.handoffs = Some(handoffs.into_iter().collect());
         self
     }
 
@@ -5941,12 +5953,12 @@ impl InputFormat {
 /// [`crate::rpc`]; they live here so the crate-root
 /// `pub use types::*` surfaces them alongside hand-written SDK types.
 pub use crate::generated::api_types::{
-    Model, ModelBilling, ModelBillingTokenPrices, ModelBillingTokenPricesLongContext,
-    ModelCapabilities, ModelCapabilitiesLimits, ModelCapabilitiesLimitsVision,
-    ModelCapabilitiesSupports, ModelList, ModelPolicy, PermissionDecision,
-    PermissionDecisionApproveOnce, PermissionDecisionContext, PermissionDecisionOutcome,
-    PermissionDecisionReject, PermissionDecisionSource, PermissionDecisionSurface,
-    PermissionDecisionUserNotAvailable, PermissionResponseCapability,
+    CustomAgentHandoff, Model, ModelBilling, ModelBillingTokenPrices,
+    ModelBillingTokenPricesLongContext, ModelCapabilities, ModelCapabilitiesLimits,
+    ModelCapabilitiesLimitsVision, ModelCapabilitiesSupports, ModelList, ModelPolicy,
+    PermissionDecision, PermissionDecisionApproveOnce, PermissionDecisionContext,
+    PermissionDecisionOutcome, PermissionDecisionReject, PermissionDecisionSource,
+    PermissionDecisionSurface, PermissionDecisionUserNotAvailable, PermissionResponseCapability,
 };
 
 /// Permission categories the CLI may request approval for.
@@ -6053,13 +6065,14 @@ mod tests {
     use super::{
         AgentMode, Attachment, AttachmentLineRange, AttachmentSelectionPosition,
         AttachmentSelectionRange, AutoTier, AzureProviderOptions, CapiSessionOptions,
-        ConnectionState, CopilotExpAssignmentResponse, CustomAgentConfig, DeliveryMode,
-        ExpConfigEntry, ExpFlagValue, ExtensionInfo, GitHubMcpToolConfig, GitHubReferenceType,
-        InfiniteSessionConfig, LargeToolOutputConfig, McpServerConfig, McpStdioServerConfig,
-        MemoryConfiguration, NamedProviderConfig, PermissionResponseCapability, ProviderConfig,
-        ProviderModelConfig, ReasoningSummary, ResumeSessionConfig, SessionConfig, SessionEvent,
-        SessionId, SystemMessageConfig, Tool, ToolBinaryResult, ToolResult, ToolResultExpanded,
-        ToolResultResponse, ensure_attachment_display_names,
+        ConnectionState, CopilotExpAssignmentResponse, CustomAgentConfig, CustomAgentHandoff,
+        DeliveryMode, ExpConfigEntry, ExpFlagValue, ExtensionInfo, GitHubMcpToolConfig,
+        GitHubReferenceType, InfiniteSessionConfig, LargeToolOutputConfig, McpServerConfig,
+        McpStdioServerConfig, MemoryConfiguration, NamedProviderConfig,
+        PermissionResponseCapability, ProviderConfig, ProviderModelConfig, ReasoningSummary,
+        ResumeSessionConfig, SessionConfig, SessionEvent, SessionId, SystemMessageConfig, Tool,
+        ToolBinaryResult, ToolResult, ToolResultExpanded, ToolResultResponse,
+        ensure_attachment_display_names,
     };
     use crate::generated::session_events::TypedSessionEvent;
 
@@ -6176,6 +6189,57 @@ mod tests {
         let agent = CustomAgentConfig::new("default-agent", "prompt");
         let wire = serde_json::to_value(&agent).unwrap();
         assert!(wire.get("reasoningEffort").is_none());
+    }
+
+    #[test]
+    fn custom_agent_config_handoffs_round_trip_in_order() {
+        let agent = CustomAgentConfig::new("planner", "Plan the work.").with_handoffs([
+            CustomAgentHandoff {
+                label: "Implement".to_string(),
+                agent: "implementer".to_string(),
+                prompt: None,
+                send: None,
+                model: None,
+            },
+            CustomAgentHandoff {
+                label: "Review".to_string(),
+                agent: "reviewer".to_string(),
+                prompt: Some("Review the implementation.".to_string()),
+                send: Some(true),
+                model: Some("gpt-5.4".to_string()),
+            },
+        ]);
+
+        let wire = serde_json::to_value(&agent).unwrap();
+        assert_eq!(
+            wire["handoffs"],
+            json!([
+                {
+                    "label": "Implement",
+                    "agent": "implementer"
+                },
+                {
+                    "label": "Review",
+                    "agent": "reviewer",
+                    "prompt": "Review the implementation.",
+                    "send": true,
+                    "model": "gpt-5.4"
+                }
+            ])
+        );
+
+        let decoded: CustomAgentConfig = serde_json::from_value(wire).unwrap();
+        let handoffs = decoded.handoffs.unwrap();
+        assert_eq!(handoffs.len(), 2);
+        assert_eq!(handoffs[0].label, "Implement");
+        assert_eq!(handoffs[1].label, "Review");
+    }
+
+    #[test]
+    fn custom_agent_config_omits_handoffs_when_none() {
+        let agent = CustomAgentConfig::new("default-agent", "prompt");
+        let wire = serde_json::to_value(&agent).unwrap();
+        assert!(wire.get("handoffs").is_none());
     }
 
     #[test]

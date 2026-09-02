@@ -1541,6 +1541,32 @@ pub struct AgentDiscoveryPathList {
     pub paths: Vec<AgentDiscoveryPath>,
 }
 
+/// An authored action that transfers the conversation to another custom agent.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CustomAgentHandoff {
+    /// Identifier of the custom agent that receives the handoff.
+    pub agent: String,
+    /// Human-readable action label shown by the host UI.
+    pub label: String,
+    /// Optional model id selected for the target agent.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    /// Optional prompt supplied to the target agent.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prompt: Option<String>,
+    /// Whether the host should submit the handoff prompt immediately. Defaults to false.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub send: Option<bool>,
+}
+
 /// Agent metadata, including identifiers, display details, source, tools, model, MCP servers, skills, and file path.
 ///
 /// <div class="warning">
@@ -1556,6 +1582,9 @@ pub struct AgentInfo {
     pub description: String,
     /// Human-readable display name
     pub display_name: String,
+    /// Authored handoff actions, in display order. Omitted when the agent defines no handoffs.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub handoffs: Option<Vec<CustomAgentHandoff>>,
     /// Stable identifier for selection. For most agents this is the same as `name`; for plugin/builtin agents it may differ. Always populated; defaults to `name` when no distinct id was assigned.
     pub id: String,
     /// MCP server configurations attached to this agent, keyed by server name. Server config shape mirrors the MCP `mcpServers` schema.
