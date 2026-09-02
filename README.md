@@ -142,9 +142,11 @@ Please use the [GitHub Issues](https://github.com/github/copilot-sdk/issues) pag
 | ----------- | -------------------------------------------------------- |
 | **Clojure** | [copilot-community-sdk/copilot-sdk-clojure][sdk-clojure] |
 | **C++**     | [0xeb/copilot-sdk-cpp][sdk-cpp]                          |
+| **Zig**     | [scaryrawr/copilot-sdk-zig][sdk-zig]                     |
 
 [sdk-cpp]: https://github.com/0xeb/copilot-sdk-cpp
 [sdk-clojure]: https://github.com/copilot-community-sdk/copilot-sdk-clojure
+[sdk-zig]: https://github.com/scaryrawr/copilot-sdk-zig
 
 ## Contributing
 
