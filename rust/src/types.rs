@@ -5424,6 +5424,307 @@ impl From<&String> for MessageOptions {
     }
 }
 
+/// Wire `version` stamped on every authenticated cross-session admission
+/// request. The runtime rejects any other value.
+const CROSS_SESSION_INPUT_VERSION: u32 = 1;
+
+/// Wire `kind` discriminator stamped on every authenticated cross-session
+/// admission request.
+const CROSS_SESSION_INPUT_KIND: &str = "authenticated-cross-session";
+
+/// Wire `origin` provenance class stamped on every authenticated
+/// cross-session admission request. Cross-session input is never human
+/// input, so the SDK — not the caller — asserts the non-human origin.
+const CROSS_SESSION_INPUT_ORIGIN: &str = "authenticated-cross-session";
+
+/// Wire `integrity` class stamped on every authenticated cross-session
+/// admission request. Cross-session content is untrusted even when the
+/// host authenticated its sender, so the SDK — not the caller — asserts it.
+const CROSS_SESSION_INPUT_INTEGRITY: &str = "untrusted";
+
+/// Optional private presentation metadata describing the sending session,
+/// carried alongside a [`CrossSessionInput`].
+///
+/// Every field is optional and is omitted from the wire payload when `None`.
+/// The runtime rejects explicit `null` for any of these fields.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct CrossSessionPresentation {
+    /// Identifier of the sending project session.
+    pub project_session_id: Option<String>,
+    /// Human-readable name of the sending project session.
+    pub project_session_name: Option<String>,
+    /// Display name shown for the sender.
+    pub display_name: Option<String>,
+    /// Branch the sending project session is working on.
+    pub project_session_branch: Option<String>,
+    /// Repository the sending project session is working in.
+    pub repository: Option<String>,
+}
+
+impl CrossSessionPresentation {
+    /// Build an empty presentation block. Every field is omitted until set.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set the sending project session's identifier.
+    pub fn with_project_session_id(mut self, project_session_id: impl Into<String>) -> Self {
+        self.project_session_id = Some(project_session_id.into());
+        self
+    }
+
+    /// Set the sending project session's name.
+    pub fn with_project_session_name(mut self, project_session_name: impl Into<String>) -> Self {
+        self.project_session_name = Some(project_session_name.into());
+        self
+    }
+
+    /// Set the display name shown for the sender.
+    pub fn with_display_name(mut self, display_name: impl Into<String>) -> Self {
+        self.display_name = Some(display_name.into());
+        self
+    }
+
+    /// Set the sending project session's branch.
+    pub fn with_project_session_branch(mut self, branch: impl Into<String>) -> Self {
+        self.project_session_branch = Some(branch.into());
+        self
+    }
+
+    /// Set the sending project session's repository.
+    pub fn with_repository(mut self, repository: impl Into<String>) -> Self {
+        self.repository = Some(repository.into());
+        self
+    }
+}
+
+/// The caller-supplied half of an authenticated cross-session input.
+///
+/// This type deliberately carries only the fields a host may vary. The
+/// wire payload's `version`, `kind`, `origin`, and `integrity`
+/// discriminators are stamped by the SDK during request conversion and are
+/// not reachable from this type, so a caller cannot claim a different
+/// provenance or integrity class.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct CrossSessionInput {
+    /// Stable identifier assigned by the sending host for this message.
+    pub message_id: String,
+    /// Authenticated same-user principal supplied by the sending host.
+    pub sender_principal: String,
+    /// Session identifier of the sender.
+    pub sender_session_id: String,
+    /// Host-stamped immediate sender identity used to check that a reply
+    /// stays on the established edge.
+    pub reply_target: String,
+    /// Raw natural-language message content.
+    pub content: String,
+    /// Optional recipient behavior request, distinct from
+    /// [`delivery_mode`](Self::delivery_mode). Omitted when `None`.
+    pub requested_mode: Option<String>,
+    /// Optional private presentation metadata. Omitted when `None`.
+    pub presentation: Option<CrossSessionPresentation>,
+    /// Optional scheduling selection. Omitted when `None`, which preserves
+    /// the recipient session's current default.
+    pub delivery_mode: Option<DeliveryMode>,
+}
+
+impl CrossSessionInput {
+    /// Build a cross-session input from its required fields.
+    pub fn new(
+        message_id: impl Into<String>,
+        sender_principal: impl Into<String>,
+        sender_session_id: impl Into<String>,
+        reply_target: impl Into<String>,
+        content: impl Into<String>,
+    ) -> Self {
+        Self {
+            message_id: message_id.into(),
+            sender_principal: sender_principal.into(),
+            sender_session_id: sender_session_id.into(),
+            reply_target: reply_target.into(),
+            content: content.into(),
+            requested_mode: None,
+            presentation: None,
+            delivery_mode: None,
+        }
+    }
+
+    /// Set the optional recipient behavior request.
+    pub fn with_requested_mode(mut self, requested_mode: impl Into<String>) -> Self {
+        self.requested_mode = Some(requested_mode.into());
+        self
+    }
+
+    /// Attach optional private presentation metadata.
+    pub fn with_presentation(mut self, presentation: CrossSessionPresentation) -> Self {
+        self.presentation = Some(presentation);
+        self
+    }
+
+    /// Set the optional delivery mode for this admission.
+    pub fn with_delivery_mode(mut self, delivery_mode: DeliveryMode) -> Self {
+        self.delivery_mode = Some(delivery_mode);
+        self
+    }
+}
+
+/// Recipient-side per-turn continuation context supplied by the local host.
+///
+/// This is never transmitted between sessions and is never populated from a
+/// remote sender's payload.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct CrossSessionRecipientContext {
+    /// Session identifiers this turn is authorized to continue with.
+    pub authorized_continuation_targets: Vec<String>,
+}
+
+impl CrossSessionRecipientContext {
+    /// Build a recipient context from a set of authorized continuation targets.
+    pub fn new(targets: impl IntoIterator<Item = impl Into<String>>) -> Self {
+        Self {
+            authorized_continuation_targets: targets.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+/// Request for
+/// [`Session::admit_authenticated_cross_session_input`](crate::session::Session::admit_authenticated_cross_session_input).
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct AdmitAuthenticatedCrossSessionInputRequest {
+    /// The authenticated cross-session input to admit.
+    pub input: CrossSessionInput,
+    /// Optional recipient-side continuation context. Omitted when `None`.
+    pub recipient_context: Option<CrossSessionRecipientContext>,
+}
+
+impl AdmitAuthenticatedCrossSessionInputRequest {
+    /// Build a request that admits `input` with no extra recipient context.
+    pub fn new(input: CrossSessionInput) -> Self {
+        Self {
+            input,
+            recipient_context: None,
+        }
+    }
+
+    /// Attach recipient-side continuation context.
+    pub fn with_recipient_context(mut self, context: CrossSessionRecipientContext) -> Self {
+        self.recipient_context = Some(context);
+        self
+    }
+}
+
+/// Wire params for `session.lifecycle.admitAuthenticatedCrossSessionInput`.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct AdmitAuthenticatedCrossSessionInputParams {
+    session_id: SessionId,
+    input: CrossSessionInputWire,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    recipient_context: Option<CrossSessionRecipientContextWire>,
+}
+
+impl AdmitAuthenticatedCrossSessionInputParams {
+    pub(crate) fn new(
+        session_id: SessionId,
+        request: AdmitAuthenticatedCrossSessionInputRequest,
+    ) -> Self {
+        Self {
+            session_id,
+            input: CrossSessionInputWire::from(request.input),
+            recipient_context: request.recipient_context.map(Into::into),
+        }
+    }
+}
+
+/// Wire form of [`CrossSessionInput`]. The provenance and integrity
+/// discriminators are private and stamped here, so no caller-provided value
+/// can reach them.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CrossSessionInputWire {
+    version: u32,
+    kind: &'static str,
+    origin: &'static str,
+    integrity: &'static str,
+    message_id: String,
+    sender_principal: String,
+    sender_session_id: String,
+    reply_target: String,
+    content: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    requested_mode: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    presentation: Option<CrossSessionPresentationWire>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    delivery_mode: Option<DeliveryMode>,
+}
+
+impl From<CrossSessionInput> for CrossSessionInputWire {
+    fn from(input: CrossSessionInput) -> Self {
+        Self {
+            version: CROSS_SESSION_INPUT_VERSION,
+            kind: CROSS_SESSION_INPUT_KIND,
+            origin: CROSS_SESSION_INPUT_ORIGIN,
+            integrity: CROSS_SESSION_INPUT_INTEGRITY,
+            message_id: input.message_id,
+            sender_principal: input.sender_principal,
+            sender_session_id: input.sender_session_id,
+            reply_target: input.reply_target,
+            content: input.content,
+            requested_mode: input.requested_mode,
+            presentation: input.presentation.map(Into::into),
+            delivery_mode: input.delivery_mode,
+        }
+    }
+}
+
+/// Wire form of [`CrossSessionPresentation`].
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CrossSessionPresentationWire {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    project_session_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    project_session_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    display_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    project_session_branch: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    repository: Option<String>,
+}
+
+impl From<CrossSessionPresentation> for CrossSessionPresentationWire {
+    fn from(presentation: CrossSessionPresentation) -> Self {
+        Self {
+            project_session_id: presentation.project_session_id,
+            project_session_name: presentation.project_session_name,
+            display_name: presentation.display_name,
+            project_session_branch: presentation.project_session_branch,
+            repository: presentation.repository,
+        }
+    }
+}
+
+/// Wire form of [`CrossSessionRecipientContext`].
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CrossSessionRecipientContextWire {
+    authorized_continuation_targets: Vec<String>,
+}
+
+impl From<CrossSessionRecipientContext> for CrossSessionRecipientContextWire {
+    fn from(context: CrossSessionRecipientContext) -> Self {
+        Self {
+            authorized_continuation_targets: context.authorized_continuation_targets,
+        }
+    }
+}
+
 /// Response from [`Client::get_status`](crate::Client::get_status).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
