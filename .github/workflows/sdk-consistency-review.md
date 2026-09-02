@@ -1,6 +1,7 @@
 ---
 description: Reviews PRs to ensure features are implemented consistently across all SDK language implementations
 tracker-id: sdk-consistency-review
+model: claude-sonnet-5
 on:
   roles: all
   pull_request:
