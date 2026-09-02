@@ -35,12 +35,22 @@ func Setup() error {
 	return setup()
 }
 
+// Test hooks for overriding default behavior in tests.
+var (
+	testSetupHTTPClient = &http.Client{Timeout: 10 * time.Minute}
+	testUserCacheDir    = os.UserCacheDir
+	testListSDKModule   = func() ([]byte, error) {
+		return exec.Command("go", "list", "-m", "-json", testSDKModule).CombinedOutput()
+	}
+	testRuntimeTarballURL = npmregistry.TarballURL
+)
+
 func setup() error {
 	// An explicitly provisioned runtime takes precedence and avoids all discovery
 	// and download work.
 	if configured := os.Getenv("COPILOT_CLI_PATH"); configured != "" {
-		if !testRegularFile(configured) {
-			return fmt.Errorf("COPILOT_CLI_PATH %q is not a file", configured)
+		if err := validateTestCLIPath(configured); err != nil {
+			return fmt.Errorf("COPILOT_CLI_PATH %w", err)
 		}
 		return nil
 	}
@@ -50,13 +60,13 @@ func setup() error {
 	if platform == "" {
 		return fmt.Errorf("unsupported Copilot runtime platform %s/%s", runtime.GOOS, runtime.GOARCH)
 	}
+	cacheDir, err := testUserCacheDir()
+	if err != nil {
+		return fmt.Errorf("locating user cache directory: %w", err)
+	}
 	metadata, err := compatibleTestRuntimeMetadata(platform)
 	if err != nil {
 		return err
-	}
-	cacheDir, err := os.UserCacheDir()
-	if err != nil {
-		cacheDir = os.TempDir()
 	}
 	// Cache each exact platform package independently so SDK versions can coexist.
 	installDir := filepath.Join(cacheDir, "copilot-sdk", "test-runtime", metadata.version, platform)
@@ -132,7 +142,7 @@ type testRuntimeMetadata struct {
 func compatibleTestRuntimeMetadata(platform string) (testRuntimeMetadata, error) {
 	// Query the effective module so local replace directives are reflected in both
 	// the source directory and version used below.
-	output, err := exec.Command("go", "list", "-m", "-json", testSDKModule).CombinedOutput()
+	output, err := testListSDKModule()
 	if err != nil {
 		return testRuntimeMetadata{}, fmt.Errorf("locating %s: %w: %s", testSDKModule, err, strings.TrimSpace(string(output)))
 	}
@@ -183,8 +193,6 @@ func compatibleTestRuntimeMetadata(platform string) (testRuntimeMetadata, error)
 	return parseTestRuntimeMetadata(response.Body, platform)
 }
 
-var testSetupHTTPClient = &http.Client{Timeout: 10 * time.Minute}
-
 func parseTestRuntimeMetadata(reader io.Reader, platform string) (testRuntimeMetadata, error) {
 	var packageLock struct {
 		Packages map[string]struct {
@@ -222,10 +230,23 @@ func installedTestRuntimePath(packageDir, platform string, expected testRuntimeM
 		return "", false
 	}
 	cliPath := filepath.Join(packageDir, testCLIBinaryName())
-	if !testRegularFile(cliPath) || !testRegularFile(filepath.Join(packageDir, "prebuilds", platform, "runtime.node")) {
+	if validateTestCLIPath(cliPath) != nil || !testRegularFile(filepath.Join(packageDir, "prebuilds", platform, "runtime.node")) {
 		return "", false
 	}
 	return cliPath, true
+}
+
+func validateTestCLIPath(path string) error {
+	info, err := os.Stat(path)
+	if err != nil || !info.Mode().IsRegular() {
+		return fmt.Errorf("%q is not a file", path)
+	}
+	// JavaScript entrypoints are passed to Node.js; native entrypoints must be
+	// directly executable on Unix.
+	if runtime.GOOS != "windows" && !strings.HasSuffix(path, ".js") && info.Mode().Perm()&0111 == 0 {
+		return fmt.Errorf("%q is not executable", path)
+	}
+	return nil
 }
 
 func testCLIBinaryName() string {
@@ -250,7 +271,7 @@ func testIsHex(value string) bool {
 }
 
 func downloadTestRuntime(destination, platform string, metadata testRuntimeMetadata) (string, error) {
-	url, err := npmregistry.TarballURL("@github/copilot-"+platform, metadata.version)
+	url, err := testRuntimeTarballURL("@github/copilot-"+platform, metadata.version)
 	if err != nil {
 		return "", err
 	}

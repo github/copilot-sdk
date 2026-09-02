@@ -3,6 +3,7 @@ package testcli_test
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -23,6 +24,31 @@ func TestSetupHonorsConfiguredPath(t *testing.T) {
 	if got := os.Getenv("COPILOT_CLI_PATH"); got != cliPath {
 		t.Fatalf("COPILOT_CLI_PATH = %q, want %q", got, cliPath)
 	}
+}
+
+func TestSetupHonorsJavaScriptConfiguredPath(t *testing.T) {
+	cliPath := filepath.Join(t.TempDir(), "copilot.js")
+	if err := os.WriteFile(cliPath, []byte("test"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("COPILOT_CLI_PATH", cliPath)
+
+	if err := testcli.Setup(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestSetupRejectsNonExecutableNativePath(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows does not use Unix execute permission bits")
+	}
+	cliPath := filepath.Join(t.TempDir(), "copilot")
+	if err := os.WriteFile(cliPath, []byte("test"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("COPILOT_CLI_PATH", cliPath)
+
+	requireErrorContaining(t, testcli.Setup(), "COPILOT_CLI_PATH", "is not executable")
 }
 
 func TestSetupRejectsInvalidConfiguredPath(t *testing.T) {
