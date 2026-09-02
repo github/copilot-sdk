@@ -19,6 +19,7 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
         transport: ["default", "inprocess"]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     defaults:
       run:
         shell: bash

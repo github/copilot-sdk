@@ -20,6 +20,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     defaults:
       run:
         shell: bash
@@ -35,17 +36,6 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: "1.94.0"
-          components: rustfmt, clippy
-
-      # Nightly rustfmt for unstable format options (group_imports,
-      # imports_granularity, reorder_impl_items) — pinned in
-      # `.rustfmt.nightly.toml`.
-      - name: Install nightly rustfmt
-        if: runner.os == 'Linux'
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: nightly-2026-04-14
-          components: rustfmt
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -70,23 +60,6 @@ jobs:
           path: ./rust/.bundled-cli-cache
           key: bundled-cli-${{ matrix.os }}-${{ steps.cli-version.outputs.version }}
 
-      - name: cargo fmt --check (nightly)
-        if: runner.os == 'Linux'
-        run: cargo +nightly-2026-04-14 fmt --all -- --config-path .rustfmt.nightly.toml --check
-
-      - name: cargo clippy
-        if: runner.os == 'Linux'
-        env:
-          BUNDLED_CLI_CACHE_DIR: ${{ github.workspace }}/rust/.bundled-cli-cache
-        run: cargo clippy --all-targets --features test-support,bundled-in-process -- --no-deps -D warnings -D clippy::unwrap_used -D clippy::disallowed_macros -D clippy::await_holding_invalid_type
-
-      - name: cargo doc
-        if: runner.os == 'Linux'
-        env:
-          RUSTDOCFLAGS: "-D warnings"
-          BUNDLED_CLI_CACHE_DIR: ${{ github.workspace }}/rust/.bundled-cli-cache
-        run: cargo doc --no-deps --all-features
-
       - name: Install test harness dependencies
         working-directory: ./test/harness
         run: npm ci --ignore-scripts
@@ -109,6 +82,112 @@ jobs:
         # The dedicated `bundle` job below exercises the embed pipeline.
         run: cargo test --no-default-features --features test-support -- --test-threads=4 --nocapture
 
+  clippy:
+    name: "Rust SDK Format and Clippy"
+    if: github.event.repository.fork == false
+    env:
+      POWERSHELL_UPDATECHECK: Off
+      CARGO_TERM_COLOR: always
+      RUST_BACKTRACE: 1
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./rust
+    steps:
+      - uses: actions/checkout@v6.0.2
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.94.0"
+          components: clippy
+
+      # Nightly rustfmt for unstable format options (group_imports,
+      # imports_granularity, reorder_impl_items) — pinned in
+      # `.rustfmt.nightly.toml`.
+      - name: Install nightly rustfmt
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly-2026-04-14
+          components: rustfmt
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "rust"
+          prefix-key: v1-rust-no-bin
+          cache-bin: false
+
+      - name: Read pinned @github/copilot CLI version
+        id: cli-version
+        working-directory: ./nodejs
+        run: |
+          version=$(node -p "require('./package-lock.json').packages['node_modules/@github/copilot'].version")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Pinned CLI version: $version"
+
+      - name: Cache bundled CLI archives
+        uses: actions/cache@v4
+        with:
+          path: ./rust/.bundled-cli-cache
+          key: bundled-cli-ubuntu-latest-${{ steps.cli-version.outputs.version }}
+
+      - name: cargo fmt --check (nightly)
+        run: cargo +nightly-2026-04-14 fmt --all -- --config-path .rustfmt.nightly.toml --check
+
+      - name: cargo clippy
+        env:
+          BUNDLED_CLI_CACHE_DIR: ${{ github.workspace }}/rust/.bundled-cli-cache
+        run: cargo clippy --all-targets --features test-support,bundled-in-process -- --no-deps -D warnings -D clippy::unwrap_used -D clippy::disallowed_macros -D clippy::await_holding_invalid_type
+
+  doc:
+    name: "Rust SDK Docs"
+    if: github.event.repository.fork == false
+    env:
+      POWERSHELL_UPDATECHECK: Off
+      CARGO_TERM_COLOR: always
+      RUST_BACKTRACE: 1
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./rust
+    steps:
+      - uses: actions/checkout@v6.0.2
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.94.0"
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "rust"
+          prefix-key: v1-rust-no-bin
+          cache-bin: false
+
+      - name: Read pinned @github/copilot CLI version
+        id: cli-version
+        working-directory: ./nodejs
+        run: |
+          version=$(node -p "require('./package-lock.json').packages['node_modules/@github/copilot'].version")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Pinned CLI version: $version"
+
+      - name: Cache bundled CLI archives
+        uses: actions/cache@v4
+        with:
+          path: ./rust/.bundled-cli-cache
+          key: bundled-cli-ubuntu-latest-${{ steps.cli-version.outputs.version }}
+
+      - name: cargo doc
+        env:
+          RUSTDOCFLAGS: "-D warnings"
+          BUNDLED_CLI_CACHE_DIR: ${{ github.workspace }}/rust/.bundled-cli-cache
+        run: cargo doc --no-deps --all-features
+
   # Exercises the in-process FFI transport (`Transport::InProcess`, the Rust
   # analogue of the .NET `RuntimeConnection.ForInProcess()`), mirroring the
   # `inprocess` transport cell in dotnet-sdk-tests.yml. Sets
@@ -130,6 +209,7 @@ jobs:
         # TODO: Re-enable Windows after fixing the napi-oop peer shutdown crash.
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     defaults:
       run:
         shell: bash
@@ -204,6 +284,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     defaults:
       run:
         shell: bash
