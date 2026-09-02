@@ -141,6 +141,12 @@ jobs:
             transport: default
             backend: capi
             shard: "2b2"
+          # Standalone extension tests require the legacy JavaScript entrypoint.
+          # Keep its subprocess tree isolated from the rest of the O/P/R shard.
+          - os: macos-latest
+            transport: default
+            backend: capi
+            shard: extensions
           - os: macos-latest
             transport: default
             backend: capi
@@ -264,6 +270,7 @@ jobs:
               2b1a-rpc-e)
                 initials=()
                 shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcE"
+                shard_exclusion="FullyQualifiedName!~GitHub.Copilot.Test.E2E.RpcExtensionsLoadedE2ETests"
                 ;;
               2b1b-mcp-and-skills)
                 initials=()
@@ -289,6 +296,10 @@ jobs:
                 initials=()
                 shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcS|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcT|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcU|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcW|FullyQualifiedName~GitHub.Copilot.Test.Unit.R"
                 ;;
+              extensions)
+                initials=()
+                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcExtensionsLoadedE2ETests"
+                ;;
               2c)
                 initials=(T V X Z)
                 shard_filter=""
@@ -309,6 +320,9 @@ jobs:
                 shard_filter="${shard_filter:+${shard_filter}|}${clause}"
               done
             done
+            if [[ -n "${shard_exclusion:-}" ]]; then
+              shard_filter="(${shard_filter})&(${shard_exclusion})"
+            fi
             filter="${filter:+(${filter})&}(${shard_filter})"
           fi
 
