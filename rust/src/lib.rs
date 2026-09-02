@@ -3529,7 +3529,7 @@ mod tests {
             let listener = std::net::TcpListener::bind(("127.0.0.1", 0)).unwrap();
             listener.local_addr().unwrap().port()
         };
-        const HELPER_FILTER: &str = "process_tree::tests::lock_holder_helper_entrypoint";
+        const HELPER_FILTER: &str = "tests::lock_holder_helper_entrypoint";
         let options = ClientOptions::new()
             .with_program(CliProgram::Path(PathBuf::from("sh")))
             .with_prefix_args([
@@ -3563,7 +3563,10 @@ mod tests {
             });
 
         let error = Client::start(options).await.unwrap_err();
-        assert!(matches!(error.kind(), ErrorKind::Io));
+        assert!(
+            matches!(error.kind(), ErrorKind::Io),
+            "expected TCP connection failure, got {error:?}"
+        );
         wait_for_test_path(&descendant_ready).await;
         let descendant_pid: u32 = std::fs::read_to_string(&descendant_ready)
             .unwrap()
@@ -3662,7 +3665,7 @@ mod tests {
         .await;
     }
 
-    #[cfg(any(unix, windows))]
+    #[cfg(unix)]
     #[tokio::test]
     async fn stop_awaits_root_reap_and_terminates_process_tree() {
         let temp = tempfile::tempdir().unwrap();
@@ -3732,14 +3735,34 @@ mod tests {
         .await;
     }
 
+    /// Re-exec entry point for the process-tree tests above. A normal test
+    /// run has no lock-path environment variable, so this is otherwise a
+    /// harmless no-op.
+    #[cfg(unix)]
+    #[test]
+    fn lock_holder_helper_entrypoint() {
+        let Ok(lock_path) = std::env::var("PROCESS_TREE_TEST_LOCK_PATH") else {
+            return;
+        };
+        let ready_path = std::env::var("PROCESS_TREE_TEST_READY_PATH").expect("ready path env var");
+        use std::os::fd::AsRawFd;
+
+        let lock = std::fs::OpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .write(true)
+            .open(lock_path)
+            .expect("open lock file");
+        // SAFETY: `lock` owns a valid fd for the duration of this process.
+        assert_eq!(unsafe { libc::flock(lock.as_raw_fd(), libc::LOCK_EX) }, 0);
+        std::fs::write(ready_path, std::process::id().to_string()).expect("write ready file");
+
+        std::thread::sleep(Duration::from_secs(120));
+    }
+
     /// Root command that waits for `start_path` to appear, then re-execs
-    /// this same test binary's `process_tree::tests::lock_holder_helper_entrypoint`
-    /// as a descendant and blocks so the root itself stays alive until
-    /// killed. Mirrors the identical helper in `process_tree`'s own tests;
-    /// duplicated here (rather than shared) because it builds the command
-    /// through `Client::build_command` to exercise the exact same spawn
-    /// path `Client::start` uses, which `process_tree`'s own tests
-    /// deliberately do not depend on.
+    /// this same test binary's [`lock_holder_helper_entrypoint`] as a
+    /// descendant and blocks so the root itself stays alive until killed.
     #[cfg(unix)]
     fn root_with_lock_holding_descendant(
         temp: &Path,
@@ -3748,7 +3771,7 @@ mod tests {
         start_path: &Path,
     ) -> Command {
         let this_test_binary = std::env::current_exe().unwrap();
-        const HELPER_FILTER: &str = "process_tree::tests::lock_holder_helper_entrypoint";
+        const HELPER_FILTER: &str = "tests::lock_holder_helper_entrypoint";
         #[cfg(unix)]
         let mut command = {
             let mut command =
