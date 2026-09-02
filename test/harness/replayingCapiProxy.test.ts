@@ -1591,32 +1591,15 @@ Always include PINEAPPLE_COCONUT_42.
       }
     });
 
-    test.each([
-      {
-        storedModels: undefined,
-        expected: ["claude-sonnet-5"],
-      },
-      {
-        storedModels: [],
-        expected: ["claude-sonnet-5"],
-      },
-      {
-        storedModels: ["claude-sonnet-5"],
-        expected: ["claude-sonnet-5"],
-      },
-      {
-        storedModels: ["custom-provider-model"],
-        expected: ["custom-provider-model"],
-      },
-    ])(
-      "uses the stored catalog or the default for $storedModels",
-      async ({ storedModels, expected }) => {
+    test.each([false, true])(
+      "defaults to Sonnet 5 without stored models (capture exists: %s)",
+      async (captureExists) => {
         const cachePath = path.join(tempDir, "cache.yaml");
-        if (storedModels !== undefined) {
+        if (captureExists) {
           await writeFile(
             cachePath,
             yaml.stringify({
-              models: storedModels,
+              models: [],
               conversations: [],
             } satisfies NormalizedData),
           );
@@ -1637,53 +1620,14 @@ Always include PINEAPPLE_COCONUT_42.
           const parsed = JSON.parse(response.body) as {
             data: Array<{ id: string }>;
           };
-          expect(parsed.data.map((model) => model.id)).toEqual(expected);
+          expect(parsed.data.map((model) => model.id)).toEqual(["claude-sonnet-5"]);
         } finally {
           await proxy.stop();
         }
       },
     );
 
-    test.each(["claude-sonnet-5", "custom-provider-model"])(
-      "replays model-independent conversations with requested model %s",
-      async (model) => {
-        const cachePath = path.join(tempDir, "cache.yaml");
-        await writeFile(
-          cachePath,
-          yaml.stringify({
-            models: ["claude-sonnet-5"],
-            conversations: [
-              {
-                messages: [
-                  { role: "user", content: "Hello" },
-                  { role: "assistant", content: "Hi there!" },
-                ],
-              },
-            ],
-          } satisfies NormalizedData),
-        );
-        const proxy = new ReplayingCapiProxy(
-          "http://localhost:9999",
-          cachePath,
-          workDir,
-        );
-        const proxyUrl = await proxy.start();
-
-        try {
-          const response = await makeRequest(proxyUrl, "/chat/completions", {
-            body: { model, messages: [{ role: "user", content: "Hello" }] },
-          });
-          expect(response.status).toBe(200);
-          const parsed = JSON.parse(response.body) as ChatCompletion;
-          expect(parsed.model).toBe(model);
-          expect(parsed.choices[0].message.content).toBe("Hi there!");
-        } finally {
-          await proxy.stop(true);
-        }
-      },
-    );
-
-    test("preserves explicit catalogs without adding the default", async () => {
+    test("returns cached models for /models endpoint", async () => {
       const cachePath = path.join(tempDir, "cache.yaml");
       const cacheContent = yaml.stringify({
         models: ["gpt-4o", "claude-sonnet-4"],
