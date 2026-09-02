@@ -24,13 +24,21 @@ import { ShellConfig } from "./util";
 describe("ReplayingCapiProxy", () => {
   let tempDir: string;
   let workDir: string;
+  let githubActions: string | undefined;
 
   beforeEach(async () => {
+    githubActions = process.env.GITHUB_ACTIONS;
+    delete process.env.GITHUB_ACTIONS;
     tempDir = await mkdtemp(path.join(os.tmpdir(), "capi-proxy-test-"));
     workDir = path.join(tempDir, "work");
   });
 
   afterEach(async () => {
+    if (githubActions === undefined) {
+      delete process.env.GITHUB_ACTIONS;
+    } else {
+      process.env.GITHUB_ACTIONS = githubActions;
+    }
     await rm(tempDir, { recursive: true, force: true });
   });
 
