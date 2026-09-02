@@ -31,6 +31,7 @@ static SHARED_E2E_RUNTIME: LazyLock<tokio::runtime::Runtime> = LazyLock::new(|| 
         .expect("create shared E2E runtime")
 });
 const SHARED_E2E_CLEANUP_TIMEOUT: Duration = Duration::from_secs(10);
+const PROXY_STARTUP_TIMEOUT: Duration = Duration::from_secs(30);
 
 pub const DEFAULT_TEST_TOKEN: &str = "rust-e2e-token";
 
@@ -1274,7 +1275,7 @@ impl CapiProxy {
             }
         });
         let re = regex::Regex::new(r"Listening: (http://[^\s]+)\s+(\{.*\})$").unwrap();
-        let deadline = Instant::now() + SHARED_E2E_CLEANUP_TIMEOUT;
+        let deadline = Instant::now() + PROXY_STARTUP_TIMEOUT;
         while let Some(remaining) = deadline.checked_duration_since(Instant::now()) {
             let line = match line_rx.recv_timeout(remaining) {
                 Ok(Ok(line)) => line,
@@ -1341,7 +1342,7 @@ impl CapiProxy {
 
         kill_and_wait_child(&mut child);
         Err(std::io::Error::other(format!(
-            "timed out after {SHARED_E2E_CLEANUP_TIMEOUT:?} waiting for proxy startup"
+            "timed out after {PROXY_STARTUP_TIMEOUT:?} waiting for proxy startup"
         )))
     }
 

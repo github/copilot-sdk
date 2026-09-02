@@ -12,7 +12,7 @@ jobs:
     name: ".NET SDK Build and Format"
     if: github.event.repository.fork == false
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     defaults:
       run:
         shell: bash
@@ -166,16 +166,26 @@ jobs:
         run: echo "COPILOT_SDK_DEFAULT_CONNECTION=inprocess" >> "$GITHUB_ENV"
 
       - name: Run .NET SDK tests
+        timeout-minutes: 18
         env:
           COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
           DOTNET_TEST_SHARD: ${{ matrix.shard }}
         run: |
           # --blame-hang names the offending test instead of letting it wedge
-          # the runner. No single test legitimately runs for 10 minutes; the
+          # the runner. No single test legitimately runs for five minutes; the
           # whole suite normally finishes in about five.
           # The validation job performs the full analyzer-enabled SDK build.
           # Build only test-consumed frameworks here and do not repeat analyzers.
-          args=(--no-restore -v n --blame-hang --blame-hang-timeout 10m --blame-hang-dump-type none -p:RunAnalyzers=false)
+          args=(
+            --no-restore
+            -v n
+            --blame-hang
+            --blame-hang-timeout 5m
+            --blame-hang-dump-type none
+            --logger "trx;LogFilePrefix=test-results"
+            --results-directory "$GITHUB_WORKSPACE/dotnet/TestResults"
+            -p:RunAnalyzers=false
+          )
 
           filter="$DOTNET_TEST_FILTER"
           if [[ "$DOTNET_TEST_SHARD" != "full" ]]; then
@@ -217,3 +227,12 @@ jobs:
             args+=(--filter "$filter")
           fi
           dotnet test test/GitHub.Copilot.SDK.Test.csproj "${args[@]}"
+
+      - name: Upload .NET test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: dotnet-test-diagnostics-${{ matrix.os }}-${{ matrix.transport }}-${{ matrix.backend }}-${{ matrix.shard }}-${{ github.run_attempt }}
+          path: dotnet/TestResults/
+          if-no-files-found: warn
+          retention-days: 7
