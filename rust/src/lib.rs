@@ -1021,10 +1021,8 @@ impl std::fmt::Debug for Client {
 
 struct ClientInner {
     child: parking_lot::Mutex<Option<Child>>,
-    /// Containment for `child` and any descendants it spawns. `None` when
-    /// there is no child (streams-only transports) or when attaching
-    /// containment failed and teardown fell back to root-only (see
-    /// [`process_tree::attach`]).
+    /// Windows Job Object containment for `child` and its descendants.
+    /// `None` for streams-only transports and non-Windows platforms.
     process_tree: parking_lot::Mutex<Option<process_tree::ProcessTree>>,
     #[cfg(feature = "bundled-in-process")]
     /// In-process FFI runtime host, set only for [`Transport::InProcess`].
@@ -1920,9 +1918,8 @@ impl Client {
             .args(&options.extra_args)
             .stdin(Stdio::piped());
         let spawn_start = Instant::now();
-        let child = command.spawn()?;
+        let (child, tree) = process_tree::spawn(&mut command)?;
         let spawn_elapsed = spawn_start.elapsed();
-        let tree = process_tree::attach(&child);
         debug!(
             elapsed_ms = spawn_elapsed.as_millis(),
             "Client::spawn_stdio subprocess spawned"
@@ -1947,9 +1944,8 @@ impl Client {
             .args(&options.extra_args)
             .stdin(Stdio::null());
         let spawn_start = Instant::now();
-        let child = command.spawn()?;
+        let (child, tree) = process_tree::spawn(&mut command)?;
         let spawn_elapsed = spawn_start.elapsed();
-        let tree = process_tree::attach(&child);
         let mut process = SpawnedProcessGuard::new(child, tree);
         debug!(
             elapsed_ms = spawn_elapsed.as_millis(),
@@ -2639,7 +2635,7 @@ impl Client {
         // asked the CLI to clean up cooperatively; this is the backstop
         // that still runs even when that cooperative cleanup left
         // something behind.
-        if let Some(tree) = &tree
+        if let Some(tree) = tree
             && let Err(e) = tree.terminate()
         {
             errors.push(e.into());
@@ -3430,7 +3426,7 @@ mod tests {
         client.force_stop();
     }
 
-    #[cfg(any(unix, windows))]
+    #[cfg(unix)]
     #[tokio::test]
     async fn dropping_last_client_kills_spawned_cli() {
         let temp = tempfile::tempdir().unwrap();
@@ -3463,7 +3459,7 @@ mod tests {
         assert_test_child_killed(&survived).await;
     }
 
-    #[cfg(any(unix, windows))]
+    #[cfg(unix)]
     #[tokio::test]
     async fn dropping_last_client_terminates_process_tree_and_releases_descendant_lock() {
         let temp = tempfile::tempdir().unwrap();
@@ -3601,7 +3597,7 @@ mod tests {
         );
     }
 
-    #[cfg(any(unix, windows))]
+    #[cfg(unix)]
     #[tokio::test]
     async fn force_stop_terminates_process_tree_and_releases_descendant_lock() {
         let temp = tempfile::tempdir().unwrap();
@@ -3744,7 +3740,7 @@ mod tests {
     /// through `Client::build_command` to exercise the exact same spawn
     /// path `Client::start` uses, which `process_tree`'s own tests
     /// deliberately do not depend on.
-    #[cfg(any(unix, windows))]
+    #[cfg(unix)]
     fn root_with_lock_holding_descendant(
         temp: &Path,
         lock_path: &Path,
@@ -3818,7 +3814,7 @@ mod tests {
 
     /// Attempts to acquire the same lock the descendant holds. Succeeds
     /// only once the descendant process has actually released it.
-    #[cfg(any(unix, windows))]
+    #[cfg(unix)]
     fn descendant_lock_is_free(path: &Path) -> bool {
         #[cfg(unix)]
         {
