@@ -16,6 +16,8 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { promisify } from "util";
 import type { JSONSchema7, JSONSchema7Definition } from "json-schema";
+
+import { applyManagedMcpSchemaOverlay } from "./managedMcpSchemaOverlay.js";
 import {
 	addManagedApprovalRequiredToPermissionRequests,
 	type ApiSchema,
@@ -2220,10 +2222,16 @@ async function generate(): Promise<void> {
 	const apiSchemaPath = await getApiSchemaPath(schemaArgs.apiSchemaPath);
 
 	const sessionEventsRaw = normalizeSchemaBrandCasing(
-		JSON.parse(await fs.readFile(sessionEventsSchemaPath, "utf-8")),
+		applyManagedMcpSchemaOverlay(
+			JSON.parse(await fs.readFile(sessionEventsSchemaPath, "utf-8")),
+			path.basename(sessionEventsSchemaPath),
+		),
 	);
 	const apiRaw = normalizeSchemaBrandCasing(
-		JSON.parse(await fs.readFile(apiSchemaPath, "utf-8")) as ApiSchema,
+		applyManagedMcpSchemaOverlay(
+			JSON.parse(await fs.readFile(apiSchemaPath, "utf-8")) as ApiSchema,
+			path.basename(apiSchemaPath),
+		),
 	);
 
 	const sessionEventsSchema = propagateInternalVisibility(

@@ -4705,6 +4705,23 @@ type LspInitializeRequest struct {
 	WorkingDirectory *string `json:"workingDirectory,omitempty"`
 }
 
+// Non-secret host-managed HTTP MCP server configuration. The containing map key is the
+// stable managed identity; credentials are supplied dynamically by the host.
+// Experimental: ManagedMCPServerConfig is part of an experimental API and may change or be
+// removed.
+type ManagedMCPServerConfig struct {
+	// Human-readable catalog display name.
+	DisplayName string `json:"displayName"`
+	// Maximum dynamic-header cache lifetime in milliseconds.
+	HeadersRefreshTtlMs *int64 `json:"headersRefreshTtlMs,omitempty"`
+	// Timeout in milliseconds for tool discovery and tool calls.
+	Timeout *int64 `json:"timeout,omitempty"`
+	// Tools to include. Defaults to all tools when omitted.
+	Tools []string `json:"tools,omitzero"`
+	// Hosted MCP streamable HTTP endpoint.
+	URL string `json:"url"`
+}
+
 // Validated device-managed settings discovered before a session exists.
 // Experimental: ManagedSettingsReadResult is part of an experimental API and may change or
 // be removed.
@@ -5209,10 +5226,24 @@ func (r RawMCPHeadersHandlePendingHeadersRefreshRequestData) Kind() MCPHeadersHa
 	return r.Discriminator
 }
 
+type MCPHeadersHandlePendingHeadersRefreshRequestError struct {
+	// Host credential broker failure, denial, or revocation reason.
+	Message string `json:"message"`
+}
+
+func (MCPHeadersHandlePendingHeadersRefreshRequestError) mcpHeadersHandlePendingHeadersRefreshRequest() {
+}
+func (MCPHeadersHandlePendingHeadersRefreshRequestError) Kind() MCPHeadersHandlePendingHeadersRefreshRequestKind {
+	return MCPHeadersHandlePendingHeadersRefreshRequestKindError
+}
+
 type MCPHeadersHandlePendingHeadersRefreshRequestHeaders struct {
 	// Headers to overlay onto the MCP request. Dynamic headers override static config headers
 	// but do not replace SDK-managed request headers.
 	Headers map[string]string `json:"headers"`
+	// Optional lifetime in milliseconds for these returned headers. The runtime clamps its
+	// configured cache lifetime to this value.
+	TtlMs *int64 `json:"ttlMs,omitempty"`
 }
 
 func (MCPHeadersHandlePendingHeadersRefreshRequestHeaders) mcpHeadersHandlePendingHeadersRefreshRequest() {
@@ -6403,6 +6434,8 @@ func (MCPServerConfigStdio) mcpSerializableServerConfig() {}
 // MCP server status entry, including config source/plugin source and any connection error.
 // Experimental: MCPServer is part of an experimental API and may change or be removed.
 type MCPServer struct {
+	// Human-readable display name supplied by a managed server catalog.
+	DisplayName *string `json:"displayName,omitempty"`
 	// Error message if the server failed to connect
 	Error *string `json:"error,omitempty"`
 	// Server name (config key)
@@ -12025,6 +12058,12 @@ type SessionOpenOptions struct {
 	LogInteractiveShells *bool `json:"logInteractiveShells,omitempty"`
 	// Identifier sent to LSP-style integrations.
 	LspClientName *string `json:"lspClientName,omitempty"`
+	// Non-secret host-managed HTTP MCP servers keyed by stable managed identity. Managed
+	// provenance is runtime-established from this separate field and credentials are supplied
+	// through dynamic-header refresh.
+	// Experimental: ManagedMCPServers is part of an experimental API and may change or be
+	// removed.
+	ManagedMCPServers map[string]ManagedMCPServerConfig `json:"managedMcpServers,omitzero"`
 	// Permissions-only enterprise policy injected by the SDK host at session create or resume.
 	// Composes restrictively with self-fetched and device policy and is not persisted.
 	ManagedSettings *SessionManagedSettings `json:"managedSettings,omitempty"`
@@ -17054,6 +17093,7 @@ const (
 type MCPHeadersHandlePendingHeadersRefreshRequestKind string
 
 const (
+	MCPHeadersHandlePendingHeadersRefreshRequestKindError   MCPHeadersHandlePendingHeadersRefreshRequestKind = "error"
 	MCPHeadersHandlePendingHeadersRefreshRequestKindHeaders MCPHeadersHandlePendingHeadersRefreshRequestKind = "headers"
 	MCPHeadersHandlePendingHeadersRefreshRequestKindNone    MCPHeadersHandlePendingHeadersRefreshRequestKind = "none"
 )
@@ -17444,13 +17484,15 @@ const (
 	MCPServerConfigStdioTypeStdio MCPServerConfigStdioType = "stdio"
 )
 
-// Configuration source: user, workspace, plugin, or builtin
+// Configuration source: user, workspace, plugin, builtin, or managed
 // Experimental: MCPServerSource is part of an experimental API and may change or be removed.
 type MCPServerSource string
 
 const (
 	// Server bundled with the runtime.
 	MCPServerSourceBuiltin MCPServerSource = "builtin"
+	// Server supplied by a trusted host-managed catalog.
+	MCPServerSourceManaged MCPServerSource = "managed"
 	// Server contributed by an installed plugin.
 	MCPServerSourcePlugin MCPServerSource = "plugin"
 	// Server configured in the user's global MCP configuration.

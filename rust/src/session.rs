@@ -12,17 +12,20 @@ use tracing::{Instrument, warn};
 
 use crate::canvas::CanvasHandler;
 use crate::generated::api_types::{
-    LogRequest, ModelSwitchToRequest, OpenCanvasInstance, PermissionDecisionRequest,
-    RegisterEventInterestParams, ToolsGetCurrentMetadataResult, rpc_methods,
+    LogRequest, McpHeadersHandlePendingHeadersRefreshRequestRequest, ModelSwitchToRequest,
+    OpenCanvasInstance, PermissionDecisionRequest, RegisterEventInterestParams,
+    ToolsGetCurrentMetadataResult, rpc_methods,
 };
 use crate::generated::session_events::{
-    CommandExecuteData, ElicitationRequestedData, ExternalToolRequestedData, McpOauthRequiredData,
-    SessionCanvasClosedData, SessionErrorData, SessionEventType, SessionIdleData, SessionMode,
+    CommandExecuteData, ElicitationRequestedData, ExternalToolRequestedData,
+    McpHeadersRefreshRequiredData, McpOauthRequiredData, SessionCanvasClosedData, SessionErrorData,
+    SessionEventType, SessionIdleData, SessionMode,
 };
 use crate::handler::{
     AutoModeSwitchHandler, AutoModeSwitchResponse, ElicitationHandler, ExitPlanModeHandler,
-    McpAuthHandler, McpAuthRequest, McpAuthResult, PermissionHandler, PermissionResult,
-    UserInputHandler, UserInputResponse,
+    McpAuthHandler, McpAuthRequest, McpAuthResult, McpHeadersRefreshHandler,
+    McpHeadersRefreshRequest, PermissionHandler, PermissionResult, UserInputHandler,
+    UserInputResponse, mcp_headers_error_result,
 };
 use crate::hooks::SessionHooks;
 use crate::provider_token::BearerTokenProvider;
@@ -60,6 +63,7 @@ pub(crate) struct SessionHandlers {
     pub managed_settings_enabled: bool,
     pub elicitation: Option<Arc<dyn ElicitationHandler>>,
     pub mcp_auth: Option<Arc<dyn McpAuthHandler>>,
+    pub mcp_headers: Option<Arc<dyn McpHeadersRefreshHandler>>,
     pub user_input: Option<Arc<dyn UserInputHandler>>,
     pub exit_plan_mode: Option<Arc<dyn ExitPlanModeHandler>>,
     pub auto_mode_switch: Option<Arc<dyn AutoModeSwitchHandler>>,
@@ -108,6 +112,9 @@ struct PendingSessionRegistration {
     shutdown: CancellationToken,
     disarmed: bool,
 }
+
+type CreateSessionRegistrationStash =
+    Arc<ParkingLotMutex<Option<(SessionId, Option<crate::router::SessionChannels>)>>>;
 
 impl PendingSessionRegistration {
     fn new(client: Client, session_id: SessionId, shutdown: CancellationToken) -> Self {
@@ -924,6 +931,7 @@ impl Client {
             ),
             elicitation: runtime.elicitation_handler.take(),
             mcp_auth: runtime.mcp_auth_handler.take(),
+            mcp_headers: runtime.mcp_headers_handler.take(),
             user_input: runtime.user_input_handler.take(),
             exit_plan_mode: runtime.exit_plan_mode_handler.take(),
             auto_mode_switch: runtime.auto_mode_switch_handler.take(),
@@ -946,6 +954,7 @@ impl Client {
             .as_ref()
             .map(|registration| registration.id().to_string());
         let has_mcp_auth_handler = handlers.mcp_auth.is_some();
+        let has_mcp_headers_handler = handlers.mcp_headers.is_some();
         if self.inner.session_fs_configured && session_fs_provider.is_none() {
             return Err(ErrorKind::Session(SessionErrorKind::SessionFsProviderRequired).into());
         }
@@ -976,15 +985,37 @@ impl Client {
         // the session synchronously the instant the response arrives.
         // For non-cloud sessions, register up-front so the CLI can issue
         // session-scoped requests during session.create processing.
-        let inline_stash: Arc<
-            ParkingLotMutex<Option<(SessionId, crate::router::SessionChannels)>>,
-        > = Arc::new(ParkingLotMutex::new(None));
+        let inline_stash: CreateSessionRegistrationStash = Arc::new(ParkingLotMutex::new(None));
+        let mut event_loop = None;
+        let mut registration = None;
 
         let inline_callback: Option<crate::jsonrpc::InlineResponseCallback> = if let Some(ref sid) =
             local_session_id
         {
             let channels = self.register_session(sid);
-            *inline_stash.lock() = Some((sid.clone(), channels));
+            event_loop = Some(spawn_event_loop(
+                sid.clone(),
+                self.clone(),
+                handlers.clone(),
+                hooks.clone(),
+                transforms.clone(),
+                command_handlers.clone(),
+                canvas_handler.clone(),
+                session_fs_provider.clone(),
+                bearer_token_providers.clone(),
+                channels,
+                idle_waiter.clone(),
+                capabilities.clone(),
+                open_canvases.clone(),
+                event_tx.clone(),
+                shutdown.clone(),
+            ));
+            registration = Some(PendingSessionRegistration::new(
+                self.clone(),
+                sid.clone(),
+                shutdown.clone(),
+            ));
+            *inline_stash.lock() = Some((sid.clone(), None));
             None
         } else {
             let client = self.clone();
@@ -1006,19 +1037,36 @@ impl Client {
                     .into());
                 }
                 let channels = client.register_session(&parsed.session_id);
-                *stash.lock() = Some((parsed.session_id, channels));
+                *stash.lock() = Some((parsed.session_id, Some(channels)));
                 Ok(())
             }))
         };
 
         let rpc_start = Instant::now();
-        let result = match self
-            .call_with_inline_callback("session.create", Some(params), inline_callback)
-            .await
-        {
-            Ok(result) => result,
+        let create_result: Result<CreateSessionResult, Error> = async {
+            let result = self
+                .call_with_inline_callback("session.create", Some(params), inline_callback)
+                .await?;
+            let create_result: CreateSessionResult = serde_json::from_value(result)?;
+            if let Some(ref requested) = local_session_id
+                && create_result.session_id != *requested
+            {
+                return Err(ErrorKind::Session(SessionErrorKind::SessionIdMismatch {
+                    requested: requested.clone(),
+                    returned: create_result.session_id,
+                })
+                .into());
+            }
+            Ok(create_result)
+        }
+        .await;
+        let create_result = match create_result {
+            Ok(create_result) => create_result,
             Err(error) => {
-                if let Some((id, _channels)) = inline_stash.lock().take() {
+                let pending = (registration.take(), event_loop.take());
+                if let (Some(registration), Some(event_loop)) = pending {
+                    registration.cleanup(event_loop).await;
+                } else if let Some((id, _channels)) = inline_stash.lock().take() {
                     self.unregister_session(&id);
                 }
                 return Err(error);
@@ -1028,50 +1076,32 @@ impl Client {
             elapsed_ms = rpc_start.elapsed().as_millis(),
             "Client::create_session session creation request completed successfully"
         );
-        let create_result: CreateSessionResult = match serde_json::from_value(result) {
-            Ok(result) => result,
-            Err(error) => {
-                if let Some((id, _channels)) = inline_stash.lock().take() {
-                    self.unregister_session(&id);
-                }
-                return Err(error.into());
-            }
-        };
-
-        if let Some(ref requested) = local_session_id
-            && create_result.session_id != *requested
-        {
-            if let Some((id, _channels)) = inline_stash.lock().take() {
-                self.unregister_session(&id);
-            }
-            return Err(ErrorKind::Session(SessionErrorKind::SessionIdMismatch {
-                requested: requested.clone(),
-                returned: create_result.session_id.clone(),
-            })
-            .into());
-        }
-
         let (session_id, channels) = inline_stash
             .lock()
             .take()
             .expect("session registration must have populated stash on success");
-        let event_loop = spawn_event_loop(
-            session_id.clone(),
-            self.clone(),
-            handlers,
-            hooks,
-            transforms,
-            command_handlers,
-            canvas_handler,
-            session_fs_provider,
-            bearer_token_providers,
-            channels,
-            idle_waiter.clone(),
-            capabilities.clone(),
-            open_canvases.clone(),
-            event_tx.clone(),
-            shutdown.clone(),
-        );
+        let event_loop = event_loop.unwrap_or_else(|| {
+            spawn_event_loop(
+                session_id.clone(),
+                self.clone(),
+                handlers,
+                hooks,
+                transforms,
+                command_handlers,
+                canvas_handler,
+                session_fs_provider,
+                bearer_token_providers,
+                channels.expect("server-generated session must retain its channels"),
+                idle_waiter.clone(),
+                capabilities.clone(),
+                open_canvases.clone(),
+                event_tx.clone(),
+                shutdown.clone(),
+            )
+        });
+        let mut registration = registration.unwrap_or_else(|| {
+            PendingSessionRegistration::new(self.clone(), session_id.clone(), shutdown.clone())
+        });
         tracing::debug!(
             elapsed_ms = setup_start.elapsed().as_millis(),
             session_id = %session_id,
@@ -1081,8 +1111,16 @@ impl Client {
             "Client::create_session local setup complete"
         );
         *capabilities.write() = create_result.capabilities.unwrap_or_default();
-        if has_mcp_auth_handler {
-            register_mcp_auth_interest(self, &session_id).await?;
+        if let Err(error) = register_mcp_handler_interests(
+            self,
+            &session_id,
+            has_mcp_auth_handler,
+            has_mcp_headers_handler,
+        )
+        .await
+        {
+            registration.cleanup(event_loop).await;
+            return Err(error);
         }
 
         tracing::debug!(
@@ -1090,6 +1128,7 @@ impl Client {
             session_id = %session_id,
             "Client::create_session complete"
         );
+        registration.disarm();
         let session = Session {
             id: session_id,
             cwd: self.cwd().clone(),
@@ -1212,6 +1251,7 @@ impl Client {
             ),
             elicitation: runtime.elicitation_handler.take(),
             mcp_auth: runtime.mcp_auth_handler.take(),
+            mcp_headers: runtime.mcp_headers_handler.take(),
             user_input: runtime.user_input_handler.take(),
             exit_plan_mode: runtime.exit_plan_mode_handler.take(),
             auto_mode_switch: runtime.auto_mode_switch_handler.take(),
@@ -1234,6 +1274,7 @@ impl Client {
             .as_ref()
             .map(|registration| registration.id().to_string());
         let has_mcp_auth_handler = handlers.mcp_auth.is_some();
+        let has_mcp_headers_handler = handlers.mcp_headers.is_some();
         if self.inner.session_fs_configured && session_fs_provider.is_none() {
             return Err(ErrorKind::Session(SessionErrorKind::SessionFsProviderRequired).into());
         }
@@ -1320,8 +1361,16 @@ impl Client {
             })
             .into());
         }
-        if has_mcp_auth_handler {
-            register_mcp_auth_interest(self, &session_id).await?;
+        if let Err(error) = register_mcp_handler_interests(
+            self,
+            &session_id,
+            has_mcp_auth_handler,
+            has_mcp_headers_handler,
+        )
+        .await
+        {
+            registration.cleanup(event_loop).await;
+            return Err(error);
         }
 
         // Reload skills after resume (best-effort).
@@ -1677,14 +1726,33 @@ fn permission_response_params(
     Some(params)
 }
 
-async fn register_mcp_auth_interest(client: &Client, session_id: &SessionId) -> Result<(), Error> {
+async fn register_mcp_event_interest(
+    client: &Client,
+    session_id: &SessionId,
+    event_type: &str,
+) -> Result<(), Error> {
     let mut params = serde_json::to_value(RegisterEventInterestParams {
-        event_type: "mcp.oauth_required".to_string(),
+        event_type: event_type.to_string(),
     })?;
     params["sessionId"] = Value::String(session_id.to_string());
     client
         .call(rpc_methods::SESSION_EVENTLOG_REGISTERINTEREST, Some(params))
         .await?;
+    Ok(())
+}
+
+async fn register_mcp_handler_interests(
+    client: &Client,
+    session_id: &SessionId,
+    has_auth_handler: bool,
+    has_headers_handler: bool,
+) -> Result<(), Error> {
+    if has_auth_handler {
+        register_mcp_event_interest(client, session_id, "mcp.oauth_required").await?;
+    }
+    if has_headers_handler {
+        register_mcp_event_interest(client, session_id, "mcp.headers_refresh_required").await?;
+    }
     Ok(())
 }
 
@@ -2289,6 +2357,95 @@ async fn handle_notification(
                 .instrument(span),
             );
         }
+        SessionEventType::McpHeadersRefreshRequired => {
+            let Some(mcp_headers_handler) = handlers.mcp_headers.clone() else {
+                warn!(
+                    session_id = %session_id,
+                    "received MCP headers refresh request without a registered handler"
+                );
+                return;
+            };
+            let data: McpHeadersRefreshRequiredData =
+                match serde_json::from_value(notification.event.data.clone()) {
+                    Ok(data) => data,
+                    Err(error) => {
+                        warn!(error = %error, "failed to deserialize MCP headers refresh request");
+                        return;
+                    }
+                };
+            let request_id = data.request_id;
+            let request = McpHeadersRefreshRequest {
+                server_name: data.server_name,
+                server_url: data.server_url,
+                reason: data.reason,
+            };
+            let client = client.clone();
+            let sid = session_id.clone();
+            let span = tracing::error_span!(
+                "mcp_headers_request_handler",
+                session_id = %sid,
+                request_id = %request_id
+            );
+            tokio::spawn(
+                async move {
+                    let handler_task = tokio::spawn({
+                        let sid = sid.clone();
+                        let request_id = request_id.clone();
+                        let span = tracing::error_span!(
+                            "mcp_headers_callback",
+                            session_id = %sid,
+                            request_id = %request_id
+                        );
+                        async move {
+                            let handler_start = Instant::now();
+                            let result = mcp_headers_handler
+                                .handle(sid.clone(), request_id.clone(), request)
+                                .await;
+                            tracing::debug!(
+                                elapsed_ms = handler_start.elapsed().as_millis(),
+                                session_id = %sid,
+                                request_id = %request_id,
+                                "McpHeadersRefreshHandler::handle dispatch"
+                            );
+                            result
+                        }
+                        .instrument(span)
+                    });
+                    let result = match handler_task.await {
+                        Ok(Ok(result)) => result.into_wire(),
+                        Ok(Err(error)) => mcp_headers_error_result(error.to_string()),
+                        Err(error) => mcp_headers_error_result(error.to_string()),
+                    };
+                    let params = McpHeadersHandlePendingHeadersRefreshRequestRequest {
+                        request_id: request_id.clone(),
+                        result,
+                    };
+                    let mut wire_params = match serde_json::to_value(params) {
+                        Ok(params) => params,
+                        Err(error) => {
+                            warn!(error = %error, "failed to serialize MCP headers response");
+                            return;
+                        }
+                    };
+                    wire_params["sessionId"] = Value::String(sid.to_string());
+                    if let Err(error) = client
+                        .call(
+                            rpc_methods::SESSION_MCP_HEADERS_HANDLEPENDINGHEADERSREFRESHREQUEST,
+                            Some(wire_params),
+                        )
+                        .await
+                    {
+                        warn!(
+                            error = %error,
+                            session_id = %sid,
+                            request_id = %request_id,
+                            "failed to send MCP headers response"
+                        );
+                    }
+                }
+                .instrument(span),
+            );
+        }
         SessionEventType::CommandExecute => {
             let data: CommandExecuteData =
                 match serde_json::from_value(notification.event.data.clone()) {
@@ -2408,7 +2565,11 @@ async fn handle_request(
                 .unwrap_or(Value::Object(Default::default()));
 
             let rpc_result = if let Some(hooks) = hooks {
-                match crate::hooks::dispatch_hook(hooks, &sid, hook_type, input).await {
+                match crate::hooks::dispatch_hook_for_request(
+                    hooks, &sid, request.id, hook_type, input,
+                )
+                .await
+                {
                     Ok(output) => output,
                     Err(e) => {
                         warn!(error = %e, hook_type = hook_type, "hook dispatch failed");
@@ -2425,7 +2586,17 @@ async fn handle_request(
                 result: Some(rpc_result),
                 error: None,
             };
-            let _ = client.send_response(&rpc_response).await;
+            if client.send_response(&rpc_response).await.is_ok()
+                && let Some(hooks) = hooks
+            {
+                hooks
+                    .on_hook_response_sent(crate::hooks::HookResponseSent {
+                        session_id: sid,
+                        request_id: request.id,
+                        hook_type: hook_type.to_string(),
+                    })
+                    .await;
+            }
         }
 
         "userInput.request" => {

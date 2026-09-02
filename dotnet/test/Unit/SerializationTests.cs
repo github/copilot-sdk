@@ -18,6 +18,41 @@ namespace GitHub.Copilot.Test.Unit;
 public class SerializationTests
 {
     [Fact]
+    public void SessionRequests_Serialize_ManagedMcpServers_On_Create_And_Resume()
+    {
+        var options = GetSerializerOptions();
+        var managed = new Dictionary<string, ManagedMcpServerConfig>
+        {
+            ["github"] = new()
+            {
+                DisplayName = "GitHub",
+                Url = "https://example.com/mcp",
+                Tools = ["issues"],
+                Timeout = 30_000,
+                HeadersRefreshTtlMs = 60_000
+            }
+        };
+
+        foreach (var requestName in new[] { "CreateSessionRequest", "ResumeSessionRequest" })
+        {
+            var requestType = GetNestedType(typeof(CopilotClient), requestName);
+            var request = CreateInternalRequest(
+                requestType,
+                ("SessionId", "session-id"),
+                ("ManagedMcpServers", managed));
+            var json = JsonSerializer.Serialize(request, requestType, options);
+            using var document = JsonDocument.Parse(json);
+            var server = document.RootElement
+                .GetProperty("managedMcpServers")
+                .GetProperty("github");
+
+            Assert.Equal("GitHub", server.GetProperty("displayName").GetString());
+            Assert.Equal("https://example.com/mcp", server.GetProperty("url").GetString());
+            Assert.Equal(60_000, server.GetProperty("headersRefreshTtlMs").GetInt64());
+        }
+    }
+
+    [Fact]
     public void ProviderConfig_CanSerializeHeaders_WithSdkOptions()
     {
         var options = GetSerializerOptions();

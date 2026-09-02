@@ -13,6 +13,8 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { promisify } from "util";
 
+import { applyManagedMcpSchemaOverlay } from "./managedMcpSchemaOverlay.js";
+
 export const execFileAsync = promisify(execFile);
 
 const __filename = fileURLToPath(import.meta.url);
@@ -185,7 +187,9 @@ function renameBrandDefinitionKeys(defs: Record<string, unknown>): void {
 /** Load a JSON schema file and normalize GitHub brand casing in titles, refs, and definition keys. */
 export async function loadSchemaJson<T>(filePath: string): Promise<T> {
     const parsed = JSON.parse(await fs.readFile(filePath, "utf-8")) as T;
-    return normalizeSchemaBrandCasing(parsed);
+    return normalizeSchemaBrandCasing(
+        applyManagedMcpSchemaOverlay(parsed, path.basename(filePath))
+    );
 }
 
 // ── Schema processing ───────────────────────────────────────────────────────

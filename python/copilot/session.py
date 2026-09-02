@@ -37,6 +37,9 @@ from .generated.rpc import (
     GitHubTokenAcquireResultKind,
     HandlePendingToolCallRequest,
     LogRequest,
+    MCPHeadersHandlePendingHeadersRefreshRequest,
+    MCPHeadersHandlePendingHeadersRefreshRequestKind,
+    MCPHeadersHandlePendingHeadersRefreshRequestRequest,
     MCPOauthHandlePendingRequest,
     MCPOauthPendingRequestResponse,
     ModelSwitchToRequest,
@@ -70,6 +73,7 @@ from .generated.session_events import (
     CommandExecuteData,
     ElicitationRequestedData,
     ExternalToolRequestedData,
+    McpHeadersRefreshRequiredData,
     McpOauthRequiredData,
     PermissionRequest,
     PermissionRequestedData,
@@ -496,6 +500,41 @@ McpAuthHandler = Callable[
     [McpAuthRequest, McpAuthContext],
     McpAuthHandlerResult | Awaitable[McpAuthHandlerResult],
 ]
+
+
+class McpHeadersRefreshRequest(TypedDict):
+    """Managed MCP server whose short-lived HTTP headers need refreshing."""
+
+    server_name: str
+    server_url: str
+    reason: Literal["startup", "ttl-expired", "auth-failed"]
+
+
+class McpHeadersRefreshResult(TypedDict):
+    """Dynamic headers and their optional credential-bounded cache lifetime."""
+
+    headers: dict[str, str]
+    ttl_ms: NotRequired[int]
+
+
+class McpHeadersRefreshContext(TypedDict):
+    """Context for a managed MCP headers refresh handler invocation."""
+
+    session_id: str
+
+
+McpHeadersRefreshHandlerResult = McpHeadersRefreshResult | dict[str, str] | None
+McpHeadersRefreshHandler = Callable[
+    [McpHeadersRefreshRequest, McpHeadersRefreshContext],
+    McpHeadersRefreshHandlerResult | Awaitable[McpHeadersRefreshHandlerResult],
+]
+
+
+def _is_mcp_headers_refresh_result(
+    value: McpHeadersRefreshResult | dict[str, str],
+) -> bool:
+    headers = value.get("headers")
+    return isinstance(headers, dict) and all(isinstance(header, str) for header in headers.values())
 
 
 # ============================================================================
@@ -1164,6 +1203,16 @@ class MCPHTTPServerConfig(TypedDict, total=False):
 MCPServerConfig = MCPStdioServerConfig | MCPHTTPServerConfig
 
 
+class ManagedMCPServerConfig(TypedDict, total=False):
+    """Non-secret hosted MCP server from a trusted managed catalog."""
+
+    display_name: Required[str]
+    url: Required[str]
+    tools: list[str]
+    timeout: int
+    headers_refresh_ttl_ms: int
+
+
 class GitHubMcpToolConfig(TypedDict, total=False):
     """Configuration for the built-in GitHub MCP server.
 
@@ -1578,6 +1627,8 @@ class CopilotSession:
         self._permission_handler_lock = threading.Lock()
         self._mcp_auth_handler: McpAuthHandler | None = None
         self._mcp_auth_handler_lock = threading.Lock()
+        self._mcp_headers_refresh_handler: McpHeadersRefreshHandler | None = None
+        self._mcp_headers_refresh_handler_lock = threading.Lock()
         self._user_input_handler: UserInputHandler | None = None
         self._user_input_handler_lock = threading.Lock()
         self._exit_plan_mode_handler: ExitPlanModeHandler | None = None
@@ -2030,6 +2081,23 @@ class CopilotSession:
                     request["staticClientConfig"] = static_client_config
                 asyncio.ensure_future(self._execute_mcp_auth_and_respond(request, handler))
 
+            case McpHeadersRefreshRequiredData() as data:
+                with self._mcp_headers_refresh_handler_lock:
+                    handler = self._mcp_headers_refresh_handler
+                if not data.request_id or not handler:
+                    return
+                asyncio.ensure_future(
+                    self._execute_mcp_headers_refresh_and_respond(
+                        data.request_id,
+                        {
+                            "server_name": data.server_name,
+                            "server_url": data.server_url,
+                            "reason": data.reason.value,
+                        },
+                        handler,
+                    )
+                )
+
             case CommandExecuteData() as data:
                 request_id = data.request_id
                 command_name = data.command_name
@@ -2320,6 +2388,68 @@ class CopilotSession:
             except (JsonRpcError, ProcessExitedError, OSError):
                 pass  # Connection lost or RPC error — nothing we can do
 
+    async def _execute_mcp_headers_refresh_and_respond(
+        self,
+        request_id: str,
+        request: McpHeadersRefreshRequest,
+        handler: McpHeadersRefreshHandler,
+    ) -> None:
+        """Execute a managed MCP headers refresh handler and respond via RPC."""
+        try:
+            maybe_result = handler(request, {"session_id": self.session_id})
+            if inspect.isawaitable(maybe_result):
+                result = cast(McpHeadersRefreshHandlerResult, await maybe_result)
+            else:
+                result = maybe_result
+
+            if result is None:
+                rpc_result = MCPHeadersHandlePendingHeadersRefreshRequest(
+                    kind=MCPHeadersHandlePendingHeadersRefreshRequestKind.NONE
+                )
+            elif _is_mcp_headers_refresh_result(result):
+                structured = cast(McpHeadersRefreshResult, result)
+                rpc_result = MCPHeadersHandlePendingHeadersRefreshRequest(
+                    kind=MCPHeadersHandlePendingHeadersRefreshRequestKind.HEADERS,
+                    headers=structured["headers"],
+                    ttl_ms=structured.get("ttl_ms"),
+                )
+            else:
+                rpc_result = MCPHeadersHandlePendingHeadersRefreshRequest(
+                    kind=MCPHeadersHandlePendingHeadersRefreshRequestKind.HEADERS,
+                    headers=cast(dict[str, str], result),
+                )
+        except asyncio.CancelledError as exc:
+            message = str(exc) or "MCP headers refresh cancelled"
+            logger.warning(
+                "MCP headers refresh cancelled for %r: %s",
+                request["server_name"],
+                message,
+            )
+            rpc_result = MCPHeadersHandlePendingHeadersRefreshRequest(
+                kind=MCPHeadersHandlePendingHeadersRefreshRequestKind.ERROR,
+                message=message,
+            )
+        except Exception as exc:
+            logger.warning(
+                "MCP headers refresh failed for %r: %s",
+                request["server_name"],
+                exc,
+            )
+            rpc_result = MCPHeadersHandlePendingHeadersRefreshRequest(
+                kind=MCPHeadersHandlePendingHeadersRefreshRequestKind.ERROR,
+                message=str(exc),
+            )
+
+        try:
+            await self.rpc.mcp.headers.handle_pending_headers_refresh_request(
+                MCPHeadersHandlePendingHeadersRefreshRequestRequest(
+                    request_id=request_id,
+                    result=rpc_result,
+                )
+            )
+        except (JsonRpcError, ProcessExitedError, OSError):
+            pass  # The runtime connection is gone, so the pending request cannot be answered.
+
     async def _execute_command_and_respond(
         self,
         request_id: str,
@@ -2508,6 +2638,13 @@ class CopilotSession:
         """Register the MCP auth handler for this session."""
         with self._mcp_auth_handler_lock:
             self._mcp_auth_handler = handler
+
+    def _register_mcp_headers_refresh_handler(
+        self, handler: McpHeadersRefreshHandler | None
+    ) -> None:
+        """Register the managed MCP dynamic-headers handler for this session."""
+        with self._mcp_headers_refresh_handler_lock:
+            self._mcp_headers_refresh_handler = handler
 
     def _register_exit_plan_mode_handler(self, handler: ExitPlanModeHandler | None) -> None:
         """Register the exit-plan-mode handler for this session."""

@@ -32,6 +32,8 @@ public record McpServer(
     /** Plugin version that provided this server, when source is plugin. */
     @JsonProperty("sourcePluginVersion") String sourcePluginVersion,
     /** Error message if the server failed to connect */
-    @JsonProperty("error") String error
+    @JsonProperty("error") String error,
+    /** Human-readable display name supplied by a managed server catalog. */
+    @JsonProperty("displayName") String displayName
 ) {
 }

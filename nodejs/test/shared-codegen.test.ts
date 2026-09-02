@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import type { JSONSchema7 } from "json-schema";
 import { describe, expect, it } from "vitest";
 
@@ -6,11 +7,13 @@ import {
     collectExperimentalOnlyRpcReferencedDefinitionNames,
     collectReachableDefinitionNames,
     findSharedSchemaDefinitions,
+    getApiSchemaPath,
     getEnumValueDescriptions,
     inlineExternalSchemaDefinitions,
     isIntegerSchemaBoundedToInt32,
     rewriteSharedDefinitionReferences,
 } from "../../scripts/codegen/utils.ts";
+import { applyManagedMcpSchemaOverlay } from "../../scripts/codegen/managedMcpSchemaOverlay.ts";
 
 describe("shared schema definition codegen utilities", () => {
     it("detects integer schemas bounded to the 32-bit signed range", () => {
@@ -58,6 +61,56 @@ describe("shared schema definition codegen utilities", () => {
                 maximum: 100.5,
             })
         ).toBe(false);
+    });
+
+    describe("managed MCP schema overlay", () => {
+        async function loadPinnedApiSchema(): Promise<{
+            definitions: Record<string, unknown>;
+        }> {
+            return JSON.parse(await readFile(await getApiSchemaPath(), "utf8")) as {
+                definitions: Record<string, unknown>;
+            };
+        }
+
+        it("adds the runtime contract to the known pre-publication API shape", async () => {
+            const schema = await loadPinnedApiSchema();
+
+            applyManagedMcpSchemaOverlay(schema, "api.schema.json");
+
+            expect(schema.definitions).toHaveProperty("ManagedMcpServerConfig");
+            expect(
+                (schema.definitions.SessionOpenOptions as JSONSchema7).properties
+            ).toHaveProperty("managedMcpServers");
+            expect((schema.definitions.McpServer as JSONSchema7).properties).toHaveProperty(
+                "displayName"
+            );
+            expect((schema.definitions.McpServerSource as JSONSchema7).enum).toContain("managed");
+            expect(
+                (schema.definitions.McpHeadersHandlePendingHeadersRefreshRequest as JSONSchema7)
+                    .anyOf
+            ).toHaveLength(3);
+        });
+
+        it("rejects an unknown upstream shape instead of masking it", async () => {
+            const schema = await loadPinnedApiSchema();
+            const refresh = schema.definitions
+                .McpHeadersHandlePendingHeadersRefreshRequest as JSONSchema7;
+            const headersVariant = refresh.anyOf?.[0] as JSONSchema7;
+            headersVariant.required = [...(headersVariant.required ?? []), "futureField"];
+
+            expect(() => applyManagedMcpSchemaOverlay(schema, "api.schema.json")).toThrow(
+                "unknown upstream shape"
+            );
+        });
+
+        it("rejects a missing legacy node instead of recreating it", async () => {
+            const schema = await loadPinnedApiSchema();
+            delete schema.definitions.McpServerSource;
+
+            expect(() => applyManagedMcpSchemaOverlay(schema, "api.schema.json")).toThrow(
+                "expected an upstream node"
+            );
+        });
     });
 
     it("extracts non-empty enum value descriptions from schema extensions", () => {

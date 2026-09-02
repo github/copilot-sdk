@@ -16,6 +16,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import com.github.copilot.CopilotExperimental;
 import com.github.copilot.generated.SessionEvent;
+import com.github.copilot.generated.rpc.ManagedMcpServerConfig;
 import com.github.copilot.generated.rpc.SessionLimitsConfig;
 
 /**
@@ -67,6 +68,7 @@ public class SessionConfig {
     private Boolean manageScheduleEnabled;
     private PermissionHandler onPermissionRequest;
     private McpAuthHandler onMcpAuthRequest;
+    private McpHeadersRefreshHandler onMcpHeadersRefreshRequest;
     private UserInputHandler onUserInputRequest;
     private SessionHooks hooks;
     private String workingDirectory;
@@ -74,6 +76,7 @@ public class SessionConfig {
     private boolean streaming;
     private Boolean includeSubAgentStreamingEvents;
     private Map<String, McpServerConfig> mcpServers;
+    private Map<String, ManagedMcpServerConfig> managedMcpServers;
     private String mcpOAuthTokenStorage;
     private List<CustomAgentConfig> customAgents;
     private DefaultAgentConfig defaultAgent;
@@ -909,6 +912,28 @@ public class SessionConfig {
     }
 
     /**
+     * Gets the managed MCP dynamic-header refresh handler.
+     *
+     * @return the handler, or {@code null} if not set
+     */
+    @JsonIgnore
+    public McpHeadersRefreshHandler getOnMcpHeadersRefreshRequest() {
+        return onMcpHeadersRefreshRequest;
+    }
+
+    /**
+     * Sets the managed MCP dynamic-header refresh handler.
+     *
+     * @param onMcpHeadersRefreshRequest
+     *            the handler
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setOnMcpHeadersRefreshRequest(McpHeadersRefreshHandler onMcpHeadersRefreshRequest) {
+        this.onMcpHeadersRefreshRequest = onMcpHeadersRefreshRequest;
+        return this;
+    }
+
+    /**
      * Gets the user input request handler.
      *
      * @return the user input handler
@@ -1046,6 +1071,27 @@ public class SessionConfig {
      */
     public SessionConfig setMcpServers(Map<String, McpServerConfig> mcpServers) {
         this.mcpServers = mcpServers;
+        return this;
+    }
+
+    /**
+     * Gets host-managed HTTP MCP server configurations.
+     *
+     * @return the managed MCP servers map
+     */
+    public Map<String, ManagedMcpServerConfig> getManagedMcpServers() {
+        return managedMcpServers == null ? null : Collections.unmodifiableMap(managedMcpServers);
+    }
+
+    /**
+     * Sets host-managed HTTP MCP server configurations.
+     *
+     * @param managedMcpServers
+     *            non-secret server configurations keyed by stable managed identity
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setManagedMcpServers(Map<String, ManagedMcpServerConfig> managedMcpServers) {
+        this.managedMcpServers = managedMcpServers;
         return this;
     }
 
@@ -2249,6 +2295,9 @@ public class SessionConfig {
         copy.streaming = this.streaming;
         copy.includeSubAgentStreamingEvents = this.includeSubAgentStreamingEvents;
         copy.mcpServers = this.mcpServers != null ? new java.util.HashMap<>(this.mcpServers) : null;
+        copy.managedMcpServers = this.managedMcpServers != null
+                ? new java.util.HashMap<>(this.managedMcpServers)
+                : null;
         copy.customAgents = this.customAgents != null ? new ArrayList<>(this.customAgents) : null;
         copy.defaultAgent = this.defaultAgent;
         copy.agent = this.agent;
@@ -2281,6 +2330,7 @@ public class SessionConfig {
         copy.commands = this.commands != null ? new ArrayList<>(this.commands) : null;
         copy.onElicitationRequest = this.onElicitationRequest;
         copy.onMcpAuthRequest = this.onMcpAuthRequest;
+        copy.onMcpHeadersRefreshRequest = this.onMcpHeadersRefreshRequest;
         copy.onExitPlanMode = this.onExitPlanMode;
         copy.onAutoModeSwitch = this.onAutoModeSwitch;
         copy.enableMcpApps = this.enableMcpApps;

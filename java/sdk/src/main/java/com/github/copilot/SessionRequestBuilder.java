@@ -148,6 +148,7 @@ final class SessionRequestBuilder {
         }
         config.getIncludeSubAgentStreamingEvents().ifPresent(request::setIncludeSubAgentStreamingEvents);
         request.setMcpServers(config.getMcpServers());
+        request.setManagedMcpServers(config.getManagedMcpServers());
         request.setMcpOAuthTokenStorage(config.getMcpOAuthTokenStorage());
         request.setCustomAgents(config.getCustomAgents());
         request.setCustomAgentsLocalOnly(
@@ -303,6 +304,7 @@ final class SessionRequestBuilder {
         }
         config.getIncludeSubAgentStreamingEvents().ifPresent(request::setIncludeSubAgentStreamingEvents);
         request.setMcpServers(config.getMcpServers());
+        request.setManagedMcpServers(config.getManagedMcpServers());
         request.setMcpOAuthTokenStorage(config.getMcpOAuthTokenStorage());
         request.setCustomAgents(config.getCustomAgents());
         request.setCustomAgentsLocalOnly(
@@ -387,6 +389,9 @@ final class SessionRequestBuilder {
         if (config.getOnMcpAuthRequest() != null) {
             session.registerMcpAuthHandler(config.getOnMcpAuthRequest());
         }
+        if (config.getOnMcpHeadersRefreshRequest() != null) {
+            session.registerMcpHeadersRefreshHandler(config.getOnMcpHeadersRefreshRequest());
+        }
         if (config.getOnUserInputRequest() != null) {
             session.registerUserInputHandler(config.getOnUserInputRequest());
         }
@@ -438,6 +443,9 @@ final class SessionRequestBuilder {
                 config.getEnableManagedSettings().orElse(false) || config.getManagedSettings() != null);
         if (config.getOnMcpAuthRequest() != null) {
             session.registerMcpAuthHandler(config.getOnMcpAuthRequest());
+        }
+        if (config.getOnMcpHeadersRefreshRequest() != null) {
+            session.registerMcpHeadersRefreshHandler(config.getOnMcpHeadersRefreshRequest());
         }
         if (config.getOnUserInputRequest() != null) {
             session.registerUserInputHandler(config.getOnUserInputRequest());

@@ -9301,6 +9301,10 @@ public sealed class McpHostState
 [Experimental(Diagnostics.Experimental)]
 public sealed class McpServer
 {
+    /// <summary>Human-readable display name supplied by a managed server catalog.</summary>
+    [JsonPropertyName("displayName")]
+    public string? DisplayName { get; set; }
+
     /// <summary>Error message if the server failed to connect.</summary>
     [JsonPropertyName("error")]
     public string? Error { get; set; }
@@ -10056,6 +10060,7 @@ public sealed class McpHeadersHandlePendingHeadersRefreshRequestResult
     UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
 [JsonDerivedType(typeof(McpHeadersHandlePendingHeadersRefreshRequestHeaders), "headers")]
 [JsonDerivedType(typeof(McpHeadersHandlePendingHeadersRefreshRequestNone), "none")]
+[JsonDerivedType(typeof(McpHeadersHandlePendingHeadersRefreshRequestError), "error")]
 public partial class McpHeadersHandlePendingHeadersRefreshRequest
 {
     /// <summary>The type discriminator.</summary>
@@ -10075,6 +10080,11 @@ public partial class McpHeadersHandlePendingHeadersRefreshRequestHeaders : McpHe
     /// <summary>Headers to overlay onto the MCP request. Dynamic headers override static config headers but do not replace SDK-managed request headers.</summary>
     [JsonPropertyName("headers")]
     public required IDictionary<string, string> Headers { get; set; }
+
+    /// <summary>Optional lifetime in milliseconds for these returned headers. The runtime clamps its configured cache lifetime to this value.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("ttlMs")]
+    public long? TtlMs { get; set; }
 }
 
 /// <summary>The <c>none</c> variant of <see cref="McpHeadersHandlePendingHeadersRefreshRequest"/>.</summary>
@@ -10084,6 +10094,19 @@ public partial class McpHeadersHandlePendingHeadersRefreshRequestNone : McpHeade
     /// <inheritdoc />
     [JsonIgnore]
     public override string Kind => "none";
+}
+
+/// <summary>The <c>error</c> variant of <see cref="McpHeadersHandlePendingHeadersRefreshRequest"/>.</summary>
+[Experimental(Diagnostics.Experimental)]
+public partial class McpHeadersHandlePendingHeadersRefreshRequestError : McpHeadersHandlePendingHeadersRefreshRequest
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "error";
+
+    /// <summary>Host credential broker failure, denial, or revocation reason.</summary>
+    [JsonPropertyName("message")]
+    public required string Message { get; set; }
 }
 
 /// <summary>MCP headers refresh request id and the host response.</summary>

@@ -19,6 +19,7 @@ from copilot import (
     CopilotClient,
     DisableBypassPermissionsModes,
     ExtensionInfo,
+    ManagedMCPServerConfig,
     ModelBillingTokenPrices,
     ModelBillingTokenPricesLongContext,
     RuntimeConnection,
@@ -38,8 +39,10 @@ from copilot.client import (
     ModelLimits,
     ModelSupports,
 )
-from copilot.session import PermissionHandler
+from copilot.session import CopilotSession, PermissionHandler
 from copilot.session_events import (
+    McpHeadersRefreshRequiredData,
+    McpHeadersRefreshRequiredReason,
     McpOauthRequestReason,
     McpOauthRequiredData,
     McpOauthRequiredStaticClientConfig,
@@ -625,6 +628,173 @@ class TestCreateSessionConfig:
             assert observed_request is not None
             assert "resourceMetadata" not in observed_request
             assert "wwwAuthenticateParams" not in observed_request
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_managed_mcp_headers_refresh_dispatches_ttl_and_broker_errors(self):
+        transport = Mock()
+        transport.request = AsyncMock(return_value={"success": True})
+        session = CopilotSession("managed-session", transport)
+        responses = [
+            {"Authorization": "Bearer short-lived"},
+            {
+                "headers": {"Authorization": "Bearer refreshed"},
+                "ttl_ms": 5_000,
+            },
+            None,
+        ]
+
+        async def handle_refresh(request, context):
+            assert request == {
+                "server_name": "GitHub",
+                "server_url": "https://example.com/mcp",
+                "reason": "startup",
+            }
+            assert context == {"session_id": "managed-session"}
+            return responses.pop(0)
+
+        session._register_mcp_headers_refresh_handler(handle_refresh)
+        event = SessionEvent(
+            data=McpHeadersRefreshRequiredData(
+                request_id="refresh-1",
+                server_name="GitHub",
+                server_url="https://example.com/mcp",
+                reason=McpHeadersRefreshRequiredReason.STARTUP,
+            ),
+            id="evt-refresh",
+            timestamp="2026-01-01T00:00:00Z",
+            type=SessionEventType.MCP_HEADERS_REFRESH_REQUIRED,
+            ephemeral=True,
+            parent_id=None,
+        )
+        session._dispatch_event(event)
+        for _ in range(200):
+            if transport.request.await_count == 1:
+                break
+            await asyncio.sleep(0.005)
+
+        await session._execute_mcp_headers_refresh_and_respond(
+            "refresh-2",
+            {
+                "server_name": "GitHub",
+                "server_url": "https://example.com/mcp",
+                "reason": "startup",
+            },
+            handle_refresh,
+        )
+        await session._execute_mcp_headers_refresh_and_respond(
+            "refresh-3",
+            {
+                "server_name": "GitHub",
+                "server_url": "https://example.com/mcp",
+                "reason": "startup",
+            },
+            handle_refresh,
+        )
+
+        def fail_refresh(_request, _context):
+            raise RuntimeError("credential revoked")
+
+        await session._execute_mcp_headers_refresh_and_respond(
+            "refresh-4",
+            {
+                "server_name": "GitHub",
+                "server_url": "https://example.com/mcp",
+                "reason": "auth-failed",
+            },
+            fail_refresh,
+        )
+        await session._execute_mcp_headers_refresh_and_respond(
+            "refresh-5",
+            {
+                "server_name": "GitHub",
+                "server_url": "https://example.com/mcp",
+                "reason": "auth-failed",
+            },
+            lambda _request, _context: (_ for _ in ()).throw(asyncio.CancelledError()),
+        )
+
+        results = [call.args[1]["result"] for call in transport.request.await_args_list]
+        assert results == [
+            {
+                "kind": "headers",
+                "headers": {"Authorization": "Bearer short-lived"},
+            },
+            {
+                "kind": "headers",
+                "headers": {"Authorization": "Bearer refreshed"},
+                "ttlMs": 5_000,
+            },
+            {"kind": "none"},
+            {"kind": "error", "message": "credential revoked"},
+            {"kind": "error", "message": "MCP headers refresh cancelled"},
+        ]
+
+    @pytest.mark.asyncio
+    async def test_create_and_resume_forward_managed_mcp_servers(self):
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        await client.start()
+        try:
+            captured: list[tuple[str, dict]] = []
+
+            async def mock_request(method, params, **kwargs):
+                captured.append((method, params))
+                if method in ("session.create", "session.resume"):
+                    result = {"sessionId": params["sessionId"], "workspacePath": None}
+                    callback = kwargs.get("on_response_inline")
+                    if callback is not None:
+                        callback(result)
+                    return result
+                if method == "session.eventLog.registerInterest":
+                    return {"id": "interest-1"}
+                return {}
+
+            client._client.request = mock_request
+            managed: dict[str, ManagedMCPServerConfig] = {
+                "github": {
+                    "display_name": "GitHub",
+                    "url": "https://example.com/mcp",
+                    "tools": ["issues"],
+                    "timeout": 30_000,
+                    "headers_refresh_ttl_ms": 60_000,
+                }
+            }
+
+            session = await client.create_session(
+                managed_mcp_servers=managed,
+                on_mcp_headers_refresh=lambda _request, _context: None,
+            )
+            await client.resume_session(
+                session.session_id,
+                managed_mcp_servers=managed,
+                on_mcp_headers_refresh=lambda _request, _context: None,
+            )
+
+            requests = {
+                method: params
+                for method, params in captured
+                if method in ("session.create", "session.resume")
+            }
+            expected = {
+                "github": {
+                    "displayName": "GitHub",
+                    "url": "https://example.com/mcp",
+                    "tools": ["issues"],
+                    "timeout": 30_000,
+                    "headersRefreshTtlMs": 60_000,
+                }
+            }
+            assert requests["session.create"]["managedMcpServers"] == expected
+            assert requests["session.resume"]["managedMcpServers"] == expected
+            assert (
+                sum(
+                    method == "session.eventLog.registerInterest"
+                    and params["eventType"] == "mcp.headers_refresh_required"
+                    for method, params in captured
+                )
+                == 2
+            )
         finally:
             await client.force_stop()
 

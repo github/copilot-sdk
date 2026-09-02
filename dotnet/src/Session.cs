@@ -65,6 +65,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     private volatile Func<PermissionRequest, PermissionInvocation, Task<PermissionDecision>>? _permissionHandler;
     private bool _managedSettingsEnabled;
     private volatile Func<McpAuthContext, Task<McpAuthResult?>>? _mcpAuthHandler;
+    private volatile Func<McpHeadersRefreshContext, Task<McpHeadersRefreshResult?>>? _mcpHeadersRefreshHandler;
     private volatile Func<UserInputRequest, UserInputInvocation, Task<UserInputResponse>>? _userInputHandler;
     private volatile Func<ElicitationContext, Task<ElicitationResult>>? _elicitationHandler;
     private volatile Func<ExitPlanModeRequest, ExitPlanModeInvocation, Task<ExitPlanModeResult>>? _exitPlanModeHandler;
@@ -590,6 +591,11 @@ public sealed partial class CopilotSession : IAsyncDisposable
         _mcpAuthHandler = handler;
     }
 
+    internal void RegisterMcpHeadersRefreshHandler(Func<McpHeadersRefreshContext, Task<McpHeadersRefreshResult?>>? handler)
+    {
+        _mcpHeadersRefreshHandler = handler;
+    }
+
     /// <summary>
     /// Handles a permission request from the Copilot CLI.
     /// </summary>
@@ -696,6 +702,26 @@ public sealed partial class CopilotSession : IAsyncDisposable
                             ResourceMetadata = data.ResourceMetadata,
                             StaticClientConfig = data.StaticClientConfig
                         }, handler);
+                        break;
+                    }
+
+                case McpHeadersRefreshRequiredEvent refreshEvent:
+                    {
+                        var data = refreshEvent.Data;
+                        var handler = _mcpHeadersRefreshHandler;
+                        if (string.IsNullOrEmpty(data.RequestId) || handler is null)
+                            return;
+
+                        await ExecuteMcpHeadersRefreshAndRespondAsync(
+                            data.RequestId,
+                            new McpHeadersRefreshContext
+                            {
+                                SessionId = SessionId,
+                                ServerName = data.ServerName,
+                                ServerUrl = data.ServerUrl,
+                                Reason = data.Reason
+                            },
+                            handler);
                         break;
                     }
 
@@ -823,6 +849,56 @@ public sealed partial class CopilotSession : IAsyncDisposable
         catch (Exception ex) when (IsRecoverableMcpAuthFailure(ex))
         {
             await TryCancelMcpAuthRequestAsync(requestId);
+        }
+    }
+
+    private async Task ExecuteMcpHeadersRefreshAndRespondAsync(
+        string requestId,
+        McpHeadersRefreshContext context,
+        Func<McpHeadersRefreshContext, Task<McpHeadersRefreshResult?>> handler)
+    {
+        McpHeadersHandlePendingHeadersRefreshRequest response;
+        try
+        {
+            var result = await handler(context);
+            response = result is null
+                ? new McpHeadersHandlePendingHeadersRefreshRequestNone()
+                : new McpHeadersHandlePendingHeadersRefreshRequestHeaders
+                {
+                    Headers = result.Headers,
+                    TtlMs = result.TtlMs
+                };
+        }
+        catch (OperationCanceledException ex)
+        {
+            response = new McpHeadersHandlePendingHeadersRefreshRequestError
+            {
+                Message = ex.Message
+            };
+        }
+        catch (Exception ex) when (IsRecoverableMcpAuthFailure(ex))
+        {
+            response = new McpHeadersHandlePendingHeadersRefreshRequestError
+            {
+                Message = ex.Message
+            };
+        }
+
+        try
+        {
+            await Rpc.Mcp.Headers.HandlePendingHeadersRefreshRequestAsync(requestId, response);
+        }
+        catch (IOException)
+        {
+            // Connection lost — nothing we can do.
+        }
+        catch (ObjectDisposedException)
+        {
+            // Connection already disposed — nothing we can do.
+        }
+        catch (RemoteRpcException)
+        {
+            // The pending request may already be gone — nothing we can do.
         }
     }
 

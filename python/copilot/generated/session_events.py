@@ -5147,6 +5147,7 @@ class McpServersLoadedServer:
     "A single MCP server status summary in `session.mcp_servers_loaded`, including name, status, source, transport, and plugin metadata."
     name: str
     status: McpServerStatus
+    display_name: str | None = None
     error: str | None = None
     plugin_name: str | None = None
     plugin_version: str | None = None
@@ -5158,6 +5159,7 @@ class McpServersLoadedServer:
         assert isinstance(obj, dict)
         name = from_str(obj.get("name"))
         status = parse_enum(McpServerStatus, obj.get("status"))
+        display_name = from_union([from_none, from_str], obj.get("displayName"))
         error = from_union([from_none, from_str], obj.get("error"))
         plugin_name = from_union([from_none, from_str], obj.get("pluginName"))
         plugin_version = from_union([from_none, from_str], obj.get("pluginVersion"))
@@ -5166,6 +5168,7 @@ class McpServersLoadedServer:
         return McpServersLoadedServer(
             name=name,
             status=status,
+            display_name=display_name,
             error=error,
             plugin_name=plugin_name,
             plugin_version=plugin_version,
@@ -5177,6 +5180,8 @@ class McpServersLoadedServer:
         result: dict = {}
         result["name"] = from_str(self.name)
         result["status"] = to_enum(McpServerStatus, self.status)
+        if self.display_name is not None:
+            result["displayName"] = from_union([from_none, from_str], self.display_name)
         if self.error is not None:
             result["error"] = from_union([from_none, from_str], self.error)
         if self.plugin_name is not None:
@@ -11999,7 +12004,7 @@ class McpOauthRequestReason(Enum):
 
 
 class McpServerSource(Enum):
-    "Configuration source: user, workspace, plugin, or builtin"
+    "Configuration source: user, workspace, plugin, builtin, or managed"
     # Server configured in the user's global MCP configuration.
     USER = "user"
     # Server configured by the current workspace.
@@ -12008,6 +12013,8 @@ class McpServerSource(Enum):
     PLUGIN = "plugin"
     # Server bundled with the runtime.
     BUILTIN = "builtin"
+    # Server supplied by a trusted host-managed catalog.
+    MANAGED = "managed"
 
 
 class McpServerStatus(Enum):
