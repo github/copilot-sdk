@@ -326,8 +326,8 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionModelSwitchToParams_record() {
-        var params = new SessionModelSwitchToParams("sess-32", "claude-sonnet-5", "high", null, null, null, null,
-                null, null, null, null, null, null, null, null);
+        var params = new SessionModelSwitchToParams("sess-32", "claude-sonnet-5", "high", null, null, null, null, null,
+                null, null, null, null, null, null, null);
         assertEquals("sess-32", params.sessionId());
         assertEquals("claude-sonnet-5", params.modelId());
         assertEquals("high", params.reasoningEffort());

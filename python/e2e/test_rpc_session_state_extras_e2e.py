@@ -86,8 +86,7 @@ class TestRpcSessionStateExtras:
                 assert result.list is not None
                 assert len(result.list) > 0
                 assert any(
-                    "claude-sonnet-5" in json.dumps(model, sort_keys=True)
-                    for model in result.list
+                    "claude-sonnet-5" in json.dumps(model, sort_keys=True) for model in result.list
                 )
         finally:
             await _stop_client(client)
