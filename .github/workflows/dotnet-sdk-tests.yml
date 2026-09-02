@@ -120,7 +120,15 @@ jobs:
           - os: macos-latest
             transport: default
             backend: capi
-            shard: "2b1b-mcp"
+            shard: "2b1b-mcp-and-skills"
+          - os: macos-latest
+            transport: default
+            backend: capi
+            shard: "2b1b-mcp-config"
+          - os: macos-latest
+            transport: default
+            backend: capi
+            shard: "2b1b-mcp-lifecycle"
           - os: macos-latest
             transport: default
             backend: capi
@@ -257,14 +265,17 @@ jobs:
                 initials=()
                 shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcE"
                 ;;
-              2b1b-mcp)
+              2b1b-mcp-and-skills)
                 initials=()
-                shard_filter=""
-                individual_filters=(
-                  "FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcMcpAndSkillsE2ETests"
-                  "FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcMcpConfigE2ETests"
-                  "FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcMcpLifecycleE2ETests"
-                )
+                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcMcpAndSkillsE2ETests"
+                ;;
+              2b1b-mcp-config)
+                initials=()
+                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcMcpConfigE2ETests"
+                ;;
+              2b1b-mcp-lifecycle)
+                initials=()
+                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcMcpLifecycleE2ETests"
                 ;;
               2b1b-queue)
                 initials=()
