@@ -104,7 +104,19 @@ jobs:
           - os: macos-latest
             transport: default
             backend: capi
-            shard: "2b1a"
+            shard: "2b1a-permission-provider"
+          - os: macos-latest
+            transport: default
+            backend: capi
+            shard: "2b1a-rewind"
+          - os: macos-latest
+            transport: default
+            backend: capi
+            shard: "2b1a-rpc-a"
+          - os: macos-latest
+            transport: default
+            backend: capi
+            shard: "2b1a-rpc-e"
           - os: macos-latest
             transport: default
             backend: capi
@@ -219,9 +231,21 @@ jobs:
                 initials=(B E F G)
                 shard_filter=""
                 ;;
-              2b1a)
+              2b1a-permission-provider)
                 initials=(O P)
-                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.Rewind|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcA|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcE"
+                shard_filter=""
+                ;;
+              2b1a-rewind)
+                initials=()
+                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.Rewind"
+                ;;
+              2b1a-rpc-a)
+                initials=()
+                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcA"
+                ;;
+              2b1a-rpc-e)
+                initials=()
+                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcE"
                 ;;
               2b1b-mcp)
                 initials=()
