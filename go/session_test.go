@@ -366,6 +366,138 @@ func readTestJSONRPCFrame(r io.Reader) ([]byte, error) {
 	return data, err
 }
 
+func TestSession_SendAndWaitSkipsAutopilotContinuationIdle(t *testing.T) {
+	stdinR, stdinW := io.Pipe()
+	stdoutR, stdoutW := io.Pipe()
+	defer stdinR.Close()
+	defer stdinW.Close()
+	defer stdoutR.Close()
+	defer stdoutW.Close()
+
+	client := jsonrpc2.NewClient(stdinW, stdoutR)
+	client.Start()
+	defer client.Stop()
+
+	requestReceived := make(chan struct{})
+	errCh := make(chan error, 1)
+	go func() {
+		frame, err := readTestJSONRPCFrame(stdinR)
+		if err != nil {
+			errCh <- err
+			return
+		}
+
+		var request struct {
+			ID     json.RawMessage `json:"id"`
+			Method string          `json:"method"`
+		}
+		if err := json.Unmarshal(frame, &request); err != nil {
+			errCh <- err
+			return
+		}
+		if request.Method != "session.send" {
+			errCh <- fmt.Errorf("expected session.send, got %s", request.Method)
+			return
+		}
+
+		response := map[string]any{
+			"jsonrpc": "2.0",
+			"id":      json.RawMessage(request.ID),
+			"result":  map[string]any{"messageId": "message-1"},
+		}
+		data, err := json.Marshal(response)
+		if err != nil {
+			errCh <- err
+			return
+		}
+		if _, err := fmt.Fprintf(stdoutW, "Content-Length: %d\r\n\r\n%s", len(data), data); err != nil {
+			errCh <- err
+			return
+		}
+		close(requestReceived)
+	}()
+
+	session := &Session{
+		SessionID: "session-1",
+		client:    client,
+		RPC:       rpc.NewSessionRPC(client, "session-1"),
+		handlers:  make([]sessionHandler, 0),
+		eventCh:   make(chan SessionEvent, 8),
+	}
+	go session.processEvents()
+	defer close(session.eventCh)
+
+	resultCh := make(chan *SessionEvent, 1)
+	go func() {
+		result, err := session.SendAndWait(t.Context(), MessageOptions{Prompt: "keep going"})
+		if err != nil {
+			errCh <- err
+			return
+		}
+		resultCh <- result
+	}()
+
+	select {
+	case <-requestReceived:
+	case err := <-errCh:
+		t.Fatal(err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for session.send request")
+	}
+
+	continuationIdleProcessed := make(chan struct{})
+	unsubscribe := session.On(func(event SessionEvent) {
+		if idle, ok := event.Data.(*SessionIdleData); ok &&
+			idle.Mode != nil && *idle.Mode == SessionModeAutopilot {
+			close(continuationIdleProcessed)
+		}
+	})
+	defer unsubscribe()
+
+	autopilot := SessionModeAutopilot
+	session.dispatchEvent(SessionEvent{Data: &AssistantMessageData{
+		Content:   "intermediate",
+		MessageID: "assistant-1",
+	}})
+	session.dispatchEvent(SessionEvent{Data: &SessionIdleData{Mode: &autopilot}})
+
+	select {
+	case <-continuationIdleProcessed:
+	case err := <-errCh:
+		t.Fatal(err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for autopilot continuation idle")
+	}
+
+	select {
+	case <-resultCh:
+		t.Fatal("SendAndWait returned at an autopilot continuation idle")
+	default:
+	}
+
+	interactive := SessionModeInteractive
+	session.dispatchEvent(SessionEvent{Data: &AssistantMessageData{
+		Content:   "final",
+		MessageID: "assistant-2",
+	}})
+	session.dispatchEvent(SessionEvent{Data: &SessionIdleData{Mode: &interactive}})
+
+	select {
+	case result := <-resultCh:
+		message, ok := result.Data.(*AssistantMessageData)
+		if !ok {
+			t.Fatalf("expected assistant message, got %T", result.Data)
+		}
+		if message.Content != "final" {
+			t.Fatalf("expected final assistant message, got %q", message.Content)
+		}
+	case err := <-errCh:
+		t.Fatal(err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for terminal idle")
+	}
+}
+
 func TestSession_On(t *testing.T) {
 	t.Run("multiple handlers all receive events", func(t *testing.T) {
 		session, cleanup := newTestSession()

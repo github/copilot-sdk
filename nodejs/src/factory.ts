@@ -4,6 +4,8 @@
 
 import type {
     FactoryGetRunProgressRequest,
+    FactoryListRunsRequest,
+    FactoryListRunsResult,
     FactoryProgressPage,
     FactoryRunDetail,
     FactoryRunResult,
@@ -25,6 +27,22 @@ export type {
     FactoryRunStatus,
     FactoryRunSummary,
 } from "./generated/rpc.js";
+
+/**
+ * Options for paging durable factory runs.
+ *
+ * @experimental Part of the experimental Agent Factories surface and may
+ * change or be removed in future SDK or CLI releases.
+ */
+export type FactoryListRunsOptions = FactoryListRunsRequest;
+
+/**
+ * A page of durable factory runs and its paging metadata.
+ *
+ * @experimental Part of the experimental Agent Factories surface and may
+ * change or be removed in future SDK or CLI releases.
+ */
+export type FactoryRunsPage = FactoryListRunsResult;
 
 /**
  * Run statuses a factory run can no longer move away from.
@@ -62,12 +80,16 @@ export type JsonValue =
     | { [key: string]: JsonValue };
 
 /**
- * Conservative JSON shape language accepted for structured factory agent output.
+ * Conservative JSON shape language accepted by the Agent Factories surface, for
+ * both structured factory agent output and a factory's declared `argsSchema`.
  *
- * This is a best-effort structural guard used to decide whether a subagent's
- * structured output should be accepted or retried — **not** a full JSON Schema
+ * This is a best-effort structural guard — used to decide whether a subagent's
+ * structured output should be accepted or retried, and whether a caller's
+ * factory `args` match the declared shape — **not** a full JSON Schema
  * validator. Only these keywords are honored: `type`, `required`, `enum`,
- * `const`, recursive `properties`/`items`, and `anyOf`/`oneOf`/`allOf`.
+ * `const`, recursive `properties`/`items`, and `anyOf`/`oneOf`/`allOf`. A `type`
+ * is one of `null`, `boolean`, `integer`, `number`, `string`, `array`, or
+ * `object`, or a non-empty array of those (for example `["object", "null"]`).
  *
  * Everything else is **ignored, not enforced**. In particular, string
  * constraints (`pattern`, `minLength`, `maxLength`, `format`), numeric ranges
@@ -238,6 +260,10 @@ export interface RunOptions<TArgs extends JsonValue = JsonValue> {
     args?: TArgs;
     /** Optional per-invocation resource ceiling overrides. */
     limits?: FactoryLimits;
+    /** Whether to notify the originating session when the factory completes. */
+    notifyOnComplete?: boolean;
+    /** Whether to emit factory phase names to the session transcript. */
+    logPhaseNames?: boolean;
     /**
      * Prior run whose persisted identity, arguments, journal, and accounting should be resumed.
      *
@@ -255,6 +281,10 @@ export interface RunOptions<TArgs extends JsonValue = JsonValue> {
 export interface ResumeOptions {
     /** Optional per-invocation resource ceiling overrides. */
     limits?: FactoryLimits;
+    /** Whether to notify the originating session when the factory completes. */
+    notifyOnComplete?: boolean;
+    /** Whether to emit factory phase names to the session transcript. */
+    logPhaseNames?: boolean;
 }
 
 /**
@@ -324,8 +354,20 @@ export interface SessionFactoryApi {
     waitForRun(runId: string, options?: { signal?: AbortSignal }): Promise<FactoryRunResult>;
     /**
      * List the newest default page of this session's durable factory runs.
+     *
+     * This backwards-compatible overload returns only the runs array. Pass
+     * paging options to receive the full page, including its cursors and
+     * truncation metadata.
      */
     listRuns(): Promise<FactoryRunSummary[]>;
+    /**
+     * Page this session's durable factory runs.
+     *
+     * `afterSeq` and `beforeSeq` are exclusive cursors. The result includes
+     * `oldestSeq`, `newestSeq`, `hasMoreNewer`, and `omittedOlder` so callers
+     * can continue paging without using the raw RPC client.
+     */
+    listRuns(options: FactoryListRunsOptions): Promise<FactoryRunsPage>;
     /** Read durable phases, direct agents, and the latest progress tail for a run. */
     getRunDetail(runId: string): Promise<FactoryRunDetail>;
     /** Page durable progress forward, backward, or from the latest tail. */

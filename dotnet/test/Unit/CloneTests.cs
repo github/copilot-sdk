@@ -20,8 +20,16 @@ public class CloneTests
             GitHubToken = "ghp_test",
             UseLoggedInUser = false,
             BaseDirectory = "/custom/copilot/home",
+            BuiltinPluginDirectories = ["/plugins/core", "/plugins/github"],
             EnableRemoteSessions = true,
             SessionIdleTimeoutSeconds = 600,
+            ClientInfo = new CopilotClientInfo
+            {
+                ApplicationName = "example-app",
+                ApplicationVersion = "1.0.0",
+                IntegrationName = "example-integration",
+                IntegrationVersion = "2.0.0",
+            },
         };
 
         var clone = original.Clone();
@@ -33,8 +41,11 @@ public class CloneTests
         Assert.Equal(original.GitHubToken, clone.GitHubToken);
         Assert.Equal(original.UseLoggedInUser, clone.UseLoggedInUser);
         Assert.Equal(original.BaseDirectory, clone.BaseDirectory);
+        Assert.Equal(original.BuiltinPluginDirectories, clone.BuiltinPluginDirectories);
+        Assert.NotSame(original.BuiltinPluginDirectories, clone.BuiltinPluginDirectories);
         Assert.Equal(original.EnableRemoteSessions, clone.EnableRemoteSessions);
         Assert.Equal(original.SessionIdleTimeoutSeconds, clone.SessionIdleTimeoutSeconds);
+        Assert.Same(original.ClientInfo, clone.ClientInfo);
     }
 
     [Fact]
@@ -70,6 +81,7 @@ public class CloneTests
             ReasoningEffort = "high",
             ReasoningSummary = ReasoningSummary.Detailed,
             ContextTier = ContextTier.LongContext,
+            AskUserVariant = AskUserVariant.Elicitation,
             ConfigDirectory = "/config",
             AvailableTools = ["tool1", "tool2"],
             ExcludedTools = ["tool3"],
@@ -78,6 +90,7 @@ public class CloneTests
             AdditionalDirectories = ["/shared", "/generated"],
             Streaming = true,
             EnableCitations = true,
+            EnableFileChangeTracking = true,
             EnableSessionTelemetry = false,
             EnableExperimentalMode = true,
             EnableOnDemandInstructionDiscovery = true,
@@ -117,6 +130,7 @@ public class CloneTests
         Assert.Equal(original.ReasoningEffort, clone.ReasoningEffort);
         Assert.Equal(original.ReasoningSummary, clone.ReasoningSummary);
         Assert.Equal(original.ContextTier, clone.ContextTier);
+        Assert.Equal(original.AskUserVariant, clone.AskUserVariant);
         Assert.Equal(original.ConfigDirectory, clone.ConfigDirectory);
         Assert.Equal(original.AvailableTools, clone.AvailableTools);
         Assert.Equal(original.ExcludedTools, clone.ExcludedTools);
@@ -125,6 +139,7 @@ public class CloneTests
         Assert.Equal(original.AdditionalDirectories, clone.AdditionalDirectories);
         Assert.Equal(original.Streaming, clone.Streaming);
         Assert.Equal(original.EnableCitations, clone.EnableCitations);
+        Assert.Equal(original.EnableFileChangeTracking, clone.EnableFileChangeTracking);
         Assert.Equal(original.EnableSessionTelemetry, clone.EnableSessionTelemetry);
         Assert.Equal(original.EnableExperimentalMode, clone.EnableExperimentalMode);
         Assert.Equal(original.EnableOnDemandInstructionDiscovery, clone.EnableOnDemandInstructionDiscovery);

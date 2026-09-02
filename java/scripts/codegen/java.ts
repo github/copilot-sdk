@@ -4,7 +4,7 @@
 
 /**
  * Java code generator for session-events and RPC types.
- * Generates Java source files under src/generated/java/ from JSON Schema files.
+ * Generates Java source files under sdk/src/generated/java/ from JSON Schema files.
  */
 
 import fs from "fs/promises";
@@ -65,6 +65,24 @@ function normalizeBrandCasingNode(node: unknown): void {
     }
     if (node === null || typeof node !== "object") return;
     const obj = node as Record<string, unknown>;
+
+    if (obj.title === "ProviderModelConfig" && obj.properties && typeof obj.properties === "object") {
+        const tokenFields = new Set([
+            "maxPromptTokens",
+            "maxContextWindowTokens",
+            "maxOutputTokens",
+        ]);
+        for (const [key, value] of Object.entries(obj.properties as Record<string, unknown>)) {
+            if (
+                tokenFields.has(key) &&
+                value !== null &&
+                typeof value === "object" &&
+                (value as Record<string, unknown>).type === "number"
+            ) {
+                (value as Record<string, unknown>).type = "integer";
+            }
+        }
+    }
 
     for (const defsKey of ["definitions", "$defs"] as const) {
         const defs = obj[defsKey];
@@ -149,7 +167,9 @@ function toCamelCase(name: string): string {
 }
 
 function toEnumConstant(value: string): string {
-    return value.toUpperCase().replace(/[-. /:]/g, "_").replace(/^_+/, "").replace(/_+/g, "_");
+    const constant = value.toUpperCase().replace(/[^A-Z0-9]/g, "_").replace(/^_+/, "").replace(/_+/g, "_");
+    if (constant.length === 0) return "_";
+    return /^[0-9]/.test(constant) ? `_${constant}` : constant;
 }
 
 // ── Schema path resolution ───────────────────────────────────────────────────
@@ -232,6 +252,7 @@ interface JavaTypeResult {
 // Set before each schema generation pass; used by schemaTypeToJava and helpers.
 let currentDefinitions: Record<string, JSONSchema7> = {};
 const pendingStandaloneTypes = new Map<string, JSONSchema7>();
+const generatedSessionEventTypeNames = new Set<string>();
 
 // Cross-schema definitions: keyed by schema filename (e.g. "session-events.schema.json"),
 // value is the definitions map from that schema. Populated by generateRpcTypes so that
@@ -573,21 +594,15 @@ function schemaTypeToJava(
         if (crossSchemaMatch) {
             const [, schemaFile, typeName] = crossSchemaMatch;
             const externalDefs = crossSchemaDefinitions.get(schemaFile);
-            if (externalDefs) {
-                const resolved = externalDefs[typeName];
-                if (resolved) {
-                    // Save and swap currentDefinitions so recursive calls resolve against
-                    // the external schema's definitions.
-                    const savedDefs = currentDefinitions;
-                    currentDefinitions = externalDefs;
-                    const result = schemaTypeToJava(resolved, required, context, propName, nestedTypes);
-                    currentDefinitions = savedDefs;
-                    return result;
-                }
+            if (
+                schemaFile === "session-events.schema.json"
+                && externalDefs?.[typeName]
+                && generatedSessionEventTypeNames.has(typeName)
+            ) {
+                imports.add(`com.github.copilot.generated.${typeName}`);
+                return { javaType: typeName, imports };
             }
-            // Fallback: extract just the type name and warn
-            console.warn(`[codegen] Unresolved cross-schema $ref: ${schema.$ref}`);
-            return { javaType: typeName, imports };
+            return { javaType: "Object", imports };
         }
 
         const name = schema.$ref.replace(/^#\/definitions\//, "");
@@ -779,7 +794,7 @@ async function generateSessionEvents(schemaPath: string): Promise<void> {
 
     const variants = extractEventVariants(schema);
     const packageName = "com.github.copilot.generated";
-    const packageDir = `src/generated/java/com/github/copilot/generated`;
+    const packageDir = `sdk/src/generated/java/com/github/copilot/generated`;
 
     // Generate base SessionEvent class
     await generateSessionEventBaseClass(variants, packageName, packageDir);
@@ -791,6 +806,13 @@ async function generateSessionEvents(schemaPath: string): Promise<void> {
 
     // Generate standalone types discovered via $ref resolution
     await generatePendingStandaloneTypes(packageName, packageDir, GENERATED_FROM_SESSION_EVENTS);
+
+    generatedSessionEventTypeNames.clear();
+    for (const entry of await fs.readdir(path.join(REPO_ROOT, packageDir), { withFileTypes: true })) {
+        if (entry.isFile() && entry.name.endsWith(".java")) {
+            generatedSessionEventTypeNames.add(path.basename(entry.name, ".java"));
+        }
+    }
 
     console.log(`✅ Generated ${variants.length + 1} session event files`);
 }
@@ -1384,7 +1406,7 @@ async function generateRpcTypes(schemaPath: string): Promise<void> {
     }
 
     const packageName = "com.github.copilot.generated.rpc";
-    const packageDir = `src/generated/java/com/github/copilot/generated/rpc`;
+    const packageDir = `sdk/src/generated/java/com/github/copilot/generated/rpc`;
 
     // Collect all RPC methods from all sections
     const sections: [string, Record<string, unknown>][] = [];
@@ -2224,7 +2246,7 @@ async function generateRpcWrappers(schemaPath: string): Promise<void> {
     currentDefinitions = (schema.definitions ?? {}) as Record<string, JSONSchema7>;
 
     const packageName = "com.github.copilot.generated.rpc";
-    const packageDir = `src/generated/java/com/github/copilot/generated/rpc`;
+    const packageDir = `sdk/src/generated/java/com/github/copilot/generated/rpc`;
 
     // RpcCaller interface and shared ObjectMapper holder
     await generateRpcCallerInterface(packageName, packageDir);
@@ -2347,7 +2369,7 @@ async function main(): Promise<void> {
     console.log("============================");
 
     // Clean the generated output directory to remove orphaned files from previous runs
-    const generatedOutputDir = path.join(REPO_ROOT, "src/generated/java/com/github/copilot/generated");
+    const generatedOutputDir = path.join(REPO_ROOT, "sdk/src/generated/java/com/github/copilot/generated");
     console.log(`🧹 Cleaning output directory: ${generatedOutputDir}`);
     await fs.rm(generatedOutputDir, { recursive: true, force: true });
     await fs.mkdir(generatedOutputDir, { recursive: true });
@@ -2362,8 +2384,8 @@ async function main(): Promise<void> {
     await generateRpcWrappers(apiSchemaPath);
 
     // Generate package-info.java for each generated package
-    const generatedPkgDir = `src/generated/java/com/github/copilot/generated`;
-    const rpcPkgDir = `src/generated/java/com/github/copilot/generated/rpc`;
+    const generatedPkgDir = `sdk/src/generated/java/com/github/copilot/generated`;
+    const rpcPkgDir = `sdk/src/generated/java/com/github/copilot/generated/rpc`;
     await generateGeneratedPackageInfo(generatedPkgDir);
     await generateRpcPackageInfo(rpcPkgDir);
 

@@ -24,6 +24,35 @@ import (
 
 // This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.test.go instead
 
+func TestResolveRuntimeExecutable(t *testing.T) {
+	t.Run("managed launch requires bundled runtime pair", func(t *testing.T) {
+		_, err := resolveRuntimeExecutable("", "")
+		if err == nil || !strings.Contains(err.Error(), "copilot-runtime and adjacent runtime.node") {
+			t.Fatalf("expected missing managed runtime error, got %v", err)
+		}
+	})
+
+	t.Run("explicit path does not require bundled runtime pair", func(t *testing.T) {
+		path, err := resolveRuntimeExecutable("/explicit/copilot", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if path != "/explicit/copilot" {
+			t.Fatalf("resolveRuntimeExecutable() = %q", path)
+		}
+	})
+
+	t.Run("managed launch selects bundled wrapper", func(t *testing.T) {
+		path, err := resolveRuntimeExecutable("", "/bundle/copilot-runtime")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if path != "/bundle/copilot-runtime" {
+			t.Fatalf("resolveRuntimeExecutable() = %q", path)
+		}
+	})
+}
+
 func TestClient_URLParsing(t *testing.T) {
 	t.Run("should parse port-only URL format", func(t *testing.T) {
 		client := NewClient(&ClientOptions{
@@ -139,6 +168,300 @@ func TestClient_URLParsing(t *testing.T) {
 	})
 }
 
+func TestClient_BuiltinPluginDirectories(t *testing.T) {
+	t.Run("default and empty do not call RPC", func(t *testing.T) {
+		for _, paths := range [][]string{nil, []string{}} {
+			t.Run(fmt.Sprintf("len=%d", len(paths)), func(t *testing.T) {
+				url, requests, cleanup := newStartupRPCServer(t)
+				defer cleanup()
+
+				client := NewClient(&ClientOptions{
+					Connection:               URIConnection{URL: url},
+					BuiltinPluginDirectories: paths,
+				})
+				if err := client.Start(t.Context()); err != nil {
+					t.Fatalf("Start failed: %v", err)
+				}
+				defer client.ForceStop()
+
+				if got := countMethod(requests(), "plugins.builtin.set"); got != 0 {
+					t.Fatalf("plugins.builtin.set call count = %d, want 0", got)
+				}
+			})
+		}
+	})
+
+	t.Run("configured paths call RPC once", func(t *testing.T) {
+		url, requests, cleanup := newStartupRPCServer(t)
+		defer cleanup()
+		cwd, err := os.Getwd()
+		if err != nil {
+			t.Fatalf("Getwd failed: %v", err)
+		}
+		paths := []string{
+			filepath.Join(cwd, "plugins", "core"),
+			filepath.Join(cwd, "plugins", "github"),
+		}
+
+		client := NewClient(&ClientOptions{
+			Connection:               URIConnection{URL: url},
+			BuiltinPluginDirectories: paths,
+		})
+		if err := client.Start(t.Context()); err != nil {
+			t.Fatalf("Start failed: %v", err)
+		}
+		defer client.ForceStop()
+
+		var calls []startupRPCRequest
+		for _, request := range requests() {
+			if request.Method == "plugins.builtin.set" {
+				calls = append(calls, request)
+			}
+		}
+		if len(calls) != 1 {
+			t.Fatalf("plugins.builtin.set call count = %d, want 1", len(calls))
+		}
+		var payload struct {
+			Paths []string `json:"paths"`
+		}
+		if err := json.Unmarshal(calls[0].Params, &payload); err != nil {
+			t.Fatalf("decode plugins.builtin.set params: %v", err)
+		}
+		if !reflect.DeepEqual(payload.Paths, paths) {
+			t.Fatalf("paths = %v, want %v", payload.Paths, paths)
+		}
+	})
+
+	t.Run("relative path panics", func(t *testing.T) {
+		defer func() {
+			if recovered := recover(); recovered == nil {
+				t.Fatal("expected NewClient to panic")
+			}
+		}()
+		NewClient(&ClientOptions{BuiltinPluginDirectories: []string{"plugins/core"}})
+	})
+
+	t.Run("startup RPC failure clears transport for reconnect", func(t *testing.T) {
+		url, _, cleanup := newStartupRPCServerWithBuiltinFailure(t, true)
+		defer cleanup()
+		cwd, err := os.Getwd()
+		if err != nil {
+			t.Fatalf("Getwd failed: %v", err)
+		}
+		client := NewClient(&ClientOptions{
+			Connection:               URIConnection{URL: url},
+			BuiltinPluginDirectories: []string{filepath.Join(cwd, "plugins", "core")},
+		})
+
+		if err := client.Start(t.Context()); err == nil {
+			t.Fatal("Start unexpectedly succeeded")
+		}
+		if client.client != nil {
+			t.Fatal("client transport was not cleared after startup RPC failure")
+		}
+		if client.conn != nil {
+			t.Fatal("connection was not cleared after startup RPC failure")
+		}
+		if client.RPC != nil {
+			t.Fatal("typed RPC client was not cleared after startup RPC failure")
+		}
+		if client.internalRPC != nil {
+			t.Fatal("internal RPC client was not cleared after startup RPC failure")
+		}
+
+		if err := client.Start(t.Context()); err != nil {
+			t.Fatalf("second Start failed: %v", err)
+		}
+		defer client.ForceStop()
+	})
+}
+
+func TestClient_ClientInfo(t *testing.T) {
+	findConnect := func(requests []startupRPCRequest) map[string]any {
+		t.Helper()
+		for _, request := range requests {
+			if request.Method != "connect" {
+				continue
+			}
+			var params map[string]any
+			if err := json.Unmarshal(request.Params, &params); err != nil {
+				t.Fatalf("decode connect params: %v", err)
+			}
+			return params
+		}
+		t.Fatal("connect was not called")
+		return nil
+	}
+
+	t.Run("forwards a declared identity on the connect handshake", func(t *testing.T) {
+		url, requests, cleanup := newStartupRPCServer(t)
+		defer cleanup()
+
+		client := NewClient(&ClientOptions{
+			Connection: URIConnection{URL: url},
+			ClientInfo: &ClientInfo{
+				ApplicationName:    "acme-developer-portal",
+				ApplicationVersion: "2.4.0",
+				IntegrationName:    "copilot-assistant",
+				IntegrationVersion: "1.5.0",
+			},
+		})
+		if err := client.Start(t.Context()); err != nil {
+			t.Fatalf("Start failed: %v", err)
+		}
+		defer client.ForceStop()
+
+		params := findConnect(requests())
+		want := map[string]any{
+			"editorName":       "acme-developer-portal",
+			"editorVersion":    "2.4.0",
+			"extensionName":    "copilot-assistant",
+			"extensionVersion": "1.5.0",
+		}
+		if !reflect.DeepEqual(params["clientInfo"], want) {
+			t.Fatalf("clientInfo = %v, want %v", params["clientInfo"], want)
+		}
+	})
+
+	t.Run("omits clientInfo when unset", func(t *testing.T) {
+		url, requests, cleanup := newStartupRPCServer(t)
+		defer cleanup()
+
+		client := NewClient(&ClientOptions{Connection: URIConnection{URL: url}})
+		if err := client.Start(t.Context()); err != nil {
+			t.Fatalf("Start failed: %v", err)
+		}
+		defer client.ForceStop()
+
+		if _, ok := findConnect(requests())["clientInfo"]; ok {
+			t.Fatal("clientInfo should be omitted when unset")
+		}
+	})
+
+	t.Run("omits empty fields", func(t *testing.T) {
+		url, requests, cleanup := newStartupRPCServer(t)
+		defer cleanup()
+
+		client := NewClient(&ClientOptions{
+			Connection: URIConnection{URL: url},
+			ClientInfo: &ClientInfo{ApplicationName: "example-app"},
+		})
+		if err := client.Start(t.Context()); err != nil {
+			t.Fatalf("Start failed: %v", err)
+		}
+		defer client.ForceStop()
+
+		want := map[string]any{"editorName": "example-app"}
+		if got := findConnect(requests())["clientInfo"]; !reflect.DeepEqual(got, want) {
+			t.Fatalf("clientInfo = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("omits clientInfo when all fields empty", func(t *testing.T) {
+		url, requests, cleanup := newStartupRPCServer(t)
+		defer cleanup()
+
+		client := NewClient(&ClientOptions{
+			Connection: URIConnection{URL: url},
+			ClientInfo: &ClientInfo{},
+		})
+		if err := client.Start(t.Context()); err != nil {
+			t.Fatalf("Start failed: %v", err)
+		}
+		defer client.ForceStop()
+
+		if _, ok := findConnect(requests())["clientInfo"]; ok {
+			t.Fatal("clientInfo should be omitted when all fields are empty")
+		}
+	})
+}
+
+type startupRPCRequest struct {
+	Method string
+	Params json.RawMessage
+}
+
+func newStartupRPCServer(t *testing.T) (string, func() []startupRPCRequest, func()) {
+	return newStartupRPCServerWithBuiltinFailure(t, false)
+}
+
+func newStartupRPCServerWithBuiltinFailure(t *testing.T, failFirstBuiltin bool) (string, func() []startupRPCRequest, func()) {
+	t.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+
+	var mux sync.Mutex
+	var requests []startupRPCRequest
+	serverReady := make(chan *jsonrpc2.Client, 8)
+	var builtinSetCount int
+	go func() {
+		for {
+			conn, acceptErr := listener.Accept()
+			if acceptErr != nil {
+				return
+			}
+			server := jsonrpc2.NewClient(conn, conn)
+			record := func(method string, params json.RawMessage) {
+				mux.Lock()
+				requests = append(requests, startupRPCRequest{
+					Method: method,
+					Params: append(json.RawMessage(nil), params...),
+				})
+				mux.Unlock()
+			}
+			server.SetRequestHandler("connect", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+				record("connect", params)
+				return []byte(`{"ok":true,"protocolVersion":3,"version":"test"}`), nil
+			})
+			server.SetRequestHandler("plugins.builtin.set", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+				record("plugins.builtin.set", params)
+				mux.Lock()
+				builtinSetCount++
+				shouldFail := failFirstBuiltin && builtinSetCount == 1
+				mux.Unlock()
+				if shouldFail {
+					return nil, &jsonrpc2.Error{Code: -32000, Message: "builtin registration failed"}
+				}
+				return []byte(`{}`), nil
+			})
+			server.Start()
+			serverReady <- server
+		}
+	}()
+
+	snapshot := func() []startupRPCRequest {
+		mux.Lock()
+		defer mux.Unlock()
+		return append([]startupRPCRequest(nil), requests...)
+	}
+	cleanup := func() {
+		listener.Close()
+		for {
+			select {
+			case server := <-serverReady:
+				server.Stop()
+			case <-time.After(time.Second):
+				return
+			default:
+				return
+			}
+		}
+	}
+	return listener.Addr().String(), snapshot, cleanup
+}
+
+func countMethod(requests []startupRPCRequest, method string) int {
+	count := 0
+	for _, request := range requests {
+		if request.Method == method {
+			count++
+		}
+	}
+	return count
+}
+
 func TestClient_StopRequestsRuntimeShutdownForOwnedProcess(t *testing.T) {
 	rpcClient, server, shutdownCalled := newRuntimeShutdownRpcPair(t)
 	client := &Client{
@@ -213,6 +536,66 @@ func newRuntimeShutdownRpcPair(t *testing.T) (*jsonrpc2.Client, *jsonrpc2.Client
 }
 
 func TestClient_ForwardsCapiOptionsToSessionRequests(t *testing.T) {
+	tests := []struct {
+		name string
+		capi *CapiSessionOptions
+		want map[string]any
+	}{
+		{"omitted", nil, nil},
+		{"empty", &CapiSessionOptions{}, map[string]any{}},
+		{"websocket only", &CapiSessionOptions{EnableWebSocketResponses: Bool(false)}, map[string]any{"enableWebSocketResponses": false}},
+		{"efficiency", &CapiSessionOptions{AutoTier: AutoTierEfficiency}, map[string]any{"autoTier": "efficiency"}},
+		{"balance", &CapiSessionOptions{AutoTier: AutoTierBalance}, map[string]any{"autoTier": "balance"}},
+		{"intelligence", &CapiSessionOptions{AutoTier: AutoTierIntelligence}, map[string]any{"autoTier": "intelligence"}},
+		{"efficiency with websocket", &CapiSessionOptions{AutoTier: AutoTierEfficiency, EnableWebSocketResponses: Bool(false)}, map[string]any{"autoTier": "efficiency", "enableWebSocketResponses": false}},
+		{"balance with websocket", &CapiSessionOptions{AutoTier: AutoTierBalance, EnableWebSocketResponses: Bool(false)}, map[string]any{"autoTier": "balance", "enableWebSocketResponses": false}},
+		{"intelligence with websocket", &CapiSessionOptions{AutoTier: AutoTierIntelligence, EnableWebSocketResponses: Bool(false)}, map[string]any{"autoTier": "intelligence", "enableWebSocketResponses": false}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
+			t.Cleanup(server.Stop)
+			client := &Client{
+				client:   rpcClient,
+				RPC:      rpc.NewServerRPC(rpcClient),
+				sessions: make(map[string]*Session),
+			}
+
+			createParams := make(chan json.RawMessage, 1)
+			server.SetRequestHandler("session.create", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+				createParams <- append(json.RawMessage(nil), params...)
+				sessionID := sessionIDFromParams(t, params)
+				return []byte(`{"sessionId":"` + sessionID + `","workspacePath":"/workspace"}`), nil
+			})
+
+			_, err := client.CreateSession(t.Context(), &SessionConfig{
+				Model: "auto",
+				Capi:  tt.capi,
+			})
+			if err != nil {
+				t.Fatalf("CreateSession failed: %v", err)
+			}
+			assertCapiOptions(t, <-createParams, tt.want)
+
+			resumeParams := make(chan json.RawMessage, 1)
+			server.SetRequestHandler("session.resume", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+				resumeParams <- append(json.RawMessage(nil), params...)
+				return []byte(`{"sessionId":"resumed-capi","workspacePath":"/workspace"}`), nil
+			})
+
+			_, err = client.ResumeSessionWithOptions(t.Context(), "resumed-capi", &ResumeSessionConfig{
+				Model: "auto",
+				Capi:  tt.capi,
+			})
+			if err != nil {
+				t.Fatalf("ResumeSessionWithOptions failed: %v", err)
+			}
+			assertCapiOptions(t, <-resumeParams, tt.want)
+		})
+	}
+}
+
+func TestClient_ForwardsAskUserVariantToSessionRequests(t *testing.T) {
 	rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
 	t.Cleanup(server.Stop)
 	client := &Client{
@@ -221,34 +604,74 @@ func TestClient_ForwardsCapiOptionsToSessionRequests(t *testing.T) {
 		sessions: make(map[string]*Session),
 	}
 
-	createParams := make(chan json.RawMessage, 1)
+	createParams := make(chan json.RawMessage, 2)
 	server.SetRequestHandler("session.create", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
 		createParams <- append(json.RawMessage(nil), params...)
 		sessionID := sessionIDFromParams(t, params)
 		return []byte(`{"sessionId":"` + sessionID + `","workspacePath":"/workspace"}`), nil
 	})
-
-	_, err := client.CreateSession(t.Context(), &SessionConfig{
-		Capi: &CapiSessionOptions{EnableWebSocketResponses: Bool(false)},
-	})
-	if err != nil {
-		t.Fatalf("CreateSession failed: %v", err)
-	}
-	assertCapiEnableWebSocketResponses(t, <-createParams)
-
-	resumeParams := make(chan json.RawMessage, 1)
+	resumeParams := make(chan json.RawMessage, 2)
 	server.SetRequestHandler("session.resume", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
 		resumeParams <- append(json.RawMessage(nil), params...)
-		return []byte(`{"sessionId":"resumed-capi","workspacePath":"/workspace"}`), nil
+		sessionID := sessionIDFromParams(t, params)
+		return []byte(`{"sessionId":"` + sessionID + `","workspacePath":"/workspace"}`), nil
 	})
 
-	_, err = client.ResumeSessionWithOptions(t.Context(), "resumed-capi", &ResumeSessionConfig{
-		Capi: &CapiSessionOptions{EnableWebSocketResponses: Bool(false)},
-	})
-	if err != nil {
-		t.Fatalf("ResumeSessionWithOptions failed: %v", err)
+	if _, err := client.CreateSession(t.Context(), &SessionConfig{
+		SessionID:      "ask-user-create",
+		AskUserVariant: AskUserVariantElicitation,
+	}); err != nil {
+		t.Fatalf("CreateSession failed: %v", err)
 	}
-	assertCapiEnableWebSocketResponses(t, <-resumeParams)
+	if _, err := client.ResumeSession(t.Context(), "ask-user-cold-resume", &ResumeSessionConfig{
+		AskUserVariant: AskUserVariantLegacy,
+	}); err != nil {
+		t.Fatalf("ResumeSession failed: %v", err)
+	}
+	if _, err := client.CreateSession(t.Context(), &SessionConfig{SessionID: "ask-user-default-create"}); err != nil {
+		t.Fatalf("CreateSession with default failed: %v", err)
+	}
+	if _, err := client.ResumeSession(t.Context(), "ask-user-default-cold-resume", nil); err != nil {
+		t.Fatalf("ResumeSession with default failed: %v", err)
+	}
+
+	assertAskUserVariant(t, <-createParams, "elicitation")
+	assertAskUserVariant(t, <-resumeParams, "legacy")
+	assertAskUserVariant(t, <-createParams, "")
+	assertAskUserVariant(t, <-resumeParams, "")
+}
+
+func TestClient_RejectsInvalidAskUserVariant(t *testing.T) {
+	client := &Client{}
+
+	if _, err := client.CreateSession(t.Context(), &SessionConfig{
+		AskUserVariant: AskUserVariant("unknown"),
+	}); err == nil || !strings.Contains(err.Error(), "AskUserVariant") {
+		t.Fatalf("CreateSession error = %v, want invalid AskUserVariant error", err)
+	}
+	if _, err := client.ResumeSession(t.Context(), "cold-resume", &ResumeSessionConfig{
+		AskUserVariant: AskUserVariant("unknown"),
+	}); err == nil || !strings.Contains(err.Error(), "AskUserVariant") {
+		t.Fatalf("ResumeSession error = %v, want invalid AskUserVariant error", err)
+	}
+}
+
+func assertAskUserVariant(t *testing.T, params json.RawMessage, want string) {
+	t.Helper()
+	var payload map[string]any
+	if err := json.Unmarshal(params, &payload); err != nil {
+		t.Fatalf("failed to decode request params: %v", err)
+	}
+	got, present := payload["askUserVariant"]
+	if want == "" {
+		if present {
+			t.Fatalf("askUserVariant = %v, want omitted", got)
+		}
+		return
+	}
+	if got != want {
+		t.Fatalf("askUserVariant = %v, want %q", got, want)
+	}
 }
 
 func TestClient_ForwardsAdditionalDirectoriesToSessionRequests(t *testing.T) {
@@ -398,14 +821,15 @@ func TestClient_ForwardsNewSessionOptionsToSessionRequests(t *testing.T) {
 	})
 
 	_, err := client.CreateSession(t.Context(), &SessionConfig{
-		ExcludedBuiltInAgents: []string{"explore"},
-		EnableCitations:       Bool(true),
-		SessionLimits:         &rpc.SessionLimitsConfig{MaxAiCredits: float64Ptr(30)},
+		ExcludedBuiltInAgents:    []string{"explore"},
+		EnableCitations:          Bool(true),
+		EnableFileChangeTracking: Bool(true),
+		SessionLimits:            &rpc.SessionLimitsConfig{MaxAiCredits: float64Ptr(30)},
 	})
 	if err != nil {
 		t.Fatalf("CreateSession failed: %v", err)
 	}
-	assertNewSessionOptions(t, <-createParams, true, "explore", 30)
+	assertNewSessionOptions(t, <-createParams, true, true, "explore", 30)
 
 	resumeParams := make(chan json.RawMessage, 1)
 	server.SetRequestHandler("session.resume", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
@@ -414,17 +838,18 @@ func TestClient_ForwardsNewSessionOptionsToSessionRequests(t *testing.T) {
 	})
 
 	_, err = client.ResumeSessionWithOptions(t.Context(), "resumed-options", &ResumeSessionConfig{
-		ExcludedBuiltInAgents: []string{"task"},
-		EnableCitations:       Bool(false),
-		SessionLimits:         &rpc.SessionLimitsConfig{MaxAiCredits: float64Ptr(15)},
+		ExcludedBuiltInAgents:    []string{"task"},
+		EnableCitations:          Bool(false),
+		EnableFileChangeTracking: Bool(false),
+		SessionLimits:            &rpc.SessionLimitsConfig{MaxAiCredits: float64Ptr(15)},
 	})
 	if err != nil {
 		t.Fatalf("ResumeSessionWithOptions failed: %v", err)
 	}
-	assertNewSessionOptions(t, <-resumeParams, false, "task", 15)
+	assertNewSessionOptions(t, <-resumeParams, false, false, "task", 15)
 }
 
-func assertCapiEnableWebSocketResponses(t *testing.T, params json.RawMessage) {
+func assertCapiOptions(t *testing.T, params json.RawMessage, want map[string]any) {
 	t.Helper()
 
 	var decoded map[string]any
@@ -432,12 +857,18 @@ func assertCapiEnableWebSocketResponses(t *testing.T, params json.RawMessage) {
 		t.Fatalf("failed to unmarshal request params: %v", err)
 	}
 
+	if want == nil {
+		if _, present := decoded["capi"]; present {
+			t.Fatalf("expected capi to be omitted, got %v", decoded["capi"])
+		}
+		return
+	}
 	capi, ok := decoded["capi"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected capi object in request params, got %T", decoded["capi"])
 	}
-	if capi["enableWebSocketResponses"] != false {
-		t.Fatalf("expected capi.enableWebSocketResponses=false, got %v", capi["enableWebSocketResponses"])
+	if !reflect.DeepEqual(capi, want) {
+		t.Fatalf("expected capi %v, got %v", want, capi)
 	}
 }
 
@@ -445,6 +876,7 @@ func assertNewSessionOptions(
 	t *testing.T,
 	params json.RawMessage,
 	expectedCitations bool,
+	expectedFileChangeTracking bool,
 	expectedAgent string,
 	expectedCredits float64,
 ) {
@@ -456,6 +888,9 @@ func assertNewSessionOptions(
 	}
 	if decoded["enableCitations"] != expectedCitations {
 		t.Fatalf("expected enableCitations=%v, got %v", expectedCitations, decoded["enableCitations"])
+	}
+	if decoded["enableFileChangeTracking"] != expectedFileChangeTracking {
+		t.Fatalf("expected enableFileChangeTracking=%v, got %v", expectedFileChangeTracking, decoded["enableFileChangeTracking"])
 	}
 	agents, ok := decoded["excludedBuiltinAgents"].([]any)
 	if !ok || len(agents) != 1 || agents[0] != expectedAgent {
@@ -1939,6 +2374,175 @@ func TestClient_MCPAuthInterestRegistration(t *testing.T) {
 	})
 }
 
+func findRequest(requests []recordedRequest, method string) (recordedRequest, bool) {
+	for _, r := range requests {
+		if r.Method == method {
+			return r, true
+		}
+	}
+	return recordedRequest{}, false
+}
+
+func TestClient_EmptyModeIncludedBuiltinSkills(t *testing.T) {
+	t.Run("create post-patch sends empty includedBuiltinSkills", func(t *testing.T) {
+		client, requests, cleanup := newInMemoryClientWithOptions(t, &ClientOptions{
+			Mode:          ModeEmpty,
+			BaseDirectory: "/tmp/copilot-test",
+		})
+		defer cleanup()
+
+		session, err := client.CreateSession(t.Context(), &SessionConfig{
+			OnPermissionRequest: PermissionHandler.ApproveAll,
+			OnEvent:             func(SessionEvent) {},
+			AvailableTools:      []string{},
+		})
+		if err != nil {
+			t.Fatalf("CreateSession failed: %v", err)
+		}
+		defer session.Disconnect()
+
+		update, ok := findRequest(requests.snapshot(), "session.options.update")
+		if !ok {
+			t.Fatalf("expected session.options.update in %+v", requests.snapshot())
+		}
+		skills, present := update.Params["includedBuiltinSkills"]
+		if !present {
+			t.Fatalf("expected includedBuiltinSkills in patch, got %+v", update.Params)
+		}
+		if arr, isArr := skills.([]any); !isArr || len(arr) != 0 {
+			t.Fatalf("expected includedBuiltinSkills=[], got %#v", skills)
+		}
+	})
+
+	t.Run("resume post-patch sends empty includedBuiltinSkills", func(t *testing.T) {
+		client, requests, cleanup := newInMemoryClientWithOptions(t, &ClientOptions{
+			Mode:          ModeEmpty,
+			BaseDirectory: "/tmp/copilot-test",
+		})
+		defer cleanup()
+
+		session, err := client.ResumeSession(t.Context(), "session-empty", &ResumeSessionConfig{
+			OnPermissionRequest: PermissionHandler.ApproveAll,
+			OnEvent:             func(SessionEvent) {},
+			AvailableTools:      []string{},
+		})
+		if err != nil {
+			t.Fatalf("ResumeSession failed: %v", err)
+		}
+		defer session.Disconnect()
+
+		update, ok := findRequest(requests.snapshot(), "session.options.update")
+		if !ok {
+			t.Fatalf("expected session.options.update in %+v", requests.snapshot())
+		}
+		if arr, isArr := update.Params["includedBuiltinSkills"].([]any); !isArr || len(arr) != 0 {
+			t.Fatalf("expected includedBuiltinSkills=[], got %#v", update.Params["includedBuiltinSkills"])
+		}
+	})
+
+	t.Run("resume preserves explicit built-in skill allowlist", func(t *testing.T) {
+		client, requests, cleanup := newInMemoryClientWithOptions(t, &ClientOptions{
+			Mode:          ModeEmpty,
+			BaseDirectory: "/tmp/copilot-test",
+		})
+		defer cleanup()
+
+		session, err := client.ResumeSessionWithOptions(t.Context(), "resume-skills", &ResumeSessionConfig{
+			OnPermissionRequest:   PermissionHandler.ApproveAll,
+			AvailableTools:        []string{},
+			IncludedBuiltinSkills: []string{"code-review"},
+		})
+		if err != nil {
+			t.Fatalf("ResumeSessionWithOptions failed: %v", err)
+		}
+		defer session.Disconnect()
+
+		update, ok := findRequest(requests.snapshot(), "session.options.update")
+		if !ok {
+			t.Fatalf("expected session.options.update in %+v", requests.snapshot())
+		}
+		skills, ok := update.Params["includedBuiltinSkills"].([]any)
+		if !ok || len(skills) != 1 || skills[0] != "code-review" {
+			t.Fatalf("expected includedBuiltinSkills=[code-review], got %#v", update.Params["includedBuiltinSkills"])
+		}
+	})
+
+	t.Run("caller opting into custom skills keeps includedBuiltinSkills empty", func(t *testing.T) {
+		client, requests, cleanup := newInMemoryClientWithOptions(t, &ClientOptions{
+			Mode:          ModeEmpty,
+			BaseDirectory: "/tmp/copilot-test",
+		})
+		defer cleanup()
+
+		session, err := client.CreateSession(t.Context(), &SessionConfig{
+			OnPermissionRequest: PermissionHandler.ApproveAll,
+			OnEvent:             func(SessionEvent) {},
+			AvailableTools:      []string{},
+			EnableSkills:        Bool(true),
+			SkillDirectories:    []string{"/tmp/custom-skills"},
+		})
+		if err != nil {
+			t.Fatalf("CreateSession failed: %v", err)
+		}
+		defer session.Disconnect()
+
+		update, ok := findRequest(requests.snapshot(), "session.options.update")
+		if !ok {
+			t.Fatalf("expected session.options.update in %+v", requests.snapshot())
+		}
+		if arr, isArr := update.Params["includedBuiltinSkills"].([]any); !isArr || len(arr) != 0 {
+			t.Fatalf("expected includedBuiltinSkills=[], got %#v", update.Params["includedBuiltinSkills"])
+		}
+	})
+
+	t.Run("explicit built-in skill allowlist is preserved in empty mode", func(t *testing.T) {
+		client, requests, cleanup := newInMemoryClientWithOptions(t, &ClientOptions{
+			Mode:          ModeEmpty,
+			BaseDirectory: "/tmp/copilot-test",
+		})
+		defer cleanup()
+
+		session, err := client.CreateSession(t.Context(), &SessionConfig{
+			OnPermissionRequest:   PermissionHandler.ApproveAll,
+			AvailableTools:        []string{},
+			IncludedBuiltinSkills: []string{"code-review"},
+		})
+		if err != nil {
+			t.Fatalf("CreateSession failed: %v", err)
+		}
+		defer session.Disconnect()
+
+		update, ok := findRequest(requests.snapshot(), "session.options.update")
+		if !ok {
+			t.Fatalf("expected session.options.update in %+v", requests.snapshot())
+		}
+		skills, ok := update.Params["includedBuiltinSkills"].([]any)
+		if !ok || len(skills) != 1 || skills[0] != "code-review" {
+			t.Fatalf("expected includedBuiltinSkills=[code-review], got %#v", update.Params["includedBuiltinSkills"])
+		}
+	})
+
+	t.Run("copilot-cli mode does not inject includedBuiltinSkills", func(t *testing.T) {
+		client, requests, cleanup := newInMemoryClient(t)
+		defer cleanup()
+
+		session, err := client.CreateSession(t.Context(), &SessionConfig{
+			OnPermissionRequest: PermissionHandler.ApproveAll,
+			OnEvent:             func(SessionEvent) {},
+		})
+		if err != nil {
+			t.Fatalf("CreateSession failed: %v", err)
+		}
+		defer session.Disconnect()
+
+		for _, r := range requests.snapshot() {
+			if _, present := r.Params["includedBuiltinSkills"]; present {
+				t.Fatalf("did not expect includedBuiltinSkills in %s params %+v", r.Method, r.Params)
+			}
+		}
+	})
+}
+
 type recordedRequest struct {
 	Method string
 	Params map[string]any
@@ -1971,13 +2575,18 @@ func (r *requestRecorder) clear() {
 
 func newInMemoryClient(t *testing.T) (*Client, *requestRecorder, func()) {
 	t.Helper()
+	return newInMemoryClientWithOptions(t, &ClientOptions{})
+}
+
+func newInMemoryClientWithOptions(t *testing.T, opts *ClientOptions) (*Client, *requestRecorder, func()) {
+	t.Helper()
 
 	stdinR, stdinW := io.Pipe()
 	stdoutR, stdoutW := io.Pipe()
 	rpcClient := jsonrpc2.NewClient(stdinW, stdoutR)
 	rpcClient.Start()
 
-	client := NewClient(&ClientOptions{})
+	client := NewClient(opts)
 	client.client = rpcClient
 	client.RPC = rpc.NewServerRPC(rpcClient)
 	client.state = stateConnected
@@ -2276,7 +2885,7 @@ func TestResumeSessionRequest_Commands(t *testing.T) {
 		req := resumeSessionRequest{
 			SessionID: "s1",
 			Commands: []wireCommand{
-				{Name: "deploy", Description: "Deploy the app"},
+				{Name: "deploy"},
 			},
 		}
 		data, err := json.Marshal(req)
@@ -2297,6 +2906,9 @@ func TestResumeSessionRequest_Commands(t *testing.T) {
 		cmd0 := cmds[0].(map[string]any)
 		if cmd0["name"] != "deploy" {
 			t.Errorf("Expected command name 'deploy', got %v", cmd0["name"])
+		}
+		if description, ok := cmd0["description"]; !ok || description != "" {
+			t.Errorf("Expected empty command description, got %v", description)
 		}
 	})
 
@@ -3527,6 +4139,62 @@ func TestResumeSessionRequest_ExpAssignments(t *testing.T) {
 	})
 }
 
+func TestSessionRequests_FeatureFlags(t *testing.T) {
+	featureFlags := map[string]bool{
+		"ENABLED_TEST_FLAG":  true,
+		"DISABLED_TEST_FLAG": false,
+	}
+
+	for _, tc := range []struct {
+		name string
+		req  any
+	}{
+		{"create", createSessionRequest{FeatureFlags: &featureFlags}},
+		{"resume", resumeSessionRequest{SessionID: "s1", FeatureFlags: &featureFlags}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			data, err := json.Marshal(tc.req)
+			if err != nil {
+				t.Fatalf("Failed to marshal: %v", err)
+			}
+			var payload map[string]any
+			if err := json.Unmarshal(data, &payload); err != nil {
+				t.Fatalf("Failed to unmarshal: %v", err)
+			}
+			got := payload["featureFlags"].(map[string]any)
+			if got["ENABLED_TEST_FLAG"] != true || got["DISABLED_TEST_FLAG"] != false {
+				t.Errorf("Unexpected featureFlags: %v", got)
+			}
+		})
+	}
+
+	emptyFlags := map[string]bool{}
+	for _, tc := range []struct {
+		name string
+		req  any
+	}{
+		{"create empty", createSessionRequest{FeatureFlags: &emptyFlags}},
+		{"resume empty", resumeSessionRequest{SessionID: "s1", FeatureFlags: &emptyFlags}},
+		{"create unset", createSessionRequest{}},
+		{"resume unset", resumeSessionRequest{SessionID: "s1"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			data, err := json.Marshal(tc.req)
+			if err != nil {
+				t.Fatalf("Failed to marshal: %v", err)
+			}
+			var payload map[string]any
+			if err := json.Unmarshal(data, &payload); err != nil {
+				t.Fatalf("Failed to unmarshal: %v", err)
+			}
+			_, present := payload["featureFlags"]
+			if strings.Contains(tc.name, "empty") != present {
+				t.Errorf("featureFlags presence = %v for %s", present, tc.name)
+			}
+		})
+	}
+}
+
 func TestIsTerminal(t *testing.T) {
 	t.Run("IsTerminal is serialized in tool definition", func(t *testing.T) {
 		tool := Tool{
@@ -3628,6 +4296,26 @@ func TestSessionRequests_ManagedSettings(t *testing.T) {
 		}
 		if _, ok := m["managedSettings"].(map[string]any); !ok {
 			t.Fatalf("Expected managedSettings object, got %v", m["managedSettings"])
+		}
+	})
+
+	t.Run("accepts future bypass-permissions modes", func(t *testing.T) {
+		req := createSessionRequest{ManagedSettings: &ManagedSettings{
+			Permissions: &ManagedSettingsPermissions{
+				DisableBypassPermissionsMode: DisableBypassPermissionsMode("future-fail-closed-mode"),
+			},
+		}}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		perms := m["managedSettings"].(map[string]any)["permissions"].(map[string]any)
+		if perms["disableBypassPermissionsMode"] != "future-fail-closed-mode" {
+			t.Errorf("Expected future mode preserved, got %v", perms["disableBypassPermissionsMode"])
 		}
 	})
 

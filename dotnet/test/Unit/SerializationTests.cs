@@ -483,6 +483,7 @@ public class SerializationTests
             createRequestType,
             ("SessionId", "session-id"),
             ("EnableCitations", true),
+            ("EnableFileChangeTracking", true),
             ("ExcludedBuiltInAgents", excludedAgents),
             ("SessionLimits", new SessionLimitsConfig { MaxAiCredits = 12.5 }));
 
@@ -490,6 +491,7 @@ public class SerializationTests
         using var createDocument = JsonDocument.Parse(createJson);
         var createRoot = createDocument.RootElement;
         Assert.True(createRoot.GetProperty("enableCitations").GetBoolean());
+        Assert.True(createRoot.GetProperty("enableFileChangeTracking").GetBoolean());
         Assert.Equal("explore", createRoot.GetProperty("excludedBuiltinAgents")[0].GetString());
         Assert.Equal(12.5, createRoot.GetProperty("sessionLimits").GetProperty("maxAiCredits").GetDouble());
 
@@ -498,6 +500,7 @@ public class SerializationTests
             resumeRequestType,
             ("SessionId", "session-id"),
             ("EnableCitations", true),
+            ("EnableFileChangeTracking", true),
             ("ExcludedBuiltInAgents", excludedAgents),
             ("SessionLimits", new SessionLimitsConfig { MaxAiCredits = 7.25 }));
 
@@ -505,6 +508,7 @@ public class SerializationTests
         using var resumeDocument = JsonDocument.Parse(resumeJson);
         var resumeRoot = resumeDocument.RootElement;
         Assert.True(resumeRoot.GetProperty("enableCitations").GetBoolean());
+        Assert.True(resumeRoot.GetProperty("enableFileChangeTracking").GetBoolean());
         Assert.Equal("task", resumeRoot.GetProperty("excludedBuiltinAgents")[1].GetString());
         Assert.Equal(7.25, resumeRoot.GetProperty("sessionLimits").GetProperty("maxAiCredits").GetDouble());
     }
@@ -624,6 +628,46 @@ public class SerializationTests
 
         Assert.NotNull(clone.ExpAssignments);
         Assert.Equal("exp-resume", clone.ExpAssignments!.Configs[0].Id);
+    }
+
+    [Fact]
+    public void SessionRequests_CanSerializeFeatureFlags_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+        var flags = new Dictionary<string, bool>
+        {
+            ["ENABLED_TEST_FLAG"] = true,
+            ["DISABLED_TEST_FLAG"] = false,
+        };
+
+        foreach (var requestName in new[] { "CreateSessionRequest", "ResumeSessionRequest" })
+        {
+            var requestType = GetNestedType(typeof(CopilotClient), requestName);
+            var request = CreateInternalRequest(
+                requestType,
+                ("SessionId", "session-id"),
+                ("FeatureFlags", flags));
+            using var document = JsonDocument.Parse(
+                JsonSerializer.Serialize(request, requestType, options));
+            var serializedFlags = document.RootElement.GetProperty("featureFlags");
+            Assert.True(serializedFlags.GetProperty("ENABLED_TEST_FLAG").GetBoolean());
+            Assert.False(serializedFlags.GetProperty("DISABLED_TEST_FLAG").GetBoolean());
+        }
+    }
+
+    [Fact]
+    public void SessionConfigClone_CopiesFeatureFlags()
+    {
+        var config = new SessionConfig
+        {
+            FeatureFlags = new Dictionary<string, bool> { ["TEST_FLAG"] = true },
+        };
+
+        var clone = config.Clone();
+        clone.FeatureFlags!["TEST_FLAG"] = false;
+
+        Assert.True(config.FeatureFlags["TEST_FLAG"]);
+        Assert.False(clone.FeatureFlags["TEST_FLAG"]);
     }
 
     [Fact]

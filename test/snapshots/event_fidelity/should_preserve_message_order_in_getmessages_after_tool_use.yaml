@@ -1,5 +1,5 @@
 models:
-  - claude-sonnet-4.5
+  - claude-sonnet-5
 conversations:
   - messages:
       - role: system
@@ -15,6 +15,6 @@ conversations:
               arguments: '{"path":"order.txt"}'
       - role: tool
         tool_call_id: toolcall_0
-        content: 1. ORDER_CONTENT_42
+        content: ORDER_CONTENT_42
       - role: assistant
         content: The number in 'order.txt' is **42**.

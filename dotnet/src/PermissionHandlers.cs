@@ -27,6 +27,9 @@ public static class PermissionHandler
             return true;
         }
 
+        // Only reached for a request that did not deserialize into a generated
+        // variant. Keep this list in sync with the PermissionRequest discriminators
+        // so a known kind is never treated as requiring managed approval.
         return request.GetType() == typeof(PermissionRequest)
             && request.Kind is not ("shell"
                 or "write"
@@ -37,6 +40,8 @@ public static class PermissionHandler
                 or "custom-tool"
                 or "hook"
                 or "extension-management"
-                or "extension-permission-access");
+                or "factory"
+                or "extension-permission-access"
+                or "extension-env-access");
     }
 }

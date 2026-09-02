@@ -43,4 +43,13 @@ public partial class PermissionDecision
     /// connected client to answer instead.
     /// </summary>
     public static PermissionDecision NoResult() => new PermissionDecisionNoResult();
+
+    /// <summary>
+    /// Optional provenance describing how and where this decision was made.
+    /// This is never serialized as part of the decision itself: the SDK forwards
+    /// it to the runtime as a sibling of <c>result</c> so that auto-approval
+    /// telemetry can be attributed correctly.
+    /// </summary>
+    [JsonIgnore]
+    public PermissionDecisionContext? DecisionContext { get; set; }
 }

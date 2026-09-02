@@ -309,6 +309,7 @@ public sealed class CopilotClientOptions
         Connection = other.Connection;
         WorkingDirectory = other.WorkingDirectory;
         BaseDirectory = other.BaseDirectory;
+        BuiltinPluginDirectories = other.BuiltinPluginDirectories is null ? null : [.. other.BuiltinPluginDirectories];
         Environment = other.Environment;
         GitHubToken = other.GitHubToken;
         Logger = other.Logger;
@@ -321,6 +322,7 @@ public sealed class CopilotClientOptions
         OnGitHubTelemetry = other.OnGitHubTelemetry;
         SessionIdleTimeoutSeconds = other.SessionIdleTimeoutSeconds;
         EnableRemoteSessions = other.EnableRemoteSessions;
+        ClientInfo = other.ClientInfo;
         Mode = other.Mode;
     }
 
@@ -357,6 +359,13 @@ public sealed class CopilotClientOptions
     /// <see cref="RuntimeConnection.ForUri(string, string?)"/>.
     /// </summary>
     public string? BaseDirectory { get; set; }
+
+    /// <summary>
+    /// Absolute paths to trusted plugin directories bundled by the host.
+    /// When non-empty, the complete set is registered with the runtime during
+    /// startup before sessions can be created.
+    /// </summary>
+    public IList<string>? BuiltinPluginDirectories { get; set; }
 
     /// <summary>
     /// Log level for the Copilot runtime. Use the well-known values on
@@ -458,6 +467,16 @@ public sealed class CopilotClientOptions
     public bool EnableRemoteSessions { get; set; }
 
     /// <summary>
+    /// Declares the integrating application's identity, forwarded to the runtime on the
+    /// <c>server.connect</c> handshake. Declaring it lets the telemetry the
+    /// runtime emits on this connection be attributed to a consistent surface
+    /// (the application and its Copilot integration) instead of the runtime's own
+    /// build. All fields are optional; leave it <see langword="null"/> to keep
+    /// the runtime's default attribution.
+    /// </summary>
+    public CopilotClientInfo? ClientInfo { get; set; }
+
+    /// <summary>
     /// Creates a shallow clone of this <see cref="CopilotClientOptions"/> instance.
     /// </summary>
     /// <remarks>
@@ -521,6 +540,38 @@ public sealed class TelemetryConfig
     /// Maps to the <c>OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT</c> environment variable.
     /// </remarks>
     public bool? CaptureContent { get; set; }
+}
+
+/// <summary>
+/// Identifies the integrating application on the <c>server.connect</c> handshake.
+/// </summary>
+/// <remarks>
+/// Declaring it lets the telemetry the runtime emits on the connection be
+/// attributed to a single, consistent surface instead of the runtime's own
+/// build. All properties are optional; an unset property is omitted from the
+/// handshake.
+/// </remarks>
+public sealed class CopilotClientInfo
+{
+    /// <summary>
+    /// Name of the application using the SDK.
+    /// </summary>
+    public string? ApplicationName { get; set; }
+
+    /// <summary>
+    /// Version of the application using the SDK.
+    /// </summary>
+    public string? ApplicationVersion { get; set; }
+
+    /// <summary>
+    /// Optionally specifies a named integration within the application, such as an extension or plugin.
+    /// </summary>
+    public string? IntegrationName { get; set; }
+
+    /// <summary>
+    /// Optionally specifies the version of that integration.
+    /// </summary>
+    public string? IntegrationVersion { get; set; }
 }
 
 /// <summary>
@@ -2390,6 +2441,18 @@ public sealed class CapiSessionOptions
     /// </remarks>
     [JsonPropertyName("enableWebSocketResponses")]
     public bool? EnableWebSocketResponses { get; set; }
+
+    /// <summary>
+    /// Routing tier for model <c>auto</c> with V2 Auto.
+    /// </summary>
+    /// <remarks>
+    /// Requires a runtime that supports Auto tiers; it has no effect outside V2 Auto.
+    /// When omitted, the runtime uses its default on create and preserves the persisted or current
+    /// tier on resume. An explicit tier overrides the persisted tier on a cold resume; a conflicting
+    /// tier on a resident session resume is rejected by the runtime.
+    /// </remarks>
+    [JsonPropertyName("autoTier")]
+    public AutoTier? AutoTier { get; set; }
 }
 
 /// <summary>
@@ -3044,15 +3107,14 @@ public sealed class GitHubMcpToolConfig
     public bool? DisableFormDeferral { get; set; }
 }
 
-/// <summary>
-/// Controls whether bypass-permissions mode is available in a managed session.
-/// </summary>
-[JsonConverter(typeof(JsonStringEnumConverter<DisableBypassPermissionsMode>))]
-public enum DisableBypassPermissionsMode
+/// <summary>Well-known managed bypass-permissions policies.</summary>
+public static class DisableBypassPermissionsModes
 {
-    /// <summary>Turn off bypass-permissions mode.</summary>
-    [JsonStringEnumMemberName("disable")]
-    Disable
+    /// <summary>Turns off bypass-permissions mode entirely.</summary>
+    public const string Disable = "disable";
+
+    /// <summary>Permits automatic bypass but blocks full allow-all.</summary>
+    public const string AllowAutoOnly = "allow-auto-only";
 }
 
 /// <summary>
@@ -3063,18 +3125,19 @@ public enum DisableBypassPermissionsMode
 /// This layer composes restrictively with any server- or device-level managed
 /// settings: <see cref="Deny"/> and <see cref="Ask"/> rules are unioned across
 /// layers, every present <see cref="Allow"/> list must admit a tool for it to be
-/// allowed, and <see cref="DisableBypassPermissionsMode"/> is honored if any
-/// layer sets it (deny-wins).
+/// allowed, and <see cref="DisableBypassPermissionsMode"/> policies compose to
+/// the most restrictive setting.
 /// </remarks>
 public sealed class ManagedSettingsPermissions
 {
     /// <summary>
-    /// When set to <c>"disable"</c>, bypass-permissions mode is turned off for the
-    /// session regardless of other layers. Serialized as
-    /// <c>disableBypassPermissionsMode</c>.
+    /// Restricts bypass-permissions mode for the session regardless of other
+    /// layers. See <see cref="DisableBypassPermissionsModes"/> for well-known
+    /// values. Unknown values are forwarded so newer runtime policies fail closed.
+    /// Serialized as <c>disableBypassPermissionsMode</c>.
     /// </summary>
     [JsonPropertyName("disableBypassPermissionsMode")]
-    public DisableBypassPermissionsMode? DisableBypassPermissionsMode { get; set; }
+    public string? DisableBypassPermissionsMode { get; set; }
 
     /// <summary>Tool-permission patterns that are always denied.</summary>
     [JsonPropertyName("deny")]
@@ -3109,6 +3172,21 @@ public sealed class ManagedSettings
 }
 
 /// <summary>
+/// Selects the model-facing shape of the built-in <c>ask_user</c> tool.
+/// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter<AskUserVariant>))]
+public enum AskUserVariant
+{
+    /// <summary>Use the legacy user-input request flow.</summary>
+    [JsonStringEnumMemberName("legacy")]
+    Legacy,
+
+    /// <summary>Use the elicitation request flow.</summary>
+    [JsonStringEnumMemberName("elicitation")]
+    Elicitation
+}
+
+/// <summary>
 /// Shared configuration properties for creating or resuming a Copilot session.
 /// Use <see cref="SessionConfig"/> when creating a new session, or
 /// <see cref="ResumeSessionConfig"/> when resuming an existing one.
@@ -3134,8 +3212,10 @@ public abstract class SessionConfigBase
         DefaultAgent = other.DefaultAgent;
         Agent = other.Agent;
         DisabledSkills = other.DisabledSkills is not null ? [.. other.DisabledSkills] : null;
+        IncludedBuiltinSkills = other.IncludedBuiltinSkills is not null ? [.. other.IncludedBuiltinSkills] : null;
         DisabledMcpServers = other.DisabledMcpServers is not null ? [.. other.DisabledMcpServers] : null;
         EnableCitations = other.EnableCitations;
+        EnableFileChangeTracking = other.EnableFileChangeTracking;
         EnableConfigDiscovery = other.EnableConfigDiscovery;
         SkipEmbeddingRetrieval = other.SkipEmbeddingRetrieval;
         EmbeddingCacheStorage = other.EmbeddingCacheStorage;
@@ -3195,9 +3275,14 @@ public abstract class SessionConfigBase
         ReasoningEffort = other.ReasoningEffort;
         ReasoningSummary = other.ReasoningSummary;
         ContextTier = other.ContextTier;
+        AskUserVariant = other.AskUserVariant;
         CreateSessionFsProvider = other.CreateSessionFsProvider;
         GitHubToken = other.GitHubToken;
+        GitHubTokenProvider = other.GitHubTokenProvider;
         RemoteSession = other.RemoteSession;
+        FeatureFlags = other.FeatureFlags is not null
+            ? new Dictionary<string, bool>(other.FeatureFlags)
+            : null;
         ExpAssignments = other.ExpAssignments;
         EnableManagedSettings = other.EnableManagedSettings;
         ManagedSettings = other.ManagedSettings;
@@ -3262,6 +3347,17 @@ public abstract class SessionConfigBase
     /// </remarks>
     [Experimental(Diagnostics.Experimental)]
     public bool? EnableCitations { get; set; }
+
+    /// <summary>
+    /// Opts in to capturing file changes for session rewind and cumulative
+    /// session diff.
+    /// </summary>
+    /// <remarks>
+    /// On create, capture starts with the first turn. On resume, tracking can be
+    /// enabled only when the session still has a valid baseline; earlier untracked
+    /// changes cannot be reconstructed.
+    /// </remarks>
+    public bool? EnableFileChangeTracking { get; set; }
 
     /// <summary>
     /// Override the default configuration directory location.
@@ -3333,6 +3429,14 @@ public abstract class SessionConfigBase
     public bool? EnableSkills { get; set; }
 
     /// <summary>
+    /// Built-in skill names to include in the session. In
+    /// <see cref="CopilotClientMode.Empty"/>, omitting this option excludes all
+    /// runtime-bundled skills; specifying names opts those built-ins back in.
+    /// Skills from other sources remain eligible.
+    /// </summary>
+    public IList<string>? IncludedBuiltinSkills { get; set; }
+
+    /// <summary>
     /// Custom tool declarations available to the language model during the session.
     /// Declarations backed by an <see cref="AIFunction"/> are invoked automatically; declarations without one
     /// are left for the client to handle via external tool request events.
@@ -3341,6 +3445,15 @@ public abstract class SessionConfigBase
 
     /// <summary>System message configuration for the session.</summary>
     public SystemMessageConfig? SystemMessage { get; set; }
+
+    /// <summary>
+    /// Selects the model-facing shape of the built-in <c>ask_user</c> tool.
+    /// The default is <see cref="GitHub.Copilot.AskUserVariant.Legacy"/>. To use
+    /// <see cref="GitHub.Copilot.AskUserVariant.Elicitation"/>, also provide
+    /// <see cref="OnElicitationRequest"/> so the host can answer structured forms.
+    /// The runtime resolves this option when it creates or cold-resumes the session.
+    /// </summary>
+    public AskUserVariant? AskUserVariant { get; set; }
 
     /// <summary>List of tool names to allow; only these tools will be available when specified.</summary>
     public IList<string>? AvailableTools { get; set; }
@@ -3440,7 +3553,11 @@ public abstract class SessionConfigBase
     /// <summary>Handler for permission requests from the server.</summary>
     public Func<PermissionRequest, PermissionInvocation, Task<PermissionDecision>>? OnPermissionRequest { get; set; }
 
-    /// <summary>Handler for user input requests from the agent.</summary>
+    /// <summary>
+    /// Handler for user input requests from the agent. When provided with the default
+    /// <see cref="GitHub.Copilot.AskUserVariant.Legacy"/> variant, enables the
+    /// question-and-answer form of the <c>ask_user</c> tool.
+    /// </summary>
     public Func<UserInputRequest, UserInputInvocation, Task<UserInputResponse>>? OnUserInputRequest { get; set; }
 
     /// <summary>Slash commands registered for this session.</summary>
@@ -3630,6 +3747,16 @@ public abstract class SessionConfigBase
     public string? GitHubToken { get; set; }
 
     /// <summary>
+    /// Gets or sets a callback that acquires session-scoped GitHub tokens on
+    /// demand. Initial cancellation, callback errors, and invalid token responses
+    /// reject session creation or resume instead of falling back to ambient
+    /// authentication. This cannot be combined with <see cref="GitHubToken"/>.
+    /// </summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonIgnore]
+    public Func<GitHubTokenProviderArgs, Task<GitHubTokenProviderResult>>? GitHubTokenProvider { get; set; }
+
+    /// <summary>
     /// Per-session remote behavior control:
     /// <list type="bullet">
     /// <item><description><c>"off"</c> — local only, no remote export (default)</description></item>
@@ -3655,6 +3782,12 @@ public abstract class SessionConfigBase
     /// </remarks>
     [EditorBrowsable(EditorBrowsableState.Never)]
     public CopilotExpAssignmentResponse? ExpAssignments { get; set; }
+
+    /// <summary>
+    /// Feature-flag values resolved by the host for this session.
+    /// Re-supply them when resuming after a runtime restart.
+    /// </summary>
+    public IDictionary<string, bool>? FeatureFlags { get; set; }
 
     /// <summary>
     /// Opt-in: when <c>true</c>, the runtime self-fetches enterprise managed

@@ -196,7 +196,30 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
 
             if (disconnectOriginalClient)
             {
+                await using var lockObserver = Ctx.CreateClient(options: new CopilotClientOptions
+                {
+                    Connection = RuntimeConnection.ForStdio(),
+                });
+                await lockObserver.StartAsync();
+                await TestHelper.WaitForConditionAsync(
+                    async () =>
+                    {
+                        var result = await lockObserver.Rpc.Sessions.CheckInUseAsync([sessionId]);
+                        return result.InUse.Contains(sessionId);
+                    },
+                    timeout: PendingWorkTimeout,
+                    timeoutMessage: $"Timed out waiting for session '{sessionId}' to acquire its lock.");
+
                 await suspendedClient.ForceStopAsync();
+
+                await TestHelper.WaitForConditionAsync(
+                    async () =>
+                    {
+                        var result = await lockObserver.Rpc.Sessions.CheckInUseAsync([sessionId]);
+                        return !result.InUse.Contains(sessionId);
+                    },
+                    timeout: PendingWorkTimeout,
+                    timeoutMessage: $"Timed out waiting for session '{sessionId}' to release its lock.");
             }
 
             await using var resumedClient = Ctx.CreateClient(options: new CopilotClientOptions { Connection = RuntimeConnection.ForUri(cliUrl, connectionToken: SharedToken) });

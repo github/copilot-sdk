@@ -131,7 +131,7 @@ func TestRpcServerMisc(t *testing.T) {
 
 		login, err := client.RPC.Account.Login(t.Context(), &rpc.AccountLoginRequest{
 			Host:  "https://github.com",
-			Login: "go-account-user",
+			Login: rpcPtr("go-account-user"),
 			Token: "go-account-token",
 		})
 		if err != nil {

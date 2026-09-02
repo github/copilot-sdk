@@ -4,9 +4,6 @@ env:
   HUSKY: 0
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
   workflow_call:
 
@@ -55,6 +52,11 @@ jobs:
       - name: Install test harness dependencies
         working-directory: ./test/harness
         run: npm ci --ignore-scripts
+
+      - name: Run test harness tests
+        if: runner.os == 'Linux' && matrix.transport == 'default'
+        working-directory: ./test/harness
+        run: npm test
 
       - name: Warm up PowerShell
         if: runner.os == 'Windows'

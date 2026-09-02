@@ -192,11 +192,11 @@ jobs:
              - Enum value additions/renames in generated types
              - New event types requiring handler registration
              - Removed or renamed generated types
-          3. **Fix handwritten source** (`java/src/main/java/com/github/copilot/sdk/`):
+          3. **Fix handwritten source** (`java/sdk/src/main/java/com/github/copilot/sdk/`):
              - Update call sites passing positional constructor args to include new fields (typically `null` for optional new fields).
              - Update switch/if-else over enum values to handle new cases.
              - Register handlers for new event types in `CopilotSession.java` if applicable.
-          4. **Fix handwritten tests** (`java/src/test/java/com/github/copilot/sdk/`):
+          4. **Fix handwritten tests** (`java/sdk/src/test/java/com/github/copilot/sdk/`):
              - Same constructor/enum fixes as above.
              - Add new test methods for new functionality if the change adds user-facing API surface.
           5. **Validate**: `cd java && mvn clean test-compile jar:jar && mvn verify -Dskip.test.harness=true`

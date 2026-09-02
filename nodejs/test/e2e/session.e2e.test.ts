@@ -98,7 +98,7 @@ describe("Sessions", () => {
     it("should create and disconnect sessions", async () => {
         await using session = await client.createSession({
             onPermissionRequest: approveAll,
-            model: "claude-sonnet-4.5",
+            model: "claude-sonnet-5",
         });
         expect(session.sessionId).toMatch(/^[a-f0-9-]+$/);
 
@@ -107,7 +107,7 @@ describe("Sessions", () => {
         expect(sessionStartEvents).toMatchObject([
             {
                 type: "session.start",
-                data: { sessionId: session.sessionId, selectedModel: "claude-sonnet-4.5" },
+                data: { sessionId: session.sessionId, selectedModel: "claude-sonnet-5" },
             },
         ]);
 
@@ -252,10 +252,13 @@ describe("Sessions", () => {
 
         // It only tells the model about the specified tools and no others
         const traffic = await waitForExchanges();
-        expect(traffic[0].request.tools).toMatchObject([
-            { function: { name: "view" } },
-            { function: { name: "edit" } },
-        ]);
+        expect(traffic[0].request.tools).toHaveLength(2);
+        expect(traffic[0].request.tools).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({ function: expect.objectContaining({ name: "view" }) }),
+                expect.objectContaining({ function: expect.objectContaining({ name: "edit" }) }),
+            ])
+        );
     });
 
     it("should create a session with excludedTools", async () => {

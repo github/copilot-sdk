@@ -5,7 +5,11 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { CopilotClient, approveAll, RuntimeConnection } from "../../src/index.js";
 import type { SessionEvent } from "../../src/index.js";
-import { createSdkTestContext, isInProcessTransport } from "./harness/sdkTestContext.js";
+import {
+    createSdkTestContext,
+    getLegacyCliPathForTests,
+    isInProcessTransport,
+} from "./harness/sdkTestContext.js";
 
 describe("UI Elicitation", async () => {
     const { copilotClient: client } = await createSdkTestContext();
@@ -35,6 +39,36 @@ describe("UI Elicitation Callback", async () => {
             });
 
             expect(session.capabilities.ui?.elicitation).toBe(true);
+        }
+    );
+
+    // In-process sessions do not expose current tool metadata for introspection.
+    it.skipIf(isInProcessTransport)(
+        "session created with the elicitation ask-user variant exposes the structured tool",
+        { timeout: 60_000 },
+        async () => {
+            const legacyClient = ctx.createClient({
+                connection: RuntimeConnection.forStdio({ path: getLegacyCliPathForTests() }),
+            });
+            try {
+                const session = await legacyClient.createSession({
+                    onPermissionRequest: approveAll,
+                    askUserVariant: "elicitation",
+                    onElicitationRequest: async () => ({ action: "accept", content: {} }),
+                });
+
+                await session.rpc.tools.initializeAndValidate();
+                const { tools } = await session.rpc.tools.getCurrentMetadata();
+                const askUserSchema = tools?.find((tool) => tool.name === "ask_user")
+                    ?.input_schema as { properties?: Record<string, unknown> } | undefined;
+
+                expect(askUserSchema?.properties).toHaveProperty("message");
+                expect(askUserSchema?.properties).toHaveProperty("requestedSchema");
+                expect(askUserSchema?.properties).not.toHaveProperty("question");
+                await session.disconnect();
+            } finally {
+                await legacyClient.stop();
+            }
         }
     );
 

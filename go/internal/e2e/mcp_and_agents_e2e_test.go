@@ -88,11 +88,6 @@ func TestMCPServersE2E(t *testing.T) {
 		}
 		sessionID := session1.SessionID
 
-		_, err = session1.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "What is 1+1?"})
-		if err != nil {
-			t.Fatalf("Failed to send message: %v", err)
-		}
-
 		// Resume with MCP servers
 		mcpServers := testMCPServers(t, "test-server")
 

@@ -19,7 +19,7 @@ from copilot.rpc import (
     MetadataContextHeaviestMessagesRequest,
     ModelSwitchToRequest,
     NamedProviderConfig,
-    PermissionsSetAllowAllRequest,
+    PermissionsSetModeRequest,
     ProviderAddRequest,
     ProviderModelConfig,
     ProviderType,
@@ -32,6 +32,7 @@ from copilot.rpc import (
     VisibilitySetRequest,
 )
 from copilot.session import PermissionHandler
+from copilot.session_events import PermissionMode
 
 from .testharness import E2ETestContext
 
@@ -76,7 +77,7 @@ class TestRpcSessionStateExtras:
         client = _make_authed_client(ctx, token)
         try:
             async with await client.create_session(
-                model="claude-sonnet-4.5",
+                model="claude-sonnet-5",
                 on_permission_request=PermissionHandler.approve_all,
                 github_token=token,
             ) as session:
@@ -85,8 +86,7 @@ class TestRpcSessionStateExtras:
                 assert result.list is not None
                 assert len(result.list) > 0
                 assert any(
-                    "claude-sonnet-4.5" in json.dumps(model, sort_keys=True)
-                    for model in result.list
+                    "claude-sonnet-5" in json.dumps(model, sort_keys=True) for model in result.list
                 )
         finally:
             await _stop_client(client)
@@ -125,7 +125,7 @@ class TestRpcSessionStateExtras:
                             provider=provider_name,
                             id=model_id,
                             name="SDK Runtime Model",
-                            model_id="claude-sonnet-4.5",
+                            model_id="claude-sonnet-5",
                             wire_model="wire-sdk-runtime-model",
                             max_context_window_tokens=4096,
                             max_prompt_tokens=3072,
@@ -185,26 +185,26 @@ class TestRpcSessionStateExtras:
             on_permission_request=PermissionHandler.approve_all,
         ) as session:
             try:
-                initial = await session.rpc.permissions.get_allow_all()
-                assert initial.enabled is False
+                initial = await session.rpc.permissions.get_mode()
+                assert initial.mode is PermissionMode.MANUAL
 
-                enable = await session.rpc.permissions.set_allow_all(
-                    PermissionsSetAllowAllRequest(enabled=True)
+                enable = await session.rpc.permissions.set_mode(
+                    PermissionsSetModeRequest(mode=PermissionMode.ALLOW_ALL)
                 )
                 assert enable.success is True
-                assert enable.enabled is True
-                assert (await session.rpc.permissions.get_allow_all()).enabled is True
+                assert enable.mode is PermissionMode.ALLOW_ALL
+                assert (await session.rpc.permissions.get_mode()).mode is PermissionMode.ALLOW_ALL
 
-                disable = await session.rpc.permissions.set_allow_all(
-                    PermissionsSetAllowAllRequest(enabled=False)
+                disable = await session.rpc.permissions.set_mode(
+                    PermissionsSetModeRequest(mode=PermissionMode.MANUAL)
                 )
                 assert disable.success is True
-                assert disable.enabled is False
-                assert (await session.rpc.permissions.get_allow_all()).enabled is False
+                assert disable.mode is PermissionMode.MANUAL
+                assert (await session.rpc.permissions.get_mode()).mode is PermissionMode.MANUAL
             finally:
                 with contextlib.suppress(Exception):
-                    await session.rpc.permissions.set_allow_all(
-                        PermissionsSetAllowAllRequest(enabled=False)
+                    await session.rpc.permissions.set_mode(
+                        PermissionsSetModeRequest(mode=PermissionMode.MANUAL)
                     )
 
     async def test_should_get_context_attribution_and_heaviest_messages_after_turn(

@@ -48,6 +48,7 @@ public class MSBuildTargetsTests
         var outputPath = sandbox.ExpectedOutputBinary();
         Assert.True(File.Exists(outputPath), $"Expected CLI to be copied to '{outputPath}'.\n{result.FailureMessage()}");
         Assert.Equal(File.ReadAllText(preinstalled), File.ReadAllText(outputPath));
+        Assert.True(File.Exists(Path.Combine(Path.GetDirectoryName(outputPath)!, ".copilot-explicit-cli")));
     }
 
     [Fact]
@@ -106,6 +107,35 @@ public class MSBuildTargetsTests
     }
 
     [Fact]
+    public async Task RuntimePackageAssets_AreFilteredAndCopiedToOutput()
+    {
+        using var sandbox = MSBuildSandbox.Create();
+        var preinstalled = sandbox.WritePreinstalledBinary("fake-cli-contents");
+        sandbox.WriteRuntimeCacheAsset("prebuilds", GetNpmPlatform(), "runtime.node", "runtime");
+        sandbox.WriteRuntimeCacheAsset("prebuilds", GetNpmPlatform(),
+            OperatingSystem.IsWindows() ? "copilot-runtime.exe" : "copilot-runtime", "wrapper");
+        sandbox.WriteRuntimeCacheAsset("ripgrep", "bin", GetNpmPlatform(), "rg", "ripgrep");
+        sandbox.WriteRuntimeCacheAsset("definitions", "future.json", "{}");
+        sandbox.WriteRuntimeCacheAsset("app.js", "excluded");
+        sandbox.WriteRuntimeCacheAsset("LICENSE.md", "excluded");
+        sandbox.WriteRuntimeCacheAsset("README.md", "excluded");
+        sandbox.WriteStaleOutputRuntimeAsset("obsolete", "tool", "stale");
+
+        var result = await sandbox.BuildAsync(new Dictionary<string, string>
+        {
+            ["CopilotCliBinaryPath"] = preinstalled,
+        });
+
+        Assert.True(result.Succeeded, result.FailureMessage());
+        Assert.Equal("ripgrep", File.ReadAllText(sandbox.ExpectedRuntimeAsset("ripgrep", "bin", GetNpmPlatform(), "rg")));
+        Assert.Equal("{}", File.ReadAllText(sandbox.ExpectedRuntimeAsset("definitions", "future.json")));
+        Assert.False(File.Exists(sandbox.ExpectedRuntimeAsset("app.js")));
+        Assert.False(File.Exists(sandbox.ExpectedRuntimeAsset("LICENSE.md")));
+        Assert.False(File.Exists(sandbox.ExpectedRuntimeAsset("README.md")));
+        Assert.False(File.Exists(sandbox.ExpectedRuntimeAsset("obsolete", "tool")));
+    }
+
+    [Fact]
     public async Task PreinstalledCliBinaryPath_NonExistentFile_FailsWithActionableError()
     {
         using var sandbox = MSBuildSandbox.Create();
@@ -148,6 +178,17 @@ public class MSBuildTargetsTests
 
         throw new InvalidOperationException(
             "Could not locate GitHub.Copilot.SDK.targets relative to test assembly or source file.");
+    }
+
+    private static string GetNpmPlatform()
+    {
+        var arch = System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture
+            == System.Runtime.InteropServices.Architecture.Arm64
+                ? "arm64"
+                : "x64";
+        if (OperatingSystem.IsWindows()) return $"win32-{arch}";
+        if (OperatingSystem.IsMacOS()) return $"darwin-{arch}";
+        return $"linux-{arch}";
     }
 
     /// <summary>
@@ -201,6 +242,42 @@ public class MSBuildTargetsTests
         {
             var rid = GetPortableRid();
             return Path.Combine(ProjectDir, "bin", "Debug", "net8.0", "runtimes", rid, "native", BinaryName);
+        }
+
+        public void WriteRuntimeCacheAsset(params string[] pathAndContents)
+        {
+            var pathParts = pathAndContents.Take(pathAndContents.Length - 1).ToArray();
+            var path = Path.Combine(ProjectDir, "obj", "Debug", "net8.0", "copilot-cli", "0.0.0-test",
+                GetNpmPlatform());
+            foreach (var part in pathParts)
+            {
+                path = Path.Combine(path, part);
+            }
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllText(path, pathAndContents[^1]);
+        }
+
+        public string ExpectedRuntimeAsset(params string[] pathParts)
+        {
+            var path = Path.Combine(ProjectDir, "bin", "Debug", "net8.0", "runtimes", GetPortableRid(), "native");
+            foreach (var part in pathParts)
+            {
+                path = Path.Combine(path, part);
+            }
+            return path;
+        }
+
+        public void WriteStaleOutputRuntimeAsset(params string[] pathAndContents)
+        {
+            var relativeParts = pathAndContents.Take(pathAndContents.Length - 1).ToArray();
+            var path = ExpectedRuntimeAsset(relativeParts);
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllText(path, pathAndContents[^1]);
+            var manifest = ExpectedRuntimeAsset(".copilot-runtime-assets");
+            Directory.CreateDirectory(Path.GetDirectoryName(manifest)!);
+            File.WriteAllText(
+                manifest,
+                string.Join(Path.DirectorySeparatorChar.ToString(), relativeParts) + Environment.NewLine);
         }
 
         public async Task<BuildResult> BuildAsync(IDictionary<string, string> properties)

@@ -1,9 +1,6 @@
 name: ".NET SDK Tests"
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
   workflow_call:
 
@@ -11,6 +8,40 @@ permissions:
   contents: read
 
 jobs:
+  validate:
+    name: ".NET SDK Build and Format"
+    if: github.event.repository.fork == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./dotnet
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "10.0.x"
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      - name: Restore .NET dependencies
+        run: dotnet restore
+
+      - name: Run dotnet format check
+        run: |
+          if ! dotnet format --no-restore --verify-no-changes; then
+            echo "❌ dotnet format produced changes. Please run 'dotnet format' in dotnet"
+            exit 1
+          fi
+          echo "✅ dotnet format produced no changes"
+
+      # Build the whole solution once to validate every SDK target framework.
+      # Matrix cells below only need to build frameworks consumed by the tests.
+      - name: Build SDK
+        run: dotnet build --no-restore
+
   test:
     name: ".NET SDK Tests (${{ matrix.os }}, ${{ matrix.transport }}, ${{ matrix.backend }}, ${{ matrix.shard }})"
     if: github.event.repository.fork == false
@@ -32,6 +63,23 @@ jobs:
           - os: windows-latest
             transport: default
             shard: full
+          # TODO(cli-1.0.81-2): CLI 1.0.81-5 still stops completing in-process
+          # CAPI model turns, causing repeated per-test timeouts until the
+          # 30-minute job limit. Stdio CAPI and in-process BYOK remain enabled.
+          - os: ubuntu-latest
+            transport: inprocess
+          - os: macos-latest
+            transport: inprocess
+          # The macOS default/capi host runs the whole suite on the smallest
+          # runner in the matrix (3 vCPU / 7 GB vs ubuntu's 4 / 16). Since the
+          # 1.0.81-2 bump it stopped finishing: the job ran 50+ minutes until
+          # the runner lost communication with the server, and a runner that
+          # dies that way uploads no logs at all, so the failure could not be
+          # diagnosed from CI output. Split it across isolated hosts so one
+          # poisoned runtime cannot consume the entire job without diagnostics.
+          - os: macos-latest
+            transport: default
+            shard: full
         include:
           # Keep xUnit serial within each process, but split the slow Windows
           # default-transport suite across two isolated test hosts. Keep both
@@ -45,6 +93,22 @@ jobs:
             transport: default
             backend: capi
             shard: "2"
+          - os: macos-latest
+            transport: default
+            backend: capi
+            shard: "1"
+          - os: macos-latest
+            transport: default
+            backend: capi
+            shard: "2a"
+          - os: macos-latest
+            transport: default
+            backend: capi
+            shard: "2b"
+          - os: macos-latest
+            transport: default
+            backend: capi
+            shard: "2c"
           - os: ubuntu-latest
             transport: inprocess
             backend: anthropic-messages
@@ -61,6 +125,10 @@ jobs:
             shard: full
             test-filter: "FullyQualifiedName~GitHub.Copilot.Test.E2E&E2EBackend!=SelfConfiguredBackend&E2EBackend!=CapiOnly"
     runs-on: ${{ matrix.os }}
+    # A hung test used to run until the runner died (~50 min) and the dying
+    # runner never uploaded its logs, so the failures were undiagnosable.
+    # Every healthy cell finishes well under 15 min.
+    timeout-minutes: 20
     defaults:
       run:
         shell: bash
@@ -74,27 +142,16 @@ jobs:
         with:
           node-version: "22"
           cache: "npm"
-          cache-dependency-path: "./nodejs/package-lock.json"
+          cache-dependency-path: |
+            ./nodejs/package-lock.json
+            ./test/harness/package-lock.json
 
-      - name: Install Node.js dependencies (for CLI version extraction)
+      - name: Install Node.js dependencies
         working-directory: ./nodejs
         run: npm ci --ignore-scripts
 
       - name: Restore .NET dependencies
-        run: dotnet restore
-
-      - name: Run dotnet format check
-        if: runner.os == 'Linux'
-        run: |
-          dotnet format --verify-no-changes
-          if [ $? -ne 0 ]; then
-            echo "❌ dotnet format produced changes. Please run 'dotnet format' in dotnet"
-            exit 1
-          fi
-          echo "✅ dotnet format produced no changes"
-
-      - name: Build SDK
-        run: dotnet build --no-restore
+        run: dotnet restore test/GitHub.Copilot.SDK.Test.csproj
 
       - name: Install test harness dependencies
         working-directory: ./test/harness
@@ -113,17 +170,48 @@ jobs:
           COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
           DOTNET_TEST_SHARD: ${{ matrix.shard }}
         run: |
-          args=(--no-build -v n)
+          # --blame-hang names the offending test instead of letting it wedge
+          # the runner. No single test legitimately runs for 10 minutes; the
+          # whole suite normally finishes in about five.
+          # The validation job performs the full analyzer-enabled SDK build.
+          # Build only test-consumed frameworks here and do not repeat analyzers.
+          args=(
+            --no-restore
+            -v n
+            --blame-hang
+            --blame-hang-timeout 10m
+            --blame-hang-dump-type none
+            --logger "trx;LogFilePrefix=test-results"
+            --results-directory "$GITHUB_WORKSPACE/dotnet/TestResults"
+            -p:RunAnalyzers=false
+          )
 
           filter="$DOTNET_TEST_FILTER"
           if [[ "$DOTNET_TEST_SHARD" != "full" ]]; then
-            if [[ "$DOTNET_TEST_SHARD" == "1" ]]; then
-              initials=(A C D H I J K L N Q S U W Y)
-              shard_filter="FullyQualifiedName~GitHub.Copilot.Test.ConnectionToken"
-            else
-              initials=(B E F G M O P R T V X Z)
-              shard_filter=""
-            fi
+            case "$DOTNET_TEST_SHARD" in
+              1)
+                # M moved here after recent runs showed shard 2 was about two
+                # minutes slower; this keeps Windows and macOS balanced.
+                initials=(A C D H I J K L M N Q S U W Y)
+                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.ConnectionToken"
+                ;;
+              2)
+                initials=(B E F G O P R T V X Z)
+                shard_filter=""
+                ;;
+              2a)
+                initials=(B E F G)
+                shard_filter=""
+                ;;
+              2b)
+                initials=(O P R)
+                shard_filter=""
+                ;;
+              2c)
+                initials=(T V X Z)
+                shard_filter=""
+                ;;
+            esac
 
             for namespace in E2E Unit; do
               for initial in "${initials[@]}"; do
@@ -137,4 +225,13 @@ jobs:
           if [[ -n "$filter" ]]; then
             args+=(--filter "$filter")
           fi
-          dotnet test "${args[@]}"
+          dotnet test test/GitHub.Copilot.SDK.Test.csproj "${args[@]}"
+
+      - name: Upload .NET test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: dotnet-test-diagnostics-${{ matrix.os }}-${{ matrix.transport }}-${{ matrix.backend }}-${{ matrix.shard }}-${{ github.run_attempt }}
+          path: dotnet/TestResults/
+          if-no-files-found: warn
+          retention-days: 7

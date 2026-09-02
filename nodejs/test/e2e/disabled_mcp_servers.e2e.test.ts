@@ -154,7 +154,7 @@ const CHAT_COMPLETION_STREAM = [
         id: "persisted-session",
         object: "chat.completion.chunk",
         created: 1,
-        model: "claude-sonnet-4.5",
+        model: "claude-sonnet-5",
         choices: [
             {
                 index: 0,
@@ -167,7 +167,7 @@ const CHAT_COMPLETION_STREAM = [
         id: "persisted-session",
         object: "chat.completion.chunk",
         created: 1,
-        model: "claude-sonnet-4.5",
+        model: "claude-sonnet-5",
         choices: [{ index: 0, delta: {}, finish_reason: "stop" }],
     },
 ]
@@ -179,7 +179,7 @@ const CHAT_COMPLETION_RESPONSE_JSON = JSON.stringify({
     id: "persisted-session",
     object: "chat.completion",
     created: 1,
-    model: "claude-sonnet-4.5",
+    model: "claude-sonnet-5",
     choices: [
         {
             index: 0,
@@ -193,8 +193,8 @@ const CHAT_COMPLETION_RESPONSE_JSON = JSON.stringify({
 const MODEL_CATALOG_JSON = JSON.stringify({
     data: [
         {
-            id: "claude-sonnet-4.5",
-            name: "Claude Sonnet 4.5",
+            id: "claude-sonnet-5",
+            name: "Claude Sonnet 5",
             object: "model",
             vendor: "Anthropic",
             version: "1",
@@ -202,7 +202,7 @@ const MODEL_CATALOG_JSON = JSON.stringify({
             model_picker_enabled: true,
             capabilities: {
                 type: "chat",
-                family: "claude-sonnet-4.5",
+                family: "claude-sonnet-5",
                 tokenizer: "o200k_base",
                 limits: { max_context_window_tokens: 200000, max_output_tokens: 8192 },
                 supports: { streaming: true, tool_calls: true, parallel_tool_calls: true },
@@ -314,7 +314,7 @@ describe("disabled MCP servers", async () => {
     }
 
     async function drainPostCreateRpc(session: CopilotSession): Promise<void> {
-        // Drain a non-MCP post-create RPC without initializing MCP before the first model turn.
+        // Drain a non-MCP post-create RPC so session initialization settles before assertions.
         await session.rpc.metadata.snapshot();
     }
 
@@ -424,13 +424,13 @@ describe("disabled MCP servers", async () => {
                 githubMcpToolConfig: { enableAllTools: true },
             });
             await drainPostCreateRpc(enabledSession);
+            await waitForMcpStatus(enabledSession, "github-mcp-server", "connected");
             const requestsBeforeFirstMessage = await mcpRequestCount();
-            expect(requestsBeforeFirstMessage).toBe(0);
+            expect(requestsBeforeFirstMessage).toBeGreaterThan(0);
             expectSyntheticResponse(
                 await enabledSession.sendAndWait({ prompt: MCP_TRIGGER_PROMPT })
             );
             await waitForMcpRequestCount(requestsBeforeFirstMessage + 1);
-            await waitForMcpStatus(enabledSession, "github-mcp-server", "connected");
         }
     );
 

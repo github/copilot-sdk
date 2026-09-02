@@ -24,13 +24,21 @@ import { ShellConfig } from "./util";
 describe("ReplayingCapiProxy", () => {
   let tempDir: string;
   let workDir: string;
+  let githubActions: string | undefined;
 
   beforeEach(async () => {
+    githubActions = process.env.GITHUB_ACTIONS;
+    delete process.env.GITHUB_ACTIONS;
     tempDir = await mkdtemp(path.join(os.tmpdir(), "capi-proxy-test-"));
     workDir = path.join(tempDir, "work");
   });
 
   afterEach(async () => {
+    if (githubActions === undefined) {
+      delete process.env.GITHUB_ACTIONS;
+    } else {
+      process.env.GITHUB_ACTIONS = githubActions;
+    }
     await rm(tempDir, { recursive: true, force: true });
   });
 
@@ -546,9 +554,65 @@ Always include PINEAPPLE_COCONUT_42.
     expect(toolMessage?.content).toBe("Tool 'report_intent' does not exist.");
   });
 
-  test("removes runtime advisories from background agent start results", async () => {
+  test("normalizes interrupted tool execution results", async () => {
+    const requestBody = JSON.stringify({
+      messages: [
+        { role: "user", content: "Run a slow analysis" },
+        {
+          role: "assistant",
+          tool_calls: [
+            {
+              id: "tc1",
+              type: "function",
+              function: {
+                name: "slow_analysis",
+                arguments: '{"value":"test_abort"}',
+              },
+            },
+            {
+              id: "tc2",
+              type: "function",
+              function: {
+                name: "powershell",
+                arguments: '{"command":"sleep 100"}',
+              },
+            },
+          ],
+        },
+        {
+          role: "tool",
+          tool_call_id: "tc1",
+          content:
+            'Failed to execute `slow_analysis` tool with arguments: {"value":"test_abort"} due to error: Error: Session aborted',
+        },
+        {
+          role: "tool",
+          tool_call_id: "tc2",
+          content: "<shell context is being reconfigured; retry the command>",
+        },
+      ],
+    });
+    const responseBody = JSON.stringify({
+      choices: [{ message: { role: "assistant", content: "Done" } }],
+    });
+
+    const outputPath = await createProxy([
+      { url: "/chat/completions", requestBody, responseBody },
+    ]);
+
+    const result = await readYamlOutput(outputPath);
+    const toolMessages = result.conversations[0].messages.filter(
+      (m) => m.role === "tool",
+    );
+    expect(toolMessages.map((message) => message.content)).toEqual([
+      "The execution of this tool, or a previous tool was interrupted.",
+      "The execution of this tool, or a previous tool was interrupted.",
+    ]);
+  });
+
+  test("normalizes background agent IDs and removes runtime advisories", async () => {
     const stableResult =
-      "Agent started in background with agent_id: read-file. You'll be notified when it completes. Tell the user you're waiting and end your response, or continue unrelated work until notified.";
+      "Agent started in background with agent_id: background-agent. You'll be notified when it completes. Tell the user you're waiting and end your response, or continue unrelated work until notified.";
     const requestBody = JSON.stringify({
       messages: [
         { role: "user", content: "Help me" },
@@ -565,7 +629,8 @@ Always include PINEAPPLE_COCONUT_42.
         {
           role: "tool",
           tool_call_id: "tc1",
-          content: `${stableResult} The agent supports multi-turn conversations.`,
+          content:
+            "Agent started in background with agent_id: 3e0c7565-6091-58cb-85bb-6cb14db23ef7. You'll be notified when it completes. Tell the user you're waiting and end your response, or continue unrelated work until notified. The agent supports multi-turn conversations.",
         },
       ],
     });
@@ -902,6 +967,119 @@ Always include PINEAPPLE_COCONUT_42.
       }
     });
 
+    test("matches semantically equivalent interrupted shell results", async () => {
+      const originalShellConfig =
+        process.platform === "win32"
+          ? ShellConfig.powerShell
+          : ShellConfig.bash;
+      const cachePath = path.join(tempDir, "cache.yaml");
+      const cacheContent = yaml.stringify({
+        models: ["test-model"],
+        conversations: [
+          {
+            messages: [
+              { role: "system", content: "${system}" },
+              { role: "user", content: "Run command" },
+              {
+                role: "assistant",
+                tool_calls: [
+                  {
+                    id: "toolcall_0",
+                    type: "function",
+                    function: {
+                      name: "${shell}",
+                      arguments: '{"command":"sleep 100"}',
+                    },
+                  },
+                ],
+              },
+              {
+                role: "tool",
+                tool_call_id: "toolcall_0",
+                content:
+                  "The execution of this tool, or a previous tool was interrupted.",
+              },
+              { role: "assistant", content: "Ready for another request." },
+            ],
+          },
+        ],
+      } satisfies NormalizedData);
+      await writeFile(cachePath, cacheContent);
+
+      const proxy = new ReplayingCapiProxy(
+        "http://localhost:9999",
+        cachePath,
+        workDir,
+      );
+      const proxyUrl = await proxy.start();
+
+      try {
+        const messages = [
+          { role: "system", content: "System prompt" },
+          { role: "user", content: "Run command" },
+          {
+            role: "assistant",
+            tool_calls: [
+              {
+                id: "runtime-call-id",
+                type: "function",
+                function: {
+                  name: originalShellConfig.shellToolName,
+                  arguments: '{"command":"sleep 100"}',
+                },
+              },
+            ],
+          },
+        ];
+        const interruptedResponse = await makeRequest(
+          proxyUrl,
+          "/chat/completions",
+          {
+            body: {
+              model: "test-model",
+              messages: [
+                ...messages,
+                {
+                  role: "tool",
+                  tool_call_id: "runtime-call-id",
+                  content:
+                    "<shell context is being reconfigured; retry the command>",
+                },
+              ],
+            },
+          },
+        );
+
+        expect(interruptedResponse.status).toBe(200);
+        expect(
+          (JSON.parse(interruptedResponse.body) as ChatCompletion).choices[0]
+            .message.content,
+        ).toBe("Ready for another request.");
+
+        const meaningfulErrorResponse = await makeRequest(
+          proxyUrl,
+          "/chat/completions",
+          {
+            body: {
+              model: "test-model",
+              messages: [
+                ...messages,
+                {
+                  role: "tool",
+                  tool_call_id: "runtime-call-id",
+                  content:
+                    "The command failed because the executable was missing.",
+                },
+              ],
+            },
+          },
+        );
+        expect(meaningfulErrorResponse.status).toBe(500);
+      } finally {
+        await proxy.stop();
+      }
+    });
+
     test("matches available-tools results after the built-in tool set changes", async () => {
       const cachePath = path.join(tempDir, "cache.yaml");
       // Legacy snapshot recorded before write_agent was a built-in tool: the
@@ -1161,6 +1339,112 @@ Always include PINEAPPLE_COCONUT_42.
       }
     });
 
+    test("replays background agent calls with the runtime-generated ID", async () => {
+      const cachePath = path.join(tempDir, "cache.yaml");
+      const startResult =
+        "Agent started in background with agent_id: read-file. You'll be notified when it completes. Tell the user you're waiting and end your response, or continue unrelated work until notified.";
+      const notification =
+        '<system_notification>\nAgent "read-file" (explore) has completed successfully. Use read_agent with agent_id "read-file" to retrieve the full results.\n</system_notification>';
+      const cacheContent = yaml.stringify({
+        models: ["test-model"],
+        conversations: [
+          {
+            messages: [
+              { role: "system", content: "${system}" },
+              { role: "user", content: "Read the file" },
+              {
+                role: "assistant",
+                tool_calls: [
+                  {
+                    id: "toolcall_0",
+                    type: "function",
+                    function: {
+                      name: "task",
+                      arguments:
+                        '{"agent_type":"explore","name":"read-file","prompt":"Read it","mode":"background"}',
+                    },
+                  },
+                ],
+              },
+              {
+                role: "tool",
+                tool_call_id: "toolcall_0",
+                content: startResult,
+              },
+              { role: "assistant", content: "Waiting." },
+              { role: "user", content: notification },
+              {
+                role: "assistant",
+                tool_calls: [
+                  {
+                    id: "toolcall_1",
+                    type: "function",
+                    function: {
+                      name: "read_agent",
+                      arguments: '{"agent_id":"read-file","wait":true}',
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      } satisfies NormalizedData);
+      await writeFile(cachePath, cacheContent);
+
+      const proxy = new ReplayingCapiProxy(
+        "http://localhost:9999",
+        cachePath,
+        workDir,
+      );
+      const proxyUrl = await proxy.start();
+      const runtimeAgentId = "3e0c7565-6091-58cb-85bb-6cb14db23ef7";
+
+      try {
+        const response = await makeRequest(proxyUrl, "/chat/completions", {
+          body: {
+            model: "test-model",
+            messages: [
+              { role: "system", content: "Be helpful" },
+              { role: "user", content: "Read the file" },
+              {
+                role: "assistant",
+                tool_calls: [
+                  {
+                    id: "runtime-call-id",
+                    type: "function",
+                    function: {
+                      name: "task",
+                      arguments:
+                        '{"agent_type":"explore","name":"read-file","prompt":"Read it","mode":"background"}',
+                    },
+                  },
+                ],
+              },
+              {
+                role: "tool",
+                tool_call_id: "runtime-call-id",
+                content: startResult.replace("read-file", runtimeAgentId),
+              },
+              { role: "assistant", content: "Waiting." },
+              { role: "user", content: notification },
+            ],
+          },
+        });
+
+        expect(response.status).toBe(200);
+        const parsed = JSON.parse(response.body) as ChatCompletion;
+        const toolCall = parsed.choices[0].message
+          .tool_calls![0] as ChatCompletionMessageFunctionToolCall;
+        expect(JSON.parse(toolCall.function.arguments)).toEqual({
+          agent_id: runtimeAgentId,
+          wait: true,
+        });
+      } finally {
+        await proxy.stop();
+      }
+    });
+
     test("matches parallel tool results regardless of arrival order", async () => {
       const cachePath = path.join(tempDir, "cache.yaml");
       const cacheContent = yaml.stringify({
@@ -1314,6 +1598,42 @@ Always include PINEAPPLE_COCONUT_42.
         await proxy.stop();
       }
     });
+
+    test.each([false, true])(
+      "defaults to Sonnet 5 without stored models (capture exists: %s)",
+      async (captureExists) => {
+        const cachePath = path.join(tempDir, "cache.yaml");
+        if (captureExists) {
+          await writeFile(
+            cachePath,
+            yaml.stringify({
+              models: [],
+              conversations: [],
+            } satisfies NormalizedData),
+          );
+        }
+
+        const proxy = new ReplayingCapiProxy(
+          "http://localhost:9999",
+          cachePath,
+          workDir,
+        );
+        const proxyUrl = await proxy.start();
+
+        try {
+          const response = await makeRequest(proxyUrl, "/models", {
+            method: "GET",
+          });
+          expect(response.status).toBe(200);
+          const parsed = JSON.parse(response.body) as {
+            data: Array<{ id: string }>;
+          };
+          expect(parsed.data.map((model) => model.id)).toEqual(["claude-sonnet-5"]);
+        } finally {
+          await proxy.stop();
+        }
+      },
+    );
 
     test("returns cached models for /models endpoint", async () => {
       const cachePath = path.join(tempDir, "cache.yaml");

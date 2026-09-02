@@ -18,6 +18,15 @@ const argumentEcho = defineFactory({
         name: "argument-echo",
         description: "Return the invocation arguments verbatim.",
         phases: [],
+        // Proves a declared shape survives the SDK boundary and registers against a
+        // real runtime. It does not exercise enforcement: `argsSchema` is checked by
+        // the model's `run_factory` tool, and these tests invoke `session.factory.run`,
+        // which does not validate. The declaration stays as wide as this factory's
+        // actual contract — it echoes any JsonValue, and is called with an array, an
+        // object, and nothing — so it cannot constrain the runs below.
+        argsSchema: {
+            type: ["object", "array", "string", "number", "integer", "boolean", "null"],
+        },
     },
     run: async ({ args }) => args,
 });
@@ -29,6 +38,21 @@ const arrayResult = defineFactory({
         phases: [],
     },
     run: async () => [1, "two", false],
+});
+
+const phased = defineFactory({
+    meta: {
+        name: "phased",
+        description: "Record named phases and ordinary progress.",
+        phases: [{ title: "Collect" }, { title: "Summarize" }],
+    },
+    run: async ({ phase, log }) => {
+        phase("Collect");
+        log("Collected");
+        phase("Summarize");
+        log("Summarized");
+        return "finished";
+    },
 });
 
 const forwardsSubagentOptions = defineFactory({
@@ -132,6 +156,7 @@ session = await joinSession({
     factories: [
         argumentEcho,
         arrayResult,
+        phased,
         forwardsSubagentOptions,
         startsFromContextSession,
         startsFromModuleSession,
@@ -144,6 +169,7 @@ void waitForMarker("start-b", 30_000)
     .then(async () => {
         const result = await session.factory.run("argument-echo", {
             args: { source: "module-watcher" },
+            notifyOnComplete: false,
         });
         writeFileSync(marker("b-result"), JSON.stringify({ status: "success", result }));
     })

@@ -85,8 +85,12 @@ impl SessionRouter {
         &self,
         notification_tx: &broadcast::Sender<JsonRpcNotification>,
         request_rx: &Mutex<Option<mpsc::UnboundedReceiver<JsonRpcRequest>>>,
+        extension_launch_provider: Arc<
+            crate::extension_launch_provider::ExtensionLaunchProviderDispatcher,
+        >,
         llm_inference: Option<Arc<crate::copilot_request_handler::CopilotRequestDispatcher>>,
         github_telemetry: Option<crate::github_telemetry::GitHubTelemetryCallback>,
+        github_token_registry: Arc<crate::github_token::GitHubTokenRegistry>,
     ) {
         let mut started = self.started.lock();
         if *started {
@@ -181,6 +185,14 @@ impl SessionRouter {
             let sessions = self.sessions.clone();
             tokio::spawn(async move {
                 while let Some(request) = rx.recv().await {
+                    if request.method == crate::extension_launch_provider::RESOLVE_METHOD {
+                        extension_launch_provider.dispatch(request).await;
+                        continue;
+                    }
+                    if request.method == "gitHubToken.getToken" {
+                        github_token_registry.dispatch(request).await;
+                        continue;
+                    }
                     // Client-global `llmInference.*` requests carry no routable
                     // session and are handled by the inference dispatcher.
                     if request.method.starts_with("llmInference.") {

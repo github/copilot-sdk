@@ -1,5 +1,7 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
+use async_trait::async_trait;
 use github_copilot_sdk::rpc::{
     AuthInfoType, HistoryTruncateRequest, LspInitializeRequest, MetadataContextInfoRequest,
     MetadataRecomputeContextTokensRequest, MetadataRecordContextChangeRequest,
@@ -7,19 +9,25 @@ use github_copilot_sdk::rpc::{
     ModelSetReasoningEffortRequest, ModelSwitchToRequest, NameSetAutoRequest, NameSetRequest,
     PermissionsResetSessionApprovalsRequest, PermissionsSetApproveAllRequest, PlanUpdateRequest,
     SessionSetCredentialsParams, SessionUpdateOptionsParams, SessionWorkingDirectoryContext,
-    SessionWorkingDirectoryContextHostType, SessionsForkRequest, ShutdownRequest,
-    TelemetrySetFeatureOverridesRequest, WorkspacesCreateFileRequest, WorkspacesReadFileRequest,
+    SessionWorkingDirectoryContextHostType, SessionsForkRequest, SettableAuthInfo, ShutdownRequest,
+    TelemetrySetFeatureOverridesRequest, UserAuthInfo, WorkspacesCreateFileRequest,
+    WorkspacesReadFileRequest,
 };
 use github_copilot_sdk::session_events::{
     SessionContextChangedData, SessionEventType, SessionMode, SessionShutdownData,
     SessionTitleChangedData, SessionWorkspaceFileChangedData, ShutdownType,
     WorkspaceFileChangedOperation,
 };
+use github_copilot_sdk::tool::ToolHandler;
+use github_copilot_sdk::{Error, Tool, ToolInvocation, ToolResult};
 use serde_json::json;
+use tokio::sync::{Mutex, mpsc, oneshot};
 
-use super::support::{assistant_message_content, wait_for_condition, wait_for_event};
+use super::support::{
+    assistant_message_content, recv_with_timeout, wait_for_condition, wait_for_event,
+};
 
-const MODEL_ID: &str = "claude-sonnet-4.5";
+const MODEL_ID: &str = "claude-sonnet-5";
 
 #[tokio::test]
 async fn should_call_session_rpc_model_getcurrent() {
@@ -129,6 +137,7 @@ async fn should_get_and_set_session_mode() {
                     .mode()
                     .set(ModeSetRequest {
                         mode: SessionMode::Plan,
+                        ..Default::default()
                     })
                     .await
                     .expect("set plan mode");
@@ -207,7 +216,10 @@ async fn should_set_and_get_each_session_mode_value() {
                     session
                         .rpc()
                         .mode()
-                        .set(ModeSetRequest { mode: mode.clone() })
+                        .set(ModeSetRequest {
+                            mode: mode.clone(),
+                            ..Default::default()
+                        })
                         .await
                         .expect("set mode");
                     assert_eq!(session.rpc().mode().get().await.expect("get mode"), mode);
@@ -757,18 +769,18 @@ async fn should_update_options_and_initialize_session_services() {
                     .await
                     .expect("create session");
 
+                let mut update_options = SessionUpdateOptionsParams::default();
+                update_options.ask_user_disabled = Some(true);
+                update_options.available_tools = Some(vec!["view".to_string()]);
+                update_options.client_name = Some("rust-rpc-e2e".to_string());
+                update_options.enable_streaming = Some(true);
+                update_options.model = Some(MODEL_ID.to_string());
+                update_options.working_directory = Some(ctx.work_dir().display().to_string());
+
                 let options = session
                     .rpc()
                     .options()
-                    .update(SessionUpdateOptionsParams {
-                        ask_user_disabled: Some(true),
-                        available_tools: Some(vec!["view".to_string()]),
-                        client_name: Some("rust-rpc-e2e".to_string()),
-                        enable_streaming: Some(true),
-                        model: Some(MODEL_ID.to_string()),
-                        working_directory: Some(ctx.work_dir().display().to_string()),
-                        ..SessionUpdateOptionsParams::default()
-                    })
+                    .update(update_options)
                     .await
                     .expect("update options");
                 assert!(options.success);
@@ -888,10 +900,10 @@ async fn should_set_auth_credentials() {
                     .rpc()
                     .git_hub_auth()
                     .set_credentials(SessionSetCredentialsParams {
-                        credentials: Some(json!({
-                            "type": "user",
-                            "host": "github.com",
-                            "login": "rpc-session-user"
+                        credentials: Some(SettableAuthInfo::User(UserAuthInfo {
+                            host: "github.com".to_string(),
+                            login: "rpc-session-user".to_string(),
+                            ..Default::default()
                         })),
                     })
                     .await
@@ -1107,8 +1119,28 @@ async fn should_report_processing_and_context_metadata() {
             Box::pin(async move {
                 ctx.set_default_copilot_user();
                 let client = ctx.start_client().await;
+                let (entered_tx, mut entered_rx) = mpsc::unbounded_channel();
+                let (release_tx, release_rx) = oneshot::channel();
                 let session = client
-                    .create_session(ctx.approve_all_session_config().with_model(MODEL_ID))
+                    .create_session(
+                        ctx.approve_all_session_config()
+                            .with_model(MODEL_ID)
+                            .with_tools(vec![
+                                Tool::new("processing_barrier")
+                                    .with_description(
+                                        "Blocks until the processing state has been observed",
+                                    )
+                                    .with_parameters(json!({
+                                        "type": "object",
+                                        "properties": {},
+                                        "additionalProperties": false
+                                    }))
+                                    .with_handler(Arc::new(ProcessingBarrierTool {
+                                        entered_tx,
+                                        release_rx: Mutex::new(Some(release_rx)),
+                                    })),
+                            ]),
+                    )
                     .await
                     .expect("create session");
 
@@ -1122,19 +1154,20 @@ async fn should_report_processing_and_context_metadata() {
                         .processing
                 );
                 session
-                    .send("Reply with exactly: RUST_CONTEXT_INFO")
+                    .send("Use processing_barrier, then reply with exactly: RUST_CONTEXT_INFO")
                     .await
                     .expect("send");
-                wait_for_condition("session processing started", || async {
+                recv_with_timeout(&mut entered_rx, "processing barrier entry").await;
+                assert!(
                     session
                         .rpc()
                         .metadata()
                         .is_processing()
                         .await
-                        .expect("processing poll")
+                        .expect("processing during tool call")
                         .processing
-                })
-                .await;
+                );
+                release_tx.send(()).expect("release processing barrier");
                 wait_for_condition("session processing completed", || async {
                     !session
                         .rpc()
@@ -1174,6 +1207,26 @@ async fn should_report_processing_and_context_metadata() {
         },
     )
     .await;
+}
+
+struct ProcessingBarrierTool {
+    entered_tx: mpsc::UnboundedSender<()>,
+    release_rx: Mutex<Option<oneshot::Receiver<()>>>,
+}
+
+#[async_trait]
+impl ToolHandler for ProcessingBarrierTool {
+    async fn call(&self, _invocation: ToolInvocation) -> Result<ToolResult, Error> {
+        let _ = self.entered_tx.send(());
+        self.release_rx
+            .lock()
+            .await
+            .take()
+            .expect("processing barrier called once")
+            .await
+            .expect("processing barrier released");
+        Ok(ToolResult::Text("PROCESSING_OBSERVED".to_string()))
+    }
 }
 
 fn expect_err_contains<T>(result: Result<T, github_copilot_sdk::Error>, expected: &str) {

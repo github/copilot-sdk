@@ -385,13 +385,16 @@ async function validateJava(): Promise<ValidationResult[]> {
     fs.copyFileSync(path.join(javaDir, file), path.join(srcDir, file));
   }
 
-  // Read the SDK version from java/pom.xml
-  const sdkPomPath = path.join(ROOT_DIR, "java", "pom.xml");
+  // Read the inherited SDK version from java/sdk/pom.xml
+  const sdkPomPath = path.join(ROOT_DIR, "java", "sdk", "pom.xml");
   const sdkPomContent = fs.readFileSync(sdkPomPath, "utf-8");
   const versionMatch = sdkPomContent.match(
-    /<artifactId>copilot-sdk-java<\/artifactId>\s*<version>([^<]+)<\/version>/,
+    /<parent>[\s\S]*?<version>([^<]+)<\/version>[\s\S]*?<\/parent>/,
   );
-  const sdkVersion = versionMatch ? versionMatch[1] : "1.0.0-SNAPSHOT";
+  if (!versionMatch) {
+    throw new Error(`Could not read the Java SDK version from ${sdkPomPath}`);
+  }
+  const sdkVersion = versionMatch[1];
 
   // Create pom.xml that references the local SDK
   const pomXml = `<?xml version="1.0" encoding="UTF-8"?>

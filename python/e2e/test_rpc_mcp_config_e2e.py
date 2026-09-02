@@ -18,8 +18,8 @@ from copilot.rpc import (
     MCPConfigRemoveRequest,
     MCPConfigUpdateRequest,
     MCPGrantType,
-    MCPServerConfig,
-    MCPServerConfigHTTPType,
+    MCPSerializableServerConfig,
+    MCPSerializableServerConfigType,
 )
 
 from .testharness import E2ETestContext
@@ -27,7 +27,7 @@ from .testharness import E2ETestContext
 pytestmark = pytest.mark.asyncio(loop_scope="module")
 
 
-def _server_config(servers: dict, name: str) -> MCPServerConfig:
+def _server_config(servers: dict, name: str) -> MCPSerializableServerConfig:
     assert name in servers, f"Expected MCP server '{name}' to be present."
     return servers[name]
 
@@ -37,8 +37,8 @@ class TestRpcMcpConfig:
         await ctx.client.start()
 
         server_name = f"sdk-test-{uuid.uuid4().hex}"
-        config = MCPServerConfig(command="node", args=[])
-        updated_config = MCPServerConfig(command="node", args=["--version"])
+        config = MCPSerializableServerConfig(command="node", args=[])
+        updated_config = MCPSerializableServerConfig(command="node", args=["--version"])
 
         initial = await ctx.client.rpc.mcp.config.list()
         assert server_name not in initial.servers
@@ -70,8 +70,8 @@ class TestRpcMcpConfig:
         await ctx.client.start()
 
         server_name = f"sdk-http-oauth-{uuid.uuid4().hex}"
-        config = MCPServerConfig(
-            type=MCPServerConfigHTTPType.HTTP,
+        config = MCPSerializableServerConfig(
+            type=MCPSerializableServerConfigType.HTTP,
             url="https://example.com/mcp",
             headers={"Authorization": "Bearer token"},
             oauth_client_id="client-id",
@@ -80,8 +80,8 @@ class TestRpcMcpConfig:
             tools=["*"],
             timeout=3000,
         )
-        updated_config = MCPServerConfig(
-            type=MCPServerConfigHTTPType.HTTP,
+        updated_config = MCPSerializableServerConfig(
+            type=MCPSerializableServerConfigType.HTTP,
             url="https://example.com/updated-mcp",
             oauth_client_id="updated-client-id",
             oauth_public_client=True,
@@ -96,7 +96,7 @@ class TestRpcMcpConfig:
             )
             after_add = await ctx.client.rpc.mcp.config.list()
             added = _server_config(after_add.servers, server_name)
-            assert added.type == MCPServerConfigHTTPType.HTTP
+            assert added.type == MCPSerializableServerConfigType.HTTP
             assert added.url == "https://example.com/mcp"
             assert added.headers is not None
             assert added.headers["Authorization"] == "Bearer token"

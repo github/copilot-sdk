@@ -23,7 +23,7 @@ func TestSessionE2E(t *testing.T) {
 	t.Run("should create and disconnect sessions", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
-		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{OnPermissionRequest: copilot.PermissionHandler.ApproveAll, Model: "claude-sonnet-4.5"})
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{OnPermissionRequest: copilot.PermissionHandler.ApproveAll, Model: "claude-sonnet-5"})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
 		}
@@ -47,8 +47,8 @@ func TestSessionE2E(t *testing.T) {
 			t.Errorf("Expected session.start sessionId to match")
 		}
 
-		if !startOk || startData.SelectedModel == nil || *startData.SelectedModel != "claude-sonnet-4.5" {
-			t.Errorf("Expected selectedModel to be 'claude-sonnet-4.5', got %v", startData)
+		if !startOk || startData.SelectedModel == nil || *startData.SelectedModel != "claude-sonnet-5" {
+			t.Errorf("Expected selectedModel to be 'claude-sonnet-5', got %v", startData)
 		}
 
 		if err := session.Disconnect(); err != nil {
@@ -448,6 +448,10 @@ func TestSessionE2E(t *testing.T) {
 	})
 
 	t.Run("should resume a session using a new client", func(t *testing.T) {
+		// TODO(cli-1.0.81-2): resuming a session over the in-process transport no longer
+		// routes model traffic through COPILOT_API_URL, so the CLI reaches the real
+		// api.githubcopilot.com and macOS rejects the proxy certificate with an EKU error.
+		testharness.SkipIfInProcessOnMacOS(t, "session resume ignores COPILOT_API_URL")
 		ctx.ConfigureForTest(t)
 
 		// Create initial session

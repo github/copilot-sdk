@@ -9,9 +9,9 @@ use github_copilot_sdk::rpc::{
     McpAppsSetHostContextRequest, McpCancelSamplingExecutionParams, McpDisableRequest,
     McpEnableRequest, McpExecuteSamplingParams, McpExecuteSamplingRequest, McpOauthLoginRequest,
     McpResourcesReadRequest, McpSamplingExecutionAction, McpSetEnvValueModeDetails,
-    McpSetEnvValueModeParams, PermissionsAllowAllMode, PermissionsSetAllowAllRequest,
-    SkillsDisableRequest, SkillsEnableRequest,
+    McpSetEnvValueModeParams, PermissionsSetModeRequest, SkillsDisableRequest, SkillsEnableRequest,
 };
+use github_copilot_sdk::session_events::PermissionMode;
 use github_copilot_sdk::{IndexMap, McpServerConfig, McpStdioServerConfig};
 
 #[tokio::test]
@@ -361,10 +361,9 @@ async fn should_list_extensions() {
                 session
                     .rpc()
                     .permissions()
-                    .set_allow_all(PermissionsSetAllowAllRequest {
-                        enabled: None,
-                        mode: Some(PermissionsAllowAllMode::On),
-                        model: None,
+                    .set_mode(PermissionsSetModeRequest {
+                        assisted_approval_model: None,
+                        mode: PermissionMode::AllowAll,
                         source: None,
                     })
                     .await
@@ -715,10 +714,9 @@ async fn should_report_error_when_extensions_are_not_available() {
                 session
                     .rpc()
                     .permissions()
-                    .set_allow_all(PermissionsSetAllowAllRequest {
-                        enabled: None,
-                        mode: Some(PermissionsAllowAllMode::On),
-                        model: None,
+                    .set_mode(PermissionsSetModeRequest {
+                        assisted_approval_model: None,
+                        mode: PermissionMode::AllowAll,
                         source: None,
                     })
                     .await

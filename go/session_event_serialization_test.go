@@ -14,6 +14,50 @@ var _ SessionEventData = (*rpc.UserMessageData)(nil)
 var _ rpc.EmbeddedTextResourceContents = EmbeddedTextResourceContents{}
 var _ EmbeddedTextResourceContents = rpc.EmbeddedTextResourceContents{}
 
+func TestSessionEventAutoTier(t *testing.T) {
+	for _, eventType := range []string{"session.start", "session.resume"} {
+		for _, tier := range []AutoTier{"", AutoTierEfficiency, AutoTierBalance, AutoTierIntelligence} {
+			t.Run(eventType+"/"+string(tier), func(t *testing.T) {
+				data := map[string]any{
+					"sessionId": "test-session", "version": 1,
+					"producer": "copilot", "copilotVersion": "1.0.82-1",
+					"startTime":  "2026-08-28T00:00:00Z",
+					"resumeTime": "2026-08-28T00:00:00Z", "eventCount": 1,
+				}
+				if tier != "" {
+					data["autoTier"] = tier
+				}
+				wire, err := json.Marshal(map[string]any{
+					"id":        "00000000-0000-0000-0000-000000000001",
+					"timestamp": "2026-08-28T00:00:00Z", "parentId": nil,
+					"type": eventType, "data": data,
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				var event SessionEvent
+				if err := json.Unmarshal(wire, &event); err != nil {
+					t.Fatal(err)
+				}
+				var actual *AutoTier
+				switch eventType {
+				case "session.start":
+					actual = event.Data.(*SessionStartData).AutoTier
+				case "session.resume":
+					actual = event.Data.(*SessionResumeData).AutoTier
+				}
+				if tier == "" {
+					if actual != nil {
+						t.Fatalf("expected omitted autoTier, got %v", *actual)
+					}
+				} else if actual == nil || *actual != tier {
+					t.Fatalf("expected autoTier %q, got %v", tier, actual)
+				}
+			})
+		}
+	}
+}
+
 func TestSessionEventAgentIDRoundTripsKnownEvent(t *testing.T) {
 	var event SessionEvent
 	if err := json.Unmarshal([]byte(`{

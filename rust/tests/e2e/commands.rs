@@ -105,6 +105,7 @@ async fn session_commands_invoke_known_builtin_returns_expected_result() {
                     .invoke(CommandsInvokeRequest {
                         name: "context".to_string(),
                         input: None,
+                        ..Default::default()
                     })
                     .await
                     .expect("invoke context");
@@ -119,6 +120,7 @@ async fn session_commands_invoke_known_builtin_returns_expected_result() {
                         assert!(!prompt.prompt.trim().is_empty());
                     }
                     SlashCommandInvocationResult::Completed(_) => {}
+                    unexpected => panic!("unexpected command result: {unexpected:?}"),
                 }
 
                 session.disconnect().await.expect("disconnect session");
@@ -208,6 +210,7 @@ async fn session_commands_enqueue_and_respond_to_queued_command() {
                     .commands()
                     .enqueue(EnqueueCommandParams {
                         command: "/help".to_string(),
+                        display_text: None,
                     })
                     .await
                     .expect("enqueue command");

@@ -15,6 +15,7 @@ import {
     type FactoryAgentOptions,
     type FactoryContext,
     type FactoryDefinition,
+    type FactoryJsonSchema,
     type JsonValue,
 } from "../src/factory.js";
 
@@ -402,10 +403,39 @@ describe("factories", () => {
         expect(generatedRpc).toContain("timeoutSeconds?: number;");
     });
 
+    // A guessed ceiling does not make a run safer: it stops a healthy run partway
+    // with `factory_limit_reached`, after that run has already taken the user's
+    // approval and spent credits. Both documents are handed to the model verbatim
+    // by the `factories_manage` guide, so neither may read as an invitation to
+    // invent one.
+    it("documents limits as opt-in rather than inviting an invented ceiling", () => {
+        const guide = readFileSync(new URL("../docs/factories.md", import.meta.url), "utf8");
+        const patterns = readFileSync(
+            new URL("../docs/factory-patterns.md", import.meta.url),
+            "utf8"
+        );
+
+        expect(guide).toContain(
+            "Set a ceiling only from real knowledge of what the factory costs, or because the user named one"
+        );
+        expect(guide).toContain("no basis for estimating a number");
+
+        // The opening `defineFactory` sample is the shape an author copies. Filling
+        // all four ceilings in there taught the numbers as much as the syntax.
+        const openingSample = guide.slice(0, guide.indexOf("## Declaring an argument shape"));
+        expect(openingSample).not.toContain("limits: {");
+
+        // The Scaling section used to answer "there is no built-in concurrency cap"
+        // with "so declare one before fanning out widely".
+        expect(patterns).not.toContain("declare one before fanning out widely");
+        expect(patterns).toContain("bound a wide fan-out with the factory's own counters");
+    });
+
     it("documents factory invocation and list paging behavior accurately", () => {
         const guide = readFileSync(new URL("../docs/factories.md", import.meta.url), "utf8");
         const publicApi = readFileSync(new URL("../src/factory.ts", import.meta.url), "utf8");
         const listRunsPagingWording = "newest default page of this session's durable factory runs";
+        const listRunsMetadata = ["oldestSeq", "newestSeq", "hasMoreNewer", "omittedOlder"];
         const resumeCodes = [
             "not_found",
             "non_resumable",
@@ -429,6 +459,9 @@ describe("factories", () => {
 
         for (const document of [normalizedGuide, normalizedPublicApi]) {
             expect(document).toContain(listRunsPagingWording);
+            for (const field of listRunsMetadata) {
+                expect(document).toContain(field);
+            }
         }
 
         expect(normalizedGuide).toContain(
@@ -459,6 +492,104 @@ describe("factories", () => {
         expect(normalizedPublicApi).toContain(
             "session instance returned by `joinSession`. It refuses calls that start or resume a factory run"
         );
+    });
+
+    it("carries a declared argsSchema through defineFactory into the registration payload", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => stopClient(client));
+
+        const argsSchema = {
+            type: "object",
+            required: ["repoPath"],
+            properties: {
+                repoPath: { type: "string" },
+                depth: { type: ["integer", "null"] },
+                mode: { enum: ["fast", "thorough"] },
+            },
+        } satisfies FactoryJsonSchema;
+        const meta = {
+            name: "declares-args",
+            description: "Declares the argument shape it expects",
+            phases: [],
+            argsSchema,
+        };
+        const factory = defineFactory({ meta, run: async () => ({ ok: true }) });
+
+        // The declaration is snapshotted and deep-frozen like the rest of the
+        // metadata, so it cannot be mutated after registration.
+        expect(factory.meta.argsSchema).toEqual(argsSchema);
+        expect(factory.meta.argsSchema).not.toBe(argsSchema);
+        expect(Object.isFrozen(factory.meta.argsSchema)).toBe(true);
+        expect(() => {
+            // @ts-expect-error handle.meta.argsSchema is deeply readonly.
+            factory.meta.argsSchema!.type = "array";
+        }).toThrow(TypeError);
+
+        const omitted = defineFactory({
+            meta: { name: "omits-args", description: "Declares nothing", phases: [] },
+            run: async () => ({ ok: true }),
+        });
+        expect(omitted.meta.argsSchema).toBeUndefined();
+        expect("argsSchema" in omitted.meta).toBe(false);
+
+        const sendRequest = vi
+            .spyOn(
+                (client as never as { connection: { sendRequest: Function } }).connection,
+                "sendRequest"
+            )
+            .mockImplementation(async (method: string, params: Record<string, unknown>) => {
+                if (method === "session.resume") {
+                    return { sessionId: params.sessionId };
+                }
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        await client.resumeSessionForExtension(
+            "session-args-schema",
+            { onPermissionRequest: () => ({ kind: "approved" }) },
+            [factory, omitted]
+        );
+
+        const payload = sendRequest.mock.calls.find(
+            ([method]) => method === "session.resume"
+        )![1] as { factories: Array<Record<string, unknown>> };
+        // The schema has to survive JSON serialization to reach the runtime, which
+        // validates `args` against it before a run row exists.
+        expect(JSON.parse(JSON.stringify(payload.factories))[0].argsSchema).toEqual(argsSchema);
+        expect(payload.factories[1]).not.toHaveProperty("argsSchema");
+    });
+
+    it("documents argsSchema consistently with the runtime's enforced subset", () => {
+        const publicTypes = readFileSync(new URL("../src/types.ts", import.meta.url), "utf8");
+        const publicApi = readFileSync(new URL("../src/factory.ts", import.meta.url), "utf8");
+        const guide = readFileSync(new URL("../docs/factories.md", import.meta.url), "utf8");
+        const normalizeJSDoc = (document: string) =>
+            document.replace(/\r?\n\s*\* ?/g, " ").replace(/\s+/g, " ");
+
+        expect(publicTypes).toContain("argsSchema?: FactoryJsonSchema;");
+
+        // The `run_factory` tool tells the model exactly this. The two surfaces
+        // have to agree about what a declaration does and does not enforce.
+        for (const document of [normalizeJSDoc(publicTypes), guide]) {
+            expect(document).toContain("types, required properties, and enum");
+            expect(document).toMatch(
+                /`minLength`, `pattern`,? (?:and|or) `additionalProperties` are recorded/
+            );
+        }
+        expect(normalizeJSDoc(publicTypes)).toContain("before** the run starts");
+        // Enforcement is tool-path only: `toolRunFactoryValidateArgs` is called from
+        // the runtime's runFactoryTool, and never from `session.factory.run`. Both
+        // surfaces must keep saying so, or authors will assume their own SDK-initiated
+        // runs are checked.
+        expect(normalizeJSDoc(publicTypes)).toContain(
+            "`session.factory.run(...)` is not validated against the declaration"
+        );
+        expect(guide).toContain("Validation covers the model's `run_factory` path only");
+        expect(normalizeJSDoc(publicApi)).toContain(
+            "`null`, `boolean`, `integer`, `number`, `string`, `array`, or `object`"
+        );
+        expect(guide).toContain("no run row, permission prompt, or credit spend happens");
     });
 
     it("serializes only factory metadata in the extension resume payload", async () => {
@@ -528,7 +659,8 @@ describe("factories", () => {
         expect(resumeSessionForExtension).toHaveBeenCalledWith(
             "session-extension",
             expect.objectContaining({ suppressResumeEvent: true }),
-            [factory]
+            [factory],
+            undefined
         );
     });
 
@@ -1372,14 +1504,31 @@ describe("factories", () => {
             revision: 4,
         };
         const detail = { ...summary, phases: [], agents: [], progress };
+        const runsPage = {
+            runs: [summary],
+            oldestSeq: 11,
+            newestSeq: 12,
+            hasMoreNewer: true,
+            omittedOlder: 10,
+        };
         const sendRequest = vi.fn(async (method: string) => {
-            if (method === "session.factory.listRuns") return { runs: [summary] };
+            if (method === "session.factory.listRuns") return runsPage;
             if (method === "session.factory.getRunDetail") return detail;
             return progress;
         });
         const session = new CopilotSession("session-observe", { sendRequest } as never);
 
         await expect(session.factory.listRuns()).resolves.toEqual([summary]);
+        const listedPage = await session.factory.listRuns({
+            afterSeq: 10,
+            beforeSeq: 20,
+            limit: 50,
+        });
+        expect(listedPage).toEqual(runsPage);
+        expect(listedPage.oldestSeq).toBe(11);
+        expect(listedPage.newestSeq).toBe(12);
+        expect(listedPage.hasMoreNewer).toBe(true);
+        expect(listedPage.omittedOlder).toBe(10);
         await expect(session.factory.getRunDetail("run-observe")).resolves.toEqual(detail);
         await expect(
             session.factory.getRunProgress("run-observe", {
@@ -1391,11 +1540,17 @@ describe("factories", () => {
         expect(sendRequest).toHaveBeenNthCalledWith(1, "session.factory.listRuns", {
             sessionId: session.sessionId,
         });
-        expect(sendRequest).toHaveBeenNthCalledWith(2, "session.factory.getRunDetail", {
+        expect(sendRequest).toHaveBeenNthCalledWith(2, "session.factory.listRuns", {
+            sessionId: session.sessionId,
+            afterSeq: 10,
+            beforeSeq: 20,
+            limit: 50,
+        });
+        expect(sendRequest).toHaveBeenNthCalledWith(3, "session.factory.getRunDetail", {
             sessionId: session.sessionId,
             runId: "run-observe",
         });
-        expect(sendRequest).toHaveBeenNthCalledWith(3, "session.factory.getRunProgress", {
+        expect(sendRequest).toHaveBeenNthCalledWith(4, "session.factory.getRunProgress", {
             sessionId: session.sessionId,
             runId: "run-observe",
             phaseId: "p0",
@@ -2004,6 +2159,8 @@ describe("factories", () => {
         await expect(
             session.factory.resume("run-prior", {
                 limits: { maxTotalSubagents: 7 },
+                notifyOnComplete: true,
+                logPhaseNames: true,
             })
         ).resolves.toMatchObject({
             status: "completed",
@@ -2013,13 +2170,20 @@ describe("factories", () => {
             session.factory.run("by-name", {
                 args: { value: 1 },
                 limits: { maxTotalSubagents: 7 },
+                notifyOnComplete: false,
+                logPhaseNames: true,
                 resumeFromRunId: "run-prior",
             })
         ).resolves.toMatchObject({
             status: "completed",
             result: { name: "stored-name", persistedArgs: true },
         });
-        await expect(session.factory.run(factory)).resolves.toMatchObject({
+        await expect(
+            session.factory.run(factory, {
+                notifyOnComplete: true,
+                logPhaseNames: false,
+            })
+        ).resolves.toMatchObject({
             status: "completed",
             result: { name: "friendly-run" },
         });
@@ -2027,17 +2191,25 @@ describe("factories", () => {
             sessionId: session.sessionId,
             runId: "run-prior",
             limits: { maxTotalSubagents: 7 },
+            notifyOnComplete: true,
+            logPhaseNames: true,
         });
         expect(sendRequest).toHaveBeenNthCalledWith(2, "session.factory.resume", {
             sessionId: session.sessionId,
             runId: "run-prior",
             limits: { maxTotalSubagents: 7 },
+            notifyOnComplete: false,
+            logPhaseNames: true,
         });
         expect(sendRequest).toHaveBeenNthCalledWith(3, "session.factory.run", {
             sessionId: session.sessionId,
             name: "friendly-run",
             args: {},
-            options: { limits: undefined },
+            options: {
+                limits: undefined,
+                notifyOnComplete: true,
+                logPhaseNames: false,
+            },
         });
     });
 
