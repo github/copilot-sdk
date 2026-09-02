@@ -31,7 +31,7 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
 
         var session = await CreateSessionAsync(new SessionConfig
         {
-            Model = "claude-sonnet-4.5",
+            Model = "claude-sonnet-5",
             ModelCapabilities = new ModelCapabilitiesOverride
             {
                 Supports = new ModelCapabilitiesOverrideSupports { Vision = false },
@@ -46,7 +46,7 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
 
         // Switch vision on
         await session.SetModelAsync(
-            "claude-sonnet-4.5",
+            "claude-sonnet-5",
             reasoningEffort: null,
             modelCapabilities: new ModelCapabilitiesOverride
             {
@@ -74,7 +74,7 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
 
         var session = await CreateSessionAsync(new SessionConfig
         {
-            Model = "claude-sonnet-4.5",
+            Model = "claude-sonnet-5",
             ModelCapabilities = new ModelCapabilitiesOverride
             {
                 Supports = new ModelCapabilitiesOverrideSupports { Vision = true },
@@ -89,7 +89,7 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
 
         // Switch vision off
         await session.SetModelAsync(
-            "claude-sonnet-4.5",
+            "claude-sonnet-5",
             reasoningEffort: null,
             modelCapabilities: new ModelCapabilitiesOverride
             {

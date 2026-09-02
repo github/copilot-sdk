@@ -119,7 +119,7 @@ describe("Session Configuration", async () => {
 
         const session = await client.createSession({
             onPermissionRequest: approveAll,
-            model: "claude-sonnet-4.5",
+            model: "claude-sonnet-5",
             modelCapabilities: { supports: { vision: false } },
         });
 
@@ -130,7 +130,7 @@ describe("Session Configuration", async () => {
         expect(hasImageUrlContent(t1Messages)).toBe(false);
 
         // Switch vision on (re-specify same model with updated capabilities)
-        await session.setModel("claude-sonnet-4.5", {
+        await session.setModel("claude-sonnet-5", {
             modelCapabilities: { supports: { vision: true } },
         });
 
@@ -150,7 +150,7 @@ describe("Session Configuration", async () => {
 
         const session = await client.createSession({
             onPermissionRequest: approveAll,
-            model: "claude-sonnet-4.5",
+            model: "claude-sonnet-5",
             modelCapabilities: { supports: { vision: true } },
         });
 
@@ -161,7 +161,7 @@ describe("Session Configuration", async () => {
         expect(hasImageUrlContent(t1Messages)).toBe(true);
 
         // Switch vision off
-        await session.setModel("claude-sonnet-4.5", {
+        await session.setModel("claude-sonnet-5", {
             modelCapabilities: { supports: { vision: false } },
         });
 

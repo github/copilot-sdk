@@ -201,7 +201,7 @@ class TestSessionConfig:
 
         session = await ctx.client.create_session(
             on_permission_request=PermissionHandler.approve_all,
-            model="claude-sonnet-4.5",
+            model="claude-sonnet-5",
             model_capabilities=ModelCapabilitiesOverride(
                 supports=ModelSupportsOverride(vision=False)
             ),
@@ -214,7 +214,7 @@ class TestSessionConfig:
 
         # Switch vision on
         await session.set_model(
-            "claude-sonnet-4.5",
+            "claude-sonnet-5",
             model_capabilities=ModelCapabilitiesOverride(
                 supports=ModelSupportsOverride(vision=True)
             ),
@@ -235,7 +235,7 @@ class TestSessionConfig:
 
         session = await ctx.client.create_session(
             on_permission_request=PermissionHandler.approve_all,
-            model="claude-sonnet-4.5",
+            model="claude-sonnet-5",
             model_capabilities=ModelCapabilitiesOverride(
                 supports=ModelSupportsOverride(vision=True)
             ),
@@ -248,7 +248,7 @@ class TestSessionConfig:
 
         # Switch vision off
         await session.set_model(
-            "claude-sonnet-4.5",
+            "claude-sonnet-5",
             model_capabilities=ModelCapabilitiesOverride(
                 supports=ModelSupportsOverride(vision=False)
             ),

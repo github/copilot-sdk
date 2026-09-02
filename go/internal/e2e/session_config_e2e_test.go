@@ -184,7 +184,7 @@ func TestSessionConfigE2E(t *testing.T) {
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-			Model:               "claude-sonnet-4.5",
+			Model:               "claude-sonnet-5",
 			ModelCapabilities: &copilot.ModelCapabilitiesOverride{
 				Supports: &copilot.ModelCapabilitiesOverrideSupports{
 					Vision: copilot.Bool(false),
@@ -209,7 +209,7 @@ func TestSessionConfigE2E(t *testing.T) {
 		}
 
 		// Switch vision on
-		if err := session.SetModel(t.Context(), "claude-sonnet-4.5", &copilot.SetModelOptions{
+		if err := session.SetModel(t.Context(), "claude-sonnet-5", &copilot.SetModelOptions{
 			ModelCapabilities: &copilot.ModelCapabilitiesOverride{
 				Supports: &copilot.ModelCapabilitiesOverrideSupports{
 					Vision: copilot.Bool(true),
@@ -239,7 +239,7 @@ func TestSessionConfigE2E(t *testing.T) {
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-			Model:               "claude-sonnet-4.5",
+			Model:               "claude-sonnet-5",
 			ModelCapabilities: &copilot.ModelCapabilitiesOverride{
 				Supports: &copilot.ModelCapabilitiesOverrideSupports{
 					Vision: copilot.Bool(true),
@@ -264,7 +264,7 @@ func TestSessionConfigE2E(t *testing.T) {
 		}
 
 		// Switch vision off
-		if err := session.SetModel(t.Context(), "claude-sonnet-4.5", &copilot.SetModelOptions{
+		if err := session.SetModel(t.Context(), "claude-sonnet-5", &copilot.SetModelOptions{
 			ModelCapabilities: &copilot.ModelCapabilitiesOverride{
 				Supports: &copilot.ModelCapabilitiesOverrideSupports{
 					Vision: copilot.Bool(false),
