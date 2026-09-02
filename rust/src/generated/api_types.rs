@@ -10,11 +10,11 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use super::session_events::{
-    AbortReason, AutoTier, ContextTier, McpOauthHttpResponse, McpOauthWWWAuthenticateParams,
-    McpServerSource, McpServerStatus, ModelChangeSource, OmittedBinaryOmittedReason,
-    PermissionMode, PermissionPromptRequest, PermissionRule, ReasoningSummary, SessionLimitsConfig,
-    SessionMode, ShutdownType, SkillSource, TaskCompletionOutcome, UserToolSessionApproval,
-    Verbosity,
+    AbortReason, AgentModelPolicy, AutoTier, ContextTier, McpOauthHttpResponse,
+    McpOauthWWWAuthenticateParams, McpServerSource, McpServerStatus, ModelChangeSource,
+    OmittedBinaryOmittedReason, PermissionMode, PermissionPromptRequest, PermissionRule,
+    ReasoningSummary, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource,
+    TaskCompletionOutcome, UserToolSessionApproval, Verbosity,
 };
 use crate::types::{RequestId, SessionEvent, SessionId};
 
@@ -24,6 +24,8 @@ pub mod rpc_methods {
     pub const PING: &str = "ping";
     /// `connect`
     pub const CONNECT: &str = "connect";
+    /// `hooks.discover`
+    pub const HOOKS_DISCOVER: &str = "hooks.discover";
     /// `models.list`
     pub const MODELS_LIST: &str = "models.list";
     /// `models.getBuiltInCatalog`
@@ -142,6 +144,8 @@ pub mod rpc_methods {
     pub const SESSIONS_LIST: &str = "sessions.list";
     /// `sessions.getMetadata`
     pub const SESSIONS_GETMETADATA: &str = "sessions.getMetadata";
+    /// `sessions.readPersistedEvents`
+    pub const SESSIONS_READPERSISTEDEVENTS: &str = "sessions.readPersistedEvents";
     /// `sessions.listNonEmptySessionIds`
     pub const SESSIONS_LISTNONEMPTYSESSIONIDS: &str = "sessions.listNonEmptySessionIds";
     /// `sessions.findByTaskId`
@@ -1541,7 +1545,7 @@ pub struct AgentDiscoveryPathList {
     pub paths: Vec<AgentDiscoveryPath>,
 }
 
-/// Agent metadata, including identifiers, display details, source, tools, model, MCP servers, skills, and file path.
+/// Agent metadata, including identifiers, display details, source, tools, model, models, MCP servers, skills, and file path.
 ///
 /// <div class="warning">
 ///
@@ -1571,6 +1575,12 @@ pub struct AgentInfo {
     /// Authored preferred model id for this agent. Runtime model selection may choose a different model; omitted means no authored preference.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
+    /// Whether authored models are preferences or required constraints.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model_policy: Option<AgentModelPolicy>,
+    /// Authored preferred model ids for this agent, in priority order. Runtime model selection chooses the first available model; omitted means no authored preference.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub models: Option<Vec<String>>,
     /// Name of the agent. Use `id` as the stable selection identifier.
     pub name: String,
     /// Absolute local file path of the agent definition. Only set for file-based agents loaded from disk; remote agents do not have a path.
@@ -4379,6 +4389,36 @@ pub struct DiscoveredExtensionsEnableRequest {
     pub ids: Vec<String>,
 }
 
+/// One server-discovered hook action from user, repository, plugin, or managed-policy configuration.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiscoveredHook {
+    /// Durable content hash used by hook enablement. Identical actions may intentionally share this key. Omitted when changing the user's disabled-hooks setting cannot change the action's current server-discovered state, including managed-policy hooks, session-start prompt actions, actions suppressed by disable-all settings, and projectless plugin actions that require project-directory expansion.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub disable_key: Option<String>,
+    /// Whether this action is enabled under the server-side discovery settings. Concrete sessions may differ because they can add session-specific directories, plugins, or trust. False when its disable key is present in the user's disabled-hooks setting or disable-all settings suppress the action.
+    pub enabled: bool,
+    /// Hook event that invokes this action.
+    pub hook_type: HookType,
+    /// Deterministic identifier for this server-discovered action row. It remains stable while the project, origin, source, event, action content, and duplicate ordinal are unchanged. This is row identity, not the key persisted in disabledHooks.
+    pub id: String,
+    /// Configuration tier that contributed this hook action.
+    pub origin: HookOrigin,
+    /// Input project path for which this server-side action was resolved. Set on every row returned for project-scoped discovery, including repeated user and policy actions.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub project_path: Option<String>,
+    /// Human-readable source label, such as a hook file path, settings source, or plugin name.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
+}
+
 /// MCP server discovered by `mcp.discover`, with config source, optional plugin source, transport type, and enabled state.
 ///
 /// <div class="warning">
@@ -6459,8 +6499,7 @@ pub struct HistoryTruncateResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct HookInvokeRequest {
-    #[doc(hidden)]
-    pub(crate) hook_type: HookType,
+    pub hook_type: HookType,
     pub input: serde_json::Value,
     pub session_id: SessionId,
 }
@@ -6471,6 +6510,44 @@ pub(crate) struct HookInvokeRequest {
 pub(crate) struct HookInvokeResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub output: Option<serde_json::Value>,
+}
+
+/// Optional project paths and host-exclusion behavior for server-scoped hook discovery.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HooksDiscoverRequest {
+    /// When true, omit host-owned user and plugin hook rows and their diagnostics. Managed-policy hooks and trusted repository hooks remain visible, and host disabledHooks still contribute to each remaining row's effective enabled state. This filters sources rather than simulating a host with no settings.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exclude_host_hooks: Option<bool>,
+    /// Optional project directory paths whose trusted repository and project-expanded plugin hooks should be discovered. When omitted or empty, user, managed-policy, and globally enabled installed or explicit plugin hooks are returned without project expansion.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub project_paths: Option<Vec<String>>,
+}
+
+/// Server-discovered hook actions and partial-load diagnostics from user, repository, plugin, and managed-policy sources. Concrete sessions may include additional session-specific hook sources.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HooksDiscoverResult {
+    /// Errors for hook sources or actions that could not be loaded, making the result partially incomplete. Other valid actions are still returned. Project-resolution and repository-settings errors are prefixed with their project path.
+    pub errors: Vec<String>,
+    /// All discovered hook actions. Byte-identical actions remain separate rows even when they share a disable key.
+    pub hooks: Vec<DiscoveredHook>,
+    /// Non-fatal source-loading warnings. Discovery remains complete for the affected source, although the source had a recoverable issue. Repository-settings warnings are prefixed with their project path when attribution is available.
+    pub warnings: Vec<String>,
 }
 
 /// Installed plugin record from global state, with marketplace, version, install time, enabled state, cache path, and source.
@@ -10519,7 +10596,7 @@ pub struct ModelSwitchToRequest {
     /// When true, evaluate context-window compaction policy before applying the switch.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub run_compaction_preflight: Option<bool>,
-    /// Origin to record on the effective `session.model_change` event. Defaults to `sdk` when omitted.
+    /// Origin to record on the effective `session.model_change` event for trusted in-process calls. Transport SDK calls are always recorded as `sdk`, regardless of this value.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source: Option<ModelChangeSource>,
     /// Output verbosity level to request for supported models
@@ -13974,6 +14051,9 @@ pub struct QueuePendingItems {
     pub id: String,
     /// Whether this item is a queued user message or a queued slash command / model change
     pub kind: QueuePendingItemsKind,
+    /// Stable identity of the queued user message. Present for message rows and absent for slash commands and model changes.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message_id: Option<String>,
 }
 
 /// Snapshot of the session's pending queued items and immediate-steering messages.
@@ -14680,7 +14760,7 @@ pub struct SandboxConfigUserPolicyNetworkProxy {
     /// Optional password for proxy authentication, combined with the URL at spawn time. The persisted value may be a literal password, a `${secret:…}` reference resolved from the OS keychain, or a `${VAR}`/`$VAR` environment reference; it is resolved just before the sandboxed process routes through the proxy. The /sandbox dialog stores a real password in the OS keychain and persists only a `${secret:…}` placeholder (never plaintext in settings.json); the field is masked in the dialog and redacted by /settings show.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub password: Option<String>,
-    /// Proxy URL (e.g. http://proxy.example.com:8080). The port is optional and defaults to the scheme's standard port when omitted. Credentials must not be embedded here — a `user:pass@` authority is rejected; put them in the separate `username`/`password` fields. A credential-free http:// loopback URL is routed through the localhost proxy automatically; loopback covers localhost and any *.localhost subdomain, the whole 127.0.0.0/8 range, ::1, and IPv4-mapped loopback (::ffff:127.0.0.1). An https:// URL, or one with a username/password set, is used as-is.
+    /// Proxy URL (e.g. http://proxy.example.com:8080). The port is optional and defaults to the scheme's standard port when omitted; an explicit port must be between 1 and 65535. Credentials must not be embedded here — a `user:pass@` authority is rejected; put them in the separate `username`/`password` fields. A credential-free http:// loopback proxy URL is routed through the localhost proxy automatically; loopback covers localhost and any *.localhost subdomain, the whole 127.0.0.0/8 range, ::1, and IPv4-mapped loopback (::ffff:127.0.0.1). An https:// URL, or one with a username/password set, is used as-is.
     pub url: String,
     /// Optional username for proxy authentication. Combined with the URL (and `password`) into `user:pass@host` when the sandboxed process routes through the proxy.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -14704,7 +14784,7 @@ pub struct SandboxConfigUserPolicyNetwork {
     /// Whether outbound network traffic is allowed at all.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub allow_outbound: Option<bool>,
-    /// HTTP proxy the sandboxed process routes traffic through. Enforced on Windows and cooperative (honored by well-behaved tools, not strictly enforced) on Linux and macOS. Credentials go in the separate `username`/`password` fields. A credential-free http:// loopback proxy URL is routed through the localhost proxy automatically; an https:// or authenticated loopback URL is used as-is.
+    /// HTTP proxy for sandboxed process traffic. Linux restricts egress to the proxy endpoint, requires that endpoint to be reachable over IPv4 (the [::] dual-stack wildcard is accepted and routed through the IPv4 gateway), and does not support proxy credentials. macOS relies on applications honoring proxy environment variables. Windows also configures a per-AppContainer WinHTTP proxy, but enforcement depends on the application's networking stack. Configure supported credentials in the separate `username` and `password` fields. A credential-free http:// loopback URL uses the localhost proxy form, while an https:// or authenticated loopback URL uses the URL form.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub proxy: Option<SandboxConfigUserPolicyNetworkProxy>,
 }
@@ -17969,6 +18049,30 @@ pub struct SessionsPruneOldRequest {
     pub older_than_days: i64,
 }
 
+/// Pagination options for reading an inactive or active local session's persisted event journal.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionsReadPersistedEventsRequest {
+    /// Opaque cursor returned by a previous persisted-event read. Omit on the first call.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cursor: Option<String>,
+    /// Direction to page through persisted history. Forward starts at the beginning; backward starts with the newest events. Events in each page remain chronological.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub direction: Option<EventsReadDirection>,
+    /// Maximum number of events to return in this batch (1–1000, default 200).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max: Option<i64>,
+    /// Session ID whose persisted event journal should be read.
+    pub session_id: SessionId,
+}
+
 /// Session ID whose in-use lock should be released.
 ///
 /// <div class="warning">
@@ -19031,6 +19135,9 @@ pub struct SubagentSettingsEntry {
     /// Model override for matching subagents
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
+    /// Whether the configured model strategy is preferred or required
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model_policy: Option<AgentModelPolicy>,
 }
 
 /// Subagent settings to apply, or null to clear the live session override
@@ -21793,6 +21900,27 @@ pub struct SessionsConnectResult {
 pub struct SessionsListResult {
     /// Sessions ordered most-recently-modified first. Discriminated by `isRemote`.
     pub sessions: Vec<serde_json::Value>,
+}
+
+/// Batch of session events returned by a read, with cursor and continuation metadata.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionsReadPersistedEventsResult {
+    /// Opaque cursor for the next read. Pass back unchanged in the next read.cursor to continue from where this read left off. Always present, even when no events were returned. For a backward read this cursor pages toward OLDER events; keep passing `direction: backward` with it (the cursor is also self-describing, so backward paging continues correctly).
+    pub cursor: String,
+    /// Cursor status: 'ok' means the cursor was applied successfully; 'expired' means the cursor referred to an event that no longer exists in history (e.g. truncated or compacted away) and the read fell back to a boundary of the remaining history. For a forward read the fallback starts from the beginning of the remaining history; for a backward read it falls back to the tail (the newest window). Because the fallback page is a fresh boundary snapshot rather than a continuation of the requested cursor, it may overlap events the consumer has already rendered — a backward fallback to the tail in particular can repeat the newest window. On 'expired', consumers should reset or rebase their local pagination state (or deduplicate by event id) before continuing from the returned cursor rather than blindly appending/prepending the fallback page.
+    pub cursor_status: EventsCursorStatus,
+    /// Session events for this batch, merged into a single stream in creation order: durable (persisted) events and ephemeral events interleave exactly as they were emitted. Set `includeEphemeral: false` to receive only durable events. Ephemeral events are never replayable once pruned from the in-memory ring, so a consumer that needs them should keep reading with a non-zero `waitMs`. For a backward (tail-first) read, the returned window contains persisted events only, still in chronological (oldest-to-newest) append order.
+    pub events: Vec<SessionEvent>,
+    /// True when more events are available in the read's direction. For a forward read, true means the batch returned `max` events and more are available immediately. For a backward read, true means older persisted events remain before the returned window.
+    pub has_more: bool,
 }
 
 /// ID of the local session bound to the given GitHub task, or omitted when none.
@@ -28951,6 +29079,101 @@ pub enum DiscoveredExtensionMode {
     Unknown,
 }
 
+/// Hook event name. Discovery emits the file-configurable subset; SDK callbacks additionally support callback-only events.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum HookType {
+    /// Runs before a tool is invoked.
+    #[serde(rename = "preToolUse")]
+    PreToolUse,
+    /// Runs before an MCP tool is invoked.
+    #[serde(rename = "preMcpToolCall")]
+    PreMcpToolCall,
+    /// Runs after a tool completes successfully.
+    #[serde(rename = "postToolUse")]
+    PostToolUse,
+    /// Runs after a tool fails.
+    #[serde(rename = "postToolUseFailure")]
+    PostToolUseFailure,
+    /// Runs after the user submits a prompt.
+    #[serde(rename = "userPromptSubmitted")]
+    UserPromptSubmitted,
+    /// Runs after the runtime transforms the submitted prompt for the model, before it is added to session history.
+    #[serde(rename = "userPromptTransformed")]
+    UserPromptTransformed,
+    /// Runs when a session starts.
+    #[serde(rename = "sessionStart")]
+    SessionStart,
+    /// Runs when a session ends.
+    #[serde(rename = "sessionEnd")]
+    SessionEnd,
+    /// Runs after an agent result is produced.
+    #[serde(rename = "postResult")]
+    PostResult,
+    /// Runs before a pull request description is generated.
+    #[serde(rename = "prePRDescription")]
+    PrePRDescription,
+    /// Runs when the agent encounters an error.
+    #[serde(rename = "errorOccurred")]
+    ErrorOccurred,
+    /// Runs when the agent stops.
+    #[serde(rename = "agentStop")]
+    AgentStop,
+    /// Runs when a subagent starts.
+    #[serde(rename = "subagentStart")]
+    SubagentStart,
+    /// Runs when a subagent stops.
+    #[serde(rename = "subagentStop")]
+    SubagentStop,
+    /// Runs before conversation context is compacted.
+    #[serde(rename = "preCompact")]
+    PreCompact,
+    /// Runs when the agent requests permission.
+    #[serde(rename = "permissionRequest")]
+    PermissionRequest,
+    /// Runs when the agent emits a notification.
+    #[serde(rename = "notification")]
+    Notification,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Configuration tier that contributed a discovered hook action.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum HookOrigin {
+    /// Hook loaded from user settings or the user's hook directory.
+    #[serde(rename = "user")]
+    User,
+    /// Hook loaded from repository settings or the repository hook directory.
+    #[serde(rename = "repository")]
+    Repository,
+    /// Hook provided by an enabled installed or explicit plugin. Projectless rows omit projectPath and do not expand a project directory.
+    #[serde(rename = "plugin")]
+    Plugin,
+    /// Hook enforced by centrally managed policy.
+    #[serde(rename = "policy")]
+    Policy,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// Server transport type: stdio, http, sse (deprecated), or memory
 ///
 /// <div class="warning">
@@ -29559,66 +29782,6 @@ pub enum HistoryRewindOutcome {
     /// Files and conversation were rewound, but obsolete file snapshots could not be removed; only conversation-and-files rewinds produce this.
     #[serde(rename = "snapshot-prune-failed")]
     SnapshotPruneFailed,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// Hook event name dispatched through the SDK callback transport.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum HookType {
-    /// Runs before a tool is invoked.
-    #[serde(rename = "preToolUse")]
-    PreToolUse,
-    /// Runs before an MCP tool is invoked.
-    #[serde(rename = "preMcpToolCall")]
-    PreMcpToolCall,
-    /// Runs after a tool completes successfully.
-    #[serde(rename = "postToolUse")]
-    PostToolUse,
-    /// Runs after a tool fails.
-    #[serde(rename = "postToolUseFailure")]
-    PostToolUseFailure,
-    /// Runs after the user submits a prompt.
-    #[serde(rename = "userPromptSubmitted")]
-    UserPromptSubmitted,
-    /// Runs after the runtime transforms the submitted prompt for the model, before it is added to session history.
-    #[serde(rename = "userPromptTransformed")]
-    UserPromptTransformed,
-    /// Runs when a session starts.
-    #[serde(rename = "sessionStart")]
-    SessionStart,
-    /// Runs when a session ends.
-    #[serde(rename = "sessionEnd")]
-    SessionEnd,
-    /// Runs after an agent result is produced.
-    #[serde(rename = "postResult")]
-    PostResult,
-    /// Runs before a pull request description is generated.
-    #[serde(rename = "prePRDescription")]
-    PrePRDescription,
-    /// Runs when the agent encounters an error.
-    #[serde(rename = "errorOccurred")]
-    ErrorOccurred,
-    /// Runs when the agent stops.
-    #[serde(rename = "agentStop")]
-    AgentStop,
-    /// Runs when a subagent starts.
-    #[serde(rename = "subagentStart")]
-    SubagentStart,
-    /// Runs when a subagent stops.
-    #[serde(rename = "subagentStop")]
-    SubagentStop,
-    /// Runs before conversation context is compacted.
-    #[serde(rename = "preCompact")]
-    PreCompact,
-    /// Runs when the agent requests permission.
-    #[serde(rename = "permissionRequest")]
-    PermissionRequest,
-    /// Runs when the agent emits a notification.
-    #[serde(rename = "notification")]
-    Notification,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

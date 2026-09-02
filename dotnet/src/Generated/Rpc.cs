@@ -99,6 +99,69 @@ internal sealed class ConnectRequest
     public string? Token { get; set; }
 }
 
+/// <summary>One server-discovered hook action from user, repository, plugin, or managed-policy configuration.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class DiscoveredHook
+{
+    /// <summary>Durable content hash used by hook enablement. Identical actions may intentionally share this key. Omitted when changing the user's disabled-hooks setting cannot change the action's current server-discovered state, including managed-policy hooks, session-start prompt actions, actions suppressed by disable-all settings, and projectless plugin actions that require project-directory expansion.</summary>
+    [JsonPropertyName("disableKey")]
+    public string? DisableKey { get; set; }
+
+    /// <summary>Whether this action is enabled under the server-side discovery settings. Concrete sessions may differ because they can add session-specific directories, plugins, or trust. False when its disable key is present in the user's disabled-hooks setting or disable-all settings suppress the action.</summary>
+    [JsonPropertyName("enabled")]
+    public bool Enabled { get; set; }
+
+    /// <summary>Hook event that invokes this action.</summary>
+    [JsonPropertyName("hookType")]
+    public HookType HookType { get; set; }
+
+    /// <summary>Deterministic identifier for this server-discovered action row. It remains stable while the project, origin, source, event, action content, and duplicate ordinal are unchanged. This is row identity, not the key persisted in disabledHooks.</summary>
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+
+    /// <summary>Configuration tier that contributed this hook action.</summary>
+    [JsonPropertyName("origin")]
+    public HookOrigin Origin { get; set; }
+
+    /// <summary>Input project path for which this server-side action was resolved. Set on every row returned for project-scoped discovery, including repeated user and policy actions.</summary>
+    [JsonPropertyName("projectPath")]
+    public string? ProjectPath { get; set; }
+
+    /// <summary>Human-readable source label, such as a hook file path, settings source, or plugin name.</summary>
+    [JsonPropertyName("source")]
+    public string? Source { get; set; }
+}
+
+/// <summary>Server-discovered hook actions and partial-load diagnostics from user, repository, plugin, and managed-policy sources. Concrete sessions may include additional session-specific hook sources.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class HooksDiscoverResult
+{
+    /// <summary>Errors for hook sources or actions that could not be loaded, making the result partially incomplete. Other valid actions are still returned. Project-resolution and repository-settings errors are prefixed with their project path.</summary>
+    [JsonPropertyName("errors")]
+    public IList<string> Errors { get => field ??= []; set; }
+
+    /// <summary>All discovered hook actions. Byte-identical actions remain separate rows even when they share a disable key.</summary>
+    [JsonPropertyName("hooks")]
+    public IList<DiscoveredHook> Hooks { get => field ??= []; set; }
+
+    /// <summary>Non-fatal source-loading warnings. Discovery remains complete for the affected source, although the source had a recoverable issue. Repository-settings warnings are prefixed with their project path when attribution is available.</summary>
+    [JsonPropertyName("warnings")]
+    public IList<string> Warnings { get => field ??= []; set; }
+}
+
+/// <summary>Optional project paths and host-exclusion behavior for server-scoped hook discovery.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class HooksDiscoverRequest
+{
+    /// <summary>When true, omit host-owned user and plugin hook rows and their diagnostics. Managed-policy hooks and trusted repository hooks remain visible, and host disabledHooks still contribute to each remaining row's effective enabled state. This filters sources rather than simulating a host with no settings.</summary>
+    [JsonPropertyName("excludeHostHooks")]
+    public bool? ExcludeHostHooks { get; set; }
+
+    /// <summary>Optional project directory paths whose trusted repository and project-expanded plugin hooks should be discovered. When omitted or empty, user, managed-policy, and globally enabled installed or explicit plugin hooks are returned without project expansion.</summary>
+    [JsonPropertyName("projectPaths")]
+    public IList<string>? ProjectPaths { get; set; }
+}
+
 /// <summary>Active server-driven promotion for a model, including its discount and optional expiry.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class ModelBillingPromo
@@ -3241,7 +3304,7 @@ internal sealed class SkillsConfigSetSkillDisabledRequest
     public string Name { get; set; } = string.Empty;
 }
 
-/// <summary>Agent metadata, including identifiers, display details, source, tools, model, MCP servers, skills, and file path.</summary>
+/// <summary>Agent metadata, including identifiers, display details, source, tools, model, models, MCP servers, skills, and file path.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class AgentInfo
 {
@@ -3265,6 +3328,14 @@ public sealed class AgentInfo
     /// <summary>Authored preferred model id for this agent. Runtime model selection may choose a different model; omitted means no authored preference.</summary>
     [JsonPropertyName("model")]
     public string? Model { get; set; }
+
+    /// <summary>Whether authored models are preferences or required constraints.</summary>
+    [JsonPropertyName("modelPolicy")]
+    public AgentModelPolicy? ModelPolicy { get; set; }
+
+    /// <summary>Authored preferred model ids for this agent, in priority order. Runtime model selection chooses the first available model; omitted means no authored preference.</summary>
+    [JsonPropertyName("models")]
+    public IList<string>? Models { get; set; }
 
     /// <summary>Name of the agent. Use `id` as the stable selection identifier.</summary>
     [JsonPropertyName("name")]
@@ -4226,6 +4297,48 @@ internal sealed class SessionsGetMetadataResult
 internal sealed class SessionsGetMetadataRequest
 {
     /// <summary>Session ID to inspect.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Batch of session events returned by a read, with cursor and continuation metadata.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class EventsReadResult
+{
+    /// <summary>Opaque cursor for the next read. Pass back unchanged in the next read.cursor to continue from where this read left off. Always present, even when no events were returned. For a backward read this cursor pages toward OLDER events; keep passing `direction: backward` with it (the cursor is also self-describing, so backward paging continues correctly).</summary>
+    [JsonPropertyName("cursor")]
+    public string Cursor { get; set; } = string.Empty;
+
+    /// <summary>Cursor status: 'ok' means the cursor was applied successfully; 'expired' means the cursor referred to an event that no longer exists in history (e.g. truncated or compacted away) and the read fell back to a boundary of the remaining history. For a forward read the fallback starts from the beginning of the remaining history; for a backward read it falls back to the tail (the newest window). Because the fallback page is a fresh boundary snapshot rather than a continuation of the requested cursor, it may overlap events the consumer has already rendered — a backward fallback to the tail in particular can repeat the newest window. On 'expired', consumers should reset or rebase their local pagination state (or deduplicate by event id) before continuing from the returned cursor rather than blindly appending/prepending the fallback page.</summary>
+    [JsonPropertyName("cursorStatus")]
+    public EventsCursorStatus CursorStatus { get; set; }
+
+    /// <summary>Session events for this batch, merged into a single stream in creation order: durable (persisted) events and ephemeral events interleave exactly as they were emitted. Set `includeEphemeral: false` to receive only durable events. Ephemeral events are never replayable once pruned from the in-memory ring, so a consumer that needs them should keep reading with a non-zero `waitMs`. For a backward (tail-first) read, the returned window contains persisted events only, still in chronological (oldest-to-newest) append order.</summary>
+    [JsonPropertyName("events")]
+    public IList<SessionEvent> Events { get => field ??= []; set; }
+
+    /// <summary>True when more events are available in the read's direction. For a forward read, true means the batch returned `max` events and more are available immediately. For a backward read, true means older persisted events remain before the returned window.</summary>
+    [JsonPropertyName("hasMore")]
+    public bool HasMore { get; set; }
+}
+
+/// <summary>Pagination options for reading an inactive or active local session's persisted event journal.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class SessionsReadPersistedEventsRequest
+{
+    /// <summary>Opaque cursor returned by a previous persisted-event read. Omit on the first call.</summary>
+    [JsonPropertyName("cursor")]
+    public string? Cursor { get; set; }
+
+    /// <summary>Direction to page through persisted history. Forward starts at the beginning; backward starts with the newest events. Events in each page remain chronological.</summary>
+    [JsonPropertyName("direction")]
+    public EventsReadDirection? Direction { get; set; }
+
+    /// <summary>Maximum number of events to return in this batch (1–1000, default 200).</summary>
+    [JsonPropertyName("max")]
+    public long? Max { get; set; }
+
+    /// <summary>Session ID whose persisted event journal should be read.</summary>
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
 }
@@ -7487,7 +7600,7 @@ internal sealed class ModelSwitchToRequest
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
 
-    /// <summary>Origin to record on the effective `session.model_change` event. Defaults to `sdk` when omitted.</summary>
+    /// <summary>Origin to record on the effective `session.model_change` event for trusted in-process calls. Transport SDK calls are always recorded as `sdk`, regardless of this value.</summary>
     [JsonPropertyName("source")]
     public ModelChangeSource? Source { get; set; }
 
@@ -11175,7 +11288,7 @@ public sealed class SandboxConfigUserPolicyNetworkProxy
     [JsonPropertyName("password")]
     public string? Password { get; set; }
 
-    /// <summary>Proxy URL (e.g. http://proxy.example.com:8080). The port is optional and defaults to the scheme's standard port when omitted. Credentials must not be embedded here — a `user:pass@` authority is rejected; put them in the separate `username`/`password` fields. A credential-free http:// loopback URL is routed through the localhost proxy automatically; loopback covers localhost and any *.localhost subdomain, the whole 127.0.0.0/8 range, ::1, and IPv4-mapped loopback (::ffff:127.0.0.1). An https:// URL, or one with a username/password set, is used as-is.</summary>
+    /// <summary>Proxy URL (e.g. http://proxy.example.com:8080). The port is optional and defaults to the scheme's standard port when omitted; an explicit port must be between 1 and 65535. Credentials must not be embedded here — a `user:pass@` authority is rejected; put them in the separate `username`/`password` fields. A credential-free http:// loopback proxy URL is routed through the localhost proxy automatically; loopback covers localhost and any *.localhost subdomain, the whole 127.0.0.0/8 range, ::1, and IPv4-mapped loopback (::ffff:127.0.0.1). An https:// URL, or one with a username/password set, is used as-is.</summary>
     [JsonPropertyName("url")]
     public string Url { get; set; } = string.Empty;
 
@@ -11196,7 +11309,7 @@ public sealed class SandboxConfigUserPolicyNetwork
     [JsonPropertyName("allowOutbound")]
     public bool? AllowOutbound { get; set; }
 
-    /// <summary>HTTP proxy the sandboxed process routes traffic through. Enforced on Windows and cooperative (honored by well-behaved tools, not strictly enforced) on Linux and macOS. Credentials go in the separate `username`/`password` fields. A credential-free http:// loopback proxy URL is routed through the localhost proxy automatically; an https:// or authenticated loopback URL is used as-is.</summary>
+    /// <summary>HTTP proxy for sandboxed process traffic. Linux restricts egress to the proxy endpoint, requires that endpoint to be reachable over IPv4 (the [::] dual-stack wildcard is accepted and routed through the IPv4 gateway), and does not support proxy credentials. macOS relies on applications honoring proxy environment variables. Windows also configures a per-AppContainer WinHTTP proxy, but enforcement depends on the application's networking stack. Configure supported credentials in the separate `username` and `password` fields. A credential-free http:// loopback URL uses the localhost proxy form, while an https:// or authenticated loopback URL uses the URL form.</summary>
     [JsonPropertyName("proxy")]
     public SandboxConfigUserPolicyNetworkProxy? Proxy { get; set; }
 }
@@ -12966,6 +13079,10 @@ public sealed class SubagentSettingsEntry
     /// <summary>Model override for matching subagents.</summary>
     [JsonPropertyName("model")]
     public string? Model { get; set; }
+
+    /// <summary>Whether the configured model strategy is preferred or required.</summary>
+    [JsonPropertyName("modelPolicy")]
+    public AgentModelPolicy? ModelPolicy { get; set; }
 }
 
 /// <summary>Configured per-agent subagent overrides.</summary>
@@ -16683,6 +16800,10 @@ public sealed class QueuePendingItems
     /// <summary>Whether this item is a queued user message or a queued slash command / model change.</summary>
     [JsonPropertyName("kind")]
     public QueuePendingItemsKind Kind { get; set; }
+
+    /// <summary>Stable identity of the queued user message. Present for message rows and absent for slash commands and model changes.</summary>
+    [JsonPropertyName("messageId")]
+    public string? MessageId { get; set; }
 }
 
 /// <summary>Snapshot of the session's pending queued items and immediate-steering messages.</summary>
@@ -17103,27 +17224,6 @@ internal sealed class SessionQueueProcessRequest
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
-}
-
-/// <summary>Batch of session events returned by a read, with cursor and continuation metadata.</summary>
-[Experimental(Diagnostics.Experimental)]
-public sealed class EventsReadResult
-{
-    /// <summary>Opaque cursor for the next read. Pass back unchanged in the next read.cursor to continue from where this read left off. Always present, even when no events were returned. For a backward read this cursor pages toward OLDER events; keep passing `direction: backward` with it (the cursor is also self-describing, so backward paging continues correctly).</summary>
-    [JsonPropertyName("cursor")]
-    public string Cursor { get; set; } = string.Empty;
-
-    /// <summary>Cursor status: 'ok' means the cursor was applied successfully; 'expired' means the cursor referred to an event that no longer exists in history (e.g. truncated or compacted away) and the read fell back to a boundary of the remaining history. For a forward read the fallback starts from the beginning of the remaining history; for a backward read it falls back to the tail (the newest window). Because the fallback page is a fresh boundary snapshot rather than a continuation of the requested cursor, it may overlap events the consumer has already rendered — a backward fallback to the tail in particular can repeat the newest window. On 'expired', consumers should reset or rebase their local pagination state (or deduplicate by event id) before continuing from the returned cursor rather than blindly appending/prepending the fallback page.</summary>
-    [JsonPropertyName("cursorStatus")]
-    public EventsCursorStatus CursorStatus { get; set; }
-
-    /// <summary>Session events for this batch, merged into a single stream in creation order: durable (persisted) events and ephemeral events interleave exactly as they were emitted. Set `includeEphemeral: false` to receive only durable events. Ephemeral events are never replayable once pruned from the in-memory ring, so a consumer that needs them should keep reading with a non-zero `waitMs`. For a backward (tail-first) read, the returned window contains persisted events only, still in chronological (oldest-to-newest) append order.</summary>
-    [JsonPropertyName("events")]
-    public IList<SessionEvent> Events { get => field ??= []; set; }
-
-    /// <summary>True when more events are available in the read's direction. For a forward read, true means the batch returned `max` events and more are available immediately. For a backward read, true means older persisted events remain before the returned window.</summary>
-    [JsonPropertyName("hasMore")]
-    public bool HasMore { get; set; }
 }
 
 /// <summary>Cursor, batch size, and optional long-poll/filter parameters for reading session events.</summary>
@@ -18836,6 +18936,183 @@ public sealed class GitHubTokenAcquireRequest
     [JsonPropertyName("sessionId")]
     public string? SessionId { get; set; }
 }
+
+/// <summary>Hook event name. Discovery emits the file-configurable subset; SDK callbacks additionally support callback-only events.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct HookType : IEquatable<HookType>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="HookType"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="HookType"/>.</param>
+    [JsonConstructor]
+    public HookType(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="HookType"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Runs before a tool is invoked.</summary>
+    public static HookType PreToolUse { get; } = new("preToolUse");
+
+    /// <summary>Runs before an MCP tool is invoked.</summary>
+    public static HookType PreMcpToolCall { get; } = new("preMcpToolCall");
+
+    /// <summary>Runs after a tool completes successfully.</summary>
+    public static HookType PostToolUse { get; } = new("postToolUse");
+
+    /// <summary>Runs after a tool fails.</summary>
+    public static HookType PostToolUseFailure { get; } = new("postToolUseFailure");
+
+    /// <summary>Runs after the user submits a prompt.</summary>
+    public static HookType UserPromptSubmitted { get; } = new("userPromptSubmitted");
+
+    /// <summary>Runs after the runtime transforms the submitted prompt for the model, before it is added to session history.</summary>
+    public static HookType UserPromptTransformed { get; } = new("userPromptTransformed");
+
+    /// <summary>Runs when a session starts.</summary>
+    public static HookType SessionStart { get; } = new("sessionStart");
+
+    /// <summary>Runs when a session ends.</summary>
+    public static HookType SessionEnd { get; } = new("sessionEnd");
+
+    /// <summary>Runs after an agent result is produced.</summary>
+    public static HookType PostResult { get; } = new("postResult");
+
+    /// <summary>Runs before a pull request description is generated.</summary>
+    public static HookType PrePRDescription { get; } = new("prePRDescription");
+
+    /// <summary>Runs when the agent encounters an error.</summary>
+    public static HookType ErrorOccurred { get; } = new("errorOccurred");
+
+    /// <summary>Runs when the agent stops.</summary>
+    public static HookType AgentStop { get; } = new("agentStop");
+
+    /// <summary>Runs when a subagent starts.</summary>
+    public static HookType SubagentStart { get; } = new("subagentStart");
+
+    /// <summary>Runs when a subagent stops.</summary>
+    public static HookType SubagentStop { get; } = new("subagentStop");
+
+    /// <summary>Runs before conversation context is compacted.</summary>
+    public static HookType PreCompact { get; } = new("preCompact");
+
+    /// <summary>Runs when the agent requests permission.</summary>
+    public static HookType PermissionRequest { get; } = new("permissionRequest");
+
+    /// <summary>Runs when the agent emits a notification.</summary>
+    public static HookType Notification { get; } = new("notification");
+
+    /// <summary>Returns a value indicating whether two <see cref="HookType"/> instances are equivalent.</summary>
+    public static bool operator ==(HookType left, HookType right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="HookType"/> instances are not equivalent.</summary>
+    public static bool operator !=(HookType left, HookType right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is HookType other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(HookType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{HookType}"/> for serializing <see cref="HookType"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<HookType>
+    {
+        /// <inheritdoc />
+        public override HookType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, HookType value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(HookType));
+        }
+    }
+}
+
+
+/// <summary>Configuration tier that contributed a discovered hook action.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct HookOrigin : IEquatable<HookOrigin>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="HookOrigin"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="HookOrigin"/>.</param>
+    [JsonConstructor]
+    public HookOrigin(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="HookOrigin"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Hook loaded from user settings or the user's hook directory.</summary>
+    public static HookOrigin User { get; } = new("user");
+
+    /// <summary>Hook loaded from repository settings or the repository hook directory.</summary>
+    public static HookOrigin Repository { get; } = new("repository");
+
+    /// <summary>Hook provided by an enabled installed or explicit plugin. Projectless rows omit projectPath and do not expand a project directory.</summary>
+    public static HookOrigin Plugin { get; } = new("plugin");
+
+    /// <summary>Hook enforced by centrally managed policy.</summary>
+    public static HookOrigin Policy { get; } = new("policy");
+
+    /// <summary>Returns a value indicating whether two <see cref="HookOrigin"/> instances are equivalent.</summary>
+    public static bool operator ==(HookOrigin left, HookOrigin right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="HookOrigin"/> instances are not equivalent.</summary>
+    public static bool operator !=(HookOrigin left, HookOrigin right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is HookOrigin other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(HookOrigin other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{HookOrigin}"/> for serializing <see cref="HookOrigin"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<HookOrigin>
+    {
+        /// <inheritdoc />
+        public override HookOrigin Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, HookOrigin value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(HookOrigin));
+        }
+    }
+}
+
 
 /// <summary>Resolved Anthropic adaptive-thinking capability for a model.</summary>
 [Experimental(Diagnostics.Experimental)]
@@ -22324,6 +22601,132 @@ public readonly struct SessionSource : IEquatable<SessionSource>
         public override void Write(Utf8JsonWriter writer, SessionSource value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionSource));
+        }
+    }
+}
+
+
+/// <summary>Cursor status: 'ok' means the cursor was applied successfully; 'expired' means the cursor referred to an event that no longer exists in history (e.g. truncated or compacted away) and the read fell back to a boundary of the remaining history (the beginning for a forward read, the tail for a backward read). The fallback page is a fresh boundary snapshot, not a continuation of the requested cursor, so it may overlap already-rendered events; on 'expired' a consumer should reset/rebase its pagination state (or deduplicate by event id) before continuing from the returned cursor.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct EventsCursorStatus : IEquatable<EventsCursorStatus>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="EventsCursorStatus"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="EventsCursorStatus"/>.</param>
+    [JsonConstructor]
+    public EventsCursorStatus(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="EventsCursorStatus"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The cursor was applied successfully.</summary>
+    public static EventsCursorStatus Ok { get; } = new("ok");
+
+    /// <summary>The cursor referred to history that is no longer available.</summary>
+    public static EventsCursorStatus Expired { get; } = new("expired");
+
+    /// <summary>Returns a value indicating whether two <see cref="EventsCursorStatus"/> instances are equivalent.</summary>
+    public static bool operator ==(EventsCursorStatus left, EventsCursorStatus right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="EventsCursorStatus"/> instances are not equivalent.</summary>
+    public static bool operator !=(EventsCursorStatus left, EventsCursorStatus right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is EventsCursorStatus other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(EventsCursorStatus other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{EventsCursorStatus}"/> for serializing <see cref="EventsCursorStatus"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<EventsCursorStatus>
+    {
+        /// <inheritdoc />
+        public override EventsCursorStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, EventsCursorStatus value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(EventsCursorStatus));
+        }
+    }
+}
+
+
+/// <summary>Direction to page through the session's persisted event history. 'forward' pages from the cursor toward newer events; 'backward' returns the newest window first (tail-first) and pages toward older events. Events within a returned batch are always chronological (oldest-to-newest), even for a backward read.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct EventsReadDirection : IEquatable<EventsReadDirection>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="EventsReadDirection"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="EventsReadDirection"/>.</param>
+    [JsonConstructor]
+    public EventsReadDirection(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="EventsReadDirection"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Page from the cursor toward newer events (default).</summary>
+    public static EventsReadDirection Forward { get; } = new("forward");
+
+    /// <summary>Tail-first: return the newest events and page toward older events.</summary>
+    public static EventsReadDirection Backward { get; } = new("backward");
+
+    /// <summary>Returns a value indicating whether two <see cref="EventsReadDirection"/> instances are equivalent.</summary>
+    public static bool operator ==(EventsReadDirection left, EventsReadDirection right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="EventsReadDirection"/> instances are not equivalent.</summary>
+    public static bool operator !=(EventsReadDirection left, EventsReadDirection right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is EventsReadDirection other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(EventsReadDirection other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{EventsReadDirection}"/> for serializing <see cref="EventsReadDirection"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<EventsReadDirection>
+    {
+        /// <inheritdoc />
+        public override EventsReadDirection Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, EventsReadDirection value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(EventsReadDirection));
         }
     }
 }
@@ -28619,69 +29022,6 @@ public readonly struct QueuePendingItemsKind : IEquatable<QueuePendingItemsKind>
 }
 
 
-/// <summary>Cursor status: 'ok' means the cursor was applied successfully; 'expired' means the cursor referred to an event that no longer exists in history (e.g. truncated or compacted away) and the read fell back to a boundary of the remaining history (the beginning for a forward read, the tail for a backward read). The fallback page is a fresh boundary snapshot, not a continuation of the requested cursor, so it may overlap already-rendered events; on 'expired' a consumer should reset/rebase its pagination state (or deduplicate by event id) before continuing from the returned cursor.</summary>
-[Experimental(Diagnostics.Experimental)]
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct EventsCursorStatus : IEquatable<EventsCursorStatus>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="EventsCursorStatus"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="EventsCursorStatus"/>.</param>
-    [JsonConstructor]
-    public EventsCursorStatus(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="EventsCursorStatus"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>The cursor was applied successfully.</summary>
-    public static EventsCursorStatus Ok { get; } = new("ok");
-
-    /// <summary>The cursor referred to history that is no longer available.</summary>
-    public static EventsCursorStatus Expired { get; } = new("expired");
-
-    /// <summary>Returns a value indicating whether two <see cref="EventsCursorStatus"/> instances are equivalent.</summary>
-    public static bool operator ==(EventsCursorStatus left, EventsCursorStatus right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="EventsCursorStatus"/> instances are not equivalent.</summary>
-    public static bool operator !=(EventsCursorStatus left, EventsCursorStatus right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is EventsCursorStatus other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(EventsCursorStatus other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{EventsCursorStatus}"/> for serializing <see cref="EventsCursorStatus"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<EventsCursorStatus>
-    {
-        /// <inheritdoc />
-        public override EventsCursorStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, EventsCursorStatus value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(EventsCursorStatus));
-        }
-    }
-}
-
-
 /// <summary>Agent-scope filter: 'primary' returns only main-agent events plus events whose type starts with 'subagent.' (matching the typed-subscription default behavior); 'all' returns events from all agents (matching wildcard-subscription behavior). Default is 'all' to preserve wildcard semantics for catch-up callers.</summary>
 [Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -28740,69 +29080,6 @@ public readonly struct EventsAgentScope : IEquatable<EventsAgentScope>
         public override void Write(Utf8JsonWriter writer, EventsAgentScope value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(EventsAgentScope));
-        }
-    }
-}
-
-
-/// <summary>Direction to page through the session's persisted event history. 'forward' pages from the cursor toward newer events; 'backward' returns the newest window first (tail-first) and pages toward older events. Events within a returned batch are always chronological (oldest-to-newest), even for a backward read.</summary>
-[Experimental(Diagnostics.Experimental)]
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct EventsReadDirection : IEquatable<EventsReadDirection>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="EventsReadDirection"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="EventsReadDirection"/>.</param>
-    [JsonConstructor]
-    public EventsReadDirection(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="EventsReadDirection"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>Page from the cursor toward newer events (default).</summary>
-    public static EventsReadDirection Forward { get; } = new("forward");
-
-    /// <summary>Tail-first: return the newest events and page toward older events.</summary>
-    public static EventsReadDirection Backward { get; } = new("backward");
-
-    /// <summary>Returns a value indicating whether two <see cref="EventsReadDirection"/> instances are equivalent.</summary>
-    public static bool operator ==(EventsReadDirection left, EventsReadDirection right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="EventsReadDirection"/> instances are not equivalent.</summary>
-    public static bool operator !=(EventsReadDirection left, EventsReadDirection right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is EventsReadDirection other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(EventsReadDirection other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{EventsReadDirection}"/> for serializing <see cref="EventsReadDirection"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<EventsReadDirection>
-    {
-        /// <inheritdoc />
-        public override EventsReadDirection Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, EventsReadDirection value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(EventsReadDirection));
         }
     }
 }
@@ -29624,6 +29901,12 @@ public sealed class ServerRpc
         await CopilotClient.InvokeRpcAsync(_rpc, "registerExtensionLaunchProvider", [], cancellationToken);
     }
 
+    /// <summary>Hooks APIs.</summary>
+    public ServerHooksApi Hooks =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_rpc), null) ??
+        field;
+
     /// <summary>Models APIs.</summary>
     public ServerModelsApi Models =>
         field ??
@@ -29737,6 +30020,29 @@ public sealed class ServerRpc
         field ??
         Interlocked.CompareExchange(ref field, new(_rpc), null) ??
         field;
+}
+
+/// <summary>Provides server-scoped Hooks APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ServerHooksApi
+{
+    private readonly JsonRpc _rpc;
+
+    internal ServerHooksApi(JsonRpc rpc)
+    {
+        _rpc = rpc;
+    }
+
+    /// <summary>Discovers hook actions enabled under server-side discovery settings from user, repository, plugin, and managed-policy sources.</summary>
+    /// <param name="projectPaths">Optional project directory paths whose trusted repository and project-expanded plugin hooks should be discovered. When omitted or empty, user, managed-policy, and globally enabled installed or explicit plugin hooks are returned without project expansion.</param>
+    /// <param name="excludeHostHooks">When true, omit host-owned user and plugin hook rows and their diagnostics. Managed-policy hooks and trusted repository hooks remain visible, and host disabledHooks still contribute to each remaining row's effective enabled state. This filters sources rather than simulating a host with no settings.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Server-discovered hook actions and partial-load diagnostics from user, repository, plugin, and managed-policy sources. Concrete sessions may include additional session-specific hook sources.</returns>
+    public async Task<HooksDiscoverResult> DiscoverAsync(IList<string>? projectPaths = null, bool? excludeHostHooks = null, CancellationToken cancellationToken = default)
+    {
+        var request = new HooksDiscoverRequest { ProjectPaths = projectPaths, ExcludeHostHooks = excludeHostHooks };
+        return await CopilotClient.InvokeRpcAsync<HooksDiscoverResult>(_rpc, "hooks.discover", [request], cancellationToken);
+    }
 }
 
 /// <summary>Provides server-scoped Models APIs.</summary>
@@ -30680,6 +30986,21 @@ public sealed class ServerSessionsApi
 
         var request = new SessionsGetMetadataRequest { SessionId = sessionId };
         return await CopilotClient.InvokeRpcAsync<SessionsGetMetadataResult>(_rpc, "sessions.getMetadata", [request], cancellationToken);
+    }
+
+    /// <summary>Reads a page of durable events directly from a local session's persisted journal without creating, resuming, or activating the session. The initial backward read uses a bounded tail scan for fast first paint; cursor continuations preserve the session event-log paging semantics. Persisted events may omit payloads that are reconstructed only for an active session.</summary>
+    /// <param name="sessionId">Session ID whose persisted event journal should be read.</param>
+    /// <param name="cursor">Opaque cursor returned by a previous persisted-event read. Omit on the first call.</param>
+    /// <param name="max">Maximum number of events to return in this batch (1–1000, default 200).</param>
+    /// <param name="direction">Direction to page through persisted history. Forward starts at the beginning; backward starts with the newest events. Events in each page remain chronological.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Batch of session events returned by a read, with cursor and continuation metadata.</returns>
+    public async Task<EventsReadResult> ReadPersistedEventsAsync(string sessionId, string? cursor = null, long? max = null, EventsReadDirection? direction = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(sessionId);
+
+        var request = new SessionsReadPersistedEventsRequest { SessionId = sessionId, Cursor = cursor, Max = max, Direction = direction };
+        return await CopilotClient.InvokeRpcAsync<EventsReadResult>(_rpc, "sessions.readPersistedEvents", [request], cancellationToken);
     }
 
     /// <summary>Lists recent local session IDs that contain user-visible history, omitting housekeeping-only sessions.</summary>
@@ -31996,7 +32317,7 @@ public sealed class ModelApi
     /// <param name="verbosity">Output verbosity level to request for supported models.</param>
     /// <param name="modelCapabilities">Override individual model capabilities resolved by the runtime.</param>
     /// <param name="contextTier">Explicit context tier for the selected model. `"default"` / `"long_context"` apply the requested tier; omit this field to use normal model behavior with no explicit tier.</param>
-    /// <param name="source">Origin to record on the effective `session.model_change` event. Defaults to `sdk` when omitted.</param>
+    /// <param name="source">Origin to record on the effective `session.model_change` event for trusted in-process calls. Transport SDK calls are always recorded as `sdk`, regardless of this value.</param>
     /// <param name="deferIfModelChangeQueued">When true, defer this switch (enqueue it) if another model change is already queued, even when no turn is active — so it drains last (FIFO) and wins over the already-queued change. Intended for genuine user-initiated model selections; internal restore/reapply switches omit it and apply immediately when no turn is active. When no other model change is queued this has no effect (a switch still applies immediately unless a turn is active).</param>
     /// <param name="compactionDecision">Explicit response to a model-switch compaction preflight. Omit to request a confirmation projection when compaction is necessary.</param>
     /// <param name="runCompactionPreflight">When true, evaluate context-window compaction policy before applying the switch.</param>
@@ -35692,6 +36013,8 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.AgentInterruptedCancelPhase), TypeInfoPropertyName = "SessionEventsAgentInterruptedCancelPhase")]
 [JsonSerializable(typeof(GitHub.Copilot.AgentInterruptedData), TypeInfoPropertyName = "SessionEventsAgentInterruptedData")]
 [JsonSerializable(typeof(GitHub.Copilot.AgentInterruptedEvent), TypeInfoPropertyName = "SessionEventsAgentInterruptedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.AgentModelPolicy), TypeInfoPropertyName = "SessionEventsAgentModelPolicy")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantFusionPhaseActivityEvent), TypeInfoPropertyName = "SessionEventsAssistantFusionPhaseActivityEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.AssistantFusionPhaseCompletedEvent), TypeInfoPropertyName = "SessionEventsAssistantFusionPhaseCompletedEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.AssistantFusionPhaseFailedEvent), TypeInfoPropertyName = "SessionEventsAssistantFusionPhaseFailedEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.AssistantFusionPhaseStartedEvent), TypeInfoPropertyName = "SessionEventsAssistantFusionPhaseStartedEvent")]
@@ -35797,6 +36120,10 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.CompactionCompleteCompactionTokensUsed), TypeInfoPropertyName = "SessionEventsCompactionCompleteCompactionTokensUsed")]
 [JsonSerializable(typeof(GitHub.Copilot.CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail), TypeInfoPropertyName = "SessionEventsCompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail")]
 [JsonSerializable(typeof(GitHub.Copilot.CompactionTrigger), TypeInfoPropertyName = "SessionEventsCompactionTrigger")]
+[JsonSerializable(typeof(GitHub.Copilot.CompletionReceiptEventRange), TypeInfoPropertyName = "SessionEventsCompletionReceiptEventRange")]
+[JsonSerializable(typeof(GitHub.Copilot.CompletionReceiptFinalTool), TypeInfoPropertyName = "SessionEventsCompletionReceiptFinalTool")]
+[JsonSerializable(typeof(GitHub.Copilot.CompletionReceiptStopReason), TypeInfoPropertyName = "SessionEventsCompletionReceiptStopReason")]
+[JsonSerializable(typeof(GitHub.Copilot.CompletionReceiptToolStatus), TypeInfoPropertyName = "SessionEventsCompletionReceiptToolStatus")]
 [JsonSerializable(typeof(GitHub.Copilot.ContextTier), TypeInfoPropertyName = "SessionEventsContextTier")]
 [JsonSerializable(typeof(GitHub.Copilot.CustomAgentsUpdatedAgent), TypeInfoPropertyName = "SessionEventsCustomAgentsUpdatedAgent")]
 [JsonSerializable(typeof(GitHub.Copilot.ElicitationCompletedAction), TypeInfoPropertyName = "SessionEventsElicitationCompletedAction")]
@@ -35834,7 +36161,9 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.FusionFollowUpAction), TypeInfoPropertyName = "SessionEventsFusionFollowUpAction")]
 [JsonSerializable(typeof(GitHub.Copilot.FusionFollowUpRecommendation), TypeInfoPropertyName = "SessionEventsFusionFollowUpRecommendation")]
 [JsonSerializable(typeof(GitHub.Copilot.FusionPattern), TypeInfoPropertyName = "SessionEventsFusionPattern")]
+[JsonSerializable(typeof(GitHub.Copilot.FusionPhaseActivityKind), TypeInfoPropertyName = "SessionEventsFusionPhaseActivityKind")]
 [JsonSerializable(typeof(GitHub.Copilot.FusionPhaseKind), TypeInfoPropertyName = "SessionEventsFusionPhaseKind")]
+[JsonSerializable(typeof(GitHub.Copilot.FusionPhasePlanStep), TypeInfoPropertyName = "SessionEventsFusionPhasePlanStep")]
 [JsonSerializable(typeof(GitHub.Copilot.FusionPhaseStatus), TypeInfoPropertyName = "SessionEventsFusionPhaseStatus")]
 [JsonSerializable(typeof(GitHub.Copilot.FusionPhaseUsage), TypeInfoPropertyName = "SessionEventsFusionPhaseUsage")]
 [JsonSerializable(typeof(GitHub.Copilot.FusionProjectionMode), TypeInfoPropertyName = "SessionEventsFusionProjectionMode")]
@@ -36181,6 +36510,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(DiscoveredExtensions))]
 [JsonSerializable(typeof(DiscoveredExtensionsDisableRequest))]
 [JsonSerializable(typeof(DiscoveredExtensionsEnableRequest))]
+[JsonSerializable(typeof(DiscoveredHook))]
 [JsonSerializable(typeof(DiscoveredMcpServer))]
 [JsonSerializable(typeof(EnqueueCommandParams))]
 [JsonSerializable(typeof(EnqueueCommandResult))]
@@ -36265,6 +36595,8 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(HistorySummarizeForHandoffResult))]
 [JsonSerializable(typeof(HistoryTruncateRequest))]
 [JsonSerializable(typeof(HistoryTruncateResult))]
+[JsonSerializable(typeof(HooksDiscoverRequest))]
+[JsonSerializable(typeof(HooksDiscoverResult))]
 [JsonSerializable(typeof(IDictionary<string, JsonElement>))]
 [JsonSerializable(typeof(IList<AccountAllUsers>))]
 [JsonSerializable(typeof(IList<AuthValidationError>))]
@@ -36812,6 +37144,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SessionsLoadDeferredRepoHooksRequest))]
 [JsonSerializable(typeof(SessionsOpenProgress))]
 [JsonSerializable(typeof(SessionsPruneOldRequest))]
+[JsonSerializable(typeof(SessionsReadPersistedEventsRequest))]
 [JsonSerializable(typeof(SessionsRegisterExtensionToolsOnSessionOptions))]
 [JsonSerializable(typeof(SessionsReleaseLockRequest))]
 [JsonSerializable(typeof(SessionsReleaseLockResult))]

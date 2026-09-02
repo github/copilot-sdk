@@ -3,9 +3,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 // AUTO-GENERATED FILE - DO NOT EDIT
-// Generated from: api.schema.json
+// Generated from: session-events.schema.json
 
-package com.github.copilot.generated.rpc;
+package com.github.copilot.generated;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -13,21 +13,21 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Subagent model, reasoning effort, and context tier settings
+ * Final structured tool completion in the covered event range.
  *
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record SubagentSettingsEntry(
-    /** Model override for matching subagents */
-    @JsonProperty("model") String model,
-    /** Whether the configured model strategy is preferred or required */
-    @JsonProperty("modelPolicy") AgentModelPolicy modelPolicy,
-    /** Reasoning effort override for matching subagents */
-    @JsonProperty("effortLevel") String effortLevel,
-    /** Context tier override for matching subagents */
-    @JsonProperty("contextTier") SubagentSettingsEntryContextTier contextTier
+public record CompletionReceiptFinalTool(
+    /** Unique identifier of the completed tool call. */
+    @JsonProperty("toolCallId") String toolCallId,
+    /** Tool name from the matching tool execution start event, when available. */
+    @JsonProperty("toolName") String toolName,
+    /** Structured success or failure status from the tool completion event. */
+    @JsonProperty("status") CompletionReceiptToolStatus status,
+    /** Process exit code from a structured shell result, when available. */
+    @JsonProperty("exitCode") Long exitCode
 ) {
 }

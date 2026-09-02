@@ -5,7 +5,7 @@
 
 import type { MessageConnection } from "vscode-jsonrpc/node.js";
 
-import type { AbortReason, Attachment, AutoTier, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerSource, McpServerStatus, ModelChangeSource, PermissionMode, PermissionPromptRequest, PermissionRule, ReasoningSummary, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskCompleteData, TaskCompletionOutcome, UserToolSessionApproval, Verbosity } from "./session-events.js";
+import type { AbortReason, AgentModelPolicy, Attachment, AutoTier, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerSource, McpServerStatus, ModelChangeSource, PermissionMode, PermissionPromptRequest, PermissionRule, ReasoningSummary, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskCompleteData, TaskCompletionOutcome, UserToolSessionApproval, Verbosity } from "./session-events.js";
 
 /** A value that can be represented losslessly on the SDK JSON wire. */
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
@@ -870,6 +870,64 @@ export type DiscoveredExtensionMode =
   /** Extensions are loaded and the agent can create, reload, and manage them. */
   | "load_and_augment";
 /**
+ * Hook event name. Discovery emits the file-configurable subset; SDK callbacks additionally support callback-only events.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "HookType".
+ */
+/** @experimental */
+export type HookType =
+  /** Runs before a tool is invoked. */
+  | "preToolUse"
+  /** Runs before an MCP tool is invoked. */
+  | "preMcpToolCall"
+  /** Runs after a tool completes successfully. */
+  | "postToolUse"
+  /** Runs after a tool fails. */
+  | "postToolUseFailure"
+  /** Runs after the user submits a prompt. */
+  | "userPromptSubmitted"
+  /** Runs after the runtime transforms the submitted prompt for the model, before it is added to session history. */
+  | "userPromptTransformed"
+  /** Runs when a session starts. */
+  | "sessionStart"
+  /** Runs when a session ends. */
+  | "sessionEnd"
+  /** Runs after an agent result is produced. */
+  | "postResult"
+  /** Runs before a pull request description is generated. */
+  | "prePRDescription"
+  /** Runs when the agent encounters an error. */
+  | "errorOccurred"
+  /** Runs when the agent stops. */
+  | "agentStop"
+  /** Runs when a subagent starts. */
+  | "subagentStart"
+  /** Runs when a subagent stops. */
+  | "subagentStop"
+  /** Runs before conversation context is compacted. */
+  | "preCompact"
+  /** Runs when the agent requests permission. */
+  | "permissionRequest"
+  /** Runs when the agent emits a notification. */
+  | "notification";
+/**
+ * Configuration tier that contributed a discovered hook action.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "HookOrigin".
+ */
+/** @experimental */
+export type HookOrigin =
+  /** Hook loaded from user settings or the user's hook directory. */
+  | "user"
+  /** Hook loaded from repository settings or the repository hook directory. */
+  | "repository"
+  /** Hook provided by an enabled installed or explicit plugin. Projectless rows omit projectPath and do not expand a project directory. */
+  | "plugin"
+  /** Hook enforced by centrally managed policy. */
+  | "policy";
+/**
  * Server transport type: stdio, http, sse (deprecated), or memory
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -1348,49 +1406,6 @@ export type HistoryRewindOutcome =
   | "checkpoint-cleanup-failed"
   /** Files and conversation were rewound, but obsolete file snapshots could not be removed; only conversation-and-files rewinds produce this. */
   | "snapshot-prune-failed";
-/**
- * Hook event name dispatched through the SDK callback transport.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "HookType".
- */
-/** @experimental */
-/** @internal */
-export type HookType =
-  /** Runs before a tool is invoked. */
-  | "preToolUse"
-  /** Runs before an MCP tool is invoked. */
-  | "preMcpToolCall"
-  /** Runs after a tool completes successfully. */
-  | "postToolUse"
-  /** Runs after a tool fails. */
-  | "postToolUseFailure"
-  /** Runs after the user submits a prompt. */
-  | "userPromptSubmitted"
-  /** Runs after the runtime transforms the submitted prompt for the model, before it is added to session history. */
-  | "userPromptTransformed"
-  /** Runs when a session starts. */
-  | "sessionStart"
-  /** Runs when a session ends. */
-  | "sessionEnd"
-  /** Runs after an agent result is produced. */
-  | "postResult"
-  /** Runs before a pull request description is generated. */
-  | "prePRDescription"
-  /** Runs when the agent encounters an error. */
-  | "errorOccurred"
-  /** Runs when the agent stops. */
-  | "agentStop"
-  /** Runs when a subagent starts. */
-  | "subagentStart"
-  /** Runs when a subagent stops. */
-  | "subagentStop"
-  /** Runs before conversation context is compacted. */
-  | "preCompact"
-  /** Runs when the agent requests permission. */
-  | "permissionRequest"
-  /** Runs when the agent emits a notification. */
-  | "notification";
 /**
  * Source for direct repo installs (when marketplace is empty)
  *
@@ -4589,7 +4604,7 @@ export interface AgentGetCurrentResult {
   agent?: AgentInfo | null;
 }
 /**
- * Agent metadata, including identifiers, display details, source, tools, model, MCP servers, skills, and file path.
+ * Agent metadata, including identifiers, display details, source, tools, model, models, MCP servers, skills, and file path.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "AgentInfo".
@@ -4629,6 +4644,11 @@ export interface AgentInfo {
    * Authored preferred model id for this agent. Runtime model selection may choose a different model; omitted means no authored preference.
    */
   model?: string;
+  /**
+   * Authored preferred model ids for this agent, in priority order. Runtime model selection chooses the first available model; omitted means no authored preference.
+   */
+  models?: string[];
+  modelPolicy?: AgentModelPolicy;
   /**
    * MCP server configurations attached to this agent, keyed by server name. Server config shape mirrors the MCP `mcpServers` schema.
    *
@@ -6842,6 +6862,37 @@ export interface DiscoveredExtensionsEnableRequest {
   ids: string[];
 }
 /**
+ * One server-discovered hook action from user, repository, plugin, or managed-policy configuration.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "DiscoveredHook".
+ */
+/** @experimental */
+export interface DiscoveredHook {
+  /**
+   * Deterministic identifier for this server-discovered action row. It remains stable while the project, origin, source, event, action content, and duplicate ordinal are unchanged. This is row identity, not the key persisted in disabledHooks.
+   */
+  id: string;
+  hookType: HookType;
+  origin: HookOrigin;
+  /**
+   * Human-readable source label, such as a hook file path, settings source, or plugin name.
+   */
+  source?: string;
+  /**
+   * Input project path for which this server-side action was resolved. Set on every row returned for project-scoped discovery, including repeated user and policy actions.
+   */
+  projectPath?: string;
+  /**
+   * Whether this action is enabled under the server-side discovery settings. Concrete sessions may differ because they can add session-specific directories, plugins, or trust. False when its disable key is present in the user's disabled-hooks setting or disable-all settings suppress the action.
+   */
+  enabled: boolean;
+  /**
+   * Durable content hash used by hook enablement. Identical actions may intentionally share this key. Omitted when changing the user's disabled-hooks setting cannot change the action's current server-discovered state, including managed-policy hooks, session-start prompt actions, actions suppressed by disable-all settings, and projectless plugin actions that require project-directory expansion.
+   */
+  disableKey?: string;
+}
+/**
  * MCP server discovered by `mcp.discover`, with config source, optional plugin source, transport type, and enabled state.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -8981,6 +9032,44 @@ export interface HookInvokeRequest {
 /** @internal */
 export interface HookInvokeResponse {
   output?: JsonValue;
+}
+/**
+ * Optional project paths and host-exclusion behavior for server-scoped hook discovery.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "HooksDiscoverRequest".
+ */
+/** @experimental */
+export interface HooksDiscoverRequest {
+  /**
+   * Optional project directory paths whose trusted repository and project-expanded plugin hooks should be discovered. When omitted or empty, user, managed-policy, and globally enabled installed or explicit plugin hooks are returned without project expansion.
+   */
+  projectPaths?: string[];
+  /**
+   * When true, omit host-owned user and plugin hook rows and their diagnostics. Managed-policy hooks and trusted repository hooks remain visible, and host disabledHooks still contribute to each remaining row's effective enabled state. This filters sources rather than simulating a host with no settings.
+   */
+  excludeHostHooks?: boolean;
+}
+/**
+ * Server-discovered hook actions and partial-load diagnostics from user, repository, plugin, and managed-policy sources. Concrete sessions may include additional session-specific hook sources.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "HooksDiscoverResult".
+ */
+/** @experimental */
+export interface HooksDiscoverResult {
+  /**
+   * All discovered hook actions. Byte-identical actions remain separate rows even when they share a disable key.
+   */
+  hooks: DiscoveredHook[];
+  /**
+   * Non-fatal source-loading warnings. Discovery remains complete for the affected source, although the source had a recoverable issue. Repository-settings warnings are prefixed with their project path when attribution is available.
+   */
+  warnings: string[];
+  /**
+   * Errors for hook sources or actions that could not be loaded, making the result partially incomplete. Other valid actions are still returned. Project-resolution and repository-settings errors are prefixed with their project path.
+   */
+  errors: string[];
 }
 /**
  * Installed plugin record from global state, with marketplace, version, install time, enabled state, cache path, and source.
@@ -15874,6 +15963,10 @@ export interface QueuePendingItems {
    * Stable opaque id for the canonical queued item. Batch rows share one id.
    */
   id: string;
+  /**
+   * Stable identity of the queued user message. Present for message rows and absent for slash commands and model changes.
+   */
+  messageId?: string;
   kind: QueuePendingItemsKind;
   /**
    * Human-readable text to display for this queue entry in the UI
@@ -16560,7 +16653,7 @@ export interface SandboxConfigUserPolicyNetwork {
 /** @experimental */
 export interface SandboxConfigUserPolicyNetworkProxy {
   /**
-   * Proxy URL (e.g. http://proxy.example.com:8080). The port is optional and defaults to the scheme's standard port when omitted. Credentials must not be embedded here — a `user:pass@` authority is rejected; put them in the separate `username`/`password` fields. A credential-free http:// loopback URL is routed through the localhost proxy automatically; loopback covers localhost and any *.localhost subdomain, the whole 127.0.0.0/8 range, ::1, and IPv4-mapped loopback (::ffff:127.0.0.1). An https:// URL, or one with a username/password set, is used as-is.
+   * Proxy URL (e.g. http://proxy.example.com:8080). The port is optional and defaults to the scheme's standard port when omitted; an explicit port must be between 1 and 65535. Credentials must not be embedded here — a `user:pass@` authority is rejected; put them in the separate `username`/`password` fields. A credential-free http:// loopback proxy URL is routed through the localhost proxy automatically; loopback covers localhost and any *.localhost subdomain, the whole 127.0.0.0/8 range, ::1, and IPv4-mapped loopback (::ffff:127.0.0.1). An https:// URL, or one with a username/password set, is used as-is.
    */
   url: string;
   /**
@@ -19497,6 +19590,28 @@ export interface SessionsPruneOldRequest {
   excludeSessionIds?: string[];
 }
 /**
+ * Pagination options for reading an inactive or active local session's persisted event journal.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionsReadPersistedEventsRequest".
+ */
+/** @experimental */
+export interface SessionsReadPersistedEventsRequest {
+  /**
+   * Session ID whose persisted event journal should be read.
+   */
+  sessionId: string;
+  /**
+   * Opaque cursor returned by a previous persisted-event read. Omit on the first call.
+   */
+  cursor?: string;
+  /**
+   * Maximum number of events to return in this batch (1–1000, default 200).
+   */
+  max?: number;
+  direction?: EventsReadDirection;
+}
+/**
  * Session ID whose in-use lock should be released.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -20505,6 +20620,7 @@ export interface SubagentSettingsEntry {
    * Model override for matching subagents
    */
   model?: string;
+  modelPolicy?: AgentModelPolicy;
   /**
    * Reasoning effort override for matching subagents
    */
@@ -22852,6 +22968,18 @@ export function createServerRpc(connection: MessageConnection) {
         ping: async (params: PingRequest): Promise<PingResult> =>
             connection.sendRequest("ping", params),
         /** @experimental */
+        hooks: {
+            /**
+             * Discovers hook actions enabled under server-side discovery settings from user, repository, plugin, and managed-policy sources.
+             *
+             * @param params Optional project paths and host-exclusion behavior for server-scoped hook discovery.
+             *
+             * @returns Server-discovered hook actions and partial-load diagnostics from user, repository, plugin, and managed-policy sources. Concrete sessions may include additional session-specific hook sources.
+             */
+            discover: async (params: HooksDiscoverRequest): Promise<HooksDiscoverResult> =>
+                connection.sendRequest("hooks.discover", params),
+        },
+        /** @experimental */
         models: {
             /**
              * Lists Copilot models available to the authenticated user.
@@ -23377,6 +23505,15 @@ export function createServerRpc(connection: MessageConnection) {
              */
             list: async (params: SessionsListRequest): Promise<SessionList> =>
                 connection.sendRequest("sessions.list", params),
+            /**
+             * Reads a page of durable events directly from a local session's persisted journal without creating, resuming, or activating the session. The initial backward read uses a bounded tail scan for fast first paint; cursor continuations preserve the session event-log paging semantics. Persisted events may omit payloads that are reconstructed only for an active session.
+             *
+             * @param params Pagination options for reading an inactive or active local session's persisted event journal.
+             *
+             * @returns Batch of session events returned by a read, with cursor and continuation metadata.
+             */
+            readPersistedEvents: async (params: SessionsReadPersistedEventsRequest): Promise<EventsReadResult> =>
+                connection.sendRequest("sessions.readPersistedEvents", params),
             /**
              * Finds the local session bound to a GitHub task ID, if any.
              *
