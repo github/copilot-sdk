@@ -216,7 +216,7 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     {
         var session = await CreateSessionAsync(new SessionConfig
         {
-            Model = "claude-sonnet-4.5",
+            Model = "claude-sonnet-5",
             Provider = CreateProxyProvider("create-provider-header"),
         });
 
@@ -240,7 +240,7 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
 
         var session2 = await ResumeSessionAsync(sessionId, new ResumeSessionConfig
         {
-            Model = "claude-sonnet-4.5",
+            Model = "claude-sonnet-5",
             Provider = CreateProxyProvider("resume-provider-header"),
         });
 
@@ -267,7 +267,7 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         // tests for serialization coverage).
         var session = await CreateSessionAsync(new SessionConfig
         {
-            Model = "claude-sonnet-4.5",
+            Model = "claude-sonnet-5",
             Provider = new ProviderConfig
             {
                 Type = "openai",
@@ -300,14 +300,14 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
                 Type = "openai",
                 BaseUrl = Ctx.ProxyUrl,
                 ApiKey = "test-provider-key",
-                ModelId = "claude-sonnet-4.5",
+                ModelId = "claude-sonnet-5",
             },
         });
 
         await session.SendAndWaitAsync(new MessageOptions { Prompt = "What is 1+1?" });
 
         var exchange = Assert.Single(await Ctx.GetExchangesAsync());
-        Assert.Equal("claude-sonnet-4.5", exchange.Request.Model);
+        Assert.Equal("claude-sonnet-5", exchange.Request.Model);
 
         await session.DisposeAsync();
     }
@@ -598,7 +598,7 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         var session = await Ctx.CreateSessionAsync(client, new SessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
-            Model = "claude-sonnet-4.5",
+            Model = "claude-sonnet-5",
             EnableCitations = true,
             Provider = CreateAnthropicProvider(),
         });
@@ -645,7 +645,7 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         var session2 = await Ctx.ResumeSessionAsync(resumeClient, sessionId, new ResumeSessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
-            Model = "claude-sonnet-4.5",
+            Model = "claude-sonnet-5",
             EnableCitations = true,
             Provider = CreateAnthropicProvider(),
         });
@@ -834,8 +834,8 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
             Type = "anthropic",
             BaseUrl = "https://anthropic-citations.invalid/v1",
             ApiKey = "test-provider-key",
-            ModelId = "claude-sonnet-4.5",
-            WireModel = "claude-sonnet-4.5",
+            ModelId = "claude-sonnet-5",
+            WireModel = "claude-sonnet-5",
         };
     }
 

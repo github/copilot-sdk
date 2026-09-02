@@ -467,7 +467,7 @@ describe("Client options", async () => {
         });
         const session = await client.createSession({
             clientName: "advanced-create-client",
-            model: "claude-sonnet-4.5",
+            model: "claude-sonnet-5",
             reasoningEffort: "medium",
             reasoningSummary: "detailed",
             contextTier: "long_context",
@@ -532,7 +532,7 @@ describe("Client options", async () => {
                     provider: "create-provider",
                     id: "create-model",
                     name: "Create Model",
-                    modelId: "claude-sonnet-4.5",
+                    modelId: "claude-sonnet-5",
                     wireModel: "create-wire-model",
                     maxContextWindowTokens: 12_000,
                     maxPromptTokens: 10_000,
@@ -544,7 +544,7 @@ describe("Client options", async () => {
 
         const createRequest = getCapturedRequest(capturePath, "session.create");
         expect(createRequest.clientName).toBe("advanced-create-client");
-        expect(createRequest.model).toBe("claude-sonnet-4.5");
+        expect(createRequest.model).toBe("claude-sonnet-5");
         expect(createRequest.reasoningEffort).toBe("medium");
         expect(createRequest.reasoningSummary).toBe("detailed");
         expect(createRequest.contextTier).toBe("long_context");
@@ -609,7 +609,7 @@ describe("Client options", async () => {
         await client.start();
 
         const session = await client.createSession({
-            model: "claude-sonnet-4.5",
+            model: "claude-sonnet-5",
             provider: {
                 type: "azure",
                 wireApi: "responses",
@@ -619,7 +619,7 @@ describe("Client options", async () => {
                 bearerToken: "provider-bearer-token",
                 azure: { apiVersion: "2024-02-15-preview" },
                 headers: { "X-Provider-Wire": "yes" },
-                modelId: "claude-sonnet-4.5",
+                modelId: "claude-sonnet-5",
                 wireModel: "azure-deployment",
                 maxPromptTokens: 8192,
                 maxOutputTokens: 1024,
@@ -636,7 +636,7 @@ describe("Client options", async () => {
         expect(provider.bearerToken).toBe("provider-bearer-token");
         expect(getObject(provider.azure).apiVersion).toBe("2024-02-15-preview");
         expect(getObject(provider.headers)["X-Provider-Wire"]).toBe("yes");
-        expect(provider.modelId).toBe("claude-sonnet-4.5");
+        expect(provider.modelId).toBe("claude-sonnet-5");
         expect(provider.wireModel).toBe("azure-deployment");
         expect(provider.maxPromptTokens).toBe(8192);
         expect(provider.maxOutputTokens).toBe(1024);

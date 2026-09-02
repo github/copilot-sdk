@@ -119,8 +119,8 @@ func createAnthropicProvider() *copilot.ProviderConfig {
 		Type:      "anthropic",
 		BaseURL:   "https://anthropic-citations.invalid/v1",
 		APIKey:    "test-provider-key",
-		ModelID:   "claude-sonnet-4.5",
-		WireModel: "claude-sonnet-4.5",
+		ModelID:   "claude-sonnet-5",
+		WireModel: "claude-sonnet-5",
 	}
 }
 
@@ -422,7 +422,7 @@ func TestSessionConfigNewOptionsCopilotRequestE2E(t *testing.T) {
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-			Model:               "claude-sonnet-4.5",
+			Model:               "claude-sonnet-5",
 			EnableCitations:     copilot.Bool(true),
 			Provider:            createAnthropicProvider(),
 		})
@@ -483,7 +483,7 @@ func TestSessionConfigNewOptionsCopilotRequestE2E(t *testing.T) {
 
 		session2, err := resumeClient.ResumeSessionWithOptions(t.Context(), session1.SessionID, &copilot.ResumeSessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-			Model:               "claude-sonnet-4.5",
+			Model:               "claude-sonnet-5",
 			EnableCitations:     copilot.Bool(true),
 			Provider:            createAnthropicProvider(),
 		})
@@ -591,7 +591,7 @@ func TestSessionConfigExtrasE2E(t *testing.T) {
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-			Model:               "claude-sonnet-4.5",
+			Model:               "claude-sonnet-5",
 			Provider:            createProxyProvider(ctx, providerHeaderName, "create-provider-header"),
 		})
 		if err != nil {
@@ -635,7 +635,7 @@ func TestSessionConfigExtrasE2E(t *testing.T) {
 
 		session2, err := client.ResumeSession(t.Context(), sessionID, &copilot.ResumeSessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-			Model:               "claude-sonnet-4.5",
+			Model:               "claude-sonnet-5",
 			Provider:            createProxyProvider(ctx, providerHeaderName, "resume-provider-header"),
 		})
 		if err != nil {
@@ -679,7 +679,7 @@ func TestSessionConfigExtrasE2E(t *testing.T) {
 		maxOutputTokens := 1024
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-			Model:               "claude-sonnet-4.5",
+			Model:               "claude-sonnet-5",
 			Provider: &copilot.ProviderConfig{
 				Type:            "openai",
 				BaseURL:         ctx.ProxyURL,
@@ -721,7 +721,7 @@ func TestSessionConfigExtrasE2E(t *testing.T) {
 				Type:    "openai",
 				BaseURL: ctx.ProxyURL,
 				APIKey:  "test-provider-key",
-				ModelID: "claude-sonnet-4.5",
+				ModelID: "claude-sonnet-5",
 			},
 		})
 		if err != nil {
@@ -740,8 +740,8 @@ func TestSessionConfigExtrasE2E(t *testing.T) {
 		if len(exchanges) != 1 {
 			t.Fatalf("Expected exactly 1 exchange, got %d", len(exchanges))
 		}
-		if exchanges[0].Request.Model != "claude-sonnet-4.5" {
-			t.Errorf("Expected request model to be 'claude-sonnet-4.5', got %q", exchanges[0].Request.Model)
+		if exchanges[0].Request.Model != "claude-sonnet-5" {
+			t.Errorf("Expected request model to be 'claude-sonnet-5', got %q", exchanges[0].Request.Model)
 		}
 	})
 

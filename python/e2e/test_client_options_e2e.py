@@ -396,7 +396,7 @@ class TestClientOptions:
             await client.start()
             session = await client.create_session(
                 client_name="advanced-create-client",
-                model="claude-sonnet-4.5",
+                model="claude-sonnet-5",
                 reasoning_effort="medium",
                 reasoning_summary="detailed",
                 context_tier="long_context",
@@ -470,7 +470,7 @@ class TestClientOptions:
                         "provider": "create-provider",
                         "id": "create-model",
                         "name": "Create Model",
-                        "model_id": "claude-sonnet-4.5",
+                        "model_id": "claude-sonnet-5",
                         "wire_model": "create-wire-model",
                         "max_context_window_tokens": 12_000,
                         "max_prompt_tokens": 10_000,
@@ -482,7 +482,7 @@ class TestClientOptions:
             try:
                 params = _get_captured_request(capture_path, "session.create")
                 assert params["clientName"] == "advanced-create-client"
-                assert params["model"] == "claude-sonnet-4.5"
+                assert params["model"] == "claude-sonnet-5"
                 assert params["reasoningEffort"] == "medium"
                 assert params["reasoningSummary"] == "detailed"
                 assert params["contextTier"] == "long_context"
@@ -538,7 +538,7 @@ class TestClientOptions:
         try:
             await client.start()
             session = await client.create_session(
-                model="claude-sonnet-4.5",
+                model="claude-sonnet-5",
                 provider={
                     "type": "azure",
                     "wire_api": "responses",
@@ -548,7 +548,7 @@ class TestClientOptions:
                     "bearer_token": "provider-bearer-token",
                     "azure": {"api_version": "2024-02-15-preview"},
                     "headers": {"X-Provider-Wire": "yes"},
-                    "model_id": "claude-sonnet-4.5",
+                    "model_id": "claude-sonnet-5",
                     "wire_model": "azure-deployment",
                     "max_prompt_tokens": 8192,
                     "max_output_tokens": 1024,
@@ -565,7 +565,7 @@ class TestClientOptions:
                 assert provider["bearerToken"] == "provider-bearer-token"
                 assert provider["azure"]["apiVersion"] == "2024-02-15-preview"
                 assert provider["headers"]["X-Provider-Wire"] == "yes"
-                assert provider["modelId"] == "claude-sonnet-4.5"
+                assert provider["modelId"] == "claude-sonnet-5"
                 assert provider["wireModel"] == "azure-deployment"
                 assert provider["maxPromptTokens"] == 8192
                 assert provider["maxOutputTokens"] == 1024

@@ -1594,22 +1594,22 @@ Always include PINEAPPLE_COCONUT_42.
     test.each([
       {
         storedModels: undefined,
-        expected: ["claude-sonnet-5", "claude-sonnet-4.5"],
+        expected: ["claude-sonnet-5"],
       },
       {
         storedModels: [],
-        expected: ["claude-sonnet-5", "claude-sonnet-4.5"],
+        expected: ["claude-sonnet-5"],
       },
       {
-        storedModels: ["claude-sonnet-4.5"],
-        expected: ["claude-sonnet-5", "claude-sonnet-4.5"],
+        storedModels: ["claude-sonnet-5"],
+        expected: ["claude-sonnet-5"],
       },
       {
-        storedModels: ["claude-sonnet-5", "claude-sonnet-4.5"],
-        expected: ["claude-sonnet-5", "claude-sonnet-4.5"],
+        storedModels: ["custom-provider-model"],
+        expected: ["custom-provider-model"],
       },
     ])(
-      "advertises the current default for $storedModels",
+      "uses the stored catalog or the default for $storedModels",
       async ({ storedModels, expected }) => {
         const cachePath = path.join(tempDir, "cache.yaml");
         if (storedModels !== undefined) {
@@ -1644,14 +1644,14 @@ Always include PINEAPPLE_COCONUT_42.
       },
     );
 
-    test.each(["claude-sonnet-5", "claude-sonnet-4.5"])(
-      "replays historical conversations with requested model %s",
+    test.each(["claude-sonnet-5", "custom-provider-model"])(
+      "replays model-independent conversations with requested model %s",
       async (model) => {
         const cachePath = path.join(tempDir, "cache.yaml");
         await writeFile(
           cachePath,
           yaml.stringify({
-            models: ["claude-sonnet-4.5"],
+            models: ["claude-sonnet-5"],
             conversations: [
               {
                 messages: [
@@ -1683,7 +1683,7 @@ Always include PINEAPPLE_COCONUT_42.
       },
     );
 
-    test("preserves explicit catalogs without the historical default", async () => {
+    test("preserves explicit catalogs without adding the default", async () => {
       const cachePath = path.join(tempDir, "cache.yaml");
       const cacheContent = yaml.stringify({
         models: ["gpt-4o", "claude-sonnet-4"],

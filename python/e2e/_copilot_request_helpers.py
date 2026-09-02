@@ -58,8 +58,8 @@ def _wants_stream(body: bytes) -> bool:
 def model_catalog(supported_endpoints: list[str] | None = None) -> dict:
     """The synthetic ``/models`` catalog payload."""
     model: dict = {
-        "id": "claude-sonnet-4.5",
-        "name": "Claude Sonnet 4.5",
+        "id": "claude-sonnet-5",
+        "name": "Claude Sonnet 5",
         "object": "model",
         "vendor": "Anthropic",
         "version": "1",
@@ -67,7 +67,7 @@ def model_catalog(supported_endpoints: list[str] | None = None) -> dict:
         "model_picker_enabled": True,
         "capabilities": {
             "type": "chat",
-            "family": "claude-sonnet-4.5",
+            "family": "claude-sonnet-5",
             "tokenizer": "o200k_base",
             "limits": {"max_context_window_tokens": 200000, "max_output_tokens": 8192},
             "supports": {
@@ -191,7 +191,7 @@ def build_inference_response(request: httpx.Request, text: str = SYNTHETIC_TEXT)
             "id": "chatcmpl-stub-1",
             "object": "chat.completion.chunk",
             "created": 1,
-            "model": "claude-sonnet-4.5",
+            "model": "claude-sonnet-5",
         }
         chunks = [
             {
@@ -234,7 +234,7 @@ def build_inference_response(request: httpx.Request, text: str = SYNTHETIC_TEXT)
                             "id": "msg_stub_1",
                             "type": "message",
                             "role": "assistant",
-                            "model": "claude-sonnet-4.5",
+                            "model": "claude-sonnet-5",
                             "content": [],
                             "stop_reason": None,
                             "stop_sequence": None,
@@ -283,7 +283,7 @@ def build_inference_response(request: httpx.Request, text: str = SYNTHETIC_TEXT)
                     "id": "msg_stub_1",
                     "type": "message",
                     "role": "assistant",
-                    "model": "claude-sonnet-4.5",
+                    "model": "claude-sonnet-5",
                     "content": [{"type": "text", "text": text}],
                     "stop_reason": "end_turn",
                     "stop_sequence": None,
@@ -300,7 +300,7 @@ def build_inference_response(request: httpx.Request, text: str = SYNTHETIC_TEXT)
                 "id": "chatcmpl-stub-1",
                 "object": "chat.completion",
                 "created": 1,
-                "model": "claude-sonnet-4.5",
+                "model": "claude-sonnet-5",
                 "choices": [
                     {
                         "index": 0,

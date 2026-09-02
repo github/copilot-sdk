@@ -171,7 +171,7 @@ const CHAT_COMPLETION_STREAM_EVENTS: string[] = (() => {
         id: "chatcmpl-stub-1",
         object: "chat.completion.chunk",
         created: 1,
-        model: "claude-sonnet-4.5",
+        model: "claude-sonnet-5",
     };
     return [
         `data: ${JSON.stringify({
@@ -210,7 +210,7 @@ const BUFFERED_CHAT_COMPLETION_JSON = JSON.stringify({
     id: "chatcmpl-stub-1",
     object: "chat.completion",
     created: 1,
-    model: "claude-sonnet-4.5",
+    model: "claude-sonnet-5",
     choices: [
         {
             index: 0,
@@ -224,8 +224,8 @@ const BUFFERED_CHAT_COMPLETION_JSON = JSON.stringify({
 const MODEL_CATALOG_JSON = JSON.stringify({
     data: [
         {
-            id: "claude-sonnet-4.5",
-            name: "Claude Sonnet 4.5",
+            id: "claude-sonnet-5",
+            name: "Claude Sonnet 5",
             object: "model",
             vendor: "Anthropic",
             version: "1",
@@ -233,7 +233,7 @@ const MODEL_CATALOG_JSON = JSON.stringify({
             model_picker_enabled: true,
             capabilities: {
                 type: "chat",
-                family: "claude-sonnet-4.5",
+                family: "claude-sonnet-5",
                 tokenizer: "o200k_base",
                 limits: { max_context_window_tokens: 200000, max_output_tokens: 8192 },
                 supports: {
@@ -300,14 +300,14 @@ describe("CopilotRequestHandler threads the runtime session id (CAPI + BYOK)", a
         const session = await client.createSession({
             onPermissionRequest: approveAll,
             // BYOK providers require an explicit model id.
-            model: "claude-sonnet-4.5",
+            model: "claude-sonnet-5",
             provider: {
                 type: "openai",
                 wireApi: "responses",
                 baseUrl: "https://byok.invalid/v1",
                 apiKey: "byok-secret",
-                modelId: "claude-sonnet-4.5",
-                wireModel: "claude-sonnet-4.5",
+                modelId: "claude-sonnet-5",
+                wireModel: "claude-sonnet-5",
             },
         });
         const byokSessionId = session.sessionId;

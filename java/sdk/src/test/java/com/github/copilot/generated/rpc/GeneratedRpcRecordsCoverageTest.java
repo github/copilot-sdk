@@ -326,10 +326,10 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionModelSwitchToParams_record() {
-        var params = new SessionModelSwitchToParams("sess-32", "claude-sonnet-4.5", "high", null, null, null, null,
+        var params = new SessionModelSwitchToParams("sess-32", "claude-sonnet-5", "high", null, null, null, null,
                 null, null, null, null, null, null, null, null);
         assertEquals("sess-32", params.sessionId());
-        assertEquals("claude-sonnet-4.5", params.modelId());
+        assertEquals("claude-sonnet-5", params.modelId());
         assertEquals("high", params.reasoningEffort());
         assertNull(params.reasoningSummary());
         assertNull(params.verbosity());
@@ -656,8 +656,8 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionModelGetCurrentResult_record() {
-        var result = new SessionModelGetCurrentResult("claude-sonnet-4.5", null, null);
-        assertEquals("claude-sonnet-4.5", result.modelId());
+        var result = new SessionModelGetCurrentResult("claude-sonnet-5", null, null);
+        assertEquals("claude-sonnet-5", result.modelId());
     }
 
     @Test

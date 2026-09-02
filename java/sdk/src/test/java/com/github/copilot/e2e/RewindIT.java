@@ -62,7 +62,7 @@ class RewindIT {
         try (CopilotClient client = ctx.createClient();
                 CopilotSession session = client
                         .createSession(
-                                new SessionConfig().setModel("claude-sonnet-4.5").setEnableFileChangeTracking(true)
+                                new SessionConfig().setModel("claude-sonnet-5").setEnableFileChangeTracking(true)
                                         .setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
                         .get(30, TimeUnit.SECONDS)) {
             AssistantMessageEvent ready = session

@@ -105,14 +105,14 @@ class TestCopilotRequestSessionId:
         baseline = len(handler.records)
         session = await client.create_session(
             on_permission_request=PermissionHandler.approve_all,
-            model="claude-sonnet-4.5",
+            model="claude-sonnet-5",
             provider={
                 "type": "openai",
                 "wire_api": "responses",
                 "base_url": "https://byok.invalid/v1",
                 "api_key": "byok-secret",
-                "model_id": "claude-sonnet-4.5",
-                "wire_model": "claude-sonnet-4.5",
+                "model_id": "claude-sonnet-5",
+                "wire_model": "claude-sonnet-5",
             },
         )
         byok_session_id = session.session_id

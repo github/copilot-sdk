@@ -27,7 +27,7 @@ use super::support::{
     assistant_message_content, recv_with_timeout, wait_for_condition, wait_for_event,
 };
 
-const MODEL_ID: &str = "claude-sonnet-4.5";
+const MODEL_ID: &str = "claude-sonnet-5";
 
 #[tokio::test]
 async fn should_call_session_rpc_model_getcurrent() {
