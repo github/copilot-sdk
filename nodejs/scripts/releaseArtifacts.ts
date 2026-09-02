@@ -15,19 +15,28 @@ export interface EnsureCopilotPackageOptions {
     cacheRoot?: string;
     environment?: NodeJS.ProcessEnv;
     fetch?: typeof globalThis.fetch;
+    fetchTimeoutMs?: number;
     platform?: string;
 }
 
 const packageDownloads = new Map<string, Promise<string>>();
 const checksumDownloads = new Map<string, Promise<Map<string, string>>>();
+const DEFAULT_FETCH_TIMEOUT_MS = 60_000;
 
-async function fetchWithRetry(fetcher: typeof globalThis.fetch, url: string): Promise<Response> {
+async function fetchWithRetry<T>(
+    fetcher: typeof globalThis.fetch,
+    url: string,
+    readResponse: (response: Response) => Promise<T>,
+    timeoutMs: number
+): Promise<T> {
     let lastError: unknown;
     for (let attempt = 0; attempt < 3; attempt++) {
         try {
-            const response = await fetcher(url);
+            const response = await fetcher(url, {
+                signal: AbortSignal.timeout(timeoutMs),
+            });
             if (response.ok) {
-                return response;
+                return await readResponse(response);
             }
             await response.body?.cancel();
             lastError = new Error(`${response.status} ${response.statusText}`);
@@ -53,12 +62,13 @@ async function getReleaseChecksum(
     version: string,
     assetName: string,
     baseUrl: string,
-    fetcher: typeof globalThis.fetch
+    fetcher: typeof globalThis.fetch,
+    fetchTimeoutMs: number
 ): Promise<string | undefined> {
     const key = `${baseUrl}\0${version}`;
     let checksums = checksumDownloads.get(key);
     if (!checksums) {
-        checksums = downloadReleaseChecksums(version, baseUrl, fetcher);
+        checksums = downloadReleaseChecksums(version, baseUrl, fetcher, fetchTimeoutMs);
         checksumDownloads.set(key, checksums);
         try {
             return (await checksums).get(assetName);
@@ -73,11 +83,17 @@ async function getReleaseChecksum(
 async function downloadReleaseChecksums(
     version: string,
     baseUrl: string,
-    fetcher: typeof globalThis.fetch
+    fetcher: typeof globalThis.fetch,
+    fetchTimeoutMs: number
 ): Promise<Map<string, string>> {
-    const response = await fetchWithRetry(fetcher, `${baseUrl}/v${version}/SHA256SUMS.txt`);
+    const contents = await fetchWithRetry(
+        fetcher,
+        `${baseUrl}/v${version}/SHA256SUMS.txt`,
+        (response) => response.text(),
+        fetchTimeoutMs
+    );
     const checksums = new Map<string, string>();
-    for (const line of (await response.text()).split(/\r?\n/)) {
+    for (const line of contents.split(/\r?\n/)) {
         const [hash, name] = line.trim().split(/\s+/, 2);
         if (/^[a-fA-F0-9]{64}$/.test(hash) && name) {
             checksums.set(name.replace(/^\*/, ""), hash.toLowerCase());
@@ -117,6 +133,7 @@ export async function ensureCopilotPackage(
         (options.environment ?? process.env).COPILOT_CLI_DOWNLOAD_BASE_URL ??
         "https://github.com/github/copilot-cli/releases/download"
     ).replace(/\/+$/, "");
+    const fetchTimeoutMs = options.fetchTimeoutMs ?? DEFAULT_FETCH_TIMEOUT_MS;
     const key = `${cacheRoot}\0${version}\0${platform}\0${baseUrl}`;
     if (!options.fetch) {
         const existing = packageDownloads.get(key);
@@ -128,7 +145,8 @@ export async function ensureCopilotPackage(
             platform,
             cacheRoot,
             baseUrl,
-            globalThis.fetch
+            globalThis.fetch,
+            fetchTimeoutMs
         );
         packageDownloads.set(key, download);
         try {
@@ -137,7 +155,14 @@ export async function ensureCopilotPackage(
             packageDownloads.delete(key);
         }
     }
-    return downloadCopilotPackage(version, platform, cacheRoot, baseUrl, options.fetch);
+    return downloadCopilotPackage(
+        version,
+        platform,
+        cacheRoot,
+        baseUrl,
+        options.fetch,
+        fetchTimeoutMs
+    );
 }
 
 async function downloadCopilotPackage(
@@ -145,18 +170,29 @@ async function downloadCopilotPackage(
     platform: string,
     cacheRoot: string,
     baseUrl: string,
-    fetcher: typeof globalThis.fetch
+    fetcher: typeof globalThis.fetch,
+    fetchTimeoutMs: number
 ): Promise<string> {
     if (!fetcher) {
         throw new Error("This Node.js runtime does not provide fetch().");
     }
     const assetName = getRuntimeReleaseAssetName(version, platform);
-    const expectedChecksum = await getReleaseChecksum(version, assetName, baseUrl, fetcher);
+    const expectedChecksum = await getReleaseChecksum(
+        version,
+        assetName,
+        baseUrl,
+        fetcher,
+        fetchTimeoutMs
+    );
     if (!expectedChecksum) {
         throw new Error(`SHA256SUMS.txt does not contain ${assetName}.`);
     }
-    const response = await fetchWithRetry(fetcher, `${baseUrl}/v${version}/${assetName}`);
-    const archive = Buffer.from(await response.arrayBuffer());
+    const archive = await fetchWithRetry(
+        fetcher,
+        `${baseUrl}/v${version}/${assetName}`,
+        async (response) => Buffer.from(await response.arrayBuffer()),
+        fetchTimeoutMs
+    );
     const actualChecksum = createHash("sha256").update(archive).digest("hex");
     if (actualChecksum !== expectedChecksum) {
         throw new Error(

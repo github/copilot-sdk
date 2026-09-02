@@ -302,4 +302,29 @@ describe("release package acquisition", () => {
         ).rejects.toThrow("Checksum mismatch");
         expect(existsSync(join(cacheRoot, "1.2.3", "packages", "linux-x64"))).toBe(false);
     });
+
+    it("times out and retries a stalled release download", async () => {
+        const cacheRoot = mkdtempSync(join(tmpdir(), "copilot-release-timeout-"));
+        const fetcher = vi.fn(
+            (_input: string | URL | Request, init?: RequestInit) =>
+                new Promise<Response>((_resolve, reject) => {
+                    const signal = init?.signal;
+                    if (!signal) {
+                        reject(new Error("Expected a request timeout signal."));
+                        return;
+                    }
+                    signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+                })
+        );
+
+        await expect(
+            ensureCopilotPackage("1.2.3-timeout", {
+                cacheRoot,
+                fetch: fetcher,
+                fetchTimeoutMs: 10,
+                platform: "linux-x64",
+            })
+        ).rejects.toThrow("Failed to download");
+        expect(fetcher).toHaveBeenCalledTimes(3);
+    });
 });
