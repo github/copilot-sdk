@@ -82,7 +82,7 @@ await client.stop()
 <summary><strong>Go</strong></summary>
 
 > [!NOTE]
-> Unlike Node.js, Python, and .NET, the Go SDK does not include a CLI as an automatic dependency. With no explicit path, `NewClient(nil)` uses an embedded CLI when available, then falls back to `copilot` on `PATH`. To embed a CLI, run the [bundler tool](../../go/README.md#distributing-your-application-with-an-embedded-github-copilot-cli) at build time. You can also set `COPILOT_CLI_PATH` or point a `Connection` at an existing binary. See [Local CLI Setup](./local-cli.md) for details.
+> Unlike Node.js, Python, and .NET, the Go SDK does not include a CLI as an automatic dependency. `NewClient(nil)` uses `COPILOT_CLI_PATH` when set, then an embedded CLI when available; it does not scan `PATH`. To embed a CLI, run the [bundler tool](../../go/README.md#distributing-your-application-with-an-embedded-github-copilot-cli) at build time. You can also point a `Connection` at an existing binary. See [Local CLI Setup](./local-cli.md) for details.
 
 <!-- docs-validate: hidden -->
 ```go

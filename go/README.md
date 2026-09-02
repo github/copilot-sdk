@@ -7,7 +7,8 @@ A Go SDK for programmatic access to the GitHub Copilot CLI.
 To use the SDK, you'll need:
 
 - Go 1.24 or later
-- GitHub Copilot CLI installed and in `PATH` (or set `COPILOT_CLI_PATH`)
+- A compatible Copilot runtime provided through `COPILOT_CLI_PATH` or embedded
+    with the bundler described below
 
 ## Installation
 
@@ -107,6 +108,32 @@ Follow these steps to embed the CLI:
 That's it! When your application calls `copilot.NewClient` without a `Connection` field (or with an empty `StdioConnection{}`), the SDK automatically installs the embedded `copilot-runtime` executable and adjacent `runtime.node` to a cache directory for managed child-process connections.
 
 The bundler prepares the native runtime library required by the [in-process transport](#in-process-transport-experimental). It is included in the application only when building with the `copilot_inprocess` build tag.
+
+Downstream modules can prepare a compatible CLI for integration tests without
+generating embedded assets or invoking npm. Call `testcli.Setup` from the test
+package's `TestMain`:
+
+```go
+import (
+    "log"
+    "os"
+    "testing"
+
+    "github.com/github/copilot-sdk/go/testcli"
+)
+
+func TestMain(m *testing.M) {
+    if err := testcli.Setup(); err != nil {
+        log.Fatal(err)
+    }
+    os.Exit(m.Run())
+}
+```
+
+This test-only helper resolves the platform package pinned by the SDK version,
+downloads it directly with Go, verifies its lockfile SHA-512 integrity, caches
+the extracted runtime, and sets `COPILOT_CLI_PATH`. An existing
+`COPILOT_CLI_PATH` is honored.
 
 ## In-process transport (Experimental)
 

@@ -31,6 +31,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/github/copilot-sdk/go/internal/npmregistry"
 	"github.com/klauspost/compress/zstd"
 )
 
@@ -38,7 +39,6 @@ const (
 	// Keep these URLs centralized so reviewers can verify all outbound calls in one place.
 	sdkModule          = "github.com/github/copilot-sdk/go"
 	packageLockURLFmt  = "https://raw.githubusercontent.com/github/copilot-sdk/%s/nodejs/package-lock.json"
-	tarballURLFmt      = "https://registry.npmjs.org/@github/copilot-%s/-/copilot-%s-%s.tgz"
 	licenseTarballFmt  = "https://registry.npmjs.org/@github/copilot/-/copilot-%s.tgz"
 	defaultPackageName = "main"
 )
@@ -430,11 +430,10 @@ func buildBundle(info platformInfo, cliVersion, outputPath, goos string) (bundle
 	}
 
 	rawLibPath := filepath.Join(tempDir, "runtime.node")
-	if err := extractFileFromTarball(
+	if err := npmregistry.ExtractFile(
 		tarballPath,
-		tempDir,
 		"package/prebuilds/"+info.npmPlatform+"/runtime.node",
-		"runtime.node",
+		rawLibPath,
 	); err != nil {
 		return bundleArtifacts{}, fmt.Errorf("runtime package is missing prebuilds/%s/runtime.node: %w", info.npmPlatform, err)
 	}
@@ -448,11 +447,10 @@ func buildBundle(info platformInfo, cliVersion, outputPath, goos string) (bundle
 
 	wrapperName := runtimeWrapperName(info.binaryName)
 	rawWrapperPath := filepath.Join(tempDir, wrapperName)
-	if err := extractFileFromTarball(
+	if err := npmregistry.ExtractFile(
 		tarballPath,
-		tempDir,
 		"package/prebuilds/"+info.npmPlatform+"/"+wrapperName,
-		wrapperName,
+		rawWrapperPath,
 	); err != nil {
 		return bundleArtifacts{}, fmt.Errorf("runtime package is missing prebuilds/%s/%s: %w", info.npmPlatform, wrapperName, err)
 	}
@@ -896,19 +894,12 @@ func mustDecodeBase64(s string) []byte {
 // returns the extracted binary path and the downloaded tarball path (retained so
 // callers can extract additional files, such as the runtime library).
 func downloadCLIBinary(npmPlatform, binaryName, cliVersion, destDir string) (string, string, error) {
-	tarballURL := fmt.Sprintf(tarballURLFmt, npmPlatform, npmPlatform, cliVersion)
+	tarballURL, err := npmregistry.TarballURL("@github/copilot-"+npmPlatform, cliVersion)
+	if err != nil {
+		return "", "", err
+	}
 
 	fmt.Printf("Downloading from %s...\n", tarballURL)
-
-	resp, err := http.Get(tarballURL)
-	if err != nil {
-		return "", "", fmt.Errorf("failed to download: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return "", "", fmt.Errorf("failed to download: %s", resp.Status)
-	}
 
 	// Save tarball to temp file
 	tarballPath := filepath.Join(destDir, fmt.Sprintf("copilot-%s-%s.tgz", npmPlatform, cliVersion))
@@ -917,9 +908,9 @@ func downloadCLIBinary(npmPlatform, binaryName, cliVersion, destDir string) (str
 		return "", "", fmt.Errorf("failed to create tarball file: %w", err)
 	}
 
-	if _, err := io.Copy(tarballFile, resp.Body); err != nil {
+	if err := npmregistry.Download(http.DefaultClient, tarballURL, "", tarballFile); err != nil {
 		tarballFile.Close()
-		return "", "", fmt.Errorf("failed to save tarball: %w", err)
+		return "", "", fmt.Errorf("failed to download: %w", err)
 	}
 	if err := tarballFile.Close(); err != nil {
 		return "", "", fmt.Errorf("failed to close tarball file: %w", err)
@@ -927,7 +918,7 @@ func downloadCLIBinary(npmPlatform, binaryName, cliVersion, destDir string) (str
 
 	// Extract only the CLI binary to avoid unpacking the full package tree.
 	binaryPath := filepath.Join(destDir, binaryName)
-	if err := extractFileFromTarball(tarballPath, destDir, "package/"+binaryName, binaryName); err != nil {
+	if err := npmregistry.ExtractFile(tarballPath, "package/"+binaryName, binaryPath); err != nil {
 		return "", "", fmt.Errorf("failed to extract binary: %w", err)
 	}
 
@@ -1031,69 +1022,6 @@ func extractFileFromTarballStream(r io.Reader, destDir, outputName string, mode 
 		return fmt.Errorf("failed to extract license: %w", err)
 	}
 	return outFile.Close()
-}
-
-// extractFileFromTarball extracts a single file from a .tgz into destDir with a new name.
-func extractFileFromTarball(tarballPath, destDir, targetPath, outputName string) error {
-	file, err := os.Open(tarballPath)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	gzReader, err := gzip.NewReader(file)
-	if err != nil {
-		return fmt.Errorf("failed to create gzip reader: %w", err)
-	}
-	defer gzReader.Close()
-
-	tarReader := tar.NewReader(gzReader)
-
-	for {
-		header, err := tarReader.Next()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return fmt.Errorf("failed to read tar: %w", err)
-		}
-
-		if header.Name == targetPath {
-			outPath := filepath.Join(destDir, outputName)
-			outFile, err := os.OpenFile(outPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.FileMode(header.Mode))
-			if err != nil {
-				return fmt.Errorf("failed to create output file: %w", err)
-			}
-
-			if _, err := io.Copy(outFile, tarReader); err != nil {
-				if cerr := outFile.Close(); cerr != nil {
-					return fmt.Errorf("failed to extract binary (copy error: %v, close error: %v)", err, cerr)
-				}
-				return fmt.Errorf("failed to extract binary: %w", err)
-			}
-			if err := outFile.Close(); err != nil {
-				return fmt.Errorf("failed to close output file: %w", err)
-			}
-			return nil
-		}
-	}
-
-	return fmt.Errorf("file %q not found in tarball", targetPath)
-}
-
-// extractOptionalFileFromTarball extracts a single file from a .tgz into destDir
-// like extractFileFromTarball, but returns (false, nil) instead of an error when
-// the file is absent. Used for the runtime library, which older CLI packages do
-// not ship.
-func extractOptionalFileFromTarball(tarballPath, destDir, targetPath, outputName string) (bool, error) {
-	err := extractFileFromTarball(tarballPath, destDir, targetPath, outputName)
-	if err == nil {
-		return true, nil
-	}
-	if strings.Contains(err.Error(), "not found in tarball") {
-		return false, nil
-	}
-	return false, err
 }
 
 // compressZstdFile compresses src into dst using zstd.
