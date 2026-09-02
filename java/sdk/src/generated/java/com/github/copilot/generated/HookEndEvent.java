@@ -43,7 +43,9 @@ public final class HookEndEvent extends SessionEvent {
         /** Whether the hook completed successfully */
         @JsonProperty("success") Boolean success,
         /** Error details when the hook failed */
-        @JsonProperty("error") HookEndError error
+        @JsonProperty("error") HookEndError error,
+        /** Tool call ID of the parent tool invocation when this event originates from a sub-agent */
+        @JsonProperty("parentToolCallId") String parentToolCallId
     ) {
     }
 }

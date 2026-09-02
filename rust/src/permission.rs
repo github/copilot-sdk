@@ -97,8 +97,7 @@ pub(crate) fn resolve_handler(
 ) -> Option<Arc<dyn PermissionHandler>> {
     match (handler, policy) {
         (_, Some(policy)) => Some(Arc::new(PolicyHandler { policy })),
-        (Some(h), None) => Some(h),
-        (None, None) => None,
+        (handler, None) => handler,
     }
 }
 
@@ -152,7 +151,10 @@ mod tests {
         assert!(matches!(
             h.handle(SessionId::from("s"), RequestId::new("1"), data())
                 .await,
-            PermissionResult::Decision(crate::types::PermissionDecision::ApproveOnce(_))
+            PermissionResult::Decision {
+                decision: crate::types::PermissionDecision::ApproveOnce(_),
+                ..
+            }
         ));
     }
 
@@ -164,7 +166,10 @@ mod tests {
         assert!(matches!(
             h.handle(SessionId::from("s"), RequestId::new("1"), request)
                 .await,
-            PermissionResult::Decision(crate::types::PermissionDecision::UserNotAvailable(_))
+            PermissionResult::Decision {
+                decision: crate::types::PermissionDecision::UserNotAvailable(_),
+                ..
+            }
         ));
     }
 
@@ -174,7 +179,10 @@ mod tests {
         assert!(matches!(
             h.handle(SessionId::from("s"), RequestId::new("1"), data())
                 .await,
-            PermissionResult::Decision(crate::types::PermissionDecision::Reject(_))
+            PermissionResult::Decision {
+                decision: crate::types::PermissionDecision::Reject(_),
+                ..
+            }
         ));
     }
 
@@ -184,7 +192,10 @@ mod tests {
         assert!(matches!(
             h.handle(SessionId::from("s"), RequestId::new("1"), data())
                 .await,
-            PermissionResult::Decision(crate::types::PermissionDecision::Reject(_))
+            PermissionResult::Decision {
+                decision: crate::types::PermissionDecision::Reject(_),
+                ..
+            }
         ));
     }
 
@@ -208,7 +219,10 @@ mod tests {
         assert!(matches!(
             h.handle(SessionId::from("s"), RequestId::new("1"), request)
                 .await,
-            PermissionResult::Decision(crate::types::PermissionDecision::Reject(_))
+            PermissionResult::Decision {
+                decision: crate::types::PermissionDecision::Reject(_),
+                ..
+            }
         ));
     }
 
@@ -233,7 +247,10 @@ mod tests {
             resolved
                 .handle(SessionId::from("s"), RequestId::new("1"), data())
                 .await,
-            PermissionResult::Decision(crate::types::PermissionDecision::Reject(_))
+            PermissionResult::Decision {
+                decision: crate::types::PermissionDecision::Reject(_),
+                ..
+            }
         ));
     }
 
@@ -256,7 +273,10 @@ mod tests {
             resolved
                 .handle(SessionId::from("s"), RequestId::new("1"), data())
                 .await,
-            PermissionResult::Decision(crate::types::PermissionDecision::ApproveOnce(_))
+            PermissionResult::Decision {
+                decision: crate::types::PermissionDecision::ApproveOnce(_),
+                ..
+            }
         ));
     }
 

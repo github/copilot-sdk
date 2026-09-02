@@ -7,10 +7,15 @@ import { join, resolve } from "node:path";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import {
     approveAll,
+    createAttributedPermissionResult,
     CopilotClient,
     createCanvas,
+    DisableBypassPermissionsModes,
     RuntimeConnection,
+    type CapiSessionOptions,
+    type CopilotClientOptions,
     type GitHubTelemetryNotification,
+    type ManagedSettings,
     type ModelInfo,
 } from "../src/index.js";
 import { CopilotSession } from "../src/session.js";
@@ -57,6 +62,28 @@ describe("approveAll", () => {
 });
 
 describe("CopilotClient", () => {
+    it.each([
+        {
+            source: "connection path",
+            connection: RuntimeConnection.forStdio({ path: "/explicit/copilot" }),
+            env: {},
+            expected: "/explicit/copilot",
+        },
+        {
+            source: "COPILOT_CLI_PATH",
+            connection: RuntimeConnection.forStdio(),
+            env: { COPILOT_CLI_PATH: "/environment/copilot" },
+            expected: "/environment/copilot",
+        },
+    ])(
+        "preserves explicit child-process override from $source",
+        ({ connection, env, expected }) => {
+            const client = new CopilotClient({ connection, env });
+
+            expect((client as any).resolvedCliPath).toBe(expected);
+        }
+    );
+
     async function startWithMockConnection(
         builtinPluginDirectories?: readonly string[]
     ): Promise<ReturnType<typeof vi.fn>> {
@@ -126,6 +153,91 @@ describe("CopilotClient", () => {
         await (session as any)._executePermissionAndRespond("request-1", { kind: "write" });
 
         expect(spy).not.toHaveBeenCalled();
+    });
+
+    it("forwards decisionContext as a top-level sibling of result", async () => {
+        const session = new CopilotSession("session-1", {} as any);
+        const decisionContext = {
+            outcome: "auto_approved" as const,
+            source: "host_policy" as const,
+            surface: "sdk" as const,
+        };
+        session.registerPermissionHandler(() =>
+            createAttributedPermissionResult({ kind: "approve-once" }, decisionContext)
+        );
+        const spy = vi
+            .spyOn(session.rpc.permissions, "handlePendingPermissionRequest")
+            .mockResolvedValue({ kind: "approve-once" } as any);
+
+        await (session as any)._executePermissionAndRespond("request-1", { kind: "write" });
+
+        expect(spy).toHaveBeenCalledOnce();
+        const params = spy.mock.calls[0][0] as any;
+        expect(params).toEqual({
+            requestId: "request-1",
+            result: { kind: "approve-once" },
+            decisionContext,
+        });
+        // decisionContext is a sibling of result, never nested inside it.
+        expect(params.result.decisionContext).toBeUndefined();
+    });
+
+    it("emits exactly requestId and result with no decisionContext key when unattributed", async () => {
+        const session = new CopilotSession("session-1", {} as any);
+        session.registerPermissionHandler(() => ({ kind: "approve-once" }));
+        const spy = vi
+            .spyOn(session.rpc.permissions, "handlePendingPermissionRequest")
+            .mockResolvedValue({ kind: "approve-once" } as any);
+
+        await (session as any)._executePermissionAndRespond("request-1", { kind: "write" });
+
+        expect(spy).toHaveBeenCalledOnce();
+        const params = spy.mock.calls[0][0] as any;
+        expect(params).toEqual({ requestId: "request-1", result: { kind: "approve-once" } });
+        expect(Object.keys(params).sort()).toEqual(["requestId", "result"]);
+        expect("decisionContext" in params).toBe(false);
+    });
+
+    it("does not respond when a no-result decision is wrapped with a context", async () => {
+        const session = new CopilotSession("session-1", {} as any);
+        const decisionContext = {
+            outcome: "auto_approved" as const,
+            source: "host_policy" as const,
+            surface: "sdk" as const,
+        };
+        session.registerPermissionHandler(() =>
+            createAttributedPermissionResult({ kind: "no-result" }, decisionContext)
+        );
+        const spy = vi.spyOn(session.rpc.permissions, "handlePendingPermissionRequest");
+
+        await (session as any)._executePermissionAndRespond("request-1", { kind: "write" });
+
+        expect(spy).not.toHaveBeenCalled();
+    });
+
+    it("replaces the context when applied twice", () => {
+        const first = {
+            outcome: "auto_approved" as const,
+            source: "judge_recommendation" as const,
+            surface: "sdk" as const,
+        };
+        const second = {
+            outcome: "prompted_user" as const,
+            source: "human_response" as const,
+            surface: "tui" as const,
+        };
+
+        const once = createAttributedPermissionResult({ kind: "approve-once" }, first);
+        const twice = createAttributedPermissionResult(once, second);
+
+        expect(twice).toEqual({
+            kind: "attributed",
+            result: { kind: "approve-once" },
+            decisionContext: second,
+        });
+        // The result stays unwrapped rather than nesting an AttributedPermissionResult.
+        expect((twice.result as any).result).toBeUndefined();
+        expect((twice.result as any).decisionContext).toBeUndefined();
     });
 
     it("responds to MCP OAuth requests with host token data", async () => {
@@ -212,6 +324,39 @@ describe("CopilotClient", () => {
         });
         expect(spy.mock.calls.find(([method]) => method === "session.resume")![1]).toMatchObject({
             githubMcpToolConfig,
+        });
+    });
+
+    it("forwards the ask-user variant on create and cold resume", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => stopClient(client));
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId };
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+        const onElicitationRequest = async () => ({ action: "decline" as const });
+
+        const session = await client.createSession({
+            askUserVariant: "elicitation",
+            onElicitationRequest,
+        });
+        await client.resumeSession(session.sessionId, {
+            askUserVariant: "elicitation",
+            onElicitationRequest,
+        });
+
+        expect(spy.mock.calls.find(([method]) => method === "session.create")![1]).toMatchObject({
+            askUserVariant: "elicitation",
+            requestElicitation: true,
+        });
+        expect(spy.mock.calls.find(([method]) => method === "session.resume")![1]).toMatchObject({
+            askUserVariant: "elicitation",
+            requestElicitation: true,
         });
     });
 
@@ -534,6 +679,99 @@ describe("CopilotClient", () => {
         });
         expect(payload.canvasProvider).toEqual({ id: "app:builtin:window-1" });
         expect(payload.openCanvasInstances).toBeUndefined();
+    });
+
+    it("forwards an extension environment request and applies the grant to process.env", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => stopClient(client));
+        onTestFinished(() => {
+            delete process.env.SDK_TEST_GRANTED_TOKEN;
+        });
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.resume") {
+                    return {
+                        sessionId: params.sessionId,
+                        grantedEnvironmentVariables: { SDK_TEST_GRANTED_TOKEN: "granted-value" },
+                    };
+                }
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        await client.resumeSessionForExtension(
+            "session-env",
+            { onPermissionRequest: defaultJoinSessionPermissionHandler },
+            undefined,
+            { requestedEnvironmentVariables: ["SDK_TEST_GRANTED_TOKEN"] }
+        );
+
+        const payload = spy.mock.calls.find(([method]) => method === "session.resume")![1] as any;
+        expect(payload.requestedEnvironmentVariables).toEqual(["SDK_TEST_GRANTED_TOKEN"]);
+        expect(process.env.SDK_TEST_GRANTED_TOKEN).toBe("granted-value");
+    });
+
+    it("ignores granted variables the extension never requested", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => stopClient(client));
+        onTestFinished(() => {
+            delete process.env.SDK_TEST_GRANTED_TOKEN;
+        });
+
+        vi.spyOn((client as any).connection!, "sendRequest").mockImplementation(
+            async (method: string, params: any) => {
+                if (method === "session.resume") {
+                    return {
+                        sessionId: params.sessionId,
+                        grantedEnvironmentVariables: {
+                            SDK_TEST_GRANTED_TOKEN: "granted-value",
+                            SDK_TEST_SMUGGLED: "not-approved",
+                        },
+                    };
+                }
+                throw new Error(`Unexpected method: ${method}`);
+            }
+        );
+
+        await client.resumeSessionForExtension(
+            "session-env-extra",
+            { onPermissionRequest: defaultJoinSessionPermissionHandler },
+            undefined,
+            { requestedEnvironmentVariables: ["SDK_TEST_GRANTED_TOKEN"] }
+        );
+
+        expect(process.env.SDK_TEST_GRANTED_TOKEN).toBe("granted-value");
+        // The user approved one name, so a host answering with a second one
+        // cannot widen the grant.
+        expect(process.env.SDK_TEST_SMUGGLED).toBeUndefined();
+    });
+
+    it("omits the environment request when a resume does not ask for one", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => stopClient(client));
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.resume") {
+                    return {
+                        sessionId: params.sessionId,
+                        grantedEnvironmentVariables: { SDK_TEST_UNREQUESTED: "leaked" },
+                    };
+                }
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        await client.resumeSession("session-no-env", { onPermissionRequest: approveAll });
+
+        const payload = spy.mock.calls.find(([method]) => method === "session.resume")![1] as any;
+        expect(payload).not.toHaveProperty("requestedEnvironmentVariables");
+        // A grant is only honored for a request this client actually made.
+        expect(process.env.SDK_TEST_UNREQUESTED).toBeUndefined();
     });
 
     it("forwards reasoningSummary in session.create and session.resume", async () => {
@@ -1095,7 +1333,7 @@ describe("CopilotClient", () => {
         expect(resumePayload.expAssignments).toBeUndefined();
     });
 
-    it("forwards capi options in session.create and session.resume", async () => {
+    it("forwards featureFlags in session.create and session.resume", async () => {
         const client = new CopilotClient();
         await client.start();
         onTestFinished(() => stopClient(client));
@@ -1107,14 +1345,15 @@ describe("CopilotClient", () => {
                 if (method === "session.resume") return { sessionId: params.sessionId };
                 throw new Error(`Unexpected method: ${method}`);
             });
+        const featureFlags = { ENABLED_TEST_FLAG: true, DISABLED_TEST_FLAG: false };
 
         const session = await client.createSession({
             onPermissionRequest: approveAll,
-            capi: { enableWebSocketResponses: false },
+            featureFlags,
         });
         await client.resumeSession(session.sessionId, {
             onPermissionRequest: approveAll,
-            capi: { enableWebSocketResponses: false },
+            featureFlags,
         });
 
         const createPayload = spy.mock.calls.find(
@@ -1123,9 +1362,54 @@ describe("CopilotClient", () => {
         const resumePayload = spy.mock.calls.find(
             ([method]) => method === "session.resume"
         )![1] as any;
-        expect(createPayload.capi).toEqual({ enableWebSocketResponses: false });
-        expect(resumePayload.capi).toEqual({ enableWebSocketResponses: false });
+        expect(createPayload.featureFlags).toEqual(featureFlags);
+        expect(resumePayload.featureFlags).toEqual(featureFlags);
     });
+
+    it.each([
+        undefined,
+        {},
+        { enableWebSocketResponses: false },
+        { enableWebSocketResponses: true },
+        { autoTier: "efficiency" },
+        { autoTier: "balance" },
+        { autoTier: "intelligence" },
+        { autoTier: "balance", enableWebSocketResponses: false },
+    ] satisfies (CapiSessionOptions | undefined)[])(
+        "forwards capi options %j in session.create and session.resume",
+        async (capi) => {
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => stopClient(client));
+
+            const spy = vi
+                .spyOn((client as any).connection!, "sendRequest")
+                .mockImplementation(async (method: string, params: any) => {
+                    if (method === "session.create") return { sessionId: params.sessionId };
+                    if (method === "session.resume") return { sessionId: params.sessionId };
+                    throw new Error(`Unexpected method: ${method}`);
+                });
+
+            const session = await client.createSession({
+                onPermissionRequest: approveAll,
+                model: "auto",
+                capi,
+            });
+            await client.resumeSession(session.sessionId, {
+                onPermissionRequest: approveAll,
+                capi,
+            });
+
+            const createPayload = spy.mock.calls.find(
+                ([method]) => method === "session.create"
+            )![1] as any;
+            const resumePayload = spy.mock.calls.find(
+                ([method]) => method === "session.resume"
+            )![1] as any;
+            expect(JSON.parse(JSON.stringify(createPayload)).capi).toEqual(capi);
+            expect(JSON.parse(JSON.stringify(resumePayload)).capi).toEqual(capi);
+        }
+    );
 
     it("forwards pluginDirectories and largeOutput in session.create and session.resume", async () => {
         const client = new CopilotClient();
@@ -1774,6 +2058,134 @@ describe("CopilotClient", () => {
 
         const payload = spy.mock.calls.find((c) => c[0] === "session.resume")![1] as any;
         expect(payload.memory).toBeUndefined();
+        spy.mockRestore();
+    });
+
+    it("sends includedBuiltinSkills=[] in the empty-mode post-create options patch", async () => {
+        const client = new CopilotClient({ mode: "empty", baseDirectory: "/tmp/copilot-test" });
+        await client.start();
+        onTestFinished(() => stopClient(client));
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId ?? "s1" };
+                if (method === "session.options.update") return {};
+                throw new Error(`Unexpected method: ${method}`);
+            });
+        await client.createSession({ onPermissionRequest: approveAll, availableTools: [] });
+
+        const patch = spy.mock.calls.find((c) => c[0] === "session.options.update")![1] as any;
+        expect(patch.includedBuiltinSkills).toEqual([]);
+        expect(patch.installedPlugins).toEqual([]);
+    });
+
+    it("sends includedBuiltinSkills=[] in the empty-mode post-resume options patch", async () => {
+        const client = new CopilotClient({ mode: "empty", baseDirectory: "/tmp/copilot-test" });
+        await client.start();
+        onTestFinished(() => stopClient(client));
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId ?? "s1" };
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                if (method === "session.options.update") return {};
+                throw new Error(`Unexpected method: ${method}`);
+            });
+        await client.createSession({ onPermissionRequest: approveAll, availableTools: [] });
+        spy.mockClear();
+        await client.resumeSession("s1", { onPermissionRequest: approveAll, availableTools: [] });
+
+        const patch = spy.mock.calls.find((c) => c[0] === "session.options.update")![1] as any;
+        expect(patch.includedBuiltinSkills).toEqual([]);
+    });
+
+    it("preserves an explicit built-in skill allowlist after empty-mode resume", async () => {
+        const client = new CopilotClient({ mode: "empty", baseDirectory: "/tmp/copilot-test" });
+        await client.start();
+        onTestFinished(() => stopClient(client));
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string) => {
+                if (method === "session.resume") return { sessionId: "s1" };
+                if (method === "session.options.update") return { success: true };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+        await client.resumeSession("s1", {
+            onPermissionRequest: approveAll,
+            availableTools: [],
+            includedBuiltinSkills: ["code-review"],
+        });
+
+        const patch = spy.mock.calls.find((c) => c[0] === "session.options.update")![1] as any;
+        expect(patch.includedBuiltinSkills).toEqual(["code-review"]);
+    });
+
+    it("keeps includedBuiltinSkills=[] even when the caller opts into custom skills in empty mode", async () => {
+        const client = new CopilotClient({ mode: "empty", baseDirectory: "/tmp/copilot-test" });
+        await client.start();
+        onTestFinished(() => stopClient(client));
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId ?? "s1" };
+                if (method === "session.options.update") return {};
+                throw new Error(`Unexpected method: ${method}`);
+            });
+        await client.createSession({
+            onPermissionRequest: approveAll,
+            availableTools: [],
+            enableSkills: true,
+            skillDirectories: ["/tmp/custom-skills"],
+        });
+
+        const createPayload = spy.mock.calls.find((c) => c[0] === "session.create")![1] as any;
+        expect(createPayload.enableSkills).toBe(true);
+        expect(createPayload.skillDirectories).toEqual(["/tmp/custom-skills"]);
+        const patch = spy.mock.calls.find((c) => c[0] === "session.options.update")![1] as any;
+        expect(patch.includedBuiltinSkills).toEqual([]);
+    });
+
+    it("preserves an explicit built-in skill allowlist in empty mode", async () => {
+        const client = new CopilotClient({ mode: "empty", baseDirectory: "/tmp/copilot-test" });
+        await client.start();
+        onTestFinished(() => stopClient(client));
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId };
+                if (method === "session.options.update") return { success: true };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+        await client.createSession({
+            onPermissionRequest: approveAll,
+            availableTools: [],
+            includedBuiltinSkills: ["code-review"],
+        });
+
+        const patch = spy.mock.calls.find((c) => c[0] === "session.options.update")![1] as any;
+        expect(patch.includedBuiltinSkills).toEqual(["code-review"]);
+    });
+
+    it("does not send includedBuiltinSkills in copilot-cli mode", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => stopClient(client));
+
+        const spy = vi.spyOn((client as any).connection!, "sendRequest");
+        await client.createSession({ onPermissionRequest: approveAll });
+
+        const patch = spy.mock.calls.find((c) => c[0] === "session.options.update");
+        // copilot-cli mode sends no post-create options patch at all here.
+        if (patch) {
+            expect((patch[1] as any).includedBuiltinSkills).toBeUndefined();
+        }
+        const createPayload = spy.mock.calls.find((c) => c[0] === "session.create")![1] as any;
+        expect(createPayload.includedBuiltinSkills).toBeUndefined();
         spy.mockRestore();
     });
 
@@ -2974,7 +3386,7 @@ describe("CopilotClient", () => {
             const payload = spy.mock.calls.find((c) => c[0] === "session.create")![1] as any;
             expect(payload.commands).toEqual([
                 { name: "deploy", description: "Deploy the app" },
-                { name: "rollback", description: undefined },
+                { name: "rollback", description: "" },
             ]);
         });
 
@@ -3760,24 +4172,51 @@ describe("managedSettings serialization", () => {
     }
 
     it("forwards the full permissions object on session.create", async () => {
-        const params = await captureCreateParams({
-            managedSettings: {
-                permissions: {
-                    disableBypassPermissionsMode: "disable",
-                    deny: ["Shell(git push)"],
-                    ask: ["Domain(publish.example)"],
-                    allow: ["Read(**)"],
-                },
+        const managedSettings = {
+            permissions: {
+                disableBypassPermissionsMode: DisableBypassPermissionsModes.AllowAutoOnly,
+                deny: ["Shell(git push)"],
+                ask: ["Domain(publish.example)"],
+                allow: ["Read(**)"],
             },
+        } satisfies ManagedSettings;
+        const params = await captureCreateParams({
+            managedSettings,
         });
         expect(params.managedSettings).toEqual({
             permissions: {
-                disableBypassPermissionsMode: "disable",
+                disableBypassPermissionsMode: "allow-auto-only",
                 deny: ["Shell(git push)"],
                 ask: ["Domain(publish.example)"],
                 allow: ["Read(**)"],
             },
         });
+    });
+
+    it("forwards the disable bypass-permissions mode", async () => {
+        const managedSettings = {
+            permissions: {
+                disableBypassPermissionsMode: DisableBypassPermissionsModes.Disable,
+            },
+        } satisfies ManagedSettings;
+        const params = await captureCreateParams({ managedSettings });
+
+        expect(params.managedSettings).toEqual({
+            permissions: {
+                disableBypassPermissionsMode: "disable",
+            },
+        });
+    });
+
+    it("forwards unknown bypass-permissions modes", async () => {
+        const managedSettings = {
+            permissions: {
+                disableBypassPermissionsMode: "future-fail-closed-mode",
+            },
+        } satisfies ManagedSettings;
+        const params = await captureCreateParams({ managedSettings });
+
+        expect(params.managedSettings).toEqual(managedSettings);
     });
 
     it("marks directly injected sessions as managed", async () => {
@@ -3837,6 +4276,79 @@ describe("managedSettings serialization", () => {
         const call = spy.mock.calls.find(([method]) => method === "session.resume");
         expect(call![1].managedSettings).toEqual({
             permissions: { ask: ["Domain(publish.example)"] },
+        });
+    });
+});
+
+describe("connect handshake clientInfo", () => {
+    // Drives verifyProtocolVersion() against a stubbed connection so we can
+    // observe the `connect` params without spawning a runtime. `connect` maps to
+    // connection.sendRequest("connect", params) in the generated internal RPC.
+    async function captureConnectParams(
+        options: Partial<Pick<CopilotClientOptions, "clientInfo" | "onGitHubTelemetry">> = {}
+    ): Promise<Record<string, unknown>> {
+        const client = new CopilotClient({
+            connection: RuntimeConnection.forUri("localhost:1234"),
+            ...options,
+        });
+        const sendRequest = vi.fn(async (method: string, _params?: unknown) => {
+            if (method === "connect") return { protocolVersion: 3 };
+            throw new Error(`Unexpected method: ${method}`);
+        });
+        (client as any).connection = { sendRequest };
+
+        await (client as any).verifyProtocolVersion();
+
+        const connectCall = sendRequest.mock.calls.find(([method]) => method === "connect");
+        expect(connectCall, "connect was not called").toBeTruthy();
+        return connectCall![1] as Record<string, unknown>;
+    }
+
+    it("forwards a declared client identity on the connect handshake", async () => {
+        const clientInfo = {
+            editorName: "JetBrains-IU",
+            editorVersion: "2026.1",
+            extensionName: "copilot-intellij",
+            extensionVersion: "1.5.0",
+        };
+
+        const params = await captureConnectParams({ clientInfo });
+
+        expect(params.clientInfo).toEqual(clientInfo);
+    });
+
+    it("omits clientInfo from the handshake when the host declares none", async () => {
+        const params = await captureConnectParams();
+
+        expect(params).not.toHaveProperty("clientInfo");
+    });
+
+    it("drops empty fields and omits an all-empty identity", async () => {
+        const allEmpty = await captureConnectParams({
+            clientInfo: {
+                editorName: "",
+                editorVersion: "",
+                extensionName: "",
+                extensionVersion: "",
+            },
+        });
+        expect(allEmpty).not.toHaveProperty("clientInfo");
+
+        const partial = await captureConnectParams({
+            clientInfo: { editorName: "vscode", editorVersion: "" },
+        });
+        expect(partial.clientInfo).toEqual({ editorName: "vscode" });
+    });
+
+    it("keeps telemetry forwarding alongside a declared identity", async () => {
+        const params = await captureConnectParams({
+            clientInfo: { editorName: "example-editor" },
+            onGitHubTelemetry: () => {},
+        });
+
+        expect(params).toMatchObject({
+            clientInfo: { editorName: "example-editor" },
+            enableGitHubTelemetryForwarding: true,
         });
     });
 });

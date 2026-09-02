@@ -21,7 +21,7 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record BuiltInModelCatalogEntry(
-    /** Well-known runtime model ID suitable for `ProviderConfig.modelId` or `ProviderModelConfig.modelId`. This is not necessarily the provider-facing deployment or model name and does not indicate CAPI entitlement or provider availability. */
+    /** Well-known runtime model ID suitable for provider or provider-model metadata. This is not necessarily the provider-facing deployment or model name and does not indicate CAPI entitlement or provider availability. */
     @JsonProperty("id") String id
 ) {
 }

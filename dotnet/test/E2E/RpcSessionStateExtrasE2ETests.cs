@@ -12,7 +12,7 @@ namespace GitHub.Copilot.Test.E2E;
 /// <summary>
 /// E2E coverage for session-scoped RPC methods that were previously untested:
 /// completions, model.list, metadata.activity/context attribution/heaviest messages,
-/// permissions.getAllowAll/setAllowAll, plan.readSqlTodos, provider.add,
+/// permissions.getMode/setMode, plan.readSqlTodos, provider.add,
 /// telemetry.getEngagementId, tools.getCurrentMetadata/updateSubagentSettings,
 /// session visibility, and the session-scoped plugins.reload.
 /// </summary>
@@ -158,22 +158,22 @@ public class RpcSessionStateExtrasE2ETests(E2ETestFixture fixture, ITestOutputHe
 
         try
         {
-            var initial = await session.Rpc.Permissions.GetAllowAllAsync();
-            Assert.False(initial.Enabled, "Allow-all should be disabled on a fresh session.");
+            var initial = await session.Rpc.Permissions.GetModeAsync();
+            Assert.Equal(PermissionMode.Manual, initial.Mode);
 
-            var enable = await session.Rpc.Permissions.SetAllowAllAsync(enabled: true);
+            var enable = await session.Rpc.Permissions.SetModeAsync(PermissionMode.AllowAll);
             Assert.True(enable.Success);
-            Assert.True(enable.Enabled);
-            Assert.True((await session.Rpc.Permissions.GetAllowAllAsync()).Enabled);
+            Assert.Equal(PermissionMode.AllowAll, enable.Mode);
+            Assert.Equal(PermissionMode.AllowAll, (await session.Rpc.Permissions.GetModeAsync()).Mode);
 
-            var disable = await session.Rpc.Permissions.SetAllowAllAsync(enabled: false);
+            var disable = await session.Rpc.Permissions.SetModeAsync(PermissionMode.Manual);
             Assert.True(disable.Success);
-            Assert.False(disable.Enabled);
-            Assert.False((await session.Rpc.Permissions.GetAllowAllAsync()).Enabled);
+            Assert.Equal(PermissionMode.Manual, disable.Mode);
+            Assert.Equal(PermissionMode.Manual, (await session.Rpc.Permissions.GetModeAsync()).Mode);
         }
         finally
         {
-            await session.Rpc.Permissions.SetAllowAllAsync(enabled: false);
+            await session.Rpc.Permissions.SetModeAsync(PermissionMode.Manual);
         }
     }
 

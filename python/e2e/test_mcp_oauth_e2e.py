@@ -8,11 +8,11 @@ import httpx
 import pytest
 
 from copilot.generated.rpc import (
+    GitHubTokenAcquireResultKind,
     MCPAppsCallToolRequest,
     MCPListToolsRequest,
     MCPOauthHandlePendingRequest,
     MCPOauthPendingRequestResponse,
-    MCPOauthPendingRequestResponseKind,
 )
 from copilot.session import MCPServerConfig, PermissionHandler
 from copilot.session_events import McpServerStatus
@@ -206,7 +206,7 @@ class TestMcpOAuth:
                         MCPOauthHandlePendingRequest(
                             request_id=request["requestId"],
                             result=MCPOauthPendingRequestResponse(
-                                kind=MCPOauthPendingRequestResponseKind.TOKEN,
+                                kind=GitHubTokenAcquireResultKind.TOKEN,
                                 access_token=EXPECTED_TOKEN,
                                 token_type="Bearer",
                                 expires_in=3600,

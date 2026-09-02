@@ -5,10 +5,14 @@
 package com.github.copilot.ffi;
 
 import java.io.FileNotFoundException;
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.nio.channels.FileChannel;
+import java.nio.file.AccessDeniedException;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
@@ -41,7 +45,10 @@ public final class NativeRuntimeLoader {
     static final String RUNTIME_FILENAME = "runtime.node";
     static final String CLI_FILENAME = "copilot";
     static final String CLI_FILENAME_WINDOWS = "copilot.exe";
+    static final String RUNTIME_WRAPPER_FILENAME = "copilot-runtime";
+    static final String RUNTIME_WRAPPER_FILENAME_WINDOWS = "copilot-runtime.exe";
     static final String PLATFORM_PROPERTIES_FILENAME = "platform.properties";
+    static final String RUNTIME_ASSETS_FILENAME = "runtime-assets.list";
     /** Environment variable that overrides where the runtime is loaded from. */
     public static final String COPILOT_CLI_PATH_ENV = "COPILOT_CLI_PATH";
     static final String VERSION_RESOURCE = "copilot-runtime.properties";
@@ -77,8 +84,9 @@ public final class NativeRuntimeLoader {
         } catch (AtomicMoveNotSupportedException ex) {
             throw new IllegalStateException("Filesystem does not support atomic moves; cannot safely publish "
                     + RUNTIME_FILENAME + " to " + cached, ex);
-        } catch (FileAlreadyExistsException ex) {
-            // Another process won the race — accept the winner if it is a valid file.
+        } catch (FileAlreadyExistsException | AccessDeniedException ex) {
+            // Windows can report AccessDeniedException instead of
+            // FileAlreadyExistsException when another publisher wins the race.
             try {
                 if (isValidCachedFile(cached)) {
                     return;
@@ -123,10 +131,10 @@ public final class NativeRuntimeLoader {
     }
 
     /**
-     * Resolves the copilot CLI executable from the same location as the bundled
-     * {@code runtime.node}. The CLI is used as {@code argv[0]} in
-     * {@code copilot_runtime_host_start} — the Rust runtime spawns it as a child
-     * process.
+     * Resolves the legacy copilot CLI entrypoint from the same location as the
+     * bundled {@code runtime.node}. Callers may pass this entrypoint through
+     * {@code copilot_runtime_host_start} when legacy extension hosting is
+     * requested.
      *
      * <p>
      * This method calls {@link #resolve()} to locate {@code runtime.node}, then
@@ -140,6 +148,73 @@ public final class NativeRuntimeLoader {
     public static Path resolveEntrypoint() throws IOException {
         String configuredCli = System.getenv(COPILOT_CLI_PATH_ENV);
         return resolveEntrypoint(configuredCli, resolve());
+    }
+
+    /**
+     * Resolves an explicitly configured legacy CLI entrypoint, if it has a
+     * compatible adjacent runtime library.
+     *
+     * @return the absolute CLI path, or {@code null} when no compatible override is
+     *         configured
+     * @throws IOException
+     *             if the configured files cannot be inspected
+     */
+    public static Path resolveConfiguredEntrypoint() throws IOException {
+        String configuredCli = System.getenv(COPILOT_CLI_PATH_ENV);
+        if (configuredCli == null || configuredCli.isBlank()) {
+            return null;
+        }
+        Path configuredPath = Path.of(configuredCli).toAbsolutePath().normalize();
+        return resolveFromCliPath(configuredCli) != null && Files.isRegularFile(configuredPath)
+                && Files.size(configuredPath) > 0 ? configuredPath : null;
+    }
+
+    /**
+     * Resolves the out-of-process runtime wrapper from the platform classifier JAR
+     * and extracts it beside {@code runtime.node}.
+     *
+     * @return absolute path to the runtime wrapper executable
+     * @throws IOException
+     *             if the classifier artifacts cannot be extracted
+     */
+    public static Path resolveRuntimeWrapper() throws IOException {
+        ClassLoader loader = NativeRuntimeLoader.class.getClassLoader();
+        String classifier = PlatformDetector.detectClassifier();
+        String version = readVersion(loader);
+        return resolveRuntimeWrapper(defaultCacheBase(), loader, classifier, version);
+    }
+
+    static Path resolveRuntimeWrapper(Path cacheBase, ClassLoader loader, String classifier, String version)
+            throws IOException {
+        Path runtimePath = extractRuntimeToCache(cacheBase, loader, classifier, version, DEFAULT_PUBLISHER, false);
+        Path cacheDir = runtimePath.getParent();
+        String wrapperName = classifier.startsWith("win32-")
+                ? RUNTIME_WRAPPER_FILENAME_WINDOWS
+                : RUNTIME_WRAPPER_FILENAME;
+        Path cachedWrapper = cacheDir.resolve(wrapperName);
+        if (isValidCachedCli(cachedWrapper)) {
+            return cachedWrapper;
+        }
+
+        String resourcePath = "native/" + classifier + "/" + wrapperName;
+        URL resource = loader.getResource(resourcePath);
+        if (resource == null) {
+            throw new FileNotFoundException("Runtime wrapper not found on classpath: " + resourcePath
+                    + " — add the matching classifier JAR to the classpath");
+        }
+
+        Path temp = Files.createTempFile(cacheDir, "runtime-wrapper-tmp-", "");
+        try {
+            copyResourceToTemp(resource, resourcePath, temp);
+            makeExecutable(temp);
+            DEFAULT_PUBLISHER.publish(temp, cachedWrapper);
+        } finally {
+            tryDelete(temp);
+        }
+        if (!isValidCachedCli(cachedWrapper)) {
+            throw new IOException("Published runtime wrapper is not a non-empty executable file: " + cachedWrapper);
+        }
+        return cachedWrapper;
     }
 
     static Path resolveEntrypoint(String configuredCli, Path runtimePath) throws IOException {
@@ -316,6 +391,11 @@ public final class NativeRuntimeLoader {
      */
     static Path extractToCache(Path cacheBase, ClassLoader loader, String classifier, String version,
             AtomicPublisher publisher) throws IOException {
+        return extractRuntimeToCache(cacheBase, loader, classifier, version, publisher, true);
+    }
+
+    private static Path extractRuntimeToCache(Path cacheBase, ClassLoader loader, String classifier, String version,
+            AtomicPublisher publisher, boolean extractCli) throws IOException {
         String resourcePath = "native/" + classifier + "/" + RUNTIME_FILENAME;
         String nativeVersion = readNativePackageVersion(loader, classifier);
         Path cacheDir = cacheBase.resolve(version).resolve(nativeVersion).resolve(classifier);
@@ -323,7 +403,10 @@ public final class NativeRuntimeLoader {
 
         // Step 1 — fast path: return an existing valid cache entry.
         if (isValidCachedFile(cached)) {
-            extractCliToCache(cacheDir, loader, classifier, publisher);
+            extractRuntimeAssetsToCache(cacheDir, loader, classifier, publisher);
+            if (extractCli) {
+                extractCliToCache(cacheDir, loader, classifier, publisher);
+            }
             return cached;
         }
 
@@ -346,10 +429,66 @@ public final class NativeRuntimeLoader {
             tryDelete(temp);
         }
 
-        // Step 5 — also extract the copilot CLI executable alongside runtime.node.
-        extractCliToCache(cacheDir, loader, classifier, publisher);
+        extractRuntimeAssetsToCache(cacheDir, loader, classifier, publisher);
+        if (extractCli) {
+            extractCliToCache(cacheDir, loader, classifier, publisher);
+        }
 
         return cached;
+    }
+
+    private static void extractRuntimeAssetsToCache(Path cacheDir, ClassLoader loader, String classifier,
+            AtomicPublisher publisher) throws IOException {
+        String inventoryResourcePath = "native/" + classifier + "/" + RUNTIME_ASSETS_FILENAME;
+        URL inventoryResource = loader.getResource(inventoryResourcePath);
+        if (inventoryResource == null) {
+            return;
+        }
+
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(inventoryResource.openStream(), StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (line.isBlank()) {
+                    continue;
+                }
+                String[] fields = line.split("\\t", 2);
+                if (fields.length != 2) {
+                    throw new IOException("Invalid runtime asset inventory entry: " + line);
+                }
+                boolean executable = (Integer.parseInt(fields[0], 8) & 0111) != 0;
+                Path relative = Path.of(fields[1]).normalize();
+                if (relative.isAbsolute() || relative.startsWith("..")) {
+                    throw new IOException("Unsafe runtime asset inventory path: " + fields[1]);
+                }
+                Path cached = cacheDir.resolve(relative).normalize();
+                if (!cached.startsWith(cacheDir)) {
+                    throw new IOException("Runtime asset escapes cache directory: " + fields[1]);
+                }
+                if (isValidCachedFile(cached) && (!executable || isWindows() || Files.isExecutable(cached))) {
+                    continue;
+                }
+
+                String resourcePath = "native/" + classifier + "/" + fields[1];
+                URL resource = loader.getResource(resourcePath);
+                if (resource == null) {
+                    throw new FileNotFoundException("Runtime asset not found on classpath: " + resourcePath);
+                }
+                Files.createDirectories(cached.getParent());
+                Path temp = Files.createTempFile(cached.getParent(), "runtime-asset-tmp-", "");
+                try {
+                    copyResourceToTemp(resource, resourcePath, temp);
+                    if (executable) {
+                        makeExecutable(temp);
+                    }
+                    publisher.publish(temp, cached);
+                } finally {
+                    tryDelete(temp);
+                }
+            }
+        } catch (NumberFormatException ex) {
+            throw new IOException("Invalid runtime asset mode in " + inventoryResourcePath, ex);
+        }
     }
 
     /**

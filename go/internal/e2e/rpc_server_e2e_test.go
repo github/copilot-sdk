@@ -532,6 +532,7 @@ func TestRPCServerE2E(t *testing.T) {
 
 	t.Run("should report implemented error when connecting unknown remote session", func(t *testing.T) {
 		ctx := testharness.NewTestContext(t)
+		ctx.ConfigureWithoutSnapshot(t)
 		client := ctx.NewClient()
 		t.Cleanup(func() { client.ForceStop() })
 		if err := client.Start(t.Context()); err != nil {

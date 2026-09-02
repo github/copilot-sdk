@@ -28,8 +28,9 @@ import uuid
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from pathlib import Path
 from types import TracebackType
-from typing import Any, ClassVar, Literal, TypedDict, cast, overload
+from typing import Any, ClassVar, Literal, NotRequired, TypedDict, cast, overload
 
 from ._diagnostics import log_timing
 from ._ffi_runtime_host import FfiRuntimeHost
@@ -69,6 +70,9 @@ from .generated.rpc import (
     ClientGlobalApiHandlers,
     ClientSessionApiHandlers,
     GitHubTelemetryNotification,
+    GitHubTokenAcquireReason,
+    GitHubTokenAcquireRequest,
+    GitHubTokenAcquireResult,
     ModelBillingTokenPrices,
     ModelBillingTokenPricesLongContext,  # noqa: F401
     OpenCanvasInstance,
@@ -123,6 +127,50 @@ from .tools import Tool
 
 logger = logging.getLogger(__name__)
 
+
+class GitHubTokenProviderArgs(TypedDict):
+    """Arguments passed to a session-scoped :data:`GitHubTokenProvider`.
+
+    The opaque callback registration identifier is intentionally not exposed.
+    """
+
+    host: str
+    session_id: str | None
+    reason: GitHubTokenAcquireReason
+
+
+class GitHubTokenResult(TypedDict):
+    """A GitHub token returned by a session-scoped provider."""
+
+    kind: Literal["token"]
+    accessToken: str
+    expiresIn: int
+    tokenType: NotRequired[str]
+
+
+class GitHubTokenCancelledResult(TypedDict):
+    """An explicit cancellation returned by a session-scoped provider."""
+
+    kind: Literal["cancelled"]
+
+
+GitHubTokenProviderResult = GitHubTokenResult | GitHubTokenCancelledResult
+"""Result returned by a session-scoped GitHub token provider."""
+
+
+GitHubTokenProvider = Callable[
+    [GitHubTokenProviderArgs],
+    GitHubTokenProviderResult | Awaitable[GitHubTokenProviderResult],
+]
+"""Acquire a GitHub credential for one session.
+
+Token results require ``expiresIn`` to be the positive number of seconds of
+remaining lifetime when the callback completes. Production GitHub tokens
+typically last eight hours. Initial cancellation, callback errors, and invalid
+token responses reject session creation or resume instead of falling back to
+ambient authentication.
+"""
+
 # ============================================================================
 # Connection Types
 # ============================================================================
@@ -130,6 +178,8 @@ logger = logging.getLogger(__name__)
 _ConnectionState = Literal["disconnected", "connecting", "connected", "error"]
 
 LogLevel = Literal["none", "error", "warning", "info", "debug", "all"]
+AskUserVariant = Literal["legacy", "elicitation"]
+"""Model-facing shape of the runtime's built-in ``ask_user`` tool."""
 
 
 @dataclass
@@ -213,8 +263,22 @@ def _exp_assignment_response_to_dict(
     return wire
 
 
+AutoTier = Literal["efficiency", "balance", "intelligence"]
+"""Routing preference used when the session model is ``auto``."""
+
+
 class CapiSessionOptions(TypedDict, total=False):
     """Provider-scoped Copilot API (CAPI) session options."""
+
+    auto_tier: AutoTier
+    """Routing preference used when the session model is ``auto``.
+
+    Requires a runtime with Auto tier support and V2 Auto routing. When omitted
+    on create, the runtime uses its default routing behavior. The runtime persists
+    this preference across cold resume; an explicit tier on cold resume overrides
+    the persisted value. For an already-resident session, omission preserves the
+    current tier and a different tier is rejected.
+    """
 
     enable_web_socket_responses: bool
     """Whether to use WebSocket transport for the CAPI Responses API.
@@ -242,9 +306,21 @@ def _cloud_session_options_to_dict(options: CloudSessionOptions) -> dict[str, An
 
 def _capi_session_options_to_wire(options: CapiSessionOptions) -> dict[str, Any]:
     wire: dict[str, Any] = {}
+    if "auto_tier" in options:
+        wire["autoTier"] = options["auto_tier"]
     if "enable_web_socket_responses" in options:
         wire["enableWebSocketResponses"] = options["enable_web_socket_responses"]
     return wire
+
+
+class DisableBypassPermissionsModes:
+    """Well-known managed bypass-permissions policies."""
+
+    DISABLE: ClassVar[str] = "disable"
+    """Turn off bypass-permissions mode entirely."""
+
+    ALLOW_AUTO_ONLY: ClassVar[str] = "allow-auto-only"
+    """Permit automatic bypass but block full allow-all."""
 
 
 @dataclass
@@ -256,9 +332,10 @@ class ManagedSettingsPermissions:
     rules are rejected by the runtime at session creation.
     """
 
-    disable_bypass_permissions_mode: Literal["disable"] | None = None
-    """When ``"disable"``, turns off bypass-permissions ("yolo") mode for the
-    session. Deny-wins: no other layer can re-enable it. Sent on the wire as
+    disable_bypass_permissions_mode: str | None = None
+    """Restricts bypass-permissions mode for the session. See
+    :class:`DisableBypassPermissionsModes` for well-known values. Unknown values
+    are forwarded so newer runtime policies fail closed. Sent on the wire as
     ``disableBypassPermissionsMode``."""
     deny: list[str] | None = None
     """Operations that must always be denied. Unioned across managed layers."""
@@ -428,6 +505,46 @@ class TelemetryConfig(TypedDict, total=False):
     """Instrumentation scope name. Sets COPILOT_OTEL_SOURCE_NAME."""
     capture_content: bool
     """Whether to capture message content. Sets OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT."""  # noqa: E501
+
+
+class ClientInfo(TypedDict, total=False):
+    """Identity of the integrating host, declared on the ``server.connect`` handshake.
+
+    Declaring it lets the telemetry the runtime emits on this connection be
+    attributed to a single, consistent surface (the host editor and its Copilot
+    extension) instead of the runtime's own build. All fields are optional; omit
+    any of them (or the whole object) to keep the runtime's default attribution.
+    """
+
+    editor_name: str
+    """Name of the host editor, e.g. ``"vscode"``."""
+    editor_version: str
+    """Version of the host editor, e.g. ``"1.124.2"``."""
+    extension_name: str
+    """Name of the Copilot extension within the host, e.g. ``"copilot-chat"``."""
+    extension_version: str
+    """Version of the Copilot extension within the host, e.g. ``"0.54.0"``."""
+
+
+def _client_info_to_wire(client_info: ClientInfo | None) -> dict[str, str] | None:
+    """Map a snake_case :class:`ClientInfo` onto the camelCase connect wire shape.
+
+    Empty fields are dropped. Returns ``None`` when no field carries a non-empty
+    value so the caller omits the ``clientInfo`` field entirely and keeps the
+    runtime's default attribution.
+    """
+    if not client_info:
+        return None
+    wire: dict[str, str] = {}
+    if client_info.get("editor_name"):
+        wire["editorName"] = client_info["editor_name"]
+    if client_info.get("editor_version"):
+        wire["editorVersion"] = client_info["editor_version"]
+    if client_info.get("extension_name"):
+        wire["extensionName"] = client_info["extension_name"]
+    if client_info.get("extension_version"):
+        wire["extensionVersion"] = client_info["extension_version"]
+    return wire or None
 
 
 @dataclass
@@ -622,6 +739,43 @@ class _GitHubTelemetryAdapter:
             logger.warning("Error handling gitHubTelemetry.event notification", exc_info=True)
 
 
+@dataclass
+class _GitHubTokenProviderRegistration:
+    provider: GitHubTokenProvider
+    session_id: str | None = None
+    committed: bool = False
+
+
+class _GitHubTokenProviderAdapter:
+    """Routes global GitHub token requests to opaque session registrations."""
+
+    def __init__(self, client: CopilotClient) -> None:
+        self._client = client
+
+    async def get_token(self, params: GitHubTokenAcquireRequest) -> GitHubTokenAcquireResult:
+        with self._client._github_token_providers_lock:
+            registration = self._client._github_token_providers.get(params.registration_id)
+        if registration is None:
+            raise JsonRpcError(
+                -32603,
+                "No GitHub token provider registered for registration ID "
+                f"{params.registration_id!r}",
+            )
+
+        result = registration.provider(
+            GitHubTokenProviderArgs(
+                host=params.host,
+                session_id=params.session_id or registration.session_id,
+                reason=params.reason,
+            )
+        )
+        if inspect.isawaitable(result):
+            result = await result
+        # The generated global-handler wrapper forwards callback results directly,
+        # so the public tagged dictionary is already in the expected wire shape.
+        return cast(GitHubTokenAcquireResult, result)
+
+
 class _HooksAdapter:
     """Adapts session-scoped hook dispatch to the generated ``HooksHandler`` protocol.
 
@@ -662,6 +816,7 @@ class _CopilotClientOptions:
     request_handler: CopilotRequestHandler | None = None
     session_idle_timeout_seconds: int | None = None
     enable_remote_sessions: bool = False
+    client_info: ClientInfo | None = None
     on_list_models: Callable[[], list[ModelInfo] | Awaitable[list[ModelInfo]]] | None = None
     on_github_telemetry: Callable[[GitHubTelemetryNotification], None | Awaitable[None]] | None = (
         None
@@ -1259,25 +1414,6 @@ _RUNTIME_SHUTDOWN_TIMEOUT_SECONDS = 10
 _CLI_PROCESS_EXIT_TIMEOUT_SECONDS = 5
 
 
-def _get_or_download_cli(*, include_runtime_lib: bool = False) -> str | None:
-    """Get the cached CLI binary, downloading if necessary.
-
-    Returns the path to the CLI binary, or None if unavailable (dev install
-    with no pinned version, or auto-download disabled).
-
-    When ``include_runtime_lib`` is set, also ensures the native in-process FFI
-    runtime is available (downloading it on first use).
-    """
-    from ._cli_download import get_or_download_cli
-
-    cli_path = get_or_download_cli()
-    if cli_path and include_runtime_lib:
-        from ._cli_download import ensure_runtime_library
-
-        ensure_runtime_library(cli_path)
-    return cli_path
-
-
 def _extract_transform_callbacks(
     system_message: SystemMessageConfig | dict[str, Any] | None,
 ) -> tuple[dict[str, Any] | None, dict[str, SectionTransformFn] | None]:
@@ -1435,6 +1571,7 @@ class CopilotClient:
         request_handler: CopilotRequestHandler | None = None,
         session_idle_timeout_seconds: int | None = None,
         enable_remote_sessions: bool = False,
+        client_info: ClientInfo | None = None,
         on_list_models: Callable[[], list[ModelInfo] | Awaitable[list[ModelInfo]]] | None = None,
         on_github_telemetry: Callable[[GitHubTelemetryNotification], None | Awaitable[None]]
         | None = None,
@@ -1484,6 +1621,11 @@ class CopilotClient:
                 Control integration). When ``True``, sessions in a GitHub
                 repository working directory are accessible from GitHub web
                 and mobile.
+            client_info: Identity of the integrating host, forwarded to the
+                runtime on the ``server.connect`` handshake. Declaring it lets
+                the telemetry the runtime emits on this connection be attributed
+                to a consistent surface instead of the runtime's own build. All
+                fields are optional; omit it to keep the default attribution.
             on_list_models: Custom handler for :meth:`list_models`. When
                 provided, the handler is called instead of querying the runtime
                 server.
@@ -1521,6 +1663,7 @@ class CopilotClient:
             request_handler=request_handler,
             session_idle_timeout_seconds=session_idle_timeout_seconds,
             enable_remote_sessions=enable_remote_sessions,
+            client_info=client_info,
             on_list_models=on_list_models,
             on_github_telemetry=on_github_telemetry,
             mode=mode,
@@ -1554,6 +1697,7 @@ class CopilotClient:
         self._cli_path_source: str | None = None
         self._ffi_host: FfiRuntimeHost | None = None
         self._inprocess_runtime_path: str | None = None
+        self._inprocess_cli_entrypoint: str | None = None
 
         if isinstance(connection, UriRuntimeConnection):
             if connection.connection_token is not None and len(connection.connection_token) == 0:
@@ -1565,9 +1709,7 @@ class CopilotClient:
             # In-process (FFI): no child process and no per-connection token.
             self._runtime_port = None
             self._effective_connection_token = None
-            self._inprocess_runtime_path = self._resolve_runtime_entrypoint(
-                None, include_runtime_lib=True
-            )
+            self._inprocess_runtime_path = self._resolve_inprocess_runtime()
             if options.use_logged_in_user is None:
                 options.use_logged_in_user = not bool(options.github_token)
         else:
@@ -1588,7 +1730,7 @@ class CopilotClient:
             else:
                 self._effective_connection_token = None
 
-            # Resolve CLI path: explicit > COPILOT_CLI_PATH env var > downloaded binary.
+            # Resolve runtime path: explicit CLI > COPILOT_CLI_PATH > downloaded runtime.
             # Select the environment by identity, not truthiness, so an intentionally
             # empty per-connection or client env stays authoritative (the spawned child
             # receives that empty mapping) instead of falling back to os.environ and
@@ -1611,6 +1753,9 @@ class CopilotClient:
         self._state: _ConnectionState = "disconnected"
         self._sessions: dict[str, CopilotSession] = {}
         self._sessions_lock = threading.Lock()
+        self._github_token_providers: dict[str, _GitHubTokenProviderRegistration] = {}
+        self._github_token_providers_lock = threading.Lock()
+        self._github_token_provider_adapter = _GitHubTokenProviderAdapter(self)
         self._models_cache: list[ModelInfo] | None = None
         self._models_cache_lock = asyncio.Lock()
         self._lifecycle_handlers: list[SessionLifecycleHandler] = []
@@ -1630,52 +1775,47 @@ class CopilotClient:
         path: str | None,
         *,
         env: Mapping[str, str] | None = None,
-        include_runtime_lib: bool = False,
     ) -> str:
         """Resolve the runtime executable path (explicit > env > downloaded).
 
         Sets ``self._cli_path_source`` for diagnostics. When
-        ``include_runtime_lib`` is set (in-process transport), also ensures the
-        native runtime library is downloaded alongside the CLI.
-
         Raises:
             RuntimeError: If no runtime path can be resolved.
         """
         if path is not None:
             self._cli_path_source = "explicit"
-            return self._ensure_runtime_lib(path) if include_runtime_lib else path
+            return path
 
         lookup = env if env is not None else os.environ
         env_cli_path = lookup.get("COPILOT_CLI_PATH")
         if env_cli_path:
             self._cli_path_source = "environment"
-            return self._ensure_runtime_lib(env_cli_path) if include_runtime_lib else env_cli_path
+            return env_cli_path
 
-        downloaded_path = _get_or_download_cli(include_runtime_lib=include_runtime_lib)
-        if downloaded_path:
-            self._cli_path_source = "downloaded"
-            return downloaded_path
+        from ._cli_download import ensure_runtime_wrapper
 
-        raise RuntimeError(
-            "Copilot CLI not found. Install a published wheel (which "
-            "auto-downloads the CLI on first use), set COPILOT_CLI_PATH, "
-            "or pass an explicit path via "
-            "RuntimeConnection.for_stdio(path=...) / "
-            "RuntimeConnection.for_tcp(path=...)."
-        )
+        self._cli_path_source = "downloaded"
+        return ensure_runtime_wrapper()
 
-    @staticmethod
-    def _ensure_runtime_lib(cli_path: str) -> str:
-        """Ensure the in-process runtime library sits next to a user-supplied CLI.
+    def _resolve_inprocess_runtime(self) -> str:
+        explicit_cli = os.environ.get("COPILOT_CLI_PATH")
+        if explicit_cli:
+            from ._cli_download import ensure_runtime_library
 
-        For explicit/``COPILOT_CLI_PATH`` entrypoints, the native library may
-        already be bundled (dev ``prebuilds`` layout); otherwise it is fetched on
-        first use. Returns ``cli_path`` unchanged.
-        """
-        from ._cli_download import ensure_runtime_library
+            runtime_path = ensure_runtime_library(explicit_cli)
+            if runtime_path is None:
+                raise RuntimeError(
+                    f"In-process runtime library not found next to '{explicit_cli}'."
+                )
+            self._cli_path_source = "environment"
+            self._inprocess_cli_entrypoint = explicit_cli
+            return runtime_path
 
-        ensure_runtime_library(cli_path)
-        return cli_path
+        from ._cli_download import ensure_runtime_wrapper
+
+        wrapper_path = Path(ensure_runtime_wrapper())
+        self._cli_path_source = "downloaded"
+        return str(wrapper_path.with_name("runtime.node"))
 
     @property
     def rpc(self) -> ServerRpc:
@@ -1925,6 +2065,8 @@ class CopilotClient:
                 errors.append(
                     StopError(message=f"Failed to disconnect session {session.session_id}: {e}")
                 )
+        with self._github_token_providers_lock:
+            self._github_token_providers.clear()
 
         if (
             self._rpc is not None
@@ -2041,6 +2183,8 @@ class CopilotClient:
         # Clear sessions immediately without trying to destroy them
         with self._sessions_lock:
             self._sessions.clear()
+        with self._github_token_providers_lock:
+            self._github_token_providers.clear()
 
         # Close the transport first to signal the server immediately.
         # For external servers (TCP), this closes the socket.
@@ -2107,6 +2251,7 @@ class CopilotClient:
         available_tools: list[str] | ToolSet | None = None,
         excluded_tools: list[str] | ToolSet | None = None,
         on_user_input_request: UserInputHandler | None = None,
+        ask_user_variant: AskUserVariant | None = None,
         hooks: SessionHooks | None = None,
         working_directory: str | None = None,
         additional_directories: list[str] | None = None,
@@ -2141,6 +2286,7 @@ class CopilotClient:
         enable_host_git_operations: bool | None = None,
         enable_session_store: bool | None = None,
         enable_skills: bool | None = None,
+        included_builtin_skills: list[str] | None = None,
         skill_directories: list[str] | None = None,
         plugin_directories: list[str] | None = None,
         instruction_directories: list[str] | None = None,
@@ -2158,6 +2304,7 @@ class CopilotClient:
         on_auto_mode_switch_request: AutoModeSwitchHandler | None = None,
         create_session_fs_handler: CreateSessionFsHandler | None = None,
         github_token: str | None = None,
+        github_token_provider: GitHubTokenProvider | None = None,
         remote_session: RemoteSessionMode | None = None,
         cloud: CloudSessionOptions | None = None,
         canvases: list[CanvasDeclaration] | None = None,
@@ -2167,6 +2314,7 @@ class CopilotClient:
         extension_info: ExtensionInfo | None = None,
         canvas_provider: CanvasProviderIdentity | None = None,
         canvas_handler: CanvasHandler | None = None,
+        feature_flags: dict[str, bool] | None = None,
         exp_assignments: CopilotExpAssignmentResponse | None = None,
         enable_managed_settings: bool | None = None,
         github_mcp_tool_config: GitHubMcpToolConfig | None = None,
@@ -2207,10 +2355,16 @@ class CopilotClient:
                 including custom tools registered via ``tools=``. Ignored if
                 ``available_tools`` is set.
             on_user_input_request: Handler for user input requests.
+            ask_user_variant: Model-facing shape of the ``ask_user`` tool.
+                Accepted values are ``"legacy"`` and ``"elicitation"``. The
+                default is ``"legacy"``. To use ``"elicitation"``, also provide
+                ``on_elicitation_request`` so the host can answer structured forms.
             hooks: Lifecycle hooks for the session.
             working_directory: Working directory for the session.
             provider: Provider configuration for Azure or custom endpoints.
-            capi: CAPI provider-scoped options. WebSocket transport is the
+            capi: CAPI provider-scoped options. Set ``auto_tier`` to ``efficiency``,
+                ``balance``, or ``intelligence`` to select an Auto routing preference
+                on a runtime with Auto tier support. WebSocket transport is the
                 default for the CAPI Responses API whenever the model advertises
                 the ``ws:/responses`` endpoint. Set
                 ``enable_web_socket_responses=False`` to force the HTTP
@@ -2306,6 +2460,9 @@ class CopilotClient:
                 on its own and has no effect unless MCP Apps are enabled for
                 the session (see ``enable_mcp_apps``). Omitted from the wire
                 payload entirely when None.
+            feature_flags: Feature-flag values resolved by the host for this
+                session. Re-supply them when resuming after a runtime restart.
+                Sent on the wire as ``featureFlags``.
             exp_assignments: ExP assignment ("flight") data injected by a
                 trusted integrator, in the same JSON shape the Copilot CLI
                 fetches from the experimentation service
@@ -2333,6 +2490,11 @@ class CopilotClient:
                 May be combined with ``enable_managed_settings``. Requires a
                 runtime whose RPC schema includes ``managedSettings``. Sent on
                 the wire as ``managedSettings``.
+            github_token_provider: Callback that acquires a short-lived GitHub
+                credential for this session. Mutually exclusive with
+                ``github_token``. It receives the effective host, session ID
+                when assigned, and acquisition reason; the registration ID is
+                kept internal.
 
         Returns:
             A :class:`CopilotSession` instance for the new session.
@@ -2354,6 +2516,10 @@ class CopilotClient:
         """
         if on_permission_request is not None and not callable(on_permission_request):
             raise ValueError("on_permission_request must be callable when provided.")
+        if github_token is not None and github_token_provider is not None:
+            raise ValueError("github_token and github_token_provider are mutually exclusive")
+        if ask_user_variant not in (None, "legacy", "elicitation"):
+            raise ValueError('ask_user_variant must be "legacy" or "elicitation"')
         if not self._client:
             await self.start()
 
@@ -2441,6 +2607,8 @@ class CopilotClient:
         # Enable user input request callback if handler provided
         if on_user_input_request:
             payload["requestUserInput"] = True
+        if ask_user_variant is not None:
+            payload["askUserVariant"] = ask_user_variant
 
         # Enable elicitation request callback if handler provided
         payload["requestElicitation"] = bool(on_elicitation_request)
@@ -2454,7 +2622,7 @@ class CopilotClient:
         # Serialize commands (name + description only) into payload
         if commands:
             payload["commands"] = [
-                {"name": cmd.name, "description": cmd.description} for cmd in commands
+                {"name": cmd.name, "description": cmd.description or ""} for cmd in commands
             ]
 
         # Enable hooks callback if any hook handler provided
@@ -2472,6 +2640,9 @@ class CopilotClient:
         # Add cloud session options if provided
         if cloud is not None:
             payload["cloud"] = _cloud_session_options_to_dict(cloud)
+
+        if feature_flags is not None:
+            payload["featureFlags"] = feature_flags
 
         # Add ExP assignment data if provided (trusted integrator)
         if exp_assignments is not None:
@@ -2655,6 +2826,11 @@ class CopilotClient:
         )
         if local_session_id is not None:
             payload["sessionId"] = local_session_id
+        github_token_provider_registration_id = self._register_github_token_provider(
+            github_token_provider, local_session_id
+        )
+        if github_token_provider_registration_id is not None:
+            payload["gitHubTokenProviderRegistrationId"] = github_token_provider_registration_id
 
         # Propagate W3C Trace Context to CLI if OpenTelemetry is active
         trace_ctx = get_trace_context()
@@ -2675,6 +2851,13 @@ class CopilotClient:
                 workspace_path=None,
                 managed_settings_enabled=enable_managed_settings is True
                 or managed_settings is not None,
+                on_disconnect=(
+                    None
+                    if github_token_provider_registration_id is None
+                    else lambda: self._unregister_github_token_provider(
+                        github_token_provider_registration_id
+                    )
+                ),
             )
             if self._session_fs_config:
                 if create_session_fs_handler is None:
@@ -2736,8 +2919,12 @@ class CopilotClient:
         # processing (e.g. sessionFs.writeFile for workspace metadata) can be
         # routed to the correct handlers.
         if local_session_id is not None:
-            session = _initialize_session(local_session_id)
-            registered_session_id = local_session_id
+            try:
+                session = _initialize_session(local_session_id)
+                registered_session_id = local_session_id
+            except BaseException:
+                self._unregister_github_token_provider(github_token_provider_registration_id)
+                raise
 
         try:
             rpc_start = time.perf_counter()
@@ -2777,6 +2964,9 @@ class CopilotClient:
                     f"session.create returned sessionId {response.get('sessionId')} "
                     f"but the caller requested {local_session_id}"
                 )
+            self._assign_github_token_provider(
+                github_token_provider_registration_id, session.session_id
+            )
             if on_mcp_auth_request is not None:
                 await self._client.request(
                     "session.eventLog.registerInterest",
@@ -2789,6 +2979,7 @@ class CopilotClient:
             if registered_session_id is not None:
                 with self._sessions_lock:
                     self._sessions.pop(registered_session_id, None)
+            self._unregister_github_token_provider(github_token_provider_registration_id)
             if not isinstance(exc, asyncio.CancelledError):
                 log_timing(
                     logger,
@@ -2807,6 +2998,10 @@ class CopilotClient:
             custom_agents_local_only,
             coauthor_enabled,
             manage_schedule_enabled,
+            included_builtin_skills,
+        )
+        self._commit_github_token_provider(
+            session.session_id, github_token_provider_registration_id
         )
 
         log_timing(
@@ -2835,6 +3030,7 @@ class CopilotClient:
         available_tools: list[str] | ToolSet | None = None,
         excluded_tools: list[str] | ToolSet | None = None,
         on_user_input_request: UserInputHandler | None = None,
+        ask_user_variant: AskUserVariant | None = None,
         hooks: SessionHooks | None = None,
         working_directory: str | None = None,
         additional_directories: list[str] | None = None,
@@ -2869,6 +3065,7 @@ class CopilotClient:
         enable_host_git_operations: bool | None = None,
         enable_session_store: bool | None = None,
         enable_skills: bool | None = None,
+        included_builtin_skills: list[str] | None = None,
         skill_directories: list[str] | None = None,
         plugin_directories: list[str] | None = None,
         instruction_directories: list[str] | None = None,
@@ -2886,6 +3083,7 @@ class CopilotClient:
         on_auto_mode_switch_request: AutoModeSwitchHandler | None = None,
         create_session_fs_handler: CreateSessionFsHandler | None = None,
         github_token: str | None = None,
+        github_token_provider: GitHubTokenProvider | None = None,
         remote_session: RemoteSessionMode | None = None,
         continue_pending_work: bool | None = None,
         canvases: list[CanvasDeclaration] | None = None,
@@ -2896,6 +3094,7 @@ class CopilotClient:
         canvas_provider: CanvasProviderIdentity | None = None,
         canvas_handler: CanvasHandler | None = None,
         open_canvases: list[OpenCanvasInstance] | None = None,
+        feature_flags: dict[str, bool] | None = None,
         exp_assignments: CopilotExpAssignmentResponse | None = None,
         enable_managed_settings: bool | None = None,
         github_mcp_tool_config: GitHubMcpToolConfig | None = None,
@@ -2936,10 +3135,17 @@ class CopilotClient:
                 including custom tools registered via ``tools=``. Ignored if
                 ``available_tools`` is set.
             on_user_input_request: Handler for user input requests.
+            ask_user_variant: Model-facing shape of the ``ask_user`` tool.
+                Accepted values are ``"legacy"`` and ``"elicitation"``. The
+                default is ``"legacy"``. To use ``"elicitation"``, also provide
+                ``on_elicitation_request`` so the host can answer structured forms.
             hooks: Lifecycle hooks for the session.
             working_directory: Working directory for the session.
             provider: Provider configuration for Azure or custom endpoints.
-            capi: CAPI provider-scoped options. WebSocket transport is the
+            capi: CAPI provider-scoped options. Omit ``auto_tier`` to preserve the
+                current or persisted Auto routing preference. An explicit tier
+                overrides it on cold resume, but cannot change it on an
+                already-resident session. WebSocket transport is the
                 default for the CAPI Responses API whenever the model advertises
                 the ``ws:/responses`` endpoint. Set
                 ``enable_web_socket_responses=False`` to force the HTTP
@@ -3037,6 +3243,8 @@ class CopilotClient:
                 tool calls or permission prompts that were still pending when the
                 session was last suspended. When False (the default), the runtime
                 treats pending work as interrupted on resume.
+            feature_flags: Feature-flag values resolved by the host to apply
+                on resume. Sent on the wire as ``featureFlags``.
             exp_assignments: ExP assignment ("flight") data injected by a
                 trusted integrator, in the same JSON shape the Copilot CLI
                 fetches from the experimentation service
@@ -3060,6 +3268,10 @@ class CopilotClient:
                 injected layer, and omitting it clears that layer so warm and
                 cold resume behave identically. See :meth:`create_session`. Sent
                 on the wire as ``managedSettings``.
+            github_token_provider: Callback that acquires a short-lived GitHub
+                credential for this resumed session. Mutually exclusive with
+                ``github_token``. The new registration replaces the prior
+                provider only after resume succeeds.
 
         Returns:
             A :class:`CopilotSession` instance for the resumed session.
@@ -3083,6 +3295,10 @@ class CopilotClient:
         """
         if on_permission_request is not None and not callable(on_permission_request):
             raise ValueError("on_permission_request must be callable when provided.")
+        if github_token is not None and github_token_provider is not None:
+            raise ValueError("github_token and github_token_provider are mutually exclusive")
+        if ask_user_variant not in (None, "legacy", "elicitation"):
+            raise ValueError('ask_user_variant must be "legacy" or "elicitation"')
         if not self._client:
             await self.start()
 
@@ -3198,6 +3414,8 @@ class CopilotClient:
 
         if on_user_input_request:
             payload["requestUserInput"] = True
+        if ask_user_variant is not None:
+            payload["askUserVariant"] = ask_user_variant
 
         # Enable elicitation request callback if handler provided
         payload["requestElicitation"] = bool(on_elicitation_request)
@@ -3211,7 +3429,7 @@ class CopilotClient:
         # Serialize commands (name + description only) into payload
         if commands:
             payload["commands"] = [
-                {"name": cmd.name, "description": cmd.description} for cmd in commands
+                {"name": cmd.name, "description": cmd.description or ""} for cmd in commands
             ]
 
         if hooks and any(hooks.values()):
@@ -3224,6 +3442,9 @@ class CopilotClient:
         # Add remote session mode if provided
         if remote_session is not None:
             payload["remoteSession"] = remote_session.value
+
+        if feature_flags is not None:
+            payload["featureFlags"] = feature_flags
 
         # Add ExP assignment data if provided (trusted integrator)
         if exp_assignments is not None:
@@ -3404,6 +3625,16 @@ class CopilotClient:
             commands_count=len(commands or []),
             has_hooks=hooks is not None,
         )
+        github_token_provider_registration_id = self._register_github_token_provider(
+            github_token_provider, session_id
+        )
+        if github_token_provider_registration_id is not None:
+            payload["gitHubTokenProviderRegistrationId"] = github_token_provider_registration_id
+            session._set_disconnect_callback(
+                lambda: self._unregister_github_token_provider(
+                    github_token_provider_registration_id
+                )
+            )
 
         try:
             rpc_start = time.perf_counter()
@@ -3431,6 +3662,7 @@ class CopilotClient:
         except BaseException as exc:
             with self._sessions_lock:
                 self._sessions.pop(session_id, None)
+            self._unregister_github_token_provider(github_token_provider_registration_id)
             if not isinstance(exc, asyncio.CancelledError):
                 log_timing(
                     logger,
@@ -3449,7 +3681,9 @@ class CopilotClient:
             custom_agents_local_only,
             coauthor_enabled,
             manage_schedule_enabled,
+            included_builtin_skills,
         )
+        self._commit_github_token_provider(session_id, github_token_provider_registration_id)
 
         log_timing(
             logger,
@@ -3669,8 +3903,9 @@ class CopilotClient:
 
         # Remove from local sessions map if present
         with self._sessions_lock:
-            if session_id in self._sessions:
-                del self._sessions[session_id]
+            session = self._sessions.pop(session_id, None)
+        if session is not None:
+            session._run_disconnect_callback()
 
     async def get_last_session_id(self) -> str | None:
         """
@@ -3867,6 +4102,12 @@ class CopilotClient:
             # event is forwarded). Also sent on session.create/resume for older CLIs.
             if self._on_github_telemetry is not None:
                 connect_params["enableGitHubTelemetryForwarding"] = True
+            # Declare the integrating host's identity so the runtime attributes
+            # the telemetry it emits on this connection to a consistent surface
+            # instead of its own build. Omitted when the app didn't supply it.
+            client_info = _client_info_to_wire(self._options.client_info)
+            if client_info is not None:
+                connect_params["clientInfo"] = client_info
             connect_result = _ConnectResult.from_dict(
                 await self._client.request("connect", connect_params)
             )
@@ -4131,7 +4372,6 @@ class CopilotClient:
             env = dict(os.environ)
         else:
             env = dict(opts.env)
-
         # Set auth token in environment if provided
         if opts.github_token:
             env["COPILOT_SDK_AUTH_TOKEN"] = opts.github_token
@@ -4282,6 +4522,7 @@ class CopilotClient:
 
         host = FfiRuntimeHost.create(
             runtime_path,
+            cli_entrypoint=self._inprocess_cli_entrypoint,
             environment=environment or None,
             args=tuple(args),
         )
@@ -4341,7 +4582,7 @@ class CopilotClient:
 
         # Create JSON-RPC client with the process
         self._client = JsonRpcClient(self._process)
-        self._client.on_close = lambda: setattr(self, "_state", "disconnected")
+        self._client.on_close = self._handle_connection_close
         self._rpc = ServerRpc(self._client)
 
         # Set up notification handler for session events
@@ -4460,9 +4701,9 @@ class CopilotClient:
             def wait(self, timeout=None):
                 pass
 
-        self._process = SocketWrapper(sock_file, sock)  # type: ignore
+        self._process = SocketWrapper(sock_file, sock)
         self._client = JsonRpcClient(self._process)
-        self._client.on_close = lambda: setattr(self, "_state", "disconnected")
+        self._client.on_close = self._handle_connection_close
         self._rpc = ServerRpc(self._client)
 
         # Set up notification handler for session events
@@ -4506,6 +4747,7 @@ class CopilotClient:
         custom_agents_local_only: bool | None,
         coauthor_enabled: bool | None,
         manage_schedule_enabled: bool | None,
+        included_builtin_skills: list[str] | None = None,
     ) -> None:
         """Apply empty-mode safe defaults (or caller-supplied overrides in
         copilot-cli mode) via ``session.options.update`` after create/resume.
@@ -4521,6 +4763,7 @@ class CopilotClient:
             custom_agents_local_only,
             coauthor_enabled,
             manage_schedule_enabled,
+            included_builtin_skills,
         )
         if patch is None:
             return
@@ -4539,6 +4782,9 @@ class CopilotClient:
                 SessionInstalledPlugin.from_dict(p) if isinstance(p, dict) else p
                 for p in patch["installedPlugins"]
             ]
+        if "includedBuiltinSkills" in patch:
+            skills = patch["includedBuiltinSkills"]
+            params.included_builtin_skills = list(skills) if skills is not None else None
 
         try:
             await session.rpc.options.update(params)
@@ -4583,8 +4829,55 @@ class CopilotClient:
                 hooks=_HooksAdapter(self._get_session),
                 llm_inference=llm_inference_adapter,
                 git_hub_telemetry=github_telemetry_adapter,
+                git_hub_token=self._github_token_provider_adapter,
             ),
         )
+
+    def _register_github_token_provider(
+        self, provider: GitHubTokenProvider | None, session_id: str | None
+    ) -> str | None:
+        if provider is None:
+            return None
+        registration_id = str(uuid.uuid4())
+        with self._github_token_providers_lock:
+            self._github_token_providers[registration_id] = _GitHubTokenProviderRegistration(
+                provider, session_id
+            )
+        return registration_id
+
+    def _handle_connection_close(self) -> None:
+        self._state = "disconnected"
+        with self._github_token_providers_lock:
+            self._github_token_providers.clear()
+
+    def _assign_github_token_provider(self, registration_id: str | None, session_id: str) -> None:
+        if registration_id is None:
+            return
+        with self._github_token_providers_lock:
+            registration = self._github_token_providers.get(registration_id)
+            if registration is not None:
+                registration.session_id = session_id
+
+    def _unregister_github_token_provider(self, registration_id: str | None) -> None:
+        if registration_id is None:
+            return
+        with self._github_token_providers_lock:
+            self._github_token_providers.pop(registration_id, None)
+
+    def _commit_github_token_provider(self, session_id: str, registration_id: str | None) -> None:
+        with self._github_token_providers_lock:
+            stale = [
+                candidate_id
+                for candidate_id, registration in self._github_token_providers.items()
+                if registration.session_id == session_id and registration.committed
+            ]
+            for candidate_id in stale:
+                self._github_token_providers.pop(candidate_id, None)
+            if registration_id is not None:
+                registration = self._github_token_providers.get(registration_id)
+                if registration is not None:
+                    registration.session_id = session_id
+                    registration.committed = True
 
     def _get_session(self, session_id: str) -> CopilotSession | None:
         with self._sessions_lock:

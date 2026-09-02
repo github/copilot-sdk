@@ -28,6 +28,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.github.copilot.rpc.JsonRpcError;
 import com.github.copilot.rpc.JsonRpcRequest;
@@ -220,7 +221,39 @@ class JsonRpcClient implements AutoCloseable {
         outputStream.write(content);
         outputStream.flush();
 
-        LOG.fine("Sent: " + json);
+        if (LOG.isLoggable(Level.FINE)) {
+            LOG.fine("Sent: " + redactCredentialsForLogging(json));
+        }
+    }
+
+    static String redactCredentialsForLogging(String json) {
+        try {
+            JsonNode root = MAPPER.readTree(json);
+            redactCredentials(root);
+            return MAPPER.writeValueAsString(root);
+        } catch (JsonProcessingException error) {
+            return "<unable to render JSON-RPC message safely>";
+        }
+    }
+
+    private static void redactCredentials(JsonNode node) {
+        if (node.isObject()) {
+            var object = (ObjectNode) node;
+            object.properties().forEach(entry -> {
+                if (isCredentialField(entry.getKey())) {
+                    object.put(entry.getKey(), "<redacted>");
+                } else {
+                    redactCredentials(entry.getValue());
+                }
+            });
+        } else if (node.isArray()) {
+            node.forEach(JsonRpcClient::redactCredentials);
+        }
+    }
+
+    private static boolean isCredentialField(String name) {
+        return name.equals("accessToken") || name.equals("gitHubToken") || name.equals("bearerToken")
+                || name.equals("apiKey");
     }
 
     private void startReader() {

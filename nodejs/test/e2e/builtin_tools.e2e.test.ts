@@ -130,6 +130,19 @@ describe("Built-in Tools", async () => {
             async () => {
                 await writeFile(join(workDir, "data.txt"), "apple\nbanana\napricot\ncherry\n");
                 const session = await client.createSession({ onPermissionRequest: approveAll });
+                let grepToolCallId: string | undefined;
+                let grepCompletedSuccessfully = false;
+                session.on((event) => {
+                    if (event.type === "tool.execution_start" && event.data.toolName === "grep") {
+                        grepToolCallId = event.data.toolCallId;
+                    } else if (
+                        event.type === "tool.execution_complete" &&
+                        event.data.toolCallId === grepToolCallId &&
+                        event.data.success
+                    ) {
+                        grepCompletedSuccessfully = true;
+                    }
+                });
                 const msg = await session.sendAndWait(
                     {
                         prompt: "Search for lines starting with 'ap' in the file 'data.txt'. Tell me which lines matched.",
@@ -138,6 +151,7 @@ describe("Built-in Tools", async () => {
                 );
                 expect(msg?.data.content).toContain("apple");
                 expect(msg?.data.content).toContain("apricot");
+                expect(grepCompletedSuccessfully).toBe(true);
             },
             TEST_TIMEOUT_MS
         );

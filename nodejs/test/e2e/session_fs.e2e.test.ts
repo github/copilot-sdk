@@ -145,9 +145,11 @@ describe("Session Fs", async () => {
             prompt: "Call the get_big_string tool and reply with the word DONE only.",
         });
 
-        // The tool result should reference a temp file under the session state path
+        // The tool result should reference a temp file under the session state path.
+        // The CLI joins the temp path using the host separator, so normalize before
+        // matching to keep the assertion valid on Windows.
         const messages = await session.getEvents();
-        const toolResult = findToolCallResult(messages, "get_big_string");
+        const toolResult = findToolCallResult(messages, "get_big_string")?.replaceAll("\\", "/");
         expect(toolResult).toContain(`${sessionStatePath}/temp/`);
         const filename = toolResult?.match(
             new RegExp(`(${escapeRegExp(sessionStatePath)}/temp/[^\\s]+)`)

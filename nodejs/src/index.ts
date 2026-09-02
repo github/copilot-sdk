@@ -9,7 +9,7 @@
  */
 
 export { CopilotClient } from "./client.js";
-export { RuntimeConnection } from "./types.js";
+export { DisableBypassPermissionsModes, RuntimeConnection } from "./types.js";
 export { BuiltInTools, ToolSet } from "./toolSet.js";
 export { CopilotSession, type AssistantMessageEvent } from "./session.js";
 export { defineFactory, FactoryResumeError, isFactoryRunTerminal } from "./factory.js";
@@ -27,6 +27,7 @@ export {
 export {
     defineTool,
     approveAll,
+    createAttributedPermissionResult,
     convertMcpCallToolResult,
     createSessionFsAdapter,
     CopilotRequestHandler,
@@ -52,6 +53,7 @@ export {
 // surface for those six identifiers is preserved unchanged.
 export type * from "./generated/session-events.js";
 export type {
+    AskUserVariant,
     CommandContext,
     CommandDefinition,
     CommandHandler,
@@ -67,6 +69,7 @@ export type {
     UserPromptTransformedHandler,
     UserPromptTransformedHookInput,
     UserPromptTransformedHookOutput,
+    CopilotClientInfo,
     CopilotClientMode,
     CopilotClientOptions,
     CopilotExpAssignmentResponse,
@@ -96,6 +99,11 @@ export type {
     GitHubTelemetryNotification,
     GitHubTelemetryEvent,
     GitHubTelemetryClientInfo,
+    GitHubTokenAcquireReason,
+    GitHubTokenAcquireResult,
+    GitHubTokenProvider,
+    GitHubTokenProviderArgs,
+    GitHubTokenProviderResult,
     InfiniteSessionConfig,
     LargeToolOutputConfig,
     MemoryConfiguration,
@@ -113,6 +121,7 @@ export type {
     ModelBilling,
     ModelBillingTokenPrices,
     ModelBillingTokenPricesLongContext,
+    AutoTier,
     CapiSessionOptions,
     ModelCapabilities,
     ModelCapabilitiesOverride,
@@ -124,6 +133,12 @@ export type {
     PermissionRequestedData,
     PermissionRequestedEvent,
     PermissionRequestResult,
+    AttributedPermissionResult,
+    PermissionDecisionContext,
+    PermissionDecisionOutcome,
+    PermissionDecisionSource,
+    PermissionDecisionSurface,
+    PermissionResponseCapability,
     ProviderConfig,
     ProviderModelConfig,
     ProviderTokenArgs,
@@ -197,6 +212,8 @@ export type {
     FactoryRunResult,
     FactoryRunStatus,
     FactoryRunSummary,
+    FactoryListRunsOptions,
+    FactoryRunsPage,
     FactoryRunDetail,
     FactoryProgressPage,
     FactoryProgressLine,

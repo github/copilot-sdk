@@ -22,6 +22,8 @@ public enum PermissionsSetApproveAllSource {
     SLASH_COMMAND("slash_command"),
     /** The {@code autopilot_confirmation} variant. */
     AUTOPILOT_CONFIRMATION("autopilot_confirmation"),
+    /** The {@code user_setting} variant. */
+    USER_SETTING("user_setting"),
     /** The {@code rpc} variant. */
     RPC("rpc");
 

@@ -510,12 +510,8 @@ impl E2eContext {
             .expect("start E2E client")
     }
 
-    /// Start a client that hosts the runtime in-process over FFI
-    /// ([`Transport::InProcess`]). Unlike the stdio harness, the CLI
-    /// entrypoint is passed as the program directly (the FFI host builds the
-    /// `node <entrypoint> --embedded-host` argv itself and loads the sibling
-    /// runtime cdylib), so a `.js` entrypoint is not split into node +
-    /// prefix_args here.
+    /// Start a client that hosts the bundled runtime directly in-process over
+    /// FFI ([`Transport::InProcess`]).
     #[cfg_attr(not(feature = "bundled-in-process"), allow(dead_code))]
     pub async fn start_inprocess_client(&self) -> Client {
         let options = ClientOptions::new().with_transport(Transport::InProcess);
@@ -1070,7 +1066,8 @@ impl InProcessEnvGuard {
         pairs.push(("COPILOT_SDK_AUTH_TOKEN".into(), "".into()));
         pairs.push((
             "COPILOT_CLI_PATH".into(),
-            ctx.cli_path.clone().into_os_string(),
+            std::env::var_os("COPILOT_CLI_PATH")
+                .unwrap_or_else(|| ctx.cli_path.clone().into_os_string()),
         ));
         // Some tests opt into gated runtime APIs via per-client `options.env`, which the
         // in-process transport does not pass to the shared native runtime (see issue #1934).
@@ -1385,8 +1382,17 @@ impl CapiProxy {
             "/stop"
         };
         let result = self.post_json(path, "");
-        if let Some(mut child) = self.child.take() {
-            wait_for_child_exit(&mut child)?;
+        if let Some(mut child) = self.child.take()
+            && let Err(error) = wait_for_child_exit(&mut child)
+        {
+            if result.is_err() {
+                return Err(error);
+            }
+            // The proxy acknowledges /stop before its asynchronous server shutdown.
+            // npm/tsx can occasionally leave its wrapper alive after the proxy has
+            // accepted the request; wait_for_child_exit has reaped it, so do not turn
+            // an otherwise successful test into a teardown failure.
+            eprintln!("force-killed E2E proxy after successful stop request: {error}");
         }
         result
     }

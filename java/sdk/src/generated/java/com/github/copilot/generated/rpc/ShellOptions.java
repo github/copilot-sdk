@@ -37,6 +37,8 @@ the active sandbox filesystem policy. Pass an empty array to clear the list. */
     /** Flags passed to the active built-in shell process on startup, replacing its default flags.
 When omitted, the built-in Bash shell uses `--norc --noprofile`,
 and the built-in PowerShell shell uses `-NoProfile -NoLogo`. */
-    @JsonProperty("processFlags") List<String> processFlags
+    @JsonProperty("processFlags") List<String> processFlags,
+    /** Command-scoped GitHub credential injection for shell commands. */
+    @JsonProperty("credentials") ShellCredentials credentials
 ) {
 }

@@ -4,6 +4,7 @@
 
 import type { ChatCompletion } from "openai/resources/chat/completions";
 import {
+  canonicalUserMessageSeparator,
   CanonicalMessage,
   CanonicalToolCall,
   formatSseEvent,
@@ -178,7 +179,7 @@ function convertAnthropicUserMessage(
       content: onlyText
         ? contentParts
             .map((part) => (part.type === "text" ? part.text : ""))
-            .join("\n")
+            .join(canonicalUserMessageSeparator)
         : [...contentParts],
     });
     contentParts.length = 0;

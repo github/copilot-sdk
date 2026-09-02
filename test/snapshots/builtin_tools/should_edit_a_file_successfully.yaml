@@ -57,9 +57,8 @@ conversations:
       - role: tool
         tool_call_id: toolcall_2
         content: |-
-          1. Hi Universe
-          2. Goodbye World
-          3.
+          Hi Universe
+          Goodbye World
       - role: assistant
         content: |-
           Done! The file now contains:

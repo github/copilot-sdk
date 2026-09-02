@@ -40,7 +40,7 @@ pub(crate) fn main() {
     // path source resolves first.
     if std::env::var_os("COPILOT_SKIP_CLI_DOWNLOAD").is_some() {
         println!(
-            "cargo:warning=COPILOT_SKIP_CLI_DOWNLOAD is set — skipping CLI download/bundle/cache"
+            "cargo:warning=COPILOT_SKIP_CLI_DOWNLOAD is set — skipping runtime download/bundle/cache"
         );
         return;
     }
@@ -95,38 +95,61 @@ pub(crate) fn main() {
 
     if std::env::var_os("CARGO_FEATURE_BUNDLED_CLI").is_some() {
         let archive = cached_download(&download_url, &cache_key, &expected_integrity, &cache_dir);
-        verify_binary_present_in_archive(&archive, platform.binary_name, &archive_name);
+        verify_runtime_package(&archive, platform, &archive_name);
         emit_embedded(out, &archive, platform, include_runtime);
         println!("cargo:rustc-cfg=has_bundled_cli");
     } else {
-        // With `bundled-cli` off the extracted binary *is* the cache.
-        // Skip the upstream download entirely when it already exists at
-        // the expected path. No two separate caches.
+        // With `bundled-cli` off the extracted runtime pair *is* the cache.
+        // Skip the upstream download entirely when both files already exist.
         //
-        // Runtime resolution (see `src/resolve.rs::extracted_cli_path`)
+        // Runtime resolution (see `src/resolve.rs::extracted_program`)
         // recomputes this same path from `COPILOT_SDK_CLI_VERSION` + the
         // OS-derived binary name + optional `COPILOT_CLI_EXTRACT_DIR`,
         // so we don't bake an absolute path into the crate.
         let install_dir = extracted_install_dir(&version);
-        let final_path = install_dir.join(platform.binary_name);
+        let required_paths = [
+            install_dir.join(platform.runtime_wrapper_name()),
+            install_dir.join("runtime.node"),
+            install_dir.join(".hostless-runtime-assets-v1"),
+        ];
+        let expected_marker = format!("{version}\n{expected_integrity}\n");
 
-        // Invalidate build.rs whenever the cached binary disappears (cache GC,
-        // manual rm, OS reset, switching extract dir). Without this, cargo
+        // Invalidate build.rs whenever either cached artifact disappears (cache
+        // GC, manual rm, OS reset, switching extract dir). Without this, cargo
         // replays the saved `has_extracted_cli` cfg from its build-script
         // output cache even when the file is gone, and runtime resolution
         // fails with BinaryNotFound.
-        println!("cargo:rerun-if-changed={}", final_path.display());
+        for path in &required_paths {
+            println!("cargo:rerun-if-changed={}", path.display());
+        }
 
-        if !final_path.is_file() {
+        let cache_is_current = required_paths.iter().all(|path| path.is_file())
+            && std::fs::read_to_string(&required_paths[2]).ok().as_deref()
+                == Some(expected_marker.as_str());
+        if !cache_is_current {
+            if install_dir.exists() {
+                std::fs::remove_dir_all(&install_dir).unwrap_or_else(|e| {
+                    panic!(
+                        "failed to clear stale runtime bundle {}: {e}",
+                        install_dir.display()
+                    )
+                });
+            }
             let archive =
                 cached_download(&download_url, &cache_key, &expected_integrity, &cache_dir);
-            verify_binary_present_in_archive(&archive, platform.binary_name, &archive_name);
-            extract_to_cache(&archive, &install_dir, platform);
+            verify_runtime_package(&archive, platform, &archive_name);
+            extract_to_cache(
+                &archive,
+                &install_dir,
+                platform,
+                include_runtime,
+                &expected_marker,
+            );
         }
 
         // Re-check after potential download+extract above; not an `else`
         // because we need to verify the extraction actually produced the file.
-        if final_path.is_file() {
+        if required_paths.iter().all(|path| path.is_file()) {
             println!("cargo:rustc-cfg=has_extracted_cli");
         }
     }
@@ -176,19 +199,8 @@ fn build_embedded_archive(package: &[u8], platform: Platform, include_runtime: b
         .mtime(0)
         .write(Vec::new(), flate2::Compression::default());
     let mut archive = tar::Builder::new(encoder);
-    append_archive_file(
-        &mut archive,
-        platform.binary_name,
-        &extract_binary_bytes(package, platform),
-        0o755,
-    );
+    let runtime = append_hostless_runtime_tree(&mut archive, package, platform);
     if include_runtime {
-        let runtime = extract_runtime_library_bytes(package).unwrap_or_else(|| {
-            panic!(
-                "package `{}` does not contain the native runtime library required by the `bundled-in-process` feature",
-                platform.package_name
-            )
-        });
         append_archive_file(
             &mut archive,
             platform.runtime_library_name(),
@@ -202,6 +214,103 @@ fn build_embedded_archive(package: &[u8], platform: Platform, include_runtime: b
     encoder
         .finish()
         .expect("failed to compress minimal embedded CLI archive")
+}
+
+fn append_hostless_runtime_tree<W: Write>(
+    archive: &mut tar::Builder<W>,
+    package: &[u8],
+    platform: Platform,
+) -> Vec<u8> {
+    let decoder = flate2::read::GzDecoder::new(package);
+    let mut source = tar::Archive::new(decoder);
+    let mut runtime = None;
+    for entry in source
+        .entries()
+        .unwrap_or_else(|e| panic!("failed to read npm package entries: {e}"))
+    {
+        let mut entry = entry.unwrap_or_else(|e| panic!("failed to read npm package entry: {e}"));
+        if !entry.header().entry_type().is_file() {
+            continue;
+        }
+        let source_path = entry
+            .path()
+            .unwrap_or_else(|e| panic!("failed to read npm package path: {e}"));
+        let Some(destination) = hostless_runtime_path(&source_path.to_string_lossy(), platform)
+        else {
+            continue;
+        };
+        let mut bytes = Vec::with_capacity(entry.size() as usize);
+        entry
+            .read_to_end(&mut bytes)
+            .unwrap_or_else(|e| panic!("failed to read npm package entry bytes: {e}"));
+        let mode = entry.header().mode().unwrap_or(0o644);
+        if destination == Path::new("runtime.node") {
+            runtime = Some(bytes.clone());
+        }
+        append_archive_file(
+            archive,
+            destination
+                .to_str()
+                .expect("npm package paths are valid UTF-8"),
+            &bytes,
+            mode,
+        );
+    }
+    runtime.unwrap_or_else(|| {
+        panic!(
+            "package `{}` does not contain prebuilds/<platform>/runtime.node",
+            platform.package_name
+        )
+    })
+}
+
+fn hostless_runtime_path(source: &str, platform: Platform) -> Option<PathBuf> {
+    let relative = source.strip_prefix("package/")?;
+    let parts: Vec<&str> = relative.split('/').collect();
+    if parts.iter().any(|part| part.is_empty() || *part == "..") {
+        return None;
+    }
+    let top_level = *parts.first()?;
+    let file_name = *parts.last()?;
+    const EXCLUDED_TOP_LEVEL: &[&str] = &[
+        "app.js",
+        "assets",
+        "changelog.json",
+        "copilot-sdk",
+        "foundry-local-sdk",
+        "index.js",
+        "LICENSE.md",
+        "napi-oop-runtime",
+        "npm-loader.js",
+        "package.json",
+        "preloads",
+        "pvrecorder",
+        "queries",
+        "README.md",
+        "sdk",
+        "sea-loader.js",
+        "webview",
+    ];
+    if EXCLUDED_TOP_LEVEL.contains(&top_level)
+        || (top_level.starts_with("tree-sitter") && top_level.ends_with(".wasm"))
+        || (top_level.starts_with("voice-") && top_level.ends_with(".js"))
+        || file_name == "cli-native.node"
+        || parts.contains(&"mediaremote-adapter")
+        || file_name.starts_with("copilot-runtime-bin")
+    {
+        return None;
+    }
+    if top_level == "prebuilds" {
+        let npm_platform = platform
+            .package_name
+            .strip_prefix("copilot-")
+            .expect("platform package name has copilot- prefix");
+        if parts.get(1) != Some(&npm_platform) || parts.len() < 3 {
+            return None;
+        }
+        return Some(parts[2..].iter().copied().collect());
+    }
+    Some(parts.iter().copied().collect())
 }
 
 fn append_archive_file<W: Write>(
@@ -315,6 +424,14 @@ struct Platform {
 }
 
 impl Platform {
+    fn runtime_wrapper_name(&self) -> &'static str {
+        if self.package_name.contains("win32") {
+            "copilot-runtime.exe"
+        } else {
+            "copilot-runtime"
+        }
+    }
+
     fn runtime_library_name(&self) -> &'static str {
         if self.package_name.contains("win32") {
             "copilot_runtime.dll"
@@ -368,8 +485,8 @@ fn target_platform() -> Option<Platform> {
     }
 }
 
-/// Write the single binary entry from `archive` to
-/// `<install_dir>/<binary_name>` and return the resulting path.
+/// Write the runtime wrapper pair from `archive` to `install_dir` and return
+/// the wrapper path.
 /// Idempotent — returns the existing path if a previous build already
 /// populated the target.
 ///
@@ -378,15 +495,13 @@ fn target_platform() -> Option<Platform> {
 /// binary. `fs::rename` for files is atomic on both Unix and Windows
 /// (Windows uses `MoveFileExW` with `MOVEFILE_REPLACE_EXISTING`); for
 /// directories it is not, which is why we stage at file granularity.
-fn extract_to_cache(archive: &[u8], install_dir: &Path, platform: Platform) -> PathBuf {
-    let final_path = install_dir.join(platform.binary_name);
-
-    // Caller already gated on `final_path.is_file()`; this is a safety
-    // net for any future caller that forgets.
-    if final_path.is_file() {
-        return final_path;
-    }
-
+fn extract_to_cache(
+    archive: &[u8],
+    install_dir: &Path,
+    platform: Platform,
+    include_runtime: bool,
+    marker: &str,
+) -> PathBuf {
     std::fs::create_dir_all(install_dir).unwrap_or_else(|e| {
         panic!(
             "failed to create install dir {}: {e}",
@@ -394,8 +509,90 @@ fn extract_to_cache(archive: &[u8], install_dir: &Path, platform: Platform) -> P
         )
     });
 
-    let bytes = extract_binary_bytes(archive, platform);
+    let decoder = flate2::read::GzDecoder::new(archive);
+    let mut source = tar::Archive::new(decoder);
+    let mut runtime = None;
+    for entry in source
+        .entries()
+        .unwrap_or_else(|e| panic!("failed to read npm package entries: {e}"))
+    {
+        let mut entry = entry.unwrap_or_else(|e| panic!("failed to read npm package entry: {e}"));
+        if !entry.header().entry_type().is_file() {
+            continue;
+        }
+        let source_path = entry
+            .path()
+            .unwrap_or_else(|e| panic!("failed to read npm package path: {e}"));
+        let Some(destination) = hostless_runtime_path(&source_path.to_string_lossy(), platform)
+        else {
+            continue;
+        };
+        if destination == Path::new(platform.binary_name) {
+            continue;
+        }
+        let mut bytes = Vec::with_capacity(entry.size() as usize);
+        entry
+            .read_to_end(&mut bytes)
+            .unwrap_or_else(|e| panic!("failed to read npm package entry bytes: {e}"));
+        let executable = entry.header().mode().unwrap_or(0o644) & 0o111 != 0;
+        if destination == Path::new("runtime.node") {
+            runtime = Some(bytes.clone());
+        }
+        install_cached_file_path(install_dir, &destination, &bytes, executable);
+    }
+    let runtime = runtime.expect("verified runtime.node is present");
+    if include_runtime {
+        install_cached_file(
+            install_dir,
+            platform.runtime_library_name(),
+            &runtime,
+            false,
+        );
+    }
+    install_cached_file(
+        install_dir,
+        ".hostless-runtime-assets-v1",
+        marker.as_bytes(),
+        false,
+    );
 
+    let final_path = install_dir.join(platform.runtime_wrapper_name());
+    println!(
+        "cargo:warning=Extracted Copilot runtime bundle to {}",
+        install_dir.display()
+    );
+    final_path
+}
+
+fn install_cached_file(install_dir: &Path, file_name: &str, bytes: &[u8], executable: bool) {
+    install_cached_file_path(install_dir, Path::new(file_name), bytes, executable);
+}
+
+fn install_cached_file_path(
+    install_dir: &Path,
+    relative_path: &Path,
+    bytes: &[u8],
+    executable: bool,
+) {
+    assert!(
+        !relative_path.is_absolute()
+            && !relative_path.components().any(|component| {
+                matches!(
+                    component,
+                    std::path::Component::Prefix(_)
+                        | std::path::Component::RootDir
+                        | std::path::Component::ParentDir
+                )
+            }),
+        "unsafe runtime package path: {}",
+        relative_path.display()
+    );
+    let final_path = install_dir.join(relative_path);
+    if final_path.is_file() {
+        return;
+    }
+    std::fs::create_dir_all(final_path.parent().expect("runtime asset has parent"))
+        .unwrap_or_else(|e| panic!("failed to create runtime asset directory: {e}"));
     // Staging file is a sibling of the final binary so the rename stays
     // on the same filesystem (cross-fs rename is not atomic). PID + nanos
     // disambiguate concurrent builds racing on the same cache.
@@ -405,7 +602,10 @@ fn extract_to_cache(archive: &[u8], install_dir: &Path, platform: Platform) -> P
         .unwrap_or(0);
     let staging_path = install_dir.join(format!(
         ".{}.staging-{}-{nanos}",
-        platform.binary_name,
+        relative_path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("runtime-asset"),
         std::process::id(),
     ));
 
@@ -418,7 +618,7 @@ fn extract_to_cache(archive: &[u8], install_dir: &Path, platform: Platform) -> P
             );
         });
 
-        if let Err(e) = f.write_all(&bytes) {
+        if let Err(e) = f.write_all(bytes) {
             let _ = std::fs::remove_file(&staging_path);
             panic!(
                 "failed to write staging file {}: {e}",
@@ -427,7 +627,7 @@ fn extract_to_cache(archive: &[u8], install_dir: &Path, platform: Platform) -> P
         }
 
         #[cfg(unix)]
-        {
+        if executable {
             use std::os::unix::fs::PermissionsExt;
             if let Err(e) = f.set_permissions(std::fs::Permissions::from_mode(0o755)) {
                 let _ = std::fs::remove_file(&staging_path);
@@ -472,32 +672,6 @@ fn extract_to_cache(archive: &[u8], install_dir: &Path, platform: Platform) -> P
             final_path.display()
         );
     }
-
-    // Surface where the binary landed so contributors can find it. Quiet
-    // on the hot path: the caller's `is_file()` short-circuit (and the
-    // safety net at the top of this function) means this only fires on a
-    // true cache miss.
-    println!(
-        "cargo:warning=Extracted Copilot CLI to {}",
-        final_path.display()
-    );
-
-    final_path
-}
-
-fn extract_runtime_library_bytes(archive: &[u8]) -> Option<Vec<u8>> {
-    let gz = flate2::read::GzDecoder::new(archive);
-    let mut tar = tar::Archive::new(gz);
-    for entry in tar.entries().ok()? {
-        let mut entry = entry.ok()?;
-        let name = entry.path().ok()?.to_string_lossy().into_owned();
-        if name == "runtime.node" || name.ends_with("/runtime.node") {
-            let mut bytes = Vec::with_capacity(entry.size() as usize);
-            entry.read_to_end(&mut bytes).ok()?;
-            return Some(bytes);
-        }
-    }
-    None
 }
 
 /// Replace characters outside `[a-zA-Z0-9._-]` with `_` so the version
@@ -512,37 +686,6 @@ fn sanitize_version(version: &str) -> String {
             _ => '_',
         })
         .collect()
-}
-
-/// Extract the single `binary_name` entry from the npm package archive. Reused
-/// between embed mode's `verify_binary_present_in_archive` and the
-/// `extract_to_cache` path used when `bundled-cli` is off. Panics if the
-/// entry isn't found — callers have already invoked
-/// `verify_binary_present_in_archive`.
-fn extract_binary_bytes(archive: &[u8], platform: Platform) -> Vec<u8> {
-    let gz = flate2::read::GzDecoder::new(archive);
-    let mut tar = tar::Archive::new(gz);
-    for entry in tar
-        .entries()
-        .unwrap_or_else(|e| panic!("failed to read tar entries: {e}"))
-    {
-        let mut entry = entry.unwrap_or_else(|e| panic!("failed to read tar entry: {e}"));
-        let path = entry
-            .path()
-            .unwrap_or_else(|e| panic!("failed to read tar entry path: {e}"));
-        let name = path.to_string_lossy().into_owned();
-        if name == platform.binary_name || name.ends_with(&format!("/{}", platform.binary_name)) {
-            let mut bytes = Vec::with_capacity(entry.size() as usize);
-            entry
-                .read_to_end(&mut bytes)
-                .unwrap_or_else(|e| panic!("failed to read tar entry bytes: {e}"));
-            return bytes;
-        }
-    }
-    panic!(
-        "binary `{}` not found in package `{}`",
-        platform.binary_name, platform.package_name
-    );
 }
 
 /// Read a file from the download cache, or download it (with retries) and save
@@ -682,15 +825,17 @@ fn try_download(url: &str) -> Result<Vec<u8>, DownloadError> {
     }
 }
 
-/// Walks the downloaded archive at build time to confirm an entry matching
-/// `binary_name` exists. Panics with a clear message if not.
-fn verify_binary_present_in_archive(archive: &[u8], binary_name: &str, package_name: &str) {
-    let found = archive_contains_tar_entry(archive, binary_name);
-    if !found {
+fn verify_runtime_package(archive: &[u8], platform: Platform, package_name: &str) {
+    for file_name in [
+        platform.binary_name,
+        "runtime.node",
+        platform.runtime_wrapper_name(),
+    ] {
+        if archive_contains_tar_entry(archive, file_name) {
+            continue;
+        }
         panic!(
-            "Copilot CLI package `{package_name}` does not contain an entry named `{binary_name}`. \
-             The package layout may have changed; runtime extraction would fail. \
-             Update `verify_binary_present_in_archive` in build.rs and the matching `extract_binary` in src/embeddedcli.rs."
+            "Copilot runtime package `{package_name}` does not contain an entry named `{file_name}`"
         );
     }
 }

@@ -26,6 +26,8 @@ public record PermissionDecisionContext(
     /** Controlled reason or actor responsible for the response. */
     @JsonProperty("source") PermissionDecisionSource source,
     /** Client surface that submitted the response. */
-    @JsonProperty("surface") PermissionDecisionSurface surface
+    @JsonProperty("surface") PermissionDecisionSurface surface,
+    /** Whether the responding client could ask a user interactively, was running headlessly, or had no response path. Omit when the client cannot determine this authoritatively. */
+    @JsonProperty("responseCapability") PermissionResponseCapability responseCapability
 ) {
 }

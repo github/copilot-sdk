@@ -337,6 +337,8 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
             var messages = await session.GetEventsAsync();
             var toolResult = FindToolCallResult(messages, "get_big_string");
             Assert.NotNull(toolResult);
+            // Windows reports the spilled file path with backslash separators.
+            toolResult = toolResult!.Replace('\\', '/');
             Assert.Contains($"{SessionFsConfig.SessionStatePath}/temp/", toolResult);
 
             var match = System.Text.RegularExpressions.Regex.Match(

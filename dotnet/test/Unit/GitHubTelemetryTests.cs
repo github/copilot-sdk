@@ -141,6 +141,89 @@ public sealed class GitHubTelemetryTests
     }
 
     [Fact]
+    public async Task Connect_Forwards_Declared_ClientInfo()
+    {
+        await using var server = await FakeTelemetryServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions
+        {
+            Connection = RuntimeConnection.ForUri(server.Url),
+            ClientInfo = new CopilotClientInfo
+            {
+                EditorName = "JetBrains-IU",
+                EditorVersion = "2026.1",
+                ExtensionName = "copilot-intellij",
+                ExtensionVersion = "1.5.0",
+            },
+        });
+        await client.StartAsync();
+
+        var connectParams = server.LastConnectParams ?? throw new InvalidOperationException("connect was not captured.");
+        Assert.True(connectParams.TryGetProperty("clientInfo", out var clientInfo));
+        Assert.Equal("JetBrains-IU", clientInfo.GetProperty("editorName").GetString());
+        Assert.Equal("2026.1", clientInfo.GetProperty("editorVersion").GetString());
+        Assert.Equal("copilot-intellij", clientInfo.GetProperty("extensionName").GetString());
+        Assert.Equal("1.5.0", clientInfo.GetProperty("extensionVersion").GetString());
+    }
+
+    [Fact]
+    public async Task Connect_Omits_ClientInfo_When_Unset()
+    {
+        await using var server = await FakeTelemetryServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions
+        {
+            Connection = RuntimeConnection.ForUri(server.Url),
+        });
+        await client.StartAsync();
+
+        var connectParams = server.LastConnectParams ?? throw new InvalidOperationException("connect was not captured.");
+        Assert.False(
+            connectParams.TryGetProperty("clientInfo", out _),
+            "connect request should omit clientInfo when none was declared");
+    }
+
+    [Fact]
+    public async Task Connect_Omits_Empty_ClientInfo_Fields()
+    {
+        await using var server = await FakeTelemetryServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions
+        {
+            Connection = RuntimeConnection.ForUri(server.Url),
+            ClientInfo = new CopilotClientInfo { EditorName = "example-editor", EditorVersion = "" },
+        });
+        await client.StartAsync();
+
+        var connectParams = server.LastConnectParams ?? throw new InvalidOperationException("connect was not captured.");
+        Assert.True(connectParams.TryGetProperty("clientInfo", out var clientInfo));
+        Assert.Equal("example-editor", clientInfo.GetProperty("editorName").GetString());
+        Assert.False(clientInfo.TryGetProperty("editorVersion", out _));
+        Assert.False(clientInfo.TryGetProperty("extensionName", out _));
+        Assert.False(clientInfo.TryGetProperty("extensionVersion", out _));
+    }
+
+    [Fact]
+    public async Task Connect_Omits_All_Empty_ClientInfo()
+    {
+        await using var server = await FakeTelemetryServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions
+        {
+            Connection = RuntimeConnection.ForUri(server.Url),
+            ClientInfo = new CopilotClientInfo
+            {
+                EditorName = "",
+                EditorVersion = "",
+                ExtensionName = "",
+                ExtensionVersion = "",
+            },
+        });
+        await client.StartAsync();
+
+        var connectParams = server.LastConnectParams ?? throw new InvalidOperationException("connect was not captured.");
+        Assert.False(
+            connectParams.TryGetProperty("clientInfo", out _),
+            "connect request should omit an all-empty clientInfo");
+    }
+
+    [Fact]
     public async Task CreateSession_Does_Not_Opt_In_Without_Handler()
     {
         await using var server = await FakeTelemetryServer.StartAsync();

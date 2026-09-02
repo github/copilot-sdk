@@ -21,6 +21,8 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record CapiSessionOptions(
+    /** Routing preference used when the session model is `auto`. The runtime persists the preference across cold resume. When omitted, the default routing behavior is used. Resuming an already-resident session cannot change its preference. */
+    @JsonProperty("autoTier") AutoTier autoTier,
     /** Whether to use WebSocket transport for the CAPI Responses API. Enabled by default when the model advertises `ws:/responses` support; set to `false` to force the HTTP Responses transport in environments where WebSockets are blocked (e.g. behind a proxy). Setting this to `false` is equivalent to the `COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES` environment variable. */
     @JsonProperty("enableWebSocketResponses") Boolean enableWebSocketResponses
 ) {

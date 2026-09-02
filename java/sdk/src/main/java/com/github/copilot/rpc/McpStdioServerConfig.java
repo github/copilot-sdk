@@ -45,7 +45,7 @@ public final class McpStdioServerConfig extends McpServerConfig {
     @JsonProperty("env")
     private Map<String, String> env;
 
-    @JsonProperty("workingDirectory")
+    @JsonProperty("cwd")
     private String workingDirectory;
 
     /**

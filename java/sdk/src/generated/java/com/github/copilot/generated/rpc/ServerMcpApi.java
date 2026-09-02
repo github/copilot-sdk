@@ -41,4 +41,15 @@ public final class ServerMcpApi {
         return caller.invoke("mcp.discover", params, McpDiscoverResult.class);
     }
 
+    /**
+     * A side-effect-free request for an MCP install plan. Computing a plan never writes configuration, stores a secret, or reloads MCP servers.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<McpPlanInstallResult> planInstall(McpPlanInstallParams params) {
+        return caller.invoke("mcp.planInstall", params, McpPlanInstallResult.class);
+    }
+
 }

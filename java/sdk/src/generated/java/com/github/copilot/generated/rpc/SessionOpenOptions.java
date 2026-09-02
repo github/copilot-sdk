@@ -67,7 +67,7 @@ public record SessionOpenOptions(
     @JsonProperty("models") List<ProviderModelConfig> models,
     /** Working directory to anchor the session. */
     @JsonProperty("workingDirectory") String workingDirectory,
-    /** Additional directories the agent may access beyond the working directory. Each entry is granted to the session's file-access allow-list and surfaced to the model (system prompt context and `@`-mention completion). Absolute paths are recommended; a relative path is resolved against the session's working directory. Nonexistent or unresolvable entries are skipped with a warning. This is applied on both session creation and resume, and is not persisted: a resumed session that omits this option does not retain previously supplied directories (re-supply them, exactly as the CLI re-passes `--add-dir`). */
+    /** Additional directories the agent may access beyond the working directory. Each entry is granted to the session's file-access allow-list and surfaced to the model (system prompt context and `@`-mention completion). Conventional `.github/skills/` and `.github/agents/` definitions under each directory also join the session's project catalogs when their existing subsystem gates are enabled: added-root skills require both `enableConfigDiscovery` and effective `enableSkills`; added-root agents require `enableConfigDiscovery`. Supplying a directory therefore activates configuration from it and should be treated as a trust decision. Absolute paths are recommended; a relative path is resolved against the session's working directory. Nonexistent or unresolvable entries are skipped with a warning. This is applied during session creation and cold resume and is not persisted, so a cold resume must re-supply the directories. */
     @JsonProperty("additionalDirectories") List<String> additionalDirectories,
     /** Pre-resolved working-directory context for session startup. */
     @JsonProperty("workingDirectoryContext") SessionContext workingDirectoryContext,
@@ -99,6 +99,8 @@ public record SessionOpenOptions(
     @JsonProperty("shellProcessFlags") List<String> shellProcessFlags,
     /** Resolved sandbox configuration. */
     @JsonProperty("sandboxConfig") SandboxConfig sandboxConfig,
+    /** Origin of the sandbox choice. The runtime uses this only for internal telemetry provenance; managed policy is derived independently. */
+    @JsonProperty("sandboxConfigSource") SandboxConfigSource sandboxConfigSource,
     /** Whether interactive shell sessions are logged. */
     @JsonProperty("logInteractiveShells") Boolean logInteractiveShells,
     /** How MCP server environment values are interpreted. */
@@ -109,6 +111,8 @@ public record SessionOpenOptions(
     @JsonProperty("allowAllMcpServerInstructions") Boolean allowAllMcpServerInstructions,
     /** Additional directories to search for skills. */
     @JsonProperty("skillDirectories") List<String> skillDirectories,
+    /** Built-in skill names to include in this session. When specified, only these runtime-bundled skills are available. Skills from other sources with the same name remain available. */
+    @JsonProperty("includedBuiltinSkills") List<String> includedBuiltinSkills,
     /** Skill IDs disabled for this session. */
     @JsonProperty("disabledSkills") List<String> disabledSkills,
     /** Installed plugins visible to the session. */
@@ -125,7 +129,7 @@ public record SessionOpenOptions(
     @JsonProperty("trajectoryFile") String trajectoryFile,
     /** Whether model responses stream as delta events. */
     @JsonProperty("enableStreaming") Boolean enableStreaming,
-    /** Experimental: enable native model citations (Anthropic models today), normalized onto the `assistant.message` event. Off by default; may change or be removed while the citations surface is experimental. */
+    /** Experimental: enable native model citations for supported Anthropic and OpenAI models, normalized onto the `assistant.message` event. Off by default; may change or be removed while the citations surface is experimental. */
     @JsonProperty("enableCitations") Boolean enableCitations,
     /** Override URL for the Copilot API endpoint. */
     @JsonProperty("copilotUrl") String copilotUrl,

@@ -100,6 +100,47 @@ class FfiRuntimeHostTest {
     }
 
     @Test
+    void startWithoutEntrypointPassesOnlyRuntimeOptions() throws Exception {
+        AtomicReference<byte[]> argvJson = new AtomicReference<>();
+        NativeBinding binding = new NativeBinding() {
+            @Override
+            public int hostStart(byte[] argv, int argvLen, byte[] env, int envLen) {
+                argvJson.set(argv);
+                return 11;
+            }
+
+            @Override
+            public boolean hostShutdown(int serverId) {
+                return true;
+            }
+
+            @Override
+            public int connectionOpen(int serverId, OutboundCallback callback, Pointer userData, byte[] extSource,
+                    int extSourceLen, byte[] extName, int extNameLen, byte[] connToken, int connTokenLen) {
+                return 21;
+            }
+
+            @Override
+            public boolean connectionWrite(int connectionId, byte[] data, int dataLen) {
+                return true;
+            }
+
+            @Override
+            public boolean connectionClose(int connectionId) {
+                return true;
+            }
+        };
+
+        try (FfiRuntimeHost host = new FfiRuntimeHost(binding, "/tmp/runtime.node")) {
+            host.start(null, new CopilotClientOptions().setLogLevel("debug"));
+        }
+
+        List<String> argv = MAPPER.readValue(argvJson.get(), new TypeReference<List<String>>() {
+        });
+        assertEquals(List.of("--log-level", "debug"), argv);
+    }
+
+    @Test
     void callbackExceptionIsContainedAndDoesNotEscapeAcrossFfiBoundary() {
         AtomicBoolean callbackReturned = new AtomicBoolean(false);
         NativeBinding binding = new NativeBinding() {

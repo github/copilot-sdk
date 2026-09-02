@@ -7,6 +7,43 @@ See [GitHub Releases](https://github.com/github/copilot-sdk/releases) for the fu
 
 ## [Unreleased]
 
+### Feature: declare host identity with client info
+
+Client options now accept optional client info (editor name and version, extension name and version) across all six SDKs, exposed idiomatically per language (`clientInfo` in Node.js, `client_info` in Python and Rust, `ClientInfo` in Go and .NET, `setClientInfo` in Java). When set, the SDK forwards it on the `server.connect` handshake so the telemetry the runtime emits on the connection is attributed to the host editor and its Copilot extension instead of the runtime's own build. All fields are optional, and leaving client info unset keeps the runtime's default attribution. See [Client info](./docs/features/client-info.md).
+
+### Feature: Node Agent Factories pagination and run notifications
+
+The experimental Node.js Agent Factories convenience API now supports paginated run history. Existing `session.factory.listRuns()` calls still return the runs array, while calls with `afterSeq`, `beforeSeq`, or `limit` return the full page with cursor and truncation metadata.
+
+Factory `run` and `resume` options now accept `notifyOnComplete` and `logPhaseNames`. The SDK forwards these options to the Copilot CLI for new and resumed runs.
+
+### Feature: selectable `ask_user` session behavior
+
+Session create and cold resume now accept a language-specific `askUserVariant` option with `legacy` and `elicitation` values. SDK sessions retain the legacy question-and-answer tool by default. Select `elicitation` and provide an elicitation handler to expose the structured form-based `ask_user` tool.
+
+### Feature: rotating session-scoped GitHub credentials
+
+All six SDKs can now acquire short-lived GitHub credentials through a session-scoped callback. The SDK registers the callback before session create or resume, maps `initial` and `refresh` requests to the owning session, and removes registrations on rollback, replacement, session close, and client close. Static per-session `gitHubToken` credentials remain supported and are mutually exclusive with the callback.
+
+Token responses use the shared tagged token/cancelled shape and require `expiresIn`, expressed as the positive number of seconds remaining when the callback completes. See [github/copilot-agent-runtime#16381](https://github.com/github/copilot-agent-runtime/pull/16381) for the runtime credential-authority implementation.
+
+Initial acquisition occurs during create or resume; cancellation, callback errors, and invalid credentials reject that operation instead of falling back to ambient authentication. Idle sessions refresh only before their next credential-consuming operation.
+
+### Feature: extensions can request sensitive environment variables
+
+Copilot CLI extensions can now ask for named sensitive environment variables when they join a session. `joinSession()` accepts a `requestedEnvironmentVariables` option listing the variable names the extension needs. The CLI shows a permission prompt naming the extension and the exact variables requested. On approval, only those variables reach that extension and their values are written into the extension process's `process.env` before `joinSession()` resolves. On denial, `joinSession()` rejects, the extension does not load, and its tools never reach the model.
+
+An approval is remembered against the exact set of names the user saw, so an extension that later asks for one more variable prompts again. Names that are unset, or that the CLI does not filter from extensions, are not prompted for. This is the client half of the feature; it requires a Copilot CLI that supports extension environment access, and older CLIs ignore the request and grant nothing.
+
+```ts
+import { joinSession } from "@github/copilot-sdk/extension";
+
+const session = await joinSession({
+    requestedEnvironmentVariables: ["GITHUB_TOKEN"],
+});
+const token = process.env.GITHUB_TOKEN;
+```
+
 ### Feature: host-injected managed settings permissions
 
 Session create and resume accept a new optional `managedSettings` option that injects an enterprise permissions policy at session startup, alongside the existing `enableManagedSettings` self-fetch flag. The current contract is permissions-only: `disableBypassPermissionsMode` (the literal `"disable"`), plus `deny`, `ask`, and `allow` rule lists. The layer composes restrictively with any server- or device-level managed settings (deny/ask are unioned, every present allow list must admit a tool, and `disableBypassPermissionsMode` is deny-wins).

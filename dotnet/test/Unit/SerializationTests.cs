@@ -656,6 +656,46 @@ public class SerializationTests
     }
 
     [Fact]
+    public void SessionRequests_CanSerializeFeatureFlags_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+        var flags = new Dictionary<string, bool>
+        {
+            ["ENABLED_TEST_FLAG"] = true,
+            ["DISABLED_TEST_FLAG"] = false,
+        };
+
+        foreach (var requestName in new[] { "CreateSessionRequest", "ResumeSessionRequest" })
+        {
+            var requestType = GetNestedType(typeof(CopilotClient), requestName);
+            var request = CreateInternalRequest(
+                requestType,
+                ("SessionId", "session-id"),
+                ("FeatureFlags", flags));
+            using var document = JsonDocument.Parse(
+                JsonSerializer.Serialize(request, requestType, options));
+            var serializedFlags = document.RootElement.GetProperty("featureFlags");
+            Assert.True(serializedFlags.GetProperty("ENABLED_TEST_FLAG").GetBoolean());
+            Assert.False(serializedFlags.GetProperty("DISABLED_TEST_FLAG").GetBoolean());
+        }
+    }
+
+    [Fact]
+    public void SessionConfigClone_CopiesFeatureFlags()
+    {
+        var config = new SessionConfig
+        {
+            FeatureFlags = new Dictionary<string, bool> { ["TEST_FLAG"] = true },
+        };
+
+        var clone = config.Clone();
+        clone.FeatureFlags!["TEST_FLAG"] = false;
+
+        Assert.True(config.FeatureFlags["TEST_FLAG"]);
+        Assert.False(clone.FeatureFlags["TEST_FLAG"]);
+    }
+
+    [Fact]
     public void CreateSessionRequest_CanSerializeEnableSessionTelemetry_WithSdkOptions()
     {
         var options = GetSerializerOptions();

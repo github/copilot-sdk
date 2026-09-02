@@ -114,6 +114,17 @@ public final class SessionMcpApi {
     }
 
     /**
+     * Identifies the target session.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionMcpMoveLoadingToBackgroundResult> moveLoadingToBackground() {
+        return caller.invoke("session.mcp.moveLoadingToBackground", java.util.Map.of("sessionId", this.sessionId), SessionMcpMoveLoadingToBackgroundResult.class);
+    }
+
+    /**
      * Opaque MCP reload configuration.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
@@ -189,7 +200,7 @@ public final class SessionMcpApi {
     }
 
     /**
-     * Opaque auth info used to configure GitHub MCP.
+     * Credential-free authentication identity used to configure GitHub MCP.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

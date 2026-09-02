@@ -4,9 +4,6 @@ env:
   HUSKY: 0
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
   workflow_call:
 

@@ -9,9 +9,13 @@ import static org.junit.jupiter.api.Assertions.*;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.URI;
+import java.nio.file.Path;
+import java.util.Map;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
+import com.github.copilot.ffi.NativeRuntimeLoader;
 import com.github.copilot.rpc.CopilotClientOptions;
 import com.github.copilot.rpc.TelemetryConfig;
 
@@ -21,6 +25,47 @@ import com.github.copilot.rpc.TelemetryConfig;
  * by JaCoCo.
  */
 class CliServerManagerTest {
+
+    @TempDir
+    Path tempDir;
+
+    @Test
+    void explicitCliPathDoesNotRequireRuntimeBundle() throws Exception {
+        Path explicit = tempDir.resolve("copilot");
+        var manager = new CliServerManager(new CopilotClientOptions().setCliPath(explicit.toString()));
+
+        assertEquals(explicit.toString(), manager.resolveCliLaunch().executable());
+    }
+
+    @Test
+    void inheritedCliPathEnvironmentOverrideDoesNotRequireRuntimeBundle() throws Exception {
+        Path inherited = tempDir.resolve("copilot-runtime");
+        var manager = new CliServerManager(new CopilotClientOptions());
+
+        assertEquals(inherited.toString(), manager.resolveCliLaunch(inherited.toString()).executable());
+    }
+
+    @Test
+    void configuredEnvironmentCliPathOverridesInheritedEnvironment() throws Exception {
+        Path inherited = tempDir.resolve("inherited-copilot-runtime");
+        Path configured = tempDir.resolve("configured-copilot-runtime");
+        var options = new CopilotClientOptions()
+                .setEnvironment(Map.of(NativeRuntimeLoader.COPILOT_CLI_PATH_ENV, configured.toString()));
+        var manager = new CliServerManager(options);
+
+        assertEquals(configured.toString(), manager.resolveCliLaunch(inherited.toString()).executable());
+    }
+
+    @Test
+    void explicitCliPathOverridesEnvironment() throws Exception {
+        Path explicit = tempDir.resolve("explicit-copilot-runtime");
+        Path configured = tempDir.resolve("configured-copilot-runtime");
+        var options = new CopilotClientOptions().setCliPath(explicit.toString())
+                .setEnvironment(Map.of(NativeRuntimeLoader.COPILOT_CLI_PATH_ENV, configured.toString()));
+        var manager = new CliServerManager(options);
+
+        assertEquals(explicit.toString(), manager.resolveCliLaunch("inherited-copilot-runtime").executable());
+    }
 
     // ===== parseCliUrl tests =====
 
@@ -70,20 +115,13 @@ class CliServerManagerTest {
         }
     }
 
-    private static Process startBlockingProcess() throws IOException {
-        boolean isWindows = System.getProperty("os.name").toLowerCase().contains("windows");
-        return (isWindows
-                ? new ProcessBuilder(System.getenv("COMSPEC"), "/c", "more")
-                : new ProcessBuilder("/usr/bin/cat")).start();
-    }
-
     @Test
     void connectToServerStdioMode() throws Exception {
         var options = new CopilotClientOptions();
         var manager = new CliServerManager(options);
 
         // Create a dummy process for stdio mode
-        Process process = startBlockingProcess();
+        Process process = new TestProcess();
         try {
             JsonRpcClient client = manager.connectToServer(process, null, null);
             assertNotNull(client);

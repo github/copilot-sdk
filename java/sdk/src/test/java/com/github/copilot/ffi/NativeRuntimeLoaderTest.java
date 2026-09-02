@@ -40,6 +40,7 @@ class NativeRuntimeLoaderTest {
     private static final String TEST_NATIVE_VERSION = "0.0.1-test";
     private static final byte[] FAKE_BINARY_CONTENT = "fake runtime.node binary content".getBytes();
     private static final byte[] FAKE_CLI_CONTENT = "fake copilot CLI content".getBytes();
+    private static final byte[] FAKE_WRAPPER_CONTENT = "fake runtime wrapper content".getBytes();
     private static final byte[] OTHER_BINARY_CONTENT = "other runtime.node binary content".getBytes();
     private static final byte[] OTHER_CLI_CONTENT = "other copilot CLI content".getBytes();
 
@@ -153,18 +154,21 @@ class NativeRuntimeLoaderTest {
     }
 
     @Test
-    void resolveFromCliPathReturnsAbsolutePathForRelativeCliPath(@TempDir Path tempDir) throws Exception {
+    void resolveFromCliPathReturnsAbsolutePathForRelativeCliPath() throws Exception {
         Path workingDirectory = Path.of("").toAbsolutePath();
-        Path fakeCliDir = tempDir.resolve("cli-dir");
-        Files.createDirectories(fakeCliDir);
-        Path fakeCliPath = fakeCliDir.resolve("copilot");
-        Files.createFile(fakeCliPath);
-        Path runtimeNode = fakeCliDir.resolve(NativeRuntimeLoader.RUNTIME_FILENAME);
-        Files.write(runtimeNode, FAKE_BINARY_CONTENT);
+        Path fakeCliDir = Files.createTempDirectory(workingDirectory.resolve("target"), "relative-cli-");
+        try {
+            Path fakeCliPath = Files.createFile(fakeCliDir.resolve("copilot"));
+            Path runtimeNode = Files.write(fakeCliDir.resolve(NativeRuntimeLoader.RUNTIME_FILENAME),
+                    FAKE_BINARY_CONTENT);
+            Path relativeCliPath = workingDirectory.relativize(fakeCliPath);
 
-        Path relativeCliPath = workingDirectory.relativize(fakeCliPath);
-
-        assertEquals(runtimeNode, NativeRuntimeLoader.resolveFromCliPath(relativeCliPath.toString()));
+            assertEquals(runtimeNode, NativeRuntimeLoader.resolveFromCliPath(relativeCliPath.toString()));
+        } finally {
+            Files.deleteIfExists(fakeCliDir.resolve(NativeRuntimeLoader.RUNTIME_FILENAME));
+            Files.deleteIfExists(fakeCliDir.resolve("copilot"));
+            Files.deleteIfExists(fakeCliDir);
+        }
     }
 
     @Test
@@ -524,6 +528,51 @@ class NativeRuntimeLoaderTest {
     }
 
     @Test
+    void resolveRuntimeWrapperExtractsAdjacentPairFromAbsentCache(@TempDir Path tempDir) throws Exception {
+        Path cacheBase = tempDir.resolve("cache");
+        assertFalse(Files.exists(cacheBase));
+        ClassLoader loader = classLoaderWithRuntimeWrapperArtifacts(tempDir, TEST_CLASSIFIER, TEST_NATIVE_VERSION);
+
+        Path wrapper = NativeRuntimeLoader.resolveRuntimeWrapper(cacheBase, loader, TEST_CLASSIFIER, TEST_VERSION);
+
+        assertEquals(NativeRuntimeLoader.RUNTIME_WRAPPER_FILENAME, wrapper.getFileName().toString());
+        assertTrue(Files.isRegularFile(wrapper));
+        assertTrue(Files.isRegularFile(wrapper.resolveSibling(NativeRuntimeLoader.RUNTIME_FILENAME)));
+        assertFalse(Files.exists(wrapper.resolveSibling(NativeRuntimeLoader.CLI_FILENAME)));
+    }
+
+    @Test
+    void resolveRuntimeWrapperExtractsRetainedRuntimeAssets(@TempDir Path tempDir) throws Exception {
+        Path resourceDir = tempDir.resolve("native").resolve(TEST_CLASSIFIER);
+        writeRuntimeResource(tempDir, TEST_CLASSIFIER, FAKE_BINARY_CONTENT);
+        Files.write(resourceDir.resolve(NativeRuntimeLoader.RUNTIME_WRAPPER_FILENAME), FAKE_WRAPPER_CONTENT);
+        Path ripgrep = resourceDir.resolve("ripgrep/bin/linux-x64/rg");
+        Files.createDirectories(ripgrep.getParent());
+        Files.writeString(ripgrep, "ripgrep");
+        Files.writeString(resourceDir.resolve(NativeRuntimeLoader.RUNTIME_ASSETS_FILENAME),
+                "644\truntime.node\n" + "755\tcopilot-runtime\n" + "755\tripgrep/bin/linux-x64/rg\n");
+        ClassLoader loader = new URLClassLoader(new URL[]{tempDir.toUri().toURL()}, null);
+
+        Path wrapper = NativeRuntimeLoader.resolveRuntimeWrapper(tempDir.resolve("cache"), loader, TEST_CLASSIFIER,
+                TEST_VERSION);
+
+        Path installedRipgrep = wrapper.getParent().resolve("ripgrep/bin/linux-x64/rg");
+        assertEquals("ripgrep", Files.readString(installedRipgrep));
+        assertTrue(Files.isExecutable(installedRipgrep));
+    }
+
+    @Test
+    void resolveRuntimeWrapperRejectsClassifierWithoutWrapper(@TempDir Path tempDir) throws Exception {
+        writeRuntimeResource(tempDir, TEST_CLASSIFIER, FAKE_BINARY_CONTENT);
+        ClassLoader loader = new URLClassLoader(new URL[]{tempDir.toUri().toURL()}, null);
+
+        IOException error = assertThrows(IOException.class, () -> NativeRuntimeLoader
+                .resolveRuntimeWrapper(tempDir.resolve("cache"), loader, TEST_CLASSIFIER, TEST_VERSION));
+
+        assertTrue(error.getMessage().contains(NativeRuntimeLoader.RUNTIME_WRAPPER_FILENAME));
+    }
+
+    @Test
     void resolveThrowsWhenNoSourceIsAvailable(@TempDir Path tempDir) {
         assumeLinuxX64();
         Path cacheBase = tempDir.resolve("cache");
@@ -589,6 +638,18 @@ class NativeRuntimeLoaderTest {
         writeRuntimeResource(tempDir, classifier, runtimeContent);
         Path resourceDir = tempDir.resolve("native").resolve(classifier);
         Files.write(resourceDir.resolve(NativeRuntimeLoader.CLI_FILENAME), cliContent);
+        Files.write(resourceDir.resolve(NativeRuntimeLoader.RUNTIME_WRAPPER_FILENAME), FAKE_WRAPPER_CONTENT);
+        Files.writeString(resourceDir.resolve("platform.properties"),
+                "classifier=" + classifier + "\nversion=" + nativeVersion + "\n");
+        return new URLClassLoader(new URL[]{tempDir.toUri().toURL()}, null);
+    }
+
+    private static ClassLoader classLoaderWithRuntimeWrapperArtifacts(Path tempDir, String classifier,
+            String nativeVersion) throws IOException {
+        writeRuntimeResource(tempDir, classifier, FAKE_BINARY_CONTENT);
+        Path resourceDir = tempDir.resolve("native").resolve(classifier);
+        Files.write(resourceDir.resolve(NativeRuntimeLoader.RUNTIME_WRAPPER_FILENAME), FAKE_WRAPPER_CONTENT);
+        Files.write(resourceDir.resolve(NativeRuntimeLoader.CLI_FILENAME), FAKE_CLI_CONTENT);
         Files.writeString(resourceDir.resolve("platform.properties"),
                 "classifier=" + classifier + "\nversion=" + nativeVersion + "\n");
         return new URLClassLoader(new URL[]{tempDir.toUri().toURL()}, null);

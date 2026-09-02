@@ -23,6 +23,13 @@ public class CloneTests
             BuiltinPluginDirectories = ["/plugins/core", "/plugins/github"],
             EnableRemoteSessions = true,
             SessionIdleTimeoutSeconds = 600,
+            ClientInfo = new CopilotClientInfo
+            {
+                EditorName = "example-editor",
+                EditorVersion = "1.0.0",
+                ExtensionName = "example-extension",
+                ExtensionVersion = "2.0.0",
+            },
         };
 
         var clone = original.Clone();
@@ -38,6 +45,7 @@ public class CloneTests
         Assert.NotSame(original.BuiltinPluginDirectories, clone.BuiltinPluginDirectories);
         Assert.Equal(original.EnableRemoteSessions, clone.EnableRemoteSessions);
         Assert.Equal(original.SessionIdleTimeoutSeconds, clone.SessionIdleTimeoutSeconds);
+        Assert.Same(original.ClientInfo, clone.ClientInfo);
     }
 
     [Fact]
@@ -73,6 +81,7 @@ public class CloneTests
             ReasoningEffort = "high",
             ReasoningSummary = ReasoningSummary.Detailed,
             ContextTier = ContextTier.LongContext,
+            AskUserVariant = AskUserVariant.Elicitation,
             ConfigDirectory = "/config",
             AvailableTools = ["tool1", "tool2"],
             ExcludedTools = ["tool3"],
@@ -121,6 +130,7 @@ public class CloneTests
         Assert.Equal(original.ReasoningEffort, clone.ReasoningEffort);
         Assert.Equal(original.ReasoningSummary, clone.ReasoningSummary);
         Assert.Equal(original.ContextTier, clone.ContextTier);
+        Assert.Equal(original.AskUserVariant, clone.AskUserVariant);
         Assert.Equal(original.ConfigDirectory, clone.ConfigDirectory);
         Assert.Equal(original.AvailableTools, clone.AvailableTools);
         Assert.Equal(original.ExcludedTools, clone.ExcludedTools);
