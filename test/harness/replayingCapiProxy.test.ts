@@ -1592,8 +1592,14 @@ Always include PINEAPPLE_COCONUT_42.
     });
 
     test.each([
-      { storedModels: undefined, expected: ["claude-sonnet-5"] },
-      { storedModels: [], expected: ["claude-sonnet-5"] },
+      {
+        storedModels: undefined,
+        expected: ["claude-sonnet-5", "claude-sonnet-4.5"],
+      },
+      {
+        storedModels: [],
+        expected: ["claude-sonnet-5", "claude-sonnet-4.5"],
+      },
       {
         storedModels: ["claude-sonnet-4.5"],
         expected: ["claude-sonnet-5", "claude-sonnet-4.5"],

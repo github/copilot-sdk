@@ -184,6 +184,7 @@ func TestSessionConfigE2E(t *testing.T) {
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			Model:               "claude-sonnet-4.5",
 			ModelCapabilities: &copilot.ModelCapabilitiesOverride{
 				Supports: &copilot.ModelCapabilitiesOverrideSupports{
 					Vision: copilot.Bool(false),
@@ -238,6 +239,7 @@ func TestSessionConfigE2E(t *testing.T) {
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			Model:               "claude-sonnet-4.5",
 			ModelCapabilities: &copilot.ModelCapabilitiesOverride{
 				Supports: &copilot.ModelCapabilitiesOverrideSupports{
 					Vision: copilot.Bool(true),

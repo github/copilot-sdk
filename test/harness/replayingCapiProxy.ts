@@ -415,10 +415,12 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
         // Handle /models endpoint
         // Use stored models if available, otherwise use default model
         if (options.requestOptions.path === "/models") {
+          // Tests that explicitly select the legacy model may not send inference
+          // requests, so they have no capture file to advertise that model.
           let models =
             state.storedData?.models && state.storedData.models.length > 0
               ? state.storedData.models
-              : [defaultModel];
+              : [defaultModel, "claude-sonnet-4.5"];
           // Historical captures used Sonnet 4.5 as the default. Keep it available
           // for explicit selection, but offer a supported default for unpinned
           // sessions without rewriting model-independent conversation captures.

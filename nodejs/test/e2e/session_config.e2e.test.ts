@@ -119,6 +119,7 @@ describe("Session Configuration", async () => {
 
         const session = await client.createSession({
             onPermissionRequest: approveAll,
+            model: "claude-sonnet-4.5",
             modelCapabilities: { supports: { vision: false } },
         });
 
@@ -149,6 +150,7 @@ describe("Session Configuration", async () => {
 
         const session = await client.createSession({
             onPermissionRequest: approveAll,
+            model: "claude-sonnet-4.5",
             modelCapabilities: { supports: { vision: true } },
         });
 
