@@ -8,7 +8,7 @@
     <parent>
         <groupId>com.github</groupId>
         <artifactId>copilot-sdk-java-parent</artifactId>
-        <version>1.0.14-preview.2-SNAPSHOT</version>
+        <version>1.0.14-preview.4-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -632,6 +632,8 @@ did not produce the multi-release output. Re-build on JDK 25+ and verify the
                             <excludes>
                                 <exclude>**/AskUserTest.java</exclude>
                                 <exclude>**/CompactionTest.java</exclude>
+                                <!-- Subprocess coverage remains in both JDK jobs. -->
+                                <exclude>**/CopilotClientTest.java</exclude>
                                 <exclude>**/CopilotSessionTest.java</exclude>
                                 <exclude>**/ErrorHandlingTest.java</exclude>
                                 <exclude>**/EventFidelityTest.java</exclude>

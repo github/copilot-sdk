@@ -342,6 +342,18 @@ func NewClient(options *ClientOptions) *Client {
 	return client
 }
 
+func resolveRuntimeExecutable(explicitPath, bundledRuntimePath string) (string, error) {
+	if explicitPath != "" {
+		return explicitPath, nil
+	}
+	if bundledRuntimePath == "" {
+		return "", errors.New(
+			"managed Copilot runtime unavailable: the embedded bundle does not contain copilot-runtime and adjacent runtime.node; regenerate the bundle, provide an explicit path, or set COPILOT_CLI_PATH",
+		)
+	}
+	return bundledRuntimePath, nil
+}
+
 const defaultConnectionEnvVar = "COPILOT_SDK_DEFAULT_CONNECTION"
 
 // resolveDefaultConnection selects the transport when no explicit connection
@@ -805,12 +817,22 @@ func hasManagedSettings(enableManagedSettings *bool, managedSettings *ManagedSet
 	return (enableManagedSettings != nil && *enableManagedSettings) || managedSettings != nil
 }
 
+func validateAskUserVariant(variant AskUserVariant) error {
+	if variant != "" && variant != AskUserVariantLegacy && variant != AskUserVariantElicitation {
+		return fmt.Errorf("invalid AskUserVariant %q: expected %q, %q, or unset", variant, AskUserVariantLegacy, AskUserVariantElicitation)
+	}
+	return nil
+}
+
 func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Session, error) {
 	if config == nil {
 		config = &SessionConfig{}
 	}
 	if config.GitHubToken != "" && config.GitHubTokenProvider != nil {
 		return nil, fmt.Errorf("GitHubToken and GitHubTokenProvider cannot be used together")
+	}
+	if err := validateAskUserVariant(config.AskUserVariant); err != nil {
+		return nil, err
 	}
 
 	if err := c.ensureConnected(ctx); err != nil {
@@ -859,6 +881,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.Capi = config.Capi
 	req.Providers = config.Providers
 	req.Models = config.Models
+	req.AskUserVariant = config.AskUserVariant
 	req.EnableSessionTelemetry = config.EnableSessionTelemetry
 	req.EnableCitations = config.EnableCitations
 	req.EnableFileChangeTracking = config.EnableFileChangeTracking
@@ -900,6 +923,9 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.ExtensionSDKPath = config.ExtensionSDKPath
 	req.ExtensionInfo = config.ExtensionInfo
 	req.ExpAssignments = config.ExpAssignments
+	if config.FeatureFlags != nil {
+		req.FeatureFlags = &config.FeatureFlags
+	}
 	req.EnableManagedSettings = config.EnableManagedSettings
 	req.ManagedSettings = config.ManagedSettings
 
@@ -1187,6 +1213,9 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	if config.GitHubToken != "" && config.GitHubTokenProvider != nil {
 		return nil, fmt.Errorf("GitHubToken and GitHubTokenProvider cannot be used together")
 	}
+	if err := validateAskUserVariant(config.AskUserVariant); err != nil {
+		return nil, err
+	}
 
 	if err := c.ensureConnected(ctx); err != nil {
 		return nil, err
@@ -1217,6 +1246,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	req.Capi = config.Capi
 	req.Providers = config.Providers
 	req.Models = config.Models
+	req.AskUserVariant = config.AskUserVariant
 	req.EnableSessionTelemetry = config.EnableSessionTelemetry
 	req.IsExperimentalMode = config.EnableExperimentalMode
 	req.SkipCustomInstructions = config.SkipCustomInstructions
@@ -1306,6 +1336,9 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	req.ExtensionSDKPath = config.ExtensionSDKPath
 	req.ExtensionInfo = config.ExtensionInfo
 	req.ExpAssignments = config.ExpAssignments
+	if config.FeatureFlags != nil {
+		req.FeatureFlags = &config.FeatureFlags
+	}
 	req.EnableManagedSettings = config.EnableManagedSettings
 	req.ManagedSettings = config.ManagedSettings
 	if config.OnPermissionRequest != nil {
@@ -1935,6 +1968,10 @@ func (c *Client) verifyProtocolVersion(ctx context.Context) error {
 	if c.options.OnGitHubTelemetry != nil {
 		connectReq.EnableGitHubTelemetryForwarding = Bool(true)
 	}
+	// Declare the integrating host's identity so the runtime attributes the
+	// telemetry it emits on this connection to a consistent surface instead of
+	// its own build. Nil when the app didn't supply it.
+	connectReq.ClientInfo = c.options.ClientInfo.toWire()
 	rawConnectResult, err := c.client.Request(ctx, "connect", connectReq)
 	if err != nil {
 		var rpcErr *jsonrpc2.Error
@@ -1971,8 +2008,9 @@ func (c *Client) verifyProtocolVersion(ctx context.Context) error {
 }
 
 type connectHandshakeRequest struct {
-	Token                           *string `json:"token,omitempty"`
-	EnableGitHubTelemetryForwarding *bool   `json:"enableGitHubTelemetryForwarding,omitempty"`
+	Token                           *string                `json:"token,omitempty"`
+	EnableGitHubTelemetryForwarding *bool                  `json:"enableGitHubTelemetryForwarding,omitempty"`
+	ClientInfo                      *rpc.ConnectClientInfo `json:"clientInfo,omitempty"`
 }
 
 // stderrBufferSize is the maximum number of bytes kept from the CLI process's
@@ -1989,14 +2027,13 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 		return c.startInProcess(ctx)
 	}
 
-	cliPath := c.cliPath
-	if cliPath == "" {
-		// If no CLI path is provided, attempt to use the embedded CLI if available
-		cliPath = embeddedcli.Path()
+	bundledRuntimePath := ""
+	if c.cliPath == "" {
+		bundledRuntimePath = embeddedcli.RuntimePath()
 	}
-	if cliPath == "" {
-		// Default to "copilot" in PATH if no embedded CLI is available and no custom path is set
-		cliPath = "copilot"
+	cliPath, err := resolveRuntimeExecutable(c.cliPath, bundledRuntimePath)
+	if err != nil {
+		return err
 	}
 
 	// Start with user-provided CLIArgs, then add SDK-managed args
@@ -2197,24 +2234,21 @@ func (c *Client) startInProcess(ctx context.Context) error {
 		return errors.New("in-process transport unavailable: rebuild with -tags copilot_inprocess on a supported platform")
 	}
 
-	runtimePath := c.cliPath
+	cliEntrypoint := c.cliPath
+	if cliEntrypoint == "" {
+		cliEntrypoint = getEnvValue(c.options.Env, "COPILOT_CLI_PATH")
+	}
+	runtimePath := cliEntrypoint
 	if runtimePath == "" {
-		// The in-process transport does not resolve a bare command name from PATH
-		// (unlike the child-process transport).
-		if p := getEnvValue(c.options.Env, "COPILOT_CLI_PATH"); p != "" {
-			runtimePath = p
-		}
+		runtimePath = embeddedcli.RuntimePath()
 	}
 	if runtimePath == "" {
-		runtimePath = embeddedcli.Path()
-	}
-	if runtimePath == "" {
-		return errors.New("in-process runtime unavailable: set COPILOT_CLI_PATH to a compatible runtime package or build with the bundled embedded runtime")
+		return errors.New("in-process runtime unavailable: build with the bundled embedded runtime or set COPILOT_CLI_PATH to a compatible runtime package")
 	}
 
 	config := c.inProcessHostConfig()
 
-	host, err := createInProcessHost(runtimePath, config)
+	host, err := createInProcessHost(runtimePath, cliEntrypoint, config)
 	if err != nil {
 		return err
 	}

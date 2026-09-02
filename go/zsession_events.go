@@ -23,6 +23,8 @@ type (
 	AssistantMessageServerTools                                    = rpc.AssistantMessageServerTools
 	AssistantMessageStartData                                      = rpc.AssistantMessageStartData
 	AssistantMessageToolRequest                                    = rpc.AssistantMessageToolRequest
+	AssistantMessageToolRequestCaller                              = rpc.AssistantMessageToolRequestCaller
+	AssistantMessageToolRequestCallerType                          = rpc.AssistantMessageToolRequestCallerType
 	AssistantMessageToolRequestType                                = rpc.AssistantMessageToolRequestType
 	AssistantReasoningData                                         = rpc.AssistantReasoningData
 	AssistantReasoningDeltaData                                    = rpc.AssistantReasoningDeltaData
@@ -292,6 +294,7 @@ type (
 	SessionMode                                                    = rpc.SessionMode
 	SessionModeChangedData                                         = rpc.SessionModeChangedData
 	SessionModelChangeData                                         = rpc.SessionModelChangeData
+	SessionModeNoticeDeliveredData                                 = rpc.SessionModeNoticeDeliveredData
 	SessionPermissionsChangedData                                  = rpc.SessionPermissionsChangedData
 	SessionPlanChangedData                                         = rpc.SessionPlanChangedData
 	SessionRemoteSteerableChangedData                              = rpc.SessionRemoteSteerableChangedData
@@ -424,6 +427,7 @@ const (
 	AgentInterruptedActivityToolCall                                   = rpc.AgentInterruptedActivityToolCall
 	AgentInterruptedCancelPhaseMidStream                               = rpc.AgentInterruptedCancelPhaseMidStream
 	AgentInterruptedCancelPhasePreFirstToken                           = rpc.AgentInterruptedCancelPhasePreFirstToken
+	AssistantMessageToolRequestCallerTypeProgram                       = rpc.AssistantMessageToolRequestCallerTypeProgram
 	AssistantMessageToolRequestTypeCustom                              = rpc.AssistantMessageToolRequestTypeCustom
 	AssistantMessageToolRequestTypeFunction                            = rpc.AssistantMessageToolRequestTypeFunction
 	AssistantUsageAPIEndpointChatCompletions                           = rpc.AssistantUsageAPIEndpointChatCompletions
@@ -548,6 +552,7 @@ const (
 	ManagedSettingsResolvedSourceDevice                                = rpc.ManagedSettingsResolvedSourceDevice
 	ManagedSettingsResolvedSourceMixed                                 = rpc.ManagedSettingsResolvedSourceMixed
 	ManagedSettingsResolvedSourceNone                                  = rpc.ManagedSettingsResolvedSourceNone
+	ManagedSettingsResolvedSourcePolicyHelper                          = rpc.ManagedSettingsResolvedSourcePolicyHelper
 	ManagedSettingsResolvedSourceServer                                = rpc.ManagedSettingsResolvedSourceServer
 	MCPHeadersRefreshCompletedOutcomeHeaders                           = rpc.MCPHeadersRefreshCompletedOutcomeHeaders
 	MCPHeadersRefreshCompletedOutcomeNone                              = rpc.MCPHeadersRefreshCompletedOutcomeNone
@@ -754,6 +759,7 @@ const (
 	SessionEventTypeSessionMCPServerStatusChanged                      = rpc.SessionEventTypeSessionMCPServerStatusChanged
 	SessionEventTypeSessionModeChanged                                 = rpc.SessionEventTypeSessionModeChanged
 	SessionEventTypeSessionModelChange                                 = rpc.SessionEventTypeSessionModelChange
+	SessionEventTypeSessionModeNoticeDelivered                         = rpc.SessionEventTypeSessionModeNoticeDelivered
 	SessionEventTypeSessionPermissionsChanged                          = rpc.SessionEventTypeSessionPermissionsChanged
 	SessionEventTypeSessionPlanChanged                                 = rpc.SessionEventTypeSessionPlanChanged
 	SessionEventTypeSessionRemoteSteerableChanged                      = rpc.SessionEventTypeSessionRemoteSteerableChanged

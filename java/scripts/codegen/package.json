@@ -7,8 +7,8 @@
     "generate:java": "tsx java.ts"
   },
   "dependencies": {
-    "@github/copilot": "^1.0.82-0",
+    "@github/copilot": "^1.0.83-1",
     "json-schema": "^0.4.0",
-    "tsx": "^4.23.12"
+    "tsx": "^4.23.13"
   }
 }

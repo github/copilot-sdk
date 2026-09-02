@@ -22,6 +22,8 @@ public enum ManagedSettingsResolvedSource {
     DEVICE("device"),
     /** The {@code client} variant. */
     CLIENT("client"),
+    /** The {@code policyHelper} variant. */
+    POLICYHELPER("policyHelper"),
     /** The {@code mixed} variant. */
     MIXED("mixed"),
     /** The {@code none} variant. */

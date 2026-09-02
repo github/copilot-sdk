@@ -39,6 +39,8 @@ pub enum SessionEventType {
     SessionModelChange,
     #[serde(rename = "session.mode_changed")]
     SessionModeChanged,
+    #[serde(rename = "session.mode_notice_delivered")]
+    SessionModeNoticeDelivered,
     #[serde(rename = "session.session_limits_changed")]
     SessionSessionLimitsChanged,
     ///
@@ -465,6 +467,8 @@ pub enum SessionEventData {
     SessionModelChange(SessionModelChangeData),
     #[serde(rename = "session.mode_changed")]
     SessionModeChanged(SessionModeChangedData),
+    #[serde(rename = "session.mode_notice_delivered")]
+    SessionModeNoticeDelivered(SessionModeNoticeDeliveredData),
     #[serde(rename = "session.session_limits_changed")]
     SessionSessionLimitsChanged(SessionSessionLimitsChangedData),
     ///
@@ -939,6 +943,9 @@ pub struct SessionStartData {
     /// Whether the session was already in use by another client at start time
     #[serde(skip_serializing_if = "Option::is_none")]
     pub already_in_use: Option<bool>,
+    /// Auto routing preference selected at session creation time
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auto_tier: Option<AutoTier>,
     /// Working directory and git context at session start
     #[serde(skip_serializing_if = "Option::is_none")]
     pub context: Option<WorkingDirectoryContext>,
@@ -988,6 +995,9 @@ pub struct SessionResumeData {
     /// Whether the session was already in use by another client at resume time
     #[serde(skip_serializing_if = "Option::is_none")]
     pub already_in_use: Option<bool>,
+    /// Auto routing preference active at resume time
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auto_tier: Option<AutoTier>,
     /// Updated working directory and git context at resume time
     #[serde(skip_serializing_if = "Option::is_none")]
     pub context: Option<WorkingDirectoryContext>,
@@ -1227,6 +1237,17 @@ pub struct SessionModeChangedData {
     pub new_mode: SessionMode,
     /// The session mode the agent is operating in
     pub previous_mode: SessionMode,
+}
+
+/// Session event "session.mode_notice_delivered". Records that a mode transition notice reached the model so cache-stable mode tools can remain offered across resume.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionModeNoticeDeliveredData {
+    /// Model-visible transition notice persisted for a mid-turn delivery
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content: Option<String>,
+    /// Mode established by the delivered transition notice
+    pub mode: SessionMode,
 }
 
 /// Session event "session.session_limits_changed". Session limits update details. Null clears the limits.
@@ -2493,7 +2514,7 @@ pub struct FusionAttribution {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AssistantMessageReasoningBlocks {
-    /// Provider-native reasoning content blocks (e.g. Anthropic `thinking` / `redacted_thinking`) preserved verbatim, in order. A single response can carry several, each signed over the content preceding it, so dropping or reordering any of them invalidates the rest.
+    /// Provider-native reasoning items or content blocks preserved verbatim, in order. A single response can carry several, and provider signatures or identifiers may depend on their exact content and ordering.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub blocks: Option<Vec<serde_json::Value>>,
     /// Model provider that produced these reasoning blocks.
@@ -2527,6 +2548,16 @@ pub struct AssistantMessageServerTools {
     pub raw_content_blocks: Option<Vec<serde_json::Value>>,
 }
 
+/// Hosted program that requested this client tool call
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssistantMessageToolRequestCaller {
+    /// Provider-assigned identifier for the hosted caller.
+    pub caller_id: String,
+    /// Kind of hosted caller that requested the client tool call.
+    pub r#type: AssistantMessageToolRequestCallerType,
+}
+
 /// A tool invocation request from the assistant
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -2534,6 +2565,9 @@ pub struct AssistantMessageToolRequest {
     /// Arguments to pass to the tool, format depends on the tool
     #[serde(skip_serializing_if = "Option::is_none")]
     pub arguments: Option<serde_json::Value>,
+    /// Hosted program that requested this client tool call
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub caller: Option<AssistantMessageToolRequestCaller>,
     /// Resolved intention summary describing what this specific call does
     #[serde(skip_serializing_if = "Option::is_none")]
     pub intention_summary: Option<String>,
@@ -4023,7 +4057,7 @@ pub struct HookStartData {
     pub hook_invocation_id: String,
     /// Type of hook being invoked (e.g., "preToolUse", "postToolUse", "sessionStart")
     pub hook_type: String,
-    /// Input data passed to the hook
+    /// Input data passed to the hook. For postToolUse hooks the retained copy served by session.eventLog.read (and by a resumed session) elides the tool result's inline `contents`/`uiResource` and replaces an over-long `textResultForLlm` with a `[copilot:elided ...]` marker, to keep a multi-megabyte payload out of the durable event log; the live subscription stream still delivers the full value. Read the adjacent tool.execution_complete event for the tool result itself.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub input: Option<serde_json::Value>,
     /// Tool call ID of the parent tool invocation when this event originates from a sub-agent
@@ -5692,7 +5726,7 @@ pub struct SessionAutoModeResolvedData {
     pub sticky_override: Option<bool>,
 }
 
-/// Session event "session.managed_settings_resolved". Enterprise managed-settings resolution: the effective managed settings the session applied and which channels contributed, so SDK clients can show users what is enterprise-managed. Fires whenever managed policy is (re)applied — at session start, on resume, and on account switch. This is an ephemeral live snapshot (delivered to subscribers but not persisted to the session event log), because at session start it resolves before `session.start` is emitted. Device values take precedence over server values per ordinary key, while permissions compose restrictively across device, server, and SDK-client layers. The account-scoped `getManagedSettings()` API does not include session-local client injection. Marked experimental while the managed-settings surface stabilizes.
+/// Session event "session.managed_settings_resolved". Enterprise managed-settings resolution: the effective managed settings the session applied and which channels contributed, so SDK clients can show users what is enterprise-managed. Fires whenever managed policy is (re)applied — at session start, on resume, and on account switch. This is an ephemeral live snapshot (delivered to subscribers but not persisted to the session event log), because at session start it resolves before `session.start` is emitted. Device values take precedence over server values, then the policy helper, per ordinary key, while permissions compose restrictively across device, server, policy-helper, and SDK-client layers. The account-scoped `getManagedSettings()` API does not include session-local client injection. Marked experimental while the managed-settings surface stabilizes.
 ///
 /// <div class="warning">
 ///
@@ -5717,6 +5751,9 @@ pub struct SessionManagedSettingsResolvedData {
     /// Whether at least two managed sources supplied permission allowlists, so enforcement intersects them and the flattened settings payload omits `permissions.allow`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub permissions_allow_intersected: Option<bool>,
+    /// Whether the policy-helper managed-settings layer was present. The policy helper is the weakest channel: it fills keys no enterprise source set and can never replace one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub policy_helper_managed: Option<bool>,
     /// Whether the effective sandbox policy forces the sandbox on *only* because managed policy could not be determined, rather than because the policy requires it. Lets clients tell a user whose `--no-sandbox` was overridden that the sandbox stayed on as a fail-closed fallback, instead of attributing it to an administrator who set no such policy.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sandbox_enabled_by_undetermined_policy: Option<bool>,
@@ -5725,7 +5762,7 @@ pub struct SessionManagedSettingsResolvedData {
     /// The effective (resolved) managed settings values, so clients can render exactly what is enforced. Absent when no managed policy is in force.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub settings: Option<serde_json::Value>,
-    /// Channel summary: `server`, `device`, or `client` when exactly one channel contributed; `mixed` when multiple channels contributed; otherwise `none`. Consult the per-channel booleans for exact provenance.
+    /// Channel summary: `server`, `device`, `client`, or `policyHelper` when exactly one channel contributed; `mixed` when multiple channels contributed; otherwise `none`. Consult the per-channel booleans for exact provenance.
     pub source: ManagedSettingsResolvedSource,
 }
 
@@ -6319,6 +6356,24 @@ pub struct McpAppToolCallCompleteData {
     pub tool_meta: Option<McpAppToolCallCompleteToolMeta>,
     /// MCP tool name that was invoked
     pub tool_name: String,
+}
+
+/// Routing preference used when the session model is `auto`.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AutoTier {
+    /// Optimize for efficiency.
+    #[serde(rename = "efficiency")]
+    Efficiency,
+    /// Balance efficiency and intelligence.
+    #[serde(rename = "balance")]
+    Balance,
+    /// Optimize for intelligence.
+    #[serde(rename = "intelligence")]
+    Intelligence,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
 }
 
 /// Hosting platform type of the repository (github or ado)
@@ -6933,6 +6988,17 @@ pub enum CitationProvider {
     /// Citation synthesized client-side by the runtime from tool output.
     #[serde(rename = "client")]
     Client,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Hosted program caller type
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AssistantMessageToolRequestCallerType {
+    #[serde(rename = "program")]
+    Program,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
@@ -8110,7 +8176,10 @@ pub enum ManagedSettingsResolvedSource {
     /// Only session-local SDK-host injection contributed.
     #[serde(rename = "client")]
     Client,
-    /// More than one channel contributed. Ordinary keys resolve device over server per key, while permissions compose restrictively across all present layers.
+    /// A policy helper registered by device or server policy contributed. Device registration takes priority when present.
+    #[serde(rename = "policyHelper")]
+    PolicyHelper,
+    /// More than one channel contributed. Ordinary keys resolve device over server over policy helper per key, while permissions compose restrictively across all present layers.
     #[serde(rename = "mixed")]
     Mixed,
     /// No managed policy is in force (no channel contributed).

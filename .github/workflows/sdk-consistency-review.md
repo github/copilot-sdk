@@ -1,6 +1,7 @@
 ---
 description: Reviews PRs to ensure features are implemented consistently across all SDK language implementations
 tracker-id: sdk-consistency-review
+model: ${{ vars.GH_AW_MODEL_AGENT_COPILOT || vars.GH_AW_DEFAULT_MODEL_COPILOT || 'claude-sonnet-5' }}
 on:
   roles: all
   pull_request:
@@ -35,6 +36,10 @@ safe-outputs:
     max: 1
     hide-older-comments: true
     allowed-reasons: [outdated]
+  threat-detection:
+    engine:
+      id: copilot
+      model: ${{ vars.GH_AW_MODEL_DETECTION_COPILOT || vars.GH_AW_DEFAULT_MODEL_COPILOT || 'claude-sonnet-5' }}
 timeout-minutes: 15
 ---
 

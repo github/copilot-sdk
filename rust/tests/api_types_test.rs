@@ -3,11 +3,53 @@
 
 #![allow(clippy::unwrap_used)]
 
+use github_copilot_sdk::AutoTier;
 use github_copilot_sdk::rpc::{
     Extension, ExtensionList, ExtensionSource, ExtensionStatus, ExtensionsDisableRequest,
     ExtensionsEnableRequest, FleetStartRequest, FleetStartResult, TasksStartAgentRequest,
 };
-use github_copilot_sdk::session_events::{PermissionRequest, PermissionRequestedData};
+use github_copilot_sdk::session_events::{
+    PermissionRequest, PermissionRequestedData, SessionEventData, TypedSessionEvent,
+};
+
+#[test]
+fn session_events_deserialize_auto_tier() {
+    for event_type in ["session.start", "session.resume"] {
+        for (tier, wire_tier) in [
+            (Some(AutoTier::Efficiency), Some("efficiency")),
+            (Some(AutoTier::Balance), Some("balance")),
+            (Some(AutoTier::Intelligence), Some("intelligence")),
+            (None, None),
+        ] {
+            let mut wire = serde_json::json!({
+                "id": "11111111-1111-1111-1111-111111111111",
+                "timestamp": "2026-08-28T00:00:00Z",
+                "parentId": null,
+                "type": event_type,
+                "data": {
+                    "sessionId": "test-session", "version": 1,
+                    "producer": "copilot", "copilotVersion": "1.0.82-1",
+                    "startTime": "2026-08-28T00:00:00Z",
+                    "resumeTime": "2026-08-28T00:00:00Z", "eventCount": 1
+                }
+            });
+            if let Some(wire_tier) = wire_tier {
+                wire["data"]["autoTier"] = serde_json::json!(wire_tier);
+            }
+            let event: TypedSessionEvent = serde_json::from_value(wire).unwrap();
+            let actual: Option<AutoTier> = match event.payload {
+                SessionEventData::SessionStart(data) if event_type == "session.start" => {
+                    data.auto_tier
+                }
+                SessionEventData::SessionResume(data) if event_type == "session.resume" => {
+                    data.auto_tier
+                }
+                _ => panic!("expected {event_type}"),
+            };
+            assert_eq!(actual, tier);
+        }
+    }
+}
 
 #[test]
 fn extension_running_has_expected_status_and_source() {

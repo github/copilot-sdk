@@ -504,7 +504,7 @@ McpAuthHandler = Callable[
 
 
 class UserInputRequest(TypedDict, total=False):
-    """Request for user input from the agent (enables ask_user tool)"""
+    """Legacy question-and-answer request from the ask_user tool."""
 
     question: str
     choices: list[str]

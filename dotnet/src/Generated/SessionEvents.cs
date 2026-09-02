@@ -113,6 +113,7 @@ namespace GitHub.Copilot;
 [JsonDerivedType(typeof(SessionMcpServerStatusChangedEvent), "session.mcp_server_status_changed")]
 [JsonDerivedType(typeof(SessionMcpServersLoadedEvent), "session.mcp_servers_loaded")]
 [JsonDerivedType(typeof(SessionModeChangedEvent), "session.mode_changed")]
+[JsonDerivedType(typeof(SessionModeNoticeDeliveredEvent), "session.mode_notice_delivered")]
 [JsonDerivedType(typeof(SessionModelChangeEvent), "session.model_change")]
 [JsonDerivedType(typeof(SessionPermissionsChangedEvent), "session.permissions_changed")]
 [JsonDerivedType(typeof(SessionPlanChangedEvent), "session.plan_changed")]
@@ -376,6 +377,19 @@ public sealed partial class SessionModeChangedEvent : SessionEvent
     /// <summary>The <c>session.mode_changed</c> event payload.</summary>
     [JsonPropertyName("data")]
     public required SessionModeChangedData Data { get; set; }
+}
+
+/// <summary>Records that a mode transition notice reached the model so cache-stable mode tools can remain offered across resume.</summary>
+/// <remarks>Represents the <c>session.mode_notice_delivered</c> event.</remarks>
+public sealed partial class SessionModeNoticeDeliveredEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "session.mode_notice_delivered";
+
+    /// <summary>The <c>session.mode_notice_delivered</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required SessionModeNoticeDeliveredData Data { get; set; }
 }
 
 /// <summary>Session limits update details. Null clears the limits.</summary>
@@ -1546,7 +1560,7 @@ public sealed partial class SessionAutoModeResolvedEvent : SessionEvent
     public required SessionAutoModeResolvedData Data { get; set; }
 }
 
-/// <summary>Enterprise managed-settings resolution: the effective managed settings the session applied and which channels contributed, so SDK clients can show users what is enterprise-managed. Fires whenever managed policy is (re)applied — at session start, on resume, and on account switch. This is an ephemeral live snapshot (delivered to subscribers but not persisted to the session event log), because at session start it resolves before `session.start` is emitted. Device values take precedence over server values per ordinary key, while permissions compose restrictively across device, server, and SDK-client layers. The account-scoped `getManagedSettings()` API does not include session-local client injection. Marked experimental while the managed-settings surface stabilizes.</summary>
+/// <summary>Enterprise managed-settings resolution: the effective managed settings the session applied and which channels contributed, so SDK clients can show users what is enterprise-managed. Fires whenever managed policy is (re)applied — at session start, on resume, and on account switch. This is an ephemeral live snapshot (delivered to subscribers but not persisted to the session event log), because at session start it resolves before `session.start` is emitted. Device values take precedence over server values, then the policy helper, per ordinary key, while permissions compose restrictively across device, server, policy-helper, and SDK-client layers. The account-scoped `getManagedSettings()` API does not include session-local client injection. Marked experimental while the managed-settings surface stabilizes.</summary>
 /// <remarks>Represents the <c>session.managed_settings_resolved</c> event.</remarks>
 [Experimental(Diagnostics.Experimental)]
 public sealed partial class SessionManagedSettingsResolvedEvent : SessionEvent
@@ -1916,6 +1930,11 @@ public sealed partial class SessionStartData
     [JsonPropertyName("alreadyInUse")]
     public bool? AlreadyInUse { get; set; }
 
+    /// <summary>Auto routing preference selected at session creation time.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("autoTier")]
+    public AutoTier? AutoTier { get; set; }
+
     /// <summary>Working directory and git context at session start.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("context")]
@@ -1994,6 +2013,11 @@ public sealed partial class SessionResumeData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("alreadyInUse")]
     public bool? AlreadyInUse { get; set; }
+
+    /// <summary>Auto routing preference active at resume time.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("autoTier")]
+    public AutoTier? AutoTier { get; set; }
 
     /// <summary>Updated working directory and git context at resume time.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -2334,6 +2358,19 @@ public sealed partial class SessionModeChangedData
     /// <summary>The session mode the agent is operating in.</summary>
     [JsonPropertyName("previousMode")]
     public required SessionMode PreviousMode { get; set; }
+}
+
+/// <summary>Records that a mode transition notice reached the model so cache-stable mode tools can remain offered across resume.</summary>
+public sealed partial class SessionModeNoticeDeliveredData
+{
+    /// <summary>Model-visible transition notice persisted for a mid-turn delivery.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("content")]
+    public string? Content { get; set; }
+
+    /// <summary>Mode established by the delivered transition notice.</summary>
+    [JsonPropertyName("mode")]
+    public required SessionMode Mode { get; set; }
 }
 
 /// <summary>Session limits update details. Null clears the limits.</summary>
@@ -4731,7 +4768,7 @@ public sealed partial class HookStartData
     [JsonPropertyName("hookType")]
     public required string HookType { get; set; }
 
-    /// <summary>Input data passed to the hook.</summary>
+    /// <summary>Input data passed to the hook. For postToolUse hooks the retained copy served by session.eventLog.read (and by a resumed session) elides the tool result's inline `contents`/`uiResource` and replaces an over-long `textResultForLlm` with a `[copilot:elided ...]` marker, to keep a multi-megabyte payload out of the durable event log; the live subscription stream still delivers the full value. Read the adjacent tool.execution_complete event for the tool result itself.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("input")]
     public JsonElement? Input { get; set; }
@@ -5400,7 +5437,7 @@ public sealed partial class SessionAutoModeResolvedData
     public bool? StickyOverride { get; set; }
 }
 
-/// <summary>Enterprise managed-settings resolution: the effective managed settings the session applied and which channels contributed, so SDK clients can show users what is enterprise-managed. Fires whenever managed policy is (re)applied — at session start, on resume, and on account switch. This is an ephemeral live snapshot (delivered to subscribers but not persisted to the session event log), because at session start it resolves before `session.start` is emitted. Device values take precedence over server values per ordinary key, while permissions compose restrictively across device, server, and SDK-client layers. The account-scoped `getManagedSettings()` API does not include session-local client injection. Marked experimental while the managed-settings surface stabilizes.</summary>
+/// <summary>Enterprise managed-settings resolution: the effective managed settings the session applied and which channels contributed, so SDK clients can show users what is enterprise-managed. Fires whenever managed policy is (re)applied — at session start, on resume, and on account switch. This is an ephemeral live snapshot (delivered to subscribers but not persisted to the session event log), because at session start it resolves before `session.start` is emitted. Device values take precedence over server values, then the policy helper, per ordinary key, while permissions compose restrictively across device, server, policy-helper, and SDK-client layers. The account-scoped `getManagedSettings()` API does not include session-local client injection. Marked experimental while the managed-settings surface stabilizes.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed partial class SessionManagedSettingsResolvedData
 {
@@ -5430,6 +5467,11 @@ public sealed partial class SessionManagedSettingsResolvedData
     [JsonPropertyName("permissionsAllowIntersected")]
     public bool? PermissionsAllowIntersected { get; set; }
 
+    /// <summary>Whether the policy-helper managed-settings layer was present. The policy helper is the weakest channel: it fills keys no enterprise source set and can never replace one.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("policyHelperManaged")]
+    public bool? PolicyHelperManaged { get; set; }
+
     /// <summary>Whether the effective sandbox policy forces the sandbox on *only* because managed policy could not be determined, rather than because the policy requires it. Lets clients tell a user whose `--no-sandbox` was overridden that the sandbox stayed on as a fail-closed fallback, instead of attributing it to an administrator who set no such policy.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("sandboxEnabledByUndeterminedPolicy")]
@@ -5444,7 +5486,7 @@ public sealed partial class SessionManagedSettingsResolvedData
     [JsonPropertyName("settings")]
     public JsonElement? Settings { get; set; }
 
-    /// <summary>Channel summary: `server`, `device`, or `client` when exactly one channel contributed; `mixed` when multiple channels contributed; otherwise `none`. Consult the per-channel booleans for exact provenance.</summary>
+    /// <summary>Channel summary: `server`, `device`, `client`, or `policyHelper` when exactly one channel contributed; `mixed` when multiple channels contributed; otherwise `none`. Consult the per-channel booleans for exact provenance.</summary>
     [JsonPropertyName("source")]
     public required ManagedSettingsResolvedSource Source { get; set; }
 }
@@ -7058,7 +7100,7 @@ public sealed partial class FusionAttribution
 [Experimental(Diagnostics.Experimental)]
 public sealed partial class AssistantMessageReasoningBlocks
 {
-    /// <summary>Provider-native reasoning content blocks (e.g. Anthropic `thinking` / `redacted_thinking`) preserved verbatim, in order. A single response can carry several, each signed over the content preceding it, so dropping or reordering any of them invalidates the rest.</summary>
+    /// <summary>Provider-native reasoning items or content blocks preserved verbatim, in order. A single response can carry several, and provider signatures or identifiers may depend on their exact content and ordering.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("blocks")]
     public JsonElement[]? Blocks { get; set; }
@@ -7098,6 +7140,19 @@ public sealed partial class AssistantMessageServerTools
     public JsonElement[]? RawContentBlocks { get; set; }
 }
 
+/// <summary>Hosted program that requested this client tool call.</summary>
+/// <remarks>Nested data type for <c>AssistantMessageToolRequestCaller</c>.</remarks>
+public sealed partial class AssistantMessageToolRequestCaller
+{
+    /// <summary>Provider-assigned identifier for the hosted caller.</summary>
+    [JsonPropertyName("callerId")]
+    public required string CallerId { get; set; }
+
+    /// <summary>Kind of hosted caller that requested the client tool call.</summary>
+    [JsonPropertyName("type")]
+    public required AssistantMessageToolRequestCallerType Type { get; set; }
+}
+
 /// <summary>A tool invocation request from the assistant.</summary>
 /// <remarks>Nested data type for <c>AssistantMessageToolRequest</c>.</remarks>
 public sealed partial class AssistantMessageToolRequest
@@ -7106,6 +7161,11 @@ public sealed partial class AssistantMessageToolRequest
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("arguments")]
     public JsonElement? Arguments { get; set; }
+
+    /// <summary>Hosted program that requested this client tool call.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("caller")]
+    public AssistantMessageToolRequestCaller? Caller { get; set; }
 
     /// <summary>Resolved intention summary describing what this specific call does.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -10305,6 +10365,70 @@ public sealed partial class McpAppToolCallCompleteToolMeta
     public McpAppToolCallCompleteToolMetaUI? Ui { get; set; }
 }
 
+/// <summary>Routing preference used when the session model is `auto`.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct AutoTier : IEquatable<AutoTier>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="AutoTier"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="AutoTier"/>.</param>
+    [JsonConstructor]
+    public AutoTier(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="AutoTier"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Optimize for efficiency.</summary>
+    public static AutoTier Efficiency { get; } = new("efficiency");
+
+    /// <summary>Balance efficiency and intelligence.</summary>
+    public static AutoTier Balance { get; } = new("balance");
+
+    /// <summary>Optimize for intelligence.</summary>
+    public static AutoTier Intelligence { get; } = new("intelligence");
+
+    /// <summary>Returns a value indicating whether two <see cref="AutoTier"/> instances are equivalent.</summary>
+    public static bool operator ==(AutoTier left, AutoTier right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="AutoTier"/> instances are not equivalent.</summary>
+    public static bool operator !=(AutoTier left, AutoTier right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is AutoTier other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(AutoTier other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{AutoTier}"/> for serializing <see cref="AutoTier"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<AutoTier>
+    {
+        /// <inheritdoc />
+        public override AutoTier Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, AutoTier value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AutoTier));
+        }
+    }
+}
+
 /// <summary>Hosting platform type of the repository (github or ado).</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
@@ -12370,6 +12494,64 @@ public readonly struct CitationProvider : IEquatable<CitationProvider>
         public override void Write(Utf8JsonWriter writer, CitationProvider value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(CitationProvider));
+        }
+    }
+}
+
+/// <summary>Hosted program caller type.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct AssistantMessageToolRequestCallerType : IEquatable<AssistantMessageToolRequestCallerType>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="AssistantMessageToolRequestCallerType"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="AssistantMessageToolRequestCallerType"/>.</param>
+    [JsonConstructor]
+    public AssistantMessageToolRequestCallerType(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="AssistantMessageToolRequestCallerType"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Gets the <c>program</c> value.</summary>
+    public static AssistantMessageToolRequestCallerType Program { get; } = new("program");
+
+    /// <summary>Returns a value indicating whether two <see cref="AssistantMessageToolRequestCallerType"/> instances are equivalent.</summary>
+    public static bool operator ==(AssistantMessageToolRequestCallerType left, AssistantMessageToolRequestCallerType right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="AssistantMessageToolRequestCallerType"/> instances are not equivalent.</summary>
+    public static bool operator !=(AssistantMessageToolRequestCallerType left, AssistantMessageToolRequestCallerType right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is AssistantMessageToolRequestCallerType other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(AssistantMessageToolRequestCallerType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{AssistantMessageToolRequestCallerType}"/> for serializing <see cref="AssistantMessageToolRequestCallerType"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<AssistantMessageToolRequestCallerType>
+    {
+        /// <inheritdoc />
+        public override AssistantMessageToolRequestCallerType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, AssistantMessageToolRequestCallerType value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AssistantMessageToolRequestCallerType));
         }
     }
 }
@@ -14683,7 +14865,10 @@ public readonly struct ManagedSettingsResolvedSource : IEquatable<ManagedSetting
     /// <summary>Only session-local SDK-host injection contributed.</summary>
     public static ManagedSettingsResolvedSource Client { get; } = new("client");
 
-    /// <summary>More than one channel contributed. Ordinary keys resolve device over server per key, while permissions compose restrictively across all present layers.</summary>
+    /// <summary>A policy helper registered by device or server policy contributed. Device registration takes priority when present.</summary>
+    public static ManagedSettingsResolvedSource PolicyHelper { get; } = new("policyHelper");
+
+    /// <summary>More than one channel contributed. Ordinary keys resolve device over server over policy helper per key, while permissions compose restrictively across all present layers.</summary>
     public static ManagedSettingsResolvedSource Mixed { get; } = new("mixed");
 
     /// <summary>No managed policy is in force (no channel contributed).</summary>
@@ -15438,6 +15623,7 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(AssistantMessageStartData))]
 [JsonSerializable(typeof(AssistantMessageStartEvent))]
 [JsonSerializable(typeof(AssistantMessageToolRequest))]
+[JsonSerializable(typeof(AssistantMessageToolRequestCaller))]
 [JsonSerializable(typeof(AssistantReasoningData))]
 [JsonSerializable(typeof(AssistantReasoningDeltaData))]
 [JsonSerializable(typeof(AssistantReasoningDeltaEvent))]
@@ -15710,6 +15896,8 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(SessionMcpServersLoadedEvent))]
 [JsonSerializable(typeof(SessionModeChangedData))]
 [JsonSerializable(typeof(SessionModeChangedEvent))]
+[JsonSerializable(typeof(SessionModeNoticeDeliveredData))]
+[JsonSerializable(typeof(SessionModeNoticeDeliveredEvent))]
 [JsonSerializable(typeof(SessionModelChangeData))]
 [JsonSerializable(typeof(SessionModelChangeEvent))]
 [JsonSerializable(typeof(SessionPermissionsChangedData))]

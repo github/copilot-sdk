@@ -10,7 +10,10 @@ use std::path::PathBuf;
 
 use github_copilot_sdk::{
     CliProgram, Client, ClientOptions, ErrorKind, HAS_BUNDLED_CLI, install_bundled_cli,
+    install_bundled_runtime,
 };
+#[cfg(all(feature = "bundled-cli", has_bundled_cli))]
+use github_copilot_sdk::{SessionConfig, Transport};
 use serial_test::serial;
 
 fn unset_env(key: &str) {
@@ -95,7 +98,7 @@ async fn stale_env_override_falls_through() {
     }
 }
 
-/// With `bundled-cli` off, `build.rs` extracts the binary into the
+/// With `bundled-cli` off, `build.rs` extracts the runtime wrapper into the
 /// per-user cache and the runtime resolver recomputes its location from
 /// `COPILOT_SDK_CLI_VERSION` + the OS-derived binary name. This test
 /// mirrors that convention and asserts the file is on disk where the
@@ -105,9 +108,9 @@ async fn stale_env_override_falls_through() {
 fn extracted_binary_present_at_conventional_path() {
     let version = env!("COPILOT_SDK_CLI_VERSION");
     let binary = if cfg!(windows) {
-        "copilot.exe"
+        "copilot-runtime.exe"
     } else {
-        "copilot"
+        "copilot-runtime"
     };
     let sanitized = sanitize_version_for_test(version);
     let path = dirs::cache_dir()
@@ -158,21 +161,19 @@ async fn unbundled_resolver_finds_extracted_binary() {
 /// With `bundled-cli` off, `COPILOT_CLI_EXTRACT_DIR` set at runtime
 /// redirects the resolver to look directly under the named directory
 /// (no per-version subdir, matching the build-time write semantics).
-/// We place a fake `copilot[.exe]` there and assert the resolver picks
-/// it up — failing here means the build-time / runtime convention has
-/// drifted.
 #[cfg(all(not(feature = "bundled-cli"), has_extracted_cli))]
 #[tokio::test(flavor = "current_thread")]
 #[serial(copilot_cli_path)]
 async fn extract_dir_runtime_override_is_honored() {
     let tmp = tempfile::tempdir().expect("create tempdir");
     let binary = if cfg!(windows) {
-        "copilot.exe"
+        "copilot-runtime.exe"
     } else {
-        "copilot"
+        "copilot-runtime"
     };
     let fake = tmp.path().join(binary);
-    std::fs::write(&fake, b"").expect("write fake binary");
+    std::fs::write(&fake, b"runtime").expect("write fake binary");
+    std::fs::write(tmp.path().join("runtime.node"), b"runtime").expect("write runtime.node");
 
     unset_env("COPILOT_CLI_PATH");
     set_env(
@@ -265,6 +266,14 @@ fn install_bundled_cli_returns_extracted_path() {
         "install_bundled_cli returned a path that is not a file: {}",
         first.display()
     );
+    assert_eq!(
+        first.file_name().and_then(|name| name.to_str()),
+        Some(if cfg!(windows) {
+            "copilot.exe"
+        } else {
+            "copilot"
+        })
+    );
 
     let second = install_bundled_cli().expect("second call should also succeed");
     assert_eq!(
@@ -293,30 +302,6 @@ fn install_bundled_cli_returns_extracted_path() {
     }
 }
 
-/// `install_bundled_cli` returns the same path the runtime resolver
-/// hands to `Client::start` for `CliProgram::Resolve` with no
-/// `COPILOT_CLI_PATH` override. Observed indirectly: the binary the
-/// public API points at must exist, and `Client::start` must not
-/// report `BinaryNotFound` under the same env conditions.
-#[cfg(all(feature = "bundled-cli", has_bundled_cli))]
-#[tokio::test(flavor = "current_thread")]
-#[serial(copilot_cli_path)]
-async fn install_bundled_cli_matches_resolver() {
-    unset_env("COPILOT_CLI_PATH");
-    unset_env("COPILOT_CLI_EXTRACT_DIR");
-
-    let direct = install_bundled_cli().expect("bundled CLI should install");
-    assert!(direct.is_file());
-
-    let opts = ClientOptions::default().with_program(CliProgram::Resolve);
-    if let Err(e) = Client::start(opts).await {
-        assert!(
-            !matches!(e.kind(), ErrorKind::BinaryNotFound { .. }),
-            "resolver returned BinaryNotFound while install_bundled_cli succeeded: {e}"
-        );
-    }
-}
-
 /// With `bundled-cli` off (or the target unsupported), the public API
 /// reports no bundled CLI and does not fall back to the
 /// build-time-extracted dev-cache path that `CliProgram::Resolve` uses.
@@ -327,5 +312,99 @@ fn install_bundled_cli_is_none_without_embed() {
     assert!(
         install_bundled_cli().is_none(),
         "install_bundled_cli must not fall back to the dev-cache path"
+    );
+}
+
+#[cfg(all(feature = "bundled-cli", has_bundled_cli))]
+#[test]
+fn install_bundled_runtime_returns_wrapper_bundle() {
+    let first = install_bundled_runtime().expect("bundled runtime should install");
+    assert_eq!(
+        first.file_name().and_then(|name| name.to_str()),
+        Some(if cfg!(windows) {
+            "copilot-runtime.exe"
+        } else {
+            "copilot-runtime"
+        })
+    );
+    let runtime_node = first
+        .parent()
+        .expect("install directory")
+        .join("runtime.node");
+    assert!(
+        runtime_node.is_file(),
+        "runtime.node was not installed: {}",
+        runtime_node.display()
+    );
+    let second = install_bundled_runtime().expect("second call should also succeed");
+    assert_eq!(first, second);
+}
+
+#[cfg(all(feature = "bundled-cli", has_bundled_cli))]
+#[tokio::test(flavor = "current_thread")]
+#[serial(copilot_cli_path)]
+async fn bundled_runtime_clean_extract_starts_without_cli_host() {
+    let temp = tempfile::tempdir().expect("create tempdir");
+    let extract_dir = temp.path().join("runtime");
+    let empty_path = temp.path().join("empty-path");
+    let working_dir = temp.path().join("work");
+    std::fs::create_dir(&empty_path).expect("create empty PATH directory");
+    std::fs::create_dir(&working_dir).expect("create working directory");
+    assert!(!extract_dir.exists());
+
+    let options = ClientOptions::new()
+        .with_bundled_cli_extract_dir(&extract_dir)
+        .with_cwd(&working_dir)
+        .with_env([("PATH", empty_path.as_os_str())])
+        .with_env_remove([
+            "COPILOT_RUNTIME_HOST_COMMAND",
+            "COPILOT_CLI_PATH",
+            "COPILOT_RUNTIME_PROVIDER_LIB",
+        ])
+        .with_transport(Transport::Stdio)
+        .with_use_logged_in_user(false);
+    let client = Client::start(options)
+        .await
+        .expect("start bundled runtime from clean extraction");
+    let response = client
+        .ping(Some("hostless runtime"))
+        .await
+        .expect("ping bundled runtime");
+    assert_eq!(response.message, "pong: hostless runtime");
+
+    let session = client
+        .create_session(SessionConfig::default())
+        .await
+        .expect("create session");
+    session.disconnect().await.expect("disconnect session");
+    client.stop().await.expect("stop bundled runtime");
+
+    assert!(extract_dir.join("runtime.node").is_file());
+    assert!(
+        extract_dir
+            .join(if cfg!(windows) {
+                "copilot-runtime.exe"
+            } else {
+                "copilot-runtime"
+            })
+            .is_file()
+    );
+    assert!(
+        !extract_dir
+            .join(if cfg!(windows) {
+                "copilot.exe"
+            } else {
+                "copilot"
+            })
+            .exists()
+    );
+}
+
+#[cfg(not(all(feature = "bundled-cli", has_bundled_cli)))]
+#[test]
+fn install_bundled_runtime_is_none_without_embed() {
+    assert!(
+        install_bundled_runtime().is_none(),
+        "install_bundled_runtime must not fall back to the dev-cache path"
     );
 }

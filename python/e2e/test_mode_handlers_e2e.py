@@ -6,6 +6,7 @@ import asyncio
 
 import pytest
 
+from copilot.rpc import ModeSetRequest
 from copilot.session import PermissionHandler
 from copilot.session_events import (
     AutoModeSwitchCompletedData,
@@ -15,6 +16,7 @@ from copilot.session_events import (
     ExitPlanModeCompletedData,
     ExitPlanModeRequestedData,
     SessionIdleData,
+    SessionMode,
     SessionModelChangeData,
 )
 
@@ -111,10 +113,8 @@ class TestModeHandlers:
                 )
             )
 
-            response = await session.send_and_wait(
-                PLAN_PROMPT,
-                agent_mode="plan",
-            )
+            await session.rpc.mode.set(ModeSetRequest(mode=SessionMode.PLAN))
+            response = await session.send_and_wait(PLAN_PROMPT)
 
             assert len(exit_plan_mode_requests) == 1
             request = exit_plan_mode_requests[0]
