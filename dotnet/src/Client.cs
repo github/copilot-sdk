@@ -2544,8 +2544,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         var fullEntrypoint = Path.GetFullPath(cliPath);
         var directory = Path.GetDirectoryName(fullEntrypoint)
             ?? throw new InvalidOperationException($"Could not determine directory for '{cliPath}'.");
-        var flatLibraryPath = Path.Combine(
-            directory, Path.GetFileName(FfiRuntimeHost.GetRuntimeLibraryFileName()));
+        var flatLibraryPath = Path.GetFullPath(
+            $"{directory}{Path.DirectorySeparatorChar}{FfiRuntimeHost.GetRuntimeLibraryFileName()}");
         if (File.Exists(flatLibraryPath))
         {
             return flatLibraryPath;
