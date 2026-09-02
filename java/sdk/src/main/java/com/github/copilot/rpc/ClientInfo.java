@@ -85,8 +85,8 @@ public class ClientInfo {
     }
 
     /**
-     * Gets the optional name of a specific integration within the application,
-     * such as an extension or plugin.
+     * Gets the optional name of a specific integration within the application, such
+     * as an extension or plugin.
      *
      * @return the integration name, or {@code null}
      */
@@ -96,8 +96,8 @@ public class ClientInfo {
     }
 
     /**
-     * Sets the optional name of a specific integration within the application,
-     * such as an extension or plugin.
+     * Sets the optional name of a specific integration within the application, such
+     * as an extension or plugin.
      *
      * @param integrationName
      *            the integration name
