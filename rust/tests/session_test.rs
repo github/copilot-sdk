@@ -981,6 +981,53 @@ async fn managed_mcp_headers_handler_dispatches_all_results() {
     let create_request = server.read_request().await;
     assert_eq!(create_request["method"], "session.create");
     server
+        .send_event(
+            "mcp.headers_refresh_required",
+            serde_json::json!({
+                "requestId": "headers-before-create",
+                "serverName": "ttl-absent",
+                "serverUrl": "https://ttl-absent.example.test/mcp",
+                "reason": "startup"
+            }),
+        )
+        .await;
+    let response_request = timeout(TIMEOUT, server.read_request()).await.unwrap();
+    assert_eq!(
+        response_request["method"],
+        "session.mcp.headers.handlePendingHeadersRefreshRequest"
+    );
+    assert_eq!(
+        response_request["params"]["sessionId"],
+        "managed-mcp-session"
+    );
+    assert_eq!(
+        response_request["params"]["requestId"],
+        "headers-before-create"
+    );
+    assert_eq!(response_request["params"]["result"]["kind"], "headers");
+    assert!(
+        response_request["params"]["result"]["headers"]["Authorization"]
+            .as_str()
+            .is_some()
+    );
+    let (received_session_id, received_request_id, received_request) =
+        timeout(TIMEOUT, calls_rx.recv()).await.unwrap().unwrap();
+    assert_eq!(received_session_id.as_str(), "managed-mcp-session");
+    assert_eq!(received_request_id, "headers-before-create");
+    assert_eq!(received_request.server_name, "ttl-absent");
+    assert_eq!(
+        received_request.server_url,
+        "https://ttl-absent.example.test/mcp"
+    );
+    assert_eq!(
+        received_request.reason,
+        McpHeadersRefreshRequiredReason::Startup
+    );
+    server
+        .respond(&response_request, serde_json::json!({ "success": true }))
+        .await;
+
+    server
         .respond(
             &create_request,
             serde_json::json!({

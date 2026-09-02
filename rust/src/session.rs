@@ -113,6 +113,9 @@ struct PendingSessionRegistration {
     disarmed: bool,
 }
 
+type CreateSessionRegistrationStash =
+    Arc<ParkingLotMutex<Option<(SessionId, Option<crate::router::SessionChannels>)>>>;
+
 impl PendingSessionRegistration {
     fn new(client: Client, session_id: SessionId, shutdown: CancellationToken) -> Self {
         Self {
@@ -982,15 +985,37 @@ impl Client {
         // the session synchronously the instant the response arrives.
         // For non-cloud sessions, register up-front so the CLI can issue
         // session-scoped requests during session.create processing.
-        let inline_stash: Arc<
-            ParkingLotMutex<Option<(SessionId, crate::router::SessionChannels)>>,
-        > = Arc::new(ParkingLotMutex::new(None));
+        let inline_stash: CreateSessionRegistrationStash = Arc::new(ParkingLotMutex::new(None));
+        let mut event_loop = None;
+        let mut registration = None;
 
         let inline_callback: Option<crate::jsonrpc::InlineResponseCallback> = if let Some(ref sid) =
             local_session_id
         {
             let channels = self.register_session(sid);
-            *inline_stash.lock() = Some((sid.clone(), channels));
+            event_loop = Some(spawn_event_loop(
+                sid.clone(),
+                self.clone(),
+                handlers.clone(),
+                hooks.clone(),
+                transforms.clone(),
+                command_handlers.clone(),
+                canvas_handler.clone(),
+                session_fs_provider.clone(),
+                bearer_token_providers.clone(),
+                channels,
+                idle_waiter.clone(),
+                capabilities.clone(),
+                open_canvases.clone(),
+                event_tx.clone(),
+                shutdown.clone(),
+            ));
+            registration = Some(PendingSessionRegistration::new(
+                self.clone(),
+                sid.clone(),
+                shutdown.clone(),
+            ));
+            *inline_stash.lock() = Some((sid.clone(), None));
             None
         } else {
             let client = self.clone();
@@ -1012,19 +1037,36 @@ impl Client {
                     .into());
                 }
                 let channels = client.register_session(&parsed.session_id);
-                *stash.lock() = Some((parsed.session_id, channels));
+                *stash.lock() = Some((parsed.session_id, Some(channels)));
                 Ok(())
             }))
         };
 
         let rpc_start = Instant::now();
-        let result = match self
-            .call_with_inline_callback("session.create", Some(params), inline_callback)
-            .await
-        {
-            Ok(result) => result,
+        let create_result: Result<CreateSessionResult, Error> = async {
+            let result = self
+                .call_with_inline_callback("session.create", Some(params), inline_callback)
+                .await?;
+            let create_result: CreateSessionResult = serde_json::from_value(result)?;
+            if let Some(ref requested) = local_session_id
+                && create_result.session_id != *requested
+            {
+                return Err(ErrorKind::Session(SessionErrorKind::SessionIdMismatch {
+                    requested: requested.clone(),
+                    returned: create_result.session_id,
+                })
+                .into());
+            }
+            Ok(create_result)
+        }
+        .await;
+        let create_result = match create_result {
+            Ok(create_result) => create_result,
             Err(error) => {
-                if let Some((id, _channels)) = inline_stash.lock().take() {
+                let pending = (registration.take(), event_loop.take());
+                if let (Some(registration), Some(event_loop)) = pending {
+                    registration.cleanup(event_loop).await;
+                } else if let Some((id, _channels)) = inline_stash.lock().take() {
                     self.unregister_session(&id);
                 }
                 return Err(error);
@@ -1034,52 +1076,32 @@ impl Client {
             elapsed_ms = rpc_start.elapsed().as_millis(),
             "Client::create_session session creation request completed successfully"
         );
-        let create_result: CreateSessionResult = match serde_json::from_value(result) {
-            Ok(result) => result,
-            Err(error) => {
-                if let Some((id, _channels)) = inline_stash.lock().take() {
-                    self.unregister_session(&id);
-                }
-                return Err(error.into());
-            }
-        };
-
-        if let Some(ref requested) = local_session_id
-            && create_result.session_id != *requested
-        {
-            if let Some((id, _channels)) = inline_stash.lock().take() {
-                self.unregister_session(&id);
-            }
-            return Err(ErrorKind::Session(SessionErrorKind::SessionIdMismatch {
-                requested: requested.clone(),
-                returned: create_result.session_id.clone(),
-            })
-            .into());
-        }
-
         let (session_id, channels) = inline_stash
             .lock()
             .take()
             .expect("session registration must have populated stash on success");
-        let event_loop = spawn_event_loop(
-            session_id.clone(),
-            self.clone(),
-            handlers,
-            hooks,
-            transforms,
-            command_handlers,
-            canvas_handler,
-            session_fs_provider,
-            bearer_token_providers,
-            channels,
-            idle_waiter.clone(),
-            capabilities.clone(),
-            open_canvases.clone(),
-            event_tx.clone(),
-            shutdown.clone(),
-        );
-        let mut registration =
-            PendingSessionRegistration::new(self.clone(), session_id.clone(), shutdown.clone());
+        let event_loop = event_loop.unwrap_or_else(|| {
+            spawn_event_loop(
+                session_id.clone(),
+                self.clone(),
+                handlers,
+                hooks,
+                transforms,
+                command_handlers,
+                canvas_handler,
+                session_fs_provider,
+                bearer_token_providers,
+                channels.expect("server-generated session must retain its channels"),
+                idle_waiter.clone(),
+                capabilities.clone(),
+                open_canvases.clone(),
+                event_tx.clone(),
+                shutdown.clone(),
+            )
+        });
+        let mut registration = registration.unwrap_or_else(|| {
+            PendingSessionRegistration::new(self.clone(), session_id.clone(), shutdown.clone())
+        });
         tracing::debug!(
             elapsed_ms = setup_start.elapsed().as_millis(),
             session_id = %session_id,
