@@ -492,7 +492,7 @@ jobs:
           mvn -pl sdk jacoco:prepare-agent@wire-up-coverage-instrumentation antrun:run@print-test-jdk-banner surefire:test failsafe:integration-test failsafe:verify jacoco:report@build-coverage-report-from-tests -Denforcer.skip=true
 
       - name: Upload test results for site generation
-        if: success() && github.ref == 'refs/heads/main' && matrix.test-jdk == '25'
+        if: success() && github.event_name == 'merge_group' && matrix.test-jdk == '25'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: test-results-for-site

@@ -31,8 +31,7 @@ jobs:
 
       - name: Run dotnet format check
         run: |
-          dotnet format --no-restore --verify-no-changes
-          if [ $? -ne 0 ]; then
+          if ! dotnet format --no-restore --verify-no-changes; then
             echo "❌ dotnet format produced changes. Please run 'dotnet format' in dotnet"
             exit 1
           fi
