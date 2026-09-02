@@ -320,9 +320,6 @@ jobs:
                 shard_filter="${shard_filter:+${shard_filter}|}${clause}"
               done
             done
-            if [[ -n "${shard_exclusion:-}" ]]; then
-              shard_filter="(${shard_filter})&(${shard_exclusion})"
-            fi
             filter="${filter:+(${filter})&}(${shard_filter})"
           fi
 
