@@ -11,6 +11,7 @@ import type { Canvas } from "./canvas.js";
 import type { SessionFsProvider } from "./sessionFsProvider.js";
 import type { CopilotRequestHandler } from "./copilotRequestHandler.js";
 import type {
+    AutoTier,
     PermissionRequest as GeneratedPermissionRequest,
     PermissionRequestedData as GeneratedPermissionRequestedData,
     PermissionRequestedEvent as GeneratedPermissionRequestedEvent,
@@ -75,7 +76,7 @@ export type {
 export type SessionEvent =
     | Exclude<GeneratedSessionEvent, { type: "permission.requested" }>
     | PermissionRequestedEvent;
-export type { ReasoningSummary } from "./generated/session-events.js";
+export type { AutoTier, ReasoningSummary } from "./generated/session-events.js";
 export type { SessionFsProvider } from "./sessionFsProvider.js";
 export { createSessionFsAdapter } from "./sessionFsProvider.js";
 export type { SessionFsFileInfo } from "./sessionFsProvider.js";
@@ -309,6 +310,37 @@ export type InternalRuntimeConnection = RuntimeConnection | ParentProcessRuntime
  */
 export type CopilotClientMode = "empty" | "copilot-cli";
 
+/**
+ * Identity of the integrating application, declared once on the `server.connect`
+ * handshake so the telemetry the runtime emits on this connection is attributed
+ * to a single, consistent surface rather than to the runtime's own build.
+ *
+ * All fields are optional; omit any of them (or the whole object) to keep the
+ * runtime's default attribution. Version fields are ignored by the runtime
+ * unless they look like a version string.
+ */
+export interface CopilotClientInfo {
+    /**
+     * Name of the application using the SDK, e.g. `"acme-developer-portal"`.
+     */
+    applicationName?: string;
+
+    /**
+     * Version of the application using the SDK, e.g. `"2.4.0"`.
+     */
+    applicationVersion?: string;
+
+    /**
+     * Optional name of a specific integration within the application, such as an extension or plugin.
+     */
+    integrationName?: string;
+
+    /**
+     * Optional version of the integration identified by `integrationName`.
+     */
+    integrationVersion?: string;
+}
+
 export interface CopilotClientOptions {
     /**
      * How to connect to the Copilot runtime. When omitted, defaults to
@@ -479,6 +511,16 @@ export interface CopilotClientOptions {
      * @default false
      */
     enableRemoteSessions?: boolean;
+
+    /**
+     * Identity of the integrating application, forwarded to the runtime on the
+     * `server.connect` handshake. Declaring it lets the telemetry the runtime
+     * emits on this connection be attributed to a single, consistent surface
+     * (e.g. the application and its Copilot integration) instead of the
+     * runtime's own build. All fields are optional; omit it to keep the default
+     * attribution.
+     */
+    clientInfo?: CopilotClientInfo;
 
     /**
      * @internal Hook used by `joinSession()` to construct a client that talks
@@ -2165,6 +2207,17 @@ export interface FactoryMeta {
  */
 export interface CapiSessionOptions {
     /**
+     * Routing preference used when the session model is `auto`.
+     * Requires a runtime with Auto tier support and V2 Auto routing.
+     *
+     * When omitted on create, the runtime uses its default routing behavior.
+     * The runtime persists this preference across cold resume; an explicit tier
+     * on cold resume overrides the persisted value. For an already-resident
+     * session, omission preserves the current tier and a different tier is rejected.
+     */
+    autoTier?: AutoTier;
+
+    /**
      * Whether to use the WebSocket transport for the CAPI Responses API.
      *
      * WebSocket transport is enabled by default whenever the selected model
@@ -2935,6 +2988,12 @@ export interface SessionConfigBase {
      * only if {@link CopilotClientOptions.sessionFs} is configured.
      */
     createSessionFsProvider?: (session: CopilotSession) => SessionFsProvider;
+
+    /**
+     * Feature-flag values resolved by the host for this session.
+     * Re-supply them when resuming after a runtime restart.
+     */
+    featureFlags?: Record<string, boolean>;
 
     /**
      * ExP assignment ("flight") data injected by a trusted integrator, in the

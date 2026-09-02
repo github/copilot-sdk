@@ -464,6 +464,94 @@ public sealed class ClientSessionLifetimeTests
         Assert.False(agent.TryGetProperty("reasoningEffort", out _));
     }
 
+    public static TheoryData<AutoTier, string, bool?> CapiAutoTiers => new()
+    {
+        { AutoTier.Efficiency, "efficiency", null },
+        { AutoTier.Balance, "balance", null },
+        { AutoTier.Intelligence, "intelligence", null },
+        { AutoTier.Efficiency, "efficiency", false },
+        { AutoTier.Balance, "balance", false },
+        { AutoTier.Intelligence, "intelligence", false },
+    };
+
+    [Theory]
+    [MemberData(nameof(CapiAutoTiers))]
+    public async Task SessionRequests_Serialize_CapiAutoTier(AutoTier tier, string expectedTier, bool? enableWebSocketResponses)
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        var capi = new CapiSessionOptions { AutoTier = tier, EnableWebSocketResponses = enableWebSocketResponses };
+
+        await using var created = await client.CreateSessionAsync(new SessionConfig
+        {
+            Model = "auto",
+            Capi = capi,
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+        await using var resumed = await client.ResumeSessionAsync("resume-with-auto-tier", new ResumeSessionConfig
+        {
+            Model = "auto",
+            Capi = capi,
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        foreach (var method in new[] { "session.create", "session.resume" })
+        {
+            var request = Assert.Single(server.Requests, request => request.Method == method);
+            var serializedCapi = request.Params.GetProperty("capi");
+            Assert.Equal(expectedTier, serializedCapi.GetProperty("autoTier").GetString());
+            if (enableWebSocketResponses.HasValue)
+            {
+                Assert.Equal(enableWebSocketResponses.Value, serializedCapi.GetProperty("enableWebSocketResponses").GetBoolean());
+            }
+            else
+            {
+                Assert.False(serializedCapi.TryGetProperty("enableWebSocketResponses", out _));
+            }
+        }
+    }
+
+    [Theory]
+    [InlineData(false, null)]
+    [InlineData(true, null)]
+    [InlineData(true, false)]
+    public async Task SessionRequests_Omit_CapiAutoTier_WhenUnset(bool includeCapi, bool? enableWebSocketResponses)
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        var capi = includeCapi ? new CapiSessionOptions { EnableWebSocketResponses = enableWebSocketResponses } : null;
+
+        await using var created = await client.CreateSessionAsync(new SessionConfig
+        {
+            Model = "auto",
+            Capi = capi,
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+        await using var resumed = await client.ResumeSessionAsync("resume-without-auto-tier", new ResumeSessionConfig
+        {
+            Capi = capi,
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        foreach (var method in new[] { "session.create", "session.resume" })
+        {
+            var request = Assert.Single(server.Requests, request => request.Method == method);
+            Assert.Equal(includeCapi, request.Params.TryGetProperty("capi", out var serializedCapi));
+            if (includeCapi)
+            {
+                Assert.False(serializedCapi.TryGetProperty("autoTier", out _));
+                if (enableWebSocketResponses.HasValue)
+                {
+                    Assert.Equal(enableWebSocketResponses.Value, serializedCapi.GetProperty("enableWebSocketResponses").GetBoolean());
+                }
+                else
+                {
+                    Assert.Empty(serializedCapi.EnumerateObject());
+                }
+            }
+        }
+    }
+
     [Fact]
     public async Task CreateSessionAsync_Forwards_AskUserVariant()
     {

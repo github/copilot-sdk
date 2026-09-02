@@ -3365,6 +3365,9 @@ pub struct CatalogNetworkFailureError {
     pub message: String,
     /// Categorised failure, low cardinality so it can be aggregated without carrying a URL.
     pub reason: CatalogNetworkFailureReason,
+    /// Bounded cooldown in seconds before another catalog request should be attempted, when the authority supplied a numeric Retry-After value or the runtime applied its documented fallback.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub retry_after_seconds: Option<i32>,
     /// HTTP status code, when the failure was a rejected response.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status_code: Option<i32>,
@@ -3427,7 +3430,7 @@ pub struct CatalogSearchRequest {
     /// Maximum number of candidates to return. Defaults to 10 when omitted.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub limit: Option<i32>,
-    /// Free-text search query. Never written to logs or telemetry.
+    /// Free-text search query. Persisted as tool input for session continuity, but omitted from telemetry.
     pub query: String,
 }
 
@@ -5621,10 +5624,13 @@ pub struct FactoryResumeRequest {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FactoryRunResult {
+    /// One-based execution attempt represented by this envelope. Absent before the first attempt starts or when returned by an older runtime.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub attempt: Option<i64>,
     /// Error message for an errored run.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
-    /// Machine-readable failure details for an errored run.
+    /// Machine-readable failure details for a halted or errored run.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub failure: Option<serde_json::Value>,
     /// Reason for a halted or cancelled run.
@@ -9901,6 +9907,9 @@ pub struct ModelBillingPromo {
     /// Human-readable promotion message. Does not include the expiry timestamp; consumers may format endsAt and append it when present.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
+    /// Whether the service asked hosts to give this promotion a prominent surface, such as a dedicated banner, in addition to listing it with the model. `true` requests that surface and `false` asks for the model list only. Absent means the service expressed no preference — for example a response that predates the field — so hosts should apply their own default rather than read it as `false`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub show_banner: Option<bool>,
 }
 
 /// Long context tier pricing (available for models with extended context windows)
@@ -10227,6 +10236,9 @@ pub struct ModelApplyStartupOverlayRequest {
     /// Model required by device-managed policy, when configured.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub device_managed_model: Option<String>,
+    /// Startup default model from the enterprise policy helper, when configured. Weakest of the managed sources: it applies only when neither device nor server policy names a model, and an explicit user selection still wins.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub policy_helper_model: Option<String>,
     /// Context tier selected by repository settings, when configured.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub repo_context_tier: Option<String>,
@@ -18874,6 +18886,9 @@ pub struct SlashCommandCompletedResult {
     /// Optional user-facing message describing the completed command
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
+    /// Optional target session mode applied without submitting an agent prompt
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mode: Option<SessionMode>,
     /// True when the invocation mutated user runtime settings; consumers caching settings should refresh
     #[serde(skip_serializing_if = "Option::is_none")]
     pub runtime_settings_changed: Option<bool>,
@@ -22439,10 +22454,13 @@ pub struct SessionCanvasActionInvokeResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionFactoryRunResult {
+    /// One-based execution attempt represented by this envelope. Absent before the first attempt starts or when returned by an older runtime.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub attempt: Option<i64>,
     /// Error message for an errored run.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
-    /// Machine-readable failure details for an errored run.
+    /// Machine-readable failure details for a halted or errored run.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub failure: Option<serde_json::Value>,
     /// Reason for a halted or cancelled run.
@@ -22488,10 +22506,13 @@ pub struct SessionFactoryResumeResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionFactoryRunFromToolResult {
+    /// One-based execution attempt represented by this envelope. Absent before the first attempt starts or when returned by an older runtime.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub attempt: Option<i64>,
     /// Error message for an errored run.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
-    /// Machine-readable failure details for an errored run.
+    /// Machine-readable failure details for a halted or errored run.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub failure: Option<serde_json::Value>,
     /// Reason for a halted or cancelled run.
@@ -22537,10 +22558,13 @@ pub struct SessionFactoryResumeFromToolResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionFactoryGetRunResult {
+    /// One-based execution attempt represented by this envelope. Absent before the first attempt starts or when returned by an older runtime.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub attempt: Option<i64>,
     /// Error message for an errored run.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
-    /// Machine-readable failure details for an errored run.
+    /// Machine-readable failure details for a halted or errored run.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub failure: Option<serde_json::Value>,
     /// Reason for a halted or cancelled run.
@@ -22678,10 +22702,13 @@ pub struct SessionFactoryGetRunProgressResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionFactoryCancelResult {
+    /// One-based execution attempt represented by this envelope. Absent before the first attempt starts or when returned by an older runtime.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub attempt: Option<i64>,
     /// Error message for an errored run.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
-    /// Machine-readable failure details for an errored run.
+    /// Machine-readable failure details for a halted or errored run.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub failure: Option<serde_json::Value>,
     /// Reason for a halted or cancelled run.
@@ -28429,7 +28456,16 @@ pub enum CatalogNetworkFailureReason {
     /// The connection was refused or reset.
     #[serde(rename = "connection-refused")]
     ConnectionRefused,
-    /// The authority returned a status the runtime treats as a failure.
+    /// The configured proxy returned 407 and requires authentication.
+    #[serde(rename = "proxy-authentication-required")]
+    ProxyAuthenticationRequired,
+    /// The authority rate-limited requests and supplied or implied a bounded cooldown.
+    #[serde(rename = "rate-limited")]
+    RateLimited,
+    /// The authority returned a transient 5xx response.
+    #[serde(rename = "service-unavailable")]
+    ServiceUnavailable,
+    /// The authority returned another status the runtime treats as a failure.
     #[serde(rename = "http-status")]
     HttpStatus,
     /// The response exceeded the permitted size.

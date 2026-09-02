@@ -47,8 +47,8 @@ func sseFrame(eventType string, data map[string]any) string {
 
 func modelCatalogJSON(supportedEndpoints []string) string {
 	model := map[string]any{
-		"id":                   "claude-sonnet-4.5",
-		"name":                 "Claude Sonnet 4.5",
+		"id":                   "claude-sonnet-5",
+		"name":                 "Claude Sonnet 5",
 		"object":               "model",
 		"vendor":               "Anthropic",
 		"version":              "1",
@@ -56,7 +56,7 @@ func modelCatalogJSON(supportedEndpoints []string) string {
 		"model_picker_enabled": true,
 		"capabilities": map[string]any{
 			"type":      "chat",
-			"family":    "claude-sonnet-4.5",
+			"family":    "claude-sonnet-5",
 			"tokenizer": "o200k_base",
 			"limits": map[string]any{
 				"max_context_window_tokens": 200000,
@@ -141,7 +141,7 @@ func buildAnthropicMessageSSEBody(text string) string {
 			"type": "message_start",
 			"message": map[string]any{
 				"id": "msg_stub_1", "type": "message", "role": "assistant",
-				"model": "claude-sonnet-4.5", "content": []any{},
+				"model": "claude-sonnet-5", "content": []any{},
 				"stop_reason": nil, "stop_sequence": nil,
 				"usage": map[string]any{"input_tokens": 5, "output_tokens": 1},
 			},
@@ -188,7 +188,7 @@ func buildInferenceResponse(url string, bodyText string) *http.Response {
 		base := func() map[string]any {
 			return map[string]any{
 				"id": "chatcmpl-stub-1", "object": "chat.completion.chunk",
-				"created": 1, "model": "claude-sonnet-4.5",
+				"created": 1, "model": "claude-sonnet-5",
 			}
 		}
 		c1 := base()
@@ -215,7 +215,7 @@ func buildInferenceResponse(url string, bodyText string) *http.Response {
 			"id":            "msg_stub_1",
 			"type":          "message",
 			"role":          "assistant",
-			"model":         "claude-sonnet-4.5",
+			"model":         "claude-sonnet-5",
 			"content":       []any{map[string]any{"type": "text", "text": syntheticResponseText}},
 			"stop_reason":   "end_turn",
 			"stop_sequence": nil,
@@ -225,7 +225,7 @@ func buildInferenceResponse(url string, bodyText string) *http.Response {
 	}
 
 	raw, _ := json.Marshal(map[string]any{
-		"id": "chatcmpl-stub-1", "object": "chat.completion", "created": 1, "model": "claude-sonnet-4.5",
+		"id": "chatcmpl-stub-1", "object": "chat.completion", "created": 1, "model": "claude-sonnet-5",
 		"choices": []any{map[string]any{"index": 0, "message": map[string]any{"role": "assistant", "content": syntheticResponseText}, "finish_reason": "stop"}},
 		"usage":   map[string]any{"prompt_tokens": 5, "completion_tokens": 7, "total_tokens": 12},
 	})

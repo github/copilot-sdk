@@ -1,9 +1,6 @@
 name: ".NET SDK Tests"
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
   workflow_call:
 
@@ -11,6 +8,40 @@ permissions:
   contents: read
 
 jobs:
+  validate:
+    name: ".NET SDK Build and Format"
+    if: github.event.repository.fork == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./dotnet
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "10.0.x"
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      - name: Restore .NET dependencies
+        run: dotnet restore
+
+      - name: Run dotnet format check
+        run: |
+          if ! dotnet format --no-restore --verify-no-changes; then
+            echo "❌ dotnet format produced changes. Please run 'dotnet format' in dotnet"
+            exit 1
+          fi
+          echo "✅ dotnet format produced no changes"
+
+      # Build the whole solution once to validate every SDK target framework.
+      # Matrix cells below only need to build frameworks consumed by the tests.
+      - name: Build SDK
+        run: dotnet build --no-restore
+
   test:
     name: ".NET SDK Tests (${{ matrix.os }}, ${{ matrix.transport }}, ${{ matrix.backend }}, ${{ matrix.shard }})"
     if: github.event.repository.fork == false
@@ -97,7 +128,7 @@ jobs:
     # A hung test used to run until the runner died (~50 min) and the dying
     # runner never uploaded its logs, so the failures were undiagnosable.
     # Every healthy cell finishes well under 15 min.
-    timeout-minutes: 30
+    timeout-minutes: 20
     defaults:
       run:
         shell: bash
@@ -111,27 +142,16 @@ jobs:
         with:
           node-version: "22"
           cache: "npm"
-          cache-dependency-path: "./nodejs/package-lock.json"
+          cache-dependency-path: |
+            ./nodejs/package-lock.json
+            ./test/harness/package-lock.json
 
-      - name: Install Node.js dependencies (for CLI version extraction)
+      - name: Install Node.js dependencies
         working-directory: ./nodejs
         run: npm ci --ignore-scripts
 
       - name: Restore .NET dependencies
-        run: dotnet restore
-
-      - name: Run dotnet format check
-        if: runner.os == 'Linux'
-        run: |
-          dotnet format --verify-no-changes
-          if [ $? -ne 0 ]; then
-            echo "❌ dotnet format produced changes. Please run 'dotnet format' in dotnet"
-            exit 1
-          fi
-          echo "✅ dotnet format produced no changes"
-
-      - name: Build SDK
-        run: dotnet build --no-restore
+        run: dotnet restore test/GitHub.Copilot.SDK.Test.csproj
 
       - name: Install test harness dependencies
         working-directory: ./test/harness
@@ -153,17 +173,21 @@ jobs:
           # --blame-hang names the offending test instead of letting it wedge
           # the runner. No single test legitimately runs for 10 minutes; the
           # whole suite normally finishes in about five.
-          args=(--no-build -v n --blame-hang --blame-hang-timeout 10m --blame-hang-dump-type none)
+          # The validation job performs the full analyzer-enabled SDK build.
+          # Build only test-consumed frameworks here and do not repeat analyzers.
+          args=(--no-restore -v n --blame-hang --blame-hang-timeout 10m --blame-hang-dump-type none -p:RunAnalyzers=false)
 
           filter="$DOTNET_TEST_FILTER"
           if [[ "$DOTNET_TEST_SHARD" != "full" ]]; then
             case "$DOTNET_TEST_SHARD" in
               1)
-                initials=(A C D H I J K L N Q S U W Y)
+                # M moved here after recent runs showed shard 2 was about two
+                # minutes slower; this keeps Windows and macOS balanced.
+                initials=(A C D H I J K L M N Q S U W Y)
                 shard_filter="FullyQualifiedName~GitHub.Copilot.Test.ConnectionToken"
                 ;;
               2)
-                initials=(B E F G M O P R T V X Z)
+                initials=(B E F G O P R T V X Z)
                 shard_filter=""
                 ;;
               2a)
@@ -171,7 +195,7 @@ jobs:
                 shard_filter=""
                 ;;
               2b)
-                initials=(M O P R)
+                initials=(O P R)
                 shard_filter=""
                 ;;
               2c)
@@ -192,4 +216,4 @@ jobs:
           if [[ -n "$filter" ]]; then
             args+=(--filter "$filter")
           fi
-          dotnet test "${args[@]}"
+          dotnet test test/GitHub.Copilot.SDK.Test.csproj "${args[@]}"

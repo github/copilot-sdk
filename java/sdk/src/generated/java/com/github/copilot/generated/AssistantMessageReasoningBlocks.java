@@ -24,7 +24,7 @@ import javax.annotation.processing.Generated;
 public record AssistantMessageReasoningBlocks(
     /** Model provider that produced these reasoning blocks. */
     @JsonProperty("provider") String provider,
-    /** Provider-native reasoning content blocks (e.g. Anthropic `thinking` / `redacted_thinking`) preserved verbatim, in order. A single response can carry several, each signed over the content preceding it, so dropping or reordering any of them invalidates the rest. */
+    /** Provider-native reasoning items or content blocks preserved verbatim, in order. A single response can carry several, and provider signatures or identifiers may depend on their exact content and ordering. */
     @JsonProperty("blocks") List<Object> blocks
 ) {
 }

@@ -12,6 +12,8 @@ import {
     createCanvas,
     DisableBypassPermissionsModes,
     RuntimeConnection,
+    type CapiSessionOptions,
+    type CopilotClientOptions,
     type GitHubTelemetryNotification,
     type ManagedSettings,
     type ModelInfo,
@@ -1487,7 +1489,7 @@ describe("CopilotClient", () => {
         expect(resumePayload.expAssignments).toBeUndefined();
     });
 
-    it("forwards capi options in session.create and session.resume", async () => {
+    it("forwards featureFlags in session.create and session.resume", async () => {
         const client = new CopilotClient();
         await client.start();
         onTestFinished(() => stopClient(client));
@@ -1499,14 +1501,15 @@ describe("CopilotClient", () => {
                 if (method === "session.resume") return { sessionId: params.sessionId };
                 throw new Error(`Unexpected method: ${method}`);
             });
+        const featureFlags = { ENABLED_TEST_FLAG: true, DISABLED_TEST_FLAG: false };
 
         const session = await client.createSession({
             onPermissionRequest: approveAll,
-            capi: { enableWebSocketResponses: false },
+            featureFlags,
         });
         await client.resumeSession(session.sessionId, {
             onPermissionRequest: approveAll,
-            capi: { enableWebSocketResponses: false },
+            featureFlags,
         });
 
         const createPayload = spy.mock.calls.find(
@@ -1515,9 +1518,54 @@ describe("CopilotClient", () => {
         const resumePayload = spy.mock.calls.find(
             ([method]) => method === "session.resume"
         )![1] as any;
-        expect(createPayload.capi).toEqual({ enableWebSocketResponses: false });
-        expect(resumePayload.capi).toEqual({ enableWebSocketResponses: false });
+        expect(createPayload.featureFlags).toEqual(featureFlags);
+        expect(resumePayload.featureFlags).toEqual(featureFlags);
     });
+
+    it.each([
+        undefined,
+        {},
+        { enableWebSocketResponses: false },
+        { enableWebSocketResponses: true },
+        { autoTier: "efficiency" },
+        { autoTier: "balance" },
+        { autoTier: "intelligence" },
+        { autoTier: "balance", enableWebSocketResponses: false },
+    ] satisfies (CapiSessionOptions | undefined)[])(
+        "forwards capi options %j in session.create and session.resume",
+        async (capi) => {
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => stopClient(client));
+
+            const spy = vi
+                .spyOn((client as any).connection!, "sendRequest")
+                .mockImplementation(async (method: string, params: any) => {
+                    if (method === "session.create") return { sessionId: params.sessionId };
+                    if (method === "session.resume") return { sessionId: params.sessionId };
+                    throw new Error(`Unexpected method: ${method}`);
+                });
+
+            const session = await client.createSession({
+                onPermissionRequest: approveAll,
+                model: "auto",
+                capi,
+            });
+            await client.resumeSession(session.sessionId, {
+                onPermissionRequest: approveAll,
+                capi,
+            });
+
+            const createPayload = spy.mock.calls.find(
+                ([method]) => method === "session.create"
+            )![1] as any;
+            const resumePayload = spy.mock.calls.find(
+                ([method]) => method === "session.resume"
+            )![1] as any;
+            expect(JSON.parse(JSON.stringify(createPayload)).capi).toEqual(capi);
+            expect(JSON.parse(JSON.stringify(resumePayload)).capi).toEqual(capi);
+        }
+    );
 
     it("forwards pluginDirectories and largeOutput in session.create and session.resume", async () => {
         const client = new CopilotClient();
@@ -4350,6 +4398,84 @@ describe("managedSettings serialization", () => {
         const call = spy.mock.calls.find(([method]) => method === "session.resume");
         expect(call![1].managedSettings).toEqual({
             permissions: { ask: ["Domain(publish.example)"] },
+        });
+    });
+});
+
+describe("connect handshake clientInfo", () => {
+    // Drives verifyProtocolVersion() against a stubbed connection so we can
+    // observe the `connect` params without spawning a runtime. `connect` maps to
+    // connection.sendRequest("connect", params) in the generated internal RPC.
+    async function captureConnectParams(
+        options: Partial<Pick<CopilotClientOptions, "clientInfo" | "onGitHubTelemetry">> = {}
+    ): Promise<Record<string, unknown>> {
+        const client = new CopilotClient({
+            connection: RuntimeConnection.forUri("localhost:1234"),
+            ...options,
+        });
+        const sendRequest = vi.fn(async (method: string, _params?: unknown) => {
+            if (method === "connect") return { protocolVersion: 3 };
+            throw new Error(`Unexpected method: ${method}`);
+        });
+        (client as any).connection = { sendRequest };
+
+        await (client as any).verifyProtocolVersion();
+
+        const connectCall = sendRequest.mock.calls.find(([method]) => method === "connect");
+        expect(connectCall, "connect was not called").toBeTruthy();
+        return connectCall![1] as Record<string, unknown>;
+    }
+
+    it("forwards a declared client identity on the connect handshake", async () => {
+        const clientInfo = {
+            applicationName: "acme-developer-portal",
+            applicationVersion: "2.4.0",
+            integrationName: "copilot-assistant",
+            integrationVersion: "1.5.0",
+        };
+
+        const params = await captureConnectParams({ clientInfo });
+
+        expect(params.clientInfo).toEqual({
+            editorName: "acme-developer-portal",
+            editorVersion: "2.4.0",
+            extensionName: "copilot-assistant",
+            extensionVersion: "1.5.0",
+        });
+    });
+
+    it("omits clientInfo from the handshake when the host declares none", async () => {
+        const params = await captureConnectParams();
+
+        expect(params).not.toHaveProperty("clientInfo");
+    });
+
+    it("drops empty fields and omits an all-empty identity", async () => {
+        const allEmpty = await captureConnectParams({
+            clientInfo: {
+                applicationName: "",
+                applicationVersion: "",
+                integrationName: "",
+                integrationVersion: "",
+            },
+        });
+        expect(allEmpty).not.toHaveProperty("clientInfo");
+
+        const partial = await captureConnectParams({
+            clientInfo: { applicationName: "example-app", applicationVersion: "" },
+        });
+        expect(partial.clientInfo).toEqual({ editorName: "example-app" });
+    });
+
+    it("keeps telemetry forwarding alongside a declared identity", async () => {
+        const params = await captureConnectParams({
+            clientInfo: { applicationName: "example-app" },
+            onGitHubTelemetry: () => {},
+        });
+
+        expect(params).toMatchObject({
+            clientInfo: { editorName: "example-app" },
+            enableGitHubTelemetryForwarding: true,
         });
     });
 });

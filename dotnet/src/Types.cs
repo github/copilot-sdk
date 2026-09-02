@@ -322,6 +322,7 @@ public sealed class CopilotClientOptions
         OnGitHubTelemetry = other.OnGitHubTelemetry;
         SessionIdleTimeoutSeconds = other.SessionIdleTimeoutSeconds;
         EnableRemoteSessions = other.EnableRemoteSessions;
+        ClientInfo = other.ClientInfo;
         Mode = other.Mode;
     }
 
@@ -466,6 +467,16 @@ public sealed class CopilotClientOptions
     public bool EnableRemoteSessions { get; set; }
 
     /// <summary>
+    /// Declares the integrating application's identity, forwarded to the runtime on the
+    /// <c>server.connect</c> handshake. Declaring it lets the telemetry the
+    /// runtime emits on this connection be attributed to a consistent surface
+    /// (the application and its Copilot integration) instead of the runtime's own
+    /// build. All fields are optional; leave it <see langword="null"/> to keep
+    /// the runtime's default attribution.
+    /// </summary>
+    public CopilotClientInfo? ClientInfo { get; set; }
+
+    /// <summary>
     /// Creates a shallow clone of this <see cref="CopilotClientOptions"/> instance.
     /// </summary>
     /// <remarks>
@@ -529,6 +540,38 @@ public sealed class TelemetryConfig
     /// Maps to the <c>OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT</c> environment variable.
     /// </remarks>
     public bool? CaptureContent { get; set; }
+}
+
+/// <summary>
+/// Identifies the integrating application on the <c>server.connect</c> handshake.
+/// </summary>
+/// <remarks>
+/// Declaring it lets the telemetry the runtime emits on the connection be
+/// attributed to a single, consistent surface instead of the runtime's own
+/// build. All properties are optional; an unset property is omitted from the
+/// handshake.
+/// </remarks>
+public sealed class CopilotClientInfo
+{
+    /// <summary>
+    /// Name of the application using the SDK.
+    /// </summary>
+    public string? ApplicationName { get; set; }
+
+    /// <summary>
+    /// Version of the application using the SDK.
+    /// </summary>
+    public string? ApplicationVersion { get; set; }
+
+    /// <summary>
+    /// Optionally specifies a named integration within the application, such as an extension or plugin.
+    /// </summary>
+    public string? IntegrationName { get; set; }
+
+    /// <summary>
+    /// Optionally specifies the version of that integration.
+    /// </summary>
+    public string? IntegrationVersion { get; set; }
 }
 
 /// <summary>
@@ -2449,6 +2492,18 @@ public sealed class CapiSessionOptions
     /// </remarks>
     [JsonPropertyName("enableWebSocketResponses")]
     public bool? EnableWebSocketResponses { get; set; }
+
+    /// <summary>
+    /// Routing tier for model <c>auto</c> with V2 Auto.
+    /// </summary>
+    /// <remarks>
+    /// Requires a runtime that supports Auto tiers; it has no effect outside V2 Auto.
+    /// When omitted, the runtime uses its default on create and preserves the persisted or current
+    /// tier on resume. An explicit tier overrides the persisted tier on a cold resume; a conflicting
+    /// tier on a resident session resume is rejected by the runtime.
+    /// </remarks>
+    [JsonPropertyName("autoTier")]
+    public AutoTier? AutoTier { get; set; }
 }
 
 /// <summary>
@@ -3280,6 +3335,9 @@ public abstract class SessionConfigBase
         GitHubToken = other.GitHubToken;
         GitHubTokenProvider = other.GitHubTokenProvider;
         RemoteSession = other.RemoteSession;
+        FeatureFlags = other.FeatureFlags is not null
+            ? new Dictionary<string, bool>(other.FeatureFlags)
+            : null;
         ExpAssignments = other.ExpAssignments;
         EnableManagedSettings = other.EnableManagedSettings;
         ManagedSettings = other.ManagedSettings;
@@ -3786,6 +3844,12 @@ public abstract class SessionConfigBase
     /// </remarks>
     [EditorBrowsable(EditorBrowsableState.Never)]
     public CopilotExpAssignmentResponse? ExpAssignments { get; set; }
+
+    /// <summary>
+    /// Feature-flag values resolved by the host for this session.
+    /// Re-supply them when resuming after a runtime restart.
+    /// </summary>
+    public IDictionary<string, bool>? FeatureFlags { get; set; }
 
     /// <summary>
     /// Opt-in: when <c>true</c>, the runtime self-fetches enterprise managed

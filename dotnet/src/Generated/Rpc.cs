@@ -118,6 +118,10 @@ public sealed class ModelBillingPromo
     /// <summary>Human-readable promotion message. Does not include the expiry timestamp; consumers may format endsAt and append it when present.</summary>
     [JsonPropertyName("message")]
     public string? Message { get; set; }
+
+    /// <summary>Whether the service asked hosts to give this promotion a prominent surface, such as a dedicated banner, in addition to listing it with the model. `true` requests that surface and `false` asks for the model list only. Absent means the service expressed no preference — for example a response that predates the field — so hosts should apply their own default rather than read it as `false`.</summary>
+    [JsonPropertyName("showBanner")]
+    public bool? ShowBanner { get; set; }
 }
 
 /// <summary>Long context tier pricing (available for models with extended context windows).</summary>
@@ -1841,6 +1845,11 @@ public partial class McpPlanInstallResultNetworkFailure : McpPlanInstallResult
     [JsonPropertyName("reason")]
     public required CatalogNetworkFailureReason Reason { get; set; }
 
+    /// <summary>Bounded cooldown in seconds before another catalog request should be attempted, when the authority supplied a numeric Retry-After value or the runtime applied its documented fallback.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("retryAfterSeconds")]
+    public int? RetryAfterSeconds { get; set; }
+
     /// <summary>HTTP status code, when the failure was a rejected response.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("statusCode")]
@@ -2655,6 +2664,11 @@ public partial class CatalogSearchResultNetworkFailure : CatalogSearchResult
     [JsonPropertyName("reason")]
     public required CatalogNetworkFailureReason Reason { get; set; }
 
+    /// <summary>Bounded cooldown in seconds before another catalog request should be attempted, when the authority supplied a numeric Retry-After value or the runtime applied its documented fallback.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("retryAfterSeconds")]
+    public int? RetryAfterSeconds { get; set; }
+
     /// <summary>HTTP status code, when the failure was a rejected response.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("statusCode")]
@@ -2762,7 +2776,7 @@ internal sealed class CatalogSearchRequest
     [JsonPropertyName("limit")]
     public int? Limit { get; set; }
 
-    /// <summary>Free-text search query. Never written to logs or telemetry.</summary>
+    /// <summary>Free-text search query. Persisted as tool input for session continuity, but omitted from telemetry.</summary>
     [RegularExpression("\\S")]
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
     [MinLength(1)]
@@ -6244,6 +6258,7 @@ internal sealed class CanvasProviderUnregisterRequest
 [JsonDerivedType(typeof(FactoryRunFailureFactoryResumeDeclined), "factory_resume_declined")]
 [JsonDerivedType(typeof(FactoryRunFailureFactoryDurableFailure), "factory_durable_failure")]
 [JsonDerivedType(typeof(FactoryRunFailureFactoryAccountingIncomplete), "factory_accounting_incomplete")]
+[JsonDerivedType(typeof(FactoryRunFailureFactoryProviderDisconnected), "factory_provider_disconnected")]
 public partial class FactoryRunFailure
 {
     /// <summary>The type discriminator.</summary>
@@ -6329,15 +6344,33 @@ public partial class FactoryRunFailureFactoryAccountingIncomplete : FactoryRunFa
     public required string RunId { get; set; }
 }
 
+/// <summary>The extension that owns the factory disconnected while the run was executing, so the host halted it. The run's journaled subagent results are preserved so a resume can reuse them.</summary>
+/// <remarks>The <c>factory_provider_disconnected</c> variant of <see cref="FactoryRunFailure"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class FactoryRunFailureFactoryProviderDisconnected : FactoryRunFailure
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "factory_provider_disconnected";
+
+    /// <summary>Factory run identifier.</summary>
+    [JsonPropertyName("runId")]
+    public required string RunId { get; set; }
+}
+
 /// <summary>Complete current or terminal factory run envelope.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class FactoryRunResult
 {
+    /// <summary>One-based execution attempt represented by this envelope. Absent before the first attempt starts or when returned by an older runtime.</summary>
+    [JsonPropertyName("attempt")]
+    public long? Attempt { get; set; }
+
     /// <summary>Error message for an errored run.</summary>
     [JsonPropertyName("error")]
     public string? Error { get; set; }
 
-    /// <summary>Machine-readable failure details for an errored run.</summary>
+    /// <summary>Machine-readable failure details for a halted or errored run.</summary>
     [JsonPropertyName("failure")]
     public FactoryRunFailure? Failure { get; set; }
 
@@ -7478,6 +7511,10 @@ internal sealed class ModelApplyStartupOverlayRequest
     /// <summary>Model required by device-managed policy, when configured.</summary>
     [JsonPropertyName("deviceManagedModel")]
     public string? DeviceManagedModel { get; set; }
+
+    /// <summary>Startup default model from the enterprise policy helper, when configured. Weakest of the managed sources: it applies only when neither device nor server policy names a model, and an explicit user selection still wins.</summary>
+    [JsonPropertyName("policyHelperModel")]
+    public string? PolicyHelperModel { get; set; }
 
     /// <summary>Context tier selected by repository settings, when configured.</summary>
     [JsonPropertyName("repoContextTier")]
@@ -13122,6 +13159,11 @@ public partial class SlashCommandInvocationResultCompleted : SlashCommandInvocat
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("message")]
     public string? Message { get; set; }
+
+    /// <summary>Optional target session mode applied without submitting an agent prompt.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("mode")]
+    public SessionMode? Mode { get; set; }
 
     /// <summary>True when the invocation mutated user runtime settings; consumers caching settings should refresh.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -20308,7 +20350,16 @@ public readonly struct CatalogNetworkFailureReason : IEquatable<CatalogNetworkFa
     /// <summary>The connection was refused or reset.</summary>
     public static CatalogNetworkFailureReason ConnectionRefused { get; } = new("connection-refused");
 
-    /// <summary>The authority returned a status the runtime treats as a failure.</summary>
+    /// <summary>The configured proxy returned 407 and requires authentication.</summary>
+    public static CatalogNetworkFailureReason ProxyAuthenticationRequired { get; } = new("proxy-authentication-required");
+
+    /// <summary>The authority rate-limited requests and supplied or implied a bounded cooldown.</summary>
+    public static CatalogNetworkFailureReason RateLimited { get; } = new("rate-limited");
+
+    /// <summary>The authority returned a transient 5xx response.</summary>
+    public static CatalogNetworkFailureReason ServiceUnavailable { get; } = new("service-unavailable");
+
+    /// <summary>The authority returned another status the runtime treats as a failure.</summary>
     public static CatalogNetworkFailureReason HttpStatus { get; } = new("http-status");
 
     /// <summary>The response exceeded the permitted size.</summary>
@@ -30037,7 +30088,7 @@ public sealed class ServerCatalogApi
 
     /// <summary>Requests a bounded catalog search. This host-implemented server method is available through SDK/TUI hosts; standalone and C-ABI runtimes whose host does not implement server-method dispatch return JSON-RPC MethodNotFound. A runtime with search available returns inert candidate summaries, each with an opaque single-use handle scoped to this runtime instance; a runtime without it returns the typed search-unavailable result. Public authorities may be searched anonymously, while an authority that requires credentials yields the typed authentication-required result. All returned text, URLs, and package metadata are untrusted external data and can never trigger instructions, tools, or installation. Read-only: nothing is installed, configured, or persisted.</summary>
     /// <param name="contract">Protocol version and capabilities the caller requires.</param>
-    /// <param name="query">Free-text search query. Never written to logs or telemetry.</param>
+    /// <param name="query">Free-text search query. Persisted as tool input for session continuity, but omitted from telemetry.</param>
     /// <param name="limit">Maximum number of candidates to return. Defaults to 10 when omitted.</param>
     /// <param name="kinds">Restrict results to these candidate kinds. When omitted, every kind the runtime supports is searched.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
@@ -31990,6 +32041,7 @@ public sealed class ModelApi
     /// <summary>Resolves and applies organization-managed and repository model overlays.</summary>
     /// <param name="deviceManagedModel">Model required by device-managed policy, when configured.</param>
     /// <param name="serverManagedModel">Model required by server-managed policy, when configured.</param>
+    /// <param name="policyHelperModel">Startup default model from the enterprise policy helper, when configured. Weakest of the managed sources: it applies only when neither device nor server policy names a model, and an explicit user selection still wins.</param>
     /// <param name="repoModel">Model selected by repository settings, when configured.</param>
     /// <param name="repoReasoningEffort">Reasoning effort selected by repository settings, when configured.</param>
     /// <param name="repoContextTier">Context tier selected by repository settings, when configured.</param>
@@ -31997,11 +32049,11 @@ public sealed class ModelApi
     /// <param name="deferredResume">Whether the overlay is being applied while resuming a deferred session.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>The model identifier active on the session after the switch.</returns>
-    internal async Task<ModelSwitchToResult> ApplyStartupOverlayAsync(string? deviceManagedModel = null, string? serverManagedModel = null, string? repoModel = null, string? repoReasoningEffort = null, string? repoContextTier = null, string? cliModel = null, bool? deferredResume = null, CancellationToken cancellationToken = default)
+    internal async Task<ModelSwitchToResult> ApplyStartupOverlayAsync(string? deviceManagedModel = null, string? serverManagedModel = null, string? policyHelperModel = null, string? repoModel = null, string? repoReasoningEffort = null, string? repoContextTier = null, string? cliModel = null, bool? deferredResume = null, CancellationToken cancellationToken = default)
     {
         _session.ThrowIfDisposed();
 
-        var request = new ModelApplyStartupOverlayRequest { SessionId = _session.SessionId, DeviceManagedModel = deviceManagedModel, ServerManagedModel = serverManagedModel, RepoModel = repoModel, RepoReasoningEffort = repoReasoningEffort, RepoContextTier = repoContextTier, CliModel = cliModel, DeferredResume = deferredResume };
+        var request = new ModelApplyStartupOverlayRequest { SessionId = _session.SessionId, DeviceManagedModel = deviceManagedModel, ServerManagedModel = serverManagedModel, PolicyHelperModel = policyHelperModel, RepoModel = repoModel, RepoReasoningEffort = repoReasoningEffort, RepoContextTier = repoContextTier, CliModel = cliModel, DeferredResume = deferredResume };
         return await CopilotClient.InvokeRpcAsync<ModelSwitchToResult>(_session.Rpc, "session.model.applyStartupOverlay", [request], cancellationToken);
     }
 

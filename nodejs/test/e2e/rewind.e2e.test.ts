@@ -30,7 +30,7 @@ describe("Rewind", async () => {
         const filePath = join(workDir, FILE_NAME);
         writeFileSync(filePath, ORIGINAL_FILE_CONTENT);
         const session = await client.createSession({
-            model: "claude-sonnet-4.5",
+            model: "claude-sonnet-5",
             enableFileChangeTracking: true,
             onPermissionRequest: approveAll,
         });

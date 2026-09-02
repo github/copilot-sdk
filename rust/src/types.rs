@@ -22,6 +22,8 @@ pub use crate::copilot_request_handler::{
 };
 pub use crate::generated::api_types::ManagedMcpServerConfig;
 use crate::generated::api_types::{CurrentToolMetadata, OpenCanvasInstance};
+/// Routing tier for the `auto` model with Auto mode V2.
+pub use crate::generated::session_events::AutoTier;
 use crate::generated::session_events::ReasoningSummary;
 /// Context window tier for models that support tiered context windows.
 pub use crate::generated::session_events::{ContextTier, SessionLimitsConfig};
@@ -1418,6 +1420,16 @@ impl ProviderConfig {
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct CapiSessionOptions {
+    /// Routing tier, meaningful only with model `auto` (Auto mode V2).
+    /// Requires a runtime version that supports `capi.autoTier`.
+    ///
+    /// When omitted, the runtime chooses its default on create and preserves
+    /// the persisted or current tier on resume. An explicit tier overrides the
+    /// persisted tier on cold resume; the runtime rejects a conflicting tier
+    /// when resuming a session already resident in memory.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auto_tier: Option<AutoTier>,
+
     /// Whether to use WebSocket transport for CAPI Responses API calls.
     ///
     /// When `Some(false)`, the runtime uses HTTP Responses transport even if
@@ -1431,6 +1443,12 @@ impl CapiSessionOptions {
     /// Construct CAPI session options with all fields unset.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Set the routing tier for the `auto` model (Auto mode V2).
+    pub fn with_auto_tier(mut self, auto_tier: AutoTier) -> Self {
+        self.auto_tier = Some(auto_tier);
+        self
     }
 
     /// Set whether to use WebSocket transport for CAPI Responses API calls.
@@ -2164,6 +2182,12 @@ pub struct SessionConfig {
     /// each command appears as `/name` for the user to invoke and the
     /// associated [`CommandHandler`] is called when executed.
     pub commands: Option<Vec<CommandDefinition>>,
+    /// Feature-flag values resolved by the host for this session.
+    ///
+    /// Re-supply these values through [`ResumeSessionConfig::feature_flags`]
+    /// when resuming after a CLI process restart. Set via
+    /// [`with_feature_flags`](Self::with_feature_flags).
+    pub feature_flags: Option<HashMap<String, bool>>,
     /// ExP assignment ("flight") data injected by a trusted integrator, in
     /// the same JSON shape the Copilot CLI fetches from the experimentation
     /// service (`CopilotExpAssignmentResponse`). When supplied, the runtime
@@ -2345,6 +2369,7 @@ impl std::fmt::Debug for SessionConfig {
                 &self.include_sub_agent_streaming_events,
             )
             .field("commands", &self.commands)
+            .field("feature_flags", &self.feature_flags)
             .field("exp_assignments", &self.exp_assignments)
             .field("enable_managed_settings", &self.enable_managed_settings)
             .field("enable_experimental_mode", &self.enable_experimental_mode)
@@ -2467,6 +2492,7 @@ impl Default for SessionConfig {
             cloud: None,
             include_sub_agent_streaming_events: None,
             commands: None,
+            feature_flags: None,
             exp_assignments: None,
             enable_managed_settings: None,
             managed_settings: None,
@@ -2645,6 +2671,7 @@ impl SessionConfig {
             include_sub_agent_streaming_events: self.include_sub_agent_streaming_events,
             enable_github_telemetry_forwarding: None,
             commands: wire_commands,
+            feature_flags: self.feature_flags,
             exp_assignments: self.exp_assignments,
             enable_managed_settings: self.enable_managed_settings,
             is_experimental_mode: self.enable_experimental_mode,
@@ -3300,6 +3327,12 @@ impl SessionConfig {
         self
     }
 
+    /// Set feature-flag values resolved by the host for this session.
+    pub fn with_feature_flags(mut self, feature_flags: HashMap<String, bool>) -> Self {
+        self.feature_flags = Some(feature_flags);
+        self
+    }
+
     /// Inject ExP assignment ("flight") data for this session, in the same
     /// JSON shape the Copilot CLI fetches from the experimentation service
     /// (`CopilotExpAssignmentResponse`). The runtime feeds it into the same
@@ -3530,6 +3563,10 @@ pub struct ResumeSessionConfig {
     /// [`SessionConfig::commands`] — commands are not persisted server-side,
     /// so the resume payload re-supplies the registration.
     pub commands: Option<Vec<CommandDefinition>>,
+    /// Feature-flag values resolved by the host to apply on resume.
+    ///
+    /// See [`SessionConfig::feature_flags`].
+    pub feature_flags: Option<HashMap<String, bool>>,
     /// ExP assignment ("flight") data injected on resume. See
     /// [`SessionConfig::exp_assignments`]. Re-supply on resume so the runtime
     /// re-applies the assignments after a CLI process restart. Set via
@@ -3697,6 +3734,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
                 &self.include_sub_agent_streaming_events,
             )
             .field("commands", &self.commands)
+            .field("feature_flags", &self.feature_flags)
             .field("exp_assignments", &self.exp_assignments)
             .field("enable_managed_settings", &self.enable_managed_settings)
             .field("enable_experimental_mode", &self.enable_experimental_mode)
@@ -3869,6 +3907,7 @@ impl ResumeSessionConfig {
             include_sub_agent_streaming_events: self.include_sub_agent_streaming_events,
             enable_github_telemetry_forwarding: None,
             commands: wire_commands,
+            feature_flags: self.feature_flags,
             exp_assignments: self.exp_assignments,
             enable_managed_settings: self.enable_managed_settings,
             is_experimental_mode: self.enable_experimental_mode,
@@ -3971,6 +4010,7 @@ impl ResumeSessionConfig {
             remote_session: None,
             include_sub_agent_streaming_events: None,
             commands: None,
+            feature_flags: None,
             exp_assignments: None,
             enable_managed_settings: None,
             managed_settings: None,
@@ -4609,6 +4649,12 @@ impl ResumeSessionConfig {
     /// Set [`Self::manage_schedule_enabled`].
     pub fn with_manage_schedule_enabled(mut self, value: bool) -> Self {
         self.manage_schedule_enabled = Some(value);
+        self
+    }
+
+    /// Re-supply feature-flag values resolved by the host on resume.
+    pub fn with_feature_flags(mut self, feature_flags: HashMap<String, bool>) -> Self {
+        self.feature_flags = Some(feature_flags);
         self
     }
 
@@ -6067,9 +6113,9 @@ mod tests {
 
     use super::{
         AgentMode, Attachment, AttachmentLineRange, AttachmentSelectionPosition,
-        AttachmentSelectionRange, AzureProviderOptions, CapiSessionOptions, ConnectionState,
-        CopilotExpAssignmentResponse, CustomAgentConfig, DeliveryMode, ExpConfigEntry,
-        ExpFlagValue, ExtensionInfo, GitHubMcpToolConfig, GitHubReferenceType,
+        AttachmentSelectionRange, AutoTier, AzureProviderOptions, CapiSessionOptions,
+        ConnectionState, CopilotExpAssignmentResponse, CustomAgentConfig, DeliveryMode,
+        ExpConfigEntry, ExpFlagValue, ExtensionInfo, GitHubMcpToolConfig, GitHubReferenceType,
         InfiniteSessionConfig, LargeToolOutputConfig, ManagedMcpServerConfig, McpServerConfig,
         McpStdioServerConfig, MemoryConfiguration, NamedProviderConfig,
         PermissionResponseCapability, ProviderConfig, ProviderModelConfig, ReasoningSummary,
@@ -6551,6 +6597,46 @@ mod tests {
             .expect("no duplicate handlers");
         let empty_json = serde_json::to_value(&empty_wire).unwrap();
         assert!(empty_json.get("memory").is_none());
+    }
+
+    #[test]
+    fn feature_flags_serialize_on_create_and_resume() {
+        let feature_flags = HashMap::from([
+            ("BACKGROUND_TASK_NOTIFICATION_PAYLOADS".to_string(), true),
+            ("DISABLED_TEST_FLAG".to_string(), false),
+        ]);
+        let expected = serde_json::json!({
+            "BACKGROUND_TASK_NOTIFICATION_PAYLOADS": true,
+            "DISABLED_TEST_FLAG": false,
+        });
+
+        let create_config = SessionConfig::default().with_feature_flags(feature_flags.clone());
+        assert_eq!(create_config.feature_flags.as_ref(), Some(&feature_flags));
+        let (create_wire, _) = create_config
+            .into_wire(Some(SessionId::from("feature-flags-create")))
+            .expect("no duplicate handlers");
+        let create_json = serde_json::to_value(&create_wire).unwrap();
+        assert_eq!(create_json["featureFlags"], expected);
+
+        let (resume_wire, _) = ResumeSessionConfig::new(SessionId::from("feature-flags-resume"))
+            .with_feature_flags(feature_flags)
+            .into_wire()
+            .expect("no duplicate handlers");
+        let resume_json = serde_json::to_value(&resume_wire).unwrap();
+        assert_eq!(resume_json["featureFlags"], expected);
+
+        let (unset_create_wire, _) = SessionConfig::default()
+            .into_wire(Some(SessionId::from("feature-flags-create-unset")))
+            .expect("no duplicate handlers");
+        let unset_create_json = serde_json::to_value(&unset_create_wire).unwrap();
+        assert!(unset_create_json.get("featureFlags").is_none());
+
+        let (unset_resume_wire, _) =
+            ResumeSessionConfig::new(SessionId::from("feature-flags-resume-unset"))
+                .into_wire()
+                .expect("no duplicate handlers");
+        let unset_resume_json = serde_json::to_value(&unset_resume_wire).unwrap();
+        assert!(unset_resume_json.get("featureFlags").is_none());
     }
 
     fn sample_exp_assignments(context: &str) -> CopilotExpAssignmentResponse {
@@ -7356,6 +7442,56 @@ mod tests {
         let unset = CapiSessionOptions::new();
         let wire_unset = serde_json::to_value(&unset).unwrap();
         assert!(wire_unset.get("enableWebSocketResponses").is_none());
+        assert!(wire_unset.get("autoTier").is_none());
+        assert_eq!(wire_unset, json!({}));
+    }
+
+    #[test]
+    fn capi_auto_tier_canonical_values_round_trip_and_forward() {
+        for (tier, value) in [
+            (AutoTier::Efficiency, "efficiency"),
+            (AutoTier::Balance, "balance"),
+            (AutoTier::Intelligence, "intelligence"),
+        ] {
+            let exported: crate::AutoTier = tier.clone();
+            let capi = CapiSessionOptions::new().with_auto_tier(exported);
+            assert_eq!(capi.auto_tier, Some(tier));
+            assert_eq!(
+                serde_json::to_value(&capi).unwrap(),
+                json!({"autoTier": value})
+            );
+            assert_eq!(
+                serde_json::from_value::<CapiSessionOptions>(json!({"autoTier": value})).unwrap(),
+                capi
+            );
+
+            let capi = capi.with_enable_web_socket_responses(false);
+            let expected = json!({"autoTier": value, "enableWebSocketResponses": false});
+            let (create, _) = SessionConfig::default()
+                .with_model("auto")
+                .with_capi(capi.clone())
+                .into_wire(Some(SessionId::from("capi-create")))
+                .unwrap();
+            assert_eq!(serde_json::to_value(create).unwrap()["capi"], expected);
+
+            let (resume, _) = ResumeSessionConfig::new(SessionId::from("capi-resume"))
+                .with_capi(capi)
+                .into_wire()
+                .unwrap();
+            assert_eq!(serde_json::to_value(resume).unwrap()["capi"], expected);
+        }
+    }
+
+    #[test]
+    fn capi_auto_tier_accepts_unknown_values_for_forward_compatibility() {
+        for value in ["balanced", "Balance", "unknown"] {
+            assert_eq!(
+                serde_json::from_value::<AutoTier>(json!(value)).unwrap(),
+                AutoTier::Unknown
+            );
+        }
+        let capi: CapiSessionOptions = serde_json::from_value(json!({})).unwrap();
+        assert_eq!(capi.auto_tier, None);
     }
 
     #[test]

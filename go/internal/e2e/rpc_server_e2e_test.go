@@ -64,12 +64,12 @@ func TestRPCServerE2E(t *testing.T) {
 			if strings.TrimSpace(model.Name) == "" {
 				t.Errorf("Model %q has empty Name", model.ID)
 			}
-			if model.ID == "claude-sonnet-4.5" {
+			if model.ID == "claude-sonnet-5" {
 				hasClaude = true
 			}
 		}
 		if !hasClaude {
-			t.Errorf("Expected models list to contain 'claude-sonnet-4.5'")
+			t.Errorf("Expected models list to contain 'claude-sonnet-5'")
 		}
 	})
 
@@ -532,6 +532,7 @@ func TestRPCServerE2E(t *testing.T) {
 
 	t.Run("should report implemented error when connecting unknown remote session", func(t *testing.T) {
 		ctx := testharness.NewTestContext(t)
+		ctx.ConfigureWithoutSnapshot(t)
 		client := ctx.NewClient()
 		t.Cleanup(func() { client.ForceStop() })
 		if err := client.Start(t.Context()); err != nil {

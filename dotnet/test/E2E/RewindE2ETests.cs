@@ -24,7 +24,7 @@ public class RewindE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
         await File.WriteAllTextAsync(filePath, OriginalFileContent);
         await using var session = await CreateSessionAsync(new SessionConfig
         {
-            Model = "claude-sonnet-4.5",
+            Model = "claude-sonnet-5",
             EnableFileChangeTracking = true,
         });
 

@@ -21,6 +21,8 @@ import type { FactoryAgentOptions as WireFactoryAgentOptions } from "../src/gene
 import type {
     // The aggregate union; must still resolve via the package root.
     SessionEvent,
+    AutoTier,
+    CapiSessionOptions,
     PermissionRequest,
     PermissionRequestedData,
     PermissionRequestedEvent,
@@ -128,6 +130,32 @@ type _PermissionRequestedEventStaysAlignedWithSessionEventUnion = _AssertEqual<
 const _permissionRequestedEventAlignmentCheck: _PermissionRequestedEventStaysAlignedWithSessionEventUnion = true;
 
 describe("Session event type exports (#1156)", () => {
+    it.each(["efficiency", "balance", "intelligence", undefined] satisfies (
+        | AutoTier
+        | undefined
+    )[])("exposes Auto tier %s on start and resume data", (autoTier) => {
+        const start: StartData = {
+            copilotVersion: "1.0.82-1",
+            producer: "copilot-agent",
+            sessionId: "session-1",
+            startTime: "2026-08-28T00:00:00Z",
+            version: 1,
+            autoTier,
+        };
+        const resume: ResumeData = {
+            eventCount: 1,
+            resumeTime: "2026-08-28T00:01:00Z",
+            autoTier,
+        };
+        const capi: CapiSessionOptions = { autoTier: start.autoTier };
+        expect(capi.autoTier).toBe(autoTier);
+        expect(resume.autoTier).toBe(autoTier);
+        if (autoTier === undefined) {
+            expect(JSON.parse(JSON.stringify(start))).not.toHaveProperty("autoTier");
+            expect(JSON.parse(JSON.stringify(resume))).not.toHaveProperty("autoTier");
+        }
+    });
+
     it("exposes the headline ToolExecutionStartData type with a usable shape", () => {
         // This is the specific type called out in issue #1156. The annotation
         // is the compile-time API-surface check; these assertions only validate

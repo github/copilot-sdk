@@ -193,6 +193,13 @@ type ClientOptions struct {
 	// directory are accessible from GitHub web and mobile.
 	// Ignored when connecting to an existing runtime via [URIConnection].
 	EnableRemoteSessions bool
+	// ClientInfo declares the integrating application's identity, forwarded to the
+	// runtime on the `server.connect` handshake. Declaring it lets the
+	// telemetry the runtime emits on this connection be attributed to a
+	// consistent surface (the application and its Copilot integration) instead of
+	// the runtime's own build. All fields are optional; leave it nil to keep the
+	// runtime's default attribution.
+	ClientInfo *ClientInfo
 	// Mode controls the default tool surface and feature flags presented to
 	// sessions created by this client. The zero value ([ModeCopilotCli])
 	// matches legacy CLI defaults. Set to [ModeEmpty] to opt in to
@@ -202,6 +209,54 @@ type ClientOptions struct {
 	// SessionFS, or a [URIConnection] so the runtime has persistent storage
 	// for session state.
 	Mode ClientMode
+}
+
+// ClientInfo identifies the integrating application on the `server.connect` handshake.
+//
+// Declaring it lets the telemetry the runtime emits on the connection be
+// attributed to a single, consistent surface instead of the runtime's own
+// build. All fields are optional; an empty field is omitted from the handshake.
+type ClientInfo struct {
+	// ApplicationName is the name of the application using the SDK.
+	ApplicationName string
+	// ApplicationVersion is the version of the application using the SDK.
+	ApplicationVersion string
+	// IntegrationName optionally identifies a specific integration within the
+	// application, such as an extension or plugin.
+	IntegrationName string
+	// IntegrationVersion is the optional version of the named integration.
+	IntegrationVersion string
+}
+
+// toWire maps the public [ClientInfo] onto the generated connect wire shape,
+// omitting empty fields. It returns nil when no identity was supplied so the
+// caller drops the clientInfo field and keeps the runtime's default attribution.
+func (ci *ClientInfo) toWire() *rpc.ConnectClientInfo {
+	if ci == nil {
+		return nil
+	}
+	wire := &rpc.ConnectClientInfo{}
+	populated := false
+	if ci.ApplicationName != "" {
+		wire.EditorName = &ci.ApplicationName
+		populated = true
+	}
+	if ci.ApplicationVersion != "" {
+		wire.EditorVersion = &ci.ApplicationVersion
+		populated = true
+	}
+	if ci.IntegrationName != "" {
+		wire.ExtensionName = &ci.IntegrationName
+		populated = true
+	}
+	if ci.IntegrationVersion != "" {
+		wire.ExtensionVersion = &ci.IntegrationVersion
+		populated = true
+	}
+	if !populated {
+		return nil
+	}
+	return wire
 }
 
 // CloudSessionRepository is GitHub repository metadata associated with a cloud session.
@@ -1609,6 +1664,9 @@ type SessionConfig struct {
 	// intended for trusted out-of-process integrators, and is not intended for
 	// general external use.
 	ExpAssignments *CopilotExpAssignmentResponse
+	// FeatureFlags contains feature-flag values resolved by the host for this session.
+	// Re-supply them when resuming after a runtime restart.
+	FeatureFlags map[string]bool
 	// EnableManagedSettings, when set to true, opts the runtime into
 	// self-fetching enterprise managed settings (bypass-permissions policy) at
 	// session bootstrap using the session's GitHubToken. Requires GitHubToken to
@@ -2145,6 +2203,9 @@ type ResumeSessionConfig struct {
 	// intended for trusted out-of-process integrators, and is not intended for
 	// general external use.
 	ExpAssignments *CopilotExpAssignmentResponse
+	// FeatureFlags contains host-resolved feature-flag values to apply on resume.
+	// See SessionConfig.FeatureFlags.
+	FeatureFlags map[string]bool
 	// EnableManagedSettings injects the same opt-in flag on resume. See
 	// SessionConfig.EnableManagedSettings. Re-supply on resume so the runtime
 	// re-applies the managed-settings self-fetch after a CLI process restart.
@@ -2265,6 +2326,18 @@ func (p ProviderConfig) MarshalJSON() ([]byte, error) {
 	return json.Marshal(aux)
 }
 
+// AutoTier selects the routing tier for model "auto" with V2 Auto.
+type AutoTier = rpc.AutoTier
+
+const (
+	// AutoTierEfficiency selects the efficiency routing tier.
+	AutoTierEfficiency = rpc.AutoTierEfficiency
+	// AutoTierBalance selects the balance routing tier.
+	AutoTierBalance = rpc.AutoTierBalance
+	// AutoTierIntelligence selects the intelligence routing tier.
+	AutoTierIntelligence = rpc.AutoTierIntelligence
+)
+
 // CapiSessionOptions configures provider-scoped Copilot API (CAPI) session behavior.
 //
 // WebSocket transport is the default for the CAPI Responses API whenever the
@@ -2279,6 +2352,14 @@ type CapiSessionOptions struct {
 	// WebSocket transport. Enabled by default when the model advertises
 	// ws:/responses support; set to Bool(false) to force HTTP Responses transport.
 	EnableWebSocketResponses *bool `json:"enableWebSocketResponses,omitempty"`
+
+	// AutoTier selects the routing tier for model "auto" with V2 Auto.
+	// Requires a runtime that supports Auto tiers; it has no effect outside V2 Auto.
+	// When unset, the runtime uses its default on create and preserves the
+	// persisted or current tier on resume. An explicit tier overrides the
+	// persisted tier on a cold resume; a conflicting tier on a resident
+	// session resume is rejected by the runtime.
+	AutoTier AutoTier `json:"autoTier,omitempty"`
 }
 
 // AzureProviderOptions contains Azure-specific provider configuration
@@ -2619,6 +2700,7 @@ type createSessionRequest struct {
 	ExtensionInfo                      *ExtensionInfo                         `json:"extensionInfo,omitempty"`
 	CanvasProvider                     *CanvasProviderIdentity                `json:"canvasProvider,omitempty"`
 	ExpAssignments                     *CopilotExpAssignmentResponse          `json:"expAssignments,omitempty"`
+	FeatureFlags                       *map[string]bool                       `json:"featureFlags,omitempty"`
 	EnableManagedSettings              *bool                                  `json:"enableManagedSettings,omitempty"`
 	ManagedSettings                    *ManagedSettings                       `json:"managedSettings,omitempty"`
 	Traceparent                        string                                 `json:"traceparent,omitempty"`
@@ -2720,6 +2802,7 @@ type resumeSessionRequest struct {
 	ExtensionInfo                      *ExtensionInfo                         `json:"extensionInfo,omitempty"`
 	CanvasProvider                     *CanvasProviderIdentity                `json:"canvasProvider,omitempty"`
 	ExpAssignments                     *CopilotExpAssignmentResponse          `json:"expAssignments,omitempty"`
+	FeatureFlags                       *map[string]bool                       `json:"featureFlags,omitempty"`
 	EnableManagedSettings              *bool                                  `json:"enableManagedSettings,omitempty"`
 	ManagedSettings                    *ManagedSettings                       `json:"managedSettings,omitempty"`
 	Traceparent                        string                                 `json:"traceparent,omitempty"`

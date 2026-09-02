@@ -35,7 +35,7 @@ class TestRewind:
         file_path = Path(ctx.work_dir) / FILE_NAME
         file_path.write_text(ORIGINAL_FILE_CONTENT, encoding="utf-8")
         session = await ctx.client.create_session(
-            model="claude-sonnet-4.5",
+            model="claude-sonnet-5",
             enable_file_change_tracking=True,
             on_permission_request=PermissionHandler.approve_all,
         )

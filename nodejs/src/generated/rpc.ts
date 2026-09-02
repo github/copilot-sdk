@@ -552,7 +552,13 @@ export type CatalogNetworkFailureReason =
   | "tls"
   /** The connection was refused or reset. */
   | "connection-refused"
-  /** The authority returned a status the runtime treats as a failure. */
+  /** The configured proxy returned 407 and requires authentication. */
+  | "proxy-authentication-required"
+  /** The authority rate-limited requests and supplied or implied a bounded cooldown. */
+  | "rate-limited"
+  /** The authority returned a transient 5xx response. */
+  | "service-unavailable"
+  /** The authority returned another status the runtime treats as a failure. */
   | "http-status"
   /** The response exceeded the permitted size. */
   | "response-too-large"
@@ -1127,6 +1133,16 @@ export type FactoryRunFailure =
        * Factory failure variant discriminator.
        */
       type: "factory_accounting_incomplete";
+    }
+  | {
+      /**
+       * Factory run identifier.
+       */
+      runId: string;
+      /**
+       * Factory failure variant discriminator.
+       */
+      type: "factory_provider_disconnected";
     };
 /**
  * Cumulative resource ceiling that stopped a factory run.
@@ -5849,6 +5865,10 @@ export interface CatalogNetworkFailureError {
    */
   statusCode?: number;
   /**
+   * Bounded cooldown in seconds before another catalog request should be attempted, when the authority supplied a numeric Retry-After value or the runtime applied its documented fallback.
+   */
+  retryAfterSeconds?: number;
+  /**
    * Human-readable explanation, safe to surface. Never contains a query, URL, handle, or secret.
    */
   message: string;
@@ -5899,7 +5919,7 @@ export interface CatalogPolicyRejectedError {
 export interface CatalogSearchRequest {
   contract: CatalogClientContract;
   /**
-   * Free-text search query. Never written to logs or telemetry.
+   * Free-text search query. Persisted as tool input for session continuity, but omitted from telemetry.
    */
   query: string;
   /**
@@ -8170,6 +8190,10 @@ export interface FactoryRunResult {
    * Factory run identifier.
    */
   runId: string;
+  /**
+   * One-based execution attempt represented by this envelope. Absent before the first attempt starts or when returned by an older runtime.
+   */
+  attempt?: number;
   status: FactoryRunStatus;
   /**
    * Completed factory result.
@@ -12374,6 +12398,10 @@ export interface ModelBillingPromo {
    * Human-readable promotion message. Does not include the expiry timestamp; consumers may format endsAt and append it when present.
    */
   message?: string;
+  /**
+   * Whether the service asked hosts to give this promotion a prominent surface, such as a dedicated banner, in addition to listing it with the model. `true` requests that surface and `false` asks for the model list only. Absent means the service expressed no preference — for example a response that predates the field — so hosts should apply their own default rather than read it as `false`.
+   */
+  showBanner?: boolean;
 }
 /**
  * Service-published warning text that hosts should display when presenting a model.
@@ -12421,6 +12449,10 @@ export interface ModelApplyStartupOverlayRequest {
    * Model required by server-managed policy, when configured.
    */
   serverManagedModel?: string;
+  /**
+   * Startup default model from the enterprise policy helper, when configured. Weakest of the managed sources: it applies only when neither device nor server policy names a model, and an explicit user selection still wins.
+   */
+  policyHelperModel?: string;
   /**
    * Model selected by repository settings, when configured.
    */
@@ -20342,6 +20374,7 @@ export interface SlashCommandCompletedResult {
    * Optional user-facing message describing the completed command
    */
   message?: string;
+  mode?: SessionMode;
   /**
    * True when the invocation mutated user runtime settings; consumers caching settings should refresh
    */
