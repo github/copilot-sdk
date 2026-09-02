@@ -145,7 +145,7 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
             CancellationToken cancellationToken)
         {
             originalToolStarted.TrySetResult(value);
-            return await releaseOriginalTool.Task.WaitAsync(cancellationToken);
+            return await releaseOriginalTool.Task.WaitAsync(Timeout.InfiniteTimeSpan, cancellationToken);
         }
     }
 
@@ -282,7 +282,7 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
         {
             Interlocked.Increment(ref invocationCount);
             originalToolStarted.TrySetResult(value);
-            return await releaseOriginalTool.Task.WaitAsync(cancellationToken);
+            return await releaseOriginalTool.Task.WaitAsync(Timeout.InfiniteTimeSpan, cancellationToken);
         }
 
         [Description("Looks up a value after resumption")]
@@ -365,7 +365,7 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
             CancellationToken cancellationToken)
         {
             originalToolAStarted.TrySetResult(value);
-            return await releaseOriginalToolA.Task.WaitAsync(cancellationToken);
+            return await releaseOriginalToolA.Task.WaitAsync(Timeout.InfiniteTimeSpan, cancellationToken);
         }
 
         [Description("Looks up the second value after resumption")]
@@ -374,7 +374,7 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
             CancellationToken cancellationToken)
         {
             originalToolBStarted.TrySetResult(value);
-            return await releaseOriginalToolB.Task.WaitAsync(cancellationToken);
+            return await releaseOriginalToolB.Task.WaitAsync(Timeout.InfiniteTimeSpan, cancellationToken);
         }
     }
 
