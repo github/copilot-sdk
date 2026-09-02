@@ -99,7 +99,7 @@ jobs:
       - uses: actions/checkout@v6.0.2
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
         with:
           toolchain: "1.94.0"
           components: clippy
@@ -108,12 +108,12 @@ jobs:
       # imports_granularity, reorder_impl_items) — pinned in
       # `.rustfmt.nightly.toml`.
       - name: Install nightly rustfmt
-        uses: dtolnay/rust-toolchain@master
+        uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30
         with:
           toolchain: nightly-2026-04-14
           components: rustfmt
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae # v2
         with:
           workspaces: "rust"
           prefix-key: v1-rust-no-bin
@@ -158,11 +158,11 @@ jobs:
       - uses: actions/checkout@v6.0.2
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
         with:
           toolchain: "1.94.0"
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae # v2
         with:
           workspaces: "rust"
           prefix-key: v1-rust-no-bin
