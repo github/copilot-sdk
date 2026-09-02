@@ -574,6 +574,12 @@ fn install_cached_file_path(
     bytes: &[u8],
     executable: bool,
 ) {
+    // `executable` only affects file permissions on Unix (see the `#[cfg(unix)]`
+    // block below); explicitly mark it used elsewhere so non-Unix targets don't
+    // warn about an unused parameter under `-D warnings`.
+    #[cfg(not(unix))]
+    let _ = executable;
+
     assert!(
         !relative_path.is_absolute()
             && !relative_path.components().any(|component| {
