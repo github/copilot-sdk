@@ -11,6 +11,7 @@ interface PackedPackage {
     manifest: {
         name: string;
         version: string;
+        repository: string | { type?: string; url: string };
         optionalDependencies?: Record<string, string>;
     };
     entries: Set<string>;
@@ -85,6 +86,11 @@ for (const platform of RUNTIME_PLATFORMS) {
     const packageName = getRuntimePackageName(platform);
     const packed = packages.get(packageName);
     assert(packed, `Missing ${packageName} tarball`);
+    assert.deepEqual(
+        packed.manifest.repository,
+        sourceManifest.repository,
+        `${packageName} repository metadata does not match the main package`
+    );
     const runtimeName = platform.startsWith("win32") ? "copilot-runtime.exe" : "copilot-runtime";
     for (const requiredPath of [
         `package/prebuilds/${platform}/${runtimeName}`,

@@ -43,6 +43,7 @@ try {
             name: packageName,
             version: sdkVersion,
             description: `Platform runtime for @github/copilot-sdk (${platform})`,
+            repository: packageJson.repository,
             license: "MIT",
             os: [osName],
             cpu: [cpu],
