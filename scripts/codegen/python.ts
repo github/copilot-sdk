@@ -3778,8 +3778,7 @@ export function emitClientSessionApiRegistration(
     node: Record<string, unknown>,
     resolveType: (name: string) => string
 ): void {
-    const publicNode = filterNodeByVisibility(node, "public");
-    if (!publicNode) return;
+    const publicNode = filterNodeByVisibility(node, "public") ?? {};
     const groups = Object.entries(publicNode).filter(([, value]) => typeof value === "object" && value !== null && !isRpcMethod(value));
 
     for (const [groupName, groupNode] of groups) {

@@ -1079,8 +1079,7 @@ function handlerMethodName(rpcMethod: string): string {
  */
 export function emitClientSessionApiRegistration(clientSchema: Record<string, unknown>): string[] {
     const lines: string[] = [];
-    const publicClientSchema = filterNodeByVisibility(clientSchema, "public");
-    if (!publicClientSchema) return lines;
+    const publicClientSchema = filterNodeByVisibility(clientSchema, "public") ?? {};
     const groups = collectClientGroups(publicClientSchema);
 
     // Emit a handler interface per group

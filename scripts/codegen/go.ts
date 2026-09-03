@@ -3967,7 +3967,10 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     if (generatedTypeCode.includes("time.Time")) {
         imports.push(`"time"`);
     }
-    if (schema.clientSession || schema.clientGlobal) {
+    const publicClientSession = schema.clientSession
+        ? filterNodeByVisibility(schema.clientSession, "public")
+        : null;
+    if (publicClientSession || schema.clientGlobal) {
         imports.push(`"errors"`, `"fmt"`);
     }
     imports.push(`"github.com/github/copilot-sdk/go/internal/jsonrpc2"`);
@@ -4269,8 +4272,7 @@ function clientHandlerMethodName(rpcMethod: string): string {
 }
 
 export function emitClientSessionApiRegistration(lines: string[], clientSchema: Record<string, unknown>, resolveType: (name: string) => string, unionInfos: Map<string, GoDiscriminatedUnionInfo>): void {
-    const publicClientSchema = filterNodeByVisibility(clientSchema, "public");
-    if (!publicClientSchema) return;
+    const publicClientSchema = filterNodeByVisibility(clientSchema, "public") ?? {};
     const groups = collectClientGroups(publicClientSchema);
 
     for (const { groupName, groupNode, methods } of groups) {
@@ -4326,17 +4328,19 @@ export function emitClientSessionApiRegistration(lines: string[], clientSchema: 
     lines.push(`}`);
     lines.push(``);
 
-    lines.push(`func clientSessionHandlerError(err error) *jsonrpc2.Error {`);
-    lines.push(`\tif err == nil {`);
-    lines.push(`\t\treturn nil`);
-    lines.push(`\t}`);
-    lines.push(`\tvar rpcErr *jsonrpc2.Error`);
-    lines.push(`\tif errors.As(err, &rpcErr) {`);
-    lines.push(`\t\treturn rpcErr`);
-    lines.push(`\t}`);
-    lines.push(`\treturn &jsonrpc2.Error{Code: -32603, Message: err.Error()}`);
-    lines.push(`}`);
-    lines.push(``);
+    if (groups.length > 0) {
+        lines.push(`func clientSessionHandlerError(err error) *jsonrpc2.Error {`);
+        lines.push(`\tif err == nil {`);
+        lines.push(`\t\treturn nil`);
+        lines.push(`\t}`);
+        lines.push(`\tvar rpcErr *jsonrpc2.Error`);
+        lines.push(`\tif errors.As(err, &rpcErr) {`);
+        lines.push(`\t\treturn rpcErr`);
+        lines.push(`\t}`);
+        lines.push(`\treturn &jsonrpc2.Error{Code: -32603, Message: err.Error()}`);
+        lines.push(`}`);
+        lines.push(``);
+    }
 
     lines.push(`// RegisterClientSessionAPIHandlers registers handlers for server-to-client session API calls.`);
     lines.push(`func RegisterClientSessionAPIHandlers(client *jsonrpc2.Client, getHandlers func(sessionID string) *ClientSessionAPIHandlers) {`);
