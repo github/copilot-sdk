@@ -9267,6 +9267,10 @@ public sealed class SkillsInvokedSkill
     [JsonPropertyName("content")]
     public string Content { get; set; } = string.Empty;
 
+    /// <summary>Whether model invocation was disabled when this skill was invoked.</summary>
+    [JsonPropertyName("disableModelInvocation")]
+    public bool? DisableModelInvocation { get; set; }
+
     /// <summary>Turn number when the skill was invoked.</summary>
     [JsonPropertyName("invokedAtTurn")]
     public long InvokedAtTurn { get; set; }
@@ -9275,7 +9279,7 @@ public sealed class SkillsInvokedSkill
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
 
-    /// <summary>Path to the SKILL.md file.</summary>
+    /// <summary>Path to the SKILL.md file, or an empty string for an SDK-provided skill without a filesystem identity.</summary>
     [JsonPropertyName("path")]
     public string Path { get; set; } = string.Empty;
 }
@@ -11549,7 +11553,7 @@ internal sealed class SessionUpdateOptionsParams
     [JsonPropertyName("enableSessionStore")]
     public bool? EnableSessionStore { get; set; }
 
-    /// <summary>Whether to enable skill directory scanning and loading. Falls back to enableConfigDiscovery when unset.</summary>
+    /// <summary>Whether skill loading is enabled. Explicit false disables every source, including a bound SDK provider; changing the value invalidates the loaded skill snapshot. When omitted, creation falls back to enableConfigDiscovery unless an SDK skill provider is registered.</summary>
     [JsonPropertyName("enableSkills")]
     public bool? EnableSkills { get; set; }
 
@@ -33808,7 +33812,7 @@ public sealed class OptionsApi
     /// <param name="enableFileHooks">Whether to enable loading of `.github/hooks/` filesystem hooks. Separate from the SDK callback hook mechanism.</param>
     /// <param name="enableHostGitOperations">Whether to enable host git operations (context resolution, child repo scanning, git info in system prompt).</param>
     /// <param name="enableSessionStore">Whether to enable cross-session store writes and reads.</param>
-    /// <param name="enableSkills">Whether to enable skill directory scanning and loading. Falls back to enableConfigDiscovery when unset.</param>
+    /// <param name="enableSkills">Whether skill loading is enabled. Explicit false disables every source, including a bound SDK provider; changing the value invalidates the loaded skill snapshot. When omitted, creation falls back to enableConfigDiscovery unless an SDK skill provider is registered.</param>
     /// <param name="contextTier">Context tier for models with tiered pricing. The session uses this to derive effective `modelCapabilitiesOverrides` so compaction, truncation, token display, and request limits honor the selected tier.</param>
     /// <param name="sessionLimits">Optional session limits. Pass null to clear the session limits.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>

@@ -18427,6 +18427,17 @@ export interface SessionOpenOptions {
    */
   skillDirectories?: string[];
   /**
+   * Whether skill loading is enabled. When omitted, an SDK skill provider enables skills by default.
+   */
+  enableSkills?: boolean;
+  /**
+   * Whether the requesting SDK session has a skill provider. The provider remains ephemeral and is never persisted in session options or history. When enableSkills is false, it remains bound but dormant and receives no callbacks. Cloud, relay, handoff, and raw sessions.open flows reject it because they cannot safely pre-register the callback handler.
+   *
+   * @internal
+   * @experimental
+   */
+  hasSkillProvider?: boolean;
+  /**
    * Built-in skill names to include in this session. When specified, only these runtime-bundled skills are available. Skills from other sources with the same name remain available.
    */
   includedBuiltinSkills?: string[];
@@ -19981,7 +19992,7 @@ export interface SessionUpdateOptionsParams {
    */
   enableSessionStore?: boolean;
   /**
-   * Whether to enable skill directory scanning and loading. Falls back to enableConfigDiscovery when unset.
+   * Whether skill loading is enabled. Explicit false disables every source, including a bound SDK provider; changing the value invalidates the loaded skill snapshot. When omitted, creation falls back to enableConfigDiscovery unless an SDK skill provider is registered.
    */
   enableSkills?: boolean;
   contextTier?: OptionsUpdateContextTier;
@@ -20203,6 +20214,83 @@ export interface SkillList {
   skills: Skill[];
 }
 /**
+ * Catalog-only metadata for one SDK-provided skill. The complete SKILL.md is fetched separately and lazily.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SkillProviderDescriptor".
+ */
+/** @experimental */
+export interface SkillProviderDescriptor {
+  /**
+   * Invocation and display name.
+   */
+  name: string;
+  /**
+   * Description used in skill catalogs without fetching content.
+   */
+  description: string;
+  /**
+   * Whether users may invoke the skill directly. Defaults to true.
+   */
+  userInvocable?: boolean;
+  /**
+   * Whether model invocation is disabled. Defaults to false.
+   */
+  disableModelInvocation?: boolean;
+  /**
+   * Optional freeform argument hint used by slash-command catalogs.
+   */
+  argumentHint?: string;
+}
+/**
+ * Catalog metadata returned by an SDK session's skill provider. Catalogs are limited to 1024 descriptors and 1 MiB of aggregate metadata.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SkillProviderListResult".
+ */
+/** @experimental */
+/** @internal */
+export interface SkillProviderListResult {
+  /**
+   * Skill descriptors in provider order. Invocation names must be unique under case-insensitive comparison.
+   *
+   * @maxItems 1024
+   */
+  skills: SkillProviderDescriptor[];
+}
+/**
+ * Identifies one SDK-provided skill by invocation name.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SkillProviderReadRequest".
+ */
+/** @experimental */
+/** @internal */
+export interface SkillProviderReadRequest {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Invocation name of the skill to read.
+   */
+  name: string;
+}
+/**
+ * Complete text-only SKILL.md content returned by an SDK session's skill provider. Related files and assets are not supported.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SkillProviderReadResult".
+ */
+/** @experimental */
+/** @internal */
+export interface SkillProviderReadResult {
+  /**
+   * Complete SKILL.md text. The runtime enforces a 1 MiB UTF-8 byte limit.
+   */
+  markdown: string;
+}
+/**
  * Skill names to mark as disabled in global configuration, replacing any previous list.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -20322,7 +20410,7 @@ export interface SkillsInvokedSkill {
    */
   name: string;
   /**
-   * Path to the SKILL.md file
+   * Path to the SKILL.md file, or an empty string for an SDK-provided skill without a filesystem identity
    */
   path: string;
   /**
@@ -20333,6 +20421,10 @@ export interface SkillsInvokedSkill {
    * Tools that should be auto-approved when this skill is active, captured at invocation time
    */
   allowedTools?: string[];
+  /**
+   * Whether model invocation was disabled when this skill was invoked
+   */
+  disableModelInvocation?: boolean;
   /**
    * Turn number when the skill was invoked
    */
@@ -22938,6 +23030,19 @@ export interface SessionLimitPredictionPredictRequest {
    */
   modelId?: string;
   clientType?: SessionLimitPredictionClientType;
+}
+/**
+ * Identifies the target session.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SkillProviderListRequest".
+ */
+/** @experimental */
+export interface SkillProviderListRequest {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
 }
 /**
  * Identifies the target session.

@@ -9410,6 +9410,7 @@ class SkillInvokedData:
     path: str
     allowed_tools: list[str] | None = None
     description: str | None = None
+    disable_model_invocation: bool | None = None
     model: str | None = None
     plugin_name: str | None = None
     plugin_version: str | None = None
@@ -9424,6 +9425,7 @@ class SkillInvokedData:
         path = from_str(obj.get("path"))
         allowed_tools = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("allowedTools"))
         description = from_union([from_none, from_str], obj.get("description"))
+        disable_model_invocation = from_union([from_none, from_bool], obj.get("disableModelInvocation"))
         model = from_union([from_none, from_str], obj.get("model"))
         plugin_name = from_union([from_none, from_str], obj.get("pluginName"))
         plugin_version = from_union([from_none, from_str], obj.get("pluginVersion"))
@@ -9435,6 +9437,7 @@ class SkillInvokedData:
             path=path,
             allowed_tools=allowed_tools,
             description=description,
+            disable_model_invocation=disable_model_invocation,
             model=model,
             plugin_name=plugin_name,
             plugin_version=plugin_version,
@@ -9451,6 +9454,8 @@ class SkillInvokedData:
             result["allowedTools"] = from_union([from_none, lambda x: from_list(from_str, x)], self.allowed_tools)
         if self.description is not None:
             result["description"] = from_union([from_none, from_str], self.description)
+        if self.disable_model_invocation is not None:
+            result["disableModelInvocation"] = from_union([from_none, from_bool], self.disable_model_invocation)
         if self.model is not None:
             result["model"] = from_union([from_none, from_str], self.model)
         if self.plugin_name is not None:
@@ -12513,7 +12518,7 @@ class SkillInvokedTrigger(Enum):
 
 
 class SkillSource(Enum):
-    "Source location type (e.g., project, personal-copilot, plugin, builtin)"
+    "Source location type (e.g., project, personal-copilot, plugin, builtin, sdk)"
     # Skill defined in the current project's skill directories.
     PROJECT = "project"
     # Skill discovered from a parent directory in the current workspace tree.
@@ -12528,6 +12533,8 @@ class SkillSource(Enum):
     CUSTOM = "custom"
     # Skill bundled with the runtime.
     BUILTIN = "builtin"
+    # Pathless skill supplied lazily by an SDK skill provider.
+    SDK = "sdk"
 
 
 class SystemMessageRole(Enum):

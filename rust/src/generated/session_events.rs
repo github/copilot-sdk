@@ -4034,12 +4034,15 @@ pub struct SkillInvokedData {
     /// Description of the skill from its SKILL.md frontmatter
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+    /// Whether model invocation is disabled for this skill
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub disable_model_invocation: Option<bool>,
     /// Model identifier active when the skill was invoked, when known
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
     /// Name of the invoked skill
     pub name: String,
-    /// File path to the SKILL.md definition
+    /// File path to the SKILL.md definition, or an empty string for an SDK-provided skill without a filesystem identity
     pub path: String,
     /// Name of the plugin this skill originated from, when applicable
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -4047,7 +4050,7 @@ pub struct SkillInvokedData {
     /// Version of the plugin this skill originated from, when applicable
     #[serde(skip_serializing_if = "Option::is_none")]
     pub plugin_version: Option<String>,
-    /// Source identifier for where the skill was discovered. Known values include: project (workspace skill), inherited (parent-directory skill), personal-copilot (~/.copilot/skills), personal-agents (~/.agents/skills), custom (configured directory), plugin (installed plugin), builtin (bundled runtime skill), and remote (org/enterprise skill)
+    /// Source identifier for where the skill was discovered. Known values include: project (workspace skill), inherited (parent-directory skill), personal-copilot (~/.copilot/skills), personal-agents (~/.agents/skills), custom (configured directory), plugin (installed plugin), builtin (bundled runtime skill), remote (org/enterprise skill), and sdk (SDK-provided skill)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source: Option<String>,
     /// What triggered the skill invocation: `user-invoked` (explicit user action, such as via a slash command or UI affordance), `agent-invoked` (agent requested the skill), or `context-load` (loaded as part of another context, such as preloading skills configured on a custom agent or subagent)
@@ -6134,7 +6137,7 @@ pub struct SkillsLoadedSkill {
     /// Absolute path to the skill file, if available
     #[serde(skip_serializing_if = "Option::is_none")]
     pub path: Option<String>,
-    /// Source location type (e.g., project, personal-copilot, plugin, builtin)
+    /// Source location type (e.g., project, personal-copilot, plugin, builtin, remote, sdk)
     pub source: SkillSource,
     /// Whether the skill can be invoked by the user as a slash command
     pub user_invocable: bool,
@@ -8513,7 +8516,7 @@ pub enum FactoryRunSettledStatus {
     Unknown,
 }
 
-/// Source location type (e.g., project, personal-copilot, plugin, builtin)
+/// Source location type (e.g., project, personal-copilot, plugin, builtin, sdk)
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SkillSource {
     /// Skill defined in the current project's skill directories.
@@ -8537,6 +8540,9 @@ pub enum SkillSource {
     /// Skill bundled with the runtime.
     #[serde(rename = "builtin")]
     Builtin,
+    /// Pathless skill supplied lazily by an SDK skill provider.
+    #[serde(rename = "sdk")]
+    Sdk,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

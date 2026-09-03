@@ -1038,7 +1038,7 @@ export type FactoryRunSettledStatus =
   /** The run failed, with `failureType` carrying the class when it has one. */
   | "error";
 /**
- * Source location type (e.g., project, personal-copilot, plugin, builtin)
+ * Source location type (e.g., project, personal-copilot, plugin, builtin, sdk)
  */
 export type SkillSource =
   /** Skill defined in the current project's skill directories. */
@@ -1054,7 +1054,9 @@ export type SkillSource =
   /** Skill loaded from a configured custom skill directory. */
   | "custom"
   /** Skill bundled with the runtime. */
-  | "builtin";
+  | "builtin"
+  /** Pathless skill supplied lazily by an SDK skill provider. */
+  | "sdk";
 /**
  * Whether configured models are advisory preferences or required constraints
  */
@@ -6836,6 +6838,10 @@ export interface SkillInvokedData {
    */
   description?: string;
   /**
+   * Whether model invocation is disabled for this skill
+   */
+  disableModelInvocation?: boolean;
+  /**
    * Model identifier active when the skill was invoked, when known
    */
   model?: string;
@@ -6844,7 +6850,7 @@ export interface SkillInvokedData {
    */
   name: string;
   /**
-   * File path to the SKILL.md definition
+   * File path to the SKILL.md definition, or an empty string for an SDK-provided skill without a filesystem identity
    */
   path: string;
   /**
@@ -6856,7 +6862,7 @@ export interface SkillInvokedData {
    */
   pluginVersion?: string;
   /**
-   * Source identifier for where the skill was discovered. Known values include: project (workspace skill), inherited (parent-directory skill), personal-copilot (~/.copilot/skills), personal-agents (~/.agents/skills), custom (configured directory), plugin (installed plugin), builtin (bundled runtime skill), and remote (org/enterprise skill)
+   * Source identifier for where the skill was discovered. Known values include: project (workspace skill), inherited (parent-directory skill), personal-copilot (~/.copilot/skills), personal-agents (~/.agents/skills), custom (configured directory), plugin (installed plugin), builtin (bundled runtime skill), remote (org/enterprise skill), and sdk (SDK-provided skill)
    */
   source?: string;
   trigger?: SkillInvokedTrigger;

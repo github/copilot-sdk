@@ -2402,17 +2402,19 @@ type SkillInvokedData struct {
 	Content string `json:"content"`
 	// Description of the skill from its SKILL.md frontmatter
 	Description *string `json:"description,omitempty"`
+	// Whether model invocation is disabled for this skill
+	DisableModelInvocation *bool `json:"disableModelInvocation,omitempty"`
 	// Model identifier active when the skill was invoked, when known
 	Model *string `json:"model,omitempty"`
 	// Name of the invoked skill
 	Name string `json:"name"`
-	// File path to the SKILL.md definition
+	// File path to the SKILL.md definition, or an empty string for an SDK-provided skill without a filesystem identity
 	Path string `json:"path"`
 	// Name of the plugin this skill originated from, when applicable
 	PluginName *string `json:"pluginName,omitempty"`
 	// Version of the plugin this skill originated from, when applicable
 	PluginVersion *string `json:"pluginVersion,omitempty"`
-	// Source identifier for where the skill was discovered. Known values include: project (workspace skill), inherited (parent-directory skill), personal-copilot (~/.copilot/skills), personal-agents (~/.agents/skills), custom (configured directory), plugin (installed plugin), builtin (bundled runtime skill), and remote (org/enterprise skill)
+	// Source identifier for where the skill was discovered. Known values include: project (workspace skill), inherited (parent-directory skill), personal-copilot (~/.copilot/skills), personal-agents (~/.agents/skills), custom (configured directory), plugin (installed plugin), builtin (bundled runtime skill), remote (org/enterprise skill), and sdk (SDK-provided skill)
 	Source *string `json:"source,omitempty"`
 	// What triggered the skill invocation: `user-invoked` (explicit user action, such as via a slash command or UI affordance), `agent-invoked` (agent requested the skill), or `context-load` (loaded as part of another context, such as preloading skills configured on a custom agent or subagent)
 	Trigger *SkillInvokedTrigger `json:"trigger,omitempty"`
@@ -4463,7 +4465,7 @@ type SkillsLoadedSkill struct {
 	Name string `json:"name"`
 	// Absolute path to the skill file, if available
 	Path *string `json:"path,omitempty"`
-	// Source location type (e.g., project, personal-copilot, plugin, builtin)
+	// Source location type (e.g., project, personal-copilot, plugin, builtin, remote, sdk)
 	Source SkillSource `json:"source"`
 	// Whether the skill can be invoked by the user as a slash command
 	UserInvocable bool `json:"userInvocable"`

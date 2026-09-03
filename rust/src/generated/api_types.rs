@@ -741,6 +741,10 @@ pub mod rpc_methods {
     pub const SESSION_SCHEDULE_REARMSELFPACED: &str = "session.schedule.rearmSelfPaced";
     /// `session.schedule.stop`
     pub const SESSION_SCHEDULE_STOP: &str = "session.schedule.stop";
+    /// `skillProvider.list`
+    pub const SKILLPROVIDER_LIST: &str = "skillProvider.list";
+    /// `skillProvider.read`
+    pub const SKILLPROVIDER_READ: &str = "skillProvider.read";
     /// `providerToken.getToken`
     pub const PROVIDERTOKEN_GETTOKEN: &str = "providerToken.getToken";
     /// `factory.execute`
@@ -16878,6 +16882,9 @@ pub struct SessionOpenOptions {
     /// Whether shell-script safety heuristics are enabled.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_script_safety: Option<bool>,
+    /// Whether skill loading is enabled. When omitted, an SDK skill provider enables skills by default.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_skills: Option<bool>,
     /// Whether model responses stream as delta events.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_streaming: Option<bool>,
@@ -16903,6 +16910,17 @@ pub struct SessionOpenOptions {
     /// Feature-flag values resolved by the host.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub feature_flags: Option<HashMap<String, bool>>,
+    /// Whether the requesting SDK session has a skill provider. The provider remains ephemeral and is never persisted in session options or history. When enableSkills is false, it remains bound but dormant and receives no callbacks. Cloud, relay, handoff, and raw sessions.open flows reject it because they cannot safely pre-register the callback handler.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) has_skill_provider: Option<bool>,
     /// Built-in subagent names to include in this session. When specified, only these built-ins are available, subject to runtime availability and exclusions. Custom agents with the same name remain available.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub included_builtin_agents: Option<Vec<String>>,
@@ -18348,7 +18366,7 @@ pub struct SessionUpdateOptionsParams {
     /// Whether to enable cross-session store writes and reads.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_session_store: Option<bool>,
-    /// Whether to enable skill directory scanning and loading. Falls back to enableConfigDiscovery when unset.
+    /// Whether skill loading is enabled. Explicit false disables every source, including a bound SDK provider; changing the value invalidates the loaded skill snapshot. When omitted, creation falls back to enableConfigDiscovery unless an SDK skill provider is registered.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_skills: Option<bool>,
     /// Whether to stream model responses.
@@ -18695,6 +18713,79 @@ pub struct SkillList {
     pub skills: Vec<Skill>,
 }
 
+/// Catalog-only metadata for one SDK-provided skill. The complete SKILL.md is fetched separately and lazily.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillProviderDescriptor {
+    /// Optional freeform argument hint used by slash-command catalogs.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub argument_hint: Option<String>,
+    /// Description used in skill catalogs without fetching content.
+    pub description: String,
+    /// Whether model invocation is disabled. Defaults to false.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub disable_model_invocation: Option<bool>,
+    /// Invocation and display name.
+    pub name: String,
+    /// Whether users may invoke the skill directly. Defaults to true.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub user_invocable: Option<bool>,
+}
+
+/// Catalog metadata returned by an SDK session's skill provider. Catalogs are limited to 1024 descriptors and 1 MiB of aggregate metadata.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct SkillProviderListResult {
+    /// Skill descriptors in provider order. Invocation names must be unique under case-insensitive comparison.
+    pub skills: Vec<SkillProviderDescriptor>,
+}
+
+/// Identifies one SDK-provided skill by invocation name.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct SkillProviderReadRequest {
+    /// Target session identifier
+    pub session_id: SessionId,
+    /// Invocation name of the skill to read.
+    pub name: String,
+}
+
+/// Complete text-only SKILL.md content returned by an SDK session's skill provider. Related files and assets are not supported.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct SkillProviderReadResult {
+    /// Complete SKILL.md text. The runtime enforces a 1 MiB UTF-8 byte limit.
+    pub markdown: String,
+}
+
 /// Skill names to mark as disabled in global configuration, replacing any previous list.
 ///
 /// <div class="warning">
@@ -18814,11 +18905,14 @@ pub struct SkillsInvokedSkill {
     pub allowed_tools: Option<Vec<String>>,
     /// Full content of the skill file
     pub content: String,
+    /// Whether model invocation was disabled when this skill was invoked
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub disable_model_invocation: Option<bool>,
     /// Turn number when the skill was invoked
     pub invoked_at_turn: i64,
     /// Unique identifier for the skill
     pub name: String,
-    /// Path to the SKILL.md file
+    /// Path to the SKILL.md file, or an empty string for an SDK-provided skill without a filesystem identity
     pub path: String,
 }
 
@@ -27165,6 +27259,21 @@ pub struct SessionScheduleStopResult {
     /// The removed entry, or omitted if no entry matched.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub entry: Option<ScheduleEntry>,
+}
+
+/// Identifies the target session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillProviderListParams {
+    /// Target session identifier
+    pub session_id: SessionId,
 }
 
 /// A bearer token supplied by the SDK client for a BYOK provider. The runtime sets it as `Authorization: Bearer <token>` on the outbound request and does no caching; the SDK consumer owns token caching and refresh.

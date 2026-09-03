@@ -843,6 +843,7 @@ const (
 	SkillSourcePersonalCopilot                                         = rpc.SkillSourcePersonalCopilot
 	SkillSourcePlugin                                                  = rpc.SkillSourcePlugin
 	SkillSourceProject                                                 = rpc.SkillSourceProject
+	SkillSourceSDK                                                     = rpc.SkillSourceSDK
 	SystemMessageRoleDeveloper                                         = rpc.SystemMessageRoleDeveloper
 	SystemMessageRoleSystem                                            = rpc.SystemMessageRoleSystem
 	SystemNotificationAgentCompletedStatusCompleted                    = rpc.SystemNotificationAgentCompletedStatusCompleted

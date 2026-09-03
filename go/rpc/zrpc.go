@@ -12057,6 +12057,9 @@ type SessionOpenOptions struct {
 	EnableOnDemandInstructionDiscovery *bool `json:"enableOnDemandInstructionDiscovery,omitempty"`
 	// Whether shell-script safety heuristics are enabled.
 	EnableScriptSafety *bool `json:"enableScriptSafety,omitempty"`
+	// Whether skill loading is enabled. When omitted, an SDK skill provider enables skills by
+	// default.
+	EnableSkills *bool `json:"enableSkills,omitempty"`
 	// Whether model responses stream as delta events.
 	EnableStreaming *bool `json:"enableStreaming,omitempty"`
 	// How MCP server environment values are interpreted.
@@ -12080,6 +12083,16 @@ type SessionOpenOptions struct {
 	ExpAssignments any `json:"expAssignments,omitempty"`
 	// Feature-flag values resolved by the host.
 	FeatureFlags map[string]bool `json:"featureFlags,omitzero"`
+	// Whether the requesting SDK session has a skill provider. The provider remains ephemeral
+	// and is never persisted in session options or history. When enableSkills is false, it
+	// remains bound but dormant and receives no callbacks. Cloud, relay, handoff, and raw
+	// sessions.open flows reject it because they cannot safely pre-register the callback
+	// handler.
+	// Experimental: HasSkillProvider is part of an experimental API and may change or be
+	// removed.
+	// Internal: HasSkillProvider is part of the SDK's internal API surface and is not intended
+	// for external use.
+	HasSkillProvider *bool `json:"hasSkillProvider,omitempty"`
 	// Built-in subagent names to include in this session. When specified, only these built-ins
 	// are available, subject to runtime availability and exclusions. Custom agents with the
 	// same name remain available.
@@ -13179,8 +13192,9 @@ type SessionUpdateOptionsParams struct {
 	EnableScriptSafety *bool `json:"enableScriptSafety,omitempty"`
 	// Whether to enable cross-session store writes and reads.
 	EnableSessionStore *bool `json:"enableSessionStore,omitempty"`
-	// Whether to enable skill directory scanning and loading. Falls back to
-	// enableConfigDiscovery when unset.
+	// Whether skill loading is enabled. Explicit false disables every source, including a bound
+	// SDK provider; changing the value invalidates the loaded skill snapshot. When omitted,
+	// creation falls back to enableConfigDiscovery unless an SDK skill provider is registered.
 	EnableSkills *bool `json:"enableSkills,omitempty"`
 	// Whether to stream model responses.
 	EnableStreaming *bool `json:"enableStreaming,omitempty"`
@@ -13598,6 +13612,66 @@ type SkillList struct {
 	Skills []Skill `json:"skills"`
 }
 
+// Catalog-only metadata for one SDK-provided skill. The complete SKILL.md is fetched
+// separately and lazily.
+// Experimental: SkillProviderDescriptor is part of an experimental API and may change or be
+// removed.
+type SkillProviderDescriptor struct {
+	// Optional freeform argument hint used by slash-command catalogs.
+	ArgumentHint *string `json:"argumentHint,omitempty"`
+	// Description used in skill catalogs without fetching content.
+	Description string `json:"description"`
+	// Whether model invocation is disabled. Defaults to false.
+	DisableModelInvocation *bool `json:"disableModelInvocation,omitempty"`
+	// Invocation and display name.
+	Name string `json:"name"`
+	// Whether users may invoke the skill directly. Defaults to true.
+	UserInvocable *bool `json:"userInvocable,omitempty"`
+}
+
+// Identifies the target session.
+// Experimental: SkillProviderListRequest is part of an experimental API and may change or
+// be removed.
+type SkillProviderListRequest struct {
+	// Target session identifier
+	SessionID string `json:"sessionId"`
+}
+
+// Catalog metadata returned by an SDK session's skill provider. Catalogs are limited to
+// 1024 descriptors and 1 MiB of aggregate metadata.
+// Experimental: SkillProviderListResult is part of an experimental API and may change or be
+// removed.
+// Internal: SkillProviderListResult is an internal SDK API and is not part of the public
+// surface.
+type SkillProviderListResult struct {
+	// Skill descriptors in provider order. Invocation names must be unique under
+	// case-insensitive comparison.
+	Skills []SkillProviderDescriptor `json:"skills"`
+}
+
+// Identifies one SDK-provided skill by invocation name.
+// Experimental: SkillProviderReadRequest is part of an experimental API and may change or
+// be removed.
+// Internal: SkillProviderReadRequest is an internal SDK API and is not part of the public
+// surface.
+type SkillProviderReadRequest struct {
+	// Invocation name of the skill to read.
+	Name string `json:"name"`
+	// Target session identifier
+	SessionID string `json:"sessionId"`
+}
+
+// Complete text-only SKILL.md content returned by an SDK session's skill provider. Related
+// files and assets are not supported.
+// Experimental: SkillProviderReadResult is part of an experimental API and may change or be
+// removed.
+// Internal: SkillProviderReadResult is an internal SDK API and is not part of the public
+// surface.
+type SkillProviderReadResult struct {
+	// Complete SKILL.md text. The runtime enforces a 1 MiB UTF-8 byte limit.
+	Markdown string `json:"markdown"`
+}
+
 // Skill names to mark as disabled in global configuration, replacing any previous list.
 // Experimental: SkillsConfigSetDisabledSkillsRequest is part of an experimental API and may
 // change or be removed.
@@ -13684,11 +13758,14 @@ type SkillsInvokedSkill struct {
 	AllowedTools []string `json:"allowedTools,omitzero"`
 	// Full content of the skill file
 	Content string `json:"content"`
+	// Whether model invocation was disabled when this skill was invoked
+	DisableModelInvocation *bool `json:"disableModelInvocation,omitempty"`
 	// Turn number when the skill was invoked
 	InvokedAtTurn int64 `json:"invokedAtTurn"`
 	// Unique identifier for the skill
 	Name string `json:"name"`
-	// Path to the SKILL.md file
+	// Path to the SKILL.md file, or an empty string for an SDK-provided skill without a
+	// filesystem identity
 	Path string `json:"path"`
 }
 
@@ -18809,7 +18886,7 @@ const (
 	SkillDiscoveryScopeProject SkillDiscoveryScope = "project"
 )
 
-// Source location type (e.g., project, personal-copilot, plugin, builtin)
+// Source location type (e.g., project, personal-copilot, plugin, builtin, sdk)
 // Experimental: SkillSource is part of an experimental API and may change or be removed.
 type SkillSource string
 
@@ -18828,6 +18905,8 @@ const (
 	SkillSourcePlugin SkillSource = "plugin"
 	// Skill defined in the current project's skill directories.
 	SkillSourceProject SkillSource = "project"
+	// Pathless skill supplied lazily by an SDK skill provider.
+	SkillSourceSDK SkillSource = "sdk"
 )
 
 // Optional completion hint for the input (e.g. 'directory' for filesystem path completion)

@@ -10,29 +10,26 @@ package com.github.copilot.generated.rpc;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * Skill invocation record with name, path, content, allowed tools, and turn number.
+ * Catalog-only metadata for one SDK-provided skill. The complete SKILL.md is fetched separately and lazily.
  *
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record SkillsInvokedSkill(
-    /** Unique identifier for the skill */
+public record SkillProviderDescriptor(
+    /** Invocation and display name. */
     @JsonProperty("name") String name,
-    /** Path to the SKILL.md file, or an empty string for an SDK-provided skill without a filesystem identity */
-    @JsonProperty("path") String path,
-    /** Full content of the skill file */
-    @JsonProperty("content") String content,
-    /** Tools that should be auto-approved when this skill is active, captured at invocation time */
-    @JsonProperty("allowedTools") List<String> allowedTools,
-    /** Whether model invocation was disabled when this skill was invoked */
+    /** Description used in skill catalogs without fetching content. */
+    @JsonProperty("description") String description,
+    /** Whether users may invoke the skill directly. Defaults to true. */
+    @JsonProperty("userInvocable") Boolean userInvocable,
+    /** Whether model invocation is disabled. Defaults to false. */
     @JsonProperty("disableModelInvocation") Boolean disableModelInvocation,
-    /** Turn number when the skill was invoked */
-    @JsonProperty("invokedAtTurn") Long invokedAtTurn
+    /** Optional freeform argument hint used by slash-command catalogs. */
+    @JsonProperty("argumentHint") String argumentHint
 ) {
 }

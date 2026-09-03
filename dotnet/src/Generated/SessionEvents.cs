@@ -4616,6 +4616,11 @@ public sealed partial class SkillInvokedData
     [JsonPropertyName("description")]
     public string? Description { get; set; }
 
+    /// <summary>Whether model invocation is disabled for this skill.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("disableModelInvocation")]
+    public bool? DisableModelInvocation { get; set; }
+
     /// <summary>Model identifier active when the skill was invoked, when known.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("model")]
@@ -4625,7 +4630,7 @@ public sealed partial class SkillInvokedData
     [JsonPropertyName("name")]
     public required string Name { get; set; }
 
-    /// <summary>File path to the SKILL.md definition.</summary>
+    /// <summary>File path to the SKILL.md definition, or an empty string for an SDK-provided skill without a filesystem identity.</summary>
     [JsonPropertyName("path")]
     public required string Path { get; set; }
 
@@ -4639,7 +4644,7 @@ public sealed partial class SkillInvokedData
     [JsonPropertyName("pluginVersion")]
     public string? PluginVersion { get; set; }
 
-    /// <summary>Source identifier for where the skill was discovered. Known values include: project (workspace skill), inherited (parent-directory skill), personal-copilot (~/.copilot/skills), personal-agents (~/.agents/skills), custom (configured directory), plugin (installed plugin), builtin (bundled runtime skill), and remote (org/enterprise skill).</summary>
+    /// <summary>Source identifier for where the skill was discovered. Known values include: project (workspace skill), inherited (parent-directory skill), personal-copilot (~/.copilot/skills), personal-agents (~/.agents/skills), custom (configured directory), plugin (installed plugin), builtin (bundled runtime skill), remote (org/enterprise skill), and sdk (SDK-provided skill).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("source")]
     public string? Source { get; set; }
@@ -10356,7 +10361,7 @@ public sealed partial class SkillsLoadedSkill
     [JsonPropertyName("path")]
     public string? Path { get; set; }
 
-    /// <summary>Source location type (e.g., project, personal-copilot, plugin, builtin).</summary>
+    /// <summary>Source location type (e.g., project, personal-copilot, plugin, builtin, remote, sdk).</summary>
     [JsonPropertyName("source")]
     public required SkillSource Source { get; set; }
 
@@ -15579,7 +15584,7 @@ public readonly struct FactoryRunSettledStatus : IEquatable<FactoryRunSettledSta
     }
 }
 
-/// <summary>Source location type (e.g., project, personal-copilot, plugin, builtin).</summary>
+/// <summary>Source location type (e.g., project, personal-copilot, plugin, builtin, sdk).</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct SkillSource : IEquatable<SkillSource>
@@ -15618,6 +15623,9 @@ public readonly struct SkillSource : IEquatable<SkillSource>
 
     /// <summary>Skill bundled with the runtime.</summary>
     public static SkillSource Builtin { get; } = new("builtin");
+
+    /// <summary>Pathless skill supplied lazily by an SDK skill provider.</summary>
+    public static SkillSource Sdk { get; } = new("sdk");
 
     /// <summary>Returns a value indicating whether two <see cref="SkillSource"/> instances are equivalent.</summary>
     public static bool operator ==(SkillSource left, SkillSource right) => left.Equals(right);
