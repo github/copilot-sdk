@@ -126,10 +126,7 @@ function runInFactoryHelperScope<TResult>(
     callback: () => Promise<TResult> | TResult
 ): Promise<TResult> | TResult {
     const current = factoryExecutionStore.getStore();
-    return factoryExecutionStore.run(
-        { active: current?.active ?? false, helperScope },
-        callback
-    );
+    return factoryExecutionStore.run({ active: current?.active ?? false, helperScope }, callback);
 }
 
 /**
