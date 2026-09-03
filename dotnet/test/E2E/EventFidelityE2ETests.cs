@@ -12,7 +12,7 @@ namespace GitHub.Copilot.Test.E2E;
 /// Verifies the shape and ordering of <see cref="SessionEvent"/>s emitted from the
 /// runtime: every event has an id and timestamp, user/assistant messages carry
 /// content, tool execution events carry a <c>toolCallId</c>, and
-/// <c>session.idle</c> is the last event of a turn. Mirrors
+/// <c>session.idle</c> follows the final assistant message of a turn. Mirrors
 /// <c>nodejs/test/e2e/event_fidelity.e2e.test.ts</c>.
 /// </summary>
 public class EventFidelityE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
