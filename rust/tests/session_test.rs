@@ -724,6 +724,7 @@ async fn create_session_registers_mcp_auth_interest_only_with_handler() {
     let create_req = read_framed(&mut server_read).await;
     assert_eq!(create_req["method"], "session.create");
     assert_eq!(create_req["params"]["requestPermission"], true);
+    assert_eq!(create_req["params"]["requestMcpOauth"], false);
     let session_id = requested_session_id(&create_req).to_string();
     server_respond_create(&mut server_write, &create_req, &session_id).await;
     let session = timeout(TIMEOUT, create_handle).await.unwrap().unwrap();
@@ -750,6 +751,7 @@ async fn create_session_registers_mcp_auth_interest_only_with_handler() {
     let create_req = read_framed(&mut server_read).await;
     assert_eq!(create_req["method"], "session.create");
     assert_eq!(create_req["params"]["requestPermission"], true);
+    assert_eq!(create_req["params"]["requestMcpOauth"], true);
     let session_id = requested_session_id(&create_req).to_string();
     server_respond_create(&mut server_write, &create_req, &session_id).await;
 
@@ -798,6 +800,7 @@ async fn cloud_create_session_registers_mcp_auth_interest_after_create_only_with
     assert_eq!(create_req["method"], "session.create");
     assert!(create_req["params"].get("sessionId").is_none());
     assert_eq!(create_req["params"]["requestPermission"], true);
+    assert_eq!(create_req["params"]["requestMcpOauth"], false);
     server_respond_create(&mut server_write, &create_req, "server-assigned-session-1").await;
     let session = timeout(TIMEOUT, create_handle).await.unwrap().unwrap();
     let no_extra_request = timeout(Duration::from_millis(50), read_framed(&mut server_read)).await;
@@ -824,6 +827,7 @@ async fn cloud_create_session_registers_mcp_auth_interest_after_create_only_with
     assert_eq!(create_req["method"], "session.create");
     assert!(create_req["params"].get("sessionId").is_none());
     assert_eq!(create_req["params"]["requestPermission"], true);
+    assert_eq!(create_req["params"]["requestMcpOauth"], true);
     server_respond_create(&mut server_write, &create_req, "server-assigned-session-2").await;
 
     let interest_req = read_framed(&mut server_read).await;
@@ -868,6 +872,7 @@ async fn resume_session_registers_mcp_auth_interest_only_with_handler() {
     let resume_req = read_framed(&mut server_read).await;
     assert_eq!(resume_req["method"], "session.resume");
     assert_eq!(resume_req["params"]["requestPermission"], true);
+    assert_eq!(resume_req["params"]["requestMcpOauth"], false);
     server_respond_create(&mut server_write, &resume_req, "session-without-auth").await;
     respond_to_reload(&mut server_read, &mut server_write).await;
     let session = timeout(TIMEOUT, resume_handle).await.unwrap().unwrap();
@@ -893,6 +898,7 @@ async fn resume_session_registers_mcp_auth_interest_only_with_handler() {
     let resume_req = read_framed(&mut server_read).await;
     assert_eq!(resume_req["method"], "session.resume");
     assert_eq!(resume_req["params"]["requestPermission"], true);
+    assert_eq!(resume_req["params"]["requestMcpOauth"], true);
     server_respond_create(&mut server_write, &resume_req, "session-with-auth").await;
 
     let interest_req = read_framed(&mut server_read).await;

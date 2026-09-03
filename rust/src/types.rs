@@ -2219,8 +2219,9 @@ pub struct SessionConfig {
     /// Optional elicitation-request handler. When `None`,
     /// `requestElicitation: false` goes on the wire.
     pub elicitation_handler: Option<Arc<dyn ElicitationHandler>>,
-    /// Optional MCP OAuth request handler. When set, the SDK can satisfy MCP
-    /// server OAuth requests with host-acquired token data or cancellation.
+    /// Optional MCP OAuth request handler. When set, the SDK sends
+    /// `requestMcpOauth: true` during session creation so OAuth requests can
+    /// be observed from the start of runtime initialization.
     pub mcp_auth_handler: Option<Arc<dyn McpAuthHandler>>,
     /// Optional handler for the legacy question-and-answer `ask_user` variant.
     /// When `None`, `requestUserInput: false` goes on the wire, so this client
@@ -2552,6 +2553,7 @@ impl SessionConfig {
         let request_exit_plan_mode = self.exit_plan_mode_handler.is_some();
         let request_auto_mode_switch = self.auto_mode_switch_handler.is_some();
         let request_elicitation = self.elicitation_handler.is_some();
+        let request_mcp_oauth = self.mcp_auth_handler.is_some();
         let hooks_flag = self.hooks_handler.is_some();
 
         let mut tool_handlers: HashMap<String, Arc<dyn crate::tool::ToolHandler>> = HashMap::new();
@@ -2619,6 +2621,7 @@ impl SessionConfig {
             request_exit_plan_mode,
             request_auto_mode_switch,
             request_elicitation,
+            request_mcp_oauth,
             request_mcp_apps: self.enable_mcp_apps.unwrap_or(false),
             github_mcp_tool_config: self.github_mcp_tool_config,
             hooks: hooks_flag,
@@ -2698,6 +2701,7 @@ impl SessionConfig {
     }
 
     /// Install an [`McpAuthHandler`] for host-provided MCP OAuth tokens.
+    /// Enables create-time MCP OAuth event interest in the runtime.
     pub fn with_mcp_auth_handler(mut self, handler: Arc<dyn McpAuthHandler>) -> Self {
         self.mcp_auth_handler = Some(handler);
         self
@@ -3573,6 +3577,7 @@ pub struct ResumeSessionConfig {
     /// [`SessionConfig::elicitation_handler`].
     pub elicitation_handler: Option<Arc<dyn ElicitationHandler>>,
     /// Optional MCP OAuth handler. See [`SessionConfig::mcp_auth_handler`].
+    /// When set, the SDK sends `requestMcpOauth: true` during resume.
     pub mcp_auth_handler: Option<Arc<dyn McpAuthHandler>>,
     /// Optional user-input handler. See
     /// [`SessionConfig::user_input_handler`].
@@ -3762,6 +3767,7 @@ impl ResumeSessionConfig {
         let request_exit_plan_mode = self.exit_plan_mode_handler.is_some();
         let request_auto_mode_switch = self.auto_mode_switch_handler.is_some();
         let request_elicitation = self.elicitation_handler.is_some();
+        let request_mcp_oauth = self.mcp_auth_handler.is_some();
         let hooks_flag = self.hooks_handler.is_some();
 
         let mut tool_handlers: HashMap<String, Arc<dyn crate::tool::ToolHandler>> = HashMap::new();
@@ -3830,6 +3836,7 @@ impl ResumeSessionConfig {
             request_exit_plan_mode,
             request_auto_mode_switch,
             request_elicitation,
+            request_mcp_oauth,
             request_mcp_apps: self.enable_mcp_apps.unwrap_or(false),
             github_mcp_tool_config: self.github_mcp_tool_config,
             hooks: hooks_flag,
@@ -4002,6 +4009,7 @@ impl ResumeSessionConfig {
     }
 
     /// Install an [`McpAuthHandler`] for host-provided MCP OAuth tokens.
+    /// Enables resume-time MCP OAuth event interest in the runtime.
     pub fn with_mcp_auth_handler(mut self, handler: Arc<dyn McpAuthHandler>) -> Self {
         self.mcp_auth_handler = Some(handler);
         self
