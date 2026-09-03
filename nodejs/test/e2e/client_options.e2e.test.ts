@@ -99,6 +99,11 @@ function handleMessage(message) {
     return;
   }
 
+  if (message.method === "session.detach") {
+    writeResponse(message.id, { success: true });
+    return;
+  }
+
   if (message.method === "session.resume") {
     const sessionId = message.params?.sessionId ?? message.params?.[0]?.sessionId ?? "fake-session";
     writeResponse(message.id, {

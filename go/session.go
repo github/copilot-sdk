@@ -4,6 +4,7 @@ package copilot
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"sync"
@@ -1740,8 +1741,22 @@ func (s *Session) GetEvents(ctx context.Context) ([]SessionEvent, error) {
 //	    log.Printf("Failed to disconnect session: %v", err)
 //	}
 func (s *Session) Disconnect() error {
-	_, err := s.client.Request(context.Background(), "session.destroy", sessionDestroyRequest{SessionID: s.SessionID})
+	result, err := s.client.Request(context.Background(), "session.detach", sessionDetachRequest{SessionID: s.SessionID})
+	if err == nil {
+		var response sessionDetachResponse
+		if decodeErr := json.Unmarshal(result, &response); decodeErr != nil {
+			err = fmt.Errorf("failed to decode session detach response: %w", decodeErr)
+		} else if !response.Success {
+			if response.Error == "" {
+				response.Error = "unknown error"
+			}
+			err = errors.New(response.Error)
+		}
+	}
 
+	// Local cleanup always runs, even if the detach RPC failed, so callers
+	// don't leak in-memory resources (event goroutines, registered
+	// providers/handlers) just because the runtime couldn't be reached.
 	s.stopEventProcessing()
 	s.releaseGitHubTokenProviderRegistration()
 

@@ -597,7 +597,7 @@ public sealed class E2ETestContext : IAsyncDisposable
                     $"Graceful in-process client cleanup exceeded {s_gracefulClientStopTimeout}; forcing shutdown.");
                 await client.ForceStopAsync();
 
-                // Disposing the connection completes any session.destroy RPC that
+                // Disposing the connection completes any session.detach RPC that
                 // blocked graceful cleanup. Observe that task before continuing.
                 await gracefulStop.WaitAsync(s_gracefulClientStopTimeout);
             }
