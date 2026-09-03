@@ -3316,6 +3316,9 @@ impl SessionConfig {
     /// Set feature-flag values resolved by the host for this session.
     pub fn with_feature_flags(mut self, feature_flags: HashMap<String, bool>) -> Self {
         self.feature_flags = Some(feature_flags);
+        self
+    }
+
     /// Set [`Self::event_buffer_capacity`].
     ///
     /// A capacity of `0` is rejected with
@@ -4626,6 +4629,9 @@ impl ResumeSessionConfig {
     /// Re-supply feature-flag values resolved by the host on resume.
     pub fn with_feature_flags(mut self, feature_flags: HashMap<String, bool>) -> Self {
         self.feature_flags = Some(feature_flags);
+        self
+    }
+
     /// Set [`Self::event_buffer_capacity`].
     ///
     /// A capacity of `0` is rejected with

@@ -146,17 +146,22 @@ struct PendingSessionRegistration {
 enum PendingSessionId {
     /// The ID was known before the RPC was issued (resume, and create with a
     /// client- or caller-supplied ID).
-    Known(SessionId),
+    Known(SessionId, crate::router::RegistrationToken),
     /// Server-assigned ID, populated by the `session.create` inline response
     /// callback. `None` in the stash means nothing was ever registered.
-    Deferred(Arc<ParkingLotMutex<Option<(SessionId, crate::router::SessionChannels)>>>),
+    Deferred(Arc<ParkingLotMutex<Option<(SessionId, crate::router::SessionRegistration)>>>),
 }
 
 impl PendingSessionRegistration {
-    fn new(client: Client, session_id: SessionId, shutdown: CancellationToken) -> Self {
+    fn new(
+        client: Client,
+        session_id: SessionId,
+        token: crate::router::RegistrationToken,
+        shutdown: CancellationToken,
+    ) -> Self {
         Self {
             client,
-            session_id: PendingSessionId::Known(session_id),
+            session_id: PendingSessionId::Known(session_id, token),
             shutdown,
             disarmed: false,
         }
@@ -165,7 +170,7 @@ impl PendingSessionRegistration {
     /// Guard for a registration whose session ID is assigned by the server.
     fn deferred(
         client: Client,
-        stash: Arc<ParkingLotMutex<Option<(SessionId, crate::router::SessionChannels)>>>,
+        stash: Arc<ParkingLotMutex<Option<(SessionId, crate::router::SessionRegistration)>>>,
         shutdown: CancellationToken,
     ) -> Self {
         Self {
@@ -178,7 +183,7 @@ impl PendingSessionRegistration {
 
     fn registered_id(&self) -> Option<SessionId> {
         match &self.session_id {
-            PendingSessionId::Known(id) => Some(id.clone()),
+            PendingSessionId::Known(id, _) => Some(id.clone()),
             PendingSessionId::Deferred(stash) => stash.lock().as_ref().map(|(id, _)| id.clone()),
         }
     }
@@ -186,15 +191,21 @@ impl PendingSessionRegistration {
     /// Re-target the guard at a now-known session ID. Used by
     /// `session.create` once the response has been parsed and the stash has
     /// been drained into the event loop.
-    fn resolve_to(&mut self, session_id: SessionId) {
-        self.session_id = PendingSessionId::Known(session_id);
+    fn resolve_to(&mut self, session_id: SessionId, token: crate::router::RegistrationToken) {
+        self.session_id = PendingSessionId::Known(session_id, token);
     }
 
     async fn cleanup(mut self, event_loop: JoinHandle<()>) {
         self.shutdown.cancel();
         let _ = event_loop.await;
         if let Some(id) = self.registered_id() {
-            self.client.unregister_session(&id);
+            if let PendingSessionId::Known(_, token) = self.session_id {
+                self.client.unregister_session_owned(&id, token);
+            } else if let PendingSessionId::Deferred(stash) = &self.session_id
+                && let Some((id, registration)) = stash.lock().as_ref()
+            {
+                self.client.unregister_session_owned(id, registration.token);
+            }
         }
         self.disarmed = true;
     }
@@ -209,7 +220,13 @@ impl Drop for PendingSessionRegistration {
         if !self.disarmed {
             self.shutdown.cancel();
             if let Some(id) = self.registered_id() {
-                self.client.unregister_session(&id);
+                if let PendingSessionId::Known(_, token) = self.session_id {
+                    self.client.unregister_session_owned(&id, token);
+                } else if let PendingSessionId::Deferred(stash) = &self.session_id
+                    && let Some((id, registration)) = stash.lock().as_ref()
+                {
+                    self.client.unregister_session_owned(id, registration.token);
+                }
             }
         }
     }
@@ -1196,7 +1213,7 @@ impl Client {
         // For non-cloud sessions, register up-front so the CLI can issue
         // session-scoped requests during session.create processing.
         let inline_stash: Arc<
-            ParkingLotMutex<Option<(SessionId, crate::router::SessionChannels)>>,
+            ParkingLotMutex<Option<(SessionId, crate::router::SessionRegistration)>>,
         > = Arc::new(ParkingLotMutex::new(None));
 
         let inline_callback: Option<crate::jsonrpc::InlineResponseCallback> = if let Some(ref sid) =
@@ -1232,8 +1249,8 @@ impl Client {
                 // `register_session` takes the router lock, never the stash
                 // lock, so there is no lock-order inversion here.
                 let mut stashed = stash.lock();
-                let channels = client.register_session(&parsed.session_id);
-                *stashed = Some((parsed.session_id, channels));
+                let registration = client.register_session(&parsed.session_id);
+                *stashed = Some((parsed.session_id, registration));
                 Ok(())
             }))
         };
@@ -1243,9 +1260,15 @@ impl Client {
         // token and unregisters whatever was registered on the router. For
         // the cloud path the ID is only known once the inline callback has
         // run, so the guard reads the stash at cleanup time.
-        let mut registration = match local_session_id {
+        let mut pending_registration = match local_session_id {
             Some(ref sid) => {
-                PendingSessionRegistration::new(self.clone(), sid.clone(), shutdown.clone())
+                let token = inline_stash
+                    .lock()
+                    .as_ref()
+                    .expect("session registration must exist")
+                    .1
+                    .token;
+                PendingSessionRegistration::new(self.clone(), sid.clone(), token, shutdown.clone())
             }
             None => PendingSessionRegistration::deferred(
                 self.clone(),
@@ -1274,11 +1297,13 @@ impl Client {
             .into());
         }
 
-        let (session_id, channels) = inline_stash
+        let (session_id, registration) = inline_stash
             .lock()
             .take()
             .expect("session registration must have populated stash on success");
-        registration.resolve_to(session_id.clone());
+        let channels = registration.channels;
+        let registration_token = registration.token;
+        pending_registration.resolve_to(session_id.clone(), registration_token);
         let event_loop = spawn_event_loop(
             session_id.clone(),
             self.clone(),
@@ -1308,7 +1333,7 @@ impl Client {
         if has_mcp_auth_handler
             && let Err(error) = register_mcp_auth_interest(self, &session_id).await
         {
-            registration.cleanup(event_loop).await;
+            pending_registration.cleanup(event_loop).await;
             return Err(error);
         }
 
@@ -1317,7 +1342,7 @@ impl Client {
             session_id = %session_id,
             "Client::create_session complete"
         );
-        registration.disarm();
+        pending_registration.disarm();
         let session = Session {
             id: session_id,
             cwd: self.cwd().clone(),
@@ -1488,7 +1513,9 @@ impl Client {
 
         let capabilities = Arc::new(parking_lot::RwLock::new(SessionCapabilities::default()));
         let setup_start = Instant::now();
-        let channels = self.register_session(&session_id);
+        let registration = self.register_session(&session_id);
+        let registration_token = registration.token;
+        let channels = registration.channels;
         let idle_waiter = Arc::new(ParkingLotMutex::new(None));
         let open_canvases = Arc::new(parking_lot::RwLock::new(Vec::new()));
         let event_loop = spawn_event_loop(
@@ -1509,7 +1536,12 @@ impl Client {
             shutdown.clone(),
         );
         let mut registration =
-            PendingSessionRegistration::new(self.clone(), session_id.clone(), shutdown.clone());
+            PendingSessionRegistration::new(
+                self.clone(),
+                session_id.clone(),
+                registration_token,
+                shutdown.clone(),
+            );
         tracing::debug!(
             elapsed_ms = setup_start.elapsed().as_millis(),
             session_id = %session_id,
