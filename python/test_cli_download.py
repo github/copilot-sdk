@@ -11,7 +11,7 @@ from unittest.mock import patch
 
 import pytest
 
-from copilot import _cli_download
+from copilot import _cli_download, _ffi_runtime_host
 
 
 def _integrity(data: bytes, algo: str = "sha512") -> str:
@@ -76,6 +76,15 @@ class TestEnsureRuntimeLibraryFailsClosed:
 
         # The library bytes must never be extracted/written when verification is impossible.
         extract.assert_not_called()
+
+
+def test_resolve_library_path_accepts_adjacent_runtime_node(tmp_path):
+    wrapper = tmp_path / ("copilot-runtime.exe" if os.name == "nt" else "copilot-runtime")
+    wrapper.write_bytes(b"wrapper")
+    runtime_node = tmp_path / "runtime.node"
+    runtime_node.write_bytes(b"runtime")
+
+    assert _ffi_runtime_host.resolve_library_path(str(wrapper)) == str(runtime_node)
 
 
 class TestEnsureRuntimeWrapper:

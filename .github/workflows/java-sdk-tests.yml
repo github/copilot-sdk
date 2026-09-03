@@ -7,6 +7,11 @@ on:
 permissions:
   contents: read
 
+env:
+  MAVEN_OPTS: >-
+    -Daether.connector.http.retryHandler.count=3
+    -Daether.connector.http.retryHandler.serviceUnavailable=429,502,503
+
 jobs:
   java-sdk-inprocess:
     name: "Java SDK InProcess Tests (${{ matrix.classifier }})"
@@ -121,11 +126,12 @@ jobs:
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: java-native-publication-linux-arm64-${{ github.run_id }}-${{ github.run_attempt }}
+          name: java-native-publication-linux-arm64-${{ github.run_id }}
           path: |
             java/copilot-native/target/copilot-sdk-java-runtime-${{ steps.build.outputs.version }}-linux-arm64.jar
             java/copilot-native/target/linux-arm64-${{ steps.build.outputs.version }}.sha256
           if-no-files-found: error
+          overwrite: true
           retention-days: 1
 
   java-native-publication-windows:
@@ -178,11 +184,12 @@ jobs:
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: java-native-publication-win32-x64-${{ github.run_id }}-${{ github.run_attempt }}
+          name: java-native-publication-win32-x64-${{ github.run_id }}
           path: |
             java/copilot-native/target/copilot-sdk-java-runtime-${{ steps.build.outputs.version }}-win32-x64.jar
             java/copilot-native/target/win32-x64-${{ steps.build.outputs.version }}.sha256
           if-no-files-found: error
+          overwrite: true
           retention-days: 1
 
   java-native-publication-windows-arm64:
@@ -235,11 +242,12 @@ jobs:
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: java-native-publication-win32-arm64-${{ github.run_id }}-${{ github.run_attempt }}
+          name: java-native-publication-win32-arm64-${{ github.run_id }}
           path: |
             java/copilot-native/target/copilot-sdk-java-runtime-${{ steps.build.outputs.version }}-win32-arm64.jar
             java/copilot-native/target/win32-arm64-${{ steps.build.outputs.version }}.sha256
           if-no-files-found: error
+          overwrite: true
           retention-days: 1
 
   java-native-publication-darwin:
@@ -293,11 +301,12 @@ jobs:
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: java-native-publication-darwin-arm64-${{ github.run_id }}-${{ github.run_attempt }}
+          name: java-native-publication-darwin-arm64-${{ github.run_id }}
           path: |
             java/copilot-native/target/copilot-sdk-java-runtime-${{ steps.build.outputs.version }}-darwin-arm64.jar
             java/copilot-native/target/darwin-arm64-${{ steps.build.outputs.version }}.sha256
           if-no-files-found: error
+          overwrite: true
           retention-days: 1
 
   java-native-publication-assembly:
@@ -333,22 +342,22 @@ jobs:
 
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: java-native-publication-linux-arm64-${{ github.run_id }}-${{ github.run_attempt }}
+          name: java-native-publication-linux-arm64-${{ github.run_id }}
           path: ${{ github.workspace }}/java/native-publication-input/linux-arm64
 
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: java-native-publication-win32-x64-${{ github.run_id }}-${{ github.run_attempt }}
+          name: java-native-publication-win32-x64-${{ github.run_id }}
           path: ${{ github.workspace }}/java/native-publication-input/windows
 
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: java-native-publication-win32-arm64-${{ github.run_id }}-${{ github.run_attempt }}
+          name: java-native-publication-win32-arm64-${{ github.run_id }}
           path: ${{ github.workspace }}/java/native-publication-input/windows-arm64
 
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: java-native-publication-darwin-arm64-${{ github.run_id }}-${{ github.run_attempt }}
+          name: java-native-publication-darwin-arm64-${{ github.run_id }}
           path: ${{ github.workspace }}/java/native-publication-input/darwin
 
       - name: Verify native inputs and deploy the complete local release
@@ -449,7 +458,12 @@ jobs:
         run: mvn javadoc:javadoc -q
 
       - name: Verify CLI works
-        run: node ../nodejs/node_modules/@github/copilot/npm-loader.js --version
+        run: |
+          npm --prefix ../nodejs ci --ignore-scripts
+          cli_path=$(npm --prefix ../nodejs run --silent prepare:runtime -- --print-path)
+          test -x "$cli_path"
+          legacy_cli=$(npm --prefix ../nodejs run --silent prepare:runtime -- --print-legacy-path)
+          node "$legacy_cli" --version
 
       - name: Run spotless check
         if: matrix.test-jdk == '25'

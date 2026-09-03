@@ -193,10 +193,10 @@ type ClientOptions struct {
 	// directory are accessible from GitHub web and mobile.
 	// Ignored when connecting to an existing runtime via [URIConnection].
 	EnableRemoteSessions bool
-	// ClientInfo declares the integrating host's identity, forwarded to the
+	// ClientInfo declares the integrating application's identity, forwarded to the
 	// runtime on the `server.connect` handshake. Declaring it lets the
 	// telemetry the runtime emits on this connection be attributed to a
-	// consistent surface (the host editor and its Copilot extension) instead of
+	// consistent surface (the application and its Copilot integration) instead of
 	// the runtime's own build. All fields are optional; leave it nil to keep the
 	// runtime's default attribution.
 	ClientInfo *ClientInfo
@@ -211,22 +211,21 @@ type ClientOptions struct {
 	Mode ClientMode
 }
 
-// ClientInfo identifies the integrating host on the `server.connect` handshake.
+// ClientInfo identifies the integrating application on the `server.connect` handshake.
 //
 // Declaring it lets the telemetry the runtime emits on the connection be
 // attributed to a single, consistent surface instead of the runtime's own
 // build. All fields are optional; an empty field is omitted from the handshake.
 type ClientInfo struct {
-	// EditorName is the name of the host editor, e.g. "vscode".
-	EditorName string
-	// EditorVersion is the version of the host editor, e.g. "1.124.2".
-	EditorVersion string
-	// ExtensionName is the name of the Copilot extension within the host, e.g.
-	// "copilot-chat".
-	ExtensionName string
-	// ExtensionVersion is the version of the Copilot extension within the host,
-	// e.g. "0.54.0".
-	ExtensionVersion string
+	// ApplicationName is the name of the application using the SDK.
+	ApplicationName string
+	// ApplicationVersion is the version of the application using the SDK.
+	ApplicationVersion string
+	// IntegrationName optionally identifies a specific integration within the
+	// application, such as an extension or plugin.
+	IntegrationName string
+	// IntegrationVersion is the optional version of the named integration.
+	IntegrationVersion string
 }
 
 // toWire maps the public [ClientInfo] onto the generated connect wire shape,
@@ -238,20 +237,20 @@ func (ci *ClientInfo) toWire() *rpc.ConnectClientInfo {
 	}
 	wire := &rpc.ConnectClientInfo{}
 	populated := false
-	if ci.EditorName != "" {
-		wire.EditorName = &ci.EditorName
+	if ci.ApplicationName != "" {
+		wire.EditorName = &ci.ApplicationName
 		populated = true
 	}
-	if ci.EditorVersion != "" {
-		wire.EditorVersion = &ci.EditorVersion
+	if ci.ApplicationVersion != "" {
+		wire.EditorVersion = &ci.ApplicationVersion
 		populated = true
 	}
-	if ci.ExtensionName != "" {
-		wire.ExtensionName = &ci.ExtensionName
+	if ci.IntegrationName != "" {
+		wire.ExtensionName = &ci.IntegrationName
 		populated = true
 	}
-	if ci.ExtensionVersion != "" {
-		wire.ExtensionVersion = &ci.ExtensionVersion
+	if ci.IntegrationVersion != "" {
+		wire.ExtensionVersion = &ci.IntegrationVersion
 		populated = true
 	}
 	if !populated {

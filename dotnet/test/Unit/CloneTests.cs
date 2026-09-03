@@ -25,10 +25,10 @@ public class CloneTests
             SessionIdleTimeoutSeconds = 600,
             ClientInfo = new CopilotClientInfo
             {
-                EditorName = "example-editor",
-                EditorVersion = "1.0.0",
-                ExtensionName = "example-extension",
-                ExtensionVersion = "2.0.0",
+                ApplicationName = "example-app",
+                ApplicationVersion = "1.0.0",
+                IntegrationName = "example-integration",
+                IntegrationVersion = "2.0.0",
             },
         };
 

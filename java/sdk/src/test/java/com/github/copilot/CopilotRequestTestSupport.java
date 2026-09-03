@@ -134,7 +134,7 @@ final class CopilotRequestTestSupport {
         startMessage.put("id", "msg_stub_1");
         startMessage.put("type", "message");
         startMessage.put("role", "assistant");
-        startMessage.put("model", "claude-sonnet-4.5");
+        startMessage.put("model", "claude-sonnet-5");
         startMessage.put("content", List.of());
         startMessage.put("stop_reason", null);
         startMessage.put("stop_sequence", null);
@@ -251,7 +251,7 @@ final class CopilotRequestTestSupport {
             body.put("id", "msg_stub_1");
             body.put("type", "message");
             body.put("role", "assistant");
-            body.put("model", "claude-sonnet-4.5");
+            body.put("model", "claude-sonnet-5");
             body.put("content", List.of(Map.of("type", "text", "text", text)));
             body.put("stop_reason", "end_turn");
             body.put("stop_sequence", null);
@@ -301,14 +301,14 @@ final class CopilotRequestTestSupport {
 
         Map<String, Object> capabilities = new LinkedHashMap<>();
         capabilities.put("type", "chat");
-        capabilities.put("family", "claude-sonnet-4.5");
+        capabilities.put("family", "claude-sonnet-5");
         capabilities.put("tokenizer", "o200k_base");
         capabilities.put("limits", limits);
         capabilities.put("supports", supports);
 
         Map<String, Object> model = new LinkedHashMap<>();
-        model.put("id", "claude-sonnet-4.5");
-        model.put("name", "Claude Sonnet 4.5");
+        model.put("id", "claude-sonnet-5");
+        model.put("name", "Claude Sonnet 5");
         model.put("object", "model");
         model.put("vendor", "Anthropic");
         model.put("version", "1");
@@ -416,7 +416,7 @@ final class CopilotRequestTestSupport {
         base.put("id", "chatcmpl-stub-1");
         base.put("object", "chat.completion.chunk");
         base.put("created", 1);
-        base.put("model", "claude-sonnet-4.5");
+        base.put("model", "claude-sonnet-5");
         return base;
     }
 
@@ -459,7 +459,7 @@ final class CopilotRequestTestSupport {
         root.put("id", "chatcmpl-stub-1");
         root.put("object", "chat.completion");
         root.put("created", 1);
-        root.put("model", "claude-sonnet-4.5");
+        root.put("model", "claude-sonnet-5");
         root.put("choices", List.of(choice));
         root.put("usage", chatUsage());
         return root;

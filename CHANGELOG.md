@@ -7,9 +7,9 @@ See [GitHub Releases](https://github.com/github/copilot-sdk/releases) for the fu
 
 ## [Unreleased]
 
-### Feature: declare host identity with client info
+### Feature: declare application identity with client info
 
-Client options now accept optional client info (editor name and version, extension name and version) across all six SDKs, exposed idiomatically per language (`clientInfo` in Node.js, `client_info` in Python and Rust, `ClientInfo` in Go and .NET, `setClientInfo` in Java). When set, the SDK forwards it on the `server.connect` handshake so the telemetry the runtime emits on the connection is attributed to the host editor and its Copilot extension instead of the runtime's own build. All fields are optional, and leaving client info unset keeps the runtime's default attribution. See [Client info](./docs/features/client-info.md).
+Client options now accept optional client info (application name and version, integration name and version) across all six SDKs, exposed idiomatically per language (`clientInfo` in Node.js, `client_info` in Python and Rust, `ClientInfo` in Go and .NET, `setClientInfo` in Java). When set, the SDK forwards it on the `server.connect` handshake so the telemetry the runtime emits on the connection is attributed to the application and its Copilot integration instead of the runtime's own build. All fields are optional, and leaving client info unset keeps the runtime's default attribution. See [Client info](./docs/features/client-info.md).
 
 ### Feature: Node Agent Factories pagination and run notifications
 

@@ -327,10 +327,10 @@ func TestClient_ClientInfo(t *testing.T) {
 		client := NewClient(&ClientOptions{
 			Connection: URIConnection{URL: url},
 			ClientInfo: &ClientInfo{
-				EditorName:       "JetBrains-IU",
-				EditorVersion:    "2026.1",
-				ExtensionName:    "copilot-intellij",
-				ExtensionVersion: "1.5.0",
+				ApplicationName:    "acme-developer-portal",
+				ApplicationVersion: "2.4.0",
+				IntegrationName:    "copilot-assistant",
+				IntegrationVersion: "1.5.0",
 			},
 		})
 		if err := client.Start(t.Context()); err != nil {
@@ -340,9 +340,9 @@ func TestClient_ClientInfo(t *testing.T) {
 
 		params := findConnect(requests())
 		want := map[string]any{
-			"editorName":       "JetBrains-IU",
-			"editorVersion":    "2026.1",
-			"extensionName":    "copilot-intellij",
+			"editorName":       "acme-developer-portal",
+			"editorVersion":    "2.4.0",
+			"extensionName":    "copilot-assistant",
 			"extensionVersion": "1.5.0",
 		}
 		if !reflect.DeepEqual(params["clientInfo"], want) {
@@ -371,14 +371,14 @@ func TestClient_ClientInfo(t *testing.T) {
 
 		client := NewClient(&ClientOptions{
 			Connection: URIConnection{URL: url},
-			ClientInfo: &ClientInfo{EditorName: "example-editor"},
+			ClientInfo: &ClientInfo{ApplicationName: "example-app"},
 		})
 		if err := client.Start(t.Context()); err != nil {
 			t.Fatalf("Start failed: %v", err)
 		}
 		defer client.ForceStop()
 
-		want := map[string]any{"editorName": "example-editor"}
+		want := map[string]any{"editorName": "example-app"}
 		if got := findConnect(requests())["clientInfo"]; !reflect.DeepEqual(got, want) {
 			t.Fatalf("clientInfo = %v, want %v", got, want)
 		}
@@ -1353,15 +1353,36 @@ func TestClient_SessionIdleTimeoutSeconds(t *testing.T) {
 	})
 }
 
-func findCLIPathForTest() string {
-	base, err := filepath.Abs("../nodejs/node_modules/@github")
-	if err == nil {
-		matches, _ := filepath.Glob(filepath.Join(base, "copilot-*", "index.js"))
-		if len(matches) > 0 {
-			return matches[0]
+func findCLIPathForTest(t *testing.T) string {
+	t.Helper()
+
+	if cliPath := os.Getenv("COPILOT_CLI_PATH"); cliPath != "" {
+		if info, err := os.Stat(cliPath); err == nil && !info.IsDir() {
+			return cliPath
 		}
+		t.Fatalf("COPILOT_CLI_PATH does not point to a file: %s", cliPath)
 	}
-	return ""
+
+	nodeDir, err := filepath.Abs("../nodejs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	command := exec.Command(
+		"node",
+		"node_modules/tsx/dist/cli.mjs",
+		"scripts/prepare-runtime.ts",
+		"--print-path",
+	)
+	command.Dir = nodeDir
+	output, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("failed to prepare pinned Copilot CLI: %v\n%s", err, output)
+	}
+	cliPath := strings.TrimSpace(string(output))
+	if info, err := os.Stat(cliPath); err != nil || info.IsDir() {
+		t.Fatalf("prepared Copilot CLI path is not a file: %q", cliPath)
+	}
+	return cliPath
 }
 
 func TestCreateSessionRequest_ClientName(t *testing.T) {
@@ -2208,10 +2229,7 @@ func TestListModelsHandlerCachesResults(t *testing.T) {
 }
 
 func TestClient_StartContextCancellationDoesNotKillProcess(t *testing.T) {
-	cliPath := findCLIPathForTest()
-	if cliPath == "" {
-		t.Skip("CLI not found")
-	}
+	cliPath := findCLIPathForTest(t)
 
 	client := NewClient(&ClientOptions{Connection: StdioConnection{Path: cliPath}})
 	t.Cleanup(func() { client.ForceStop() })
@@ -2234,10 +2252,7 @@ func TestClient_StartContextCancellationDoesNotKillProcess(t *testing.T) {
 }
 
 func TestClient_StartStopRace(t *testing.T) {
-	cliPath := findCLIPathForTest()
-	if cliPath == "" {
-		t.Skip("CLI not found")
-	}
+	cliPath := findCLIPathForTest(t)
 	client := NewClient(&ClientOptions{Connection: StdioConnection{Path: cliPath}})
 	defer client.ForceStop()
 	errChan := make(chan error)

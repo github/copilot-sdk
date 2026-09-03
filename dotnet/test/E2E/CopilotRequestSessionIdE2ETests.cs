@@ -76,15 +76,15 @@ public class CopilotRequestSessionIdE2ETests(E2ETestFixture fixture, ITestOutput
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
             // BYOK providers require an explicit model id.
-            Model = "claude-sonnet-4.5",
+            Model = "claude-sonnet-5",
             Provider = new ProviderConfig
             {
                 Type = "openai",
                 WireApi = "responses",
                 BaseUrl = "https://byok.invalid/v1",
                 ApiKey = "byok-secret",
-                ModelId = "claude-sonnet-4.5",
-                WireModel = "claude-sonnet-4.5",
+                ModelId = "claude-sonnet-5",
+                WireModel = "claude-sonnet-5",
             },
         });
         var byokSessionId = session.SessionId;

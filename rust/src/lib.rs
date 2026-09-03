@@ -401,16 +401,16 @@ pub struct ClientOptions {
     /// (the default) or are stripped to a minimal/safe baseline. See
     /// [`ClientMode`] for the contract and trade-offs.
     pub mode: ClientMode,
-    /// Declares the integrating host's identity, forwarded to the runtime on
+    /// Declares the integrating application's identity, forwarded to the runtime on
     /// the `server.connect` handshake. Declaring it lets the telemetry the
     /// runtime emits on this connection be attributed to a consistent surface
-    /// (the host editor and its Copilot extension) instead of the runtime's own
+    /// (the application and its Copilot integration) instead of the runtime's own
     /// build. All fields are optional; leave it `None` to keep the runtime's
     /// default attribution.
     pub client_info: Option<ClientInfo>,
 }
 
-/// Identity of the integrating host, declared on the `server.connect`
+/// Identity of the integrating application, declared on the `server.connect`
 /// handshake.
 ///
 /// Declaring it lets the telemetry the runtime emits on the connection be
@@ -424,14 +424,15 @@ pub struct ClientOptions {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct ClientInfo {
-    /// Name of the host editor, e.g. `"vscode"`.
-    pub editor_name: Option<String>,
-    /// Version of the host editor, e.g. `"1.124.2"`.
-    pub editor_version: Option<String>,
-    /// Name of the Copilot extension within the host, e.g. `"copilot-chat"`.
-    pub extension_name: Option<String>,
-    /// Version of the Copilot extension within the host, e.g. `"0.54.0"`.
-    pub extension_version: Option<String>,
+    /// Name of the application using the SDK.
+    pub application_name: Option<String>,
+    /// Version of the application using the SDK.
+    pub application_version: Option<String>,
+    /// Optional name of a specific integration within the application, such as an
+    /// extension or plugin.
+    pub integration_name: Option<String>,
+    /// Optional version of the integration identified by [`Self::integration_name`].
+    pub integration_version: Option<String>,
 }
 
 impl ClientInfo {
@@ -441,27 +442,29 @@ impl ClientInfo {
         Self::default()
     }
 
-    /// Set the host editor name, e.g. `"vscode"`.
-    pub fn with_editor_name(mut self, editor_name: impl Into<String>) -> Self {
-        self.editor_name = Some(editor_name.into());
+    /// Set the name of the application using the SDK.
+    pub fn with_application_name(mut self, application_name: impl Into<String>) -> Self {
+        self.application_name = Some(application_name.into());
         self
     }
 
-    /// Set the host editor version, e.g. `"1.124.2"`.
-    pub fn with_editor_version(mut self, editor_version: impl Into<String>) -> Self {
-        self.editor_version = Some(editor_version.into());
+    /// Set the version of the application using the SDK.
+    pub fn with_application_version(mut self, application_version: impl Into<String>) -> Self {
+        self.application_version = Some(application_version.into());
         self
     }
 
-    /// Set the Copilot extension name within the host, e.g. `"copilot-chat"`.
-    pub fn with_extension_name(mut self, extension_name: impl Into<String>) -> Self {
-        self.extension_name = Some(extension_name.into());
+    /// Set the name of a specific integration within the application, such as an
+    /// extension or plugin.
+    pub fn with_integration_name(mut self, integration_name: impl Into<String>) -> Self {
+        self.integration_name = Some(integration_name.into());
         self
     }
 
-    /// Set the Copilot extension version within the host, e.g. `"0.54.0"`.
-    pub fn with_extension_version(mut self, extension_version: impl Into<String>) -> Self {
-        self.extension_version = Some(extension_version.into());
+    /// Set the version of the integration identified by
+    /// [`Self::with_integration_name`].
+    pub fn with_integration_version(mut self, integration_version: impl Into<String>) -> Self {
+        self.integration_version = Some(integration_version.into());
         self
     }
 
@@ -469,10 +472,10 @@ impl ClientInfo {
     /// SDK omits `clientInfo` from the handshake and the runtime keeps its
     /// default attribution.
     fn is_empty(&self) -> bool {
-        Self::non_empty(&self.editor_name).is_none()
-            && Self::non_empty(&self.editor_version).is_none()
-            && Self::non_empty(&self.extension_name).is_none()
-            && Self::non_empty(&self.extension_version).is_none()
+        Self::non_empty(&self.application_name).is_none()
+            && Self::non_empty(&self.application_version).is_none()
+            && Self::non_empty(&self.integration_name).is_none()
+            && Self::non_empty(&self.integration_version).is_none()
     }
 
     /// Clone the field only when it holds a non-empty string, so empty fields are
@@ -488,10 +491,10 @@ impl ClientInfo {
             return None;
         }
         Some(crate::generated::api_types::ConnectClientInfo {
-            editor_name: Self::non_empty(&self.editor_name),
-            editor_version: Self::non_empty(&self.editor_version),
-            extension_name: Self::non_empty(&self.extension_name),
-            extension_version: Self::non_empty(&self.extension_version),
+            editor_name: Self::non_empty(&self.application_name),
+            editor_version: Self::non_empty(&self.application_version),
+            extension_name: Self::non_empty(&self.integration_name),
+            extension_version: Self::non_empty(&self.integration_version),
         })
     }
 }
@@ -1027,7 +1030,7 @@ impl ClientOptions {
         self
     }
 
-    /// Declare the integrating host's identity, forwarded to the runtime on
+    /// Declare the integrating application's identity, forwarded to the runtime on
     /// the `server.connect` handshake so its telemetry is attributed to a
     /// consistent surface. See [`Self::client_info`].
     pub fn with_client_info(mut self, client_info: ClientInfo) -> Self {
@@ -1203,7 +1206,7 @@ struct ClientInner {
     /// `None` for stdio and for external-server transport without an
     /// explicit token.
     effective_connection_token: Option<String>,
-    /// Host identity forwarded on the `connect` handshake, set from
+    /// Application identity forwarded on the `connect` handshake, set from
     /// [`ClientOptions::client_info`]. `None` keeps the runtime's default
     /// telemetry attribution.
     client_info: Option<ClientInfo>,
@@ -1822,7 +1825,7 @@ impl Client {
 
     /// Construct a [`Client`] from raw streams with a preset
     /// [`ClientInfo`], for integration testing the `connect` handshake's
-    /// host-identity forwarding path.
+    /// application-identity forwarding path.
     #[doc(hidden)]
     #[cfg(any(test, feature = "test-support"))]
     pub fn from_streams_with_client_info(
@@ -2474,7 +2477,7 @@ impl Client {
                 .on_github_telemetry
                 .is_some()
                 .then_some(true),
-            // Declare the integrating host's identity so the runtime attributes
+            // Declare the integrating application's identity so the runtime attributes
             // the telemetry it emits on this connection to a consistent surface
             // instead of its own build. `None` when the app didn't supply it, and
             // empty fields are dropped.

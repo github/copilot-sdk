@@ -1567,7 +1567,7 @@ fn spawn_event_loop(
                     _ = shutdown.cancelled() => break,
                     Some(notification) = notifications.recv() => {
                         handle_notification(
-                            &session_id, &client, &handlers, &command_handlers, notification, &idle_waiter, &capabilities, &open_canvases, &event_tx,
+                            &session_id, &client, &handlers, &command_handlers, notification, &idle_waiter, &capabilities, &open_canvases, &event_tx, &shutdown,
                         ).await;
                     }
                     Some(request) = requests.recv() => {
@@ -1719,6 +1719,7 @@ async fn handle_notification(
     capabilities: &Arc<parking_lot::RwLock<SessionCapabilities>>,
     open_canvases: &Arc<parking_lot::RwLock<Vec<OpenCanvasInstance>>>,
     event_tx: &tokio::sync::broadcast::Sender<SessionEvent>,
+    shutdown: &CancellationToken,
 ) {
     let dispatch_start = Instant::now();
     let event = notification.event.clone();
@@ -1856,6 +1857,7 @@ async fn handle_notification(
             };
             let client = client.clone();
             let sid = session_id.clone();
+            let shutdown = shutdown.clone();
             let data = permission_request_data(
                 &notification.event.data,
                 handlers.managed_settings_enabled,
@@ -1885,18 +1887,39 @@ async fn handle_notification(
                         return;
                     };
                     let rpc_start = Instant::now();
-                    let _ = client
-                        .call(
-                            rpc_methods::SESSION_PERMISSIONS_HANDLEPENDINGPERMISSIONREQUEST,
-                            Some(params),
-                        )
-                        .await;
-                    tracing::debug!(
-                        elapsed_ms = rpc_start.elapsed().as_millis(),
-                        session_id = %sid,
-                        request_id = %request_id,
-                        "Session::handle_notification response sent successfully"
-                    );
+                    let method =
+                        rpc_methods::SESSION_PERMISSIONS_HANDLEPENDINGPERMISSIONREQUEST;
+                    tokio::select! {
+                        biased;
+                        response = client.call(method, Some(params)) => {
+                            match response {
+                                Ok(_) => tracing::debug!(
+                                    elapsed_ms = rpc_start.elapsed().as_millis(),
+                                    session_id = %sid,
+                                    request_id = %request_id,
+                                    method,
+                                    "Session::handle_notification response sent successfully"
+                                ),
+                                Err(error) => warn!(
+                                    error = %error,
+                                    session_id = %sid,
+                                    request_id = %request_id,
+                                    method,
+                                    "failed to deliver permission decision back to the runtime"
+                                ),
+                            }
+                        }
+                        _ = shutdown.cancelled() => {
+                            warn!(
+                                elapsed_ms = rpc_start.elapsed().as_millis(),
+                                session_id = %sid,
+                                request_id = %request_id,
+                                method,
+                                delivery_outcome = "unknown",
+                                "permission confirmation acknowledgement wait cancelled during session shutdown"
+                            );
+                        }
+                    }
                 }
                 .instrument(span),
             );

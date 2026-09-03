@@ -52,6 +52,8 @@ public final class SubagentFailedEvent extends SessionEvent {
         @JsonProperty("explicitModelOverride") String explicitModelOverride,
         /** Whether the explicit task-call model matched the user's configured preference */
         @JsonProperty("explicitModelMatchesPreference") Boolean explicitModelMatchesPreference,
+        /** Why an explicit task-call model did not become the effective model */
+        @JsonProperty("modelOverrideReason") String modelOverrideReason,
         /** Whether the first model actually dispatched matched the user's configured preference */
         @JsonProperty("configuredModelMatchesActual") Boolean configuredModelMatchesActual,
         /** Total number of tool calls made before the sub-agent failed */

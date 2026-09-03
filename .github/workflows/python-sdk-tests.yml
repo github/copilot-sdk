@@ -50,7 +50,7 @@ jobs:
 
       - name: Install Node.js dependencies (for CLI in tests)
         working-directory: ./nodejs
-        run: npm ci --ignore-scripts
+        run: npm ci --ignore-scripts --fetch-retries=4 --fetch-retry-mintimeout=10000 --fetch-retry-maxtimeout=60000
 
       - name: Run ruff format check
         run: uv run ruff format --check .
@@ -63,7 +63,7 @@ jobs:
 
       - name: Install test harness dependencies
         working-directory: ./test/harness
-        run: npm ci --ignore-scripts
+        run: npm ci --ignore-scripts --fetch-retries=4 --fetch-retry-mintimeout=10000 --fetch-retry-maxtimeout=60000
 
       - name: Warm up PowerShell
         if: runner.os == 'Windows'

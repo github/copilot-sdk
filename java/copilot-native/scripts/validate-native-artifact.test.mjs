@@ -67,7 +67,7 @@ test("accepts a matching, complete Windows ARM64 classifier", (t) => {
     }),
     {
       classifier: windowsArm64Classifier,
-      nativeVersion: "9.8.10",
+      nativeVersion: "9.8.7",
       sha256: undefined,
     },
   );
@@ -94,7 +94,7 @@ test("accepts a matching, complete Darwin classifier", (t) => {
     }),
     {
       classifier: darwinClassifier,
-      nativeVersion: "9.8.8",
+      nativeVersion: "9.8.7",
       sha256: undefined,
     },
   );
@@ -121,7 +121,7 @@ test("accepts a matching, complete Linux ARM64 classifier", (t) => {
     }),
     {
       classifier: linuxArm64Classifier,
-      nativeVersion: "9.8.9",
+      nativeVersion: "9.8.7",
       sha256: undefined,
     },
   );
@@ -248,7 +248,7 @@ test("rejects Windows resources in a Linux classifier", (t) => {
     ["native/linux-x64/copilot-runtime", "runtime wrapper"],
     [
       "native/linux-x64/platform.properties",
-      "classifier=linux-x64\nversion=9.8.6\n",
+      "classifier=linux-x64\nversion=9.8.7\n",
     ],
     ["native/win32-x64/runtime.node", "wrong platform"],
   ]);
@@ -462,7 +462,7 @@ test("local publication validation rejects cross-classifier contamination", (t) 
       ["native/linux-x64/copilot-runtime", "runtime wrapper"],
       [
         "native/linux-x64/platform.properties",
-        "classifier=linux-x64\nversion=9.8.6\n",
+        "classifier=linux-x64\nversion=9.8.7\n",
       ],
       ["native/win32-x64/runtime.node", "wrong platform"],
     ],
@@ -537,16 +537,8 @@ function createFixture(t) {
   const repoRoot = path.join(root, "repo");
   fs.mkdirSync(path.join(repoRoot, "nodejs"), { recursive: true });
   fs.writeFileSync(
-    path.join(repoRoot, "nodejs", "package-lock.json"),
-    JSON.stringify({
-      packages: {
-        "node_modules/@github/copilot-win32-x64": { version: "9.8.7" },
-        "node_modules/@github/copilot-win32-arm64": { version: "9.8.10" },
-        "node_modules/@github/copilot-linux-x64": { version: "9.8.6" },
-        "node_modules/@github/copilot-linux-arm64": { version: "9.8.9" },
-        "node_modules/@github/copilot-darwin-arm64": { version: "9.8.8" },
-      },
-    }),
+    path.join(repoRoot, "nodejs", "package.json"),
+    JSON.stringify({ copilotCliVersion: "9.8.7" }),
   );
 
   return {

@@ -10,7 +10,7 @@ package com.github.copilot.generated;
 import javax.annotation.processing.Generated;
 
 /**
- * Source location type (e.g., project, personal-copilot, plugin, builtin)
+ * Source location type (e.g., project, personal-copilot, plugin, builtin, sdk)
  *
  * @since 1.0.0
  */
@@ -29,7 +29,9 @@ public enum SkillSource {
     /** The {@code custom} variant. */
     CUSTOM("custom"),
     /** The {@code builtin} variant. */
-    BUILTIN("builtin");
+    BUILTIN("builtin"),
+    /** The {@code sdk} variant. */
+    SDK("sdk");
 
     private final String value;
     SkillSource(String value) { this.value = value; }

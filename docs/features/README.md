@@ -20,7 +20,7 @@ These guides cover the capabilities you can add to your Copilot SDK application.
 | [Image Input](./image-input.md) | Send images to sessions as attachments |
 | [Streaming Events](./streaming-events.md) | Subscribe to real-time session events (40+ event types) |
 | [Usage and Billing](./usage-and-billing.md) | Read token counts, context-window utilization, AI credit cost, and account quota |
-| [Client info](./client-info.md) | Declare the host editor and extension so runtime telemetry is attributed to your surface |
+| [Client info](./client-info.md) | Declare application and integration identity for runtime telemetry attribution |
 | [Steering & Queueing](./steering-and-queueing.md) | Control message delivery—immediate steering vs. sequential queueing |
 | [Context Clearing](./context-management.md) | Replace conversation context safely with terminal tools |
 | [Session Persistence](./session-persistence.md) | Resume sessions across restarts, manage session storage |

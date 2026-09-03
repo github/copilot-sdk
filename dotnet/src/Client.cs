@@ -2183,7 +2183,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                     // `connect` handshake so the first session's un-replayable `session.start`
                     // event is forwarded). Also sent on session.create/resume for older CLIs.
                     _options.OnGitHubTelemetry != null ? true : null,
-                    // Declare the integrating host's identity so the runtime attributes the
+                    // Declare the integrating application's identity so the runtime attributes the
                     // telemetry it emits on this connection to a consistent surface instead
                     // of its own build. Null when the app didn't supply it.
                     ConnectHandshakeClientInfo.From(_options.ClientInfo))],
@@ -2544,17 +2544,23 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         var fullEntrypoint = Path.GetFullPath(cliPath);
         var directory = Path.GetDirectoryName(fullEntrypoint)
             ?? throw new InvalidOperationException($"Could not determine directory for '{cliPath}'.");
-        var flatLibraryPath = Path.Combine(directory, FfiRuntimeHost.GetRuntimeLibraryFileName());
+        var flatLibraryPath = Path.GetFullPath(
+            $"{directory}{Path.DirectorySeparatorChar}{FfiRuntimeHost.GetRuntimeLibraryFileName()}");
         if (File.Exists(flatLibraryPath))
         {
             return flatLibraryPath;
+        }
+        var adjacentPrebuildPath = Path.Combine(directory, "runtime.node");
+        if (File.Exists(adjacentPrebuildPath))
+        {
+            return adjacentPrebuildPath;
         }
         var prebuildsLibraryPath = Path.Combine(
             directory, "prebuilds", GetNapiPrebuildsFolderOrThrow(), "runtime.node");
         return File.Exists(prebuildsLibraryPath)
             ? prebuildsLibraryPath
             : throw new InvalidOperationException(
-                $"FFI runtime library not found. Looked for '{flatLibraryPath}' and '{prebuildsLibraryPath}'.");
+                $"FFI runtime library not found. Looked for '{flatLibraryPath}', '{adjacentPrebuildPath}', and '{prebuildsLibraryPath}'.");
     }
 
     /// <summary>
@@ -3213,10 +3219,10 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 return null;
             }
 
-            var editorName = NullIfEmpty(info.EditorName);
-            var editorVersion = NullIfEmpty(info.EditorVersion);
-            var extensionName = NullIfEmpty(info.ExtensionName);
-            var extensionVersion = NullIfEmpty(info.ExtensionVersion);
+            var editorName = NullIfEmpty(info.ApplicationName);
+            var editorVersion = NullIfEmpty(info.ApplicationVersion);
+            var extensionName = NullIfEmpty(info.IntegrationName);
+            var extensionVersion = NullIfEmpty(info.IntegrationVersion);
             if (editorName is null && editorVersion is null && extensionName is null && extensionVersion is null)
             {
                 return null;

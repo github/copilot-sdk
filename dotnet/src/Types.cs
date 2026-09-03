@@ -467,10 +467,10 @@ public sealed class CopilotClientOptions
     public bool EnableRemoteSessions { get; set; }
 
     /// <summary>
-    /// Declares the integrating host's identity, forwarded to the runtime on the
+    /// Declares the integrating application's identity, forwarded to the runtime on the
     /// <c>server.connect</c> handshake. Declaring it lets the telemetry the
     /// runtime emits on this connection be attributed to a consistent surface
-    /// (the host editor and its Copilot extension) instead of the runtime's own
+    /// (the application and its Copilot integration) instead of the runtime's own
     /// build. All fields are optional; leave it <see langword="null"/> to keep
     /// the runtime's default attribution.
     /// </summary>
@@ -543,7 +543,7 @@ public sealed class TelemetryConfig
 }
 
 /// <summary>
-/// Identifies the integrating host on the <c>server.connect</c> handshake.
+/// Identifies the integrating application on the <c>server.connect</c> handshake.
 /// </summary>
 /// <remarks>
 /// Declaring it lets the telemetry the runtime emits on the connection be
@@ -554,24 +554,24 @@ public sealed class TelemetryConfig
 public sealed class CopilotClientInfo
 {
     /// <summary>
-    /// Name of the host editor, e.g. <c>"vscode"</c>.
+    /// Name of the application using the SDK.
     /// </summary>
-    public string? EditorName { get; set; }
+    public string? ApplicationName { get; set; }
 
     /// <summary>
-    /// Version of the host editor, e.g. <c>"1.124.2"</c>.
+    /// Version of the application using the SDK.
     /// </summary>
-    public string? EditorVersion { get; set; }
+    public string? ApplicationVersion { get; set; }
 
     /// <summary>
-    /// Name of the Copilot extension within the host, e.g. <c>"copilot-chat"</c>.
+    /// Optionally specifies a named integration within the application, such as an extension or plugin.
     /// </summary>
-    public string? ExtensionName { get; set; }
+    public string? IntegrationName { get; set; }
 
     /// <summary>
-    /// Version of the Copilot extension within the host, e.g. <c>"0.54.0"</c>.
+    /// Optionally specifies the version of that integration.
     /// </summary>
-    public string? ExtensionVersion { get; set; }
+    public string? IntegrationVersion { get; set; }
 }
 
 /// <summary>

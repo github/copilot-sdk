@@ -2462,11 +2462,9 @@ func (c *Client) setupNotificationHandler() {
 	}
 
 	if c.options.RequestHandler != nil {
+		llmInference := c.RPC.LlmInference
 		handlers.LlmInference = newCopilotRequestAdapter(c.options.RequestHandler, func() *rpc.ServerLlmInferenceAPI {
-			if c.RPC == nil {
-				return nil
-			}
-			return c.RPC.LlmInference
+			return llmInference
 		})
 	}
 	if c.options.OnGitHubTelemetry != nil {

@@ -170,7 +170,7 @@ type AgentGetCurrentResult struct {
 	Agent *AgentInfo `json:"agent,omitempty"`
 }
 
-// Agent metadata, including identifiers, display details, source, tools, model, MCP
+// Agent metadata, including identifiers, display details, source, tools, model, models, MCP
 // servers, skills, and file path.
 // Experimental: AgentInfo is part of an experimental API and may change or be removed.
 type AgentInfo struct {
@@ -189,6 +189,11 @@ type AgentInfo struct {
 	// Authored preferred model id for this agent. Runtime model selection may choose a
 	// different model; omitted means no authored preference.
 	Model *string `json:"model,omitempty"`
+	// Whether authored models are preferences or required constraints.
+	ModelPolicy *AgentModelPolicy `json:"modelPolicy,omitempty"`
+	// Authored preferred model ids for this agent, in priority order. Runtime model selection
+	// chooses the first available model; omitted means no authored preference.
+	Models []string `json:"models,omitzero"`
 	// Name of the agent. Use `id` as the stable selection identifier.
 	Name string `json:"name"`
 	// Absolute local file path of the agent definition. Only set for file-based agents loaded
@@ -2582,6 +2587,36 @@ type DiscoveredExtensionsEnableRequest struct {
 	IDs []string `json:"ids"`
 }
 
+// One server-discovered hook action from user, repository, plugin, or managed-policy
+// configuration.
+// Experimental: DiscoveredHook is part of an experimental API and may change or be removed.
+type DiscoveredHook struct {
+	// Durable content hash used by hook enablement. Identical actions may intentionally share
+	// this key. Omitted when changing the user's disabled-hooks setting cannot change the
+	// action's current server-discovered state, including managed-policy hooks, session-start
+	// prompt actions, actions suppressed by disable-all settings, and projectless plugin
+	// actions that require project-directory expansion.
+	DisableKey *string `json:"disableKey,omitempty"`
+	// Whether this action is enabled under the server-side discovery settings. Concrete
+	// sessions may differ because they can add session-specific directories, plugins, or trust.
+	// False when its disable key is present in the user's disabled-hooks setting or disable-all
+	// settings suppress the action.
+	Enabled bool `json:"enabled"`
+	// Hook event that invokes this action.
+	HookType HookType `json:"hookType"`
+	// Deterministic identifier for this server-discovered action row. It remains stable while
+	// the project, origin, source, event, action content, and duplicate ordinal are unchanged.
+	// This is row identity, not the key persisted in disabledHooks.
+	ID string `json:"id"`
+	// Configuration tier that contributed this hook action.
+	Origin HookOrigin `json:"origin"`
+	// Input project path for which this server-side action was resolved. Set on every row
+	// returned for project-scoped discovery, including repeated user and policy actions.
+	ProjectPath *string `json:"projectPath,omitempty"`
+	// Human-readable source label, such as a hook file path, settings source, or plugin name.
+	Source *string `json:"source,omitempty"`
+}
+
 // MCP server discovered by `mcp.discover`, with config source, optional plugin source,
 // transport type, and enabled state.
 // Experimental: DiscoveredMCPServer is part of an experimental API and may change or be
@@ -4229,8 +4264,6 @@ type HistoryTruncateResult struct {
 // removed.
 // Internal: HookInvokeRequest is an internal SDK API and is not part of the public surface.
 type HookInvokeRequest struct {
-	// Internal: HookType is part of the SDK's internal API surface and is not intended for
-	// external use.
 	HookType  HookType `json:"hookType"`
 	Input     any      `json:"input"`
 	SessionID string   `json:"sessionId"`
@@ -4242,6 +4275,40 @@ type HookInvokeRequest struct {
 // Internal: HookInvokeResponse is an internal SDK API and is not part of the public surface.
 type HookInvokeResponse struct {
 	Output any `json:"output,omitempty"`
+}
+
+// Optional project paths and host-exclusion behavior for server-scoped hook discovery.
+// Experimental: HooksDiscoverRequest is part of an experimental API and may change or be
+// removed.
+type HooksDiscoverRequest struct {
+	// When true, omit host-owned user and plugin hook rows and their diagnostics.
+	// Managed-policy hooks and trusted repository hooks remain visible, and host disabledHooks
+	// still contribute to each remaining row's effective enabled state. This filters sources
+	// rather than simulating a host with no settings.
+	ExcludeHostHooks *bool `json:"excludeHostHooks,omitempty"`
+	// Optional project directory paths whose trusted repository and project-expanded plugin
+	// hooks should be discovered. When omitted or empty, user, managed-policy, and globally
+	// enabled installed or explicit plugin hooks are returned without project expansion.
+	ProjectPaths []string `json:"projectPaths,omitzero"`
+}
+
+// Server-discovered hook actions and partial-load diagnostics from user, repository,
+// plugin, and managed-policy sources. Concrete sessions may include additional
+// session-specific hook sources.
+// Experimental: HooksDiscoverResult is part of an experimental API and may change or be
+// removed.
+type HooksDiscoverResult struct {
+	// Errors for hook sources or actions that could not be loaded, making the result partially
+	// incomplete. Other valid actions are still returned. Project-resolution and
+	// repository-settings errors are prefixed with their project path.
+	Errors []string `json:"errors"`
+	// All discovered hook actions. Byte-identical actions remain separate rows even when they
+	// share a disable key.
+	Hooks []DiscoveredHook `json:"hooks"`
+	// Non-fatal source-loading warnings. Discovery remains complete for the affected source,
+	// although the source had a recoverable issue. Repository-settings warnings are prefixed
+	// with their project path when attribution is available.
+	Warnings []string `json:"warnings"`
 }
 
 // Installed plugin record from global state, with marketplace, version, install time,
@@ -7244,8 +7311,8 @@ type ModelSwitchToRequest struct {
 	RequireAvailable *bool `json:"requireAvailable,omitempty"`
 	// When true, evaluate context-window compaction policy before applying the switch.
 	RunCompactionPreflight *bool `json:"runCompactionPreflight,omitempty"`
-	// Origin to record on the effective `session.model_change` event. Defaults to `sdk` when
-	// omitted.
+	// Origin to record on the effective `session.model_change` event for trusted in-process
+	// calls. Transport SDK calls are always recorded as `sdk`, regardless of this value.
 	Source *ModelChangeSource `json:"source,omitempty"`
 	// Output verbosity level to request for supported models
 	Verbosity *Verbosity `json:"verbosity,omitempty"`
@@ -9825,6 +9892,9 @@ type QueuePendingItems struct {
 	ID string `json:"id"`
 	// Whether this item is a queued user message or a queued slash command / model change
 	Kind QueuePendingItemsKind `json:"kind"`
+	// Stable identity of the queued user message. Present for message rows and absent for slash
+	// commands and model changes.
+	MessageID *string `json:"messageId,omitempty"`
 }
 
 // Snapshot of the session's pending queued items and immediate-steering messages.
@@ -10336,11 +10406,14 @@ type SandboxConfigUserPolicyNetwork struct {
 	AllowLocalNetwork *bool `json:"allowLocalNetwork,omitempty"`
 	// Whether outbound network traffic is allowed at all.
 	AllowOutbound *bool `json:"allowOutbound,omitempty"`
-	// HTTP proxy the sandboxed process routes traffic through. Enforced on Windows and
-	// cooperative (honored by well-behaved tools, not strictly enforced) on Linux and macOS.
-	// Credentials go in the separate `username`/`password` fields. A credential-free http://
-	// loopback proxy URL is routed through the localhost proxy automatically; an https:// or
-	// authenticated loopback URL is used as-is.
+	// HTTP proxy for sandboxed process traffic. Linux restricts egress to the proxy endpoint,
+	// requires that endpoint to be reachable over IPv4 (the [::] dual-stack wildcard is
+	// accepted and routed through the IPv4 gateway), and does not support proxy credentials.
+	// macOS relies on applications honoring proxy environment variables. Windows also
+	// configures a per-AppContainer WinHTTP proxy, but enforcement depends on the application's
+	// networking stack. Configure supported credentials in the separate `username` and
+	// `password` fields. A credential-free http:// loopback URL uses the localhost proxy form,
+	// while an https:// or authenticated loopback URL uses the URL form.
 	Proxy *SandboxConfigUserPolicyNetworkProxy `json:"proxy,omitempty"`
 }
 
@@ -10356,12 +10429,12 @@ type SandboxConfigUserPolicyNetworkProxy struct {
 	// settings.json); the field is masked in the dialog and redacted by /settings show.
 	Password *string `json:"password,omitempty"`
 	// Proxy URL (e.g. http://proxy.example.com:8080). The port is optional and defaults to the
-	// scheme's standard port when omitted. Credentials must not be embedded here — a
-	// `user:pass@` authority is rejected; put them in the separate `username`/`password`
-	// fields. A credential-free http:// loopback URL is routed through the localhost proxy
-	// automatically; loopback covers localhost and any *.localhost subdomain, the whole
-	// 127.0.0.0/8 range, ::1, and IPv4-mapped loopback (::ffff:127.0.0.1). An https:// URL, or
-	// one with a username/password set, is used as-is.
+	// scheme's standard port when omitted; an explicit port must be between 1 and 65535.
+	// Credentials must not be embedded here — a `user:pass@` authority is rejected; put them in
+	// the separate `username`/`password` fields. A credential-free http:// loopback proxy URL
+	// is routed through the localhost proxy automatically; loopback covers localhost and any
+	// *.localhost subdomain, the whole 127.0.0.0/8 range, ::1, and IPv4-mapped loopback
+	// (::ffff:127.0.0.1). An https:// URL, or one with a username/password set, is used as-is.
 	URL string `json:"url"`
 	// Optional username for proxy authentication. Combined with the URL (and `password`) into
 	// `user:pass@host` when the sandboxed process routes through the proxy.
@@ -11984,6 +12057,9 @@ type SessionOpenOptions struct {
 	EnableOnDemandInstructionDiscovery *bool `json:"enableOnDemandInstructionDiscovery,omitempty"`
 	// Whether shell-script safety heuristics are enabled.
 	EnableScriptSafety *bool `json:"enableScriptSafety,omitempty"`
+	// Whether skill loading is enabled. When omitted, an SDK skill provider enables skills by
+	// default.
+	EnableSkills *bool `json:"enableSkills,omitempty"`
 	// Whether model responses stream as delta events.
 	EnableStreaming *bool `json:"enableStreaming,omitempty"`
 	// How MCP server environment values are interpreted.
@@ -12007,6 +12083,16 @@ type SessionOpenOptions struct {
 	ExpAssignments any `json:"expAssignments,omitempty"`
 	// Feature-flag values resolved by the host.
 	FeatureFlags map[string]bool `json:"featureFlags,omitzero"`
+	// Whether the requesting SDK session has a skill provider. The provider remains ephemeral
+	// and is never persisted in session options or history. When enableSkills is false, it
+	// remains bound but dormant and receives no callbacks. Cloud, relay, handoff, and raw
+	// sessions.open flows reject it because they cannot safely pre-register the callback
+	// handler.
+	// Experimental: HasSkillProvider is part of an experimental API and may change or be
+	// removed.
+	// Internal: HasSkillProvider is part of the SDK's internal API surface and is not intended
+	// for external use.
+	HasSkillProvider *bool `json:"hasSkillProvider,omitempty"`
 	// Built-in subagent names to include in this session. When specified, only these built-ins
 	// are available, subject to runtime availability and exclusions. Custom agents with the
 	// same name remain available.
@@ -12902,6 +12988,22 @@ type SessionsPruneOldRequest struct {
 	OlderThanDays int64 `json:"olderThanDays"`
 }
 
+// Pagination options for reading an inactive or active local session's persisted event
+// journal.
+// Experimental: SessionsReadPersistedEventsRequest is part of an experimental API and may
+// change or be removed.
+type SessionsReadPersistedEventsRequest struct {
+	// Opaque cursor returned by a previous persisted-event read. Omit on the first call.
+	Cursor *string `json:"cursor,omitempty"`
+	// Direction to page through persisted history. Forward starts at the beginning; backward
+	// starts with the newest events. Events in each page remain chronological.
+	Direction *EventsReadDirection `json:"direction,omitempty"`
+	// Maximum number of events to return in this batch (1–1000, default 200).
+	Max *int64 `json:"max,omitempty"`
+	// Session ID whose persisted event journal should be read.
+	SessionID string `json:"sessionId"`
+}
+
 // Optional registration options.
 // Experimental: SessionsRegisterExtensionToolsOnSessionOptions is part of an experimental
 // API and may change or be removed.
@@ -13090,8 +13192,9 @@ type SessionUpdateOptionsParams struct {
 	EnableScriptSafety *bool `json:"enableScriptSafety,omitempty"`
 	// Whether to enable cross-session store writes and reads.
 	EnableSessionStore *bool `json:"enableSessionStore,omitempty"`
-	// Whether to enable skill directory scanning and loading. Falls back to
-	// enableConfigDiscovery when unset.
+	// Whether skill loading is enabled. Explicit false disables every source, including a bound
+	// SDK provider; changing the value invalidates the loaded skill snapshot. When omitted,
+	// creation falls back to enableConfigDiscovery unless an SDK skill provider is registered.
 	EnableSkills *bool `json:"enableSkills,omitempty"`
 	// Whether to stream model responses.
 	EnableStreaming *bool `json:"enableStreaming,omitempty"`
@@ -13509,6 +13612,66 @@ type SkillList struct {
 	Skills []Skill `json:"skills"`
 }
 
+// Catalog-only metadata for one SDK-provided skill. The complete SKILL.md is fetched
+// separately and lazily.
+// Experimental: SkillProviderDescriptor is part of an experimental API and may change or be
+// removed.
+type SkillProviderDescriptor struct {
+	// Optional freeform argument hint used by slash-command catalogs.
+	ArgumentHint *string `json:"argumentHint,omitempty"`
+	// Description used in skill catalogs without fetching content.
+	Description string `json:"description"`
+	// Whether model invocation is disabled. Defaults to false.
+	DisableModelInvocation *bool `json:"disableModelInvocation,omitempty"`
+	// Invocation and display name.
+	Name string `json:"name"`
+	// Whether users may invoke the skill directly. Defaults to true.
+	UserInvocable *bool `json:"userInvocable,omitempty"`
+}
+
+// Identifies the target session.
+// Experimental: SkillProviderListRequest is part of an experimental API and may change or
+// be removed.
+type SkillProviderListRequest struct {
+	// Target session identifier
+	SessionID string `json:"sessionId"`
+}
+
+// Catalog metadata returned by an SDK session's skill provider. Catalogs are limited to
+// 1024 descriptors and 1 MiB of aggregate metadata.
+// Experimental: SkillProviderListResult is part of an experimental API and may change or be
+// removed.
+// Internal: SkillProviderListResult is an internal SDK API and is not part of the public
+// surface.
+type SkillProviderListResult struct {
+	// Skill descriptors in provider order. Invocation names must be unique under
+	// case-insensitive comparison.
+	Skills []SkillProviderDescriptor `json:"skills"`
+}
+
+// Identifies one SDK-provided skill by invocation name.
+// Experimental: SkillProviderReadRequest is part of an experimental API and may change or
+// be removed.
+// Internal: SkillProviderReadRequest is an internal SDK API and is not part of the public
+// surface.
+type SkillProviderReadRequest struct {
+	// Invocation name of the skill to read.
+	Name string `json:"name"`
+	// Target session identifier
+	SessionID string `json:"sessionId"`
+}
+
+// Complete text-only SKILL.md content returned by an SDK session's skill provider. Related
+// files and assets are not supported.
+// Experimental: SkillProviderReadResult is part of an experimental API and may change or be
+// removed.
+// Internal: SkillProviderReadResult is an internal SDK API and is not part of the public
+// surface.
+type SkillProviderReadResult struct {
+	// Complete SKILL.md text. The runtime enforces a 1 MiB UTF-8 byte limit.
+	Markdown string `json:"markdown"`
+}
+
 // Skill names to mark as disabled in global configuration, replacing any previous list.
 // Experimental: SkillsConfigSetDisabledSkillsRequest is part of an experimental API and may
 // change or be removed.
@@ -13595,11 +13758,14 @@ type SkillsInvokedSkill struct {
 	AllowedTools []string `json:"allowedTools,omitzero"`
 	// Full content of the skill file
 	Content string `json:"content"`
+	// Whether model invocation was disabled when this skill was invoked
+	DisableModelInvocation *bool `json:"disableModelInvocation,omitempty"`
 	// Turn number when the skill was invoked
 	InvokedAtTurn int64 `json:"invokedAtTurn"`
 	// Unique identifier for the skill
 	Name string `json:"name"`
-	// Path to the SKILL.md file
+	// Path to the SKILL.md file, or an empty string for an SDK-provided skill without a
+	// filesystem identity
 	Path string `json:"path"`
 }
 
@@ -13902,6 +14068,8 @@ type SubagentSettingsEntry struct {
 	EffortLevel *string `json:"effortLevel,omitempty"`
 	// Model override for matching subagents
 	Model *string `json:"model,omitempty"`
+	// Whether the configured model strategy is preferred or required
+	ModelPolicy *AgentModelPolicy `json:"modelPolicy,omitempty"`
 }
 
 // Task completion notification with summary from the agent
@@ -15713,6 +15881,18 @@ const (
 	AgentInfoSourceUser AgentInfoSource = "user"
 )
 
+// Whether configured models are advisory preferences or required constraints
+// Experimental: AgentModelPolicy is part of an experimental API and may change or be
+// removed.
+type AgentModelPolicy string
+
+const (
+	// Treat the authored models as advisory preferences that callers may override.
+	AgentModelPolicyPreferred AgentModelPolicy = "preferred"
+	// Require subagent execution to use one of the authored models.
+	AgentModelPolicyRequired AgentModelPolicy = "required"
+)
+
 // Kind of attention required when status === "attention". Meaningful only when status ===
 // "attention".
 // Experimental: AgentRegistryLiveTargetEntryAttentionKind is part of an experimental API
@@ -16784,7 +16964,24 @@ const (
 	HMACAuthInfoHostHTTPSGitHubCom HMACAuthInfoHost = "https://github.com"
 )
 
-// Hook event name dispatched through the SDK callback transport.
+// Configuration tier that contributed a discovered hook action.
+// Experimental: HookOrigin is part of an experimental API and may change or be removed.
+type HookOrigin string
+
+const (
+	// Hook provided by an enabled installed or explicit plugin. Projectless rows omit
+	// projectPath and do not expand a project directory.
+	HookOriginPlugin HookOrigin = "plugin"
+	// Hook enforced by centrally managed policy.
+	HookOriginPolicy HookOrigin = "policy"
+	// Hook loaded from repository settings or the repository hook directory.
+	HookOriginRepository HookOrigin = "repository"
+	// Hook loaded from user settings or the user's hook directory.
+	HookOriginUser HookOrigin = "user"
+)
+
+// Hook event name. Discovery emits the file-configurable subset; SDK callbacks additionally
+// support callback-only events.
 // Experimental: HookType is part of an experimental API and may change or be removed.
 type HookType string
 
@@ -18689,7 +18886,7 @@ const (
 	SkillDiscoveryScopeProject SkillDiscoveryScope = "project"
 )
 
-// Source location type (e.g., project, personal-copilot, plugin, builtin)
+// Source location type (e.g., project, personal-copilot, plugin, builtin, sdk)
 // Experimental: SkillSource is part of an experimental API and may change or be removed.
 type SkillSource string
 
@@ -18708,6 +18905,8 @@ const (
 	SkillSourcePlugin SkillSource = "plugin"
 	// Skill defined in the current project's skill directories.
 	SkillSourceProject SkillSource = "project"
+	// Pathless skill supplied lazily by an SDK skill provider.
+	SkillSourceSDK SkillSource = "sdk"
 )
 
 // Optional completion hint for the input (e.g. 'directory' for filesystem path completion)
@@ -19342,6 +19541,32 @@ func (a *ServerExtensionsAPI) Enable(ctx context.Context, params *DiscoveredExte
 		return nil, err
 	}
 	var result ExtensionsEnableResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: ServerHooksAPI contains experimental APIs that may change or be removed.
+type ServerHooksAPI serverAPI
+
+// Discovers hook actions enabled under server-side discovery settings from user,
+// repository, plugin, and managed-policy sources.
+//
+// RPC method: hooks.discover.
+//
+// Parameters: Optional project paths and host-exclusion behavior for server-scoped hook
+// discovery.
+//
+// Returns: Server-discovered hook actions and partial-load diagnostics from user,
+// repository, plugin, and managed-policy sources. Concrete sessions may include additional
+// session-specific hook sources.
+func (a *ServerHooksAPI) Discover(ctx context.Context, params *HooksDiscoverRequest) (*HooksDiscoverResult, error) {
+	raw, err := a.client.Request(ctx, "hooks.discover", params)
+	if err != nil {
+		return nil, err
+	}
+	var result HooksDiscoverResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -20332,6 +20557,31 @@ func (a *ServerSessionsAPI) PruneOld(ctx context.Context, params *SessionsPruneO
 	return &result, nil
 }
 
+// ReadPersistedEvents reads a page of durable events directly from a local session's
+// persisted journal without creating, resuming, or activating the session. The initial
+// backward read uses a bounded tail scan for fast first paint; cursor continuations
+// preserve the session event-log paging semantics. Persisted events may omit payloads that
+// are reconstructed only for an active session.
+//
+// RPC method: sessions.readPersistedEvents.
+//
+// Parameters: Pagination options for reading an inactive or active local session's
+// persisted event journal.
+//
+// Returns: Batch of session events returned by a read, with cursor and continuation
+// metadata.
+func (a *ServerSessionsAPI) ReadPersistedEvents(ctx context.Context, params *SessionsReadPersistedEventsRequest) (*EventsReadResult, error) {
+	raw, err := a.client.Request(ctx, "sessions.readPersistedEvents", params)
+	if err != nil {
+		return nil, err
+	}
+	var result EventsReadResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // ReleaseLock releases the in-use lock held by this process for a session.
 //
 // RPC method: sessions.releaseLock.
@@ -20705,6 +20955,7 @@ type ServerRPC struct {
 	Catalog         *ServerCatalogAPI
 	Commands        *ServerCommandsAPI
 	Extensions      *ServerExtensionsAPI
+	Hooks           *ServerHooksAPI
 	Instructions    *ServerInstructionsAPI
 	LlmInference    *ServerLlmInferenceAPI
 	ManagedSettings *ServerManagedSettingsAPI
@@ -20769,6 +21020,7 @@ func NewServerRPC(client *jsonrpc2.Client) *ServerRPC {
 	r.Catalog = (*ServerCatalogAPI)(&r.common)
 	r.Commands = (*ServerCommandsAPI)(&r.common)
 	r.Extensions = (*ServerExtensionsAPI)(&r.common)
+	r.Hooks = (*ServerHooksAPI)(&r.common)
 	r.Instructions = (*ServerInstructionsAPI)(&r.common)
 	r.LlmInference = (*ServerLlmInferenceAPI)(&r.common)
 	r.ManagedSettings = (*ServerManagedSettingsAPI)(&r.common)

@@ -4303,15 +4303,20 @@ describe("connect handshake clientInfo", () => {
 
     it("forwards a declared client identity on the connect handshake", async () => {
         const clientInfo = {
-            editorName: "JetBrains-IU",
-            editorVersion: "2026.1",
-            extensionName: "copilot-intellij",
-            extensionVersion: "1.5.0",
+            applicationName: "acme-developer-portal",
+            applicationVersion: "2.4.0",
+            integrationName: "copilot-assistant",
+            integrationVersion: "1.5.0",
         };
 
         const params = await captureConnectParams({ clientInfo });
 
-        expect(params.clientInfo).toEqual(clientInfo);
+        expect(params.clientInfo).toEqual({
+            editorName: "acme-developer-portal",
+            editorVersion: "2.4.0",
+            extensionName: "copilot-assistant",
+            extensionVersion: "1.5.0",
+        });
     });
 
     it("omits clientInfo from the handshake when the host declares none", async () => {
@@ -4323,28 +4328,28 @@ describe("connect handshake clientInfo", () => {
     it("drops empty fields and omits an all-empty identity", async () => {
         const allEmpty = await captureConnectParams({
             clientInfo: {
-                editorName: "",
-                editorVersion: "",
-                extensionName: "",
-                extensionVersion: "",
+                applicationName: "",
+                applicationVersion: "",
+                integrationName: "",
+                integrationVersion: "",
             },
         });
         expect(allEmpty).not.toHaveProperty("clientInfo");
 
         const partial = await captureConnectParams({
-            clientInfo: { editorName: "vscode", editorVersion: "" },
+            clientInfo: { applicationName: "example-app", applicationVersion: "" },
         });
-        expect(partial.clientInfo).toEqual({ editorName: "vscode" });
+        expect(partial.clientInfo).toEqual({ editorName: "example-app" });
     });
 
     it("keeps telemetry forwarding alongside a declared identity", async () => {
         const params = await captureConnectParams({
-            clientInfo: { editorName: "example-editor" },
+            clientInfo: { applicationName: "example-app" },
             onGitHubTelemetry: () => {},
         });
 
         expect(params).toMatchObject({
-            clientInfo: { editorName: "example-editor" },
+            clientInfo: { editorName: "example-app" },
             enableGitHubTelemetryForwarding: true,
         });
     });

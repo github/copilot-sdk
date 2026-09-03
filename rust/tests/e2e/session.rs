@@ -37,7 +37,7 @@ async fn shouldcreateanddisconnectsessions() {
                 let session = client
                     .create_session(
                         ctx.approve_all_session_config()
-                            .with_model("claude-sonnet-4.5"),
+                            .with_model("claude-sonnet-5"),
                     )
                     .await
                     .expect("create session");

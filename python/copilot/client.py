@@ -509,22 +509,22 @@ class TelemetryConfig(TypedDict, total=False):
 
 
 class ClientInfo(TypedDict, total=False):
-    """Identity of the integrating host, declared on the ``server.connect`` handshake.
+    """Identity of the integrating application, declared on ``server.connect``.
 
     Declaring it lets the telemetry the runtime emits on this connection be
-    attributed to a single, consistent surface (the host editor and its Copilot
-    extension) instead of the runtime's own build. All fields are optional; omit
-    any of them (or the whole object) to keep the runtime's default attribution.
+    attributed to a single, consistent surface (the application and its Copilot
+    integration) instead of the runtime's own build. All fields are optional;
+    omit any of them (or the whole object) to keep the default attribution.
     """
 
-    editor_name: str
-    """Name of the host editor, e.g. ``"vscode"``."""
-    editor_version: str
-    """Version of the host editor, e.g. ``"1.124.2"``."""
-    extension_name: str
-    """Name of the Copilot extension within the host, e.g. ``"copilot-chat"``."""
-    extension_version: str
-    """Version of the Copilot extension within the host, e.g. ``"0.54.0"``."""
+    application_name: str
+    """Name of the application using the SDK, e.g. ``"acme-developer-portal"``."""
+    application_version: str
+    """Version of the application using the SDK, e.g. ``"2.4.0"``."""
+    integration_name: str
+    """Optional name of an application integration, such as an extension or plugin."""
+    integration_version: str
+    """Optional version of the integration named by ``integration_name``."""
 
 
 def _client_info_to_wire(client_info: ClientInfo | None) -> dict[str, str] | None:
@@ -537,14 +537,14 @@ def _client_info_to_wire(client_info: ClientInfo | None) -> dict[str, str] | Non
     if not client_info:
         return None
     wire: dict[str, str] = {}
-    if client_info.get("editor_name"):
-        wire["editorName"] = client_info["editor_name"]
-    if client_info.get("editor_version"):
-        wire["editorVersion"] = client_info["editor_version"]
-    if client_info.get("extension_name"):
-        wire["extensionName"] = client_info["extension_name"]
-    if client_info.get("extension_version"):
-        wire["extensionVersion"] = client_info["extension_version"]
+    if client_info.get("application_name"):
+        wire["editorName"] = client_info["application_name"]
+    if client_info.get("application_version"):
+        wire["editorVersion"] = client_info["application_version"]
+    if client_info.get("integration_name"):
+        wire["extensionName"] = client_info["integration_name"]
+    if client_info.get("integration_version"):
+        wire["extensionVersion"] = client_info["integration_version"]
     return wire or None
 
 
@@ -1622,7 +1622,7 @@ class CopilotClient:
                 Control integration). When ``True``, sessions in a GitHub
                 repository working directory are accessible from GitHub web
                 and mobile.
-            client_info: Identity of the integrating host, forwarded to the
+            client_info: Identity of the integrating application, forwarded to the
                 runtime on the ``server.connect`` handshake. Declaring it lets
                 the telemetry the runtime emits on this connection be attributed
                 to a consistent surface instead of the runtime's own build. All
@@ -2020,13 +2020,14 @@ class CopilotClient:
             # Check if process exited and capture any remaining stderr
             process = self._cli_process if self._cli_process is not None else self._process
             if process and hasattr(process, "poll"):
+                if isinstance(e, BrokenPipeError) and process.poll() is None:
+                    try:
+                        await asyncio.to_thread(process.wait, timeout=1.0)
+                    except subprocess.TimeoutExpired:
+                        pass
                 return_code = process.poll()
                 if return_code is not None and self._client:
-                    stderr_output = self._client.get_stderr_output()
-                    if stderr_output:
-                        raise RuntimeError(
-                            f"CLI process exited with code {return_code}\nstderr: {stderr_output}"
-                        ) from e
+                    raise RuntimeError(self._client._get_process_exit_error()) from e
             raise
 
     async def stop(self) -> None:
@@ -4110,7 +4111,7 @@ class CopilotClient:
             # event is forwarded). Also sent on session.create/resume for older CLIs.
             if self._on_github_telemetry is not None:
                 connect_params["enableGitHubTelemetryForwarding"] = True
-            # Declare the integrating host's identity so the runtime attributes
+            # Declare the integrating application's identity so the runtime attributes
             # the telemetry it emits on this connection to a consistent surface
             # instead of its own build. Omitted when the app didn't supply it.
             client_info = _client_info_to_wire(self._options.client_info)
@@ -4800,7 +4801,10 @@ class CopilotClient:
             try:
                 await session.disconnect()
             except BaseException:
-                pass
+                logger.debug(
+                    "Error disconnecting session after options update failure",
+                    exc_info=True,
+                )
             raise
 
     async def _set_session_fs_provider(self) -> None:
