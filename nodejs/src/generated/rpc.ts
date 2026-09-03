@@ -2340,7 +2340,9 @@ export type ModelPickerCategory =
   /** Versatile model category suitable for a broad range of tasks. */
   | "versatile"
   /** Powerful model category optimized for complex tasks. */
-  | "powerful";
+  | "powerful"
+  /** Experimental model category for models that require an explicit experimental opt-in. */
+  | "experimental";
 /**
  * Relative cost tier for token-based billing users
  *
@@ -2358,6 +2360,14 @@ export type ModelPickerPriceCategory =
   /** Highest relative token cost tier. */
   | "very_high";
 /**
+ * How a server-level model list was resolved.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ModelsListResolutionMode".
+ */
+/** @experimental */
+export type ModelsListResolutionMode = /** The runtime applied the supplied pre-session context. */ "pre-session";
+/**
  * Optional listing options.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -2374,6 +2384,15 @@ export type ModelListRequest =
        */
       skipCache?: boolean;
     };
+
+/** @experimental */
+export type ModelsListSessionKind = "top-level";
+
+/** @experimental */
+export type ModelsListExecutionEnvironment = "local";
+
+/** @experimental */
+export type ModelsListModelBackend = "copilot";
 /**
  * Provider type. Defaults to "openai" for generic OpenAI-compatible APIs.
  *
@@ -12629,6 +12648,21 @@ export interface ModelList {
    * List of available models with full metadata
    */
   models: Model[];
+  resolution?: ModelsListResolution;
+}
+/**
+ * Acknowledges how the runtime resolved a server-level model list.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ModelsListResolution".
+ */
+/** @experimental */
+export interface ModelsListResolution {
+  mode: ModelsListResolutionMode;
+  /**
+   * Version of the applied pre-session context contract.
+   */
+  contextVersion: number;
 }
 
 /** @experimental */
@@ -12701,6 +12735,35 @@ export interface ModelsListRequest {
    * GitHub token accepted for compatibility with existing SDK clients. When provided, resolves this token instead of using the current account.
    */
   gitHubToken?: string;
+  sessionContext?: ModelsListPreSessionContext;
+}
+/**
+ * Ordinary session inputs used to resolve a selectable model snapshot before session creation. Version 1 is limited to local, top-level, Copilot-backed sessions.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ModelsListPreSessionContext".
+ */
+/** @experimental */
+export interface ModelsListPreSessionContext {
+  /**
+   * Pre-session context contract version. Version 1 is the only supported value.
+   */
+  version: number;
+  sessionKind: ModelsListSessionKind;
+  executionEnvironment: ModelsListExecutionEnvironment;
+  modelBackend: ModelsListModelBackend;
+  /**
+   * Working directory used to evaluate repository model policy.
+   */
+  workingDirectory: string;
+  /**
+   * Whether the subsequent top-level session will enable experimental mode.
+   */
+  enableExperimentalMode: boolean;
+  /**
+   * Existing ExP assignment response supplied using the same ordinary session input as `session.create`. The runtime interprets assignments; callers must not submit resolved feature or kill-switch claims.
+   */
+  expAssignments?: JsonValue;
 }
 
 /** @experimental */
@@ -23089,7 +23152,7 @@ export function createServerRpc(connection: MessageConnection) {
             /**
              * Lists Copilot models available to the authenticated user.
              *
-             * @param params Optional opaque account selection or compatibility GitHub token used to list models.
+             * @param params Optional account selection and pre-session context used to list models.
              *
              * @returns List of Copilot models available to the resolved user, including capabilities and billing metadata.
              */

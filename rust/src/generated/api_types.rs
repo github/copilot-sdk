@@ -10416,6 +10416,23 @@ pub struct ModelCapabilitiesOverride {
     pub supports: Option<ModelCapabilitiesOverrideSupports>,
 }
 
+/// Acknowledges how the runtime resolved a server-level model list.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelsListResolution {
+    /// Version of the applied pre-session context contract.
+    pub context_version: i32,
+    /// Resolution mode applied by the runtime.
+    pub mode: ModelsListResolutionMode,
+}
+
 /// List of Copilot models available to the resolved user, including capabilities and billing metadata.
 ///
 /// <div class="warning">
@@ -10429,6 +10446,9 @@ pub struct ModelCapabilitiesOverride {
 pub struct ModelList {
     /// List of available models with full metadata
     pub models: Vec<Model>,
+    /// Present only when the runtime applied a pre-session resolution context.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resolution: Option<ModelsListResolution>,
 }
 
 /// Optional listing options.
@@ -10517,7 +10537,35 @@ pub struct ModelSetReasoningEffortResult {
     pub reasoning_effort: String,
 }
 
-/// Optional opaque account selection or compatibility GitHub token used to list models.
+/// Ordinary session inputs used to resolve a selectable model snapshot before session creation. Version 1 is limited to local, top-level, Copilot-backed sessions.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelsListPreSessionContext {
+    /// Whether the subsequent top-level session will enable experimental mode.
+    pub enable_experimental_mode: bool,
+    /// Execution environment being planned. Version 1 accepts only `local`.
+    pub execution_environment: ModelsListExecutionEnvironment,
+    /// Existing ExP assignment response supplied using the same ordinary session input as `session.create`. The runtime interprets assignments; callers must not submit resolved feature or kill-switch claims.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exp_assignments: Option<serde_json::Value>,
+    /// Model backend being planned. Version 1 accepts only `copilot`.
+    pub model_backend: ModelsListModelBackend,
+    /// Session kind being planned. Version 1 accepts only `top-level`.
+    pub session_kind: ModelsListSessionKind,
+    /// Pre-session context contract version. Version 1 is the only supported value.
+    pub version: i32,
+    /// Working directory used to evaluate repository model policy.
+    pub working_directory: String,
+}
+
+/// Optional account selection and pre-session context used to list models.
 ///
 /// <div class="warning">
 ///
@@ -10534,6 +10582,9 @@ pub struct ModelsListRequest {
     /// Opaque account identifier returned by `account.getAllUsers`. When omitted, the current account is used.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub selection_id: Option<String>,
+    /// Optional versioned context for resolving the model picker before creating a session.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_context: Option<ModelsListPreSessionContext>,
 }
 
 ///
@@ -21606,6 +21657,9 @@ pub struct WorkspacesWriteAutopilotObjectiveResult {
 pub struct ModelsListResult {
     /// List of available models with full metadata
     pub models: Vec<Model>,
+    /// Present only when the runtime applied a pre-session resolution context.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resolution: Option<ModelsListResolution>,
 }
 
 /// The running runtime's complete catalog of well-known built-in model IDs, including supported models and additional IDs with built-in metadata.
@@ -31150,6 +31204,9 @@ pub enum ModelPickerCategory {
     /// Powerful model category optimized for complex tasks.
     #[serde(rename = "powerful")]
     Powerful,
+    /// Experimental model category for models that require an explicit experimental opt-in.
+    #[serde(rename = "experimental")]
+    Experimental,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
@@ -31203,6 +31260,76 @@ pub enum ModelPolicyState {
     /// No explicit policy is configured for the model.
     #[serde(rename = "unconfigured")]
     Unconfigured,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// How a server-level model list was resolved.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ModelsListResolutionMode {
+    /// The runtime applied the supplied pre-session context.
+    #[serde(rename = "pre-session")]
+    PreSession,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ModelsListExecutionEnvironment {
+    #[serde(rename = "local")]
+    Local,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ModelsListModelBackend {
+    #[serde(rename = "copilot")]
+    Copilot,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ModelsListSessionKind {
+    #[serde(rename = "top-level")]
+    TopLevel,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
