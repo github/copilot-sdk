@@ -298,9 +298,7 @@ class TestMcpOAuth:
                     assert result["content"] == [{"type": "text", "text": "oauth-test-user"}]
 
             assert [
-                request["reason"]
-                for request in observed_requests
-                if request["reason"] != "initial"
+                request["reason"] for request in observed_requests if request["reason"] != "initial"
             ] == [
                 "refresh",
                 "upscope",

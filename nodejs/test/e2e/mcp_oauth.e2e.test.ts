@@ -59,6 +59,7 @@ describe("MCP OAuth host auth", async () => {
         });
         onTestFinished(() => disconnectSession(session));
 
+        await session.rpc.mcp.reload();
         await waitForMcpServerStatus(session, serverName);
 
         const tools = await session.rpc.mcp.listTools({ serverName });
@@ -124,6 +125,7 @@ describe("MCP OAuth host auth", async () => {
             });
             onTestFinished(() => disconnectSession(session));
 
+            const reload = session.rpc.mcp.reload();
             const connected = waitForMcpServerStatus(session, serverName);
             const request = await authRequest;
             expect(request).toMatchObject({
@@ -150,6 +152,7 @@ describe("MCP OAuth host auth", async () => {
             expect(handled.success).toBe(true);
 
             releaseHandler(undefined);
+            await reload;
             await connected;
             const tools = await session.rpc.mcp.listTools({ serverName });
             expect(tools.tools.map((tool) => tool.name)).toContain("whoami");
@@ -197,18 +200,18 @@ describe("MCP OAuth host auth", async () => {
             });
             onTestFinished(() => disconnectSession(session));
 
+            await session.rpc.mcp.reload();
             await waitForMcpServerStatus(session, serverName);
+            refreshCount = 0;
             await callWhoami(session, serverName, "refresh");
             await callWhoami(session, serverName, "upscope");
             await callWhoami(session, serverName, "reauth");
 
-            expect(authRequests.map((request) => request.reason)).toEqual([
-                "initial",
-                "refresh",
-                "upscope",
-                "refresh",
-                "reauth",
-            ]);
+            expect(
+                authRequests
+                    .filter((request) => request.reason !== "initial")
+                    .map((request) => request.reason)
+            ).toEqual(["refresh", "upscope", "refresh", "reauth"]);
 
             const upscopeRequest = authRequests.find((request) => request.reason === "upscope");
             expect(upscopeRequest?.wwwAuthenticateParams).toEqual({
@@ -263,6 +266,7 @@ describe("MCP OAuth host auth", async () => {
             });
             onTestFinished(() => disconnectSession(session));
 
+            await session.rpc.mcp.reload();
             await waitForMcpServerStatus(session, serverName, "needs-auth");
 
             expect(await authRequest).toMatchObject({
