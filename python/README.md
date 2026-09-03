@@ -460,6 +460,25 @@ async def lookup_issue(params: LookupParams) -> str:
     # your logic
 ```
 
+## Auto routing tiers
+
+Change the Auto routing preference without changing the selected model. The runtime does not apply the preference immediately: it records the request and commits it only when a later user turn using the `auto` model successfully obtains a usable model from the provider, so a `pending` status confirms acceptance rather than effect. Only the most recent request survives.
+
+Watch for the outcome through the `session.model_change` event on success or the ephemeral `session.auto_tier_switch_failed` event on failure. Read the authoritative committed, pending, and activating preferences at any time through the session's `model.getCurrent` RPC method.
+
+```python
+result = await session.set_auto_tier("intelligence")
+if result.status == ModelSwitchAutoTierStatus.PENDING:
+    ...  # Accepted, but not yet in effect.
+
+# Return to the provider's default Auto routing.
+await session.set_auto_tier(None)
+```
+
+`set_model()` accepts the same preference through its `auto_tier` argument, which stages the tier atomically with selecting `auto`. Pass `None` to return to provider-default routing, or omit the argument to leave the current preference unchanged.
+
+See [Auto tier persistence](../docs/features/session-persistence.md#auto-tier-persistence) for the full lifecycle rules.
+
 ## Image Support
 
 The SDK supports image attachments via the `attachments` parameter. You can attach images by providing their file path, or by passing base64-encoded data directly using a blob attachment:

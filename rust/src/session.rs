@@ -14,8 +14,9 @@ use tracing::{Instrument, error, warn};
 
 use crate::canvas::CanvasHandler;
 use crate::generated::api_types::{
-    LogRequest, ModelSwitchToRequest, OpenCanvasInstance, PermissionDecisionRequest,
-    RegisterEventInterestParams, ToolsGetCurrentMetadataResult, rpc_methods,
+    LogRequest, ModelSwitchAutoTierRequest, ModelSwitchAutoTierResult, ModelSwitchToRequest,
+    OpenCanvasInstance, PermissionDecisionRequest, RegisterEventInterestParams,
+    ToolsGetCurrentMetadataResult, rpc_methods,
 };
 use crate::generated::session_events::{
     CommandExecuteData, ElicitationRequestedData, ExternalToolRequestedData, McpOauthRequiredData,
@@ -32,12 +33,12 @@ use crate::session_fs::SessionFsProvider;
 use crate::trace_context::inject_trace_context;
 use crate::transforms::SystemMessageTransform;
 use crate::types::{
-    CommandContext, CommandDefinition, CommandHandler, CreateSessionResult, ElicitationRequest,
-    ElicitationResult, ExitPlanModeData, GetMessagesResponse, MessageOptions,
-    PermissionRequestData, RequestId, ResumeSessionConfig, ResumeSessionResult, SectionOverride,
-    SessionCapabilities, SessionConfig, SessionEvent, SessionId, SetModelOptions,
-    SystemMessageConfig, ToolInvocation, ToolResult, ToolResultExpanded, TraceContext,
-    UiInputOptions, ensure_attachment_display_names,
+    AutoTier, AutoTierPreference, CommandContext, CommandDefinition, CommandHandler,
+    CreateSessionResult, ElicitationRequest, ElicitationResult, ExitPlanModeData,
+    GetMessagesResponse, MessageOptions, PermissionRequestData, RequestId, ResumeSessionConfig,
+    ResumeSessionResult, SectionOverride, SessionCapabilities, SessionConfig, SessionEvent,
+    SessionId, SetModelOptions, SystemMessageConfig, ToolInvocation, ToolResult,
+    ToolResultExpanded, TraceContext, UiInputOptions, ensure_attachment_display_names,
 };
 use crate::{
     Client, Error, ErrorKind, JsonRpcResponse, SessionErrorKind, SessionEventNotification,
@@ -548,8 +549,12 @@ impl Session {
     /// Pass `None` for `opts` if no extra configuration is needed.
     pub async fn set_model(&self, model: &str, opts: Option<SetModelOptions>) -> Result<(), Error> {
         let opts = opts.unwrap_or_default();
+        let auto_tier = opts.auto_tier.clone();
         let request = ModelSwitchToRequest {
-            auto_tier: None,
+            auto_tier: match &auto_tier {
+                Some(AutoTierPreference::Tier(tier)) => Some(tier.clone()),
+                _ => None,
+            },
             compaction_decision: None,
             context_tier: opts.context_tier,
             defer_if_model_change_queued: None,
@@ -565,8 +570,60 @@ impl Session {
             source: None,
             verbosity: None,
         };
+
+        if matches!(auto_tier, Some(AutoTierPreference::ProviderDefault)) {
+            // The generated request skips a `None` tier, which the runtime reads
+            // as "leave the preference alone" rather than "use provider-default
+            // routing", so send an explicit null instead.
+            let mut wire_params = serde_json::to_value(request)?;
+            wire_params["sessionId"] = serde_json::Value::String(self.id.to_string());
+            wire_params["autoTier"] = serde_json::Value::Null;
+            self.client
+                .call("session.model.switchTo", Some(wire_params))
+                .await?;
+            return Ok(());
+        }
+
         self.rpc().model().switch_to(request).await?;
         Ok(())
+    }
+
+    /// Change the Auto routing preference without changing the selected model.
+    ///
+    /// The runtime does not apply the preference immediately. It records the
+    /// request and commits it only when a later user turn using the `auto`
+    /// model successfully obtains a usable model from the provider. A
+    /// [`ModelSwitchAutoTierStatus::Pending`] status therefore confirms that the
+    /// request was accepted, not that it took effect.
+    ///
+    /// Watch for the outcome through the `session.model_change` event on
+    /// success, or the ephemeral `session.auto_tier_switch_failed` event on
+    /// failure. You can also read the current committed and in-flight state at
+    /// any time through `session.rpc().model().get_current()`.
+    ///
+    /// Only the most recent request survives: issuing a new request replaces any
+    /// earlier one that has not yet been claimed by a turn.
+    ///
+    /// Pass `None` to return to the provider's default Auto routing.
+    ///
+    /// # Cancel safety
+    ///
+    /// **Cancel-safe.** Single `session.model.switchAutoTier` RPC; the
+    /// underlying [`Client::call`](crate::Client::call) is cancel-safe via the
+    /// writer-actor.
+    ///
+    /// [`ModelSwitchAutoTierStatus::Pending`]: crate::generated::api_types::ModelSwitchAutoTierStatus::Pending
+    pub async fn set_auto_tier(
+        &self,
+        auto_tier: Option<AutoTier>,
+    ) -> Result<ModelSwitchAutoTierResult, Error> {
+        self.rpc()
+            .model()
+            .switch_auto_tier(ModelSwitchAutoTierRequest {
+                auto_tier,
+                source: None,
+            })
+            .await
     }
 
     /// Disconnect this session from the CLI.

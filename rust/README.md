@@ -380,9 +380,30 @@ let config = SessionConfig::default()
 The same options work with `ResumeSessionConfig::with_capi` and can be combined
 with `with_enable_web_socket_responses(false)`. The SDK omits an unset tier:
 the runtime chooses its default on create and preserves the persisted/current
-tier on resume. An explicit tier overrides the persisted tier on cold resume;
-the runtime rejects a conflicting tier when the session is already resident
-in memory. The SDK does not choose a default or manage tier persistence.
+tier on resume. An explicit tier overrides the persisted tier on cold resume. On
+resident resume, a different tier requests a safe switch applied after the
+resume succeeds; it cannot change a turn that is already in flight. The SDK does not choose a default or manage tier persistence.
+
+### Changing the Auto tier during a session
+
+Change the Auto routing preference without changing the selected model. The runtime does not apply the preference immediately: it records the request and commits it only when a later user turn using the `auto` model successfully obtains a usable model from the provider, so a `pending` status confirms acceptance rather than effect. Only the most recent request survives.
+
+Watch for the outcome through the `session.model_change` event on success or the ephemeral `session.auto_tier_switch_failed` event on failure. Read the authoritative committed, pending, and activating preferences at any time through the session's `model.getCurrent` RPC method.
+
+```rust
+use github_copilot_sdk::{AutoTier, ModelSwitchAutoTierStatus};
+
+let result = session.set_auto_tier(Some(AutoTier::Intelligence)).await?;
+if result.status == ModelSwitchAutoTierStatus::Pending {
+    // Accepted, but not yet in effect.
+}
+
+// Return to the provider's default Auto routing.
+session.set_auto_tier(None).await?;
+```
+
+`set_model` accepts the same preference through `SetModelOptions::with_auto_tier`, which stages the tier atomically with selecting `auto`. Use `with_provider_default_auto_tier` instead to return to provider-default routing.
+
 See [Auto tier persistence](../docs/features/session-persistence.md#auto-tier-persistence)
 for the lifecycle rules.
 

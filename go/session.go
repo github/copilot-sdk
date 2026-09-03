@@ -1841,6 +1841,16 @@ type SetModelOptions struct {
 	// ModelCapabilities overrides individual model capabilities resolved by the runtime.
 	// Only non-nil fields are applied over the runtime-resolved capabilities.
 	ModelCapabilities *rpc.ModelCapabilitiesOverride
+	// AutoTier stages an Auto routing preference atomically with selecting the
+	// "auto" model. Leave nil to leave the current preference alone.
+	//
+	// The runtime rejects this option when the model is anything other than
+	// "auto". Use [Session.SetAutoTier] to change the preference without
+	// changing the selected model.
+	AutoTier *AutoTier
+	// ClearAutoTier returns to the provider's default Auto routing as part of
+	// this switch. It is mutually exclusive with AutoTier.
+	ClearAutoTier bool
 }
 
 // SetModel changes the model for this session.
@@ -1857,10 +1867,37 @@ type SetModelOptions struct {
 func (s *Session) SetModel(ctx context.Context, model string, opts *SetModelOptions) error {
 	params := &rpc.ModelSwitchToRequest{ModelID: model}
 	if opts != nil {
+		if opts.AutoTier != nil && opts.ClearAutoTier {
+			return fmt.Errorf("failed to set model: AutoTier and ClearAutoTier are mutually exclusive")
+		}
 		params.ReasoningEffort = opts.ReasoningEffort
 		params.ReasoningSummary = opts.ReasoningSummary
 		params.ContextTier = opts.ContextTier
 		params.ModelCapabilities = opts.ModelCapabilities
+		params.AutoTier = opts.AutoTier
+
+		if opts.ClearAutoTier {
+			// The generated request omits a nil AutoTier, which the runtime
+			// reads as "leave the preference alone" rather than "use default
+			// routing", so send an explicit null instead.
+			req := map[string]any{"sessionId": s.SessionID, "modelId": model, "autoTier": nil}
+			if opts.ReasoningEffort != nil {
+				req["reasoningEffort"] = *opts.ReasoningEffort
+			}
+			if opts.ReasoningSummary != nil {
+				req["reasoningSummary"] = *opts.ReasoningSummary
+			}
+			if opts.ContextTier != nil {
+				req["contextTier"] = *opts.ContextTier
+			}
+			if opts.ModelCapabilities != nil {
+				req["modelCapabilities"] = *opts.ModelCapabilities
+			}
+			if _, err := s.client.Request(ctx, "session.model.switchTo", req); err != nil {
+				return fmt.Errorf("failed to set model: %w", err)
+			}
+			return nil
+		}
 	}
 	_, err := s.RPC.Model.SwitchTo(ctx, params)
 	if err != nil {
@@ -1868,6 +1905,38 @@ func (s *Session) SetModel(ctx context.Context, model string, opts *SetModelOpti
 	}
 
 	return nil
+}
+
+// SetAutoTier changes the Auto routing preference without changing the selected model.
+//
+// The runtime does not apply the preference immediately. It records the request and
+// commits it only when a later user turn using the "auto" model successfully obtains a
+// usable model from the provider. A [rpc.ModelSwitchAutoTierStatusPending] status
+// therefore confirms that the request was accepted, not that it took effect.
+//
+// Watch for the outcome through the session.model_change event on success, or the
+// ephemeral session.auto_tier_switch_failed event on failure. You can also read the
+// current committed and in-flight state at any time with session.RPC.Model.GetCurrent.
+//
+// Only the most recent request survives: issuing a new request replaces any earlier one
+// that has not yet been claimed by a turn.
+//
+// Pass nil to return to the provider's default Auto routing.
+//
+// Example:
+//
+//	tier := copilot.AutoTierIntelligence
+//	result, err := session.SetAutoTier(context.Background(), &tier)
+//	if err != nil {
+//	    log.Printf("Failed to set auto tier: %v", err)
+//	}
+func (s *Session) SetAutoTier(ctx context.Context, autoTier *AutoTier) (*rpc.ModelSwitchAutoTierResult, error) {
+	result, err := s.RPC.Model.SwitchAutoTier(ctx, &rpc.ModelSwitchAutoTierRequest{AutoTier: autoTier})
+	if err != nil {
+		return nil, fmt.Errorf("failed to set auto tier: %w", err)
+	}
+
+	return result, nil
 }
 
 type LogOptions struct {

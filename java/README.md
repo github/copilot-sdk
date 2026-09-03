@@ -363,11 +363,29 @@ var config = new SessionConfig()
 The same options work with `ResumeSessionConfig.setCapi(...)` and can be combined
 with `setEnableWebSocketResponses(false)`. The SDK omits an unset (`null`) tier:
 the runtime chooses its default on create and preserves the persisted/current
-tier on resume. An explicit tier overrides the persisted tier on cold resume;
-the runtime rejects a conflicting tier when the session is already resident
-in memory. The SDK does not choose a default or manage tier persistence.
+tier on resume. An explicit tier overrides the persisted tier on cold resume. On
+resident resume, a different tier requests a safe switch applied after the
+resume succeeds; it cannot change a turn that is already in flight. The SDK does not choose a default or manage tier persistence.
 See [Auto tier persistence](../docs/features/session-persistence.md#auto-tier-persistence)
 for the lifecycle rules.
+
+### Changing the Auto tier during a session
+
+Change the Auto routing preference without changing the selected model. The runtime does not apply the preference immediately: it records the request and commits it only when a later user turn using the `auto` model successfully obtains a usable model from the provider, so a `pending` status confirms acceptance rather than effect. Only the most recent request survives.
+
+Watch for the outcome through the `session.model_change` event on success or the ephemeral `session.auto_tier_switch_failed` event on failure. Read the authoritative committed, pending, and activating preferences at any time through the session's `model.getCurrent` RPC method.
+
+```java
+var result = session.setAutoTier(AutoTier.INTELLIGENCE).get();
+if (result.status() == ModelSwitchAutoTierStatus.PENDING) {
+    // Accepted, but not yet in effect.
+}
+
+// Return to the provider's default Auto routing.
+session.setAutoTier(null).get();
+```
+
+`setModel(SetModelOptions)` accepts the same preference through `SetModelOptions.setAutoTier(...)`, which stages the tier atomically with selecting `auto`. Call `setClearAutoTier(true)` instead to return to provider-default routing; the two options are mutually exclusive.
 
 ## Session Store
 

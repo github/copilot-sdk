@@ -2604,6 +2604,117 @@ describe("CopilotClient", () => {
         spy.mockRestore();
     });
 
+    it("sends the auto tier with session.model.switchTo when selecting the auto model", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => stopClient(client));
+
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, _params: any) => {
+                if (method === "session.model.switchTo") return {};
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        await session.setModel("auto", { autoTier: "intelligence" });
+
+        expect(spy).toHaveBeenCalledWith("session.model.switchTo", {
+            sessionId: session.sessionId,
+            modelId: "auto",
+            autoTier: "intelligence",
+        });
+
+        spy.mockRestore();
+    });
+
+    it("sends a null auto tier with session.model.switchTo to restore default routing", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => stopClient(client));
+
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, _params: any) => {
+                if (method === "session.model.switchTo") return {};
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        await session.setModel("auto", { autoTier: null });
+
+        expect(spy).toHaveBeenCalledWith("session.model.switchTo", {
+            sessionId: session.sessionId,
+            modelId: "auto",
+            autoTier: null,
+        });
+
+        spy.mockRestore();
+    });
+
+    it("sends session.model.switchAutoTier RPC and returns the runtime snapshot", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => stopClient(client));
+
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, _params: any) => {
+                if (method === "session.model.switchAutoTier") {
+                    return {
+                        status: "pending",
+                        effectiveAutoTier: "balance",
+                        pendingAutoTier: "intelligence",
+                        activatingAutoTier: null,
+                        supersededAutoTier: null,
+                    };
+                }
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        const result = await session.setAutoTier("intelligence");
+
+        expect(spy).toHaveBeenCalledWith("session.model.switchAutoTier", {
+            sessionId: session.sessionId,
+            autoTier: "intelligence",
+        });
+        expect(result.status).toBe("pending");
+        expect(result.effectiveAutoTier).toBe("balance");
+        expect(result.pendingAutoTier).toBe("intelligence");
+        expect(result.activatingAutoTier).toBeNull();
+
+        spy.mockRestore();
+    });
+
+    it("sends a null auto tier with session.model.switchAutoTier to restore default routing", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => stopClient(client));
+
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, _params: any) => {
+                if (method === "session.model.switchAutoTier") return { status: "unchanged" };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        const result = await session.setAutoTier(null);
+
+        expect(spy).toHaveBeenCalledWith("session.model.switchAutoTier", {
+            sessionId: session.sessionId,
+            autoTier: null,
+        });
+        expect(result.status).toBe("unchanged");
+
+        spy.mockRestore();
+    });
+
     describe("URL parsing", () => {
         it("should parse port-only URL format", () => {
             const client = new CopilotClient({

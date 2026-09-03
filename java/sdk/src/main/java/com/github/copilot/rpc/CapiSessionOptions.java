@@ -51,8 +51,9 @@ public class CapiSessionOptions {
      * <p>
      * When omitted, the runtime chooses its default on create and preserves the
      * persisted or current tier on resume. An explicit tier overrides the persisted
-     * tier on cold resume; the runtime rejects a conflicting tier when resuming a
-     * session already resident in memory.
+     * tier on cold resume. On resident resume, a different tier requests a safe
+     * switch that the runtime applies after the resume succeeds; it cannot change a
+     * turn that is already in flight.
      *
      * @param autoTier
      *            the routing tier, or {@code null} to omit it from the request

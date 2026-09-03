@@ -1927,8 +1927,34 @@ public sealed partial class CopilotSession : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(model);
         ThrowIfDisposed();
 
+        if (options.AutoTier is not null && options.ClearAutoTier)
+        {
+            throw new ArgumentException(
+                $"{nameof(SetModelOptions.AutoTier)} and {nameof(SetModelOptions.ClearAutoTier)} are mutually exclusive.",
+                nameof(options));
+        }
+
+        if (options.ClearAutoTier)
+        {
+            // The generated request omits a null tier, which the runtime reads as
+            // "leave the preference alone" rather than "use provider-default
+            // routing", so send a request that always writes the null.
+            var request = new ClearAutoTierModelSwitchToRequest
+            {
+                SessionId = SessionId,
+                ModelId = model,
+                ReasoningEffort = options.ReasoningEffort,
+                ReasoningSummary = options.ReasoningSummary,
+                ModelCapabilities = options.ModelCapabilities,
+                ContextTier = options.ContextTier,
+            };
+            await CopilotClient.InvokeRpcAsync(Rpc, "session.model.switchTo", [request], cancellationToken);
+            return;
+        }
+
         await Rpc.Model.SwitchToAsync(
             modelId: model,
+            autoTier: options.AutoTier,
             reasoningEffort: options.ReasoningEffort,
             reasoningSummary: options.ReasoningSummary,
             verbosity: null,
@@ -1936,6 +1962,82 @@ public sealed partial class CopilotSession : IAsyncDisposable
             contextTier: options.ContextTier,
             source: null,
             cancellationToken: cancellationToken);
+    }
+
+    /// <summary>
+    /// Changes the Auto routing preference without changing the selected model.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The runtime does not apply the preference immediately. It records the request and
+    /// commits it only when a later user turn using the <c>auto</c> model successfully
+    /// obtains a usable model from the provider. A <c>pending</c> status therefore confirms
+    /// that the request was accepted, not that it took effect.
+    /// </para>
+    /// <para>
+    /// Watch for the outcome through the <c>session.model_change</c> event on success, or the
+    /// ephemeral <c>session.auto_tier_switch_failed</c> event on failure. You can also read
+    /// the current committed and in-flight state at any time with
+    /// <c>session.Rpc.Model.GetCurrentAsync</c>.
+    /// </para>
+    /// <para>
+    /// Only the most recent request survives: issuing a new request replaces any earlier one
+    /// that has not yet been claimed by a turn.
+    /// </para>
+    /// </remarks>
+    /// <param name="autoTier">Routing preference to activate, or <see langword="null"/> to return to the provider's default Auto routing.</param>
+    /// <param name="cancellationToken">Optional cancellation token.</param>
+    /// <returns>The runtime's immediate acknowledgement and Auto preference snapshot.</returns>
+    /// <example>
+    /// <code>
+    /// var result = await session.SetAutoTierAsync(AutoTier.Intelligence);
+    /// </code>
+    /// </example>
+    [Experimental(Diagnostics.Experimental)]
+    public async Task<ModelSwitchAutoTierResult> SetAutoTierAsync(AutoTier? autoTier, CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+
+        // `autoTier` is a required field whose null value means "use provider-default
+        // routing", so this cannot go through the generated wrapper, which omits nulls.
+        var request = new SwitchAutoTierRequest { SessionId = SessionId, AutoTier = autoTier };
+        return await CopilotClient.InvokeRpcAsync<ModelSwitchAutoTierResult>(
+            Rpc, "session.model.switchAutoTier", [request], cancellationToken);
+    }
+
+    internal sealed class SwitchAutoTierRequest
+    {
+        [JsonPropertyName("sessionId")]
+        public string SessionId { get; set; } = string.Empty;
+
+        [JsonPropertyName("autoTier")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
+        public AutoTier? AutoTier { get; set; }
+    }
+
+    internal sealed class ClearAutoTierModelSwitchToRequest
+    {
+        [JsonPropertyName("sessionId")]
+        public string SessionId { get; set; } = string.Empty;
+
+        [JsonPropertyName("modelId")]
+        public string ModelId { get; set; } = string.Empty;
+
+        [JsonPropertyName("autoTier")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
+        public AutoTier? AutoTier { get; set; }
+
+        [JsonPropertyName("reasoningEffort")]
+        public string? ReasoningEffort { get; set; }
+
+        [JsonPropertyName("reasoningSummary")]
+        public ReasoningSummary? ReasoningSummary { get; set; }
+
+        [JsonPropertyName("modelCapabilities")]
+        public ModelCapabilitiesOverride? ModelCapabilities { get; set; }
+
+        [JsonPropertyName("contextTier")]
+        public ContextTier? ContextTier { get; set; }
     }
 
     /// <summary>
@@ -2130,6 +2232,8 @@ public sealed partial class CopilotSession : IAsyncDisposable
     [JsonSerializable(typeof(SendMessageRequest))]
     [JsonSerializable(typeof(SendMessageResponse))]
     [JsonSerializable(typeof(SessionAbortRequest))]
+    [JsonSerializable(typeof(SwitchAutoTierRequest))]
+    [JsonSerializable(typeof(ClearAutoTierModelSwitchToRequest))]
     [JsonSerializable(typeof(SessionDestroyRequest))]
     [JsonSerializable(typeof(SessionEndHookInput))]
     [JsonSerializable(typeof(SessionEndHookOutput))]

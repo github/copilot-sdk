@@ -21,6 +21,8 @@ pub use crate::copilot_request_handler::{
     CopilotWebSocketResponse, WebSocketTransform, forward_http,
 };
 use crate::generated::api_types::{CurrentToolMetadata, OpenCanvasInstance};
+/// Acknowledgement and Auto preference snapshot returned by an Auto tier switch.
+pub use crate::generated::api_types::{ModelSwitchAutoTierResult, ModelSwitchAutoTierStatus};
 /// Routing tier for the `auto` model with Auto mode V2.
 pub use crate::generated::session_events::AutoTier;
 use crate::generated::session_events::ReasoningSummary;
@@ -1422,10 +1424,13 @@ pub struct CapiSessionOptions {
     /// Routing tier, meaningful only with model `auto` (Auto mode V2).
     /// Requires a runtime version that supports `capi.autoTier`.
     ///
-    /// When omitted, the runtime chooses its default on create and preserves
-    /// the persisted or current tier on resume. An explicit tier overrides the
-    /// persisted tier on cold resume; the runtime rejects a conflicting tier
-    /// when resuming a session already resident in memory.
+    /// When omitted, the runtime chooses its default on create and restores
+    /// the last committed tier on cold resume. On resident resume, a different
+    /// tier requests a safe switch that takes effect after resume succeeds and
+    /// never disturbs a turn that is already running.
+    ///
+    /// To change the preference on a live session, use
+    /// [`Session::set_auto_tier`](crate::session::Session::set_auto_tier).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auto_tier: Option<AutoTier>,
 
@@ -4791,6 +4796,27 @@ pub struct SetModelOptions {
     /// fields set on the override are applied; the rest fall back to the
     /// runtime-resolved values for the model.
     pub model_capabilities: Option<crate::generated::api_types::ModelCapabilitiesOverride>,
+    /// Auto routing preference to stage atomically with selecting the `auto`
+    /// model.
+    ///
+    /// Leave as `None` to leave the current preference alone. The runtime
+    /// rejects this option when the model is anything other than `auto`; use
+    /// [`Session::set_auto_tier`](crate::session::Session::set_auto_tier) to
+    /// change the preference without changing the selected model.
+    pub auto_tier: Option<AutoTierPreference>,
+}
+
+/// Auto routing preference requested alongside a model switch.
+///
+/// This is a three-state choice. Leaving [`SetModelOptions::auto_tier`] as
+/// `None` leaves the current preference alone, which is different from
+/// [`AutoTierPreference::ProviderDefault`], which actively clears it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AutoTierPreference {
+    /// Route using a specific tier.
+    Tier(AutoTier),
+    /// Return to the provider's default Auto routing.
+    ProviderDefault,
 }
 
 impl SetModelOptions {
@@ -4818,6 +4844,19 @@ impl SetModelOptions {
         caps: crate::generated::api_types::ModelCapabilitiesOverride,
     ) -> Self {
         self.model_capabilities = Some(caps);
+        self
+    }
+
+    /// Set [`auto_tier`](Self::auto_tier) to a specific routing tier.
+    pub fn with_auto_tier(mut self, tier: AutoTier) -> Self {
+        self.auto_tier = Some(AutoTierPreference::Tier(tier));
+        self
+    }
+
+    /// Set [`auto_tier`](Self::auto_tier) to return to the provider's default
+    /// Auto routing.
+    pub fn with_provider_default_auto_tier(mut self) -> Self {
+        self.auto_tier = Some(AutoTierPreference::ProviderDefault);
         self
     }
 }
