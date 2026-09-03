@@ -25,7 +25,7 @@ describe("autopilot objective RPC", () => {
                     pauseReason: "Approval required",
                     creditCountNanoAiu: "9007199254740993",
                     creditLimit: {
-                        creditsUsed: 9.007199254740993,
+                        creditsUsed: 9007199.254740993,
                         creditsUsedNanoAiu: "9007199254740993",
                     },
                 },
@@ -66,15 +66,41 @@ describe("autopilot objective RPC", () => {
                 params: { sessionId: "session-1" },
             }))
         );
-        expect(results[0].state).toBeNull();
-        expect(results[1].state).not.toHaveProperty("pauseReason");
-        expect(results[1].state).not.toHaveProperty("completionSummary");
-        expect(results[1].state).not.toHaveProperty("creditLimit");
-        expect(results[2].state?.status).toBe("paused");
-        expect(results[2].state?.creditLimit?.credits).toBeUndefined();
-        expect(results[2].state?.creditCountNanoAiu).toBe("9007199254740993");
-        expect(results[3].state?.status).toBe("completed");
-        expect(results[3].state?.completionSummary).toBe("Published");
-        expect(results[3].state?.creditLimit?.creditsUsedNanoAiu).toBe("1250000000");
+        expect(results[0]).toEqual({ state: null });
+
+        const active = results[1].state;
+        expect(active).toEqual({
+            id: 1,
+            objective: "Ship the release",
+            status: "active",
+            turnCount: 2,
+            creditCountNanoAiu: "0",
+        });
+
+        const paused = results[2].state;
+        expect(paused).toMatchObject({
+            id: 2,
+            objective: "Wait for approval",
+            status: "paused",
+            turnCount: 3,
+            pauseReason: "Approval required",
+            creditCountNanoAiu: "9007199254740993",
+        });
+        expect(paused?.creditLimit?.credits).toBeUndefined();
+        expect(paused?.creditLimit?.creditsUsed).toBe(9007199.254740993);
+        expect(paused?.creditLimit?.creditsUsedNanoAiu).toBe("9007199254740993");
+
+        const completed = results[3].state;
+        expect(completed).toMatchObject({
+            id: 3,
+            objective: "Publish the SDK",
+            status: "completed",
+            turnCount: 4,
+            completionSummary: "Published",
+            creditCountNanoAiu: "9007199254740994",
+        });
+        expect(completed?.creditLimit?.credits).toBe(2.5);
+        expect(completed?.creditLimit?.creditsUsed).toBe(1.25);
+        expect(completed?.creditLimit?.creditsUsedNanoAiu).toBe("1250000000");
     });
 });

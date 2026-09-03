@@ -1106,10 +1106,18 @@ public class SerializationTests
             }
             """,
             options);
+        Assert.Equal(1, active.Id);
+        Assert.Equal("Ship the release", active.Objective);
         Assert.Equal(AutopilotObjectiveStatus.Active, active.Status);
+        Assert.Equal(2, active.TurnCount);
+        Assert.Equal("0", active.CreditCountNanoAiu);
         Assert.Null(active.PauseReason);
         Assert.Null(active.CompletionSummary);
         Assert.Null(active.CreditLimit);
+        var activeJson = JsonSerializer.SerializeToElement(active, options);
+        Assert.False(activeJson.TryGetProperty("pauseReason", out _));
+        Assert.False(activeJson.TryGetProperty("completionSummary", out _));
+        Assert.False(activeJson.TryGetProperty("creditLimit", out _));
 
         var paused = DeserializeState(
             """
@@ -1122,18 +1130,23 @@ public class SerializationTests
                 "pauseReason": "Approval required",
                 "creditCountNanoAiu": "9007199254740993",
                 "creditLimit": {
-                  "creditsUsed": 9.007199254740993,
+                  "creditsUsed": 9007199.254740993,
                   "creditsUsedNanoAiu": "9007199254740993"
                 }
               }
             }
             """,
             options);
+        Assert.Equal(2, paused.Id);
+        Assert.Equal("Wait for approval", paused.Objective);
         Assert.Equal(AutopilotObjectiveStatus.Paused, paused.Status);
+        Assert.Equal(3, paused.TurnCount);
         Assert.Equal("Approval required", paused.PauseReason);
         Assert.Equal("9007199254740993", paused.CreditCountNanoAiu);
         Assert.NotNull(paused.CreditLimit);
         Assert.Null(paused.CreditLimit.Credits);
+        Assert.Equal(9007199.254740993, paused.CreditLimit.CreditsUsed);
+        Assert.Equal("9007199254740993", paused.CreditLimit.CreditsUsedNanoAiu);
 
         var completed = DeserializeState(
             """
@@ -1154,10 +1167,15 @@ public class SerializationTests
             }
             """,
             options);
+        Assert.Equal(3, completed.Id);
+        Assert.Equal("Publish the SDK", completed.Objective);
         Assert.Equal(AutopilotObjectiveStatus.Completed, completed.Status);
+        Assert.Equal(4, completed.TurnCount);
         Assert.Equal("Published", completed.CompletionSummary);
+        Assert.Equal("9007199254740994", completed.CreditCountNanoAiu);
         Assert.NotNull(completed.CreditLimit);
         Assert.Equal(2.5, completed.CreditLimit.Credits);
+        Assert.Equal(1.25, completed.CreditLimit.CreditsUsed);
         Assert.Equal("1250000000", completed.CreditLimit.CreditsUsedNanoAiu);
     }
 

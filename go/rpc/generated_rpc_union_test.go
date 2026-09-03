@@ -360,3 +360,117 @@ func TestUIElicitationSchemaPropertyJSONUnion(t *testing.T) {
 		t.Fatalf("round-trip confirmed property = %T, want *UIElicitationSchemaPropertyBoolean", roundTrip.Properties["confirmed"])
 	}
 }
+
+func TestAutopilotObjectiveGetState(t *testing.T) {
+	clientToServerReader, clientToServerWriter := io.Pipe()
+	serverToClientReader, serverToClientWriter := io.Pipe()
+
+	client := jsonrpc2.NewClient(clientToServerWriter, serverToClientReader)
+	server := jsonrpc2.NewClient(serverToClientWriter, clientToServerReader)
+	responses := []json.RawMessage{
+		json.RawMessage(`{"state":null}`),
+		json.RawMessage(`{"state":{"id":1,"objective":"Ship the release","status":"active","turnCount":2,"creditCountNanoAiu":"0"}}`),
+		json.RawMessage(`{"state":{"id":2,"objective":"Wait for approval","status":"paused","turnCount":3,"pauseReason":"Approval required","creditCountNanoAiu":"9007199254740993","creditLimit":{"creditsUsed":9007199.254740993,"creditsUsedNanoAiu":"9007199254740993"}}}`),
+		json.RawMessage(`{"state":{"id":3,"objective":"Publish the SDK","status":"completed","turnCount":4,"completionSummary":"Published","creditCountNanoAiu":"9007199254740994","creditLimit":{"credits":2.5,"creditsUsed":1.25,"creditsUsedNanoAiu":"1250000000"}}}`),
+	}
+	callIndex := 0
+	server.SetRequestHandler("session.autopilotObjective.getState", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		var request struct {
+			SessionID string `json:"sessionId"`
+		}
+		if err := json.Unmarshal(params, &request); err != nil {
+			return nil, &jsonrpc2.Error{Code: -32602, Message: err.Error()}
+		}
+		if request.SessionID != "session-1" {
+			return nil, &jsonrpc2.Error{Code: -32602, Message: "unexpected session ID"}
+		}
+		response := responses[callIndex]
+		callIndex++
+		return response, nil
+	})
+
+	client.Start()
+	server.Start()
+	t.Cleanup(func() {
+		client.Stop()
+		server.Stop()
+		_ = clientToServerWriter.Close()
+		_ = clientToServerReader.Close()
+		_ = serverToClientWriter.Close()
+		_ = serverToClientReader.Close()
+	})
+
+	api := NewSessionRPC(client, "session-1").AutopilotObjective
+	results := make([]*AutopilotObjectiveGetStateResult, 0, len(responses))
+	for range responses {
+		result, err := api.GetState(t.Context())
+		if err != nil {
+			t.Fatalf("get objective state: %v", err)
+		}
+		results = append(results, result)
+	}
+
+	if results[0].State != nil {
+		t.Fatalf("state = %#v, want nil", results[0].State)
+	}
+
+	active := results[1].State
+	if active == nil {
+		t.Fatal("active state is nil")
+	}
+	if active.ID != 1 || active.Objective != "Ship the release" ||
+		active.Status != AutopilotObjectiveStatusActive || active.TurnCount != 2 ||
+		active.CreditCountNanoAiu != "0" {
+		t.Fatalf("active state = %#v", active)
+	}
+	activeJSON, err := json.Marshal(active)
+	if err != nil {
+		t.Fatalf("marshal active state: %v", err)
+	}
+	var activeFields map[string]json.RawMessage
+	if err := json.Unmarshal(activeJSON, &activeFields); err != nil {
+		t.Fatalf("unmarshal active state: %v", err)
+	}
+	for _, field := range []string{"pauseReason", "completionSummary", "creditLimit"} {
+		if _, ok := activeFields[field]; ok {
+			t.Errorf("active state unexpectedly serialized %q", field)
+		}
+	}
+
+	paused := results[2].State
+	if paused == nil {
+		t.Fatal("paused state is nil")
+	}
+	if paused.ID != 2 || paused.Objective != "Wait for approval" ||
+		paused.Status != AutopilotObjectiveStatusPaused || paused.TurnCount != 3 ||
+		paused.CreditCountNanoAiu != "9007199254740993" {
+		t.Fatalf("paused state = %#v", paused)
+	}
+	if paused.PauseReason == nil || *paused.PauseReason != "Approval required" {
+		t.Fatalf("pause reason = %v", paused.PauseReason)
+	}
+	if paused.CreditLimit == nil || paused.CreditLimit.Credits != nil ||
+		paused.CreditLimit.CreditsUsed != 9007199.254740993 ||
+		paused.CreditLimit.CreditsUsedNanoAiu != "9007199254740993" {
+		t.Fatalf("paused credit limit = %#v", paused.CreditLimit)
+	}
+
+	completed := results[3].State
+	if completed == nil {
+		t.Fatal("completed state is nil")
+	}
+	if completed.ID != 3 || completed.Objective != "Publish the SDK" ||
+		completed.Status != AutopilotObjectiveStatusCompleted || completed.TurnCount != 4 ||
+		completed.CreditCountNanoAiu != "9007199254740994" {
+		t.Fatalf("completed state = %#v", completed)
+	}
+	if completed.CompletionSummary == nil || *completed.CompletionSummary != "Published" {
+		t.Fatalf("completion summary = %v", completed.CompletionSummary)
+	}
+	if completed.CreditLimit == nil || completed.CreditLimit.Credits == nil ||
+		*completed.CreditLimit.Credits != 2.5 ||
+		completed.CreditLimit.CreditsUsed != 1.25 ||
+		completed.CreditLimit.CreditsUsedNanoAiu != "1250000000" {
+		t.Fatalf("completed credit limit = %#v", completed.CreditLimit)
+	}
+}

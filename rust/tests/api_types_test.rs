@@ -4,8 +4,9 @@
 #![allow(clippy::unwrap_used)]
 
 use github_copilot_sdk::rpc::{
-    Extension, ExtensionList, ExtensionSource, ExtensionStatus, ExtensionsDisableRequest,
-    ExtensionsEnableRequest, FleetStartRequest, FleetStartResult, TasksStartAgentRequest,
+    AutopilotObjectiveGetStateResult, AutopilotObjectiveStatus, Extension, ExtensionList,
+    ExtensionSource, ExtensionStatus, ExtensionsDisableRequest, ExtensionsEnableRequest,
+    FleetStartRequest, FleetStartResult, TasksStartAgentRequest,
 };
 use github_copilot_sdk::session_events::{PermissionRequest, PermissionRequestedData};
 
@@ -102,6 +103,63 @@ fn permission_event_exposes_managed_approval_required() {
         panic!("expected read permission request");
     };
     assert_eq!(request.managed_approval_required, Some(true));
+}
+
+#[test]
+fn autopilot_objective_state_preserves_canonical_payloads() {
+    let no_objective: AutopilotObjectiveGetStateResult =
+        serde_json::from_str(r#"{"state":null}"#).unwrap();
+    assert!(no_objective.state.is_none());
+
+    let active: AutopilotObjectiveGetStateResult = serde_json::from_str(
+        r#"{"state":{"id":1,"objective":"Ship the release","status":"active","turnCount":2,"creditCountNanoAiu":"0"}}"#,
+    )
+    .unwrap();
+    let active = active.state.unwrap();
+    assert_eq!(active.id, 1);
+    assert_eq!(active.objective, "Ship the release");
+    assert_eq!(active.status, AutopilotObjectiveStatus::Active);
+    assert_eq!(active.turn_count, 2);
+    assert_eq!(active.credit_count_nano_aiu, "0");
+    let active_json = serde_json::to_value(active).unwrap();
+    assert!(active_json.get("pauseReason").is_none());
+    assert!(active_json.get("completionSummary").is_none());
+    assert!(active_json.get("creditLimit").is_none());
+
+    let paused: AutopilotObjectiveGetStateResult = serde_json::from_str(
+        r#"{"state":{"id":2,"objective":"Wait for approval","status":"paused","turnCount":3,"pauseReason":"Approval required","creditCountNanoAiu":"9007199254740993","creditLimit":{"creditsUsed":9007199.254740993,"creditsUsedNanoAiu":"9007199254740993"}}}"#,
+    )
+    .unwrap();
+    let paused = paused.state.unwrap();
+    assert_eq!(paused.id, 2);
+    assert_eq!(paused.objective, "Wait for approval");
+    assert_eq!(paused.status, AutopilotObjectiveStatus::Paused);
+    assert_eq!(paused.turn_count, 3);
+    assert_eq!(paused.pause_reason.as_deref(), Some("Approval required"));
+    assert_eq!(paused.credit_count_nano_aiu, "9007199254740993");
+    let paused_credit_limit = paused.credit_limit.unwrap();
+    assert_eq!(paused_credit_limit.credits, None);
+    assert_eq!(paused_credit_limit.credits_used, 9007199.254740993);
+    assert_eq!(
+        paused_credit_limit.credits_used_nano_aiu,
+        "9007199254740993"
+    );
+
+    let completed: AutopilotObjectiveGetStateResult = serde_json::from_str(
+        r#"{"state":{"id":3,"objective":"Publish the SDK","status":"completed","turnCount":4,"completionSummary":"Published","creditCountNanoAiu":"9007199254740994","creditLimit":{"credits":2.5,"creditsUsed":1.25,"creditsUsedNanoAiu":"1250000000"}}}"#,
+    )
+    .unwrap();
+    let completed = completed.state.unwrap();
+    assert_eq!(completed.id, 3);
+    assert_eq!(completed.objective, "Publish the SDK");
+    assert_eq!(completed.status, AutopilotObjectiveStatus::Completed);
+    assert_eq!(completed.turn_count, 4);
+    assert_eq!(completed.completion_summary.as_deref(), Some("Published"));
+    assert_eq!(completed.credit_count_nano_aiu, "9007199254740994");
+    let completed_credit_limit = completed.credit_limit.unwrap();
+    assert_eq!(completed_credit_limit.credits, Some(2.5));
+    assert_eq!(completed_credit_limit.credits_used, 1.25);
+    assert_eq!(completed_credit_limit.credits_used_nano_aiu, "1250000000");
 }
 
 fn running_extension(id: &str, name: &str) -> Extension {

@@ -4089,6 +4089,25 @@ async fn rpc_namespace_session_tasks_list_dispatches_correctly() {
 }
 
 #[tokio::test]
+async fn rpc_namespace_session_autopilot_objective_get_state_dispatches_correctly() {
+    let (session, mut server) = create_session_pair().await;
+    let session = Arc::new(session);
+
+    let s = session.clone();
+    let handle = tokio::spawn(async move { s.rpc().autopilot_objective().get_state().await });
+
+    let request = server.read_request().await;
+    assert_eq!(request["method"], "session.autopilotObjective.getState");
+    assert_eq!(request["params"]["sessionId"], server.session_id);
+    server
+        .respond(&request, serde_json::json!({ "state": null }))
+        .await;
+
+    let result = timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
+    assert!(result.state.is_none());
+}
+
+#[tokio::test]
 async fn rpc_namespace_client_models_list_dispatches_correctly() {
     let (session, mut server) = create_session_pair().await;
     let session = Arc::new(session);

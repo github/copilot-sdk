@@ -513,6 +513,95 @@ class GeneratedRpcRecordsCoverageTest {
     }
 
     @Test
+    void sessionAutopilotObjectiveGetStateResult_preservesCanonicalPayloads() throws Exception {
+        var noObjective = RpcMapper.INSTANCE.readValue("{\"state\":null}",
+                SessionAutopilotObjectiveGetStateResult.class);
+        assertNull(noObjective.state());
+
+        var activeResult = RpcMapper.INSTANCE.readValue("""
+                {
+                  "state": {
+                    "id": 1,
+                    "objective": "Ship the release",
+                    "status": "active",
+                    "turnCount": 2,
+                    "creditCountNanoAiu": "0"
+                  }
+                }
+                """, SessionAutopilotObjectiveGetStateResult.class);
+        assertNotNull(activeResult.state());
+        var active = activeResult.state();
+        assertEquals(1L, active.id());
+        assertEquals("Ship the release", active.objective());
+        assertEquals(AutopilotObjectiveStatus.ACTIVE, active.status());
+        assertEquals(2L, active.turnCount());
+        assertEquals("0", active.creditCountNanoAiu());
+        var activeJson = RpcMapper.INSTANCE.valueToTree(active);
+        assertFalse(activeJson.has("pauseReason"));
+        assertFalse(activeJson.has("completionSummary"));
+        assertFalse(activeJson.has("creditLimit"));
+
+        var pausedResult = RpcMapper.INSTANCE.readValue("""
+                {
+                  "state": {
+                    "id": 2,
+                    "objective": "Wait for approval",
+                    "status": "paused",
+                    "turnCount": 3,
+                    "pauseReason": "Approval required",
+                    "creditCountNanoAiu": "9007199254740993",
+                    "creditLimit": {
+                      "creditsUsed": 9007199.254740993,
+                      "creditsUsedNanoAiu": "9007199254740993"
+                    }
+                  }
+                }
+                """, SessionAutopilotObjectiveGetStateResult.class);
+        assertNotNull(pausedResult.state());
+        var paused = pausedResult.state();
+        assertEquals(2L, paused.id());
+        assertEquals("Wait for approval", paused.objective());
+        assertEquals(AutopilotObjectiveStatus.PAUSED, paused.status());
+        assertEquals(3L, paused.turnCount());
+        assertEquals("Approval required", paused.pauseReason());
+        assertEquals("9007199254740993", paused.creditCountNanoAiu());
+        assertNotNull(paused.creditLimit());
+        assertNull(paused.creditLimit().credits());
+        assertEquals(9007199.254740993, paused.creditLimit().creditsUsed());
+        assertEquals("9007199254740993", paused.creditLimit().creditsUsedNanoAiu());
+
+        var completedResult = RpcMapper.INSTANCE.readValue("""
+                {
+                  "state": {
+                    "id": 3,
+                    "objective": "Publish the SDK",
+                    "status": "completed",
+                    "turnCount": 4,
+                    "completionSummary": "Published",
+                    "creditCountNanoAiu": "9007199254740994",
+                    "creditLimit": {
+                      "credits": 2.5,
+                      "creditsUsed": 1.25,
+                      "creditsUsedNanoAiu": "1250000000"
+                    }
+                  }
+                }
+                """, SessionAutopilotObjectiveGetStateResult.class);
+        assertNotNull(completedResult.state());
+        var completed = completedResult.state();
+        assertEquals(3L, completed.id());
+        assertEquals("Publish the SDK", completed.objective());
+        assertEquals(AutopilotObjectiveStatus.COMPLETED, completed.status());
+        assertEquals(4L, completed.turnCount());
+        assertEquals("Published", completed.completionSummary());
+        assertEquals("9007199254740994", completed.creditCountNanoAiu());
+        assertNotNull(completed.creditLimit());
+        assertEquals(2.5, completed.creditLimit().credits());
+        assertEquals(1.25, completed.creditLimit().creditsUsed());
+        assertEquals("1250000000", completed.creditLimit().creditsUsedNanoAiu());
+    }
+
+    @Test
     void sessionCommandsHandlePendingCommandResult_record() {
         var result = new SessionCommandsHandlePendingCommandResult(true);
         assertTrue(result.success());

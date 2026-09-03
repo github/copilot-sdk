@@ -502,6 +502,24 @@ public sealed class ClientSessionLifetimeTests
         await Assert.ThrowsAsync<ObjectDisposedException>(() => session.Rpc.Model.GetCurrentAsync());
     }
 
+    [Fact]
+    public async Task Generated_AutopilotObjective_GetState_Injects_SessionId()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            SessionId = "objective-session",
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        var result = await session.Rpc.AutopilotObjective.GetStateAsync();
+
+        Assert.Null(result.State);
+        var request = await WaitForRequestAsync(server, "session.autopilotObjective.getState");
+        Assert.Equal("objective-session", request.Params.GetProperty("sessionId").GetString());
+    }
+
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static async Task<WeakReference<CopilotSession>> CreateDroppedSessionAsync(CopilotClient client)
     {
@@ -1048,6 +1066,10 @@ public sealed class ClientSessionLifetimeTests
                 "session.permissions.handlePendingPermissionRequest" => new Dictionary<string, object?>
                 {
                     ["success"] = true
+                },
+                "session.autopilotObjective.getState" => new Dictionary<string, object?>
+                {
+                    ["state"] = null
                 },
                 "session.delete" => new Dictionary<string, object?>
                 {

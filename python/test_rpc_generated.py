@@ -1,11 +1,13 @@
 """Tests for generated RPC method behavior."""
 
 import json
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, call
 
 import pytest
 
 from copilot.rpc import (
+    AutopilotObjectiveApi,
+    AutopilotObjectiveStatus,
     BuiltinToolInputSchemaType,
     CommandsApi,
     CommandsInvokeRequest,
@@ -131,3 +133,99 @@ def test_queued_command_result_serializes_boolean_discriminator(
 
     assert request.to_dict()["result"]["handled"] is expected_handled
     assert isinstance(round_tripped.result, type(variant))
+
+
+@pytest.mark.asyncio
+async def test_autopilot_objective_get_state_preserves_canonical_state():
+    payloads = [
+        {"state": None},
+        {
+            "state": {
+                "id": 1,
+                "objective": "Ship the release",
+                "status": "active",
+                "turnCount": 2,
+                "creditCountNanoAiu": "0",
+            }
+        },
+        {
+            "state": {
+                "id": 2,
+                "objective": "Wait for approval",
+                "status": "paused",
+                "turnCount": 3,
+                "pauseReason": "Approval required",
+                "creditCountNanoAiu": "9007199254740993",
+                "creditLimit": {
+                    "creditsUsed": 9007199.254740993,
+                    "creditsUsedNanoAiu": "9007199254740993",
+                },
+            }
+        },
+        {
+            "state": {
+                "id": 3,
+                "objective": "Publish the SDK",
+                "status": "completed",
+                "turnCount": 4,
+                "completionSummary": "Published",
+                "creditCountNanoAiu": "9007199254740994",
+                "creditLimit": {
+                    "credits": 2.5,
+                    "creditsUsed": 1.25,
+                    "creditsUsedNanoAiu": "1250000000",
+                },
+            }
+        },
+    ]
+    client = AsyncMock()
+    client.request = AsyncMock(side_effect=payloads)
+    api = AutopilotObjectiveApi(client, "session-1")
+
+    results = [await api.get_state() for _ in payloads]
+
+    client.request.assert_has_awaits(
+        [call("session.autopilotObjective.getState", {"sessionId": "session-1"}) for _ in payloads]
+    )
+    assert results[0].state is None
+
+    active = results[1].state
+    assert active is not None
+    assert active.id == 1
+    assert active.objective == "Ship the release"
+    assert active.status is AutopilotObjectiveStatus.ACTIVE
+    assert active.turn_count == 2
+    assert active.credit_count_nano_aiu == "0"
+    assert active.to_dict() == {
+        "creditCountNanoAiu": "0",
+        "id": 1,
+        "objective": "Ship the release",
+        "status": "active",
+        "turnCount": 2,
+    }
+
+    paused = results[2].state
+    assert paused is not None
+    assert paused.id == 2
+    assert paused.objective == "Wait for approval"
+    assert paused.status is AutopilotObjectiveStatus.PAUSED
+    assert paused.turn_count == 3
+    assert paused.pause_reason == "Approval required"
+    assert paused.credit_count_nano_aiu == "9007199254740993"
+    assert paused.credit_limit is not None
+    assert paused.credit_limit.credits is None
+    assert paused.credit_limit.credits_used == 9007199.254740993
+    assert paused.credit_limit.credits_used_nano_aiu == "9007199254740993"
+
+    completed = results[3].state
+    assert completed is not None
+    assert completed.id == 3
+    assert completed.objective == "Publish the SDK"
+    assert completed.status is AutopilotObjectiveStatus.COMPLETED
+    assert completed.turn_count == 4
+    assert completed.completion_summary == "Published"
+    assert completed.credit_count_nano_aiu == "9007199254740994"
+    assert completed.credit_limit is not None
+    assert completed.credit_limit.credits == 2.5
+    assert completed.credit_limit.credits_used == 1.25
+    assert completed.credit_limit.credits_used_nano_aiu == "1250000000"

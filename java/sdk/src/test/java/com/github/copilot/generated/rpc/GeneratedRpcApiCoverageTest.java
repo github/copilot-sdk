@@ -122,6 +122,20 @@ class GeneratedRpcApiCoverageTest {
     }
 
     @Test
+    void sessionRpc_autopilotObjective_getState_injects_sessionId() {
+        var stub = new StubCaller();
+        var session = new SessionRpc(stub, "sess-objective");
+
+        session.autopilotObjective.getState();
+
+        assertEquals(1, stub.calls.size());
+        assertEquals("session.autopilotObjective.getState", stub.calls.get(0).method());
+        var params = stub.calls.get(0).params();
+        assertInstanceOf(Map.class, params);
+        assertEquals("sess-objective", ((Map<?, ?>) params).get("sessionId"));
+    }
+
+    @Test
     void sessionRpc_mode_set_merges_sessionId() {
         var stub = new StubCaller();
         var session = new SessionRpc(stub, "sess-mode-set");
