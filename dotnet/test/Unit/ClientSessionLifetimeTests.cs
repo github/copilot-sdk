@@ -667,6 +667,166 @@ public sealed class ClientSessionLifetimeTests
     }
 
     [Fact]
+    public async Task ExternalTool_String_Arguments_Bind_To_Single_Function_Parameter()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        string? receivedPatch = null;
+        var tool = CopilotTool.DefineTool(
+            (string patch) =>
+            {
+                receivedPatch = patch;
+                return "applied";
+            },
+            new CopilotToolOptions { OverridesBuiltInTool = true },
+            new AIFunctionFactoryOptions { Name = "apply_patch" });
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            Tools = [tool],
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+        server.ClearRequests();
+        using var arguments = JsonDocument.Parse("\"*** Begin Patch\\n*** End Patch\"");
+
+        DispatchEvent(session, new ExternalToolRequestedEvent
+        {
+            Data = new ExternalToolRequestedData
+            {
+                Arguments = arguments.RootElement.Clone(),
+                RequestId = "apply-patch-request",
+                SessionId = session.SessionId,
+                ToolCallId = "apply-patch-call",
+                ToolName = "apply_patch"
+            }
+        });
+
+        var request = await WaitForRequestAsync(server, "session.tools.handlePendingToolCall");
+        Assert.Equal("*** Begin Patch\n*** End Patch", receivedPatch);
+        Assert.False(request.Params.TryGetProperty("error", out _));
+        Assert.Equal("applied", request.Params.GetProperty("result").GetProperty("textResultForLlm").GetString());
+    }
+
+    [Fact]
+    public async Task ExternalTool_String_Arguments_Reject_Ambiguous_Function_Parameters()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        var invoked = false;
+        var tool = CopilotTool.DefineTool(
+            (string patch, string explanation) =>
+            {
+                invoked = true;
+                return "applied";
+            },
+            new CopilotToolOptions { OverridesBuiltInTool = true },
+            new AIFunctionFactoryOptions { Name = "apply_patch" });
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            Tools = [tool],
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+        server.ClearRequests();
+        using var arguments = JsonDocument.Parse("\"*** Begin Patch\\n*** End Patch\"");
+
+        DispatchEvent(session, new ExternalToolRequestedEvent
+        {
+            Data = new ExternalToolRequestedData
+            {
+                Arguments = arguments.RootElement.Clone(),
+                RequestId = "ambiguous-apply-patch-request",
+                SessionId = session.SessionId,
+                ToolCallId = "ambiguous-apply-patch-call",
+                ToolName = "apply_patch"
+            }
+        });
+
+        var request = await WaitForRequestAsync(server, "session.tools.handlePendingToolCall");
+        Assert.False(invoked);
+        Assert.Contains("received non-object arguments", request.Params.GetProperty("error").GetString());
+        Assert.False(request.Params.TryGetProperty("result", out _));
+    }
+
+    [Fact]
+    public async Task ExternalTool_Number_Arguments_Bind_To_Single_Function_Parameter()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        int? receivedLine = null;
+        var tool = CopilotTool.DefineTool(
+            (int line) =>
+            {
+                receivedLine = line;
+                return "selected";
+            },
+            factoryOptions: new AIFunctionFactoryOptions { Name = "select_line" });
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            Tools = [tool],
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+        server.ClearRequests();
+        using var arguments = JsonDocument.Parse("42");
+
+        DispatchEvent(session, new ExternalToolRequestedEvent
+        {
+            Data = new ExternalToolRequestedData
+            {
+                Arguments = arguments.RootElement.Clone(),
+                RequestId = "select-line-request",
+                SessionId = session.SessionId,
+                ToolCallId = "select-line-call",
+                ToolName = "select_line"
+            }
+        });
+
+        var request = await WaitForRequestAsync(server, "session.tools.handlePendingToolCall");
+        Assert.Equal(42, receivedLine);
+        Assert.False(request.Params.TryGetProperty("error", out _));
+    }
+
+    [Fact]
+    public async Task ExternalTool_String_Arguments_Bind_To_Sole_Required_Function_Parameter()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        string? receivedPatch = null;
+        string? receivedExplanation = null;
+        var tool = CopilotTool.DefineTool(
+            (string patch, string? explanation = null) =>
+            {
+                receivedPatch = patch;
+                receivedExplanation = explanation;
+                return "applied";
+            },
+            new CopilotToolOptions { OverridesBuiltInTool = true },
+            new AIFunctionFactoryOptions { Name = "apply_patch" });
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            Tools = [tool],
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+        server.ClearRequests();
+        using var arguments = JsonDocument.Parse("\"*** Begin Patch\\n*** End Patch\"");
+
+        DispatchEvent(session, new ExternalToolRequestedEvent
+        {
+            Data = new ExternalToolRequestedData
+            {
+                Arguments = arguments.RootElement.Clone(),
+                RequestId = "optional-apply-patch-request",
+                SessionId = session.SessionId,
+                ToolCallId = "optional-apply-patch-call",
+                ToolName = "apply_patch"
+            }
+        });
+
+        var request = await WaitForRequestAsync(server, "session.tools.handlePendingToolCall");
+        Assert.Equal("*** Begin Patch\n*** End Patch", receivedPatch);
+        Assert.Null(receivedExplanation);
+        Assert.False(request.Params.TryGetProperty("error", out _));
+    }
+
+    [Fact]
     public async Task EmptyMode_Create_Sends_Empty_IncludedBuiltinSkills()
     {
         await using var server = await FakeCopilotServer.StartAsync();
@@ -1916,6 +2076,10 @@ public sealed class ClientSessionLifetimeTests
                     ["success"] = true
                 },
                 "session.permissions.handlePendingPermissionRequest" => new Dictionary<string, object?>
+                {
+                    ["success"] = true
+                },
+                "session.tools.handlePendingToolCall" => new Dictionary<string, object?>
                 {
                     ["success"] = true
                 },

@@ -160,8 +160,8 @@ public class SessionEventHandlingTest {
     void testToolSearchRunsWhenMetadataResultIsNull() throws Exception {
         var rpc = mock(JsonRpcClient.class);
         CompletableFuture<SessionToolsGetCurrentMetadataResult> metadata = CompletableFuture.completedFuture(null);
-        when(rpc.invoke(eq("session.tools.getCurrentMetadata"), any(),
-                eq(SessionToolsGetCurrentMetadataResult.class))).thenReturn(metadata);
+        when(rpc.invoke(eq("session.tools.getCurrentMetadata"), any(), eq(SessionToolsGetCurrentMetadataResult.class)))
+                .thenReturn(metadata);
         session = createTestSession(rpc);
         var invoked = new CountDownLatch(1);
         session.registerTools(List.of(ToolDefinition.create("tool_search_tool", "Searches", Map.of(), invocation -> {

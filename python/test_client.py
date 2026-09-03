@@ -238,7 +238,8 @@ class TestClientShutdown:
         await asyncio.to_thread(client._handle_connection_close)
 
         await asyncio.wait_for(cancelled.wait(), timeout=1)
-        assert session._destroyed
+        assert not session._destroyed
+        assert client._sessions == {"session-1": session}
 
     def test_connection_close_tolerates_event_loop_close_race(self):
         client = CopilotClient(connection=RuntimeConnection.for_uri("localhost:1234"))
@@ -252,7 +253,7 @@ class TestClientShutdown:
 
         client._handle_connection_close()
 
-        assert client._sessions == {}
+        assert client._sessions == {"session-1": session}
         assert client._github_token_providers == {}
 
 
