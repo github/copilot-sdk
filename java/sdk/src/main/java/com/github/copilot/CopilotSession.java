@@ -187,6 +187,7 @@ public final class CopilotSession implements AutoCloseable {
     private final Set<Consumer<SessionEvent>> eventHandlers = ConcurrentHashMap.newKeySet();
     private final Map<String, ToolDefinition> toolHandlers = new ConcurrentHashMap<>();
     private final Map<String, PendingExternalTool> pendingExternalTools = new ConcurrentHashMap<>();
+    private boolean externalToolsClosed;
     private final Map<String, CommandHandler> commandHandlers = new ConcurrentHashMap<>();
     private final Map<String, BearerTokenProvider> bearerTokenProviders = new ConcurrentHashMap<>();
     private final AtomicReference<PermissionHandler> permissionHandler = new AtomicReference<>();
@@ -1008,7 +1009,8 @@ public final class CopilotSession implements AutoCloseable {
             ToolDefinition tool) {
         var pending = new PendingExternalTool();
         synchronized (this) {
-            if (isTerminated || pendingExternalTools.putIfAbsent(requestId, pending) != null) {
+            if (isTerminated || externalToolsClosed
+                    || pendingExternalTools.putIfAbsent(requestId, pending) != null) {
                 return;
             }
         }
@@ -1097,11 +1099,13 @@ public final class CopilotSession implements AutoCloseable {
     }
 
     void cancelPendingExternalTools() {
-        pendingExternalTools.forEach((requestId, pending) -> {
-            if (pendingExternalTools.remove(requestId, pending)) {
-                pending.cancel();
-            }
-        });
+        List<PendingExternalTool> pending;
+        synchronized (this) {
+            externalToolsClosed = true;
+            pending = new ArrayList<>(pendingExternalTools.values());
+            pendingExternalTools.clear();
+        }
+        pending.forEach(PendingExternalTool::cancel);
     }
 
     /**

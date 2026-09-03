@@ -22,6 +22,9 @@ func TestCreateRuntimeAssetsArchiveRetainsUnknownAssetsAndFiltersCLIContent(t *t
 		"package/prebuilds/linux-x64/copilot-runtime": "wrapper",
 		"package/ripgrep/bin/linux-x64/rg":            "ripgrep",
 		"package/definitions/future.json":             "{}",
+		"package/copilot-sdk/extension.js":            "extension",
+		"package/preloads/extension_bootstrap.mjs":    "preload",
+		"package/sdk/factory.js":                      "factory",
 		"package/app.js":                              "excluded",
 		"package/LICENSE.md":                          "excluded",
 		"package/README.md":                           "excluded",
@@ -35,7 +38,11 @@ func TestCreateRuntimeAssetsArchiveRetainsUnknownAssetsAndFiltersCLIContent(t *t
 	}
 
 	files := readTarGz(t, output)
-	if files["ripgrep/bin/linux-x64/rg"] != "ripgrep" || files["definitions/future.json"] != "{}" {
+	if files["ripgrep/bin/linux-x64/rg"] != "ripgrep" ||
+		files["definitions/future.json"] != "{}" ||
+		files["copilot-sdk/extension.js"] != "extension" ||
+		files["preloads/extension_bootstrap.mjs"] != "preload" ||
+		files["sdk/factory.js"] != "factory" {
 		t.Fatalf("retained assets = %#v", files)
 	}
 	for _, excluded := range []string{

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import ipaddress
 import logging
 import os
 import re
@@ -1838,8 +1839,8 @@ class CopilotClient:
         """
         Parse CLI URL into host and port.
 
-        Supports formats: "host:port", "http://host:port", "https://host:port",
-        or just "port".
+        Supports formats: "host:port", "[ipv6]:port", "http://host:port",
+        "https://host:port", or just "port".
 
         Args:
             url: The CLI URL to parse.
@@ -1850,9 +1851,6 @@ class CopilotClient:
         Raises:
             ValueError: If the URL format is invalid or the port is out of range.
         """
-        import re
-
-        # Remove protocol if present
         clean_url = re.sub(r"^https?://", "", url)
 
         # Check if it's just a port number
@@ -1862,14 +1860,24 @@ class CopilotClient:
                 raise ValueError(f"Invalid port in cli_url: {url}")
             return ("localhost", port)
 
-        # Parse host:port format
-        parts = clean_url.split(":")
-        if len(parts) != 2:
-            raise ValueError(f"Invalid cli_url format: {url}")
+        ipv6_match = re.match(r"^\[([^\]]+)\]:(.*)$", clean_url)
+        if ipv6_match:
+            host = ipv6_match.group(1)
+            port_text = ipv6_match.group(2)
+            try:
+                ipaddress.IPv6Address(host)
+            except ValueError as e:
+                raise ValueError(f"Invalid cli_url format: {url}") from e
+        else:
+            # Parse host:port format
+            parts = clean_url.split(":")
+            if len(parts) != 2:
+                raise ValueError(f"Invalid cli_url format: {url}")
+            host = parts[0] if parts[0] else "localhost"
+            port_text = parts[1]
 
-        host = parts[0] if parts[0] else "localhost"
         try:
-            port = int(parts[1])
+            port = int(port_text)
         except ValueError as e:
             raise ValueError(f"Invalid port in cli_url: {url}") from e
 
@@ -2012,13 +2020,14 @@ class CopilotClient:
             # Check if process exited and capture any remaining stderr
             process = self._cli_process if self._cli_process is not None else self._process
             if process and hasattr(process, "poll"):
+                if isinstance(e, BrokenPipeError) and process.poll() is None:
+                    try:
+                        await asyncio.to_thread(process.wait, timeout=1.0)
+                    except subprocess.TimeoutExpired:
+                        pass
                 return_code = process.poll()
                 if return_code is not None and self._client:
-                    stderr_output = self._client.get_stderr_output()
-                    if stderr_output:
-                        raise RuntimeError(
-                            f"CLI process exited with code {return_code}\nstderr: {stderr_output}"
-                        ) from e
+                    raise RuntimeError(self._client._get_process_exit_error()) from e
             raise
 
     async def stop(self) -> None:
@@ -4633,14 +4642,12 @@ class CopilotClient:
         if not self._runtime_port:
             raise RuntimeError("Server port not available")
 
-        # Create a TCP socket connection with timeout
+        # Create a TCP socket connection with timeout. create_connection resolves
+        # both IPv4 and IPv6 addresses instead of forcing AF_INET.
         import socket
 
         # Connection timeout constant
         TCP_CONNECTION_TIMEOUT = 10  # seconds
-
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(TCP_CONNECTION_TIMEOUT)
 
         try:
             tcp_connect_start = time.perf_counter()
@@ -4648,7 +4655,9 @@ class CopilotClient:
                 "CopilotClient._connect_via_tcp connecting to CLI server",
                 extra={"host": self._actual_host, "port": self._runtime_port},
             )
-            sock.connect((self._actual_host, self._runtime_port))
+            sock = socket.create_connection(
+                (self._actual_host, self._runtime_port), timeout=TCP_CONNECTION_TIMEOUT
+            )
             sock.settimeout(None)  # Remove timeout after connection
             log_timing(
                 logger,
@@ -4795,7 +4804,10 @@ class CopilotClient:
             try:
                 await session.disconnect()
             except BaseException:
-                pass
+                logger.debug(
+                    "Error disconnecting session after options update failure",
+                    exc_info=True,
+                )
             raise
 
     async def _set_session_fs_provider(self) -> None:

@@ -14,10 +14,8 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
-import { createRequire } from "node:module";
-import { Socket } from "node:net";
+import { isIPv6, Socket } from "node:net";
 import { dirname, isAbsolute, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import {
     createMessageConnection,
     ErrorCodes,
@@ -44,7 +42,8 @@ import type {
 import { getSdkProtocolVersion } from "./sdkProtocolVersion.js";
 import { CopilotSession } from "./session.js";
 import type { FfiRuntimeHost } from "./ffiRuntimeHost.js";
-import { materializeRuntimeBundle } from "./runtimeArtifacts.js";
+import { ensureRuntimeBundle } from "./runtimeArtifacts.js";
+import { COPILOT_CLI_VERSION } from "./cliVersion.js";
 import { createSessionFsAdapter, type SessionFsProvider } from "./sessionFsProvider.js";
 import { createCopilotRequestAdapter } from "./copilotRequestHandler.js";
 import type { CopilotRequestHandler } from "./copilotRequestHandler.js";
@@ -371,83 +370,8 @@ function getNodeExecPath(): string {
     return process.execPath;
 }
 
-/**
- * Computes the candidate platform-specific CLI package names for the current
- * platform/arch, mirroring @github/copilot's npm-loader. As of CLI 1.0.64-1 the
- * @github/copilot package is a thin loader and the actual CLI ships in a
- * platform package (e.g. @github/copilot-darwin-arm64). For Linux we try both
- * the glibc and musl variants since only the matching one is installed.
- */
-function getCliPlatformPackageNames(): string[] {
-    const arch = process.arch;
-    const variants = process.platform === "linux" ? ["linux", "linuxmusl"] : [process.platform];
-    return variants.map((variant) => `@github/copilot-${variant}-${arch}`);
-}
-
-interface BundledCliPackage {
-    root: string;
-    platform: string;
-}
-
-/**
- * Resolves the current platform package and its npm prebuilds folder.
- *
- * In ESM, uses import.meta.resolve directly. In CJS (e.g., VS Code extensions
- * bundled with esbuild format:"cjs"), import.meta is empty so we fall back to
- * walking node_modules to find the package.
- */
-function getBundledCliPackage(): BundledCliPackage {
-    const packageNames = getCliPlatformPackageNames();
-
-    if (typeof import.meta.resolve === "function") {
-        // ESM: resolve via import.meta.resolve
-        for (const packageName of packageNames) {
-            try {
-                const packageEntryUrl = import.meta.resolve(packageName);
-                const packageEntryPath = fileURLToPath(packageEntryUrl);
-                return {
-                    root: dirname(packageEntryPath),
-                    platform: packageName.slice("@github/copilot-".length),
-                };
-            } catch {
-                // Try the next candidate platform package.
-            }
-        }
-        throw new Error(
-            `Could not resolve a @github/copilot platform package (tried ${packageNames.join(", ")}). ` +
-                `Ensure @github/copilot is installed, or pass cliPath/cliUrl to CopilotClient.`
-        );
-    }
-
-    // CJS fallback: the platform packages have ESM-only exports so
-    // require.resolve cannot reach them. Walk the module search paths instead.
-    const req = createRequire(__filename);
-    const searchPaths = req.resolve.paths("@github/copilot") ?? [];
-    for (const base of searchPaths) {
-        for (const packageName of packageNames) {
-            const root = join(base, ...packageName.split("/"));
-            const candidate = join(root, "index.js");
-            if (existsSync(candidate)) {
-                return {
-                    root,
-                    platform: packageName.slice("@github/copilot-".length),
-                };
-            }
-        }
-    }
-    throw new Error(
-        `Could not find a @github/copilot platform package (tried ${packageNames.join(", ")}). ` +
-            `Searched ${searchPaths.length} paths. ` +
-            `Ensure @github/copilot is installed, or pass cliPath/cliUrl to CopilotClient.`
-    );
-}
-
-function getBundledRuntimePath(): string {
-    const bundled = getBundledCliPackage();
-    return materializeRuntimeBundle({
-        packageRoot: bundled.root,
-        platform: bundled.platform,
-    });
+function getBundledRuntimePath(): Promise<string> {
+    return ensureRuntimeBundle(COPILOT_CLI_VERSION);
 }
 
 /**
@@ -777,8 +701,6 @@ export class CopilotClient {
             const explicitCliPath = conn.path ?? effectiveEnv.COPILOT_CLI_PATH;
             if (explicitCliPath) {
                 this.resolvedCliPath = explicitCliPath;
-            } else {
-                this.resolvedCliPath = getBundledRuntimePath();
             }
         }
 
@@ -827,22 +749,38 @@ export class CopilotClient {
 
     /**
      * Parse CLI URL into host and port
-     * Supports formats: "host:port", "http://host:port", "https://host:port", or just "port"
+     * Supports formats: "host:port", "[ipv6]:port", "http://host:port", "https://host:port", or just "port"
      */
     private parseCliUrl(url: string): { host: string; port: number } {
         // Remove protocol if present
-        let cleanUrl = url.replace(/^https?:\/\//, "");
+        const cleanUrl = url.replace(/^https?:\/\//, "");
 
         // Check if it's just a port number
         if (/^\d+$/.test(cleanUrl)) {
             return { host: "localhost", port: parseInt(cleanUrl, 10) };
         }
 
+        // Handle the canonical bracketed IPv6 host:port form without changing
+        // the existing parser behavior for other inputs.
+        const ipv6Match = cleanUrl.match(/^\[([^\]]+)\]:(\d+)$/);
+        if (ipv6Match) {
+            const host = ipv6Match[1];
+            if (!isIPv6(host)) {
+                throw new Error(`Invalid cliUrl format: ${url}`);
+            }
+
+            const port = parseInt(ipv6Match[2], 10);
+            if (isNaN(port) || port <= 0 || port > 65535) {
+                throw new Error(`Invalid port in cliUrl: ${url}`);
+            }
+            return { host, port };
+        }
+
         // Parse host:port format
         const parts = cleanUrl.split(":");
         if (parts.length !== 2) {
             throw new Error(
-                `Invalid cliUrl format: ${url}. Expected "host:port", "http://host:port", or "port"`
+                `Invalid cliUrl format: ${url}. Expected "host:port", "[ipv6]:port", "http://host:port", or "port"`
             );
         }
 
@@ -1818,6 +1756,7 @@ export class CopilotClient {
             await this.updateSessionOptionsForMode(session, config);
             this.commitGitHubTokenProvider(returnedSessionId, gitHubTokenProviderRegistrationId);
         } catch (e) {
+            session?._markDisconnected();
             if (registeredId !== undefined) {
                 this.sessions.delete(registeredId);
             }
@@ -2096,6 +2035,7 @@ export class CopilotClient {
             await this.updateSessionOptionsForMode(session, config);
             this.commitGitHubTokenProvider(sessionId, gitHubTokenProviderRegistrationId);
         } catch (e) {
+            session._markDisconnected();
             this.sessions.delete(sessionId);
             if (gitHubTokenProviderRegistrationId !== undefined) {
                 this.githubTokenProviders.delete(gitHubTokenProviderRegistrationId);
@@ -2646,6 +2586,7 @@ export class CopilotClient {
      * Start the CLI server process
      */
     private async startCLIServer(): Promise<void> {
+        this.resolvedCliPath ??= await getBundledRuntimePath();
         return new Promise((resolve, reject) => {
             // Clear stderr buffer for fresh capture
             this.stderrBuffer = "";
@@ -2705,7 +2646,7 @@ export class CopilotClient {
             // Verify CLI exists before attempting to spawn
             if (!existsSync(this.resolvedCliPath)) {
                 throw new Error(
-                    `Copilot CLI not found at ${this.resolvedCliPath}. Ensure @github/copilot is installed.`
+                    `Copilot CLI not found at ${this.resolvedCliPath}. Set COPILOT_CLI_PATH to use a custom installation.`
                 );
             }
 
@@ -2849,14 +2790,21 @@ export class CopilotClient {
     /** Starts the in-process FFI runtime with SDK-managed typed options. */
     private async startInProcessFfi(): Promise<void> {
         const explicitEntrypoint = this.resolvedEnv.COPILOT_CLI_PATH;
-        const runtimeLibrary = explicitEntrypoint
-            ? join(
-                  dirname(resolve(explicitEntrypoint)),
-                  "prebuilds",
-                  CopilotClient.getNapiPrebuildsFolder(explicitEntrypoint),
-                  "runtime.node"
-              )
-            : join(dirname(getBundledRuntimePath()), "runtime.node");
+        let runtimeLibrary: string;
+        if (explicitEntrypoint) {
+            const entrypointDirectory = dirname(resolve(explicitEntrypoint));
+            const adjacentRuntime = join(entrypointDirectory, "runtime.node");
+            runtimeLibrary = existsSync(adjacentRuntime)
+                ? adjacentRuntime
+                : join(
+                      entrypointDirectory,
+                      "prebuilds",
+                      CopilotClient.getNapiPrebuildsFolder(explicitEntrypoint),
+                      "runtime.node"
+                  );
+        } else {
+            runtimeLibrary = join(dirname(await getBundledRuntimePath()), "runtime.node");
+        }
         // Load the FFI host lazily so the native `koffi` addon (and its
         // platform-specific `koffi.node`) is only loaded on the in-process path;
         // out-of-process (stdio/tcp) consumers never touch the native dependency.

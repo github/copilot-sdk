@@ -18,15 +18,16 @@ import (
 )
 
 // newTestSession creates a session with an event channel and starts the consumer goroutine.
-// Returns a cleanup function that closes the channel (stopping the consumer).
+// Returns a cleanup function that stops the consumer.
 func newTestSession() (*Session, func()) {
 	s := &Session{
 		handlers:        make([]sessionHandler, 0),
 		commandHandlers: make(map[string]CommandHandler),
 		eventCh:         make(chan SessionEvent, 128),
+		eventDone:       make(chan struct{}),
 	}
 	go s.processEvents()
-	return s, func() { close(s.eventCh) }
+	return s, s.stopEventProcessing
 }
 
 func newTestEvent() SessionEvent {
@@ -66,6 +67,27 @@ func TestExternalToolCompletedCancelsBlockedHandler(t *testing.T) {
 	case <-cancelled:
 	case <-time.After(time.Second):
 		t.Fatal("tool handler was not cancelled")
+	}
+}
+
+func TestDispatchEventReturnsAfterEventProcessingStops(t *testing.T) {
+	session := &Session{
+		eventCh:   make(chan SessionEvent),
+		eventDone: make(chan struct{}),
+	}
+
+	dispatched := make(chan struct{})
+	go func() {
+		session.dispatchEvent(newTestEvent())
+		close(dispatched)
+	}()
+
+	session.stopEventProcessing()
+
+	select {
+	case <-dispatched:
+	case <-time.After(time.Second):
+		t.Fatal("dispatchEvent remained blocked after event processing stopped")
 	}
 }
 
@@ -459,9 +481,10 @@ func TestSession_SendAndWaitSkipsAutopilotContinuationIdle(t *testing.T) {
 		RPC:       rpc.NewSessionRPC(client, "session-1"),
 		handlers:  make([]sessionHandler, 0),
 		eventCh:   make(chan SessionEvent, 8),
+		eventDone: make(chan struct{}),
 	}
 	go session.processEvents()
-	defer close(session.eventCh)
+	defer session.stopEventProcessing()
 
 	resultCh := make(chan *SessionEvent, 1)
 	go func() {

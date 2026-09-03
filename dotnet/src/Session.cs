@@ -207,6 +207,32 @@ public sealed partial class CopilotSession : IAsyncDisposable
         ((ICollection<KeyValuePair<string, CopilotSession>>)_parentClient._sessions).Remove(new(SessionId, this));
     }
 
+    /// <summary>
+    /// Stops the session's event consumer (<see cref="ProcessEventsAsync"/>) without
+    /// making an RPC. <see cref="CopilotClient.CreateSessionAsync"/> and
+    /// <see cref="CopilotClient.ResumeSessionAsync"/> use this on error paths where a
+    /// locally registered session fails before it can be returned to the caller:
+    /// <see cref="StartProcessingEvents"/> starts the consumer eagerly, and no caller
+    /// ever receives the failed session to dispose it. Safe to call more than once —
+    /// <see cref="ChannelWriter{T}.TryComplete"/> is idempotent.
+    /// </summary>
+    internal void CloseEventChannel()
+    {
+        _eventChannel.Writer.TryComplete();
+    }
+
+    /// <summary>
+    /// Removes the session from its parent client and stops its event consumer.
+    /// Used on session-creation/resume error paths where the session was registered
+    /// (and its event loop started) but never returned to the caller.
+    /// </summary>
+    internal void Unregister()
+    {
+        CancelPendingExternalTools();
+        CloseEventChannel();
+        RemoveFromClient();
+    }
+
     internal void SetGitHubTokenProviderRegistration(string registrationId)
     {
         _gitHubTokenProviderRegistrationId = registrationId;
@@ -865,14 +891,25 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// </summary>
     private async Task ExecuteToolAndRespondAsync(string requestId, string toolName, string toolCallId, JsonElement? arguments, AIFunction tool)
     {
-        using var cancellationSource = CancellationTokenSource.CreateLinkedTokenSource(_externalToolLifetime.Token);
+        if (_externalToolLifetime.IsCancellationRequested)
+        {
+            return;
+        }
+
+        var cancellationSource = CancellationTokenSource.CreateLinkedTokenSource(_externalToolLifetime.Token);
         if (!_pendingExternalTools.TryAdd(requestId, cancellationSource))
         {
+            cancellationSource.Dispose();
             return;
         }
 
         try
         {
+            if (cancellationSource.IsCancellationRequested)
+            {
+                return;
+            }
+
             var invocation = new ToolInvocation
             {
                 SessionId = SessionId,
@@ -989,6 +1026,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
         {
             ((ICollection<KeyValuePair<string, CancellationTokenSource>>)_pendingExternalTools)
                 .Remove(new(requestId, cancellationSource));
+            cancellationSource.Dispose();
         }
     }
 
@@ -1000,18 +1038,21 @@ public sealed partial class CopilotSession : IAsyncDisposable
     {
         if (!string.IsNullOrEmpty(requestId) && _pendingExternalTools.TryRemove(requestId, out var cancellationSource))
         {
-            try
+            _ = Task.Run(() =>
             {
-                cancellationSource.Cancel();
-            }
-            catch (AggregateException)
-            {
-                // Cancellation callbacks are consumer code and must not disrupt event dispatch.
-            }
-            catch (ObjectDisposedException)
-            {
-                // The invocation completed while cancellation was being delivered.
-            }
+                try
+                {
+                    cancellationSource.Cancel();
+                }
+                catch (AggregateException)
+                {
+                    // Cancellation callbacks are consumer code and must not disrupt event dispatch.
+                }
+                catch (ObjectDisposedException)
+                {
+                    // The invocation completed while cancellation was being delivered.
+                }
+            });
         }
     }
 
@@ -2023,7 +2064,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
         }
 
         CancelPendingExternalTools();
-        _eventChannel.Writer.TryComplete();
+        CloseEventChannel();
 
         try
         {

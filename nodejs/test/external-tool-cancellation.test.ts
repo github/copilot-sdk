@@ -83,6 +83,33 @@ it("does not respond when a cancelled handler returns a late result", async () =
     expect(sendRequest).not.toHaveBeenCalled();
 });
 
+it("aborts the invocation signal after a normal tool result", async () => {
+    const sendRequest = vi.fn().mockResolvedValue(undefined);
+    const session = new CopilotSession("session-1", { sendRequest } as never);
+    let invocation: ToolInvocation | undefined;
+    (session as any).toolHandlers.set(
+        "completed_tool",
+        async (_args: unknown, context: ToolInvocation) => {
+            invocation = context;
+            return "done";
+        }
+    );
+
+    (session as any)._handleBroadcastEvent({
+        type: "external_tool.requested",
+        data: {
+            requestId: "request-completed",
+            sessionId: "session-1",
+            toolCallId: "tool-call-completed",
+            toolName: "completed_tool",
+            arguments: {},
+        },
+    });
+
+    await vi.waitFor(() => expect(sendRequest).toHaveBeenCalledTimes(1));
+    expect(invocation?.signal?.aborted).toBe(true);
+});
+
 it("remains retryable when disconnect fails", async () => {
     const sendRequest = vi
         .fn()

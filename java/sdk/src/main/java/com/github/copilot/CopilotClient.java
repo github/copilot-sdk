@@ -221,7 +221,10 @@ public final class CopilotClient implements AutoCloseable {
         // Parse CliUrl if provided
         if (this.options.getCliUrl() != null && !this.options.getCliUrl().isEmpty()) {
             URI uri = CliServerManager.parseCliUrl(this.options.getCliUrl());
-            this.optionsHost = uri.getHost();
+            String host = uri.getHost();
+            this.optionsHost = host != null && host.startsWith("[") && host.endsWith("]")
+                    ? host.substring(1, host.length() - 1)
+                    : host;
             this.optionsPort = uri.getPort();
         } else {
             this.optionsHost = null;
@@ -1018,6 +1021,7 @@ public final class CopilotClient implements AutoCloseable {
                         CopilotSession session = preRegisteredSessionHolder[0] != null
                                 ? preRegisteredSessionHolder[0]
                                 : initializeSession.apply(returnedId);
+                        preRegisteredSessionHolder[0] = session;
                         if (tokenRegistration != null) {
                             session.setGitHubTokenProviderRegistration(tokenRegistration);
                         }
@@ -1049,6 +1053,9 @@ public final class CopilotClient implements AutoCloseable {
                             return session;
                         });
                     }).exceptionally(ex -> {
+                        if (preRegisteredSessionHolder[0] != null) {
+                            preRegisteredSessionHolder[0].cancelPendingExternalTools();
+                        }
                         if (registeredIdHolder[0] != null) {
                             sessions.remove(registeredIdHolder[0]);
                         }
@@ -1229,6 +1236,7 @@ public final class CopilotClient implements AutoCloseable {
                                     return session;
                                 });
                     }).exceptionally(ex -> {
+                        session.cancelPendingExternalTools();
                         sessions.remove(sessionId);
                         // Also remove the re-keyed entry if the server returned a different ID
                         String activeId = session.getSessionId();

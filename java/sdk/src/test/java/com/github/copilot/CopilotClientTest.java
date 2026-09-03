@@ -28,6 +28,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -127,8 +128,14 @@ public class CopilotClientTest {
         var session = new CopilotSession("force-stop-session", rpc);
         var toolFuture = new CompletableFuture<Object>();
         var started = new CountDownLatch(1);
+        var lateStarted = new CountDownLatch(1);
+        var invocations = new AtomicInteger();
         session.registerTools(List.of(ToolDefinition.create("blocked_tool", "Blocks", Map.of(), invocation -> {
-            started.countDown();
+            if (invocations.incrementAndGet() == 1) {
+                started.countDown();
+            } else {
+                lateStarted.countDown();
+            }
             return toolFuture;
         })));
         Field sessionsField = CopilotClient.class.getDeclaredField("sessions");
@@ -146,6 +153,12 @@ public class CopilotClientTest {
 
         assertThrows(CancellationException.class, () -> toolFuture.get(1, TimeUnit.SECONDS));
         assertTrue(sessions.isEmpty());
+
+        var lateRequest = new ExternalToolRequestedEvent();
+        lateRequest.setData(new ExternalToolRequestedEvent.ExternalToolRequestedEventData("request-after-force-stop",
+                session.getSessionId(), "tool-call-after-force-stop", "blocked_tool", null, Map.of(), null, null, null));
+        session.dispatchEvent(lateRequest);
+        assertFalse(lateStarted.await(100, TimeUnit.MILLISECONDS));
     }
 
     @Test
@@ -212,6 +225,15 @@ public class CopilotClientTest {
         assertEquals(ConnectionState.DISCONNECTED, client.getState());
         assertFalse(options.isUseStdio(), "useStdio should be auto-corrected to false when cliUrl is set");
         client.close();
+    }
+
+    @Test
+    void testBracketedIpv6CliUrlNormalizesHost() throws Exception {
+        try (var client = new CopilotClient(new CopilotClientOptions().setCliUrl("[::1]:4321"))) {
+            Field hostField = CopilotClient.class.getDeclaredField("optionsHost");
+            hostField.setAccessible(true);
+            assertEquals("::1", hostField.get(client));
+        }
     }
 
     @Test

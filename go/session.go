@@ -101,8 +101,10 @@ type Session struct {
 
 	// eventCh serializes user event handler dispatch. dispatchEvent enqueues;
 	// a single goroutine (processEvents) dequeues and invokes handlers in FIFO order.
+	// eventDone stops both sides without closing eventCh while a sender may be active.
 	eventCh   chan SessionEvent
-	closeOnce sync.Once // guards eventCh close so Disconnect is safe to call more than once
+	eventDone chan struct{}
+	closeOnce sync.Once
 
 	// RPC provides typed session-scoped RPC methods.
 	RPC *rpc.SessionRPC
@@ -393,6 +395,7 @@ func newSession(
 		toolHandlers:      make(map[string]ToolHandler),
 		commandHandlers:   make(map[string]CommandHandler),
 		eventCh:           make(chan SessionEvent, 128),
+		eventDone:         make(chan struct{}),
 		RPC:               rpc.NewSessionRPC(client, sessionID),
 	}
 	s.clientSessionAPIs.Canvas = newCanvasClientSessionAdapter(s)
@@ -1411,14 +1414,10 @@ func (s *Session) dispatchEvent(event SessionEvent) {
 		go s.handleBroadcastEvent(event)
 	}
 
-	// Send to the event channel in a closure with a recover guard.
-	// Disconnect closes eventCh, and in Go sending on a closed channel
-	// panics — there is no non-panicking send primitive. We only want
-	// to suppress that specific panic; other panics are not expected here.
-	func() {
-		defer func() { recover() }()
-		s.eventCh <- event
-	}()
+	select {
+	case s.eventCh <- event:
+	case <-s.eventDone:
+	}
 }
 
 // processEvents is the single consumer goroutine for the event channel.
@@ -1426,7 +1425,14 @@ func (s *Session) dispatchEvent(event SessionEvent) {
 // handlers are recovered so that one misbehaving handler does not prevent
 // others from receiving the event.
 func (s *Session) processEvents() {
-	for event := range s.eventCh {
+	for {
+		var event SessionEvent
+		select {
+		case event = <-s.eventCh:
+		case <-s.eventDone:
+			return
+		}
+
 		s.handlerMutex.RLock()
 		handlers := make([]SessionEventHandler, 0, len(s.handlers))
 		for _, h := range s.handlers {
@@ -1445,6 +1451,13 @@ func (s *Session) processEvents() {
 			}()
 		}
 	}
+}
+
+// stopEventProcessing stops the session event consumer without making an RPC.
+// CreateSession/ResumeSession use this when a locally registered session fails
+// before it can be returned to the caller.
+func (s *Session) stopEventProcessing() {
+	s.closeOnce.Do(func() { close(s.eventDone) })
 }
 
 // handleBroadcastEvent handles broadcast request events by executing local handlers
@@ -1821,7 +1834,7 @@ func (s *Session) Disconnect() error {
 	s.cancelPendingExternalTools()
 	_, err := s.client.Request(context.Background(), "session.destroy", sessionDestroyRequest{SessionID: s.SessionID})
 
-	s.closeOnce.Do(func() { close(s.eventCh) })
+	s.stopEventProcessing()
 	s.releaseGitHubTokenProviderRegistration()
 
 	// Clear handlers

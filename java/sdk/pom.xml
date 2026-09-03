@@ -8,7 +8,7 @@
     <parent>
         <groupId>com.github</groupId>
         <artifactId>copilot-sdk-java-parent</artifactId>
-        <version>1.0.14-preview.4-SNAPSHOT</version>
+        <version>1.0.14-preview.5-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -42,20 +42,18 @@
         <copilot.sdk.root>${project.basedir}/../..</copilot.sdk.root>
         <copilot.tests.dir>${copilot.sdk.root}/test</copilot.tests.dir>
         <!--
-            Path to the Copilot CLI entry point used by the SDK tests. Defaults
-            to the CLI installed under the monorepo's nodejs/ directory.
-            Surefire injects this into the test JVM as the COPILOT_CLI_PATH
-            environment variable, so `mvn verify` is self-contained and the
-            developer never has to set it manually. Override on the command
-            line to point at a different CLI build, e.g.:
-              mvn verify -Dcopilot.cli.path=/some/other/copilot/npm-loader.js
+            Optional path to a Copilot CLI entry point used by the SDK tests.
+            When empty, the test helpers prepare the release pinned by
+            nodejs/package.json. Override on the command line to point at a
+            different CLI build, e.g.:
+              mvn verify -Dcopilot.cli.path=/some/other/copilot
         -->
-        <copilot.cli.path>${copilot.sdk.root}/nodejs/node_modules/@github/copilot/npm-loader.js</copilot.cli.path>
+        <copilot.cli.path />
         <!-- Set to true (via -Pskip-test-harness) to skip npm install of test harness -->
         <skip.test.harness>false</skip.test.harness>
         <!--
             Whether to skip the install-nodejs-cli-dependencies execution
-            (npm ci of the @github/copilot CLI). Defaults to ${skip.test.harness}
+            (npm ci for the Node.js runtime preparation tooling). Defaults to ${skip.test.harness}
             so it tracks the rest of the test-harness setup, but is also
             forced to true when Maven tests are skipped (-DskipTests or
             -Dmaven.test.skip) via the skip-cli-install-when-tests-skipped
@@ -196,12 +194,7 @@
                             </arguments>
                         </configuration>
                     </execution>
-                    <!--
-                        Install the @github/copilot CLI declared by the
-                        monorepo's nodejs/package.json. This is the CLI version
-                        the SDK tests must run against. Uses npm ci with the
-                        ignore-scripts flag, matching build-test.yml.
-                    -->
+                    <!-- Install the Node.js runtime preparation tooling. -->
                     <execution>
                         <id>install-nodejs-cli-dependencies</id>
                         <phase>generate-test-resources</phase>
@@ -249,9 +242,8 @@
                     </systemPropertyVariables>
                     <!--
                         Keep the integration-test JVM aligned with Surefire so
-                        tests like SlashCommandsIT resolve the pinned CLI from
-                        the monorepo nodejs install at
-                        ${copilot.sdk.root}/nodejs.
+                        tests like SlashCommandsIT resolve the pinned CLI using
+                        the monorepo Node.js runtime preparation tooling.
                     -->
                     <environmentVariables>
                         <COPILOT_CLI_PATH>${copilot.cli.path}</COPILOT_CLI_PATH>
@@ -281,10 +273,9 @@
                     </systemPropertyVariables>
                     <!--
                         Set COPILOT_CLI_PATH for the forked test JVM so the SDK
-                        tests transparently use the pinned CLI under
-                        ${copilot.sdk.root}/nodejs/. See the copilot.cli.path
-                        property above for the override mechanism and override
-                        support.
+                        tests use an explicit CLI override when provided. When
+                        empty, test helpers prepare the release pinned by the
+                        Node.js SDK.
                     -->
                     <environmentVariables>
                         <COPILOT_CLI_PATH>${copilot.cli.path}</COPILOT_CLI_PATH>

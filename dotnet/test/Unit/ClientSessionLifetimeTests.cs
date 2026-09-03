@@ -997,6 +997,60 @@ public sealed class ClientSessionLifetimeTests
     }
 
     [Fact]
+    public async Task ExternalToolCompleted_Does_Not_Block_Event_Dispatch_On_Cancellation_Callback()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        var toolStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var callbackStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseCallback = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var toolCancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            Tools = [AIFunctionFactory.Create(BlockedTool, "blocked_tool")],
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        DispatchEvent(session, ExternalToolRequested("request-blocking-callback"));
+        await toolStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var dispatchTask = Task.Run(() => DispatchEvent(session, new ExternalToolCompletedEvent
+        {
+            Data = new ExternalToolCompletedData { RequestId = "request-blocking-callback" }
+        }));
+        await callbackStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        try
+        {
+            await dispatchTask.WaitAsync(TimeSpan.FromSeconds(5));
+        }
+        finally
+        {
+            releaseCallback.TrySetResult();
+        }
+        await toolCancelled.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        async Task<string> BlockedTool(CancellationToken cancellationToken)
+        {
+            toolStarted.TrySetResult();
+            using var registration = cancellationToken.Register(() =>
+            {
+                callbackStarted.TrySetResult();
+                releaseCallback.Task.GetAwaiter().GetResult();
+            });
+            try
+            {
+                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+                return "unreachable";
+            }
+            catch (OperationCanceledException)
+            {
+                toolCancelled.TrySetResult();
+                throw;
+            }
+        }
+    }
+
+    [Fact]
     public async Task ForceStopAsync_Cancels_Blocked_Tool_When_Cancellation_Callback_Throws()
     {
         await using var server = await FakeCopilotServer.StartAsync();
@@ -1031,6 +1085,30 @@ public sealed class ClientSessionLifetimeTests
                 toolCancelled.TrySetResult();
                 throw;
             }
+        }
+    }
+
+    [Fact]
+    public async Task ForceStopAsync_Does_Not_Start_Late_External_Tool()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        var toolStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            Tools = [AIFunctionFactory.Create(Tool, "late_tool")],
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        await client.ForceStopAsync();
+        DispatchEvent(session, ExternalToolRequested("request-after-force-stop", "late_tool"));
+
+        Assert.False(toolStarted.Task.IsCompleted);
+
+        string Tool()
+        {
+            toolStarted.TrySetResult();
+            return "unexpected";
         }
     }
 
@@ -1107,7 +1185,7 @@ public sealed class ClientSessionLifetimeTests
         }
     }
 
-    private static ExternalToolRequestedEvent ExternalToolRequested(string requestId) =>
+    private static ExternalToolRequestedEvent ExternalToolRequested(string requestId, string toolName = "blocked_tool") =>
         new()
         {
             Data = new ExternalToolRequestedData
@@ -1115,7 +1193,7 @@ public sealed class ClientSessionLifetimeTests
                 RequestId = requestId,
                 SessionId = "session-1",
                 ToolCallId = "tool-call-1",
-                ToolName = "blocked_tool"
+                ToolName = toolName
             }
         };
 

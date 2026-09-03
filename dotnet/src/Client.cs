@@ -177,7 +177,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                     throw new ArgumentException("GitHubToken and UseLoggedInUser cannot be combined with RuntimeConnection.ForUri (the existing runtime manages its own auth).", nameof(options));
                 }
                 var parsed = ParseRuntimeUrl(uri.Url);
-                _optionsHost = parsed.Host;
+                _optionsHost = parsed.Host.Trim('[', ']');
                 _optionsPort = parsed.Port;
                 break;
 
@@ -308,7 +308,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// <summary>
     /// Parses a runtime URL into a URI with host and port.
     /// </summary>
-    /// <param name="url">The URL to parse. Supports formats: "port", "host:port", "http://host:port".</param>
+    /// <param name="url">The URL to parse. Supports formats: "port", "host:port", "[ipv6]:port", "http://host:port".</param>
     private static Uri ParseRuntimeUrl(string url)
     {
         // If it's just a port number, treat as localhost
@@ -1360,7 +1360,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         }
         catch (Exception ex)
         {
-            session?.RemoveFromClient();
+            session?.Unregister();
 
             if (ex is not OperationCanceledException)
             {
@@ -1565,7 +1565,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         }
         catch (Exception ex)
         {
-            session?.RemoveFromClient();
+            session?.Unregister();
             if (ex is not OperationCanceledException)
             {
                 LoggingHelpers.LogTiming(_logger, LogLevel.Warning, ex,
@@ -2548,17 +2548,23 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         var fullEntrypoint = Path.GetFullPath(cliPath);
         var directory = Path.GetDirectoryName(fullEntrypoint)
             ?? throw new InvalidOperationException($"Could not determine directory for '{cliPath}'.");
-        var flatLibraryPath = Path.Combine(directory, FfiRuntimeHost.GetRuntimeLibraryFileName());
+        var flatLibraryPath = Path.GetFullPath(
+            $"{directory}{Path.DirectorySeparatorChar}{FfiRuntimeHost.GetRuntimeLibraryFileName()}");
         if (File.Exists(flatLibraryPath))
         {
             return flatLibraryPath;
+        }
+        var adjacentPrebuildPath = Path.Combine(directory, "runtime.node");
+        if (File.Exists(adjacentPrebuildPath))
+        {
+            return adjacentPrebuildPath;
         }
         var prebuildsLibraryPath = Path.Combine(
             directory, "prebuilds", GetNapiPrebuildsFolderOrThrow(), "runtime.node");
         return File.Exists(prebuildsLibraryPath)
             ? prebuildsLibraryPath
             : throw new InvalidOperationException(
-                $"FFI runtime library not found. Looked for '{flatLibraryPath}' and '{prebuildsLibraryPath}'.");
+                $"FFI runtime library not found. Looked for '{flatLibraryPath}', '{adjacentPrebuildPath}', and '{prebuildsLibraryPath}'.");
     }
 
     /// <summary>
@@ -2710,7 +2716,14 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
     private async Task CancelExternalToolsWhenConnectionClosesAsync(JsonRpc rpc)
     {
-        await rpc.Completion.ConfigureAwait(false);
+        try
+        {
+            await rpc.Completion.ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "JSON-RPC connection completed with an error");
+        }
         var connectionTask = _connectionTask;
         if (connectionTask is null
             || connectionTask.Status != System.Threading.Tasks.TaskStatus.RanToCompletion

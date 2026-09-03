@@ -1194,6 +1194,7 @@ export class CopilotSession {
             if (this.pendingExternalTools.get(requestId) === controller) {
                 this.pendingExternalTools.delete(requestId);
             }
+            controller.abort();
         }
     }
 

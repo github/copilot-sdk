@@ -458,7 +458,12 @@ jobs:
         run: mvn javadoc:javadoc -q
 
       - name: Verify CLI works
-        run: node ../nodejs/node_modules/@github/copilot/npm-loader.js --version
+        run: |
+          npm --prefix ../nodejs ci --ignore-scripts
+          cli_path=$(npm --prefix ../nodejs run --silent prepare:runtime -- --print-path)
+          test -x "$cli_path"
+          legacy_cli=$(npm --prefix ../nodejs run --silent prepare:runtime -- --print-legacy-path)
+          node "$legacy_cli" --version
 
       - name: Run spotless check
         if: matrix.test-jdk == '25'
