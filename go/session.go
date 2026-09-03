@@ -1852,12 +1852,12 @@ type SetModelOptions struct {
 	// Experimental: AutoTier is part of an experimental Auto routing surface and
 	// may change or be removed.
 	AutoTier *AutoTier
-	// ClearAutoTier returns to the provider's default Auto routing as part of
+	// ResetAutoTier returns to the provider's default Auto routing as part of
 	// this switch. It is mutually exclusive with AutoTier.
 	//
-	// Experimental: ClearAutoTier is part of an experimental Auto routing surface
+	// Experimental: ResetAutoTier is part of an experimental Auto routing surface
 	// and may change or be removed.
-	ClearAutoTier bool
+	ResetAutoTier bool
 }
 
 // SetModel changes the model for this session.
@@ -1874,33 +1874,24 @@ type SetModelOptions struct {
 func (s *Session) SetModel(ctx context.Context, model string, opts *SetModelOptions) error {
 	params := &rpc.ModelSwitchToRequest{ModelID: model}
 	if opts != nil {
-		if opts.AutoTier != nil && opts.ClearAutoTier {
-			return errors.New("failed to set model: AutoTier and ClearAutoTier are mutually exclusive")
+		if opts.AutoTier != nil && opts.ResetAutoTier {
+			return errors.New("failed to set model: AutoTier and ResetAutoTier are mutually exclusive")
 		}
 		params.ReasoningEffort = opts.ReasoningEffort
 		params.ReasoningSummary = opts.ReasoningSummary
 		params.ContextTier = opts.ContextTier
 		params.ModelCapabilities = opts.ModelCapabilities
-		params.AutoTier = opts.AutoTier
 
-		if opts.ClearAutoTier {
-			// The generated request omits a nil AutoTier, which the runtime
-			// reads as "leave the preference alone" rather than "use default
-			// routing", so serialize the request and write the null back.
-			raw, err := json.Marshal(params)
-			if err != nil {
-				return fmt.Errorf("failed to set model: %w", err)
-			}
-			var req map[string]any
-			if err := json.Unmarshal(raw, &req); err != nil {
-				return fmt.Errorf("failed to set model: %w", err)
-			}
-			req["sessionId"] = s.SessionID
-			req["autoTier"] = nil
-			if _, err := s.client.Request(ctx, "session.model.switchTo", req); err != nil {
-				return fmt.Errorf("failed to set model: %w", err)
-			}
-			return nil
+		// The generated field is a double pointer so the three cases stay
+		// distinct on the wire: a nil outer pointer omits the field and leaves
+		// any staged preference alone, while a non-nil outer pointer sends the
+		// inner value, including an explicit null.
+		switch {
+		case opts.AutoTier != nil:
+			params.AutoTier = &opts.AutoTier
+		case opts.ResetAutoTier:
+			var providerDefault *AutoTier
+			params.AutoTier = &providerDefault
 		}
 	}
 	_, err := s.RPC.Model.SwitchTo(ctx, params)

@@ -247,7 +247,7 @@ fn switch_auto_tier_result_deserializes_full_snapshot() {
 }
 
 #[test]
-fn set_model_options_distinguishes_unset_tier_from_provider_default() {
+fn set_model_options_distinguishes_unset_tier_from_reset() {
     let untouched = SetModelOptions::default();
     assert_eq!(untouched.auto_tier, None);
 
@@ -257,6 +257,6 @@ fn set_model_options_distinguishes_unset_tier_from_provider_default() {
         Some(AutoTierPreference::Tier(AutoTier::Intelligence))
     );
 
-    let cleared = SetModelOptions::default().with_provider_default_auto_tier();
-    assert_eq!(cleared.auto_tier, Some(AutoTierPreference::ProviderDefault));
+    let cleared = SetModelOptions::default().with_reset_auto_tier();
+    assert_eq!(cleared.auto_tier, Some(AutoTierPreference::Reset));
 }

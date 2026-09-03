@@ -298,6 +298,19 @@ You can also read the authoritative state at any time through the session's `mod
 | Rust | `session.set_auto_tier(Some(AutoTier::Balance))` | `session.set_auto_tier(None)` |
 | Java | `session.setAutoTier(AutoTier.BALANCE)` | `session.setAutoTier(null)` |
 
+To select the `auto` model and its routing preference in a single call, stage the tier on the model switch instead. The runtime rejects this option when the model is anything other than `auto`.
+
+| SDK | Stage a tier with the switch | Reset to provider-default routing |
+|-----|------------------------------|-----------------------------------|
+| Node.js | `setModel("auto", { autoTier: "balance" })` | `setModel("auto", { autoTier: null })` |
+| Python | `set_model("auto", auto_tier="balance")` | `set_model("auto", auto_tier=None)` |
+| Go | `SetModelOptions{AutoTier: &tier}` | `SetModelOptions{ResetAutoTier: true}` |
+| .NET | `new SetModelOptions { AutoTier = AutoTier.Balance }` | `new SetModelOptions { ResetAutoTier = true }` |
+| Rust | `SetModelOptions::default().with_auto_tier(AutoTier::Balance)` | `SetModelOptions::default().with_reset_auto_tier()` |
+| Java | `new SetModelOptions().setModel("auto").setAutoTier(AutoTier.BALANCE)` | `new SetModelOptions().setModel("auto").setResetAutoTier(true)` |
+
+Node.js and Python express all three states natively, because `null`/`None` is distinguishable from an omitted argument. The other four SDKs cannot make that distinction in a single value, so they carry a separate reset option. Omitting both always means "leave the current preference alone."
+
 ### Example: changing model on resume
 
 ```typescript

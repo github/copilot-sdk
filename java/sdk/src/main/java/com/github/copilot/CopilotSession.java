@@ -2119,7 +2119,7 @@ public final class CopilotSession implements AutoCloseable {
      *
      * <pre>{@code
      * session.setModel(new SetModelOptions().setModel("auto").setAutoTier(AutoTier.INTELLIGENCE)).get();
-     * session.setModel(new SetModelOptions().setModel("auto").setClearAutoTier(true)).get();
+     * session.setModel(new SetModelOptions().setModel("auto").setResetAutoTier(true)).get();
      * }</pre>
      *
      * @param options
@@ -2141,9 +2141,9 @@ public final class CopilotSession implements AutoCloseable {
         if (options.getModel() == null) {
             throw new IllegalArgumentException("options must specify a model");
         }
-        if (options.getAutoTier() != null && options.isClearAutoTier()) {
+        if (options.getAutoTier() != null && options.isResetAutoTier()) {
             throw new IllegalArgumentException(
-                    "setModel cannot combine an explicit autoTier with clearAutoTier; choose one");
+                    "setModel cannot combine an explicit autoTier with resetAutoTier; choose one");
         }
         var generatedReasoningSummary = options.getReasoningSummary() == null
                 ? null
@@ -2152,7 +2152,7 @@ public final class CopilotSession implements AutoCloseable {
                 toGeneratedAutoTier(options.getAutoTier()), options.getReasoningEffort(), generatedReasoningSummary,
                 null, toGeneratedCapabilities(options.getModelCapabilities()), null, null, null, null, null, null, null,
                 null, null);
-        if (!options.isClearAutoTier()) {
+        if (!options.isResetAutoTier()) {
             return getRpc().model.switchTo(params).thenApply(r -> null);
         }
         // The generated params record omits null properties, but returning to

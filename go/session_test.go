@@ -98,7 +98,7 @@ func TestSession_SetModelForwardsAutoTier(t *testing.T) {
 }
 
 func TestSession_SetModelSendsExplicitNullAutoTierWhenCleared(t *testing.T) {
-	params := captureSetModelRequestForModel(t, "auto", &SetModelOptions{ClearAutoTier: true})
+	params := captureSetModelRequestForModel(t, "auto", &SetModelOptions{ResetAutoTier: true})
 
 	// An explicit null must survive to the wire. Omitting it would mean "leave
 	// the preference alone" rather than "use provider-default routing".
@@ -117,10 +117,10 @@ func TestSession_SetModelRejectsConflictingAutoTierOptions(t *testing.T) {
 
 	err := session.SetModel(context.Background(), "auto", &SetModelOptions{
 		AutoTier:      &tier,
-		ClearAutoTier: true,
+		ResetAutoTier: true,
 	})
 	if err == nil {
-		t.Fatal("expected an error when AutoTier and ClearAutoTier are both set")
+		t.Fatal("expected an error when AutoTier and ResetAutoTier are both set")
 	}
 }
 

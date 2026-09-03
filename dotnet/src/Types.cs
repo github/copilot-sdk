@@ -3025,7 +3025,7 @@ public struct SetModelOptions
     /// </summary>
     /// <remarks>
     /// Leave unset to leave the current preference alone. Set
-    /// <see cref="ClearAutoTier"/> instead to return to the provider's default Auto
+    /// <see cref="ResetAutoTier"/> instead to return to the provider's default Auto
     /// routing. The runtime rejects this option when the model is anything other than
     /// <c>auto</c>; use <see cref="CopilotSession.SetAutoTierAsync"/> to change the
     /// preference without changing the selected model.
@@ -3036,7 +3036,7 @@ public struct SetModelOptions
     /// Returns to the provider's default Auto routing as part of this switch.
     /// Mutually exclusive with <see cref="AutoTier"/>.
     /// </summary>
-    public bool ClearAutoTier { get; set; }
+    public bool ResetAutoTier { get; set; }
 }
 
 /// <summary>

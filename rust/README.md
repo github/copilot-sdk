@@ -402,7 +402,7 @@ if result.status == ModelSwitchAutoTierStatus::Pending {
 session.set_auto_tier(None).await?;
 ```
 
-`set_model` accepts the same preference through `SetModelOptions::with_auto_tier`, which stages the tier atomically with selecting `auto`. Use `with_provider_default_auto_tier` instead to return to provider-default routing.
+`set_model` accepts the same preference through `SetModelOptions::with_auto_tier`, which stages the tier atomically with selecting `auto`. Use `with_reset_auto_tier` instead to return to provider-default routing.
 
 See [Auto tier persistence](../docs/features/session-persistence.md#auto-tier-persistence)
 for the lifecycle rules.

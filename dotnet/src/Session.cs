@@ -1928,14 +1928,14 @@ public sealed partial class CopilotSession : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(model);
         ThrowIfDisposed();
 
-        if (options.AutoTier is not null && options.ClearAutoTier)
+        if (options.AutoTier is not null && options.ResetAutoTier)
         {
             throw new ArgumentException(
-                $"{nameof(SetModelOptions.AutoTier)} and {nameof(SetModelOptions.ClearAutoTier)} are mutually exclusive.",
+                $"{nameof(SetModelOptions.AutoTier)} and {nameof(SetModelOptions.ResetAutoTier)} are mutually exclusive.",
                 nameof(options));
         }
 
-        if (options.ClearAutoTier)
+        if (options.ResetAutoTier)
         {
             var request = new ModelSwitchToRequest
             {

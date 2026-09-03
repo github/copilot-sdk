@@ -571,7 +571,7 @@ impl Session {
             verbosity: None,
         };
 
-        if matches!(auto_tier, Some(AutoTierPreference::ProviderDefault)) {
+        if matches!(auto_tier, Some(AutoTierPreference::Reset)) {
             // The generated request skips a `None` tier, which the runtime reads
             // as "leave the preference alone" rather than "use provider-default
             // routing", so send an explicit null instead.

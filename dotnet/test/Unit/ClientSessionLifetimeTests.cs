@@ -558,7 +558,7 @@ public sealed class ClientSessionLifetimeTests
             OnPermissionRequest = PermissionHandler.ApproveAll
         });
 
-        await session.SetModelAsync("auto", new SetModelOptions { ClearAutoTier = true });
+        await session.SetModelAsync("auto", new SetModelOptions { ResetAutoTier = true });
 
         // An explicit null must survive to the wire. Omitting it would mean "leave the
         // preference alone" rather than "use provider-default routing".
@@ -579,7 +579,7 @@ public sealed class ClientSessionLifetimeTests
 
         await Assert.ThrowsAsync<ArgumentException>(() => session.SetModelAsync(
             "auto",
-            new SetModelOptions { AutoTier = AutoTier.Balance, ClearAutoTier = true }));
+            new SetModelOptions { AutoTier = AutoTier.Balance, ResetAutoTier = true }));
     }
 
     [Fact]

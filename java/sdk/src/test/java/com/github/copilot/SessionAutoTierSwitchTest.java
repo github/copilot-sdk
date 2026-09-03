@@ -70,7 +70,7 @@ class SessionAutoTierSwitchTest {
             var session = new CopilotSession("sess-3", sockets.client());
             var stub = sockets.stubServer();
 
-            session.setModel(new SetModelOptions().setModel("auto").setClearAutoTier(true));
+            session.setModel(new SetModelOptions().setModel("auto").setResetAutoTier(true));
 
             var sent = stub.readOneMessage();
             assertEquals("session.model.switchTo", sent.get("method").asText());
@@ -86,7 +86,7 @@ class SessionAutoTierSwitchTest {
         try (var sockets = new SocketPair()) {
             var session = new CopilotSession("sess-4", sockets.client());
 
-            var options = new SetModelOptions().setModel("auto").setAutoTier(AutoTier.BALANCE).setClearAutoTier(true);
+            var options = new SetModelOptions().setModel("auto").setAutoTier(AutoTier.BALANCE).setResetAutoTier(true);
 
             assertThrows(IllegalArgumentException.class, () -> session.setModel(options));
         }

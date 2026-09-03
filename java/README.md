@@ -385,7 +385,7 @@ if (result.status() == ModelSwitchAutoTierStatus.PENDING) {
 session.setAutoTier(null).get();
 ```
 
-`setModel(SetModelOptions)` accepts the same preference through `SetModelOptions.setAutoTier(...)`, which stages the tier atomically with selecting `auto`. Call `setClearAutoTier(true)` instead to return to provider-default routing; the two options are mutually exclusive.
+`setModel(SetModelOptions)` accepts the same preference through `SetModelOptions.setAutoTier(...)`, which stages the tier atomically with selecting `auto`. Call `setResetAutoTier(true)` instead to return to provider-default routing; the two options are mutually exclusive.
 
 ## Session Store
 

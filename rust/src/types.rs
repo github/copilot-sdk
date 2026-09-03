@@ -4813,13 +4813,13 @@ pub struct SetModelOptions {
 ///
 /// This is a three-state choice. Leaving [`SetModelOptions::auto_tier`] as
 /// `None` leaves the current preference alone, which is different from
-/// [`AutoTierPreference::ProviderDefault`], which actively clears it.
+/// [`AutoTierPreference::Reset`], which actively resets it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AutoTierPreference {
     /// Route using a specific tier.
     Tier(AutoTier),
     /// Return to the provider's default Auto routing.
-    ProviderDefault,
+    Reset,
 }
 
 impl SetModelOptions {
@@ -4858,8 +4858,8 @@ impl SetModelOptions {
 
     /// Set [`auto_tier`](Self::auto_tier) to return to the provider's default
     /// Auto routing.
-    pub fn with_provider_default_auto_tier(mut self) -> Self {
-        self.auto_tier = Some(AutoTierPreference::ProviderDefault);
+    pub fn with_reset_auto_tier(mut self) -> Self {
+        self.auto_tier = Some(AutoTierPreference::Reset);
         self
     }
 }

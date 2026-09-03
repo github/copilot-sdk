@@ -301,7 +301,7 @@ if (result.Status == ModelSwitchAutoTierStatus.Pending)
 await session.SetAutoTierAsync(null);
 ```
 
-`SetModelAsync` accepts the same preference through `SetModelOptions.AutoTier`, which stages the tier atomically with selecting `auto`. Set `ClearAutoTier` instead to return to provider-default routing; the two options are mutually exclusive.
+`SetModelAsync` accepts the same preference through `SetModelOptions.AutoTier`, which stages the tier atomically with selecting `auto`. Set `ResetAutoTier` instead to return to provider-default routing; the two options are mutually exclusive.
 
 See [Auto tier persistence](../docs/features/session-persistence.md#auto-tier-persistence) for the full lifecycle rules.
 

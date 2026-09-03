@@ -28,7 +28,7 @@ public class SetModelOptions {
 
     private AutoTier autoTier;
 
-    private boolean clearAutoTier;
+    private boolean resetAutoTier;
 
     /**
      * Gets the target model ID.
@@ -131,7 +131,7 @@ public class SetModelOptions {
      * <p>
      * The runtime records the request and commits it only when a later user turn
      * using the {@code auto} model successfully obtains a usable model from the
-     * provider. Use {@link #setClearAutoTier(boolean)} to return to the provider's
+     * provider. Use {@link #setResetAutoTier(boolean)} to return to the provider's
      * default Auto routing instead.
      *
      * @param autoTier
@@ -149,8 +149,8 @@ public class SetModelOptions {
      *
      * @return {@code true} when the request clears the Auto routing preference
      */
-    public boolean isClearAutoTier() {
-        return clearAutoTier;
+    public boolean isResetAutoTier() {
+        return resetAutoTier;
     }
 
     /**
@@ -159,12 +159,12 @@ public class SetModelOptions {
      * This differs from leaving {@link #setAutoTier(AutoTier)} unset, which keeps
      * the current preference. It cannot be combined with an explicit tier.
      *
-     * @param clearAutoTier
+     * @param resetAutoTier
      *            {@code true} to return to provider-default Auto routing
      * @return this options object for method chaining
      */
-    public SetModelOptions setClearAutoTier(boolean clearAutoTier) {
-        this.clearAutoTier = clearAutoTier;
+    public SetModelOptions setResetAutoTier(boolean resetAutoTier) {
+        this.resetAutoTier = resetAutoTier;
         return this;
     }
 }
