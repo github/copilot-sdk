@@ -1535,13 +1535,12 @@ impl Client {
             event_tx.clone(),
             shutdown.clone(),
         );
-        let mut registration =
-            PendingSessionRegistration::new(
-                self.clone(),
-                session_id.clone(),
-                registration_token,
-                shutdown.clone(),
-            );
+        let mut registration = PendingSessionRegistration::new(
+            self.clone(),
+            session_id.clone(),
+            registration_token,
+            shutdown.clone(),
+        );
         tracing::debug!(
             elapsed_ms = setup_start.elapsed().as_millis(),
             session_id = %session_id,
