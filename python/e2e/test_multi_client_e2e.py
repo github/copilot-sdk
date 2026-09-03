@@ -371,7 +371,7 @@ class TestMultiClientBroadcast:
             for event in completed_events:
                 assert event.data.result.kind == "denied-interactively-by-user"
 
-            await session1_idle
+            assert (await session1_idle).type.value == "session.idle"
 
             # Verify the file was NOT modified (permission was denied)
             with open(test_file) as f:
