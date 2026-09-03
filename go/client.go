@@ -1414,6 +1414,11 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 			}
 		}
 		c.sessionsMux.Unlock()
+		// newSession starts processEvents eagerly, before the RPC confirms the
+		// resume; every failure path here restores the previously-registered
+		// session (if any) but never returns this failed one to the caller, so
+		// its event consumer must be stopped here or it leaks forever.
+		session.stopEventProcessing()
 	}
 
 	if c.options.SessionFS != nil {
