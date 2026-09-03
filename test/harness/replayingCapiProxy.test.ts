@@ -463,8 +463,7 @@ Always include PINEAPPLE_COCONUT_42.
     ]);
 
     const result = await readYamlOutput(outputPath);
-    expect(result.conversations[0].messages[0].content)
-      .toBe(`<skill-context name="test-skill">
+    expect(result.conversations[0].messages[0].content).toBe(`<skill-context name="test-skill">
 Base directory for this skill: ${workingDirPlaceholder}/.test_skills/test-skill
 
 # Test Skill Instructions
@@ -902,9 +901,7 @@ Always include PINEAPPLE_COCONUT_42.
 
     test("matches shell tool results with shell ID completion markers", async () => {
       const originalShellConfig =
-        process.platform === "win32"
-          ? ShellConfig.powerShell
-          : ShellConfig.bash;
+        process.platform === "win32" ? ShellConfig.powerShell : ShellConfig.bash;
       const cachePath = path.join(tempDir, "cache.yaml");
       const cacheContent = yaml.stringify({
         models: ["test-model"],
@@ -1664,9 +1661,7 @@ Always include PINEAPPLE_COCONUT_42.
           const parsed = JSON.parse(response.body) as {
             data: Array<{ id: string }>;
           };
-          expect(parsed.data.map((model) => model.id)).toEqual([
-            "claude-sonnet-5",
-          ]);
+          expect(parsed.data.map((model) => model.id)).toEqual(["claude-sonnet-5"]);
         } finally {
           await proxy.stop();
         }
