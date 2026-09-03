@@ -2626,6 +2626,12 @@ impl Client {
 
     #[cfg(feature = "test-support")]
     #[doc(hidden)]
+    pub fn registered_session_count_for_test(&self) -> usize {
+        self.registered_session_ids().len()
+    }
+
+    #[cfg(feature = "test-support")]
+    #[doc(hidden)]
     /// Disconnect and delete every session owned by this test client's isolated
     /// runtime. This is test-harness plumbing, not part of the supported SDK API.
     pub async fn cleanup_sessions_for_test(&self) -> Result<()> {

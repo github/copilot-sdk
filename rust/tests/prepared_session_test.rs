@@ -213,7 +213,7 @@ fn expect_error<T>(result: Result<T, github_copilot_sdk::Error>) -> github_copil
 async fn await_no_registrations(client: &Client) {
     let deadline = tokio::time::Instant::now() + TIMEOUT;
     loop {
-        let outstanding = client.registered_session_ids_for_test().len();
+        let outstanding = client.registered_session_count_for_test();
         if outstanding == 0 {
             return;
         }
