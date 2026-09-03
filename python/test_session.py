@@ -86,7 +86,7 @@ async def test_external_tool_completed_cancels_blocked_handler():
             await asyncio.Future()
         except asyncio.CancelledError:
             cancelled.set()
-            return ToolResult(text_result_for_llm="late result")
+        return ToolResult(text_result_for_llm="late result")
 
     session._register_tools([Tool("blocked_tool", "Blocks", blocked_tool)])
     session._dispatch_event(

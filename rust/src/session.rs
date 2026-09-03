@@ -1145,11 +1145,11 @@ impl Client {
             "Client::create_session local setup complete"
         );
         *capabilities.write() = create_result.capabilities.unwrap_or_default();
-        if has_mcp_auth_handler {
-            if let Err(error) = register_mcp_auth_interest(self, &session_id).await {
-                registration.cleanup(event_loop).await;
-                return Err(error);
-            }
+        if has_mcp_auth_handler
+            && let Err(error) = register_mcp_auth_interest(self, &session_id).await
+        {
+            registration.cleanup(event_loop).await;
+            return Err(error);
         }
 
         tracing::debug!(
@@ -1395,11 +1395,11 @@ impl Client {
             })
             .into());
         }
-        if has_mcp_auth_handler {
-            if let Err(error) = register_mcp_auth_interest(self, &session_id).await {
-                registration.cleanup(event_loop).await;
-                return Err(error);
-            }
+        if has_mcp_auth_handler
+            && let Err(error) = register_mcp_auth_interest(self, &session_id).await
+        {
+            registration.cleanup(event_loop).await;
+            return Err(error);
         }
 
         // Reload skills after resume (best-effort).

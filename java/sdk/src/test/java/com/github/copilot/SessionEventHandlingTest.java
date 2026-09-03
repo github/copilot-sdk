@@ -94,8 +94,8 @@ public class SessionEventHandlingTest {
         })));
 
         var requested = new ExternalToolRequestedEvent();
-        requested.setData(new ExternalToolRequestedEvent.ExternalToolRequestedEventData("request-1",
-                "test-session-id", "tool-call-1", "blocked_tool", null, Map.of(), null, null, null));
+        requested.setData(new ExternalToolRequestedEvent.ExternalToolRequestedEventData("request-1", "test-session-id",
+                "tool-call-1", "blocked_tool", null, Map.of(), null, null, null));
         dispatchEvent(requested);
         assertTrue(started.await(1, TimeUnit.SECONDS));
 
@@ -130,8 +130,8 @@ public class SessionEventHandlingTest {
     void testExternalToolCompletedDoesNotBlockOnSynchronousHandler() throws Exception {
         var started = new CountDownLatch(1);
         var release = new CountDownLatch(1);
-        session.registerTools(List.of(ToolDefinition.create("blocked_tool", "Blocks synchronously", Map.of(),
-                invocation -> {
+        session.registerTools(
+                List.of(ToolDefinition.create("blocked_tool", "Blocks synchronously", Map.of(), invocation -> {
                     started.countDown();
                     try {
                         release.await();

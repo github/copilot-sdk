@@ -1009,8 +1009,7 @@ public final class CopilotSession implements AutoCloseable {
             ToolDefinition tool) {
         var pending = new PendingExternalTool();
         synchronized (this) {
-            if (isTerminated || externalToolsClosed
-                    || pendingExternalTools.putIfAbsent(requestId, pending) != null) {
+            if (isTerminated || externalToolsClosed || pendingExternalTools.putIfAbsent(requestId, pending) != null) {
                 return;
             }
         }

@@ -156,7 +156,8 @@ public class CopilotClientTest {
 
         var lateRequest = new ExternalToolRequestedEvent();
         lateRequest.setData(new ExternalToolRequestedEvent.ExternalToolRequestedEventData("request-after-force-stop",
-                session.getSessionId(), "tool-call-after-force-stop", "blocked_tool", null, Map.of(), null, null, null));
+                session.getSessionId(), "tool-call-after-force-stop", "blocked_tool", null, Map.of(), null, null,
+                null));
         session.dispatchEvent(lateRequest);
         assertFalse(lateStarted.await(100, TimeUnit.MILLISECONDS));
     }
