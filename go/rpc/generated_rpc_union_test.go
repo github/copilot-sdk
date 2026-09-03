@@ -52,7 +52,7 @@ func TestOptionalNullableFieldsPreserveOmittedAndNull(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal unset progress: %v", err)
 	}
-	if string(unset) != `{}` {
+	if string(unset) != `{"kind":"progress"}` {
 		t.Fatalf("marshal unset progress = %s", unset)
 	}
 
@@ -65,7 +65,7 @@ func TestOptionalNullableFieldsPreserveOmittedAndNull(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal cleared progress: %v", err)
 	}
-	if string(cleared) != `{"percentage":null,"phase":null}` {
+	if string(cleared) != `{"kind":"progress","percentage":null,"phase":null}` {
 		t.Fatalf("marshal cleared progress = %s", cleared)
 	}
 }

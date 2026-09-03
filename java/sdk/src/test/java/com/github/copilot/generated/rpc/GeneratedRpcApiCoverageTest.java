@@ -97,7 +97,7 @@ class GeneratedRpcApiCoverageTest {
         var stub = new StubCaller();
         var server = new ServerRpc(stub);
 
-        var params = new McpConfigRemoveParams("myServer");
+        var params = new McpConfigRemoveParams("myServer", null);
         server.mcp.config.remove(params);
 
         assertEquals(1, stub.calls.size());
