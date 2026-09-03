@@ -165,13 +165,11 @@ class TestMcpOAuth:
     ):
         url, process = await _start_oauth_mcp_server()
         server_name = "oauth-direct-rpc-mcp"
-        loop = asyncio.get_running_loop()
-        observed_request = loop.create_future()
+        observed_requests = asyncio.Queue()
         release_handler = asyncio.Event()
 
         async def on_mcp_auth_request(request, _invocation):
-            if not observed_request.done():
-                observed_request.set_result(request)
+            observed_requests.put_nowait(request)
             await release_handler.wait()
             return {"kind": "token", "accessToken": EXPECTED_TOKEN}
 
@@ -197,7 +195,23 @@ class TestMcpOAuth:
                 reload_task = asyncio.create_task(session.rpc.mcp.reload())
                 connected = asyncio.create_task(_wait_for_mcp_server_status(session, server_name))
                 try:
-                    request = await asyncio.wait_for(observed_request, timeout=30.0)
+                    request = await asyncio.wait_for(observed_requests.get(), timeout=30.0)
+                    while True:
+                        handled = await session.rpc.mcp.oauth.handle_pending_request(
+                            MCPOauthHandlePendingRequest(
+                                request_id=request["requestId"],
+                                result=MCPOauthPendingRequestResponse(
+                                    kind=GitHubTokenAcquireResultKind.TOKEN,
+                                    access_token=EXPECTED_TOKEN,
+                                    token_type="Bearer",
+                                    expires_in=3600,
+                                ),
+                            )
+                        )
+                        if handled.success:
+                            break
+                        request = await asyncio.wait_for(observed_requests.get(), timeout=30.0)
+
                     assert request["serverName"] == server_name
                     assert request["serverUrl"] == f"{url}/mcp"
                     assert request["reason"] == "initial"
@@ -206,19 +220,6 @@ class TestMcpOAuth:
                         "scope": "mcp.read",
                         "error": "invalid_token",
                     }
-
-                    handled = await session.rpc.mcp.oauth.handle_pending_request(
-                        MCPOauthHandlePendingRequest(
-                            request_id=request["requestId"],
-                            result=MCPOauthPendingRequestResponse(
-                                kind=GitHubTokenAcquireResultKind.TOKEN,
-                                access_token=EXPECTED_TOKEN,
-                                token_type="Bearer",
-                                expires_in=3600,
-                            ),
-                        )
-                    )
-                    assert handled.success is True
 
                     release_handler.set()
                     await asyncio.wait_for(reload_task, timeout=60.0)

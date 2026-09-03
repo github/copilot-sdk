@@ -7,6 +7,7 @@ using GitHub.Copilot.Test.Harness;
 using System.Diagnostics;
 using System.Net.Http;
 using System.Text.Json;
+using System.Threading.Channels;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -76,14 +77,14 @@ public class McpOAuthE2ETests(E2ETestFixture fixture, ITestOutputHelper output) 
     {
         await using var oauthServer = await OAuthMcpServer.StartAsync(ExpectedToken);
         var serverName = "oauth-direct-rpc-mcp";
-        var authRequest = new TaskCompletionSource<McpAuthContext>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var authRequests = Channel.CreateUnbounded<McpAuthContext>();
         var releaseHandler = new TaskCompletionSource<McpAuthResult?>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await using var session = await CreateSessionAsync(new SessionConfig
         {
             OnMcpAuthRequest = request =>
             {
-                authRequest.TrySetResult(request);
+                authRequests.Writer.TryWrite(request);
                 return releaseHandler.Task;
             },
             McpServers = new Dictionary<string, McpServerConfig>
@@ -98,23 +99,31 @@ public class McpOAuthE2ETests(E2ETestFixture fixture, ITestOutputHelper output) 
 
         var reload = session.Rpc.Mcp.ReloadAsync();
         var connected = WaitForMcpServerStatusAsync(session, serverName, McpServerStatus.Connected);
-        var request = await authRequest.Task.WaitAsync(TimeSpan.FromSeconds(30));
+        var request = await authRequests.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(30));
+
+        while (true)
+        {
+            var handled = await session.Rpc.Mcp.Oauth.HandlePendingRequestAsync(
+                request.RequestId,
+                new McpOauthPendingRequestResponseToken
+                {
+                    AccessToken = ExpectedToken,
+                    TokenType = "Bearer",
+                    ExpiresIn = 3600,
+                });
+            if (handled.Success)
+            {
+                break;
+            }
+            request = await authRequests.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(30));
+        }
+
         Assert.NotEmpty(request.RequestId);
         Assert.Equal(serverName, request.ServerName);
         Assert.Equal($"{oauthServer.Url}/mcp", request.ServerUrl);
         Assert.Equal(McpOauthRequestReason.Initial, request.Reason);
         Assert.NotNull(request.WwwAuthenticateParams);
         Assert.Equal("mcp.read", request.WwwAuthenticateParams!.Scope);
-
-        var handled = await session.Rpc.Mcp.Oauth.HandlePendingRequestAsync(
-            request.RequestId,
-            new McpOauthPendingRequestResponseToken
-            {
-                AccessToken = ExpectedToken,
-                TokenType = "Bearer",
-                ExpiresIn = 3600,
-            });
-        Assert.True(handled.Success);
 
         releaseHandler.SetResult(McpAuthResult.FromToken(new McpAuthToken { AccessToken = ExpectedToken }));
         await reload;

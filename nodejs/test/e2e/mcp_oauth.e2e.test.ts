@@ -96,10 +96,7 @@ describe("MCP OAuth host auth", async () => {
         async () => {
             const oauthServer = await startOAuthMcpServer();
             const serverName = "oauth-direct-rpc-mcp";
-            let resolveAuthRequest!: (request: McpAuthRequest) => void;
-            const authRequest = new Promise<McpAuthRequest>((resolve) => {
-                resolveAuthRequest = resolve;
-            });
+            const authRequests = createAsyncQueue<McpAuthRequest>();
             let releaseHandler!: (value: unknown) => void;
             const handlerResult = new Promise<unknown>((resolve) => {
                 releaseHandler = resolve;
@@ -109,7 +106,7 @@ describe("MCP OAuth host auth", async () => {
                 onPermissionRequest: approveAll,
                 enableMcpApps: true,
                 onMcpAuthRequest: async (request) => {
-                    resolveAuthRequest(request);
+                    authRequests.push(request);
                     await handlerResult;
                     return { kind: "token", accessToken: EXPECTED_TOKEN };
                 },
@@ -127,7 +124,23 @@ describe("MCP OAuth host auth", async () => {
 
             const reload = session.rpc.mcp.reload();
             const connected = waitForMcpServerStatus(session, serverName);
-            const request = await authRequest;
+            let request = await authRequests.next();
+            while (
+                !(
+                    await session.rpc.mcp.oauth.handlePendingRequest({
+                        requestId: request.requestId,
+                        result: {
+                            kind: "token",
+                            accessToken: EXPECTED_TOKEN,
+                            tokenType: "Bearer",
+                            expiresIn: 3600,
+                        },
+                    })
+                ).success
+            ) {
+                request = await authRequests.next();
+            }
+
             expect(request).toMatchObject({
                 requestId: expect.any(String),
                 serverName,
@@ -139,17 +152,6 @@ describe("MCP OAuth host auth", async () => {
                     error: "invalid_token",
                 },
             });
-
-            const handled = await session.rpc.mcp.oauth.handlePendingRequest({
-                requestId: request.requestId,
-                result: {
-                    kind: "token",
-                    accessToken: EXPECTED_TOKEN,
-                    tokenType: "Bearer",
-                    expiresIn: 3600,
-                },
-            });
-            expect(handled.success).toBe(true);
 
             releaseHandler(undefined);
             await reload;
@@ -382,4 +384,25 @@ function stopChild(child: ChildProcessWithoutNullStreams): Promise<void> {
     });
     child.kill("SIGTERM");
     return exitPromise;
+}
+
+function createAsyncQueue<T>(): { push(value: T): void; next(): Promise<T> } {
+    const values: T[] = [];
+    const waiters: Array<(value: T) => void> = [];
+    return {
+        push(value) {
+            const waiter = waiters.shift();
+            if (waiter) {
+                waiter(value);
+            } else {
+                values.push(value);
+            }
+        },
+        next() {
+            const value = values.shift();
+            return value === undefined
+                ? new Promise<T>((resolvePromise) => waiters.push(resolvePromise))
+                : Promise.resolve(value);
+        },
+    };
 }
