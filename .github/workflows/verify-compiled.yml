@@ -17,9 +17,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install gh-aw CLI
-        uses: github/gh-aw-actions/setup-cli@2709137ea6c5b0e19aa621454dc643ea8dc526b1 # v0.85.4
+        uses: github/gh-aw-actions/setup-cli@05205436a78512d71a2d842e46586ed05f4fa058 # v0.82.10
         with:
-          version: v0.85.4
+          version: v0.83.1
       - name: Recompile workflows
         # Full-repository compile so the diff check below covers all workflows.
         run: gh aw compile
