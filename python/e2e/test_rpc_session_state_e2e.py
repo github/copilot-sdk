@@ -215,6 +215,16 @@ class TestRpcSessionState:
         finally:
             await session.disconnect()
 
+    async def test_should_get_empty_autopilot_objective_state(self, ctx: E2ETestContext):
+        session = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all,
+        )
+        try:
+            result = await session.rpc.autopilot_objective.get_state()
+            assert result.state is None
+        finally:
+            await session.disconnect()
+
     async def test_should_call_workspace_file_rpc_methods(self, ctx: E2ETestContext):
         session = await ctx.client.create_session(
             on_permission_request=PermissionHandler.approve_all,

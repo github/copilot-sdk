@@ -233,6 +233,24 @@ func TestRPCSessionStateE2E(t *testing.T) {
 		}
 	})
 
+	t.Run("should get empty autopilot objective state", func(t *testing.T) {
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+		})
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+		defer session.Disconnect()
+
+		result, err := session.RPC.AutopilotObjective.GetState(t.Context())
+		if err != nil {
+			t.Fatalf("AutopilotObjective.GetState failed: %v", err)
+		}
+		if result.State != nil {
+			t.Fatalf("Expected empty objective state, got %+v", result.State)
+		}
+	})
+
 	t.Run("should call workspace file rpc methods", func(t *testing.T) {
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,

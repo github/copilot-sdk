@@ -131,6 +131,15 @@ public class RpcSessionStateE2ETests(E2ETestFixture fixture, ITestOutputHelper o
     }
 
     [Fact]
+    public async Task Should_Get_Empty_Autopilot_Objective_State()
+    {
+        await using var session = await CreateSessionAsync();
+
+        var result = await session.Rpc.AutopilotObjective.GetStateAsync();
+        Assert.Null(result.State);
+    }
+
+    [Fact]
     public async Task Should_Call_Workspace_File_Rpc_Methods()
     {
         await using var session = await CreateSessionAsync();

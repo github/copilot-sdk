@@ -111,6 +111,19 @@ class RpcSessionStateExtrasE2ETest {
     }
 
     @Test
+    void testShouldGetEmptyAutopilotObjectiveState() throws Exception {
+        ctx.configureForTest("rpc_session_state", "should_get_empty_autopilot_objective_state");
+
+        try (var client = ctx.createClient()) {
+            try (var session = client
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get()) {
+                var result = session.getRpc().autopilotObjective.getState().get(30, TimeUnit.SECONDS);
+                assertNull(result.state());
+            }
+        }
+    }
+
+    @Test
     void testShouldGetContextAttributionAndHeaviestMessagesAfterTurn() throws Exception {
         ctx.configureForTest("rpc_session_state_extras",
                 "should_get_context_attribution_and_heaviest_messages_after_turn");

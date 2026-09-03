@@ -227,6 +227,31 @@ async fn should_set_and_get_each_session_mode_value() {
 }
 
 #[tokio::test]
+async fn should_get_empty_autopilot_objective_state() {
+    super::support::with_e2e_context_no_snapshot(|ctx| {
+        Box::pin(async move {
+            let client = ctx.start_client().await;
+            let session = client
+                .create_session(ctx.approve_all_session_config())
+                .await
+                .expect("create session");
+
+            let result = session
+                .rpc()
+                .autopilot_objective()
+                .get_state()
+                .await
+                .expect("get autopilot objective state");
+            assert!(result.state.is_none());
+
+            session.disconnect().await.expect("disconnect session");
+            client.stop().await.expect("stop client");
+        })
+    })
+    .await;
+}
+
+#[tokio::test]
 async fn should_read_update_and_delete_plan() {
     super::support::with_shared_e2e_context(
         &E2E,

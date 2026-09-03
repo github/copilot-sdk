@@ -151,6 +151,16 @@ describe("Session-scoped RPC", async () => {
         await session.disconnect();
     });
 
+    it("should get empty autopilot objective state", async () => {
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+        try {
+            const result = await session.rpc.autopilotObjective.getState();
+            expect(result.state).toBeNull();
+        } finally {
+            await session.disconnect();
+        }
+    });
+
     it("should call workspace file rpc methods", async () => {
         const session = await client.createSession({ onPermissionRequest: approveAll });
 
