@@ -11,7 +11,7 @@ interface PackedPackage {
     manifest: {
         name: string;
         version: string;
-        repository: string | { type?: string; url: string };
+        repository?: string | { type?: string; url?: string };
         optionalDependencies?: Record<string, string>;
     };
     entries: Set<string>;
@@ -21,6 +21,12 @@ const nodeRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const sourceManifest = JSON.parse(
     readFileSync(join(nodeRoot, "package.json"), "utf8")
 ) as PackedPackage["manifest"];
+assert(
+    typeof sourceManifest.repository === "string"
+        ? sourceManifest.repository.trim()
+        : sourceManifest.repository?.url?.trim(),
+    "Main package is missing repository metadata"
+);
 const expectedRuntimePackages = Object.fromEntries(
     RUNTIME_PLATFORMS.map((platform) => [getRuntimePackageName(platform), sourceManifest.version])
 );

@@ -157,9 +157,7 @@ public sealed class E2ETestContext : IAsyncDisposable
 
     private static Lazy<string> GetCachedCliPath(string repoRoot, string option)
     {
-        var envPath = option == "--print-path"
-            ? Environment.GetEnvironmentVariable("COPILOT_CLI_PATH")
-            : null;
+        var envPath = Environment.GetEnvironmentVariable("COPILOT_CLI_PATH");
         var cacheKey = $"{repoRoot}\0{option}\0{envPath}";
         return s_preparedCliPaths.GetOrAdd(
             cacheKey,
@@ -171,7 +169,7 @@ public sealed class E2ETestContext : IAsyncDisposable
     private static string PrepareCliPath(string repoRoot, string option)
     {
         var envPath = Environment.GetEnvironmentVariable("COPILOT_CLI_PATH");
-        if (option == "--print-path" && !string.IsNullOrEmpty(envPath)) return envPath;
+        if (!string.IsNullOrEmpty(envPath)) return envPath;
 
         var startInfo = new ProcessStartInfo
         {
