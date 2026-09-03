@@ -190,6 +190,10 @@ class TestMcpOAuth:
                 mcp_servers=mcp_servers,
                 enable_mcp_apps=True,
             ) as session:
+                # session.create can begin MCP startup before the SDK registers OAuth
+                # event interest. Reload after registration so this test cannot lose
+                # the initial challenge to that race.
+                reload_task = asyncio.create_task(session.rpc.mcp.reload())
                 connected = asyncio.create_task(_wait_for_mcp_server_status(session, server_name))
                 try:
                     request = await asyncio.wait_for(observed_request, timeout=30.0)
@@ -216,6 +220,7 @@ class TestMcpOAuth:
                     assert handled.success is True
 
                     release_handler.set()
+                    await asyncio.wait_for(reload_task, timeout=60.0)
                     connected_result = await asyncio.wait_for(connected, timeout=60.0)
                     assert connected_result is None
                     tools = await session.rpc.mcp.list_tools(
@@ -226,6 +231,9 @@ class TestMcpOAuth:
                     release_handler.set()
                     if not connected.done():
                         connected.cancel()
+                    if not reload_task.done():
+                        reload_task.cancel()
+                    await asyncio.gather(connected, reload_task, return_exceptions=True)
         finally:
             await _stop_process(process)
 
@@ -271,6 +279,9 @@ class TestMcpOAuth:
                 mcp_servers=mcp_servers,
                 enable_mcp_apps=True,
             ) as session:
+                # Re-run startup after OAuth event interest is registered to avoid
+                # racing the initial challenge emitted during session.create.
+                await session.rpc.mcp.reload()
                 await _wait_for_mcp_server_status(session, server_name)
 
                 for scenario in ("refresh", "upscope", "reauth"):
