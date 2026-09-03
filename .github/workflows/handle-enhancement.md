@@ -18,6 +18,8 @@ permissions:
   pull-requests: read
   copilot-requests: write
 tools:
+  bash: []
+  cli-proxy: false
   github:
     toolsets: [default]
     min-integrity: none
