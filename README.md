@@ -1,5 +1,5 @@
 # GitHub Copilot CLI SDKs
-
+ 
 ![GitHub Copilot SDK](./assets/RepoHeader_01.png)
 
 [![NPM Downloads](https://img.shields.io/npm/dm/%40github%2Fcopilot-sdk?label=npm)](https://www.npmjs.com/package/@github/copilot-sdk)
