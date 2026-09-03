@@ -174,53 +174,15 @@ function toEnumConstant(value: string): string {
 
 // ── Schema path resolution ───────────────────────────────────────────────────
 
-/**
- * Resolve a JSON schema shipped by the `@github/copilot` CLI package.
- *
- * The CLI package layout changed in 1.0.64-1: the umbrella `@github/copilot`
- * package became a thin loader and its bundled assets (including the JSON
- * schemas) moved into the platform-specific packages installed as optional
- * dependencies, e.g. `@github/copilot-linux-x64` or `@github/copilot-win32-x64`.
- *
- * We search both the Java codegen install (`scripts/codegen/node_modules`) and
- * the Node SDK install (`nodejs/node_modules`), checking the umbrella package
- * first (older versions) and then whichever platform package is present.
- */
+/** Resolve a JSON schema staged from the pinned GitHub Release artifact. */
 async function resolveCopilotSchemaPath(fileName: string): Promise<string> {
-    const nodeModulesDirs = [
-        path.join(REPO_ROOT, "scripts/codegen/node_modules"),
-        path.join(REPO_ROOT, "nodejs/node_modules"),
-    ];
-
-    const candidates: string[] = [];
-    for (const nodeModulesDir of nodeModulesDirs) {
-        candidates.push(path.join(nodeModulesDir, "@github/copilot/schemas", fileName));
-        const githubScopeDir = path.join(nodeModulesDir, "@github");
-        try {
-            for (const entry of await fs.readdir(githubScopeDir)) {
-                if (entry.startsWith("copilot-")) {
-                    candidates.push(path.join(githubScopeDir, entry, "schemas", fileName));
-                }
-            }
-        } catch (err) {
-            const code = (err as NodeJS.ErrnoException).code;
-            if (code !== "ENOENT" && code !== "ENOTDIR") {
-                throw err;
-            }
-            // @github scope directory may not exist; try the next location.
-        }
+    const schemaPath = path.join(REPO_ROOT, "scripts/codegen/target/schemas", fileName);
+    try {
+        await fs.access(schemaPath);
+        return schemaPath;
+    } catch {
+        throw new Error(`${fileName} not found. Run 'npm run fetch:schemas' in java/scripts/codegen.`);
     }
-
-    for (const candidate of candidates) {
-        try {
-            await fs.access(candidate);
-            return candidate;
-        } catch {
-            // Try the next candidate.
-        }
-    }
-
-    throw new Error(`${fileName} not found. Run 'npm ci' in java/scripts/codegen or java/nodejs first.`);
 }
 
 async function getSessionEventsSchemaPath(): Promise<string> {

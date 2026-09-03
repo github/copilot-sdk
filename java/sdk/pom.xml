@@ -775,57 +775,6 @@ did not produce the multi-release output. Re-build on JDK 25+ and verify the
                 </plugins>
             </build>
         </profile>
-        <!-- Update the @github/copilot npm schema package to a new version.
-             Usage: mvn generate-sources -Pupdate-schemas-from-npm-artifact -Dcopilot.schema.version=1.0.25 -->
-        <profile>
-            <id>update-schemas-from-npm-artifact</id>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.codehaus.mojo</groupId>
-                        <artifactId>exec-maven-plugin</artifactId>
-                        <executions>
-                            <execution>
-                                <id>update-copilot-schema-version</id>
-                                <phase>generate-sources</phase>
-                                <goals>
-                                    <goal>exec</goal>
-                                </goals>
-                                <configuration>
-                                    <executable>npm</executable>
-                                    <workingDirectory>${project.parent.basedir}/scripts/codegen</workingDirectory>
-                                    <arguments>
-                                        <argument>install</argument>
-                                        <argument>@github/copilot@${copilot.schema.version}</argument>
-                                    </arguments>
-                                </configuration>
-                            </execution>
-                        </executions>
-                    </plugin>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-enforcer-plugin</artifactId>
-                        <executions>
-                            <execution>
-                                <id>require-schema-version</id>
-                                <phase>validate</phase>
-                                <goals>
-                                    <goal>enforce</goal>
-                                </goals>
-                                <configuration>
-                                    <rules>
-                                        <requireProperty>
-                                            <property>copilot.schema.version</property>
-                                            <message>You must specify -Dcopilot.schema.version=VERSION (e.g. 1.0.25)</message>
-                                        </requireProperty>
-                                    </rules>
-                                </configuration>
-                            </execution>
-                        </executions>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
         <!-- Run the TypeScript code generator to regenerate Java sources from the current schema.
              Usage: mvn generate-sources -Pcodegen -->
         <profile>

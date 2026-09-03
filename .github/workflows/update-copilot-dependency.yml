@@ -87,25 +87,6 @@ jobs:
           java-version: "25"
           distribution: "microsoft"
 
-      - name: Update @github/copilot in Java codegen
-        env:
-          VERSION: ${{ inputs.version }}
-        working-directory: ./java/scripts/codegen
-        run: npm install "@github/copilot@$VERSION"
-
-      - name: Update Java POM CLI version property
-        env:
-          VERSION: ${{ inputs.version }}
-        working-directory: ./java
-        run: |
-          PROP="readonly-copilot-sdk-ref-impl-version-from-lastmerge-file-updated-by-reference-impl-sync"
-          sed -i -E "s|(<${PROP}>)[^<]*(</${PROP}>)|\1^${VERSION}\2|" pom.xml
-          # Use fixed-string matching (-F) because npm versions contain regex
-          # metacharacters: '^' (caret ranges) and '.' (dots in semver) would
-          # otherwise be interpreted as start-of-line and any-char respectively,
-          # causing false negatives or spurious matches.
-          grep -qF "<${PROP}>^${VERSION}</${PROP}>" pom.xml
-
       - name: Run Java codegen
         working-directory: ./java
         run: mvn generate-sources -Pcodegen
@@ -177,7 +158,7 @@ jobs:
           - Validated the release assets listed in `SHA256SUMS.txt`
           - Re-ran all code generators (`scripts/codegen`)
           - Formatted generated output
-          - Updated Java codegen dependency, POM property, and regenerated Java types
+          - Regenerated Java types from the pinned CLI release schemas
 
           ### Java Handwritten Code Adaptation Plan
 
