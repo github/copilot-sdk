@@ -18,39 +18,6 @@ using System.Threading;
 
 namespace GitHub.Copilot.Rpc;
 
-/// <summary>Represents an optional JSON property whose value may explicitly be null.</summary>
-public readonly struct Optional<T>
-{
-    private readonly bool _isSet;
-    private readonly T _value;
-
-    /// <summary>Initializes a present property with the supplied value.</summary>
-    public Optional(T value)
-    {
-        _isSet = true;
-        _value = value;
-    }
-
-    /// <summary>Gets whether the property is present.</summary>
-    public bool IsSet => _isSet;
-
-    /// <summary>Gets the property value.</summary>
-    public T Value => _isSet ? _value : throw new InvalidOperationException("The optional property is not set.");
-
-    /// <summary>Creates a present optional property.</summary>
-    public static implicit operator Optional<T>(T value) => new(value);
-}
-
-internal sealed class OptionalJsonConverter<T> : JsonConverter<Optional<T>>
-{
-    public override Optional<T> Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
-        new(JsonSerializer.Deserialize(ref reader, (System.Text.Json.Serialization.Metadata.JsonTypeInfo<T>)options.GetTypeInfo(typeof(T)))!);
-
-    public override void Write(Utf8JsonWriter writer, Optional<T> value, JsonSerializerOptions options) =>
-        JsonSerializer.Serialize(writer, value.Value, (System.Text.Json.Serialization.Metadata.JsonTypeInfo<T>)options.GetTypeInfo(typeof(T)));
-}
-
-
 /// <summary>Server liveness response, including the echoed message, current server timestamp, and protocol version.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class PingResult
@@ -7614,10 +7581,8 @@ public sealed class ModelPickerPersistenceRequest
 internal sealed class ModelSwitchToRequest
 {
     /// <summary>Optional Auto routing preference to stage atomically with selecting `auto`. Pass null to return to provider-default Auto routing. This field is rejected when `modelId` is not `auto`.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    [JsonConverter(typeof(OptionalJsonConverter<AutoTier?>))]
     [JsonPropertyName("autoTier")]
-    public Optional<AutoTier?> AutoTier { get; set; }
+    public AutoTier? AutoTier { get; set; }
 
     /// <summary>Explicit response to a model-switch compaction preflight. Omit to request a confirmation projection when compaction is necessary.</summary>
     [JsonPropertyName("compactionDecision")]
@@ -9389,16 +9354,14 @@ public partial class TaskClientUpdateProgress : TaskClientUpdate
     public string? Message { get; set; }
 
     /// <summary>Optional completion percentage; null clears the current percentage.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    [JsonConverter(typeof(OptionalJsonConverter<double?>))]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("percentage")]
-    public Optional<double?> Percentage { get; set; }
+    public double? Percentage { get; set; }
 
     /// <summary>Optional progress phase; null clears the current phase.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    [JsonConverter(typeof(OptionalJsonConverter<string?>))]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("phase")]
-    public Optional<string?> Phase { get; set; }
+    public string? Phase { get; set; }
 
     /// <summary>Optional active status transition.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -33565,7 +33528,7 @@ public sealed class ModelApi
     /// <param name="pickerPersistence">Optional settings context and explicit-override flags used to persist a picker selection.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>The model identifier active on the session after the switch.</returns>
-    public async Task<ModelSwitchToResult> SwitchToAsync(string modelId, Optional<AutoTier?> autoTier = default, string? reasoningEffort = null, ReasoningSummary? reasoningSummary = null, Verbosity? verbosity = null, ModelCapabilitiesOverride? modelCapabilities = null, ContextTier? contextTier = null, ModelChangeSource? source = null, bool? deferIfModelChangeQueued = null, string? compactionDecision = null, bool? runCompactionPreflight = null, string? repoScope = null, string? modelChangeScope = null, bool? requireAvailable = null, ModelPickerPersistenceRequest? pickerPersistence = null, CancellationToken cancellationToken = default)
+    public async Task<ModelSwitchToResult> SwitchToAsync(string modelId, AutoTier? autoTier = null, string? reasoningEffort = null, ReasoningSummary? reasoningSummary = null, Verbosity? verbosity = null, ModelCapabilitiesOverride? modelCapabilities = null, ContextTier? contextTier = null, ModelChangeSource? source = null, bool? deferIfModelChangeQueued = null, string? compactionDecision = null, bool? runCompactionPreflight = null, string? repoScope = null, string? modelChangeScope = null, bool? requireAvailable = null, ModelPickerPersistenceRequest? pickerPersistence = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(modelId);
         _session.ThrowIfDisposed();
