@@ -163,6 +163,29 @@ Initial acquisition runs during session creation or resume. Cancellation, provid
 
 Resume an existing session. Returns the session with `workspacePath` populated if infinite sessions were enabled.
 
+##### `watchSharedSession(sessionId: string): Promise<SharedSessionWatch>`
+
+Watch a session another user shared with the authenticated user. The handle is
+passive: it exposes `sessionId`, `metadata`, `readOnly`, `on(...)`, and
+`close()`, but no send, steer, permission, configuration, or cancellation APIs.
+History is delivered first through the ordinary session event stream, followed
+by live updates. Terminal connection loss is reported through the client's
+existing `session.disconnected` lifecycle event.
+
+```typescript
+const disconnected = client.onLifecycle("session.disconnected", ({ sessionId }) => {
+    console.log(`Watch ${sessionId} disconnected`);
+});
+await using watch = await client.watchSharedSession(sharedSessionId);
+watch.on((event) => {
+    console.log(event.type, event.data);
+});
+```
+
+Authentication, viewer identity, lane credentials, channel derivation, and
+reconnection remain internal to the runtime. Register the lifecycle handler
+before opening the watch so an immediate terminal disconnect cannot be missed.
+
 ##### `ping(message?: string): Promise<{ message: string; timestamp: string }>`
 
 Ping the server to check connectivity.

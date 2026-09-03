@@ -3572,11 +3572,12 @@ export type SessionLifecycleEventType =
     | "session.deleted"
     | "session.updated"
     | "session.foreground"
-    | "session.background";
+    | "session.background"
+    | "session.disconnected";
 
 /**
  * Metadata payload for session lifecycle events. Not present on
- * `session.deleted` events.
+ * `session.deleted` or `session.disconnected` events.
  */
 export interface SessionLifecycleEventMetadata {
     /** Time the session was created. */
@@ -3591,7 +3592,7 @@ export interface SessionLifecycleEventMetadata {
 interface SessionLifecycleEventBase {
     /** ID of the session this event relates to. */
     sessionId: string;
-    /** Session metadata (not included for `session.deleted`). */
+    /** Session metadata (not included for deleted or disconnected events). */
     metadata?: SessionLifecycleEventMetadata;
 }
 
@@ -3625,6 +3626,12 @@ export interface SessionBackgroundEvent extends SessionLifecycleEventBase {
     metadata: SessionLifecycleEventMetadata;
 }
 
+/** Emitted when a session connection is terminally lost. */
+export interface SessionDisconnectedEvent extends SessionLifecycleEventBase {
+    type: "session.disconnected";
+    metadata?: undefined;
+}
+
 /**
  * Discriminated union of all session lifecycle events emitted in TUI+server mode.
  * Switch on `type` to access the variant-specific metadata.
@@ -3634,7 +3641,8 @@ export type SessionLifecycleEvent =
     | SessionDeletedEvent
     | SessionUpdatedEvent
     | SessionForegroundEvent
-    | SessionBackgroundEvent;
+    | SessionBackgroundEvent
+    | SessionDisconnectedEvent;
 
 /**
  * Handler for session lifecycle events.

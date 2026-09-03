@@ -18,6 +18,7 @@ import { promisify } from "util";
 import type { JSONSchema7, JSONSchema7Definition } from "json-schema";
 import {
 	addManagedApprovalRequiredToPermissionRequests,
+	addSharedSessionWatchApi,
 	type ApiSchema,
 	type DefinitionCollections,
 	EXCLUDED_EVENT_TYPES,
@@ -2220,7 +2221,9 @@ async function generate(): Promise<void> {
 		JSON.parse(await fs.readFile(sessionEventsSchemaPath, "utf-8")),
 	);
 	const apiRaw = normalizeSchemaBrandCasing(
-		JSON.parse(await fs.readFile(apiSchemaPath, "utf-8")) as ApiSchema,
+		addSharedSessionWatchApi(
+			JSON.parse(await fs.readFile(apiSchemaPath, "utf-8")) as ApiSchema,
+		),
 	);
 
 	const sessionEventsSchema = propagateInternalVisibility(

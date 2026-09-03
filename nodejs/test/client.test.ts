@@ -17,8 +17,10 @@ import {
     type GitHubTelemetryNotification,
     type ManagedSettings,
     type ModelInfo,
+    type SessionLifecycleEventType,
 } from "../src/index.js";
 import { CopilotSession } from "../src/session.js";
+import type { WatchSharedSessionParams, WatchSharedSessionResult } from "../src/generated/rpc.js";
 import { defaultJoinSessionPermissionHandler } from "../src/types.js";
 
 // This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.test.ts instead
@@ -1241,6 +1243,154 @@ describe("CopilotClient", () => {
         await got;
 
         expect(received).toEqual([notification]);
+    });
+
+    it("watches a shared session without exposing interactive session methods", async () => {
+        const { createMessageConnection, StreamMessageReader, StreamMessageWriter } =
+            await import("vscode-jsonrpc/node.js");
+
+        const clientToServer = new PassThrough();
+        const serverToClient = new PassThrough();
+        const clientConn = createMessageConnection(
+            new StreamMessageReader(serverToClient),
+            new StreamMessageWriter(clientToServer)
+        );
+        const serverConn = createMessageConnection(
+            new StreamMessageReader(clientToServer),
+            new StreamMessageWriter(serverToClient)
+        );
+        const client = new CopilotClient({
+            connection: RuntimeConnection.forUri("localhost:1234"),
+        });
+        (client as any).connection = clientConn;
+        (client as any).attachConnectionHandlers();
+
+        onTestFinished(() => {
+            clientConn.dispose();
+            serverConn.dispose();
+        });
+
+        const closeRequests: unknown[] = [];
+        serverConn.onRequest("sessions.watch", async (params) => {
+            expect(params).toEqual({ sessionId: "shared-session" });
+            return {
+                sessionId: "watch-session",
+                readOnly: true,
+                metadata: {
+                    sessionId: "watch-session",
+                    startTime: "2025-01-01T00:00:00Z",
+                    modifiedTime: "2025-01-01T00:01:00Z",
+                    repository: { owner: "github", name: "copilot-sdk", branch: "main" },
+                    kind: "remote-session",
+                },
+            };
+        });
+        serverConn.onRequest("sessions.close", async (params) => {
+            closeRequests.push(params);
+            return {};
+        });
+        clientConn.listen();
+        serverConn.listen();
+
+        const disconnected = new Promise<void>((resolve) => {
+            client.onLifecycle("session.disconnected", (event) => {
+                expect(event).toEqual({
+                    type: "session.disconnected",
+                    sessionId: "watch-session",
+                });
+                expect(Object.keys(event).sort()).toEqual(["sessionId", "type"]);
+                resolve();
+            });
+        });
+        const watch = await client.watchSharedSession("shared-session");
+        expect((client as any).sessions.has("watch-session")).toBe(true);
+        const replay = {
+            type: "assistant.message",
+            id: "replay-event",
+            parentId: null,
+            timestamp: "2025-01-01T00:00:30Z",
+            data: { content: "history" },
+        } as const;
+
+        await serverConn.sendNotification("session.event", {
+            sessionId: "watch-session",
+            event: replay,
+        });
+        await serverConn.sendNotification("session.lifecycle", {
+            type: "session.disconnected",
+            sessionId: "watch-session",
+        });
+
+        const received: string[] = [];
+        await new Promise<void>((resolve) => {
+            watch.on((event) => {
+                received.push(event.type);
+                resolve();
+            });
+        });
+        await disconnected;
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        expect(watch.sessionId).toBe("watch-session");
+        expect(watch.readOnly).toBe(true);
+        expect(watch.metadata.sessionId).toBe("watch-session");
+        expect(Object.isFrozen(watch.metadata)).toBe(true);
+        expect(Object.isFrozen(watch.metadata.repository)).toBe(true);
+        expect(received).toEqual(["assistant.message"]);
+        expect((client as any).sessions.has("watch-session")).toBe(false);
+        expect((client as any).sharedSessionWatches.has("watch-session")).toBe(false);
+        expect("send" in watch).toBe(false);
+        expect("abort" in watch).toBe(false);
+        // A shared-session watch is intentionally passive: `send`/`abort` must not
+        // exist on its type, so this resolves to `true` only while they are absent.
+        type PassiveWatch<T> = "send" | "abort" extends keyof T ? never : true;
+        const watchIsPassive: PassiveWatch<typeof watch> = true;
+        expect(watchIsPassive).toBe(true);
+
+        await watch.close();
+        await watch.close();
+        expect(closeRequests).toEqual([{ sessionId: "watch-session" }]);
+    });
+
+    it("generates the exact credential-free shared-session watch payloads", () => {
+        const params: WatchSharedSessionParams = { sessionId: "shared-session" };
+        const result: WatchSharedSessionResult = {
+            sessionId: "watch-session",
+            readOnly: true,
+            metadata: {
+                sessionId: "watch-session",
+                startTime: "2025-01-01T00:00:00Z",
+                modifiedTime: "2025-01-01T00:01:00Z",
+                repository: { owner: "github", name: "copilot-sdk", branch: "main" },
+                kind: "remote-session",
+            },
+        };
+
+        expect(params).toEqual({ sessionId: "shared-session" });
+        expect(Object.keys(result).sort()).toEqual(["metadata", "readOnly", "sessionId"]);
+        expect(JSON.stringify(result)).not.toMatch(
+            /viewerId|baseUrl|wps|lane|channel|credential|token/i
+        );
+    });
+
+    it("pins the complete runtime lifecycle event type set", () => {
+        const eventTypes = {
+            "session.created": true,
+            "session.deleted": true,
+            "session.updated": true,
+            "session.foreground": true,
+            "session.background": true,
+            "session.disconnected": true,
+        } satisfies Record<SessionLifecycleEventType, true>;
+
+        expect(Object.keys(eventTypes)).toEqual([
+            "session.created",
+            "session.deleted",
+            "session.updated",
+            "session.foreground",
+            "session.background",
+            "session.disconnected",
+        ]);
     });
 
     it("registers no gitHubTelemetry handler when onGitHubTelemetry is omitted", () => {

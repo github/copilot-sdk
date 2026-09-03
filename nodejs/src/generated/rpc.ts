@@ -22481,6 +22481,37 @@ export interface VisibilitySetResult {
   shareUrl?: string;
 }
 /**
+ * Parameters for watching a session another user has shared with the authenticated user.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WatchSharedSessionParams".
+ */
+/** @experimental */
+export interface WatchSharedSessionParams {
+  /**
+   * Session ID to watch. The session belongs to another user and must already be shared with the authenticated user. The watcher's own identity is deliberately not accepted here: it is resolved from the connection's authenticated credential, so a caller cannot ask to watch as somebody else.
+   */
+  sessionId: string;
+}
+/**
+ * Result of attaching to a shared session as a read-only watcher. History replays as ordered `session.event` notifications after this result is delivered, not inside it.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WatchSharedSessionResult".
+ */
+/** @experimental */
+export interface WatchSharedSessionResult {
+  /**
+   * SDK session ID for the watched session.
+   */
+  sessionId: string;
+  /**
+   * Always true. A watched session observes and replays only: it cannot send or queue input, steer, answer prompts, approve tools, change session configuration or cancel turns. Server-side denial remains the authority; this flag lets a client refuse the interaction up front rather than surfacing a late failure.
+   */
+  readOnly: true;
+  metadata: ConnectedRemoteSessionMetadata;
+}
+/**
  * A single changed file and its unified diff.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -23601,6 +23632,15 @@ export function createServerRpc(connection: MessageConnection) {
              */
             connect: async (params: ConnectRemoteSessionParams): Promise<RemoteSessionConnectionResult> =>
                 connection.sendRequest("sessions.connect", params),
+            /**
+             * Attaches to a session another user has shared with the authenticated user, as a read-only watcher, and exposes it as an SDK session. The watched session replays and streams over the ordinary `session.event` notification channel, but cannot be driven: sending, steering, answering prompts, approving tools, changing session configuration and cancelling turns are all refused. The watcher's own identity is resolved from the connection's credential, never from the caller.
+             *
+             * @param params Parameters for watching a session another user has shared with the authenticated user.
+             *
+             * @returns Result of attaching to a shared session as a read-only watcher. History replays as ordered `session.event` notifications after this result is delivered, not inside it.
+             */
+            watch: async (params: WatchSharedSessionParams): Promise<WatchSharedSessionResult> =>
+                connection.sendRequest("sessions.watch", params),
             /**
              * Lists sessions, optionally filtered by source and working-directory context. Returned entries are discriminated by `isRemote`: local entries carry only the lightweight `LocalSessionMetadataValue` shape; remote entries carry the full `RemoteSessionMetadataValue` shape (repository, PR number, taskType, etc.).
              *

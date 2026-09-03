@@ -14,6 +14,8 @@ import { createSessionRpc } from "./generated/rpc.js";
 import type {
     ClientSessionApiHandlers,
     CanvasActionInvokeResult,
+    ConnectedRemoteSessionMetadata,
+    ConnectedRemoteSessionMetadataRepository,
     CurrentToolMetadata,
     McpOauthPendingRequestResponse,
     FactoryLogLine,
@@ -81,6 +83,94 @@ import {
     type JsonValue,
     type FactoryStepOptions,
 } from "./factory.js";
+
+/** Immutable metadata describing a watched shared session. */
+export type SharedSessionMetadata = Readonly<
+    Omit<ConnectedRemoteSessionMetadata, "repository"> & {
+        repository: Readonly<ConnectedRemoteSessionMetadataRepository>;
+    }
+>;
+
+/**
+ * Passive, read-only attachment to a session shared with the authenticated user.
+ *
+ * History and live updates are delivered through {@link on}. Interactive session
+ * operations are intentionally absent from this type.
+ */
+export class SharedSessionWatch {
+    /** Always `true`; watched sessions cannot be driven by this client. */
+    readonly readOnly = true as const;
+    /** Immutable metadata returned by the runtime when the watch is attached. */
+    readonly metadata: SharedSessionMetadata;
+
+    private readonly handlers = new Set<SessionEventHandler>();
+    private readonly pendingEvents: SessionEvent[] = [];
+    private closePromise: Promise<void> | undefined;
+
+    /** @internal */
+    constructor(
+        readonly sessionId: string,
+        metadata: ConnectedRemoteSessionMetadata,
+        session: CopilotSession,
+        private readonly closeWatch: () => Promise<void>
+    ) {
+        this.metadata = Object.freeze({
+            ...metadata,
+            repository: Object.freeze({ ...metadata.repository }),
+        });
+        session.on((event) => {
+            if (this.handlers.size === 0) {
+                this.pendingEvents.push(event);
+                return;
+            }
+            for (const handler of this.handlers) {
+                try {
+                    handler(event);
+                } catch {
+                    // A failing subscriber must not prevent delivery to others.
+                }
+            }
+        });
+    }
+
+    /**
+     * Subscribe to canonical replay and live session events.
+     *
+     * Events replayed before the first handler is attached are retained and
+     * delivered in order when that handler is registered.
+     */
+    on(handler: SessionEventHandler): () => void {
+        this.handlers.add(handler);
+        if (this.pendingEvents.length > 0) {
+            const pending = this.pendingEvents.splice(0);
+            for (const event of pending) {
+                try {
+                    handler(event);
+                } catch {
+                    // Mirrors live delivery: a failing subscriber must not abort
+                    // the remaining replay events or prevent `on` from returning
+                    // its unsubscribe function.
+                }
+            }
+        }
+        return () => this.handlers.delete(handler);
+    }
+
+    /**
+     * Close the watch and release its local event routing.
+     *
+     * Repeated calls share the same close operation.
+     */
+    close(): Promise<void> {
+        this.closePromise ??= this.closeWatch();
+        return this.closePromise;
+    }
+
+    /** Close the watch when used with `await using`. */
+    async [Symbol.asyncDispose](): Promise<void> {
+        await this.close();
+    }
+}
 
 function isFactoryResumeErrorCode(value: unknown): value is FactoryResumeErrorCode {
     return (

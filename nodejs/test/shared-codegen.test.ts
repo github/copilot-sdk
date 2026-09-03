@@ -2,6 +2,8 @@ import type { JSONSchema7 } from "json-schema";
 import { describe, expect, it } from "vitest";
 
 import {
+    addSharedSessionWatchApi,
+    type ApiSchema,
     collectDefinitionCollections,
     collectExperimentalOnlyRpcReferencedDefinitionNames,
     collectReachableDefinitionNames,
@@ -13,6 +15,35 @@ import {
 } from "../../scripts/codegen/utils.ts";
 
 describe("shared schema definition codegen utilities", () => {
+    it("adds the pinned shared-session watch contract and rejects drift", () => {
+        const schema = addSharedSessionWatchApi({
+            server: {},
+            definitions: {},
+        } satisfies ApiSchema);
+        const sessions = schema.server?.sessions as Record<string, unknown>;
+
+        expect(sessions.watch).toMatchObject({
+            rpcMethod: "sessions.watch",
+            params: { $ref: "#/definitions/WatchSharedSessionParams" },
+            result: { $ref: "#/definitions/WatchSharedSessionResult" },
+            stability: "experimental",
+        });
+        expect(schema.definitions?.WatchSharedSessionResult).toMatchObject({
+            required: ["sessionId", "readOnly", "metadata"],
+            additionalProperties: false,
+        });
+
+        expect(() =>
+            addSharedSessionWatchApi({
+                server: {
+                    sessions: {
+                        watch: { rpcMethod: "sessions.watch", params: null, result: null },
+                    },
+                },
+            })
+        ).toThrow("sessions.watch contract differs");
+    });
+
     it("detects integer schemas bounded to the 32-bit signed range", () => {
         expect(
             isIntegerSchemaBoundedToInt32({

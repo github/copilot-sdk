@@ -80,6 +80,9 @@ pub enum SessionLifecycleEventType {
     /// A session moved into the background.
     #[serde(rename = "session.background")]
     Background,
+    /// A session connection was terminally lost.
+    #[serde(rename = "session.disconnected")]
+    Disconnected,
 }
 
 /// Optional metadata attached to a [`SessionLifecycleEvent`].
@@ -107,6 +110,7 @@ pub struct SessionLifecycleEvent {
     #[serde(rename = "sessionId")]
     pub session_id: SessionId,
     /// Optional metadata describing the session at the time of the event.
+    /// Absent for deleted and disconnected events.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<SessionLifecycleEventMetadata>,
 }
@@ -6058,8 +6062,8 @@ mod tests {
         InfiniteSessionConfig, LargeToolOutputConfig, McpServerConfig, McpStdioServerConfig,
         MemoryConfiguration, NamedProviderConfig, PermissionResponseCapability, ProviderConfig,
         ProviderModelConfig, ReasoningSummary, ResumeSessionConfig, SessionConfig, SessionEvent,
-        SessionId, SystemMessageConfig, Tool, ToolBinaryResult, ToolResult, ToolResultExpanded,
-        ToolResultResponse, ensure_attachment_display_names,
+        SessionId, SessionLifecycleEventType, SystemMessageConfig, Tool, ToolBinaryResult,
+        ToolResult, ToolResultExpanded, ToolResultResponse, ensure_attachment_display_names,
     };
     use crate::generated::session_events::TypedSessionEvent;
 
@@ -7549,6 +7553,38 @@ mod tests {
         let _ = ConnectionState::Connecting;
         let _ = ConnectionState::Connected;
         let _ = ConnectionState::Error;
+    }
+
+    #[test]
+    fn session_lifecycle_event_types_match_runtime_contract() {
+        let event_types = [
+            SessionLifecycleEventType::Created,
+            SessionLifecycleEventType::Deleted,
+            SessionLifecycleEventType::Updated,
+            SessionLifecycleEventType::Foreground,
+            SessionLifecycleEventType::Background,
+            SessionLifecycleEventType::Disconnected,
+        ];
+        let wire_names = event_types.map(|event_type| match event_type {
+            SessionLifecycleEventType::Created => "session.created",
+            SessionLifecycleEventType::Deleted => "session.deleted",
+            SessionLifecycleEventType::Updated => "session.updated",
+            SessionLifecycleEventType::Foreground => "session.foreground",
+            SessionLifecycleEventType::Background => "session.background",
+            SessionLifecycleEventType::Disconnected => "session.disconnected",
+        });
+
+        assert_eq!(
+            wire_names,
+            [
+                "session.created",
+                "session.deleted",
+                "session.updated",
+                "session.foreground",
+                "session.background",
+                "session.disconnected",
+            ]
+        );
     }
 
     #[test]

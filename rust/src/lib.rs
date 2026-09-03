@@ -57,6 +57,7 @@ pub mod trace_context;
 pub mod transforms;
 /// Protocol types shared between the SDK and the GitHub Copilot CLI.
 pub mod types;
+mod watch;
 mod wire;
 
 /// Session event payload types — auto-generated from the protocol schema.
@@ -98,6 +99,7 @@ pub(crate) use jsonrpc::{
 };
 pub use mode::{BUILTIN_TOOLS_ISOLATED, ClientMode, ToolSet};
 pub use provider_token::{BearerTokenError, BearerTokenProvider, ProviderTokenArgs};
+pub use watch::{SharedSessionWatch, SharedSessionWatchEvents};
 
 /// Re-exported JSON-RPC internals for integration tests (requires `test-support` feature).
 #[cfg(feature = "test-support")]
@@ -2349,6 +2351,24 @@ impl Client {
         self.inner.router.unregister(session_id);
     }
 
+    pub(crate) fn register_watch_session(
+        &self,
+        session_id: &SessionId,
+    ) -> crate::router::SessionChannels {
+        self.inner.router.ensure_started(
+            &self.inner.notification_tx,
+            &self.inner.request_rx,
+            self.inner.llm_inference.get().cloned(),
+            self.inner.on_github_telemetry.clone(),
+            self.inner.github_token_registry.clone(),
+        );
+        self.inner.router.register_watch(session_id)
+    }
+
+    pub(crate) fn unregister_watch_session(&self, session_id: &SessionId) {
+        self.inner.router.unregister(session_id);
+    }
+
     pub(crate) fn register_github_token_provider(
         &self,
         provider: Arc<dyn GitHubTokenProvider>,
@@ -2598,12 +2618,14 @@ impl Client {
     pub async fn cleanup_sessions_for_test(&self) -> Result<()> {
         let mut first_error = None;
 
-        for session_id in self.inner.router.session_ids() {
+        for (session_id, is_watch) in self.inner.router.session_entries() {
+            let method = if is_watch {
+                generated::api_types::rpc_methods::SESSIONS_CLOSE
+            } else {
+                "session.destroy"
+            };
             if let Err(error) = self
-                .call(
-                    "session.destroy",
-                    Some(serde_json::json!({ "sessionId": session_id })),
-                )
+                .call(method, Some(serde_json::json!({ "sessionId": session_id })))
                 .await
                 && first_error.is_none()
             {
@@ -2763,12 +2785,14 @@ impl Client {
 
         // Snapshot the registered session IDs without holding the router
         // lock across the destroy RPCs.
-        for session_id in self.inner.router.session_ids() {
+        for (session_id, is_watch) in self.inner.router.session_entries() {
+            let method = if is_watch {
+                generated::api_types::rpc_methods::SESSIONS_CLOSE
+            } else {
+                "session.destroy"
+            };
             match self
-                .call(
-                    "session.destroy",
-                    Some(serde_json::json!({ "sessionId": session_id })),
-                )
+                .call(method, Some(serde_json::json!({ "sessionId": session_id })))
                 .await
             {
                 Ok(_) => {}
@@ -2776,7 +2800,8 @@ impl Client {
                     warn!(
                         session_id = %session_id,
                         error = %e,
-                        "session.destroy failed during Client::stop",
+                        method,
+                        "session cleanup failed during Client::stop",
                     );
                     errors.push(e);
                 }
@@ -3614,7 +3639,7 @@ mod tests {
         handle.abort();
         let _ = handle.await;
 
-        assert!(client.inner.router.session_ids().is_empty());
+        assert!(client.inner.router.session_entries().is_empty());
         client.force_stop();
     }
 
@@ -3762,7 +3787,7 @@ mod tests {
 
     async fn wait_for_pending_session_registration(client: &Client) {
         let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(1);
-        while client.inner.router.session_ids().is_empty() {
+        while client.inner.router.session_entries().is_empty() {
             assert!(
                 tokio::time::Instant::now() < deadline,
                 "session was not registered"

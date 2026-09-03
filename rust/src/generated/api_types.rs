@@ -140,6 +140,8 @@ pub mod rpc_methods {
     pub const SESSIONS_FORK: &str = "sessions.fork";
     /// `sessions.connect`
     pub const SESSIONS_CONNECT: &str = "sessions.connect";
+    /// `sessions.watch`
+    pub const SESSIONS_WATCH: &str = "sessions.watch";
     /// `sessions.list`
     pub const SESSIONS_LIST: &str = "sessions.list";
     /// `sessions.getMetadata`
@@ -21077,6 +21079,40 @@ pub struct VisibilitySetResult {
     pub synced: bool,
 }
 
+/// Parameters for watching a session another user has shared with the authenticated user.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WatchSharedSessionParams {
+    /// Session ID to watch. The session belongs to another user and must already be shared with the authenticated user. The watcher's own identity is deliberately not accepted here: it is resolved from the connection's authenticated credential, so a caller cannot ask to watch as somebody else.
+    pub session_id: SessionId,
+}
+
+/// Result of attaching to a shared session as a read-only watcher. History replays as ordered `session.event` notifications after this result is delivered, not inside it.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WatchSharedSessionResult {
+    /// Metadata for the watched session.
+    pub metadata: ConnectedRemoteSessionMetadata,
+    /// Always true. A watched session observes and replays only: it cannot send or queue input, steer, answer prompts, approve tools, change session configuration or cancel turns. Server-side denial remains the authority; this flag lets a client refuse the interaction up front rather than surfacing a late failure.
+    pub read_only: bool,
+    /// SDK session ID for the watched session.
+    pub session_id: SessionId,
+}
+
 /// A single changed file and its unified diff.
 ///
 /// <div class="warning">
@@ -21978,6 +22014,25 @@ pub struct SessionsConnectResult {
     /// Metadata for a connected remote session.
     pub metadata: ConnectedRemoteSessionMetadata,
     /// SDK session ID for the connected remote session.
+    pub session_id: SessionId,
+}
+
+/// Result of attaching to a shared session as a read-only watcher. History replays as ordered `session.event` notifications after this result is delivered, not inside it.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionsWatchResult {
+    /// Metadata for the watched session.
+    pub metadata: ConnectedRemoteSessionMetadata,
+    /// Always true. A watched session observes and replays only: it cannot send or queue input, steer, answer prompts, approve tools, change session configuration or cancel turns. Server-side denial remains the authority; this flag lets a client refuse the interaction up front rather than surfacing a late failure.
+    pub read_only: bool,
+    /// SDK session ID for the watched session.
     pub session_id: SessionId,
 }
 

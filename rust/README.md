@@ -227,6 +227,32 @@ session
 session.disconnect().await?;
 ```
 
+### Shared Session Watch
+
+`Client::watch_shared_session` attaches to a session another user shared with
+the authenticated user. The returned `SharedSessionWatch` is passive and
+exposes metadata, ordered canonical history/live events, and `close()` without
+interactive session methods. Terminal connection loss is reported through the
+client's existing `SessionLifecycleEventType::Disconnected` subscription.
+
+```rust,ignore
+let mut lifecycle = client.subscribe_lifecycle();
+let mut watch = client.watch_shared_session(shared_session_id).await?;
+tokio::select! {
+    Some(event) = watch.events().recv() => {
+        println!("{}: {}", event.event_type, event.data);
+    }
+    Ok(event) = lifecycle.recv() => {
+        println!("{:?}: {}", event.event_type, event.session_id);
+    }
+}
+watch.close().await?;
+```
+
+Authentication, viewer identity, lane credentials, channel derivation, and
+reconnection remain internal to the runtime. Subscribe to lifecycle events
+before opening the watch so an immediate terminal disconnect cannot be missed.
+
 #### Typed RPC namespace
 
 High-level helpers are convenience wrappers over a fully-typed

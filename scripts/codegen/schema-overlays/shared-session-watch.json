@@ -1,0 +1,58 @@
+{
+  "source": {
+    "repository": "github/copilot-agent-runtime",
+    "commit": "7c34f30aa270d2a6214d1aa0274fc1afd4c9790d",
+    "schemaPath": "generated/api.schema.json",
+    "schemaSha256": "dec3e7be93b7a3ca023eff9f6e90e9858bb6305d15f547d0e599283828a9b310"
+  },
+  "method": {
+    "rpcMethod": "sessions.watch",
+    "description": "Attaches to a session another user has shared with the authenticated user, as a read-only watcher, and exposes it as an SDK session. The watched session replays and streams over the ordinary `session.event` notification channel, but cannot be driven: sending, steering, answering prompts, approving tools, changing session configuration and cancelling turns are all refused. The watcher's own identity is resolved from the connection's credential, never from the caller.",
+    "params": {
+      "$ref": "#/definitions/WatchSharedSessionParams",
+      "description": "Parameters for watching a session another user has shared with the authenticated user."
+    },
+    "result": {
+      "$ref": "#/definitions/WatchSharedSessionResult",
+      "description": "Result of attaching to a shared session as a read-only watcher. History replays as ordered `session.event` notifications after this result is delivered, not inside it."
+    },
+    "stability": "experimental"
+  },
+  "definitions": {
+    "WatchSharedSessionParams": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "description": "Session ID to watch. The session belongs to another user and must already be shared with the authenticated user. The watcher's own identity is deliberately not accepted here: it is resolved from the connection's authenticated credential, so a caller cannot ask to watch as somebody else."
+        }
+      },
+      "required": ["sessionId"],
+      "additionalProperties": false,
+      "description": "Parameters for watching a session another user has shared with the authenticated user.",
+      "title": "WatchSharedSessionParams"
+    },
+    "WatchSharedSessionResult": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "description": "SDK session ID for the watched session."
+        },
+        "readOnly": {
+          "type": "boolean",
+          "const": true,
+          "description": "Always true. A watched session observes and replays only: it cannot send or queue input, steer, answer prompts, approve tools, change session configuration or cancel turns. Server-side denial remains the authority; this flag lets a client refuse the interaction up front rather than surfacing a late failure."
+        },
+        "metadata": {
+          "$ref": "#/definitions/ConnectedRemoteSessionMetadata",
+          "description": "Metadata for the watched session."
+        }
+      },
+      "required": ["sessionId", "readOnly", "metadata"],
+      "additionalProperties": false,
+      "description": "Result of attaching to a shared session as a read-only watcher. History replays as ordered `session.event` notifications after this result is delivered, not inside it.",
+      "title": "WatchSharedSessionResult"
+    }
+  }
+}
