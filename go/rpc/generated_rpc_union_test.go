@@ -14,6 +14,7 @@ func TestExternalToolResultJSONUnion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal string result: %v", err)
 	}
+
 	if string(raw) != `"tool result"` {
 		t.Fatalf("marshal string result = %s", raw)
 	}
@@ -43,6 +44,29 @@ func TestExternalToolResultJSONUnion(t *testing.T) {
 	decodedObjectValue, ok := decodedObject.(*ExternalToolTextResultForLlm)
 	if !ok || decodedObjectValue.TextResultForLlm != "expanded" {
 		t.Fatalf("unmarshal object result = %#v", decodedObject)
+	}
+}
+
+func TestOptionalNullableFieldsPreserveOmittedAndNull(t *testing.T) {
+	unset, err := json.Marshal(TaskClientUpdateProgress{})
+	if err != nil {
+		t.Fatalf("marshal unset progress: %v", err)
+	}
+	if string(unset) != `{}` {
+		t.Fatalf("marshal unset progress = %s", unset)
+	}
+
+	var clearedPercentage *float64
+	var clearedPhase *string
+	cleared, err := json.Marshal(TaskClientUpdateProgress{
+		Percentage: &clearedPercentage,
+		Phase:      &clearedPhase,
+	})
+	if err != nil {
+		t.Fatalf("marshal cleared progress: %v", err)
+	}
+	if string(cleared) != `{"percentage":null,"phase":null}` {
+		t.Fatalf("marshal cleared progress = %s", cleared)
 	}
 }
 

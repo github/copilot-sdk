@@ -149,10 +149,10 @@ describe("MCP OAuth host auth", async () => {
             });
             expect(handled.success).toBe(true);
 
+            releaseHandler(undefined);
             await connected;
             const tools = await session.rpc.mcp.listTools({ serverName });
             expect(tools.tools.map((tool) => tool.name)).toContain("whoami");
-            releaseHandler(undefined);
         }
     );
 

@@ -4292,6 +4292,7 @@ describe("connect handshake clientInfo", () => {
         const params = await captureConnectParams();
 
         expect(params).not.toHaveProperty("clientInfo");
+        expect(params.supportedTaskKinds).toEqual(["agent", "client", "shell"]);
     });
 
     it("drops empty fields and omits an all-empty identity", async () => {

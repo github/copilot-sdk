@@ -38,6 +38,7 @@ import type {
     GitHubTokenAcquireResult,
     OpenCanvasInstance,
     SessionUpdateOptionsParams,
+    TaskKind,
 } from "./generated/rpc.js";
 import { getSdkProtocolVersion } from "./sdkProtocolVersion.js";
 import { CopilotSession } from "./session.js";
@@ -2161,7 +2162,11 @@ export class CopilotClient {
                 token?: string;
                 enableGitHubTelemetryForwarding?: boolean;
                 clientInfo?: ConnectClientInfo;
-            } = { token: this.effectiveConnectionToken };
+                supportedTaskKinds?: TaskKind[];
+            } = {
+                token: this.effectiveConnectionToken,
+                supportedTaskKinds: ["agent", "client", "shell"],
+            };
             // Opt in to GitHub telemetry forwarding at the connection level when a
             // handler is registered (mirrors the runtime, which reads this flag on the
             // `connect` handshake so the first session's un-replayable `session.start`

@@ -2186,7 +2186,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                     // Declare the integrating application's identity so the runtime attributes the
                     // telemetry it emits on this connection to a consistent surface instead
                     // of its own build. Null when the app didn't supply it.
-                    ConnectHandshakeClientInfo.From(_options.ClientInfo))],
+                    ConnectHandshakeClientInfo.From(_options.ClientInfo),
+                    SupportedTaskKinds: [TaskKind.Agent, TaskKind.Client, TaskKind.Shell])],
                 connection.StderrBuffer,
                 cancellationToken);
             serverVersion = (int)connectResponse.ProtocolVersion;
@@ -3198,7 +3199,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     internal record ConnectHandshakeRequest(
         string? Token,
         [property: JsonPropertyName("enableGitHubTelemetryForwarding")] bool? EnableGitHubTelemetryForwarding = null,
-        [property: JsonPropertyName("clientInfo")] ConnectHandshakeClientInfo? ClientInfo = null);
+        [property: JsonPropertyName("clientInfo")] ConnectHandshakeClientInfo? ClientInfo = null,
+        [property: JsonPropertyName("supportedTaskKinds")] IList<TaskKind>? SupportedTaskKinds = null);
 
     internal record ConnectHandshakeClientInfo(
         [property: JsonPropertyName("editorName")] string? EditorName = null,

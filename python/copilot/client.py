@@ -4094,7 +4094,9 @@ class CopilotClient:
 
         server_version: int | None
         try:
-            connect_params: dict[str, Any] = {}
+            connect_params: dict[str, Any] = {
+                "supportedTaskKinds": ["agent", "client", "shell"],
+            }
             if self._effective_connection_token is not None:
                 connect_params["token"] = self._effective_connection_token
             # Opt in to GitHub telemetry forwarding at the connection level when a

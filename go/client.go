@@ -1951,7 +1951,14 @@ func (c *Client) verifyProtocolVersion(ctx context.Context) error {
 		t := c.effectiveConnectionToken
 		tokenPtr = &t
 	}
-	connectReq := &connectHandshakeRequest{Token: tokenPtr}
+	connectReq := &connectHandshakeRequest{
+		Token: tokenPtr,
+		SupportedTaskKinds: []rpc.TaskKind{
+			rpc.TaskKindAgent,
+			rpc.TaskKindClient,
+			rpc.TaskKindShell,
+		},
+	}
 	// Opt in to GitHub telemetry forwarding at the connection level when a handler is
 	// registered (mirrors the runtime, which reads this flag on the `connect` handshake
 	// so the first session's un-replayable `session.start` event is forwarded). Also
@@ -2002,6 +2009,7 @@ type connectHandshakeRequest struct {
 	Token                           *string                `json:"token,omitempty"`
 	EnableGitHubTelemetryForwarding *bool                  `json:"enableGitHubTelemetryForwarding,omitempty"`
 	ClientInfo                      *rpc.ConnectClientInfo `json:"clientInfo,omitempty"`
+	SupportedTaskKinds              []rpc.TaskKind         `json:"supportedTaskKinds,omitempty"`
 }
 
 // stderrBufferSize is the maximum number of bytes kept from the CLI process's

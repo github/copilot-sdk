@@ -2289,6 +2289,21 @@ func TestClient_ResumeSession_AllowsMissingPermissionHandler(t *testing.T) {
 	})
 }
 
+func TestModelInfoPreservesProviderMetadata(t *testing.T) {
+	var model ModelInfo
+	if err := json.Unmarshal([]byte(`{
+		"id":"provider/model",
+		"name":"Provider Model",
+		"capabilities":{"supports":{},"limits":{}},
+		"metadata":{"provider":"acme","contextWindow":200000}
+	}`), &model); err != nil {
+		t.Fatalf("unmarshal model info: %v", err)
+	}
+	if model.Metadata["provider"] != "acme" || model.Metadata["contextWindow"] != float64(200000) {
+		t.Fatalf("metadata = %#v", model.Metadata)
+	}
+}
+
 func TestListModelsWithCustomHandler(t *testing.T) {
 	customModels := []ModelInfo{
 		{
@@ -3889,7 +3904,9 @@ func TestClient_ForwardsGitHubTelemetryForwardingOnConnect(t *testing.T) {
 	if err := client.verifyProtocolVersion(t.Context()); err != nil {
 		t.Fatalf("verifyProtocolVersion failed: %v", err)
 	}
-	assertForwardingFlagTrue(t, <-connectParams)
+	params := <-connectParams
+	assertForwardingFlagTrue(t, params)
+	assertSupportedTaskKinds(t, params)
 }
 
 func TestClient_OmitsGitHubTelemetryForwardingOnConnectWhenNoHandler(t *testing.T) {
@@ -3913,6 +3930,20 @@ func TestClient_OmitsGitHubTelemetryForwardingOnConnectWhenNoHandler(t *testing.
 		t.Fatalf("verifyProtocolVersion failed: %v", err)
 	}
 	assertForwardingFlagAbsent(t, <-connectParams)
+}
+
+func assertSupportedTaskKinds(t *testing.T, params json.RawMessage) {
+	t.Helper()
+	var decoded struct {
+		SupportedTaskKinds []rpc.TaskKind `json:"supportedTaskKinds"`
+	}
+	if err := json.Unmarshal(params, &decoded); err != nil {
+		t.Fatalf("unmarshal connect params: %v", err)
+	}
+	expected := []rpc.TaskKind{rpc.TaskKindAgent, rpc.TaskKindClient, rpc.TaskKindShell}
+	if !reflect.DeepEqual(decoded.SupportedTaskKinds, expected) {
+		t.Fatalf("supportedTaskKinds = %v, want %v", decoded.SupportedTaskKinds, expected)
+	}
 }
 
 func TestGitHubTelemetryNotificationRoutesToCallback(t *testing.T) {

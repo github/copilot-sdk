@@ -189,6 +189,7 @@ class GitHubTelemetryTest {
             JsonNode connectParams = server.awaitConnect();
             assertFalse(connectParams.has("enableGitHubTelemetryForwarding"),
                     "connect request should omit the flag when no handler is registered");
+            assertEquals("[\"agent\",\"client\",\"shell\"]", connectParams.path("supportedTaskKinds").toString());
 
             client.createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get(15,
                     TimeUnit.SECONDS);

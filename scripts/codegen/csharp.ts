@@ -71,6 +71,17 @@ const POLYMORPHIC_BASE_PROPERTIES: Record<string, readonly string[]> = {
     PermissionRequest: ["managedApprovalRequired"],
 };
 
+const OPTIONAL_NULLABLE_RPC_PROPERTIES = new Set([
+    "ModelSwitchToRequest.autoTier",
+    "SessionModelSwitchToRequest.autoTier",
+    "TaskClientUpdateProgress.percentage",
+    "TaskClientUpdateProgress.phase",
+]);
+
+function isOptionalNullableRpcProperty(className: string, propName: string): boolean {
+    return OPTIONAL_NULLABLE_RPC_PROPERTIES.has(`${className}.${propName}`);
+}
+
 /**
  * Public type names declared by hand-written C# sources under `dotnet/src`
  * (excluding `dotnet/src/Generated`). Generated session-event types share the
@@ -1021,11 +1032,26 @@ function generateDerivedClass(
             const isReq = required.has(propName);
             const prop = propSchema as JSONSchema7;
             const csharpName = toCSharpPropertyName(propName, prop);
-            const csharpType = propertyResolver(prop, className, csharpName, isReq, knownTypes, nestedClasses, enumOutput);
+            const resolvedCSharpType = propertyResolver(
+                prop,
+                className,
+                csharpName,
+                isReq,
+                knownTypes,
+                nestedClasses,
+                enumOutput
+            );
+            const preservesNull = isOptionalNullableRpcProperty(className, propName);
+            const csharpType = preservesNull ? `Optional<${resolvedCSharpType}>` : resolvedCSharpType;
 
             if (baseProperties.has(propName)) {
                 lines.push(`    /// <inheritdoc />`);
-                if (!isReq) lines.push(`    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`);
+                if (preservesNull) {
+                    lines.push(`    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]`);
+                    lines.push(`    [JsonConverter(typeof(OptionalJsonConverter<${resolvedCSharpType}>))]`);
+                } else if (!isReq) {
+                    lines.push(`    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`);
+                }
                 lines.push(`    [JsonPropertyName("${propName}")]`);
                 lines.push(`    public override ${csharpType} ${csharpName}`);
                 lines.push(`    {`);
@@ -1040,7 +1066,12 @@ function generateDerivedClass(
             if (isSchemaDeprecated(prop)) pushObsoleteAttributes(lines, "    ");
             if (isSchemaExperimental(prop)) pushExperimentalAttribute(lines, "    ");
             if (isMillisecondsDurationProperty(propName, prop)) lines.push(`    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]`);
-            if (!isReq) lines.push(`    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`);
+            if (preservesNull) {
+                lines.push(`    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]`);
+                lines.push(`    [JsonConverter(typeof(OptionalJsonConverter<${resolvedCSharpType}>))]`);
+            } else if (!isReq) {
+                lines.push(`    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`);
+            }
             const propVisibility = pushCSharpInternalAttribute(lines, prop);
             lines.push(`    [JsonPropertyName("${propName}")]`);
             const reqMod = isReq && !csharpType.endsWith("?") ? "required " : "";
@@ -1819,7 +1850,9 @@ function emitRpcClass(
         const prop = propSchema as JSONSchema7;
         const isReq = requiredSet.has(propName);
         const csharpName = toCSharpPropertyName(propName, prop);
-        const csharpType = resolveRpcType(prop, isReq, inlineTypeParentName, csharpName, extraClasses);
+        const resolvedCSharpType = resolveRpcType(prop, isReq, inlineTypeParentName, csharpName, extraClasses);
+        const preservesNull = isOptionalNullableRpcProperty(className, propName);
+        const csharpType = preservesNull ? `Optional<${resolvedCSharpType}>` : resolvedCSharpType;
 
         lines.push(...xmlDocPropertyComment(prop.description, propName, "    "));
         lines.push(...emitDataAnnotations(prop, "    ", csharpType));
@@ -1827,6 +1860,10 @@ function emitRpcClass(
         if (isSchemaExperimental(prop)) pushExperimentalAttribute(lines, "    ");
         if (isMillisecondsDurationProperty(propName, prop)) lines.push(`    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]`);
         const propVisibility = pushCSharpInternalAttribute(lines, prop);
+        if (preservesNull) {
+            lines.push(`    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]`);
+            lines.push(`    [JsonConverter(typeof(OptionalJsonConverter<${resolvedCSharpType}>))]`);
+        }
         lines.push(`    [JsonPropertyName("${propName}")]`);
 
         let defaultVal = "";
@@ -2038,7 +2075,7 @@ function emitServerInstanceMethod(
         const opaqueListRequired = naturalType === "IList<JsonElement>";
         const opaqueListOptional = naturalType === "IList<JsonElement>?";
         const opaque = opaqueRequired || opaqueOptional || opaqueListRequired || opaqueListOptional;
-        const csType = opaqueRequired
+        const baseCsType = opaqueRequired
             ? "object"
             : opaqueOptional
                 ? "object?"
@@ -2047,7 +2084,11 @@ function emitServerInstanceMethod(
                     : opaqueListOptional
                         ? "IList<object?>?"
                         : naturalType;
-        sigParams.push(`${csType} ${pName}${isReq ? "" : " = null"}`);
+        const preservesNull =
+            (requestClassName !== null && isOptionalNullableRpcProperty(requestClassName, pName)) ||
+            (!isReq && pName === "autoTier" && naturalType === "AutoTier?");
+        const csType = preservesNull ? `Optional<${baseCsType}>` : baseCsType;
+        sigParams.push(`${csType} ${pName}${isReq ? "" : preservesNull ? " = default" : " = null"}`);
         const assignedValue = opaqueRequired
             ? `CopilotClient.ToJsonElementForWire(${pName})!.Value`
             : opaqueOptional
@@ -2226,7 +2267,7 @@ function emitSessionMethod(key: string, method: RpcMethod, lines: string[], clas
             const opaqueListRequired = naturalType === "IList<JsonElement>";
             const opaqueListOptional = naturalType === "IList<JsonElement>?";
             const opaque = opaqueRequired || opaqueOptional || opaqueListRequired || opaqueListOptional;
-            const csType = opaqueRequired
+            const baseCsType = opaqueRequired
                 ? "object"
                 : opaqueOptional
                     ? "object?"
@@ -2235,7 +2276,11 @@ function emitSessionMethod(key: string, method: RpcMethod, lines: string[], clas
                         : opaqueListOptional
                             ? "IList<object?>?"
                             : naturalType;
-            sigParams.push(`${csType} ${pName}${isReq ? "" : " = null"}`);
+            const preservesNull =
+                isOptionalNullableRpcProperty(requestClassName, pName) ||
+                (!isReq && pName === "autoTier" && naturalType === "AutoTier?");
+            const csType = preservesNull ? `Optional<${baseCsType}>` : baseCsType;
+            sigParams.push(`${csType} ${pName}${isReq ? "" : preservesNull ? " = default" : " = null"}`);
             const assignedValue = opaqueRequired
                 ? `CopilotClient.ToJsonElementForWire(${pName})!.Value`
                 : opaqueOptional
@@ -2686,6 +2731,42 @@ using System.Threading;
 
 namespace GitHub.Copilot.Rpc;
 `);
+
+    lines.push(
+        `/// <summary>Represents an optional JSON property whose value may explicitly be null.</summary>
+public readonly struct Optional<T>
+{
+    private readonly bool _isSet;
+    private readonly T _value;
+
+    /// <summary>Initializes a present property with the supplied value.</summary>
+    public Optional(T value)
+    {
+        _isSet = true;
+        _value = value;
+    }
+
+    /// <summary>Gets whether the property is present.</summary>
+    public bool IsSet => _isSet;
+
+    /// <summary>Gets the property value.</summary>
+    public T Value => _isSet ? _value : throw new InvalidOperationException("The optional property is not set.");
+
+    /// <summary>Creates a present optional property.</summary>
+    public static implicit operator Optional<T>(T value) => new(value);
+}
+
+internal sealed class OptionalJsonConverter<T> : JsonConverter<Optional<T>>
+{
+    public override Optional<T> Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
+        new(JsonSerializer.Deserialize(ref reader, (System.Text.Json.Serialization.Metadata.JsonTypeInfo<T>)options.GetTypeInfo(typeof(T)))!);
+
+    public override void Write(Utf8JsonWriter writer, Optional<T> value, JsonSerializerOptions options) =>
+        JsonSerializer.Serialize(writer, value.Value, (System.Text.Json.Serialization.Metadata.JsonTypeInfo<T>)options.GetTypeInfo(typeof(T)));
+}
+`,
+        ""
+    );
 
     for (const cls of classes) if (cls) lines.push(cls, "");
     for (const enumCode of rpcEnumOutput) lines.push(enumCode, "");

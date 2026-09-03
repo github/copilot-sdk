@@ -114,11 +114,10 @@ public class McpOAuthE2ETests(E2ETestFixture fixture, ITestOutputHelper output) 
             });
         Assert.True(handled.Success);
 
+        releaseHandler.SetResult(McpAuthResult.FromToken(new McpAuthToken { AccessToken = ExpectedToken }));
         await connected;
         var tools = await session.Rpc.Mcp.ListToolsAsync(serverName);
         Assert.Contains(tools.Tools, tool => tool.Name == "whoami");
-
-        releaseHandler.SetResult(McpAuthResult.FromToken(new McpAuthToken { AccessToken = ExpectedToken }));
     }
 
     [Fact]

@@ -138,6 +138,9 @@ public sealed class GitHubTelemetryTests
         Assert.True(
             !present || flag.ValueKind == JsonValueKind.Null,
             "connect request should omit enableGitHubTelemetryForwarding (or send null) when no handler is registered");
+        Assert.Equal(
+            ["agent", "client", "shell"],
+            connectParams.GetProperty("supportedTaskKinds").EnumerateArray().Select(kind => kind.GetString()));
     }
 
     [Fact]

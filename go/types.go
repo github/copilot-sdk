@@ -2514,6 +2514,7 @@ type ModelInfo struct {
 	Capabilities              ModelCapabilities `json:"capabilities"`
 	Policy                    *ModelPolicy      `json:"policy,omitempty"`
 	Billing                   *ModelBilling     `json:"billing,omitempty"`
+	Metadata                  map[string]any    `json:"metadata,omitempty"`
 	SupportedReasoningEfforts []string          `json:"supportedReasoningEfforts,omitempty"`
 	DefaultReasoningEffort    string            `json:"defaultReasoningEffort,omitempty"`
 }

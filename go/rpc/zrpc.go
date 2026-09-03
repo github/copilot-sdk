@@ -7364,7 +7364,7 @@ type ModelSwitchToRequest struct {
 	// Optional Auto routing preference to stage atomically with selecting `auto`. Pass null to
 	// return to provider-default Auto routing. This field is rejected when `modelId` is not
 	// `auto`.
-	AutoTier *AutoTier `json:"autoTier,omitempty"`
+	AutoTier **AutoTier `json:"autoTier,omitempty"`
 	// Explicit response to a model-switch compaction preflight. Omit to request a confirmation
 	// projection when compaction is necessary.
 	CompactionDecision *string `json:"compactionDecision,omitempty"`
@@ -14276,9 +14276,9 @@ type TaskClientUpdateProgress struct {
 	// Optional progress message appended to recent activity when nonempty
 	Message *string `json:"message,omitempty"`
 	// Optional completion percentage; null clears the current percentage
-	Percentage *float64 `json:"percentage,omitempty"`
+	Percentage **float64 `json:"percentage,omitempty"`
 	// Optional progress phase; null clears the current phase
-	Phase *string `json:"phase,omitempty"`
+	Phase **string `json:"phase,omitempty"`
 	// Optional active status transition
 	Status *TaskClientActiveStatus `json:"status,omitempty"`
 }
