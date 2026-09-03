@@ -55,7 +55,7 @@ from copilot.rpc import (
 )
 from copilot.session import PermissionHandler
 
-from .testharness import E2ETestContext, wait_for_condition
+from .testharness import E2ETestContext, is_inprocess_transport, wait_for_condition
 
 pytestmark = pytest.mark.asyncio(loop_scope="module")
 
@@ -137,6 +137,10 @@ class TestRpcServer:
         assert result.message == "pong: typed rpc test"
         assert result.timestamp is not None
 
+    @pytest.mark.skipif(
+        is_inprocess_transport(),
+        reason="managedSettings.clearCache is unavailable in the in-process host",
+    )
     async def test_should_clear_the_managed_settings_cache(self, ctx: E2ETestContext):
         await ctx.client.start()
         assert await ctx.client.rpc.managed_settings.clear_cache() is None

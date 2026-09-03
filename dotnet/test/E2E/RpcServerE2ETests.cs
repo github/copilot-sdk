@@ -126,6 +126,7 @@ public class RpcServerE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     }
 
     [Fact]
+    [Trait(E2ETestTraits.Backend, E2ETestTraits.CapiOnly)]
     public async Task Should_Clear_The_Managed_Settings_Cache()
     {
         await Client.StartAsync();

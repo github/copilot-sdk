@@ -48,8 +48,10 @@ async fn should_call_rpc_ping_with_typed_params_and_result() {
 
 #[tokio::test]
 async fn should_clear_the_managed_settings_cache() {
-    super::support::with_shared_e2e_context(
-        &E2E,
+    if super::support::skip_inprocess("managedSettings.clearCache is unavailable in-process") {
+        return;
+    }
+    with_e2e_context(
         "rpc_server",
         "should_clear_the_managed_settings_cache",
         |ctx| {
@@ -915,4 +917,4 @@ fn paths_equal(left: &str, right: &str) -> bool {
     normalize(left) == normalize(right)
 }
 static E2E: super::support::SharedE2eGroup =
-    super::support::SharedE2eGroup::standard("rpc_server", 12);
+    super::support::SharedE2eGroup::standard("rpc_server", 11);
