@@ -249,8 +249,9 @@ function toWireMcpServers(
 }
 
 /**
- * Convert custom agent configs, transforming nested mcpServers from
- * public API format (workingDirectory) to wire format (cwd).
+ * Convert custom agent configs, transforming nested public API fields to
+ * their wire shapes: mcpServers workingDirectory to cwd, and largeOutput
+ * outputDirectory to outputDir.
  */
 function toWireCustomAgents(agents: CustomAgentConfig[] | undefined): unknown[] | undefined {
     if (!agents) return undefined;

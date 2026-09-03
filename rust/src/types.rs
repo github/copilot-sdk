@@ -6195,12 +6195,12 @@ mod tests {
             LargeToolOutputConfig::new()
                 .with_enabled(false)
                 .with_max_size_bytes(2048)
-                .with_output_directory("/tmp/agent-large-output"),
+                .with_output_directory("agent-large-output"),
         );
         let wire = serde_json::to_value(&agent).unwrap();
         assert_eq!(wire["largeOutput"]["enabled"], false);
         assert_eq!(wire["largeOutput"]["maxSizeBytes"], 2048);
-        assert_eq!(wire["largeOutput"]["outputDir"], "/tmp/agent-large-output");
+        assert_eq!(wire["largeOutput"]["outputDir"], "agent-large-output");
     }
 
     #[test]
