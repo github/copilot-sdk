@@ -4268,8 +4268,10 @@ function clientHandlerMethodName(rpcMethod: string): string {
     return toPascalCase(rpcMethod.split(".").at(-1)!);
 }
 
-function emitClientSessionApiRegistration(lines: string[], clientSchema: Record<string, unknown>, resolveType: (name: string) => string, unionInfos: Map<string, GoDiscriminatedUnionInfo>): void {
-    const groups = collectClientGroups(clientSchema);
+export function emitClientSessionApiRegistration(lines: string[], clientSchema: Record<string, unknown>, resolveType: (name: string) => string, unionInfos: Map<string, GoDiscriminatedUnionInfo>): void {
+    const publicClientSchema = filterNodeByVisibility(clientSchema, "public");
+    if (!publicClientSchema) return;
+    const groups = collectClientGroups(publicClientSchema);
 
     for (const { groupName, groupNode, methods } of groups) {
         const interfaceName = clientHandlerInterfaceName(groupName);

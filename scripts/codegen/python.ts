@@ -3773,12 +3773,14 @@ function clientSessionHandlerMethodName(rpcMethod: string): string {
     return toSnakeCase(parts[parts.length - 1]);
 }
 
-function emitClientSessionApiRegistration(
+export function emitClientSessionApiRegistration(
     lines: string[],
     node: Record<string, unknown>,
     resolveType: (name: string) => string
 ): void {
-    const groups = Object.entries(node).filter(([, value]) => typeof value === "object" && value !== null && !isRpcMethod(value));
+    const publicNode = filterNodeByVisibility(node, "public");
+    if (!publicNode) return;
+    const groups = Object.entries(publicNode).filter(([, value]) => typeof value === "object" && value !== null && !isRpcMethod(value));
 
     for (const [groupName, groupNode] of groups) {
         const handlerName = `${toPascalCase(groupName)}Handler`;
