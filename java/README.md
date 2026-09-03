@@ -20,7 +20,11 @@ Java SDK for programmatic control of GitHub Copilot CLI, enabling you to build A
 To use the SDK, you'll need:
 
 - Java 17 or later. **JDK 25 recommended**. The distributed jar is a multi-release jar (MR-JAR) and is compiled on JDK 25 with `maven.compiler.release` set to 17. This means, when run on JDK 25 and later, the SDK automatically uses virtual threads for its default internal executor.
-- GitHub Copilot CLI 1.0.55-5 or later installed and in `PATH` (or provide custom `cliPath`)
+
+Managed stdio and TCP connections materialize the platform classifier's
+`copilot-runtime[.exe]` and adjacent `runtime.node` by default. An explicit
+`cliPath` or `COPILOT_CLI_PATH` environment variable overrides the bundled
+runtime.
 
 ## Installation
 
@@ -32,14 +36,14 @@ Replace `${copilot.sdk.version}` with the latest release from Maven Central.
 <dependency>
     <groupId>com.github</groupId>
     <artifactId>copilot-sdk-java</artifactId>
-    <version>1.0.13-preview.1</version>
+    <version>1.0.13-preview.4</version>
 </dependency>
 ```
 
 ### Gradle
 
 ```groovy
-implementation 'com.github:copilot-sdk-java:1.0.13-preview.1'
+implementation 'com.github:copilot-sdk-java:1.0.13-preview.4'
 ```
 
 #### Snapshot Builds
@@ -58,7 +62,7 @@ Snapshot builds of the next development version are published to Maven Central S
 <dependency>
     <groupId>com.github</groupId>
     <artifactId>copilot-sdk-java</artifactId>
-    <version>1.0.14-preview.1-SNAPSHOT</version>
+    <version>1.0.14-preview.4-SNAPSHOT</version>
 </dependency>
 ```
 
@@ -67,12 +71,12 @@ Snapshot builds of the next development version are published to Maven Central S
 Replace `${copilot.sdk.version}` with the latest release from Maven Central.
 
 ```groovy
-implementation 'com.github:copilot-sdk-java:1.0.14-preview.1-SNAPSHOT'
+implementation 'com.github:copilot-sdk-java:1.0.14-preview.4-SNAPSHOT'
 ```
 
 ## In-process mode (experimental)
 
-The SDK supports running the Copilot runtime **in-process** as a native library instead of spawning a separate CLI process. This eliminates process management overhead and simplifies deployment. In-process mode is currently experimental and supported on **linux-x64** (glibc), **win32-x64**, and **darwin-arm64**.
+The SDK supports running the Copilot runtime **in-process** as a native library instead of spawning a separate CLI process. This eliminates process management overhead and simplifies deployment. In-process mode is currently experimental and supported on **linux-x64** (glibc), **linux-arm64** (glibc), **win32-x64**, **win32-arm64**, and **darwin-arm64**.
 
 Because in-process mode is experimental, see the [Using experimental APIs](#using-experimental-apis) section for how to opt in.
 
@@ -95,7 +99,7 @@ Add both the SDK and the platform-specific native runtime to your project:
         <version>${copilot.version}</version>
         <classifier>linux-x64</classifier>
     </dependency>
-    <!-- Use win32-x64 on Windows x64 or darwin-arm64 on Apple Silicon macOS -->
+    <!-- Use linux-arm64, win32-x64, win32-arm64, or darwin-arm64 on those target platforms -->
     <!-- JNA (required for in-process mode) -->
     <dependency>
         <groupId>net.java.dev.jna</groupId>
@@ -176,14 +180,21 @@ directly.
 
 `CopilotClientOptions.setCwd(...)` sets the runtime process working directory, which otherwise inherits the current process working directory. `SessionConfig.setWorkingDirectory(...)` sets the session working directory, which otherwise defaults to the runtime process working directory.
 
+`SessionConfig.setAskUserVariant(AskUserVariant.ELICITATION)` selects the
+structured form-based `ask_user` tool when an elicitation handler is also set.
+The default is `AskUserVariant.LEGACY`. Re-supply the option and handler through
+`ResumeSessionConfig` on a cold resume.
+
 For rotating per-session GitHub credentials, use
 `SessionConfig.setGitHubTokenProvider(...)` (or the equivalent
 `ResumeSessionConfig` setter) instead of `setGitHubToken(...)`:
 
 ```java
-var config = new SessionConfig().setGitHubTokenProvider(args ->
-    acquireForHost(args.host()).thenApply(token ->
-        GitHubTokenProviderResult.token(token, 8 * 60 * 60)));
+var config = new SessionConfig()
+    .setGitHubTokenProvider(args ->
+        acquireForHost(args.host()).thenApply(token ->
+            GitHubTokenProviderResult.token(token, 8 * 60 * 60)))
+    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL);
 ```
 
 The remaining lifetime is required and must be positive when the callback
@@ -329,6 +340,34 @@ Chain fluent modifiers to set tool options:
 - `.overridesBuiltInTool(boolean)` — shadow built-in tools
 
 For design context and decision rationale, see [ADR-006](docs/adr/adr-006-tool-definition-inline.md).
+
+## Auto routing tiers
+
+Use `CapiSessionOptions.setAutoTier(...)` to select `AutoTier.EFFICIENCY`,
+`AutoTier.BALANCE`, or `AutoTier.INTELLIGENCE`. This option is meaningful only
+with model `auto` (Auto mode V2).
+It requires a runtime version that supports `capi.autoTier`.
+
+```java
+import com.github.copilot.rpc.AutoTier;
+import com.github.copilot.rpc.CapiSessionOptions;
+import com.github.copilot.rpc.PermissionHandler;
+import com.github.copilot.rpc.SessionConfig;
+
+var config = new SessionConfig()
+    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+    .setModel("auto")
+    .setCapi(new CapiSessionOptions().setAutoTier(AutoTier.BALANCE));
+```
+
+The same options work with `ResumeSessionConfig.setCapi(...)` and can be combined
+with `setEnableWebSocketResponses(false)`. The SDK omits an unset (`null`) tier:
+the runtime chooses its default on create and preserves the persisted/current
+tier on resume. An explicit tier overrides the persisted tier on cold resume;
+the runtime rejects a conflicting tier when the session is already resident
+in memory. The SDK does not choose a default or manage tier persistence.
+See [Auto tier persistence](../docs/features/session-persistence.md#auto-tier-persistence)
+for the lifecycle rules.
 
 ## Session Store
 
@@ -511,7 +550,7 @@ mvn jacoco:prepare-agent@wire-up-coverage-instrumentation antrun:run@print-test-
 
 Run native-runtime Maven commands from the `java` directory. Native packaging requires Node.js and npm in addition to JDK 25 and Maven because `copilot-native/scripts/fetch-native.mjs` retrieves the pinned npm runtime package.
 
-On a native Linux x64 glibc host, Maven activates the `native-linux-x64` profile when `copilot.native.libc=glibc` is set. On Windows x64, Maven activates `native-win32-x64` automatically. On Apple Silicon macOS, Maven activates `native-darwin-arm64` automatically. The matching profile validates the host, runs the native script tests, fetches the pinned `@github/copilot-<classifier>` package during `generate-resources`, packages the classifier JAR during `package`, and verifies its native contents. Ensure npm can authenticate to the package registry before running the build.
+On a native Linux glibc host, Maven activates `native-linux-x64` or `native-linux-arm64` for the matching architecture when `copilot.native.libc=glibc` is set. On Windows x64, Windows ARM64, and Apple Silicon macOS, Maven activates `native-win32-x64`, `native-win32-arm64`, or `native-darwin-arm64` automatically. The matching profile validates the host, runs the native script tests, fetches the pinned `@github/copilot-<classifier>` package during `generate-resources`, packages the classifier JAR during `package`, and verifies its native contents. Ensure npm can authenticate to the package registry before running the build.
 
 Before opting in, validate that Node.js reports glibc for the build host:
 
@@ -526,7 +565,7 @@ The `inprocess` test profile performs the same validation and native packaging a
 mvn -Pinprocess clean verify
 ```
 
-On Windows PowerShell, initialize Java and run the same profile:
+On Windows x64 or ARM64 PowerShell, initialize Java and run the same profile:
 
 ```powershell
 mvn -Pinprocess clean verify
@@ -539,7 +578,14 @@ node copilot-native/scripts/validate-native-host.mjs darwin-arm64
 mvn -Pinprocess clean verify
 ```
 
-On Intel macOS, Linux ARM64, Linux x64 musl, and other unsupported hosts, do not set `copilot.native.libc=glibc`. A normal build produces only the OS-neutral primary, sources, and Javadoc JARs; it does not run native script tests, download or stage native files, or produce a platform classifier JAR.
+The same command validates in-process mode on Linux ARM64:
+
+```bash
+node copilot-native/scripts/validate-native-host.mjs linux-arm64
+mvn -Pinprocess clean verify -Dcopilot.native.libc=glibc
+```
+
+On Intel macOS, Linux musl, and other unsupported hosts, do not set `copilot.native.libc=glibc`. A normal build produces only the OS-neutral primary, sources, and Javadoc JARs; it does not run native script tests, download or stage native files, or produce a platform classifier JAR.
 
 To build only the OS-neutral artifacts on any host, or override the glibc opt-in, disable native download and packaging:
 
@@ -557,7 +603,7 @@ mvn clean verify -Dcopilot.native.libc=glibc
 mvn clean package -pl copilot-native -DskipTests -Dcopilot.native.libc=glibc -Dcopilot.native.skip.download=true
 ```
 
-On Linux x64, the classifier JAR contains `native/linux-x64/runtime.node`, `native/linux-x64/platform.properties`, and `native/linux-x64/copilot`. On Windows x64, it contains `native/win32-x64/runtime.node`, `native/win32-x64/platform.properties`, and `native/win32-x64/copilot.exe`. On Apple Silicon macOS, it contains `native/darwin-arm64/runtime.node`, `native/darwin-arm64/platform.properties`, and `native/darwin-arm64/copilot`. The placeholder JAR remains OS-neutral and contains no native binaries. Unsupported hosts retain the placeholder-only behavior.
+Each classifier JAR includes `runtime.node`, `platform.properties`, and `copilot-runtime` (or `copilot-runtime.exe`) under its `native/<classifier>` directory. It does not contain the legacy `copilot` SEA. The placeholder JAR remains OS-neutral and contains no native binaries. Unsupported hosts retain the placeholder-only behavior.
 
 ## License
 

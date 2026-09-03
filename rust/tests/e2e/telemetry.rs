@@ -83,11 +83,6 @@ async fn should_export_file_telemetry_for_sdk_interactions() {
                         == Some(source_name)
                 }));
 
-                let trace_ids: std::collections::HashSet<_> = spans
-                    .iter()
-                    .filter_map(|span| string_property(span, "traceId"))
-                    .collect();
-                assert_eq!(trace_ids.len(), 1);
                 assert!(spans.iter().all(|span| status_code(span) != Some(2)));
 
                 let invoke_agent = find_span(&spans, "invoke_agent");
@@ -97,6 +92,8 @@ async fn should_export_file_telemetry_for_sdk_interactions() {
                 );
                 let invoke_agent_span_id =
                     string_property(invoke_agent, "spanId").expect("invoke_agent span id");
+                let invoke_agent_trace_id =
+                    string_property(invoke_agent, "traceId").expect("invoke_agent trace id");
                 assert!(is_root_span(invoke_agent));
 
                 let chat_spans: Vec<_> = spans
@@ -109,6 +106,7 @@ async fn should_export_file_telemetry_for_sdk_interactions() {
                 assert!(!chat_spans.is_empty());
                 assert!(chat_spans.iter().all(|span| {
                     string_property(span, "parentSpanId") == Some(invoke_agent_span_id)
+                        && string_property(span, "traceId") == Some(invoke_agent_trace_id)
                 }));
                 assert!(chat_spans.iter().any(|span| string_attribute(
                     span,
@@ -125,6 +123,10 @@ async fn should_export_file_telemetry_for_sdk_interactions() {
                 assert_eq!(
                     string_property(tool_span, "parentSpanId"),
                     Some(invoke_agent_span_id)
+                );
+                assert_eq!(
+                    string_property(tool_span, "traceId"),
+                    Some(invoke_agent_trace_id)
                 );
                 assert_eq!(
                     string_attribute(tool_span, "gen_ai.tool.name").as_deref(),

@@ -27,6 +27,8 @@ public record SessionCommandsEnqueueParams(
     /** Target session identifier */
     @JsonProperty("sessionId") String sessionId,
     /** Slash-prefixed command string to enqueue, e.g. '/compact' or '/model gpt-4'. Queued FIFO with any in-flight items; if the session is idle, processing kicks off immediately. */
-    @JsonProperty("command") String command
+    @JsonProperty("command") String command,
+    /** Optional user-facing text for the queue row. The command string is shown when omitted. */
+    @JsonProperty("displayText") String displayText
 ) {
 }

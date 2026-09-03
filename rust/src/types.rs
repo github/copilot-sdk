@@ -21,6 +21,8 @@ pub use crate::copilot_request_handler::{
     CopilotWebSocketResponse, WebSocketTransform, forward_http,
 };
 use crate::generated::api_types::{CurrentToolMetadata, OpenCanvasInstance};
+/// Routing tier for the `auto` model with Auto mode V2.
+pub use crate::generated::session_events::AutoTier;
 use crate::generated::session_events::ReasoningSummary;
 /// Context window tier for models that support tiered context windows.
 pub use crate::generated::session_events::{ContextTier, SessionLimitsConfig};
@@ -1417,6 +1419,16 @@ impl ProviderConfig {
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct CapiSessionOptions {
+    /// Routing tier, meaningful only with model `auto` (Auto mode V2).
+    /// Requires a runtime version that supports `capi.autoTier`.
+    ///
+    /// When omitted, the runtime chooses its default on create and preserves
+    /// the persisted or current tier on resume. An explicit tier overrides the
+    /// persisted tier on cold resume; the runtime rejects a conflicting tier
+    /// when resuming a session already resident in memory.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auto_tier: Option<AutoTier>,
+
     /// Whether to use WebSocket transport for CAPI Responses API calls.
     ///
     /// When `Some(false)`, the runtime uses HTTP Responses transport even if
@@ -1430,6 +1442,12 @@ impl CapiSessionOptions {
     /// Construct CAPI session options with all fields unset.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Set the routing tier for the `auto` model (Auto mode V2).
+    pub fn with_auto_tier(mut self, auto_tier: AutoTier) -> Self {
+        self.auto_tier = Some(auto_tier);
+        self
     }
 
     /// Set whether to use WebSocket transport for CAPI Responses API calls.
@@ -1851,6 +1869,18 @@ impl ManagedSettings {
     }
 }
 
+/// Selects the model-facing shape of the built-in `ask_user` tool.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+#[non_exhaustive]
+pub enum AskUserVariant {
+    /// Use the legacy user-input request flow.
+    #[default]
+    Legacy,
+    /// Use the elicitation request flow.
+    Elicitation,
+}
+
 /// Configuration for creating a new session via the `session.create` RPC.
 ///
 /// All fields are optional — the CLI applies sensible defaults.
@@ -1924,6 +1954,11 @@ pub struct SessionConfig {
     pub streaming: Option<bool>,
     /// Custom system message configuration.
     pub system_message: Option<SystemMessageConfig>,
+    /// Selects the model-facing shape of the built-in `ask_user` tool.
+    ///
+    /// When omitted, the runtime uses [`AskUserVariant::Legacy`]. To use
+    /// [`AskUserVariant::Elicitation`], also install an [`ElicitationHandler`].
+    pub ask_user_variant: Option<AskUserVariant>,
     /// Client-defined tool declarations to expose to the agent.
     pub tools: Option<Vec<Tool>>,
     /// Canvas declarations this connection provides to the runtime.
@@ -2148,6 +2183,12 @@ pub struct SessionConfig {
     /// each command appears as `/name` for the user to invoke and the
     /// associated [`CommandHandler`] is called when executed.
     pub commands: Option<Vec<CommandDefinition>>,
+    /// Feature-flag values resolved by the host for this session.
+    ///
+    /// Re-supply these values through [`ResumeSessionConfig::feature_flags`]
+    /// when resuming after a CLI process restart. Set via
+    /// [`with_feature_flags`](Self::with_feature_flags).
+    pub feature_flags: Option<HashMap<String, bool>>,
     /// ExP assignment ("flight") data injected by a trusted integrator, in
     /// the same JSON shape the Copilot CLI fetches from the experimentation
     /// service (`CopilotExpAssignmentResponse`). When supplied, the runtime
@@ -2188,9 +2229,9 @@ pub struct SessionConfig {
     /// Optional MCP OAuth request handler. When set, the SDK can satisfy MCP
     /// server OAuth requests with host-acquired token data or cancellation.
     pub mcp_auth_handler: Option<Arc<dyn McpAuthHandler>>,
-    /// Optional user-input handler. When `None`,
-    /// `requestUserInput: false` goes on the wire and the `ask_user`
-    /// tool is disabled.
+    /// Optional handler for the legacy question-and-answer `ask_user` variant.
+    /// When `None`, `requestUserInput: false` goes on the wire, so this client
+    /// cannot handle legacy user-input requests.
     pub user_input_handler: Option<Arc<dyn UserInputHandler>>,
     /// Optional exit-plan-mode handler. When `None`,
     /// `requestExitPlanMode: false` goes on the wire.
@@ -2245,6 +2286,7 @@ impl std::fmt::Debug for SessionConfig {
             .field("context_tier", &self.context_tier)
             .field("streaming", &self.streaming)
             .field("system_message", &self.system_message)
+            .field("ask_user_variant", &self.ask_user_variant)
             .field("tools", &self.tools)
             .field("canvases", &self.canvases)
             .field(
@@ -2329,6 +2371,7 @@ impl std::fmt::Debug for SessionConfig {
                 &self.include_sub_agent_streaming_events,
             )
             .field("commands", &self.commands)
+            .field("feature_flags", &self.feature_flags)
             .field("exp_assignments", &self.exp_assignments)
             .field("enable_managed_settings", &self.enable_managed_settings)
             .field("enable_experimental_mode", &self.enable_experimental_mode)
@@ -2389,6 +2432,7 @@ impl Default for SessionConfig {
             context_tier: None,
             streaming: None,
             system_message: None,
+            ask_user_variant: None,
             tools: None,
             canvases: None,
             canvas_handler: None,
@@ -2446,6 +2490,7 @@ impl Default for SessionConfig {
             cloud: None,
             include_sub_agent_streaming_events: None,
             commands: None,
+            feature_flags: None,
             exp_assignments: None,
             enable_managed_settings: None,
             managed_settings: None,
@@ -2557,6 +2602,7 @@ impl SessionConfig {
             context_tier: self.context_tier,
             streaming: self.streaming,
             system_message: self.system_message,
+            ask_user_variant: self.ask_user_variant,
             tools: self.tools,
             canvases: wire_canvases,
             request_canvas_renderer: self.request_canvas_renderer,
@@ -2621,6 +2667,7 @@ impl SessionConfig {
             include_sub_agent_streaming_events: self.include_sub_agent_streaming_events,
             enable_github_telemetry_forwarding: None,
             commands: wire_commands,
+            feature_flags: self.feature_flags,
             exp_assignments: self.exp_assignments,
             enable_managed_settings: self.enable_managed_settings,
             is_experimental_mode: self.enable_experimental_mode,
@@ -2669,10 +2716,16 @@ impl SessionConfig {
         self
     }
 
-    /// Install a [`UserInputHandler`]. Required for the `ask_user` tool
-    /// to be enabled.
+    /// Install a [`UserInputHandler`] for the legacy question-and-answer
+    /// `ask_user` variant.
     pub fn with_user_input_handler(mut self, handler: Arc<dyn UserInputHandler>) -> Self {
         self.user_input_handler = Some(handler);
+        self
+    }
+
+    /// Select the model-facing shape of the built-in `ask_user` tool.
+    pub fn with_ask_user_variant(mut self, variant: AskUserVariant) -> Self {
+        self.ask_user_variant = Some(variant);
         self
     }
 
@@ -3260,6 +3313,12 @@ impl SessionConfig {
         self
     }
 
+    /// Set feature-flag values resolved by the host for this session.
+    pub fn with_feature_flags(mut self, feature_flags: HashMap<String, bool>) -> Self {
+        self.feature_flags = Some(feature_flags);
+        self
+    }
+
     /// Inject ExP assignment ("flight") data for this session, in the same
     /// JSON shape the Copilot CLI fetches from the experimentation service
     /// (`CopilotExpAssignmentResponse`). The runtime feeds it into the same
@@ -3323,6 +3382,11 @@ pub struct ResumeSessionConfig {
     /// Re-supply the system message so the agent retains workspace context
     /// across CLI process restarts.
     pub system_message: Option<SystemMessageConfig>,
+    /// Selects the model-facing shape of the built-in `ask_user` tool on a cold resume.
+    ///
+    /// When omitted, the runtime uses [`AskUserVariant::Legacy`]. To use
+    /// [`AskUserVariant::Elicitation`], also install an [`ElicitationHandler`].
+    pub ask_user_variant: Option<AskUserVariant>,
     /// Client-defined tool declarations to re-supply on resume.
     pub tools: Option<Vec<Tool>>,
     /// Canvas declarations this connection provides to the runtime.
@@ -3489,6 +3553,10 @@ pub struct ResumeSessionConfig {
     /// [`SessionConfig::commands`] — commands are not persisted server-side,
     /// so the resume payload re-supplies the registration.
     pub commands: Option<Vec<CommandDefinition>>,
+    /// Feature-flag values resolved by the host to apply on resume.
+    ///
+    /// See [`SessionConfig::feature_flags`].
+    pub feature_flags: Option<HashMap<String, bool>>,
     /// ExP assignment ("flight") data injected on resume. See
     /// [`SessionConfig::exp_assignments`]. Re-supply on resume so the runtime
     /// re-applies the assignments after a CLI process restart. Set via
@@ -3572,6 +3640,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("context_tier", &self.context_tier)
             .field("streaming", &self.streaming)
             .field("system_message", &self.system_message)
+            .field("ask_user_variant", &self.ask_user_variant)
             .field("tools", &self.tools)
             .field("canvases", &self.canvases)
             .field(
@@ -3656,6 +3725,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
                 &self.include_sub_agent_streaming_events,
             )
             .field("commands", &self.commands)
+            .field("feature_flags", &self.feature_flags)
             .field("exp_assignments", &self.exp_assignments)
             .field("enable_managed_settings", &self.enable_managed_settings)
             .field("enable_experimental_mode", &self.enable_experimental_mode)
@@ -3759,6 +3829,7 @@ impl ResumeSessionConfig {
             context_tier: self.context_tier,
             streaming: self.streaming,
             system_message: self.system_message,
+            ask_user_variant: self.ask_user_variant,
             tools: self.tools,
             canvases: wire_canvases,
             open_canvases: self.open_canvases,
@@ -3823,6 +3894,7 @@ impl ResumeSessionConfig {
             include_sub_agent_streaming_events: self.include_sub_agent_streaming_events,
             enable_github_telemetry_forwarding: None,
             commands: wire_commands,
+            feature_flags: self.feature_flags,
             exp_assignments: self.exp_assignments,
             enable_managed_settings: self.enable_managed_settings,
             is_experimental_mode: self.enable_experimental_mode,
@@ -3866,6 +3938,7 @@ impl ResumeSessionConfig {
             context_tier: None,
             streaming: None,
             system_message: None,
+            ask_user_variant: None,
             tools: None,
             canvases: None,
             canvas_handler: None,
@@ -3923,6 +3996,7 @@ impl ResumeSessionConfig {
             remote_session: None,
             include_sub_agent_streaming_events: None,
             commands: None,
+            feature_flags: None,
             exp_assignments: None,
             enable_managed_settings: None,
             managed_settings: None,
@@ -3967,6 +4041,12 @@ impl ResumeSessionConfig {
     /// Install a [`UserInputHandler`] for the resumed session.
     pub fn with_user_input_handler(mut self, handler: Arc<dyn UserInputHandler>) -> Self {
         self.user_input_handler = Some(handler);
+        self
+    }
+
+    /// Select the model-facing shape of the built-in `ask_user` tool on resume.
+    pub fn with_ask_user_variant(mut self, variant: AskUserVariant) -> Self {
+        self.ask_user_variant = Some(variant);
         self
     }
 
@@ -4545,6 +4625,12 @@ impl ResumeSessionConfig {
     /// Set [`Self::manage_schedule_enabled`].
     pub fn with_manage_schedule_enabled(mut self, value: bool) -> Self {
         self.manage_schedule_enabled = Some(value);
+        self
+    }
+
+    /// Re-supply feature-flag values resolved by the host on resume.
+    pub fn with_feature_flags(mut self, feature_flags: HashMap<String, bool>) -> Self {
+        self.feature_flags = Some(feature_flags);
         self
     }
 
@@ -6003,9 +6089,9 @@ mod tests {
 
     use super::{
         AgentMode, Attachment, AttachmentLineRange, AttachmentSelectionPosition,
-        AttachmentSelectionRange, AzureProviderOptions, CapiSessionOptions, ConnectionState,
-        CopilotExpAssignmentResponse, CustomAgentConfig, DeliveryMode, ExpConfigEntry,
-        ExpFlagValue, ExtensionInfo, GitHubMcpToolConfig, GitHubReferenceType,
+        AttachmentSelectionRange, AutoTier, AzureProviderOptions, CapiSessionOptions,
+        ConnectionState, CopilotExpAssignmentResponse, CustomAgentConfig, DeliveryMode,
+        ExpConfigEntry, ExpFlagValue, ExtensionInfo, GitHubMcpToolConfig, GitHubReferenceType,
         InfiniteSessionConfig, LargeToolOutputConfig, McpServerConfig, McpStdioServerConfig,
         MemoryConfiguration, NamedProviderConfig, PermissionResponseCapability, ProviderConfig,
         ProviderModelConfig, ReasoningSummary, ResumeSessionConfig, SessionConfig, SessionEvent,
@@ -6276,6 +6362,8 @@ mod tests {
         assert!(!wire.request_auto_mode_switch);
         assert!(!wire.hooks);
         assert!(!wire.request_mcp_apps);
+        let json = serde_json::to_value(&wire).unwrap();
+        assert!(json.get("askUserVariant").is_none());
     }
 
     #[test]
@@ -6292,6 +6380,8 @@ mod tests {
         assert!(!wire.request_auto_mode_switch);
         assert!(!wire.hooks);
         assert!(!wire.request_mcp_apps);
+        let json = serde_json::to_value(&wire).unwrap();
+        assert!(json.get("askUserVariant").is_none());
     }
 
     #[test]
@@ -6442,6 +6532,46 @@ mod tests {
             .expect("no duplicate handlers");
         let empty_json = serde_json::to_value(&empty_wire).unwrap();
         assert!(empty_json.get("memory").is_none());
+    }
+
+    #[test]
+    fn feature_flags_serialize_on_create_and_resume() {
+        let feature_flags = HashMap::from([
+            ("BACKGROUND_TASK_NOTIFICATION_PAYLOADS".to_string(), true),
+            ("DISABLED_TEST_FLAG".to_string(), false),
+        ]);
+        let expected = serde_json::json!({
+            "BACKGROUND_TASK_NOTIFICATION_PAYLOADS": true,
+            "DISABLED_TEST_FLAG": false,
+        });
+
+        let create_config = SessionConfig::default().with_feature_flags(feature_flags.clone());
+        assert_eq!(create_config.feature_flags.as_ref(), Some(&feature_flags));
+        let (create_wire, _) = create_config
+            .into_wire(Some(SessionId::from("feature-flags-create")))
+            .expect("no duplicate handlers");
+        let create_json = serde_json::to_value(&create_wire).unwrap();
+        assert_eq!(create_json["featureFlags"], expected);
+
+        let (resume_wire, _) = ResumeSessionConfig::new(SessionId::from("feature-flags-resume"))
+            .with_feature_flags(feature_flags)
+            .into_wire()
+            .expect("no duplicate handlers");
+        let resume_json = serde_json::to_value(&resume_wire).unwrap();
+        assert_eq!(resume_json["featureFlags"], expected);
+
+        let (unset_create_wire, _) = SessionConfig::default()
+            .into_wire(Some(SessionId::from("feature-flags-create-unset")))
+            .expect("no duplicate handlers");
+        let unset_create_json = serde_json::to_value(&unset_create_wire).unwrap();
+        assert!(unset_create_json.get("featureFlags").is_none());
+
+        let (unset_resume_wire, _) =
+            ResumeSessionConfig::new(SessionId::from("feature-flags-resume-unset"))
+                .into_wire()
+                .expect("no duplicate handlers");
+        let unset_resume_json = serde_json::to_value(&unset_resume_wire).unwrap();
+        assert!(unset_resume_json.get("featureFlags").is_none());
     }
 
     fn sample_exp_assignments(context: &str) -> CopilotExpAssignmentResponse {
@@ -7278,6 +7408,56 @@ mod tests {
         let unset = CapiSessionOptions::new();
         let wire_unset = serde_json::to_value(&unset).unwrap();
         assert!(wire_unset.get("enableWebSocketResponses").is_none());
+        assert!(wire_unset.get("autoTier").is_none());
+        assert_eq!(wire_unset, json!({}));
+    }
+
+    #[test]
+    fn capi_auto_tier_canonical_values_round_trip_and_forward() {
+        for (tier, value) in [
+            (AutoTier::Efficiency, "efficiency"),
+            (AutoTier::Balance, "balance"),
+            (AutoTier::Intelligence, "intelligence"),
+        ] {
+            let exported: crate::AutoTier = tier.clone();
+            let capi = CapiSessionOptions::new().with_auto_tier(exported);
+            assert_eq!(capi.auto_tier, Some(tier));
+            assert_eq!(
+                serde_json::to_value(&capi).unwrap(),
+                json!({"autoTier": value})
+            );
+            assert_eq!(
+                serde_json::from_value::<CapiSessionOptions>(json!({"autoTier": value})).unwrap(),
+                capi
+            );
+
+            let capi = capi.with_enable_web_socket_responses(false);
+            let expected = json!({"autoTier": value, "enableWebSocketResponses": false});
+            let (create, _) = SessionConfig::default()
+                .with_model("auto")
+                .with_capi(capi.clone())
+                .into_wire(Some(SessionId::from("capi-create")))
+                .unwrap();
+            assert_eq!(serde_json::to_value(create).unwrap()["capi"], expected);
+
+            let (resume, _) = ResumeSessionConfig::new(SessionId::from("capi-resume"))
+                .with_capi(capi)
+                .into_wire()
+                .unwrap();
+            assert_eq!(serde_json::to_value(resume).unwrap()["capi"], expected);
+        }
+    }
+
+    #[test]
+    fn capi_auto_tier_accepts_unknown_values_for_forward_compatibility() {
+        for value in ["balanced", "Balance", "unknown"] {
+            assert_eq!(
+                serde_json::from_value::<AutoTier>(json!(value)).unwrap(),
+                AutoTier::Unknown
+            );
+        }
+        let capi: CapiSessionOptions = serde_json::from_value(json!({})).unwrap();
+        assert_eq!(capi.auto_tier, None);
     }
 
     #[test]

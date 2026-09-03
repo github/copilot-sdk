@@ -7,6 +7,20 @@ See [GitHub Releases](https://github.com/github/copilot-sdk/releases) for the fu
 
 ## [Unreleased]
 
+### Feature: declare application identity with client info
+
+Client options now accept optional client info (application name and version, integration name and version) across all six SDKs, exposed idiomatically per language (`clientInfo` in Node.js, `client_info` in Python and Rust, `ClientInfo` in Go and .NET, `setClientInfo` in Java). When set, the SDK forwards it on the `server.connect` handshake so the telemetry the runtime emits on the connection is attributed to the application and its Copilot integration instead of the runtime's own build. All fields are optional, and leaving client info unset keeps the runtime's default attribution. See [Client info](./docs/features/client-info.md).
+
+### Feature: Node Agent Factories pagination and run notifications
+
+The experimental Node.js Agent Factories convenience API now supports paginated run history. Existing `session.factory.listRuns()` calls still return the runs array, while calls with `afterSeq`, `beforeSeq`, or `limit` return the full page with cursor and truncation metadata.
+
+Factory `run` and `resume` options now accept `notifyOnComplete` and `logPhaseNames`. The SDK forwards these options to the Copilot CLI for new and resumed runs.
+
+### Feature: selectable `ask_user` session behavior
+
+Session create and cold resume now accept a language-specific `askUserVariant` option with `legacy` and `elicitation` values. SDK sessions retain the legacy question-and-answer tool by default. Select `elicitation` and provide an elicitation handler to expose the structured form-based `ask_user` tool.
+
 ### Feature: rotating session-scoped GitHub credentials
 
 All six SDKs can now acquire short-lived GitHub credentials through a session-scoped callback. The SDK registers the callback before session create or resume, maps `initial` and `refresh` requests to the owning session, and removes registrations on rollback, replacement, session close, and client close. Static per-session `gitHubToken` credentials remain supported and are mutually exclusive with the callback.

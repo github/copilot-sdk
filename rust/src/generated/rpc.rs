@@ -64,6 +64,13 @@ impl<'a> ClientRpc<'a> {
         }
     }
 
+    /// `hooks.*` sub-namespace.
+    pub fn hooks(&self) -> ClientRpcHooks<'a> {
+        ClientRpcHooks {
+            client: self.client,
+        }
+    }
+
     /// `instructions.*` sub-namespace.
     pub fn instructions(&self) -> ClientRpcInstructions<'a> {
         ClientRpcInstructions {
@@ -211,7 +218,7 @@ impl<'a> ClientRpc<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Registers the calling SDK client as the per-entrypoint extension launch provider. Call before creating any sessions. When omitted, the runtime temporarily falls back to its built-in Node launcher for backward compatibility.
+    /// Registers the calling SDK client as the per-entrypoint extension launch provider. Call before creating any sessions. When omitted, the runtime uses its built-in extension launcher.
     ///
     /// Wire method: `registerExtensionLaunchProvider`.
     ///
@@ -653,6 +660,45 @@ impl<'a> ClientRpcExtensions<'a> {
             .call(rpc_methods::EXTENSIONS_DISABLE, Some(wire_params))
             .await?;
         Ok(())
+    }
+}
+
+/// `hooks.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct ClientRpcHooks<'a> {
+    pub(crate) client: &'a Client,
+}
+
+impl<'a> ClientRpcHooks<'a> {
+    /// Discovers hook actions enabled under server-side discovery settings from user, repository, plugin, and managed-policy sources.
+    ///
+    /// Wire method: `hooks.discover`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Optional project paths and host-exclusion behavior for server-scoped hook discovery.
+    ///
+    /// # Returns
+    ///
+    /// Server-discovered hook actions and partial-load diagnostics from user, repository, plugin, and managed-policy sources. Concrete sessions may include additional session-specific hook sources.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn discover(
+        &self,
+        params: HooksDiscoverRequest,
+    ) -> Result<HooksDiscoverResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::HOOKS_DISCOVER, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
     }
 }
 
@@ -1882,6 +1928,37 @@ impl<'a> ClientRpcSessions<'a> {
         let _value = self
             .client
             .call(rpc_methods::SESSIONS_GETMETADATA, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Reads a page of durable events directly from a local session's persisted journal without creating, resuming, or activating the session. The initial backward read uses a bounded tail scan for fast first paint; cursor continuations preserve the session event-log paging semantics. Persisted events may omit payloads that are reconstructed only for an active session.
+    ///
+    /// Wire method: `sessions.readPersistedEvents`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Pagination options for reading an inactive or active local session's persisted event journal.
+    ///
+    /// # Returns
+    ///
+    /// Batch of session events returned by a read, with cursor and continuation metadata.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn read_persisted_events(
+        &self,
+        params: SessionsReadPersistedEventsRequest,
+    ) -> Result<EventsReadResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::SESSIONS_READPERSISTEDEVENTS, Some(wire_params))
             .await?;
         Ok(serde_json::from_value(_value)?)
     }
@@ -3181,6 +3258,13 @@ impl<'a> SessionRpc<'a> {
     /// `session.remote.*` sub-namespace.
     pub fn remote(&self) -> SessionRpcRemote<'a> {
         SessionRpcRemote {
+            session: self.session,
+        }
+    }
+
+    /// `session.sandbox.*` sub-namespace.
+    pub fn sandbox(&self) -> SessionRpcSandbox<'a> {
+        SessionRpcSandbox {
             session: self.session,
         }
     }
@@ -4731,6 +4815,75 @@ impl<'a> SessionRpcFactory<'a> {
             .session
             .client()
             .call(rpc_methods::SESSION_FACTORY_RESUME, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Internal tool-originated factory invocation.
+    ///
+    /// Wire method: `session.factory.runFromTool`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Internal parameters for invoking a registered factory from a tool.
+    ///
+    /// # Returns
+    ///
+    /// Complete current or terminal factory run envelope.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn run_from_tool(
+        &self,
+        params: FactoryToolRunRequest,
+    ) -> Result<FactoryRunResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_FACTORY_RUNFROMTOOL, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Internal tool-originated factory resume.
+    ///
+    /// Wire method: `session.factory.resumeFromTool`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Internal parameters for resuming a factory run from a tool.
+    ///
+    /// # Returns
+    ///
+    /// Resolved persisted factory identity and resumed run envelope.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn resume_from_tool(
+        &self,
+        params: FactoryToolResumeRequest,
+    ) -> Result<FactoryResumeResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_FACTORY_RESUMEFROMTOOL,
+                Some(wire_params),
+            )
             .await?;
         Ok(serde_json::from_value(_value)?)
     }
@@ -9337,6 +9490,42 @@ impl<'a> SessionRpcRemote<'a> {
             .client()
             .call(
                 rpc_methods::SESSION_REMOTE_NOTIFYSTEERABLECHANGED,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+}
+
+/// `session.sandbox.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct SessionRpcSandbox<'a> {
+    pub(crate) session: &'a Session,
+}
+
+impl<'a> SessionRpcSandbox<'a> {
+    /// Returns whether managed policy requires sandbox enforcement and whether an enforcement failure has permanently blocked the session.
+    ///
+    /// Wire method: `session.sandbox.getEnforcementStatus`.
+    ///
+    /// # Returns
+    ///
+    /// Managed sandbox enforcement state for a session.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn get_enforcement_status(&self) -> Result<SandboxEnforcementStatus, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_SANDBOX_GETENFORCEMENTSTATUS,
                 Some(wire_params),
             )
             .await?;

@@ -171,7 +171,7 @@ public class RpcServerE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
         var result = await client.Rpc.Models.ListAsync();
 
         Assert.NotNull(result.Models);
-        Assert.Contains(result.Models, model => model.Id == "claude-sonnet-4.5");
+        Assert.Contains(result.Models, model => model.Id == "claude-sonnet-5");
         Assert.All(result.Models, model => Assert.False(string.IsNullOrWhiteSpace(model.Name)));
     }
 

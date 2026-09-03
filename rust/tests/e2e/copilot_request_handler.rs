@@ -101,8 +101,8 @@ fn sse(event_type: &str, data: &Value) -> String {
 
 fn model_catalog(supported_endpoints: Option<&[&str]>) -> String {
     let mut model = json!({
-        "id": "claude-sonnet-4.5",
-        "name": "Claude Sonnet 4.5",
+        "id": "claude-sonnet-5",
+        "name": "Claude Sonnet 5",
         "object": "model",
         "vendor": "Anthropic",
         "version": "1",
@@ -110,7 +110,7 @@ fn model_catalog(supported_endpoints: Option<&[&str]>) -> String {
         "model_picker_enabled": true,
         "capabilities": {
             "type": "chat",
-            "family": "claude-sonnet-4.5",
+            "family": "claude-sonnet-5",
             "tokenizer": "o200k_base",
             "limits": {
                 "max_context_window_tokens": 200000,
@@ -232,7 +232,7 @@ fn synth_inference_response(url: &str, body: &[u8], text: &str) -> CopilotHttpRe
                 "id": "chatcmpl-stub-1",
                 "object": "chat.completion.chunk",
                 "created": 1,
-                "model": "claude-sonnet-4.5",
+                "model": "claude-sonnet-5",
             })
         };
         let mut c1 = base();
@@ -257,7 +257,7 @@ fn synth_inference_response(url: &str, body: &[u8], text: &str) -> CopilotHttpRe
         "id": "chatcmpl-stub-1",
         "object": "chat.completion",
         "created": 1,
-        "model": "claude-sonnet-4.5",
+        "model": "claude-sonnet-5",
         "choices": [{
             "index": 0,
             "message": { "role": "assistant", "content": text },
@@ -668,14 +668,14 @@ async fn threads_session_id_into_inference() {
             let before = handler.inference_records().len();
             let byok_config = SessionConfig::default()
                 .with_permission_handler(Arc::new(ApproveAllHandler))
-                .with_model("claude-sonnet-4.5")
+                .with_model("claude-sonnet-5")
                 .with_provider(
                     ProviderConfig::new("https://byok.invalid/v1")
                         .with_provider_type("openai")
                         .with_wire_api("responses")
                         .with_api_key("byok-secret")
-                        .with_model_id("claude-sonnet-4.5")
-                        .with_wire_model("claude-sonnet-4.5"),
+                        .with_model_id("claude-sonnet-5")
+                        .with_wire_model("claude-sonnet-5"),
                 );
             let byok_session = client
                 .create_session(byok_config)

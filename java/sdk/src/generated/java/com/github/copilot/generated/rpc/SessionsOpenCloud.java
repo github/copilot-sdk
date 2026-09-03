@@ -40,7 +40,7 @@ public final class SessionsOpenCloud extends SessionsOpenParams {
     @JsonProperty("options")
     private SessionOpenOptions options;
 
-    /** In-process callback invoked when the cloud task is created (before connection). Marked internal because a function reference cannot cross the JSON-RPC boundary. Disappears in the SDK migration: the field is purely cosmetic (it flips a single CLI phase label from 'creating' to 'connecting') and the wire-clean version just drops the intermediate phase. */
+    /** In-process callback invoked when the cloud task is created, before connection. Internal because function references cannot cross the JSON-RPC boundary. */
     @JsonProperty("onTaskCreated")
     private Object onTaskCreated;
 

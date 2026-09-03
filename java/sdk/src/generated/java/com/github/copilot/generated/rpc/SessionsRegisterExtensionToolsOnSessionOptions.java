@@ -21,7 +21,7 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionsRegisterExtensionToolsOnSessionOptions(
-    /** In-process `() => boolean` gating callback (CLI-only optimization). Marked internal: replaced by runtime-side enable/disable RPCs in the SDK migration. */
+    /** In-process `() => boolean` gating callback used only by the CLI. */
     @JsonProperty("enabled") Object enabled
 ) {
 }

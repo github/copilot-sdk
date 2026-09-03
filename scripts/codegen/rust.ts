@@ -378,9 +378,7 @@ function tryEmitRustUnion(
 
 	const lines: string[] = [];
 	if (schema.description) {
-		for (const line of schema.description.split(/\r?\n/)) {
-			lines.push(`/// ${line}`);
-		}
+		pushRustDoc(lines, schema.description);
 	}
 	pushRustExperimentalDocs(lines, isSchemaExperimental(schema) || ctx.experimentalTypeNames.has(enumName));
 	lines.push("#[derive(Debug, Clone, Serialize, Deserialize)]");
@@ -468,7 +466,8 @@ function pushRustExperimentalDocs(
 
 function pushRustDoc(lines: string[], text: string | undefined, indent = ""): void {
 	if (!text) return;
-	for (const paragraph of text.trim().split(/\r?\n/)) {
+	const sanitized = text.replace(/\[::\]/g, "`[::]`");
+	for (const paragraph of sanitized.trim().split(/\r?\n/)) {
 		if (paragraph.trim().length === 0) {
 			lines.push(`${indent}///`);
 		} else {
@@ -971,9 +970,7 @@ function emitRustStruct(
 
 	for (const { propName, prop, isReq, rustField, rustType } of fields) {
 		if (prop.description) {
-			for (const line of prop.description.split(/\r?\n/)) {
-				lines.push(`    /// ${line}`);
-			}
+			pushRustDoc(lines, prop.description, "    ");
 		}
 		pushRustExperimentalDocs(lines, isSchemaExperimental(prop), "    ");
 		const propIsInternal = isSchemaInternal(prop);

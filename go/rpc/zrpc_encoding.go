@@ -1606,6 +1606,12 @@ func unmarshalFactoryRunFailure(data []byte) (FactoryRunFailure, error) {
 			return nil, err
 		}
 		return &d, nil
+	case FactoryRunFailureTypeFactoryProviderDisconnected:
+		var d FactoryRunFailureFactoryProviderDisconnected
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
 	case FactoryRunFailureTypeFactoryResumeDeclined:
 		var d FactoryRunFailureFactoryResumeDeclined
 		if err := json.Unmarshal(data, &d); err != nil {
@@ -1661,6 +1667,17 @@ func (r FactoryRunFailureFactoryLimitReached) MarshalJSON() ([]byte, error) {
 	})
 }
 
+func (r FactoryRunFailureFactoryProviderDisconnected) MarshalJSON() ([]byte, error) {
+	type alias FactoryRunFailureFactoryProviderDisconnected
+	return json.Marshal(struct {
+		Type FactoryRunFailureType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
 func (r FactoryRunFailureFactoryResumeDeclined) MarshalJSON() ([]byte, error) {
 	type alias FactoryRunFailureFactoryResumeDeclined
 	return json.Marshal(struct {
@@ -1698,6 +1715,7 @@ func (r *FactoryRunTerminal) UnmarshalJSON(data []byte) error {
 
 func (r *FactoryRunResult) UnmarshalJSON(data []byte) error {
 	type rawFactoryRunResult struct {
+		Attempt  *int64           `json:"attempt,omitempty"`
 		Error    *string          `json:"error,omitempty"`
 		Failure  json.RawMessage  `json:"failure,omitempty"`
 		Reason   *string          `json:"reason,omitempty"`
@@ -1710,6 +1728,7 @@ func (r *FactoryRunResult) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
 	}
+	r.Attempt = raw.Attempt
 	r.Error = raw.Error
 	if raw.Failure != nil {
 		value, err := unmarshalFactoryRunFailure(raw.Failure)
@@ -5382,6 +5401,7 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 		EnableManagedSettings                  *bool                                                `json:"enableManagedSettings,omitempty"`
 		EnableOnDemandInstructionDiscovery     *bool                                                `json:"enableOnDemandInstructionDiscovery,omitempty"`
 		EnableScriptSafety                     *bool                                                `json:"enableScriptSafety,omitempty"`
+		EnableSkills                           *bool                                                `json:"enableSkills,omitempty"`
 		EnableStreaming                        *bool                                                `json:"enableStreaming,omitempty"`
 		EnvValueMode                           *SessionOpenOptionsEnvValueMode                      `json:"envValueMode,omitempty"`
 		EventsLogDirectory                     *string                                              `json:"eventsLogDirectory,omitempty"`
@@ -5390,6 +5410,7 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 		ExcludedTools                          []string                                             `json:"excludedTools,omitzero"`
 		ExpAssignments                         any                                                  `json:"expAssignments,omitempty"`
 		FeatureFlags                           map[string]bool                                      `json:"featureFlags,omitzero"`
+		HasSkillProvider                       *bool                                                `json:"hasSkillProvider,omitempty"`
 		IncludedBuiltinAgents                  []string                                             `json:"includedBuiltinAgents,omitzero"`
 		IncludedBuiltinSkills                  []string                                             `json:"includedBuiltinSkills,omitzero"`
 		InstalledPlugins                       []InstalledPlugin                                    `json:"installedPlugins,omitzero"`
@@ -5462,6 +5483,7 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 	r.EnableManagedSettings = raw.EnableManagedSettings
 	r.EnableOnDemandInstructionDiscovery = raw.EnableOnDemandInstructionDiscovery
 	r.EnableScriptSafety = raw.EnableScriptSafety
+	r.EnableSkills = raw.EnableSkills
 	r.EnableStreaming = raw.EnableStreaming
 	r.EnvValueMode = raw.EnvValueMode
 	r.EventsLogDirectory = raw.EventsLogDirectory
@@ -5470,6 +5492,7 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 	r.ExcludedTools = raw.ExcludedTools
 	r.ExpAssignments = raw.ExpAssignments
 	r.FeatureFlags = raw.FeatureFlags
+	r.HasSkillProvider = raw.HasSkillProvider
 	r.IncludedBuiltinAgents = raw.IncludedBuiltinAgents
 	r.IncludedBuiltinSkills = raw.IncludedBuiltinSkills
 	r.InstalledPlugins = raw.InstalledPlugins

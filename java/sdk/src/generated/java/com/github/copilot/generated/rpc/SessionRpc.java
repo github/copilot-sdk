@@ -29,6 +29,8 @@ public final class SessionRpc {
     private final RpcCaller caller;
     private final String sessionId;
 
+    /** API methods for the {@code sandbox} namespace. */
+    public final SessionSandboxApi sandbox;
     /** API methods for the {@code gitHubAuth} namespace. */
     public final SessionGitHubAuthApi gitHubAuth;
     /** API methods for the {@code debug} namespace. */
@@ -115,6 +117,7 @@ public final class SessionRpc {
     public SessionRpc(RpcCaller caller, String sessionId) {
         this.caller = caller;
         this.sessionId = sessionId;
+        this.sandbox = new SessionSandboxApi(caller, sessionId);
         this.gitHubAuth = new SessionGitHubAuthApi(caller, sessionId);
         this.debug = new SessionDebugApi(caller, sessionId);
         this.canvas = new SessionCanvasApi(caller, sessionId);

@@ -119,6 +119,7 @@ final class SessionRequestBuilder {
         request.setReasoningEffort(config.getReasoningEffort());
         request.setReasoningSummary(config.getReasoningSummary());
         request.setContextTier(config.getContextTier());
+        request.setAskUserVariant(config.getAskUserVariant());
         request.setTools(config.getTools());
         request.setSystemMessage(config.getSystemMessage());
         request.setAvailableTools(config.getAvailableTools());
@@ -201,6 +202,7 @@ final class SessionRequestBuilder {
         request.setGitHubToken(config.getGitHubToken());
         request.setRemoteSession(config.getRemoteSession());
         request.setCloud(config.getCloud());
+        request.setFeatureFlags(config.getFeatureFlags());
         request.setExpAssignments(config.getExpAssignments());
         config.getEnableManagedSettings().ifPresent(request::setEnableManagedSettings);
         request.setManagedSettings(config.getManagedSettings());
@@ -256,6 +258,7 @@ final class SessionRequestBuilder {
         request.setReasoningEffort(config.getReasoningEffort());
         request.setReasoningSummary(config.getReasoningSummary());
         request.setContextTier(config.getContextTier());
+        request.setAskUserVariant(config.getAskUserVariant());
         request.setTools(config.getTools());
         request.setSystemMessage(config.getSystemMessage());
         request.setAvailableTools(config.getAvailableTools());
@@ -340,6 +343,7 @@ final class SessionRequestBuilder {
         }
         request.setGitHubToken(config.getGitHubToken());
         request.setRemoteSession(config.getRemoteSession());
+        request.setFeatureFlags(config.getFeatureFlags());
         request.setExpAssignments(config.getExpAssignments());
         config.getEnableManagedSettings().ifPresent(request::setEnableManagedSettings);
         request.setManagedSettings(config.getManagedSettings());

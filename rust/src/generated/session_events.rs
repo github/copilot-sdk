@@ -39,6 +39,8 @@ pub enum SessionEventType {
     SessionModelChange,
     #[serde(rename = "session.mode_changed")]
     SessionModeChanged,
+    #[serde(rename = "session.mode_notice_delivered")]
+    SessionModeNoticeDelivered,
     #[serde(rename = "session.session_limits_changed")]
     SessionSessionLimitsChanged,
     ///
@@ -78,6 +80,51 @@ pub enum SessionEventType {
     SessionCompactionComplete,
     #[serde(rename = "session.task_complete")]
     SessionTaskComplete,
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "session.completion_receipt")]
+    SessionCompletionReceipt,
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "session.fusion_route_started")]
+    SessionFusionRouteStarted,
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "session.fusion_route_failed")]
+    SessionFusionRouteFailed,
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "session.fusion_resolved")]
+    SessionFusionResolved,
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "session.fusion_completed")]
+    SessionFusionCompleted,
     #[serde(rename = "user.message")]
     UserMessage,
     #[serde(rename = "pending_messages.modified")]
@@ -90,6 +137,42 @@ pub enum SessionEventType {
     AgentInterrupted,
     #[serde(rename = "assistant.intent")]
     AssistantIntent,
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "assistant.fusion_phase_started")]
+    AssistantFusionPhaseStarted,
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "assistant.fusion_phase_activity")]
+    AssistantFusionPhaseActivity,
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "assistant.fusion_phase_completed")]
+    AssistantFusionPhaseCompleted,
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "assistant.fusion_phase_failed")]
+    AssistantFusionPhaseFailed,
     #[serde(rename = "assistant.server_tool_progress")]
     AssistantServerToolProgress,
     #[serde(rename = "assistant.reasoning")]
@@ -140,6 +223,8 @@ pub enum SessionEventType {
     SandboxDecision,
     #[serde(rename = "subagent.started")]
     SubagentStarted,
+    #[serde(rename = "subagent.configured")]
+    SubagentConfigured,
     #[serde(rename = "subagent.completed")]
     SubagentCompleted,
     #[serde(rename = "subagent.failed")]
@@ -400,6 +485,8 @@ pub enum SessionEventData {
     SessionModelChange(SessionModelChangeData),
     #[serde(rename = "session.mode_changed")]
     SessionModeChanged(SessionModeChangedData),
+    #[serde(rename = "session.mode_notice_delivered")]
+    SessionModeNoticeDelivered(SessionModeNoticeDeliveredData),
     #[serde(rename = "session.session_limits_changed")]
     SessionSessionLimitsChanged(SessionSessionLimitsChangedData),
     ///
@@ -439,6 +526,51 @@ pub enum SessionEventData {
     SessionCompactionComplete(SessionCompactionCompleteData),
     #[serde(rename = "session.task_complete")]
     SessionTaskComplete(SessionTaskCompleteData),
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "session.completion_receipt")]
+    SessionCompletionReceipt(SessionCompletionReceiptData),
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "session.fusion_route_started")]
+    SessionFusionRouteStarted(SessionFusionRouteStartedData),
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "session.fusion_route_failed")]
+    SessionFusionRouteFailed(SessionFusionRouteFailedData),
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "session.fusion_resolved")]
+    SessionFusionResolved(SessionFusionResolvedData),
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "session.fusion_completed")]
+    SessionFusionCompleted(SessionFusionCompletedData),
     #[serde(rename = "user.message")]
     UserMessage(UserMessageData),
     #[serde(rename = "pending_messages.modified")]
@@ -451,6 +583,42 @@ pub enum SessionEventData {
     AgentInterrupted(AgentInterruptedData),
     #[serde(rename = "assistant.intent")]
     AssistantIntent(AssistantIntentData),
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "assistant.fusion_phase_started")]
+    AssistantFusionPhaseStarted(AssistantFusionPhaseStartedData),
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "assistant.fusion_phase_activity")]
+    AssistantFusionPhaseActivity(AssistantFusionPhaseActivityData),
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "assistant.fusion_phase_completed")]
+    AssistantFusionPhaseCompleted(AssistantFusionPhaseCompletedData),
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "assistant.fusion_phase_failed")]
+    AssistantFusionPhaseFailed(AssistantFusionPhaseFailedData),
     #[serde(rename = "assistant.server_tool_progress")]
     AssistantServerToolProgress(AssistantServerToolProgressData),
     #[serde(rename = "assistant.reasoning")]
@@ -501,6 +669,8 @@ pub enum SessionEventData {
     SandboxDecision(SandboxDecisionData),
     #[serde(rename = "subagent.started")]
     SubagentStarted(SubagentStartedData),
+    #[serde(rename = "subagent.configured")]
+    SubagentConfigured(SubagentConfiguredData),
     #[serde(rename = "subagent.completed")]
     SubagentCompleted(SubagentCompletedData),
     #[serde(rename = "subagent.failed")]
@@ -809,6 +979,9 @@ pub struct SessionStartData {
     /// Whether the session was already in use by another client at start time
     #[serde(skip_serializing_if = "Option::is_none")]
     pub already_in_use: Option<bool>,
+    /// Auto routing preference selected at session creation time
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auto_tier: Option<AutoTier>,
     /// Working directory and git context at session start
     #[serde(skip_serializing_if = "Option::is_none")]
     pub context: Option<WorkingDirectoryContext>,
@@ -858,6 +1031,9 @@ pub struct SessionResumeData {
     /// Whether the session was already in use by another client at resume time
     #[serde(skip_serializing_if = "Option::is_none")]
     pub already_in_use: Option<bool>,
+    /// Auto routing preference active at resume time
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auto_tier: Option<AutoTier>,
     /// Updated working directory and git context at resume time
     #[serde(skip_serializing_if = "Option::is_none")]
     pub context: Option<WorkingDirectoryContext>,
@@ -1097,6 +1273,17 @@ pub struct SessionModeChangedData {
     pub new_mode: SessionMode,
     /// The session mode the agent is operating in
     pub previous_mode: SessionMode,
+}
+
+/// Session event "session.mode_notice_delivered". Records that a mode transition notice reached the model so cache-stable mode tools can remain offered across resume.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionModeNoticeDeliveredData {
+    /// Model-visible transition notice persisted for a mid-turn delivery
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content: Option<String>,
+    /// Mode established by the delivered transition notice
+    pub mode: SessionMode,
 }
 
 /// Session event "session.session_limits_changed". Session limits update details. Null clears the limits.
@@ -1596,6 +1783,9 @@ pub struct CompactionCompleteCompactionTokensUsed {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionCompactionCompleteData {
+    /// Canonical model identifier used for model-specific behavior when replaying compaction
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub behavior_model_id: Option<String>,
     /// Checkpoint snapshot number created for recovery
     #[serde(skip_serializing_if = "Option::is_none")]
     pub checkpoint_number: Option<i64>,
@@ -1678,6 +1868,296 @@ pub struct SessionTaskCompleteData {
     pub summary: Option<String>,
 }
 
+/// Inclusive durable event range summarized by a completion receipt.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CompletionReceiptEventRange {
+    /// Identifier of the assistant turn-end event that ends the covered exchange. Always equals the receipt's sourceEventId, so either field is a valid join key.
+    pub end_event_id: String,
+    /// Identifier of the user message that starts the covered exchange.
+    pub start_event_id: String,
+}
+
+/// Final structured tool completion in the covered event range.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CompletionReceiptFinalTool {
+    /// Process exit code from a structured shell result, when available.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exit_code: Option<i64>,
+    /// Structured success or failure status from the tool completion event.
+    pub status: CompletionReceiptToolStatus,
+    /// Unique identifier of the completed tool call.
+    pub tool_call_id: String,
+    /// Tool name from the matching tool execution start event, when available.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_name: Option<String>,
+}
+
+/// Session event "session.completion_receipt". Behavior-neutral record of structured runtime facts present when an agent completion decision is accepted.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionCompletionReceiptData {
+    /// One-based accepted completion receipt ordinal in the durable session history.
+    pub attempt: i64,
+    /// Inclusive durable event range summarized by this receipt.
+    pub event_range: CompletionReceiptEventRange,
+    /// Number of failed structured tool completions in the covered range.
+    pub failed_tool_count: i64,
+    /// Final structured tool completion in the covered range, when one exists.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub final_tool: Option<CompletionReceiptFinalTool>,
+    /// Version of the completion receipt payload.
+    pub schema_version: i64,
+    /// Identifier of the assistant turn-end event that supplied the accepted completion boundary. This is the receipt's idempotency key, and always equals eventRange.endEventId.
+    pub source_event_id: String,
+    /// Runtime reason the completion decision was accepted.
+    pub stop_reason: CompletionReceiptStopReason,
+    /// Number of successful structured tool completions in the covered range.
+    pub successful_tool_count: i64,
+}
+
+/// Session event "session.fusion_route_started". Experimental transient signal that HydraFusion routing has started for an eligible turn.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionFusionRouteStartedData {
+    /// Identifier for this routing attempt before a durable Fusion turn exists.
+    pub attempt_id: String,
+    /// HydraFusion routing policy requested for the turn.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub policy: Option<String>,
+    /// Synthetic HydraFusion model selected for the session.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub synthetic_model: Option<String>,
+    /// Kind of turn being routed.
+    pub turn_kind: FusionTurnKind,
+}
+
+/// Session event "session.fusion_route_failed". Experimental durable HydraFusion routing failure and the deterministic concrete fallback selected for the turn.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionFusionRouteFailedData {
+    /// Identifier of the routing attempt that failed.
+    pub attempt_id: String,
+    /// Provider or validation error detail, when available.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_message: Option<String>,
+    /// Concrete model selected as the deterministic fallback.
+    pub fallback_model: String,
+    /// HydraFusion routing policy requested for the turn.
+    pub policy: String,
+    /// Stable machine-readable reason for the routing failure.
+    pub reason: String,
+    /// Elapsed routing time in milliseconds before the failure.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub routing_latency_ms: Option<f64>,
+    /// Synthetic HydraFusion model selected for the session.
+    pub synthetic_model: String,
+}
+
+/// Durable server recommendation for subsequent HydraFusion turns.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FusionFollowUpRecommendation {
+    /// Recommended routing action for the next compaction turn.
+    pub compaction_turn: FusionFollowUpAction,
+    /// Recommended routing action for the next user-message turn.
+    pub user_turn: FusionFollowUpAction,
+}
+
+/// Presentation-neutral phase planned for a HydraFusion turn.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FusionPhasePlanStep {
+    /// Whether the phase executes only when an earlier phase requests it.
+    pub conditional: bool,
+    /// Kind of phase that may execute.
+    pub kind: FusionPhaseKind,
+    /// Semantic role assigned to the phase.
+    pub role: String,
+    /// Conversation scope in which the phase executes.
+    pub scope: FusionConversationScope,
+}
+
+/// Validated HydraFusion routing capability scores.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FusionScores {
+    /// Code-generation capability score returned by the authenticated router.
+    pub code_gen: f64,
+    /// Debugging capability score returned by the authenticated router.
+    pub debugging: f64,
+    /// Reasoning capability score returned by the authenticated router.
+    pub reasoning: f64,
+    /// Tool-use capability score returned by the authenticated router.
+    pub tool_use: f64,
+}
+
+/// Session event "session.fusion_resolved". Experimental durable validated HydraFusion route and turn policy.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionFusionResolvedData {
+    /// Version of the validated HydraFusion event contract.
+    pub contract_version: i64,
+    /// Concrete model used when the planned primary model cannot execute.
+    pub fallback_model: String,
+    /// Router recommendation controlling reuse or rerouting on later turns.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub follow_up: Option<FusionFollowUpRecommendation>,
+    /// Concrete model recommended for eligible follow-up turns.
+    pub follow_up_model: String,
+    /// Stable identifier for the resolved HydraFusion turn.
+    pub fusion_id: String,
+    /// Version of the executable model universe used for selection.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model_universe_version: Option<String>,
+    /// Validated orchestration pattern selected for the turn.
+    pub pattern: FusionPattern,
+    /// Presentation-neutral phase plan for clients that render workflow progress.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub phase_plan: Option<Vec<FusionPhasePlanStep>>,
+    /// Version of the validated execution-plan format.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub plan_version: Option<String>,
+    /// HydraFusion routing policy used to resolve the plan.
+    pub policy: String,
+    /// Version of the local routing policy.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub policy_version: Option<String>,
+    /// Concrete model selected for the primary solver phase.
+    pub primary_model: String,
+    /// Router implementation that supplied the plan.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub route_source: Option<String>,
+    /// Elapsed time in milliseconds required to resolve and validate the route.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub routing_latency_ms: Option<f64>,
+    /// Identifier of the local policy rule that matched.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rule_id: Option<String>,
+    /// Zero-based index of the local policy rule that matched.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rule_index: Option<i64>,
+    /// Human-readable name of the local policy rule that matched.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rule_name: Option<String>,
+    /// Validated capability scores used to select the route.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scores: Option<FusionScores>,
+    /// Concrete model selected for the review or judge phase, when required.
+    pub secondary_model: Option<String>,
+    /// Synthetic HydraFusion model selected for the session.
+    pub synthetic_model: String,
+    /// Identifier of the session turn associated with the route.
+    pub turn_id: String,
+}
+
+/// Session event "session.fusion_completed". Experimental durable aggregate outcome of a HydraFusion turn.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionFusionCompletedData {
+    /// Total cached input tokens reported across all phases.
+    pub cached_tokens: i64,
+    /// Total tokens written to prompt cache across all phases.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache_write_tokens: Option<i64>,
+    /// Idempotency identifier for the authoritative final commit.
+    pub commit_id: String,
+    /// Reason the turn used a degraded route, when applicable.
+    pub degraded_reason: Option<String>,
+    /// Total elapsed execution time for the HydraFusion turn in milliseconds.
+    pub duration_ms: f64,
+    /// Concrete model that supplied the authoritative final content.
+    pub final_source_model: Option<String>,
+    /// Phase whose output supplied the authoritative final content.
+    pub final_source_phase_id: Option<String>,
+    /// Concrete model recommended for eligible follow-up turns.
+    pub follow_up_model: String,
+    /// Stable identifier for the completed HydraFusion turn.
+    pub fusion_id: String,
+    /// Total input tokens consumed across all phases.
+    pub input_tokens: i64,
+    /// Stable aggregate outcome of the HydraFusion turn.
+    pub outcome: String,
+    /// Total output tokens produced across all phases.
+    pub output_tokens: i64,
+    /// HydraFusion orchestration pattern executed for the turn.
+    pub pattern: FusionPattern,
+    /// Number of concrete phases attempted by the turn.
+    pub phase_count: i64,
+    /// Total concrete model requests made across all phases.
+    pub request_count: i64,
+    /// Synthetic HydraFusion model selected for the session.
+    pub synthetic_model: String,
+    /// Total normalized AI-unit cost reported across all phases, in nano-AIU.
+    pub total_nano_aiu: f64,
+    /// Identifier of the session turn associated with the completion.
+    pub turn_id: String,
+}
+
 /// Session event "user.message". Payload of `user.message` with displayed and model-transformed content, attachments, source/delivery metadata, mode, and telemetry IDs.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1699,6 +2179,9 @@ pub struct UserMessageData {
     /// True when this user message was auto-injected by autopilot's continuation loop rather than typed by the user; used to distinguish autopilot-driven turns in telemetry.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub is_autopilot_continuation: Option<bool>,
+    /// Stable identity of the logical user message, matching the ID returned by send and retained by pending queue snapshots
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message_id: Option<String>,
     /// Path-backed native document attachments that stayed on the tagged_files path flow because native upload could not read them or would exceed the request size limit
     #[serde(skip_serializing_if = "Option::is_none")]
     pub native_document_path_fallback_paths: Option<Vec<String>>,
@@ -1800,6 +2283,196 @@ pub struct AgentInterruptedData {
 pub struct AssistantIntentData {
     /// Short description of what the agent is currently doing or planning to do
     pub intent: String,
+}
+
+/// Session event "assistant.fusion_phase_started". Experimental transient HydraFusion phase/model/role signal.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssistantFusionPhaseStartedData {
+    /// Conversation scope in which the phase executes.
+    pub conversation_scope: FusionConversationScope,
+    /// Identifier of the HydraFusion turn containing the phase.
+    pub fusion_id: String,
+    /// Concrete model executing the phase.
+    pub model: String,
+    /// HydraFusion orchestration pattern containing the phase.
+    pub pattern: FusionPattern,
+    /// Stable identifier for the concrete phase.
+    pub phase_id: String,
+    /// Kind of phase being executed.
+    pub phase_kind: FusionPhaseKind,
+    /// Semantic role assigned to the phase.
+    pub role: String,
+}
+
+/// Session event "assistant.fusion_phase_activity". Experimental content-safe activity signal for a running HydraFusion phase.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssistantFusionPhaseActivityData {
+    /// Kind of real activity observed.
+    pub activity: FusionPhaseActivityKind,
+    /// Conversation scope in which the phase executes.
+    pub conversation_scope: FusionConversationScope,
+    /// Identifier of the HydraFusion turn containing the phase.
+    pub fusion_id: String,
+    /// HydraFusion orchestration pattern containing the phase.
+    pub pattern: FusionPattern,
+    /// Stable identifier for the concrete phase.
+    pub phase_id: String,
+    /// Kind of phase currently executing.
+    pub phase_kind: FusionPhaseKind,
+    /// Semantic role assigned to the phase.
+    pub role: String,
+    /// Opaque hashed correlation token for matching tool-started and tool-completed activity within this Fusion activity stream. It is not the tool call identifier exposed by tool lifecycle events.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_call_id: Option<String>,
+    /// Cumulative private response bytes observed for this model call. The event never includes response text.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total_response_size_bytes: Option<i64>,
+}
+
+/// Internal durable terminal request staged by a HydraFusion phase until an idempotent final commit selects it.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct FusionStagedTerminal {
+    pub arguments: String,
+    pub assistant_message: serde_json::Value,
+    pub phase_id: String,
+    pub tool_call_id: String,
+    pub tool_name: String,
+}
+
+/// Aggregate concrete-model usage for one HydraFusion phase.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FusionPhaseUsage {
+    /// Total cached input tokens reported for the phase.
+    pub cached_tokens: i64,
+    /// Total tokens written to prompt cache during the phase.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache_write_tokens: Option<i64>,
+    /// Total input tokens consumed by the phase.
+    pub input_tokens: i64,
+    /// Total output tokens produced by the phase.
+    pub output_tokens: i64,
+    /// Number of concrete model requests made by the phase.
+    pub request_count: i64,
+    /// Total normalized AI-unit cost reported for the phase, in nano-AIU.
+    pub total_nano_aiu: f64,
+}
+
+/// Session event "assistant.fusion_phase_completed". Experimental durable HydraFusion phase output and lossless replay checkpoint.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssistantFusionPhaseCompletedData {
+    /// Provider-normalized textual output produced by the phase.
+    pub content: String,
+    /// Conversation scope in which the phase executed.
+    pub conversation_scope: FusionConversationScope,
+    /// Elapsed execution time for the phase in milliseconds.
+    pub duration_ms: f64,
+    /// Identifier of the HydraFusion turn containing the phase.
+    pub fusion_id: String,
+    /// Concrete model that executed the phase.
+    pub model: String,
+    /// Stable identifier for the completed phase.
+    pub phase_id: String,
+    /// Kind of phase that completed.
+    pub phase_kind: FusionPhaseKind,
+    /// Exact provider-normalized message used to reconstruct canonical model history.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) projection_message: Option<serde_json::Value>,
+    /// Projection action for the exact internal message.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) projection_mode: Option<FusionProjectionMode>,
+    /// Semantic role assigned to the completed phase.
+    pub role: String,
+    /// Terminal request held outside canonical state until selected by the final commit.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) staged_terminal: Option<FusionStagedTerminal>,
+    /// Durable outcome status of the phase.
+    pub status: FusionPhaseStatus,
+    /// Aggregate concrete-model usage consumed by the phase.
+    pub usage: FusionPhaseUsage,
+    /// Structured judge or critic verdict, when the phase produces one.
+    pub verdict: Option<String>,
+}
+
+/// Session event "assistant.fusion_phase_failed". Experimental durable typed HydraFusion phase failure and degradation transition.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssistantFusionPhaseFailedData {
+    /// Conversation scope in which the phase executed.
+    pub conversation_scope: FusionConversationScope,
+    /// Identifier of the fallback phase used to continue the turn after degradation.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub degraded_to_phase_id: Option<String>,
+    /// Elapsed execution time before the phase failed, in milliseconds.
+    pub duration_ms: f64,
+    /// Provider or execution error detail, when available.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_message: Option<String>,
+    /// Identifier of the HydraFusion turn containing the phase.
+    pub fusion_id: String,
+    /// Concrete model that attempted the phase.
+    pub model: String,
+    /// Stable identifier for the failed phase.
+    pub phase_id: String,
+    /// Kind of phase that failed.
+    pub phase_kind: FusionPhaseKind,
+    /// Stable machine-readable reason for the phase failure.
+    pub reason: String,
+    /// Semantic role assigned to the failed phase.
+    pub role: String,
+    /// Durable outcome status of the phase.
+    pub status: FusionPhaseStatus,
+    /// Aggregate concrete-model usage consumed before the failure.
+    pub usage: FusionPhaseUsage,
 }
 
 /// Session event "assistant.server_tool_progress". Live progress signal for a provider-hosted server tool (e.g. hosted web search) while it runs, before the finalized serverTools envelope lands on the terminal assistant.message
@@ -1947,6 +2620,48 @@ pub struct Citations {
     pub spans: Vec<CitationSpan>,
 }
 
+/// Experimental attribution linking an ordinary event to the HydraFusion turn, phase, and concrete source that produced it.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FusionAttribution {
+    /// Idempotency identifier for the authoritative commit, when the event belongs to the selected output.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub commit_id: Option<String>,
+    /// Conversation scope in which the concrete phase executed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub conversation_scope: Option<String>,
+    /// Stable identifier for the HydraFusion turn that produced the event.
+    pub fusion_id: String,
+    /// HydraFusion orchestration pattern selected for the turn.
+    pub pattern: String,
+    /// Identifier of the concrete phase that produced the event.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub phase_id: Option<String>,
+    /// Kind of concrete phase that produced the event.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub phase_kind: Option<String>,
+    /// HydraFusion routing policy used for the turn.
+    pub policy: String,
+    /// Semantic role assigned to the concrete phase.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub role: Option<String>,
+    /// Concrete model that produced the attributed event.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_model: Option<String>,
+    /// Phase whose output supplied the authoritative content, when different from the executing phase.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_phase_id: Option<String>,
+    /// Synthetic HydraFusion model selected for the session.
+    pub synthetic_model: String,
+}
+
 /// Neutral provider-tagged reasoning content blocks preserved verbatim for round-tripping
 ///
 /// <div class="warning">
@@ -1958,7 +2673,7 @@ pub struct Citations {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AssistantMessageReasoningBlocks {
-    /// Provider-native reasoning content blocks (e.g. Anthropic `thinking` / `redacted_thinking`) preserved verbatim, in order. A single response can carry several, each signed over the content preceding it, so dropping or reordering any of them invalidates the rest.
+    /// Provider-native reasoning items or content blocks preserved verbatim, in order. A single response can carry several, and provider signatures or identifiers may depend on their exact content and ordering.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub blocks: Option<Vec<serde_json::Value>>,
     /// Model provider that produced these reasoning blocks.
@@ -1992,6 +2707,16 @@ pub struct AssistantMessageServerTools {
     pub raw_content_blocks: Option<Vec<serde_json::Value>>,
 }
 
+/// Hosted program that requested this client tool call
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssistantMessageToolRequestCaller {
+    /// Provider-assigned identifier for the hosted caller.
+    pub caller_id: String,
+    /// Kind of hosted caller that requested the client tool call.
+    pub r#type: AssistantMessageToolRequestCallerType,
+}
+
 /// A tool invocation request from the assistant
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1999,6 +2724,9 @@ pub struct AssistantMessageToolRequest {
     /// Arguments to pass to the tool, format depends on the tool
     #[serde(skip_serializing_if = "Option::is_none")]
     pub arguments: Option<serde_json::Value>,
+    /// Hosted program that requested this client tool call
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub caller: Option<AssistantMessageToolRequestCaller>,
     /// Resolved intention summary describing what this specific call does
     #[serde(skip_serializing_if = "Option::is_none")]
     pub intention_summary: Option<String>,
@@ -2051,6 +2779,16 @@ pub struct AssistantMessageData {
     /// Encrypted reasoning content from OpenAI models. Session-bound and stripped on resume.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub encrypted_content: Option<String>,
+    /// Experimental HydraFusion source attribution for this ordinary authoritative assistant message.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fusion: Option<FusionAttribution>,
     /// CAPI interaction ID for correlating this message with upstream telemetry
     #[serde(skip_serializing_if = "Option::is_none")]
     pub interaction_id: Option<String>,
@@ -2277,6 +3015,16 @@ pub struct AssistantUsageData {
     #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) frontier_source: Option<String>,
+    /// Experimental HydraFusion attribution for this concrete model call's usage.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fusion: Option<FusionAttribution>,
     /// What initiated this API call (e.g., "sub-agent", "mcp-sampling"); absent for user-initiated calls
     #[serde(skip_serializing_if = "Option::is_none")]
     pub initiator: Option<String>,
@@ -2494,6 +3242,16 @@ pub struct ModelCallFailureData {
     /// Whether the failure originated from an API response or the request transport
     #[serde(skip_serializing_if = "Option::is_none")]
     pub failure_kind: Option<ModelCallFailureKind>,
+    /// Experimental HydraFusion attribution for this failed concrete model call.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fusion: Option<FusionAttribution>,
     /// What initiated this API call (e.g., "sub-agent", "mcp-sampling"); absent for user-initiated calls
     #[serde(skip_serializing_if = "Option::is_none")]
     pub initiator: Option<String>,
@@ -2568,6 +3326,16 @@ pub struct ModelCallFinishedData {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelCallStartData {
+    /// Experimental HydraFusion attribution for this concrete model call.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fusion: Option<FusionAttribution>,
     /// Model identifier used for this API call, when known
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
@@ -2665,6 +3433,16 @@ pub struct ToolExecutionStartData {
     /// When true, the tool output should be displayed expanded (verbatim) in the CLI timeline
     #[serde(skip_serializing_if = "Option::is_none")]
     pub display_verbatim: Option<bool>,
+    /// Experimental HydraFusion attribution for this tool execution.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fusion: Option<FusionAttribution>,
     /// Name of the MCP server hosting this tool, when the tool is an MCP tool
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mcp_server_name: Option<String>,
@@ -2863,6 +3641,9 @@ pub struct ToolExecutionCompleteContentShellExit {
     pub cwd: Option<String>,
     /// Exit code from the completed shell command
     pub exit_code: i64,
+    /// Path reported in the shell session's filesystem namespace when shell output exceeded the configured large-output threshold.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_file_path: Option<String>,
     /// Output associated with this shell command, if available. May be partial, truncated, or a preview; not guaranteed to be full output.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub output_preview: Option<String>,
@@ -3173,6 +3954,16 @@ pub struct ToolExecutionCompleteData {
     /// Error details when the tool execution failed
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<ToolExecutionCompleteError>,
+    /// Experimental HydraFusion attribution for this tool completion.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fusion: Option<FusionAttribution>,
     /// CAPI interaction ID for correlating this tool execution with upstream telemetry
     #[serde(skip_serializing_if = "Option::is_none")]
     pub interaction_id: Option<String>,
@@ -3243,12 +4034,15 @@ pub struct SkillInvokedData {
     /// Description of the skill from its SKILL.md frontmatter
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+    /// Whether model invocation is disabled for this skill
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub disable_model_invocation: Option<bool>,
     /// Model identifier active when the skill was invoked, when known
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
     /// Name of the invoked skill
     pub name: String,
-    /// File path to the SKILL.md definition
+    /// File path to the SKILL.md definition, or an empty string for an SDK-provided skill without a filesystem identity
     pub path: String,
     /// Name of the plugin this skill originated from, when applicable
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -3256,7 +4050,7 @@ pub struct SkillInvokedData {
     /// Version of the plugin this skill originated from, when applicable
     #[serde(skip_serializing_if = "Option::is_none")]
     pub plugin_version: Option<String>,
-    /// Source identifier for where the skill was discovered. Known values include: project (workspace skill), inherited (parent-directory skill), personal-copilot (~/.copilot/skills), personal-agents (~/.agents/skills), custom (configured directory), plugin (installed plugin), builtin (bundled runtime skill), and remote (org/enterprise skill)
+    /// Source identifier for where the skill was discovered. Known values include: project (workspace skill), inherited (parent-directory skill), personal-copilot (~/.copilot/skills), personal-agents (~/.agents/skills), custom (configured directory), plugin (installed plugin), builtin (bundled runtime skill), remote (org/enterprise skill), and sdk (SDK-provided skill)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source: Option<String>,
     /// What triggered the skill invocation: `user-invoked` (explicit user action, such as via a slash command or UI affordance), `agent-invoked` (agent requested the skill), or `context-load` (loaded as part of another context, such as preloading skills configured on a custom agent or subagent)
@@ -3279,14 +4073,42 @@ pub struct SubagentStartedData {
     pub agent_display_name: String,
     /// Internal name of the sub-agent
     pub agent_name: String,
+    /// Type of the sub-agent selected at spawn time.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub agent_type: Option<String>,
+    /// Whether the sub-agent runs synchronously or in the background.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub execution_mode: Option<String>,
     /// Root id of the factory run that spawned this sub-agent, when it was spawned by one.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub factory_run_id: Option<String>,
     /// Model the sub-agent will run with, when known at start.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
+    /// Task-registry ID of the spawning sub-agent. Absent when the root session spawned this child.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_id: Option<String>,
+    /// Whether this sub-agent can be resumed. Currently always false.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resumable: Option<bool>,
     /// Tool call ID of the parent tool invocation that spawned this sub-agent
     pub tool_call_id: String,
+}
+
+/// Session event "subagent.configured". Resolved runtime configuration for a configured sub-agent
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SubagentConfiguredData {
+    /// Resolved context tier, when configured for the model
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context_tier: Option<String>,
+    /// Resolved model the sub-agent will run with
+    pub model: String,
+    /// Whether the sub-agent accepts follow-up turns
+    pub multi_turn: bool,
+    /// Resolved reasoning effort, when configured for the model
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_effort: Option<String>,
 }
 
 /// Session event "subagent.completed". Sub-agent completion details for successful execution
@@ -3321,6 +4143,9 @@ pub struct SubagentCompletedData {
     /// Model used by the sub-agent
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
+    /// Why an explicit task-call model did not become the effective model
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model_override_reason: Option<String>,
     /// Tool call ID of the parent tool invocation that spawned this sub-agent
     pub tool_call_id: String,
     /// Total tokens (input + output) consumed by the sub-agent
@@ -3362,6 +4187,9 @@ pub struct SubagentFailedData {
     /// Model selected for the sub-agent, when known
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
+    /// Why an explicit task-call model did not become the effective model
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model_override_reason: Option<String>,
     /// Tool call ID of the parent tool invocation that spawned this sub-agent
     pub tool_call_id: String,
     /// Total tokens (input + output) consumed before the sub-agent failed
@@ -3397,9 +4225,12 @@ pub struct HookStartData {
     pub hook_invocation_id: String,
     /// Type of hook being invoked (e.g., "preToolUse", "postToolUse", "sessionStart")
     pub hook_type: String,
-    /// Input data passed to the hook
+    /// Input data passed to the hook. For postToolUse hooks the retained copy served by session.eventLog.read (and by a resumed session) elides the tool result's inline `contents`/`uiResource` and replaces an over-long `textResultForLlm` with a `[copilot:elided ...]` marker, to keep a multi-megabyte payload out of the durable event log; the live subscription stream still delivers the full value. Read the adjacent tool.execution_complete event for the tool result itself.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub input: Option<serde_json::Value>,
+    /// Tool call ID of the parent tool invocation when this event originates from a sub-agent
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_tool_call_id: Option<String>,
 }
 
 /// Error details when the hook failed
@@ -3430,6 +4261,9 @@ pub struct HookEndData {
     /// Output data produced by the hook
     #[serde(skip_serializing_if = "Option::is_none")]
     pub output: Option<serde_json::Value>,
+    /// Tool call ID of the parent tool invocation when this event originates from a sub-agent
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_tool_call_id: Option<String>,
     /// Whether the hook completed successfully
     pub success: bool,
 }
@@ -4364,6 +5198,9 @@ pub struct PermissionPromptRequestExtensionEnvAccess {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionRequestedData {
+    /// Agent mode captured from the owning turn when permission evaluation began.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub agent_mode: Option<SessionMode>,
     /// Details of the permission being requested
     pub permission_request: PermissionRequest,
     /// Derived user-facing permission prompt details for UI consumers
@@ -5060,7 +5897,7 @@ pub struct SessionAutoModeResolvedData {
     pub sticky_override: Option<bool>,
 }
 
-/// Session event "session.managed_settings_resolved". Enterprise managed-settings resolution: the effective managed settings the session applied and which channels contributed, so SDK clients can show users what is enterprise-managed. Fires whenever managed policy is (re)applied — at session start, on resume, and on account switch. This is an ephemeral live snapshot (delivered to subscribers but not persisted to the session event log), because at session start it resolves before `session.start` is emitted. Device values take precedence over server values per ordinary key, while permissions compose restrictively across device, server, and SDK-client layers. The account-scoped `getManagedSettings()` API does not include session-local client injection. Marked experimental while the managed-settings surface stabilizes.
+/// Session event "session.managed_settings_resolved". Enterprise managed-settings resolution: the effective managed settings the session applied and which channels contributed, so SDK clients can show users what is enterprise-managed. Fires whenever managed policy is (re)applied — at session start, on resume, and on account switch. This is an ephemeral live snapshot (delivered to subscribers but not persisted to the session event log), because at session start it resolves before `session.start` is emitted. Device values take precedence over server values, then the policy helper, per ordinary key, while permissions compose restrictively across device, server, policy-helper, and SDK-client layers. The account-scoped `getManagedSettings()` API does not include session-local client injection. Marked experimental while the managed-settings surface stabilizes.
 ///
 /// <div class="warning">
 ///
@@ -5085,6 +5922,9 @@ pub struct SessionManagedSettingsResolvedData {
     /// Whether at least two managed sources supplied permission allowlists, so enforcement intersects them and the flattened settings payload omits `permissions.allow`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub permissions_allow_intersected: Option<bool>,
+    /// Whether the policy-helper managed-settings layer was present. The policy helper is the weakest channel: it fills keys no enterprise source set and can never replace one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub policy_helper_managed: Option<bool>,
     /// Whether the effective sandbox policy forces the sandbox on *only* because managed policy could not be determined, rather than because the policy requires it. Lets clients tell a user whose `--no-sandbox` was overridden that the sandbox stayed on as a fail-closed fallback, instead of attributing it to an administrator who set no such policy.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sandbox_enabled_by_undetermined_policy: Option<bool>,
@@ -5093,7 +5933,7 @@ pub struct SessionManagedSettingsResolvedData {
     /// The effective (resolved) managed settings values, so clients can render exactly what is enforced. Absent when no managed policy is in force.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub settings: Option<serde_json::Value>,
-    /// Channel summary: `server`, `device`, or `client` when exactly one channel contributed; `mixed` when multiple channels contributed; otherwise `none`. Consult the per-channel booleans for exact provenance.
+    /// Channel summary: `server`, `device`, `client`, or `policyHelper` when exactly one channel contributed; `mixed` when multiple channels contributed; otherwise `none`. Consult the per-channel booleans for exact provenance.
     pub source: ManagedSettingsResolvedSource,
 }
 
@@ -5297,7 +6137,7 @@ pub struct SkillsLoadedSkill {
     /// Absolute path to the skill file, if available
     #[serde(skip_serializing_if = "Option::is_none")]
     pub path: Option<String>,
-    /// Source location type (e.g., project, personal-copilot, plugin, builtin)
+    /// Source location type (e.g., project, personal-copilot, plugin, builtin, remote, sdk)
     pub source: SkillSource,
     /// Whether the skill can be invoked by the user as a slash command
     pub user_invocable: bool,
@@ -5311,7 +6151,7 @@ pub struct SessionSkillsLoadedData {
     pub skills: Vec<SkillsLoadedSkill>,
 }
 
-/// A single loaded custom agent in `session.custom_agents_updated`, with identity, source, tools, invocability, and model override.
+/// A single loaded custom agent in `session.custom_agents_updated`, with identity, source, tools, invocability, and authored model configuration.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CustomAgentsUpdatedAgent {
@@ -5324,6 +6164,12 @@ pub struct CustomAgentsUpdatedAgent {
     /// Model override for this agent, if set
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
+    /// Whether authored models are preferences or required constraints
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model_policy: Option<AgentModelPolicy>,
+    /// Authored model ids in priority order, if configured
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub models: Option<Vec<String>>,
     /// Internal name of the agent
     pub name: String,
     /// Source location: user, project, inherited, remote, or plugin
@@ -5689,6 +6535,24 @@ pub struct McpAppToolCallCompleteData {
     pub tool_name: String,
 }
 
+/// Routing preference used when the session model is `auto`.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AutoTier {
+    /// Optimize for efficiency.
+    #[serde(rename = "efficiency")]
+    Efficiency,
+    /// Balance efficiency and intelligence.
+    #[serde(rename = "balance")]
+    Balance,
+    /// Optimize for intelligence.
+    #[serde(rename = "intelligence")]
+    Intelligence,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// Hosting platform type of the repository (github or ado)
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum WorkingDirectoryContextHostType {
@@ -5999,6 +6863,176 @@ pub enum TaskCompletionOutcome {
     Unknown,
 }
 
+/// Structured terminal status from a tool completion event.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CompletionReceiptToolStatus {
+    /// The tool completed successfully.
+    #[serde(rename = "success")]
+    Success,
+    /// The tool failed without a more specific structured status.
+    #[serde(rename = "failure")]
+    Failure,
+    /// The tool exceeded its time budget.
+    #[serde(rename = "timeout")]
+    Timeout,
+    /// The user rejected the tool call.
+    #[serde(rename = "rejected")]
+    Rejected,
+    /// The permissions service denied the tool call.
+    #[serde(rename = "denied")]
+    Denied,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Runtime reason the completion decision was accepted.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CompletionReceiptStopReason {
+    /// The model reached a natural terminal response.
+    #[serde(rename = "natural")]
+    Natural,
+    /// A terminal tool ended the interaction.
+    #[serde(rename = "terminal_tool")]
+    TerminalTool,
+    /// The configured agentStop continuation limit was reached.
+    #[serde(rename = "agent_stop_block_limit")]
+    AgentStopBlockLimit,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Kind of turn for which HydraFusion routing is running.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FusionTurnKind {
+    /// A user-message turn.
+    #[serde(rename = "user")]
+    User,
+    /// A conversation-compaction turn.
+    #[serde(rename = "compaction")]
+    Compaction,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Server-recommended routing behavior for a later HydraFusion turn.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FusionFollowUpAction {
+    /// Reuse the durable primary model without routing.
+    #[serde(rename = "reuse_primary")]
+    ReusePrimary,
+    /// Request a new routing decision.
+    #[serde(rename = "reroute")]
+    Reroute,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Validated HydraFusion execution pattern.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FusionPattern {
+    /// Run one primary solver phase.
+    #[serde(rename = "single")]
+    Single,
+    /// Run a primary phase, a judge, and an optional repair.
+    #[serde(rename = "cascade")]
+    Cascade,
+    /// Run a primary draft, a read-only critique, and a revision.
+    #[serde(rename = "critique")]
+    Critique,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// HydraFusion phase kind.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FusionPhaseKind {
+    /// Primary solver phase.
+    #[serde(rename = "primary")]
+    Primary,
+    /// Read-only cascade judge phase.
+    #[serde(rename = "judge")]
+    Judge,
+    /// Cascade repair phase.
+    #[serde(rename = "repair")]
+    Repair,
+    /// Initial critique-pattern draft phase.
+    #[serde(rename = "draft")]
+    Draft,
+    /// Read-only critique phase.
+    #[serde(rename = "critic")]
+    Critic,
+    /// Critique-pattern revision phase.
+    #[serde(rename = "revision")]
+    Revision,
+    /// Follow-up phase continuing from the resolved model.
+    #[serde(rename = "follow_up")]
+    FollowUp,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Conversation scope in which a HydraFusion phase executes.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FusionConversationScope {
+    /// Canonical root conversation history.
+    #[serde(rename = "root")]
+    Root,
+    /// Isolated read-only review history that does not enter the root conversation.
+    #[serde(rename = "review")]
+    Review,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// The agent mode that was active when this message was sent
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum UserMessageAgentMode {
@@ -6089,6 +7123,81 @@ pub enum ModelCallFailureTransport {
     Unknown,
 }
 
+/// Content-safe activity observed while a HydraFusion phase is running.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FusionPhaseActivityKind {
+    /// The provider produced additional private output bytes.
+    #[serde(rename = "model_output")]
+    ModelOutput,
+    /// A tool began executing inside the phase.
+    #[serde(rename = "tool_started")]
+    ToolStarted,
+    /// A tool finished executing inside the phase.
+    #[serde(rename = "tool_completed")]
+    ToolCompleted,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// How a durable phase checkpoint contributes its exact message to canonical root history.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FusionProjectionMode {
+    /// Append the exact root message immediately.
+    #[serde(rename = "append")]
+    Append,
+    /// Hold a terminal message outside canonical history until the final commit selects it.
+    #[serde(rename = "staged")]
+    Staged,
+    /// Do not project the checkpoint into root history.
+    #[serde(rename = "none")]
+    None,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Durable outcome status of a HydraFusion phase.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FusionPhaseStatus {
+    /// The phase completed successfully.
+    #[serde(rename = "succeeded")]
+    Succeeded,
+    /// The phase failed.
+    #[serde(rename = "failed")]
+    Failed,
+    /// The phase was cancelled.
+    #[serde(rename = "cancelled")]
+    Cancelled,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// Tool call type: "function" for standard tool calls, "custom" for grammar-based tool calls. Defaults to "function" when absent.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AssistantMessageToolRequestType {
@@ -6123,6 +7232,17 @@ pub enum CitationProvider {
     /// Citation synthesized client-side by the runtime from tool output.
     #[serde(rename = "client")]
     Client,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Hosted program caller type
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AssistantMessageToolRequestCallerType {
+    #[serde(rename = "program")]
+    Program,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
@@ -7300,7 +8420,10 @@ pub enum ManagedSettingsResolvedSource {
     /// Only session-local SDK-host injection contributed.
     #[serde(rename = "client")]
     Client,
-    /// More than one channel contributed. Ordinary keys resolve device over server per key, while permissions compose restrictively across all present layers.
+    /// A policy helper registered by device or server policy contributed. Device registration takes priority when present.
+    #[serde(rename = "policyHelper")]
+    PolicyHelper,
+    /// More than one channel contributed. Ordinary keys resolve device over server over policy helper per key, while permissions compose restrictively across all present layers.
     #[serde(rename = "mixed")]
     Mixed,
     /// No managed policy is in force (no channel contributed).
@@ -7393,7 +8516,7 @@ pub enum FactoryRunSettledStatus {
     Unknown,
 }
 
-/// Source location type (e.g., project, personal-copilot, plugin, builtin)
+/// Source location type (e.g., project, personal-copilot, plugin, builtin, sdk)
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SkillSource {
     /// Skill defined in the current project's skill directories.
@@ -7417,6 +8540,24 @@ pub enum SkillSource {
     /// Skill bundled with the runtime.
     #[serde(rename = "builtin")]
     Builtin,
+    /// Pathless skill supplied lazily by an SDK skill provider.
+    #[serde(rename = "sdk")]
+    Sdk,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Whether configured models are advisory preferences or required constraints
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AgentModelPolicy {
+    /// Treat the authored models as advisory preferences that callers may override.
+    #[serde(rename = "preferred")]
+    Preferred,
+    /// Require subagent execution to use one of the authored models.
+    #[serde(rename = "required")]
+    Required,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

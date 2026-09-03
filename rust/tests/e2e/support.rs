@@ -31,6 +31,7 @@ static SHARED_E2E_RUNTIME: LazyLock<tokio::runtime::Runtime> = LazyLock::new(|| 
         .expect("create shared E2E runtime")
 });
 const SHARED_E2E_CLEANUP_TIMEOUT: Duration = Duration::from_secs(10);
+const PROXY_STARTUP_TIMEOUT: Duration = Duration::from_secs(30);
 
 pub const DEFAULT_TEST_TOKEN: &str = "rust-e2e-token";
 
@@ -510,12 +511,8 @@ impl E2eContext {
             .expect("start E2E client")
     }
 
-    /// Start a client that hosts the runtime in-process over FFI
-    /// ([`Transport::InProcess`]). Unlike the stdio harness, the CLI
-    /// entrypoint is passed as the program directly (the FFI host builds the
-    /// `node <entrypoint> --embedded-host` argv itself and loads the sibling
-    /// runtime cdylib), so a `.js` entrypoint is not split into node +
-    /// prefix_args here.
+    /// Start a client that hosts the bundled runtime directly in-process over
+    /// FFI ([`Transport::InProcess`]).
     #[cfg_attr(not(feature = "bundled-in-process"), allow(dead_code))]
     pub async fn start_inprocess_client(&self) -> Client {
         let options = ClientOptions::new().with_transport(Transport::InProcess);
@@ -1070,7 +1067,8 @@ impl InProcessEnvGuard {
         pairs.push(("COPILOT_SDK_AUTH_TOKEN".into(), "".into()));
         pairs.push((
             "COPILOT_CLI_PATH".into(),
-            ctx.cli_path.clone().into_os_string(),
+            std::env::var_os("COPILOT_CLI_PATH")
+                .unwrap_or_else(|| ctx.cli_path.clone().into_os_string()),
         ));
         // Some tests opt into gated runtime APIs via per-client `options.env`, which the
         // in-process transport does not pass to the shared native runtime (see issue #1934).
@@ -1277,7 +1275,7 @@ impl CapiProxy {
             }
         });
         let re = regex::Regex::new(r"Listening: (http://[^\s]+)\s+(\{.*\})$").unwrap();
-        let deadline = Instant::now() + SHARED_E2E_CLEANUP_TIMEOUT;
+        let deadline = Instant::now() + PROXY_STARTUP_TIMEOUT;
         while let Some(remaining) = deadline.checked_duration_since(Instant::now()) {
             let line = match line_rx.recv_timeout(remaining) {
                 Ok(Ok(line)) => line,
@@ -1344,7 +1342,7 @@ impl CapiProxy {
 
         kill_and_wait_child(&mut child);
         Err(std::io::Error::other(format!(
-            "timed out after {SHARED_E2E_CLEANUP_TIMEOUT:?} waiting for proxy startup"
+            "timed out after {PROXY_STARTUP_TIMEOUT:?} waiting for proxy startup"
         )))
     }
 

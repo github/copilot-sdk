@@ -16,7 +16,7 @@ import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { Socket } from "node:net";
-import { dirname, isAbsolute, join } from "node:path";
+import { dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
     createMessageConnection,
@@ -34,6 +34,7 @@ import {
     registerClientSessionApiHandlers,
 } from "./generated/rpc.js";
 import type {
+    ConnectClientInfo,
     GitHubTelemetryNotification,
     GitHubTokenAcquireRequest,
     GitHubTokenAcquireResult,
@@ -43,6 +44,7 @@ import type {
 import { getSdkProtocolVersion } from "./sdkProtocolVersion.js";
 import { CopilotSession } from "./session.js";
 import type { FfiRuntimeHost } from "./ffiRuntimeHost.js";
+import { materializeRuntimeBundle } from "./runtimeArtifacts.js";
 import { createSessionFsAdapter, type SessionFsProvider } from "./sessionFsProvider.js";
 import { createCopilotRequestAdapter } from "./copilotRequestHandler.js";
 import type { CopilotRequestHandler } from "./copilotRequestHandler.js";
@@ -51,6 +53,7 @@ import { ToolSet } from "./toolSet.js";
 import type {
     AutoModeSwitchRequest,
     AutoModeSwitchResponse,
+    CopilotClientInfo,
     CopilotClientMode,
     CopilotClientOptions,
     CustomAgentConfig,
@@ -259,6 +262,22 @@ function toWireCustomAgents(agents: CustomAgentConfig[] | undefined): unknown[] 
 }
 
 /**
+ * Map the public {@link CopilotClientInfo} onto the generated connect wire
+ * shape, dropping empty fields. Returns `undefined` when no field carries a
+ * non-empty value so the caller omits `clientInfo` from the handshake and keeps
+ * the runtime's default attribution.
+ */
+function clientInfoToWire(info: CopilotClientInfo | undefined): ConnectClientInfo | undefined {
+    if (info == null) return undefined;
+    const wire: ConnectClientInfo = {};
+    if (info.applicationName) wire.editorName = info.applicationName;
+    if (info.applicationVersion) wire.editorVersion = info.applicationVersion;
+    if (info.integrationName) wire.extensionName = info.integrationName;
+    if (info.integrationVersion) wire.extensionVersion = info.integrationVersion;
+    return Object.keys(wire).length > 0 ? wire : undefined;
+}
+
+/**
  * Convert a {@link LargeToolOutputConfig} from the public API shape
  * (`outputDirectory`) to the wire shape (`outputDir`).
  */
@@ -365,16 +384,19 @@ function getCliPlatformPackageNames(): string[] {
     return variants.map((variant) => `@github/copilot-${variant}-${arch}`);
 }
 
+interface BundledCliPackage {
+    root: string;
+    platform: string;
+}
+
 /**
- * Gets the path to the bundled CLI from the platform-specific @github/copilot-*
- * package. Uses index.js directly rather than the native binary so the CLI runs
- * under the current Node.js runtime.
+ * Resolves the current platform package and its npm prebuilds folder.
  *
  * In ESM, uses import.meta.resolve directly. In CJS (e.g., VS Code extensions
  * bundled with esbuild format:"cjs"), import.meta is empty so we fall back to
  * walking node_modules to find the package.
  */
-function getBundledCliPath(): string {
+function getBundledCliPackage(): BundledCliPackage {
     const packageNames = getCliPlatformPackageNames();
 
     if (typeof import.meta.resolve === "function") {
@@ -383,7 +405,10 @@ function getBundledCliPath(): string {
             try {
                 const packageEntryUrl = import.meta.resolve(packageName);
                 const packageEntryPath = fileURLToPath(packageEntryUrl);
-                return join(dirname(packageEntryPath), "index.js");
+                return {
+                    root: dirname(packageEntryPath),
+                    platform: packageName.slice("@github/copilot-".length),
+                };
             } catch {
                 // Try the next candidate platform package.
             }
@@ -400,9 +425,13 @@ function getBundledCliPath(): string {
     const searchPaths = req.resolve.paths("@github/copilot") ?? [];
     for (const base of searchPaths) {
         for (const packageName of packageNames) {
-            const candidate = join(base, ...packageName.split("/"), "index.js");
+            const root = join(base, ...packageName.split("/"));
+            const candidate = join(root, "index.js");
             if (existsSync(candidate)) {
-                return candidate;
+                return {
+                    root,
+                    platform: packageName.slice("@github/copilot-".length),
+                };
             }
         }
     }
@@ -411,6 +440,14 @@ function getBundledCliPath(): string {
             `Searched ${searchPaths.length} paths. ` +
             `Ensure @github/copilot is installed, or pass cliPath/cliUrl to CopilotClient.`
     );
+}
+
+function getBundledRuntimePath(): string {
+    const bundled = getBundledCliPackage();
+    return materializeRuntimeBundle({
+        packageRoot: bundled.root,
+        platform: bundled.platform,
+    });
 }
 
 /**
@@ -503,6 +540,7 @@ export class CopilotClient {
         sessionIdleTimeoutSeconds: number;
         enableRemoteSessions: boolean;
         mode: CopilotClientMode;
+        clientInfo?: CopilotClientInfo;
     };
     private isExternalServer: boolean = false;
     private forceStopping: boolean = false;
@@ -520,6 +558,7 @@ export class CopilotClient {
     private _rpc: ReturnType<typeof createServerRpc> | null = null;
     private _internalRpc: ReturnType<typeof createInternalServerRpc> | null = null;
     private processExitPromise: Promise<never> | null = null; // Rejects when CLI process exits
+    private processTransportError: Error | null = null;
     private negotiatedProtocolVersion: number | null = null;
     /** Connection-level session filesystem config, set via constructor option. */
     private sessionFsConfig: SessionFsConfig | null = null;
@@ -733,10 +772,14 @@ export class CopilotClient {
             conn.kind === "stdio" || conn.kind === "tcp" ? conn.env : undefined;
         const effectiveEnv = connEnv ?? options.env ?? process.env;
         this.resolvedEnv = effectiveEnv;
-        this.resolvedCliPath =
-            conn.kind === "stdio" || conn.kind === "tcp"
-                ? (conn.path ?? effectiveEnv.COPILOT_CLI_PATH ?? getBundledCliPath())
-                : undefined;
+        if (conn.kind === "stdio" || conn.kind === "tcp") {
+            const explicitCliPath = conn.path ?? effectiveEnv.COPILOT_CLI_PATH;
+            if (explicitCliPath) {
+                this.resolvedCliPath = explicitCliPath;
+            } else {
+                this.resolvedCliPath = getBundledRuntimePath();
+            }
+        }
 
         // Collect extra CLI args from the connection variant (if any).
         const connArgs: readonly string[] =
@@ -754,6 +797,7 @@ export class CopilotClient {
             sessionIdleTimeoutSeconds: options.sessionIdleTimeoutSeconds ?? 0,
             enableRemoteSessions: options.enableRemoteSessions ?? false,
             mode: options.mode ?? "copilot-cli",
+            clientInfo: options.clientInfo,
         };
 
         // Empty mode: validate at construction time that the app supplied a
@@ -951,6 +995,8 @@ export class CopilotClient {
             return;
         }
 
+        this.forceStopping = false;
+        this.processTransportError = null;
         this.state = "connecting";
 
         try {
@@ -997,8 +1043,10 @@ export class CopilotClient {
 
             this.state = "connected";
         } catch (error) {
+            const startupError = this.processTransportError ?? error;
+            await this.forceStop();
             this.state = "error";
-            throw error;
+            throw startupError;
         }
     }
 
@@ -1678,6 +1726,7 @@ export class CopilotClient {
                 requestPermission: !!config.onPermissionRequest,
                 requestUserInput: !!config.onUserInputRequest,
                 requestElicitation: !!config.onElicitationRequest,
+                askUserVariant: config.askUserVariant,
                 ...(config.enableMcpApps ? { requestMcpApps: true } : {}),
                 ...(config.githubMcpToolConfig != null
                     ? { githubMcpToolConfig: config.githubMcpToolConfig }
@@ -1721,6 +1770,7 @@ export class CopilotClient {
                 gitHubTokenProviderRegistrationId,
                 remoteSession: config.remoteSession,
                 cloud: config.cloud,
+                featureFlags: config.featureFlags,
                 expAssignments: config.expAssignments,
                 enableManagedSettings: config.enableManagedSettings,
                 managedSettings: config.managedSettings,
@@ -1947,6 +1997,7 @@ export class CopilotClient {
                     config.onPermissionRequest !== defaultJoinSessionPermissionHandler,
                 requestUserInput: !!config.onUserInputRequest,
                 requestElicitation: !!config.onElicitationRequest,
+                askUserVariant: config.askUserVariant,
                 ...(config.enableMcpApps ? { requestMcpApps: true } : {}),
                 ...(config.githubMcpToolConfig != null
                     ? { githubMcpToolConfig: config.githubMcpToolConfig }
@@ -1992,6 +2043,7 @@ export class CopilotClient {
                 gitHubTokenProviderRegistrationId,
                 remoteSession: config.remoteSession,
                 openCanvases: config.openCanvases,
+                featureFlags: config.featureFlags,
                 expAssignments: config.expAssignments,
                 enableManagedSettings: config.enableManagedSettings,
                 managedSettings: config.managedSettings,
@@ -2188,6 +2240,7 @@ export class CopilotClient {
             const connectParams: {
                 token?: string;
                 enableGitHubTelemetryForwarding?: boolean;
+                clientInfo?: ConnectClientInfo;
             } = { token: this.effectiveConnectionToken };
             // Opt in to GitHub telemetry forwarding at the connection level when a
             // handler is registered (mirrors the runtime, which reads this flag on the
@@ -2195,6 +2248,14 @@ export class CopilotClient {
             // event is forwarded). Also sent on session.create/resume for older CLIs.
             if (this.onGitHubTelemetry != null) {
                 connectParams.enableGitHubTelemetryForwarding = true;
+            }
+            // Declare the integrating application's identity so the runtime attributes
+            // the telemetry it emits on this connection to a consistent surface
+            // instead of its own build. Empty fields are dropped, and an
+            // all-empty identity is omitted entirely.
+            const clientInfo = clientInfoToWire(this.options.clientInfo);
+            if (clientInfo != null) {
+                connectParams.clientInfo = clientInfo;
             }
             const result = await raceAgainstExit(this.internalRpc.connect(connectParams));
             serverVersion = result.protocolVersion;
@@ -2717,27 +2778,27 @@ export class CopilotClient {
             // Set up a promise that rejects when the process exits (used to race against RPC calls)
             this.processExitPromise = new Promise<never>((_, rejectProcessExit) => {
                 this.cliProcess!.on("exit", (code) => {
-                    // Give a small delay for stderr to be fully captured
-                    setTimeout(() => {
-                        const stderrOutput = this.stderrBuffer.trim();
-                        if (stderrOutput) {
-                            rejectProcessExit(
-                                new Error(
-                                    `CLI server exited with code ${code}\nstderr: ${stderrOutput}`
-                                )
-                            );
-                        } else {
-                            rejectProcessExit(
-                                new Error(`CLI server exited unexpectedly with code ${code}`)
-                            );
-                        }
-                    }, 50);
+                    if (this.messageWriter) {
+                        this.messageWriter.suppressWriteErrors = true;
+                    }
+                    const stderrOutput = this.stderrBuffer.trim();
+                    if (stderrOutput) {
+                        rejectProcessExit(
+                            new Error(
+                                `CLI server exited with code ${code}\nstderr: ${stderrOutput}`
+                            )
+                        );
+                    } else {
+                        rejectProcessExit(
+                            new Error(`CLI server exited unexpectedly with code ${code}`)
+                        );
+                    }
                 });
             });
             // Prevent unhandled rejection when process exits normally (we only use this in Promise.race)
             this.processExitPromise.catch(() => {});
 
-            this.cliProcess.on("exit", (code) => {
+            this.cliProcess.on("close", (code) => {
                 if (!resolved) {
                     resolved = true;
                     const stderrOutput = this.stderrBuffer.trim();
@@ -2782,7 +2843,15 @@ export class CopilotClient {
 
     /** Starts the in-process FFI runtime with SDK-managed typed options. */
     private async startInProcessFfi(): Promise<void> {
-        const entrypoint = this.resolveCliPathForFfi();
+        const explicitEntrypoint = this.resolvedEnv.COPILOT_CLI_PATH;
+        const runtimeLibrary = explicitEntrypoint
+            ? join(
+                  dirname(resolve(explicitEntrypoint)),
+                  "prebuilds",
+                  CopilotClient.getNapiPrebuildsFolder(explicitEntrypoint),
+                  "runtime.node"
+              )
+            : join(dirname(getBundledRuntimePath()), "runtime.node");
         // Load the FFI host lazily so the native `koffi` addon (and its
         // platform-specific `koffi.node`) is only loaded on the in-process path;
         // out-of-process (stdio/tcp) consumers never touch the native dependency.
@@ -2817,12 +2886,7 @@ export class CopilotClient {
             args.push("--remote");
         }
 
-        const host = FfiRuntimeHost.create(
-            entrypoint,
-            CopilotClient.getNapiPrebuildsFolder(entrypoint),
-            environment,
-            args
-        );
+        const host = FfiRuntimeHost.create(runtimeLibrary, explicitEntrypoint, environment, args);
         this.ffiHost = host;
         await host.start();
     }
@@ -2845,20 +2909,6 @@ export class CopilotClient {
         this.connection.listen();
     }
 
-    /**
-     * Resolves the CLI entrypoint used for in-process FFI hosting: `COPILOT_CLI_PATH`
-     * when set, otherwise the bundled platform-package entrypoint.
-     */
-    private resolveCliPathForFfi(): string {
-        return this.resolvedEnv.COPILOT_CLI_PATH ?? getBundledCliPath();
-    }
-
-    /**
-     * Returns the napi prebuilds folder name for the current host — the
-     * `<node-platform>-<arch>` convention (e.g. `win32-x64`, `darwin-arm64`,
-     * `linux-x64`, `linuxmusl-x64`) under which the runtime ships
-     * `prebuilds/<folder>/runtime.node`.
-     */
     private static getNapiPrebuildsFolder(entrypoint: string): string {
         const arch = process.arch;
         if (arch !== "x64" && arch !== "arm64") {
@@ -2902,6 +2952,10 @@ export class CopilotClient {
             }
             this.state = "error";
             const reason = err instanceof Error ? (err.stack ?? err.message) : String(err);
+            const stderrOutput = this.stderrBuffer.trim();
+            this.processTransportError = new Error(
+                `CLI server connection failed: ${reason}${stderrOutput ? `\nstderr: ${stderrOutput}` : ""}`
+            );
             this.logDebug(`stdin pipe error: ${reason}`);
             try {
                 this.connection?.dispose();

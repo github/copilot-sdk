@@ -82,7 +82,7 @@ class TestSessionRpc:
     async def test_should_call_session_rpc_model_get_current(self, ctx: E2ETestContext):
         """Test calling session.rpc.model.getCurrent"""
         session = await ctx.client.create_session(
-            on_permission_request=PermissionHandler.approve_all, model="claude-sonnet-4.5"
+            on_permission_request=PermissionHandler.approve_all, model="claude-sonnet-5"
         )
 
         result = await session.rpc.model.get_current()
@@ -96,7 +96,7 @@ class TestSessionRpc:
         from copilot.rpc import ModelSwitchToRequest
 
         session = await ctx.client.create_session(
-            on_permission_request=PermissionHandler.approve_all, model="claude-sonnet-4.5"
+            on_permission_request=PermissionHandler.approve_all, model="claude-sonnet-5"
         )
 
         # Get initial model

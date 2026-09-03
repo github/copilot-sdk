@@ -1,8 +1,10 @@
 #![allow(clippy::unwrap_used)]
 
+use std::collections::HashMap;
+use std::fmt;
 use std::path::Path;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -24,8 +26,8 @@ use github_copilot_sdk::session_events::{
     SessionManagedSettingsResolvedData,
 };
 use github_copilot_sdk::types::{
-    CanvasProviderIdentity, CloudSessionOptions, CloudSessionRepository, CommandContext,
-    CommandDefinition, CommandHandler, DeliveryMode, DisableBypassPermissionsModes,
+    AskUserVariant, CanvasProviderIdentity, CloudSessionOptions, CloudSessionRepository,
+    CommandContext, CommandDefinition, CommandHandler, DeliveryMode, DisableBypassPermissionsModes,
     ElicitationRequest, ElicitationResult, ExitPlanModeData, ExtensionInfo, ManagedSettings,
     ManagedSettingsPermissions, MessageOptions, PermissionDecisionContext,
     PermissionDecisionOutcome, PermissionDecisionSource, PermissionDecisionSurface, RequestId,
@@ -34,15 +36,176 @@ use github_copilot_sdk::types::{
 use github_copilot_sdk::{Client, ContextTier, ErrorKind, ProtocolErrorKind, tool};
 use serde_json::Value;
 use tokio::io::{AsyncWrite, AsyncWriteExt, duplex};
+use tokio::sync::Notify;
 use tokio::time::timeout;
+use tracing::field::{Field, Visit};
+use tracing::span::{Attributes, Id, Record};
+use tracing::{Event, Metadata, Subscriber};
 
 const TIMEOUT: Duration = Duration::from_secs(2);
+const PERMISSION_CONFIRMATION_METHOD: &str = "session.permissions.handlePendingPermissionRequest";
+
+#[derive(Clone, Debug)]
+struct CapturedTraceEvent {
+    fields: HashMap<String, String>,
+}
+
+impl CapturedTraceEvent {
+    fn message_contains(&self, expected: &str) -> bool {
+        self.fields
+            .get("message")
+            .is_some_and(|message| message.contains(expected))
+    }
+
+    fn field_is(&self, name: &str, expected: &str) -> bool {
+        self.fields.get(name).is_some_and(|value| value == expected)
+    }
+}
+
+#[derive(Clone, Default)]
+struct TraceCapture {
+    events: Arc<std::sync::Mutex<Vec<CapturedTraceEvent>>>,
+}
+
+impl TraceCapture {
+    fn permission_outcome(&self, request_id: &str) -> Option<CapturedTraceEvent> {
+        self.events
+            .lock()
+            .unwrap()
+            .iter()
+            .find(|event| {
+                event.field_is("request_id", request_id)
+                    && (event.message_contains(
+                        "Session::handle_notification response sent successfully",
+                    ) || event.message_contains(
+                        "failed to deliver permission decision back to the runtime",
+                    ) || event
+                        .message_contains("permission confirmation acknowledgement wait cancelled"))
+            })
+            .cloned()
+    }
+
+    async fn wait_for_permission_outcome(&self, request_id: &str) -> CapturedTraceEvent {
+        timeout(TIMEOUT, async {
+            loop {
+                if let Some(event) = self.permission_outcome(request_id) {
+                    return event;
+                }
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("timed out waiting for permission confirmation diagnostic")
+    }
+}
+
+#[derive(Default)]
+struct TraceFieldVisitor {
+    fields: HashMap<String, String>,
+}
+
+impl Visit for TraceFieldVisitor {
+    fn record_bool(&mut self, field: &Field, value: bool) {
+        self.fields
+            .insert(field.name().to_string(), value.to_string());
+    }
+
+    fn record_i64(&mut self, field: &Field, value: i64) {
+        self.fields
+            .insert(field.name().to_string(), value.to_string());
+    }
+
+    fn record_u64(&mut self, field: &Field, value: u64) {
+        self.fields
+            .insert(field.name().to_string(), value.to_string());
+    }
+
+    fn record_str(&mut self, field: &Field, value: &str) {
+        self.fields
+            .insert(field.name().to_string(), value.to_string());
+    }
+
+    fn record_debug(&mut self, field: &Field, value: &dyn fmt::Debug) {
+        self.fields
+            .insert(field.name().to_string(), format!("{value:?}"));
+    }
+}
+
+struct CaptureSubscriber {
+    capture: TraceCapture,
+    next_span_id: AtomicU64,
+}
+
+impl CaptureSubscriber {
+    fn new(capture: TraceCapture) -> Self {
+        Self {
+            capture,
+            next_span_id: AtomicU64::new(1),
+        }
+    }
+}
+
+impl Subscriber for CaptureSubscriber {
+    fn enabled(&self, _metadata: &Metadata<'_>) -> bool {
+        true
+    }
+
+    fn new_span(&self, _span: &Attributes<'_>) -> Id {
+        Id::from_u64(self.next_span_id.fetch_add(1, Ordering::Relaxed))
+    }
+
+    fn record(&self, _span: &Id, _values: &Record<'_>) {}
+
+    fn record_follows_from(&self, _span: &Id, _follows: &Id) {}
+
+    fn event(&self, event: &Event<'_>) {
+        let mut visitor = TraceFieldVisitor::default();
+        event.record(&mut visitor);
+        self.capture
+            .events
+            .lock()
+            .unwrap()
+            .push(CapturedTraceEvent {
+                fields: visitor.fields,
+            });
+    }
+
+    fn enter(&self, _span: &Id) {}
+
+    fn exit(&self, _span: &Id) {}
+}
+
+fn capture_traces() -> (TraceCapture, tracing::dispatcher::DefaultGuard) {
+    let capture = TraceCapture::default();
+    let dispatch = tracing::Dispatch::new(CaptureSubscriber::new(capture.clone()));
+    let guard = tracing::dispatcher::set_default(&dispatch);
+    (capture, guard)
+}
 
 struct TestCanvasHandler;
 
 struct CancelMcpAuthHandler;
 
 struct ContextualApproveHandler;
+
+struct GatedApproveHandler {
+    entered: Arc<Notify>,
+    release: Arc<Notify>,
+}
+
+#[async_trait]
+impl PermissionHandler for GatedApproveHandler {
+    async fn handle(
+        &self,
+        _session_id: SessionId,
+        _request_id: RequestId,
+        _data: github_copilot_sdk::PermissionRequestData,
+    ) -> PermissionResult {
+        self.entered.notify_one();
+        self.release.notified().await;
+        PermissionResult::approve_once()
+    }
+}
 
 #[async_trait]
 impl PermissionHandler for ContextualApproveHandler {
@@ -155,6 +318,16 @@ impl FakeServer {
     async fn respond(&mut self, request: &Value, result: Value) {
         let id = request["id"].as_u64().unwrap();
         let response = serde_json::json!({ "jsonrpc": "2.0", "id": id, "result": result });
+        write_framed(&mut self.write, &serde_json::to_vec(&response).unwrap()).await;
+    }
+
+    async fn respond_error(&mut self, request: &Value, code: i64, message: &str) {
+        let id = request["id"].as_u64().unwrap();
+        let response = serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "error": { "code": code, "message": message },
+        });
         write_framed(&mut self.write, &serde_json::to_vec(&response).unwrap()).await;
     }
 
@@ -916,6 +1089,60 @@ async fn create_session_sends_new_session_options() {
     write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
 
     timeout(TIMEOUT, create_handle).await.unwrap().unwrap();
+}
+
+#[tokio::test]
+async fn create_session_forwards_ask_user_variant() {
+    let (client, mut server_read, mut server_write) = make_client();
+
+    let create_handle = tokio::spawn({
+        let client = client.clone();
+        async move {
+            client
+                .create_session(
+                    SessionConfig::default().with_ask_user_variant(AskUserVariant::Elicitation),
+                )
+                .await
+                .unwrap()
+        }
+    });
+
+    let request = read_framed(&mut server_read).await;
+    assert_eq!(request["method"], "session.create");
+    assert_eq!(request["params"]["askUserVariant"], "elicitation");
+
+    let session_id = requested_session_id(&request).to_string();
+    server_respond_create(&mut server_write, &request, &session_id).await;
+    timeout(TIMEOUT, create_handle).await.unwrap().unwrap();
+}
+
+#[tokio::test]
+async fn cold_resume_session_forwards_ask_user_variant() {
+    use github_copilot_sdk::types::ResumeSessionConfig;
+
+    let (client, mut server_read, mut server_write) = make_client();
+
+    let resume_handle = tokio::spawn({
+        let client = client.clone();
+        async move {
+            client
+                .resume_session(
+                    ResumeSessionConfig::new(SessionId::from("ask-user-variant"))
+                        .with_ask_user_variant(AskUserVariant::Legacy),
+                )
+                .await
+                .unwrap()
+        }
+    });
+
+    let request = read_framed(&mut server_read).await;
+    assert_eq!(request["method"], "session.resume");
+    assert_eq!(request["params"]["sessionId"], "ask-user-variant");
+    assert_eq!(request["params"]["askUserVariant"], "legacy");
+
+    server_respond_create(&mut server_write, &request, "ask-user-variant").await;
+    respond_to_reload(&mut server_read, &mut server_write).await;
+    timeout(TIMEOUT, resume_handle).await.unwrap().unwrap();
 }
 
 #[tokio::test]
@@ -2738,7 +2965,8 @@ async fn user_input_requested_notification_does_not_double_dispatch() {
 }
 
 #[tokio::test]
-async fn approve_all_handler_approves_permission() {
+async fn permission_confirmation_success_behavior_is_unchanged() {
+    let (capture, _guard) = capture_traces();
     let (_session, mut server) = create_session_pair_with_config(|cfg| {
         cfg.with_permission_handler(Arc::new(ApproveAllHandler))
     })
@@ -2762,6 +2990,207 @@ async fn approve_all_handler_approves_permission() {
     );
     assert_eq!(request["params"]["requestId"], "perm-auto");
     assert_eq!(request["params"]["result"]["kind"], "approve-once");
+    server.respond(&request, serde_json::json!({})).await;
+
+    let outcome = capture.wait_for_permission_outcome("perm-auto").await;
+    assert!(outcome.message_contains("Session::handle_notification response sent successfully"));
+    assert!(outcome.field_is("session_id", &server.session_id));
+    assert!(outcome.field_is("request_id", "perm-auto"));
+}
+
+#[tokio::test]
+async fn permission_confirmation_json_rpc_error_is_observable_and_connection_stays_responsive() {
+    let (capture, _guard) = capture_traces();
+    let (session, mut server) = create_session_pair_with_config(|cfg| {
+        cfg.with_permission_handler(Arc::new(ApproveAllHandler))
+    })
+    .await;
+    let session = Arc::new(session);
+
+    server
+        .send_event(
+            "permission.requested",
+            serde_json::json!({
+                "requestId": "perm-rpc-error",
+                "sessionId": server.session_id,
+                "permissionRequest": { "kind": "shell" },
+            }),
+        )
+        .await;
+
+    let confirmation = timeout(TIMEOUT, server.read_request()).await.unwrap();
+    assert_eq!(confirmation["method"], PERMISSION_CONFIRMATION_METHOD);
+    server
+        .respond_error(&confirmation, -32603, "permission response rejected")
+        .await;
+
+    let get_events = tokio::spawn({
+        let session = session.clone();
+        async move { session.get_events().await }
+    });
+    let follow_up = timeout(TIMEOUT, server.read_request()).await.unwrap();
+    assert_eq!(follow_up["method"], "session.getMessages");
+    server
+        .respond(&follow_up, serde_json::json!({ "events": [] }))
+        .await;
+    assert!(timeout(TIMEOUT, get_events).await.unwrap().unwrap().is_ok());
+
+    let outcome = capture.wait_for_permission_outcome("perm-rpc-error").await;
+    assert!(outcome.message_contains("failed to deliver permission decision back to the runtime"));
+    assert!(outcome.field_is("session_id", &server.session_id));
+    assert!(outcome.field_is("request_id", "perm-rpc-error"));
+    assert!(outcome.field_is("method", PERMISSION_CONFIRMATION_METHOD));
+}
+
+#[tokio::test]
+async fn permission_confirmation_write_failure_is_observable_and_events_stay_responsive() {
+    let (capture, _guard) = capture_traces();
+    let entered = Arc::new(Notify::new());
+    let release = Arc::new(Notify::new());
+    let handler = Arc::new(GatedApproveHandler {
+        entered: entered.clone(),
+        release: release.clone(),
+    });
+    let (session, mut server) =
+        create_session_pair_with_config(move |cfg| cfg.with_permission_handler(handler)).await;
+    let mut subscription = session.subscribe();
+
+    server
+        .send_event(
+            "permission.requested",
+            serde_json::json!({
+                "requestId": "perm-write-error",
+                "sessionId": server.session_id,
+                "permissionRequest": { "kind": "shell" },
+            }),
+        )
+        .await;
+    let permission_event = timeout(TIMEOUT, subscription.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(permission_event.event_type, "permission.requested");
+    timeout(TIMEOUT, entered.notified()).await.unwrap();
+
+    let FakeServer {
+        read,
+        mut write,
+        session_id,
+    } = server;
+    drop(read);
+    release.notify_one();
+
+    let idle_event = serde_json::json!({
+        "jsonrpc": "2.0",
+        "method": "session.event",
+        "params": {
+            "sessionId": session_id,
+            "event": {
+                "id": "evt-after-write-error",
+                "timestamp": "2025-01-01T00:00:00Z",
+                "type": "session.idle",
+                "data": {},
+            },
+        },
+    });
+    write_framed(&mut write, &serde_json::to_vec(&idle_event).unwrap()).await;
+    let event = timeout(TIMEOUT, subscription.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(event.event_type, "session.idle");
+
+    let outcome = capture
+        .wait_for_permission_outcome("perm-write-error")
+        .await;
+    assert!(outcome.message_contains("failed to deliver permission decision back to the runtime"));
+    assert!(outcome.field_is("session_id", &session_id));
+    assert!(outcome.field_is("request_id", "perm-write-error"));
+    assert!(outcome.field_is("method", PERMISSION_CONFIRMATION_METHOD));
+}
+
+#[tokio::test]
+async fn permission_confirmation_without_response_does_not_block_events_or_other_rpcs() {
+    let (capture, _guard) = capture_traces();
+    let (session, mut server) = create_session_pair_with_config(|cfg| {
+        cfg.with_permission_handler(Arc::new(ApproveAllHandler))
+    })
+    .await;
+    let session = Arc::new(session);
+    let mut subscription = session.subscribe();
+
+    server
+        .send_event(
+            "permission.requested",
+            serde_json::json!({
+                "requestId": "perm-no-response",
+                "sessionId": server.session_id,
+                "permissionRequest": { "kind": "shell" },
+            }),
+        )
+        .await;
+    let permission_event = timeout(TIMEOUT, subscription.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(permission_event.event_type, "permission.requested");
+    let confirmation = timeout(TIMEOUT, server.read_request()).await.unwrap();
+    assert_eq!(confirmation["method"], PERMISSION_CONFIRMATION_METHOD);
+
+    server
+        .send_event("session.idle", serde_json::json!({}))
+        .await;
+    let event = timeout(TIMEOUT, subscription.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(event.event_type, "session.idle");
+
+    let get_events = tokio::spawn({
+        let session = session.clone();
+        async move { session.get_events().await }
+    });
+    let follow_up = timeout(TIMEOUT, server.read_request()).await.unwrap();
+    assert_eq!(follow_up["method"], "session.getMessages");
+    server
+        .respond(&follow_up, serde_json::json!({ "events": [] }))
+        .await;
+    assert!(timeout(TIMEOUT, get_events).await.unwrap().unwrap().is_ok());
+    assert!(
+        capture.permission_outcome("perm-no-response").is_none(),
+        "the confirmation task should still be waiting silently for its response"
+    );
+}
+
+#[tokio::test]
+async fn permission_confirmation_wait_is_cancelled_on_session_teardown() {
+    let (capture, _guard) = capture_traces();
+    let (session, mut server) = create_session_pair_with_config(|cfg| {
+        cfg.with_permission_handler(Arc::new(ApproveAllHandler))
+    })
+    .await;
+    let session_id = server.session_id.clone();
+
+    server
+        .send_event(
+            "permission.requested",
+            serde_json::json!({
+                "requestId": "perm-teardown",
+                "sessionId": server.session_id,
+                "permissionRequest": { "kind": "shell" },
+            }),
+        )
+        .await;
+    let confirmation = timeout(TIMEOUT, server.read_request()).await.unwrap();
+    assert_eq!(confirmation["method"], PERMISSION_CONFIRMATION_METHOD);
+
+    drop(session);
+
+    let outcome = capture.wait_for_permission_outcome("perm-teardown").await;
+    assert!(outcome.message_contains("permission confirmation acknowledgement wait cancelled"));
+    assert!(outcome.field_is("session_id", &session_id));
+    assert!(outcome.field_is("request_id", "perm-teardown"));
+    assert!(outcome.field_is("method", PERMISSION_CONFIRMATION_METHOD));
 }
 
 #[tokio::test]

@@ -8,7 +8,7 @@
     <parent>
         <groupId>com.github</groupId>
         <artifactId>copilot-sdk-java-parent</artifactId>
-        <version>1.0.14-preview.1-SNAPSHOT</version>
+        <version>1.0.14-preview.4-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -79,7 +79,7 @@
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
-            <version>2.22.1</version>
+            <version>2.22.2</version>
         </dependency>
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
@@ -89,14 +89,14 @@
         <dependency>
             <groupId>com.fasterxml.jackson.datatype</groupId>
             <artifactId>jackson-datatype-jsr310</artifactId>
-            <version>2.22.1</version>
+            <version>2.22.2</version>
         </dependency>
 
         <!-- SpotBugs annotations for suppressing warnings -->
         <dependency>
             <groupId>com.github.spotbugs</groupId>
             <artifactId>spotbugs-annotations</artifactId>
-            <version>4.10.3</version>
+            <version>4.10.4</version>
             <scope>provided</scope>
         </dependency>
 
@@ -632,6 +632,8 @@ did not produce the multi-release output. Re-build on JDK 25+ and verify the
                             <excludes>
                                 <exclude>**/AskUserTest.java</exclude>
                                 <exclude>**/CompactionTest.java</exclude>
+                                <!-- Subprocess coverage remains in both JDK jobs. -->
+                                <exclude>**/CopilotClientTest.java</exclude>
                                 <exclude>**/CopilotSessionTest.java</exclude>
                                 <exclude>**/ErrorHandlingTest.java</exclude>
                                 <exclude>**/EventFidelityTest.java</exclude>
@@ -685,6 +687,18 @@ did not produce the multi-release output. Re-build on JDK 25+ and verify the
             </build>
         </profile>
         <profile>
+            <id>native-linux-arm64</id>
+            <activation>
+                <os>
+                    <name>Linux</name>
+                    <arch>aarch64</arch>
+                </os>
+            </activation>
+            <properties>
+                <copilot.native.classifier>linux-arm64</copilot.native.classifier>
+            </properties>
+        </profile>
+        <profile>
             <id>native-win32-x64</id>
             <activation>
                 <os>
@@ -694,6 +708,18 @@ did not produce the multi-release output. Re-build on JDK 25+ and verify the
             </activation>
             <properties>
                 <copilot.native.classifier>win32-x64</copilot.native.classifier>
+            </properties>
+        </profile>
+        <profile>
+            <id>native-win32-arm64</id>
+            <activation>
+                <os>
+                    <family>Windows</family>
+                    <arch>aarch64</arch>
+                </os>
+            </activation>
+            <properties>
+                <copilot.native.classifier>win32-arm64</copilot.native.classifier>
             </properties>
         </profile>
         <profile>

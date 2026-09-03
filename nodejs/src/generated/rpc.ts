@@ -5,7 +5,7 @@
 
 import type { MessageConnection } from "vscode-jsonrpc/node.js";
 
-import type { AbortReason, Attachment, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerSource, McpServerStatus, ModelChangeSource, PermissionMode, PermissionPromptRequest, PermissionRule, ReasoningSummary, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskCompleteData, TaskCompletionOutcome, UserToolSessionApproval, Verbosity } from "./session-events.js";
+import type { AbortReason, AgentModelPolicy, Attachment, AutoTier, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerSource, McpServerStatus, ModelChangeSource, PermissionMode, PermissionPromptRequest, PermissionRule, ReasoningSummary, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskCompleteData, TaskCompletionOutcome, UserToolSessionApproval, Verbosity } from "./session-events.js";
 
 /** A value that can be represented losslessly on the SDK JSON wire. */
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
@@ -552,7 +552,13 @@ export type CatalogNetworkFailureReason =
   | "tls"
   /** The connection was refused or reset. */
   | "connection-refused"
-  /** The authority returned a status the runtime treats as a failure. */
+  /** The configured proxy returned 407 and requires authentication. */
+  | "proxy-authentication-required"
+  /** The authority rate-limited requests and supplied or implied a bounded cooldown. */
+  | "rate-limited"
+  /** The authority returned a transient 5xx response. */
+  | "service-unavailable"
+  /** The authority returned another status the runtime treats as a failure. */
   | "http-status"
   /** The response exceeded the permitted size. */
   | "response-too-large"
@@ -864,6 +870,64 @@ export type DiscoveredExtensionMode =
   /** Extensions are loaded and the agent can create, reload, and manage them. */
   | "load_and_augment";
 /**
+ * Hook event name. Discovery emits the file-configurable subset; SDK callbacks additionally support callback-only events.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "HookType".
+ */
+/** @experimental */
+export type HookType =
+  /** Runs before a tool is invoked. */
+  | "preToolUse"
+  /** Runs before an MCP tool is invoked. */
+  | "preMcpToolCall"
+  /** Runs after a tool completes successfully. */
+  | "postToolUse"
+  /** Runs after a tool fails. */
+  | "postToolUseFailure"
+  /** Runs after the user submits a prompt. */
+  | "userPromptSubmitted"
+  /** Runs after the runtime transforms the submitted prompt for the model, before it is added to session history. */
+  | "userPromptTransformed"
+  /** Runs when a session starts. */
+  | "sessionStart"
+  /** Runs when a session ends. */
+  | "sessionEnd"
+  /** Runs after an agent result is produced. */
+  | "postResult"
+  /** Runs before a pull request description is generated. */
+  | "prePRDescription"
+  /** Runs when the agent encounters an error. */
+  | "errorOccurred"
+  /** Runs when the agent stops. */
+  | "agentStop"
+  /** Runs when a subagent starts. */
+  | "subagentStart"
+  /** Runs when a subagent stops. */
+  | "subagentStop"
+  /** Runs before conversation context is compacted. */
+  | "preCompact"
+  /** Runs when the agent requests permission. */
+  | "permissionRequest"
+  /** Runs when the agent emits a notification. */
+  | "notification";
+/**
+ * Configuration tier that contributed a discovered hook action.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "HookOrigin".
+ */
+/** @experimental */
+export type HookOrigin =
+  /** Hook loaded from user settings or the user's hook directory. */
+  | "user"
+  /** Hook loaded from repository settings or the repository hook directory. */
+  | "repository"
+  /** Hook provided by an enabled installed or explicit plugin. Projectless rows omit projectPath and do not expand a project directory. */
+  | "plugin"
+  /** Hook enforced by centrally managed policy. */
+  | "policy";
+/**
  * Server transport type: stdio, http, sse (deprecated), or memory
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -1127,6 +1191,16 @@ export type FactoryRunFailure =
        * Factory failure variant discriminator.
        */
       type: "factory_accounting_incomplete";
+    }
+  | {
+      /**
+       * Factory run identifier.
+       */
+      runId: string;
+      /**
+       * Factory failure variant discriminator.
+       */
+      type: "factory_provider_disconnected";
     };
 /**
  * Cumulative resource ceiling that stopped a factory run.
@@ -1332,49 +1406,6 @@ export type HistoryRewindOutcome =
   | "checkpoint-cleanup-failed"
   /** Files and conversation were rewound, but obsolete file snapshots could not be removed; only conversation-and-files rewinds produce this. */
   | "snapshot-prune-failed";
-/**
- * Hook event name dispatched through the SDK callback transport.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "HookType".
- */
-/** @experimental */
-/** @internal */
-export type HookType =
-  /** Runs before a tool is invoked. */
-  | "preToolUse"
-  /** Runs before an MCP tool is invoked. */
-  | "preMcpToolCall"
-  /** Runs after a tool completes successfully. */
-  | "postToolUse"
-  /** Runs after a tool fails. */
-  | "postToolUseFailure"
-  /** Runs after the user submits a prompt. */
-  | "userPromptSubmitted"
-  /** Runs after the runtime transforms the submitted prompt for the model, before it is added to session history. */
-  | "userPromptTransformed"
-  /** Runs when a session starts. */
-  | "sessionStart"
-  /** Runs when a session ends. */
-  | "sessionEnd"
-  /** Runs after an agent result is produced. */
-  | "postResult"
-  /** Runs before a pull request description is generated. */
-  | "prePRDescription"
-  /** Runs when the agent encounters an error. */
-  | "errorOccurred"
-  /** Runs when the agent stops. */
-  | "agentStop"
-  /** Runs when a subagent starts. */
-  | "subagentStart"
-  /** Runs when a subagent stops. */
-  | "subagentStop"
-  /** Runs before conversation context is compacted. */
-  | "preCompact"
-  /** Runs when the agent requests permission. */
-  | "permissionRequest"
-  /** Runs when the agent emits a notification. */
-  | "notification";
 /**
  * Source for direct repo installs (when marketplace is empty)
  *
@@ -4573,7 +4604,7 @@ export interface AgentGetCurrentResult {
   agent?: AgentInfo | null;
 }
 /**
- * Agent metadata, including identifiers, display details, source, tools, model, MCP servers, skills, and file path.
+ * Agent metadata, including identifiers, display details, source, tools, model, models, MCP servers, skills, and file path.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "AgentInfo".
@@ -4613,6 +4644,11 @@ export interface AgentInfo {
    * Authored preferred model id for this agent. Runtime model selection may choose a different model; omitted means no authored preference.
    */
   model?: string;
+  /**
+   * Authored preferred model ids for this agent, in priority order. Runtime model selection chooses the first available model; omitted means no authored preference.
+   */
+  models?: string[];
+  modelPolicy?: AgentModelPolicy;
   /**
    * MCP server configurations attached to this agent, keyed by server name. Server config shape mirrors the MCP `mcpServers` schema.
    *
@@ -5487,6 +5523,7 @@ export interface CanvasProviderUnregisterRequest {
  */
 /** @experimental */
 export interface CapiSessionOptions {
+  autoTier?: AutoTier;
   /**
    * Whether to use WebSocket transport for the CAPI Responses API. Enabled by default when the model advertises `ws:/responses` support; set to `false` to force the HTTP Responses transport in environments where WebSockets are blocked (e.g. behind a proxy). Setting this to `false` is equivalent to the `COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES` environment variable.
    */
@@ -5834,6 +5871,10 @@ export interface CatalogNetworkFailureError {
    */
   statusCode?: number;
   /**
+   * Bounded cooldown in seconds before another catalog request should be attempted, when the authority supplied a numeric Retry-After value or the runtime applied its documented fallback.
+   */
+  retryAfterSeconds?: number;
+  /**
    * Human-readable explanation, safe to surface. Never contains a query, URL, handle, or secret.
    */
   message: string;
@@ -5884,7 +5925,7 @@ export interface CatalogPolicyRejectedError {
 export interface CatalogSearchRequest {
   contract: CatalogClientContract;
   /**
-   * Free-text search query. Never written to logs or telemetry.
+   * Free-text search query. Persisted as tool input for session continuity, but omitted from telemetry.
    */
   query: string;
   /**
@@ -6821,6 +6862,37 @@ export interface DiscoveredExtensionsEnableRequest {
   ids: string[];
 }
 /**
+ * One server-discovered hook action from user, repository, plugin, or managed-policy configuration.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "DiscoveredHook".
+ */
+/** @experimental */
+export interface DiscoveredHook {
+  /**
+   * Deterministic identifier for this server-discovered action row. It remains stable while the project, origin, source, event, action content, and duplicate ordinal are unchanged. This is row identity, not the key persisted in disabledHooks.
+   */
+  id: string;
+  hookType: HookType;
+  origin: HookOrigin;
+  /**
+   * Human-readable source label, such as a hook file path, settings source, or plugin name.
+   */
+  source?: string;
+  /**
+   * Input project path for which this server-side action was resolved. Set on every row returned for project-scoped discovery, including repeated user and policy actions.
+   */
+  projectPath?: string;
+  /**
+   * Whether this action is enabled under the server-side discovery settings. Concrete sessions may differ because they can add session-specific directories, plugins, or trust. False when its disable key is present in the user's disabled-hooks setting or disable-all settings suppress the action.
+   */
+  enabled: boolean;
+  /**
+   * Durable content hash used by hook enablement. Identical actions may intentionally share this key. Omitted when changing the user's disabled-hooks setting cannot change the action's current server-discovered state, including managed-policy hooks, session-start prompt actions, actions suppressed by disable-all settings, and projectless plugin actions that require project-directory expansion.
+   */
+  disableKey?: string;
+}
+/**
  * MCP server discovered by `mcp.discover`, with config source, optional plugin source, transport type, and enabled state.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -6859,6 +6931,10 @@ export interface EnqueueCommandParams {
    * Slash-prefixed command string to enqueue, e.g. '/compact' or '/model gpt-4'. Queued FIFO with any in-flight items; if the session is idle, processing kicks off immediately.
    */
   command: string;
+  /**
+   * Optional user-facing text for the queue row. The command string is shown when omitted.
+   */
+  displayText?: string | null;
 }
 /**
  * Indicates whether the command was accepted into the local execution queue.
@@ -7268,6 +7344,10 @@ export interface ExternalToolTextResultForLlmContentShellExit {
    * Whether outputPreview is known to be incomplete or truncated
    */
   outputTruncated?: boolean;
+  /**
+   * Path reported in the shell session's filesystem namespace when shell output exceeded the configured large-output threshold.
+   */
+  outputFilePath?: string;
 }
 /**
  * Image content block with base64-encoded data
@@ -8087,6 +8167,14 @@ export interface FactoryResumeRequest {
    */
   runId: string;
   limits?: FactoryRunLimits;
+  /**
+   * Whether to notify the originating session when the factory completes.
+   */
+  notifyOnComplete?: boolean;
+  /**
+   * Whether to emit factory phase names to the session transcript.
+   */
+  logPhaseNames?: boolean;
 }
 /**
  * Wire-only per-invocation factory resource ceiling overrides.
@@ -8139,6 +8227,10 @@ export interface FactoryRunResult {
    * Factory run identifier.
    */
   runId: string;
+  /**
+   * One-based execution attempt represented by this envelope. Absent before the first attempt starts or when returned by an older runtime.
+   */
+  attempt?: number;
   status: FactoryRunStatus;
   /**
    * Completed factory result.
@@ -8271,9 +8363,74 @@ export interface FactoryRunRequest {
 export interface RunOptions {
   limits?: FactoryRunLimits;
   /**
+   * Whether to notify the originating session when the factory completes.
+   */
+  notifyOnComplete?: boolean;
+  /**
+   * Whether to emit factory phase names to the session transcript.
+   */
+  logPhaseNames?: boolean;
+  /**
    * Run identifier whose journal and progress should seed this resumed run.
    */
   resumeFromRunId?: string;
+}
+/**
+ * Internal parameters for resuming a factory run from a tool.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryToolResumeRequest".
+ */
+/** @experimental */
+/** @internal */
+export interface FactoryToolResumeRequest {
+  /**
+   * Factory run identifier.
+   */
+  runId: string;
+  limits?: FactoryRunLimits;
+  /**
+   * Opaque identifier of the originating tool call.
+   */
+  toolCallId?: string;
+}
+/**
+ * Options for an internal tool-originated factory invocation.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryToolRunOptions".
+ */
+/** @experimental */
+/** @internal */
+export interface FactoryToolRunOptions {
+  limits?: FactoryRunLimits;
+  /**
+   * Run identifier whose journal and progress should seed this resumed run.
+   */
+  resumeFromRunId?: string;
+}
+/**
+ * Internal parameters for invoking a registered factory from a tool.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryToolRunRequest".
+ */
+/** @experimental */
+/** @internal */
+export interface FactoryToolRunRequest {
+  /**
+   * Registered factory name.
+   */
+  name: string;
+  /**
+   * Factory input value.
+   */
+  args: JsonValue;
+  options?: FactoryToolRunOptions;
+  /**
+   * Opaque identifier of the originating tool call.
+   */
+  toolCallId?: string;
 }
 /**
  * Optional user prompt to combine with the fleet orchestration instructions.
@@ -8875,6 +9032,44 @@ export interface HookInvokeRequest {
 /** @internal */
 export interface HookInvokeResponse {
   output?: JsonValue;
+}
+/**
+ * Optional project paths and host-exclusion behavior for server-scoped hook discovery.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "HooksDiscoverRequest".
+ */
+/** @experimental */
+export interface HooksDiscoverRequest {
+  /**
+   * Optional project directory paths whose trusted repository and project-expanded plugin hooks should be discovered. When omitted or empty, user, managed-policy, and globally enabled installed or explicit plugin hooks are returned without project expansion.
+   */
+  projectPaths?: string[];
+  /**
+   * When true, omit host-owned user and plugin hook rows and their diagnostics. Managed-policy hooks and trusted repository hooks remain visible, and host disabledHooks still contribute to each remaining row's effective enabled state. This filters sources rather than simulating a host with no settings.
+   */
+  excludeHostHooks?: boolean;
+}
+/**
+ * Server-discovered hook actions and partial-load diagnostics from user, repository, plugin, and managed-policy sources. Concrete sessions may include additional session-specific hook sources.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "HooksDiscoverResult".
+ */
+/** @experimental */
+export interface HooksDiscoverResult {
+  /**
+   * All discovered hook actions. Byte-identical actions remain separate rows even when they share a disable key.
+   */
+  hooks: DiscoveredHook[];
+  /**
+   * Non-fatal source-loading warnings. Discovery remains complete for the affected source, although the source had a recoverable issue. Repository-settings warnings are prefixed with their project path when attribution is available.
+   */
+  warnings: string[];
+  /**
+   * Errors for hook sources or actions that could not be loaded, making the result partially incomplete. Other valid actions are still returned. Project-resolution and repository-settings errors are prefixed with their project path.
+   */
+  errors: string[];
 }
 /**
  * Installed plugin record from global state, with marketplace, version, install time, enabled state, cache path, and source.
@@ -12274,6 +12469,10 @@ export interface ModelBillingPromo {
    * Human-readable promotion message. Does not include the expiry timestamp; consumers may format endsAt and append it when present.
    */
   message?: string;
+  /**
+   * Whether the service asked hosts to give this promotion a prominent surface, such as a dedicated banner, in addition to listing it with the model. `true` requests that surface and `false` asks for the model list only. Absent means the service expressed no preference — for example a response that predates the field — so hosts should apply their own default rather than read it as `false`.
+   */
+  showBanner?: boolean;
 }
 /**
  * Service-published warning text that hosts should display when presenting a model.
@@ -12321,6 +12520,10 @@ export interface ModelApplyStartupOverlayRequest {
    * Model required by server-managed policy, when configured.
    */
   serverManagedModel?: string;
+  /**
+   * Startup default model from the enterprise policy helper, when configured. Weakest of the managed sources: it applies only when neither device nor server policy names a model, and an explicit user selection still wins.
+   */
+  policyHelperModel?: string;
   /**
    * Model selected by repository settings, when configured.
    */
@@ -15760,6 +15963,10 @@ export interface QueuePendingItems {
    * Stable opaque id for the canonical queued item. Batch rows share one id.
    */
   id: string;
+  /**
+   * Stable identity of the queued user message. Present for message rows and absent for slash commands and model changes.
+   */
+  messageId?: string;
   kind: QueuePendingItemsKind;
   /**
    * Human-readable text to display for this queue entry in the UI
@@ -15965,7 +16172,7 @@ export interface RegisterExtensionToolsParams {
    */
   sessionId: string;
   /**
-   * In-process ExtensionLoader handle (CLI-only optimization). Marked internal: this field is excluded from the public SDK surface. When the CLI migrates to a process-separated SDK, extension discovery/launch moves entirely into the runtime — the CLI passes pure config (search paths, disabled ids) via SessionOptions instead.
+   * In-process ExtensionLoader handle used only by the CLI and excluded from the public SDK surface.
    *
    * @internal
    *
@@ -15983,7 +16190,7 @@ export interface RegisterExtensionToolsParams {
 /** @experimental */
 export interface SessionsRegisterExtensionToolsOnSessionOptions {
   /**
-   * In-process `() => boolean` gating callback (CLI-only optimization). Marked internal: replaced by runtime-side enable/disable RPCs in the SDK migration.
+   * In-process `() => boolean` gating callback used only by the CLI.
    *
    * @internal
    */
@@ -15999,7 +16206,7 @@ export interface SessionsRegisterExtensionToolsOnSessionOptions {
 /** @internal */
 export interface RegisterExtensionToolsResult {
   /**
-   * In-process unsubscribe function (CLI-only optimization). Marked internal: replaced by an explicit `extensions.unregister` RPC in the SDK migration.
+   * In-process unsubscribe function used only by the CLI.
    *
    * @internal
    *
@@ -16377,7 +16584,7 @@ export interface SandboxConfig {
   addCurrentWorkingDirectory?: boolean;
   auth?: SandboxConfigAuth;
   /**
-   * Whether to auto-grant read access to the tool directories discovered on PATH and in toolchain environment variables (GOROOT, CARGO_HOME, JAVA_HOME, VIRTUAL_ENV, and similar), and to common developer-tool caches, registries, and toolchains in their default home locations (cargo, go, npm, Maven, and more), plus read-write access to (and up-front creation of) the scratch caches builds write on every run (go-build, ccache, sccache, Gradle caches, Cargo lock/tracker files), so builds work without extra configuration; a relocated CARGO_HOME additionally gets its Cargo lock files granted read-write. Set to false to disable every grant listed above: user-installed toolchains (rustup, nvm, pyenv, conda, pipx) then need explicit userPolicy.filesystem entries — readonlyPaths to read them, plus readwriteFiles for a relocated CARGO_HOME's .package-cache and .global-cache, which Cargo locks on every build. Only these developer-tool grants are affected: the working directory (see addCurrentWorkingDirectory), temporary storage, session log paths, and system locations follow their own rules and stay granted, so commands still run. Default: true (enabled by default; set to false to opt out).
+   * Whether to auto-grant read access to tool directories discovered on PATH and in toolchain environment variables (GOROOT, JAVA_HOME, VIRTUAL_ENV, and similar), and to common developer-tool caches, config, and toolchains. Writable grants cover scratch caches, the Unix GitHub CLI cache, and Cargo's registry, git store, and lock/tracker files. A relocated CARGO_HOME gets the same narrow split: registry and git are read-write; bin is read-only; the home root, config.toml, and credentials.toml stay ungranted. Set to false to disable every grant listed above; user-installed toolchains and caches then need explicit userPolicy.filesystem readonlyPaths and readwritePaths entries. The working directory (see addCurrentWorkingDirectory), temporary storage, session log paths, and system locations follow their own rules and stay granted. Default: true (enabled by default; set to false to opt out).
    */
   allowDevToolAccess?: boolean;
 }
@@ -16446,7 +16653,7 @@ export interface SandboxConfigUserPolicyNetwork {
 /** @experimental */
 export interface SandboxConfigUserPolicyNetworkProxy {
   /**
-   * Proxy URL (e.g. http://proxy.example.com:8080). The port is optional and defaults to the scheme's standard port when omitted. Credentials must not be embedded here — a `user:pass@` authority is rejected; put them in the separate `username`/`password` fields. A credential-free http:// loopback URL is routed through the localhost proxy automatically; loopback covers localhost and any *.localhost subdomain, the whole 127.0.0.0/8 range, ::1, and IPv4-mapped loopback (::ffff:127.0.0.1). An https:// URL, or one with a username/password set, is used as-is.
+   * Proxy URL (e.g. http://proxy.example.com:8080). The port is optional and defaults to the scheme's standard port when omitted; an explicit port must be between 1 and 65535. Credentials must not be embedded here — a `user:pass@` authority is rejected; put them in the separate `username`/`password` fields. A credential-free http:// loopback proxy URL is routed through the localhost proxy automatically; loopback covers localhost and any *.localhost subdomain, the whole 127.0.0.0/8 range, ::1, and IPv4-mapped loopback (::ffff:127.0.0.1). An https:// URL, or one with a username/password set, is used as-is.
    */
   url: string;
   /**
@@ -16510,6 +16717,27 @@ export interface SandboxConfigAuth {
    * Whether to export `GH_TOKEN` so the `gh` CLI authenticates inside the sandbox without the OS keyring the sandbox blocks. Default: false (opt-in).
    */
   gh?: boolean;
+}
+/**
+ * Managed sandbox enforcement state for a session.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SandboxEnforcementStatus".
+ */
+/** @experimental */
+export interface SandboxEnforcementStatus {
+  /**
+   * Whether the effective managed policy requires an available sandbox backend.
+   */
+  required: boolean;
+  /**
+   * Whether an enforcement failure has permanently blocked the session.
+   */
+  blocked: boolean;
+  /**
+   * The first sandbox enforcement failure that blocked the session.
+   */
+  reason?: string;
 }
 /**
  * Register an absolute-time scheduled prompt.
@@ -18199,6 +18427,17 @@ export interface SessionOpenOptions {
    */
   skillDirectories?: string[];
   /**
+   * Whether skill loading is enabled. When omitted, an SDK skill provider enables skills by default.
+   */
+  enableSkills?: boolean;
+  /**
+   * Whether the requesting SDK session has a skill provider. The provider remains ephemeral and is never persisted in session options or history. When enableSkills is false, it remains bound but dormant and receives no callbacks. Cloud, relay, handoff, and raw sessions.open flows reject it because they cannot safely pre-register the callback handler.
+   *
+   * @internal
+   * @experimental
+   */
+  hasSkillProvider?: boolean;
+  /**
    * Built-in skill names to include in this session. When specified, only these runtime-bundled skills are available. Skills from other sources with the same name remain available.
    */
   includedBuiltinSkills?: string[];
@@ -18557,7 +18796,7 @@ export interface SessionsOpenCloud {
   owner?: string;
   options?: SessionOpenOptions;
   /**
-   * In-process callback invoked when the cloud task is created (before connection). Marked internal because a function reference cannot cross the JSON-RPC boundary. Disappears in the SDK migration: the field is purely cosmetic (it flips a single CLI phase label from 'creating' to 'connecting') and the wire-clean version just drops the intermediate phase.
+   * In-process callback invoked when the cloud task is created, before connection. Internal because function references cannot cross the JSON-RPC boundary.
    *
    * @internal
    */
@@ -19362,6 +19601,28 @@ export interface SessionsPruneOldRequest {
   excludeSessionIds?: string[];
 }
 /**
+ * Pagination options for reading an inactive or active local session's persisted event journal.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionsReadPersistedEventsRequest".
+ */
+/** @experimental */
+export interface SessionsReadPersistedEventsRequest {
+  /**
+   * Session ID whose persisted event journal should be read.
+   */
+  sessionId: string;
+  /**
+   * Opaque cursor returned by a previous persisted-event read. Omit on the first call.
+   */
+  cursor?: string;
+  /**
+   * Maximum number of events to return in this batch (1–1000, default 200).
+   */
+  max?: number;
+  direction?: EventsReadDirection;
+}
+/**
  * Session ID whose in-use lock should be released.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -19731,7 +19992,7 @@ export interface SessionUpdateOptionsParams {
    */
   enableSessionStore?: boolean;
   /**
-   * Whether to enable skill directory scanning and loading. Falls back to enableConfigDiscovery when unset.
+   * Whether skill loading is enabled. Explicit false disables every source, including a bound SDK provider; changing the value invalidates the loaded skill snapshot. When omitted, creation falls back to enableConfigDiscovery unless an SDK skill provider is registered.
    */
   enableSkills?: boolean;
   contextTier?: OptionsUpdateContextTier;
@@ -19953,6 +20214,83 @@ export interface SkillList {
   skills: Skill[];
 }
 /**
+ * Catalog-only metadata for one SDK-provided skill. The complete SKILL.md is fetched separately and lazily.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SkillProviderDescriptor".
+ */
+/** @experimental */
+export interface SkillProviderDescriptor {
+  /**
+   * Invocation and display name.
+   */
+  name: string;
+  /**
+   * Description used in skill catalogs without fetching content.
+   */
+  description: string;
+  /**
+   * Whether users may invoke the skill directly. Defaults to true.
+   */
+  userInvocable?: boolean;
+  /**
+   * Whether model invocation is disabled. Defaults to false.
+   */
+  disableModelInvocation?: boolean;
+  /**
+   * Optional freeform argument hint used by slash-command catalogs.
+   */
+  argumentHint?: string;
+}
+/**
+ * Catalog metadata returned by an SDK session's skill provider. Catalogs are limited to 1024 descriptors and 1 MiB of aggregate metadata.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SkillProviderListResult".
+ */
+/** @experimental */
+/** @internal */
+export interface SkillProviderListResult {
+  /**
+   * Skill descriptors in provider order. Invocation names must be unique under case-insensitive comparison.
+   *
+   * @maxItems 1024
+   */
+  skills: SkillProviderDescriptor[];
+}
+/**
+ * Identifies one SDK-provided skill by invocation name.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SkillProviderReadRequest".
+ */
+/** @experimental */
+/** @internal */
+export interface SkillProviderReadRequest {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Invocation name of the skill to read.
+   */
+  name: string;
+}
+/**
+ * Complete text-only SKILL.md content returned by an SDK session's skill provider. Related files and assets are not supported.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SkillProviderReadResult".
+ */
+/** @experimental */
+/** @internal */
+export interface SkillProviderReadResult {
+  /**
+   * Complete SKILL.md text. The runtime enforces a 1 MiB UTF-8 byte limit.
+   */
+  markdown: string;
+}
+/**
  * Skill names to mark as disabled in global configuration, replacing any previous list.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -20072,7 +20410,7 @@ export interface SkillsInvokedSkill {
    */
   name: string;
   /**
-   * Path to the SKILL.md file
+   * Path to the SKILL.md file, or an empty string for an SDK-provided skill without a filesystem identity
    */
   path: string;
   /**
@@ -20083,6 +20421,10 @@ export interface SkillsInvokedSkill {
    * Tools that should be auto-approved when this skill is active, captured at invocation time
    */
   allowedTools?: string[];
+  /**
+   * Whether model invocation was disabled when this skill was invoked
+   */
+  disableModelInvocation?: boolean;
   /**
    * Turn number when the skill was invoked
    */
@@ -20184,6 +20526,7 @@ export interface SlashCommandCompletedResult {
    * Optional user-facing message describing the completed command
    */
   message?: string;
+  mode?: SessionMode;
   /**
    * True when the invocation mutated user runtime settings; consumers caching settings should refresh
    */
@@ -20369,6 +20712,7 @@ export interface SubagentSettingsEntry {
    * Model override for matching subagents
    */
   model?: string;
+  modelPolicy?: AgentModelPolicy;
   /**
    * Reasoning effort override for matching subagents
    */
@@ -21006,10 +21350,6 @@ export interface ToolsExecuteRequest {
 /** @experimental */
 export interface ToolsGetBuiltinDescriptorsRequest {
   /**
-   * Whether line numbers should be omitted from the view tool descriptor.
-   */
-  noViewLineNumbers?: boolean;
-  /**
    * Whether descriptors should favor fewer user-intervention prompts.
    */
   reduceUserIntervention?: boolean;
@@ -21022,10 +21362,6 @@ export interface ToolsGetBuiltinDescriptorsRequest {
    */
   skillEmbeddingEnabled?: boolean;
   shellConfig?: ToolsShellDescriptorConfig;
-  /**
-   * Whether shell commands may only run asynchronously.
-   */
-  shellAsyncOnlyEnabled?: boolean;
   /**
    * Whether the configured shell supports PowerShell 7 syntax.
    */
@@ -21549,13 +21885,13 @@ export interface UIEphemeralQueryRequest {
    */
   question: string;
   /**
-   * In-process streaming callback `(text) => void` invoked with each token as the model emits it. Marked internal: excluded from the public SDK surface. In a process-separated SDK this is replaced by a streaming RPC that yields chunks and a final answer.
+   * In-process streaming callback `(text) => void` invoked with each token as the model emits it. Internal and excluded from the public SDK surface.
    *
    * @internal
    */
   onChunk?: OpaqueInProcessValue;
   /**
-   * In-process `AbortSignal` forwarded to the model client to cancel an in-flight request. Marked internal: excluded from the public SDK surface. Replaced by an explicit cancellation token + cancel RPC in the SDK migration.
+   * In-process `AbortSignal` forwarded to the model client to cancel an in-flight request. Internal and excluded from the public SDK surface.
    *
    * @internal
    */
@@ -22699,6 +23035,19 @@ export interface SessionLimitPredictionPredictRequest {
  * Identifies the target session.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SkillProviderListRequest".
+ */
+/** @experimental */
+export interface SkillProviderListRequest {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+}
+/**
+ * Identifies the target session.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SessionFsSqliteExistsRequest".
  */
 /** @experimental */
@@ -22723,6 +23072,18 @@ export function createServerRpc(connection: MessageConnection) {
          */
         ping: async (params: PingRequest): Promise<PingResult> =>
             connection.sendRequest("ping", params),
+        /** @experimental */
+        hooks: {
+            /**
+             * Discovers hook actions enabled under server-side discovery settings from user, repository, plugin, and managed-policy sources.
+             *
+             * @param params Optional project paths and host-exclusion behavior for server-scoped hook discovery.
+             *
+             * @returns Server-discovered hook actions and partial-load diagnostics from user, repository, plugin, and managed-policy sources. Concrete sessions may include additional session-specific hook sources.
+             */
+            discover: async (params: HooksDiscoverRequest): Promise<HooksDiscoverResult> =>
+                connection.sendRequest("hooks.discover", params),
+        },
         /** @experimental */
         models: {
             /**
@@ -22906,7 +23267,7 @@ export function createServerRpc(connection: MessageConnection) {
                 connection.sendRequest("extensions.disable", params),
         },
         /**
-         * Registers the calling SDK client as the per-entrypoint extension launch provider. Call before creating any sessions. When omitted, the runtime temporarily falls back to its built-in Node launcher for backward compatibility.
+         * Registers the calling SDK client as the per-entrypoint extension launch provider. Call before creating any sessions. When omitted, the runtime uses its built-in extension launcher.
          *
          * @experimental
          */
@@ -23250,6 +23611,15 @@ export function createServerRpc(connection: MessageConnection) {
             list: async (params: SessionsListRequest): Promise<SessionList> =>
                 connection.sendRequest("sessions.list", params),
             /**
+             * Reads a page of durable events directly from a local session's persisted journal without creating, resuming, or activating the session. The initial backward read uses a bounded tail scan for fast first paint; cursor continuations preserve the session event-log paging semantics. Persisted events may omit payloads that are reconstructed only for an active session.
+             *
+             * @param params Pagination options for reading an inactive or active local session's persisted event journal.
+             *
+             * @returns Batch of session events returned by a read, with cursor and continuation metadata.
+             */
+            readPersistedEvents: async (params: SessionsReadPersistedEventsRequest): Promise<EventsReadResult> =>
+                connection.sendRequest("sessions.readPersistedEvents", params),
+            /**
              * Finds the local session bound to a GitHub task ID, if any.
              *
              * @param params GitHub task ID to look up.
@@ -23556,6 +23926,16 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
          */
         sendMessages: async (params: SendMessagesRequest): Promise<SendMessagesResult> =>
             connection.sendRequest("session.sendMessages", { sessionId, ...params }),
+        /** @experimental */
+        sandbox: {
+            /**
+             * Returns whether managed policy requires sandbox enforcement and whether an enforcement failure has permanently blocked the session.
+             *
+             * @returns Managed sandbox enforcement state for a session.
+             */
+            getEnforcementStatus: async (): Promise<SandboxEnforcementStatus> =>
+                connection.sendRequest("session.sandbox.getEnforcementStatus", { sessionId }),
+        },
         /**
          * Aborts the current agent turn.
          *
@@ -25552,6 +25932,27 @@ export function createInternalSessionRpc(connection: MessageConnection, sessionI
                 unregister: async (params: CanvasProviderUnregisterRequest): Promise<void> =>
                     connection.sendRequest("session.canvas.provider.unregister", { sessionId, ...params }),
             },
+        },
+        /** @experimental */
+        factory: {
+            /**
+             * Internal tool-originated factory invocation.
+             *
+             * @param params Internal parameters for invoking a registered factory from a tool.
+             *
+             * @returns Complete current or terminal factory run envelope.
+             */
+            runFromTool: async (params: FactoryToolRunRequest): Promise<FactoryRunResult> =>
+                connection.sendRequest("session.factory.runFromTool", { sessionId, ...params }),
+            /**
+             * Internal tool-originated factory resume.
+             *
+             * @param params Internal parameters for resuming a factory run from a tool.
+             *
+             * @returns Resolved persisted factory identity and resumed run envelope.
+             */
+            resumeFromTool: async (params: FactoryToolResumeRequest): Promise<FactoryResumeResult> =>
+                connection.sendRequest("session.factory.resumeFromTool", { sessionId, ...params }),
         },
         /** @experimental */
         model: {

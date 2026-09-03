@@ -47,6 +47,30 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
+	case SessionEventTypeAssistantFusionPhaseActivity:
+		var d AssistantFusionPhaseActivityData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeAssistantFusionPhaseCompleted:
+		var d AssistantFusionPhaseCompletedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeAssistantFusionPhaseFailed:
+		var d AssistantFusionPhaseFailedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeAssistantFusionPhaseStarted:
+		var d AssistantFusionPhaseStartedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
 	case SessionEventTypeAssistantIdle:
 		var d AssistantIdleData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
@@ -425,6 +449,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
+	case SessionEventTypeSessionCompletionReceipt:
+		var d SessionCompletionReceiptData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
 	case SessionEventTypeSessionContextChanged:
 		var d SessionContextChangedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
@@ -463,6 +493,30 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 		e.Data = &d
 	case SessionEventTypeSessionExtensionsLoaded:
 		var d SessionExtensionsLoadedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionFusionCompleted:
+		var d SessionFusionCompletedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionFusionResolved:
+		var d SessionFusionResolvedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionFusionRouteFailed:
+		var d SessionFusionRouteFailedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionFusionRouteStarted:
+		var d SessionFusionRouteStartedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
@@ -529,6 +583,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 		e.Data = &d
 	case SessionEventTypeSessionModelChange:
 		var d SessionModelChangeData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionModeNoticeDelivered:
+		var d SessionModeNoticeDeliveredData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
@@ -667,6 +727,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 		e.Data = &d
 	case SessionEventTypeSubagentCompleted:
 		var d SubagentCompletedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSubagentConfigured:
+		var d SubagentConfiguredData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
@@ -810,6 +876,7 @@ func (r *UserMessageData) UnmarshalJSON(data []byte) error {
 		Delivery                         *UserMessageDelivery  `json:"delivery,omitempty"`
 		InteractionID                    *string               `json:"interactionId,omitempty"`
 		IsAutopilotContinuation          *bool                 `json:"isAutopilotContinuation,omitempty"`
+		MessageID                        *string               `json:"messageId,omitempty"`
 		NativeDocumentPathFallbackPaths  []string              `json:"nativeDocumentPathFallbackPaths,omitzero"`
 		ParentAgentTaskID                *string               `json:"parentAgentTaskId,omitempty"`
 		Source                           *string               `json:"source,omitempty"`
@@ -836,6 +903,7 @@ func (r *UserMessageData) UnmarshalJSON(data []byte) error {
 	r.Delivery = raw.Delivery
 	r.InteractionID = raw.InteractionID
 	r.IsAutopilotContinuation = raw.IsAutopilotContinuation
+	r.MessageID = raw.MessageID
 	r.NativeDocumentPathFallbackPaths = raw.NativeDocumentPathFallbackPaths
 	r.ParentAgentTaskID = raw.ParentAgentTaskID
 	r.Source = raw.Source
@@ -2047,6 +2115,7 @@ func (r PermissionPromptRequestWrite) MarshalJSON() ([]byte, error) {
 
 func (r *PermissionRequestedData) UnmarshalJSON(data []byte) error {
 	type rawPermissionRequestedData struct {
+		AgentMode         *SessionMode    `json:"agentMode,omitempty"`
 		PermissionRequest json.RawMessage `json:"permissionRequest"`
 		PromptRequest     json.RawMessage `json:"promptRequest,omitempty"`
 		RequestID         string          `json:"requestId"`
@@ -2057,6 +2126,7 @@ func (r *PermissionRequestedData) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
 	}
+	r.AgentMode = raw.AgentMode
 	if raw.PermissionRequest != nil {
 		value, err := unmarshalPermissionRequest(raw.PermissionRequest)
 		if err != nil {

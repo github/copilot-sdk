@@ -170,7 +170,7 @@ type AgentGetCurrentResult struct {
 	Agent *AgentInfo `json:"agent,omitempty"`
 }
 
-// Agent metadata, including identifiers, display details, source, tools, model, MCP
+// Agent metadata, including identifiers, display details, source, tools, model, models, MCP
 // servers, skills, and file path.
 // Experimental: AgentInfo is part of an experimental API and may change or be removed.
 type AgentInfo struct {
@@ -189,6 +189,11 @@ type AgentInfo struct {
 	// Authored preferred model id for this agent. Runtime model selection may choose a
 	// different model; omitted means no authored preference.
 	Model *string `json:"model,omitempty"`
+	// Whether authored models are preferences or required constraints.
+	ModelPolicy *AgentModelPolicy `json:"modelPolicy,omitempty"`
+	// Authored preferred model ids for this agent, in priority order. Runtime model selection
+	// chooses the first available model; omitted means no authored preference.
+	Models []string `json:"models,omitzero"`
 	// Name of the agent. Use `id` as the stable selection identifier.
 	Name string `json:"name"`
 	// Absolute local file path of the agent definition. Only set for file-based agents loaded
@@ -1361,6 +1366,10 @@ type CanvasSessionContext struct {
 // Experimental: CapiSessionOptions is part of an experimental API and may change or be
 // removed.
 type CapiSessionOptions struct {
+	// Routing preference used when the session model is `auto`. The runtime persists the
+	// preference across cold resume. When omitted, the default routing behavior is used.
+	// Resuming an already-resident session cannot change its preference.
+	AutoTier *AutoTier `json:"autoTier,omitempty"`
 	// Whether to use WebSocket transport for the CAPI Responses API. Enabled by default when
 	// the model advertises `ws:/responses` support; set to `false` to force the HTTP Responses
 	// transport in environments where WebSockets are blocked (e.g. behind a proxy). Setting
@@ -1600,7 +1609,8 @@ type CatalogSearchRequest struct {
 	Kinds []CatalogCandidateKind `json:"kinds,omitzero"`
 	// Maximum number of candidates to return. Defaults to 10 when omitted.
 	Limit *int32 `json:"limit,omitempty"`
-	// Free-text search query. Never written to logs or telemetry.
+	// Free-text search query. Persisted as tool input for session continuity, but omitted from
+	// telemetry.
 	Query string `json:"query"`
 }
 
@@ -1733,6 +1743,10 @@ type CatalogNetworkFailureError struct {
 	Message string `json:"message"`
 	// Categorised failure, low cardinality so it can be aggregated without carrying a URL.
 	Reason CatalogNetworkFailureReason `json:"reason"`
+	// Bounded cooldown in seconds before another catalog request should be attempted, when the
+	// authority supplied a numeric Retry-After value or the runtime applied its documented
+	// fallback.
+	RetryAfterSeconds *int32 `json:"retryAfterSeconds,omitempty"`
 	// HTTP status code, when the failure was a rejected response.
 	StatusCode *int32 `json:"statusCode,omitempty"`
 }
@@ -2573,6 +2587,36 @@ type DiscoveredExtensionsEnableRequest struct {
 	IDs []string `json:"ids"`
 }
 
+// One server-discovered hook action from user, repository, plugin, or managed-policy
+// configuration.
+// Experimental: DiscoveredHook is part of an experimental API and may change or be removed.
+type DiscoveredHook struct {
+	// Durable content hash used by hook enablement. Identical actions may intentionally share
+	// this key. Omitted when changing the user's disabled-hooks setting cannot change the
+	// action's current server-discovered state, including managed-policy hooks, session-start
+	// prompt actions, actions suppressed by disable-all settings, and projectless plugin
+	// actions that require project-directory expansion.
+	DisableKey *string `json:"disableKey,omitempty"`
+	// Whether this action is enabled under the server-side discovery settings. Concrete
+	// sessions may differ because they can add session-specific directories, plugins, or trust.
+	// False when its disable key is present in the user's disabled-hooks setting or disable-all
+	// settings suppress the action.
+	Enabled bool `json:"enabled"`
+	// Hook event that invokes this action.
+	HookType HookType `json:"hookType"`
+	// Deterministic identifier for this server-discovered action row. It remains stable while
+	// the project, origin, source, event, action content, and duplicate ordinal are unchanged.
+	// This is row identity, not the key persisted in disabledHooks.
+	ID string `json:"id"`
+	// Configuration tier that contributed this hook action.
+	Origin HookOrigin `json:"origin"`
+	// Input project path for which this server-side action was resolved. Set on every row
+	// returned for project-scoped discovery, including repeated user and policy actions.
+	ProjectPath *string `json:"projectPath,omitempty"`
+	// Human-readable source label, such as a hook file path, settings source, or plugin name.
+	Source *string `json:"source,omitempty"`
+}
+
 // MCP server discovered by `mcp.discover`, with config source, optional plugin source,
 // transport type, and enabled state.
 // Experimental: DiscoveredMCPServer is part of an experimental API and may change or be
@@ -2599,6 +2643,8 @@ type EnqueueCommandParams struct {
 	// Slash-prefixed command string to enqueue, e.g. '/compact' or '/model gpt-4'. Queued FIFO
 	// with any in-flight items; if the session is idle, processing kicks off immediately.
 	Command string `json:"command"`
+	// Optional user-facing text for the queue row. The command string is shown when omitted.
+	DisplayText *string `json:"displayText,omitempty"`
 }
 
 // Indicates whether the command was accepted into the local execution queue.
@@ -2980,6 +3026,9 @@ type ExternalToolTextResultForLlmContentShellExit struct {
 	Cwd *string `json:"cwd,omitempty"`
 	// Exit code from the completed shell command
 	ExitCode int64 `json:"exitCode"`
+	// Path reported in the shell session's filesystem namespace when shell output exceeded the
+	// configured large-output threshold.
+	OutputFilePath *string `json:"outputFilePath,omitempty"`
 	// Output associated with this shell command, if available. May be partial, truncated, or a
 	// preview; not guaranteed to be full output.
 	OutputPreview *string `json:"outputPreview,omitempty"`
@@ -3416,6 +3465,10 @@ type FactoryProgressPage struct {
 type FactoryResumeRequest struct {
 	// Optional per-invocation resource ceiling overrides.
 	Limits *FactoryRunLimits `json:"limits,omitempty"`
+	// Whether to emit factory phase names to the session transcript.
+	LogPhaseNames *bool `json:"logPhaseNames,omitempty"`
+	// Whether to notify the originating session when the factory completes.
+	NotifyOnComplete *bool `json:"notifyOnComplete,omitempty"`
 	// Factory run identifier.
 	RunID string `json:"runId"`
 }
@@ -3551,6 +3604,18 @@ func (FactoryRunFailureFactoryLimitReached) Type() FactoryRunFailureType {
 	return FactoryRunFailureTypeFactoryLimitReached
 }
 
+// The extension that owns the factory disconnected while the run was executing, so the host
+// halted it. The run's journaled subagent results are preserved so a resume can reuse them.
+type FactoryRunFailureFactoryProviderDisconnected struct {
+	// Factory run identifier.
+	RunID string `json:"runId"`
+}
+
+func (FactoryRunFailureFactoryProviderDisconnected) factoryRunFailure() {}
+func (FactoryRunFailureFactoryProviderDisconnected) Type() FactoryRunFailureType {
+	return FactoryRunFailureTypeFactoryProviderDisconnected
+}
+
 type FactoryRunFailureFactoryResumeDeclined struct {
 	// Human-readable reason the resume did not proceed.
 	Reason string `json:"reason"`
@@ -3596,9 +3661,12 @@ type FactoryRunRequest struct {
 // Experimental: FactoryRunResult is part of an experimental API and may change or be
 // removed.
 type FactoryRunResult struct {
+	// One-based execution attempt represented by this envelope. Absent before the first attempt
+	// starts or when returned by an older runtime.
+	Attempt *int64 `json:"attempt,omitempty"`
 	// Error message for an errored run.
 	Error *string `json:"error,omitempty"`
-	// Machine-readable failure details for an errored run.
+	// Machine-readable failure details for a halted or errored run.
 	Failure FactoryRunFailure `json:"failure,omitempty"`
 	// Reason for a halted or cancelled run.
 	Reason *string `json:"reason,omitempty"`
@@ -3668,6 +3736,48 @@ type FactoryRunTerminal struct {
 	Reason *string `json:"reason,omitempty"`
 	// Prompt-safe preview of the completed result.
 	ResultPreview *string `json:"resultPreview,omitempty"`
+}
+
+// Internal parameters for resuming a factory run from a tool.
+// Experimental: FactoryToolResumeRequest is part of an experimental API and may change or
+// be removed.
+// Internal: FactoryToolResumeRequest is an internal SDK API and is not part of the public
+// surface.
+type FactoryToolResumeRequest struct {
+	// Optional per-invocation resource ceiling overrides.
+	Limits *FactoryRunLimits `json:"limits,omitempty"`
+	// Factory run identifier.
+	RunID string `json:"runId"`
+	// Opaque identifier of the originating tool call.
+	ToolCallID *string `json:"toolCallId,omitempty"`
+}
+
+// Options for an internal tool-originated factory invocation.
+// Experimental: FactoryToolRunOptions is part of an experimental API and may change or be
+// removed.
+// Internal: FactoryToolRunOptions is an internal SDK API and is not part of the public
+// surface.
+type FactoryToolRunOptions struct {
+	// Per-invocation resource ceiling overrides.
+	Limits *FactoryRunLimits `json:"limits,omitempty"`
+	// Run identifier whose journal and progress should seed this resumed run.
+	ResumeFromRunID *string `json:"resumeFromRunId,omitempty"`
+}
+
+// Internal parameters for invoking a registered factory from a tool.
+// Experimental: FactoryToolRunRequest is part of an experimental API and may change or be
+// removed.
+// Internal: FactoryToolRunRequest is an internal SDK API and is not part of the public
+// surface.
+type FactoryToolRunRequest struct {
+	// Factory input value.
+	Args any `json:"args"`
+	// Registered factory name.
+	Name string `json:"name"`
+	// Tool-originated factory invocation options.
+	Options *FactoryToolRunOptions `json:"options,omitempty"`
+	// Opaque identifier of the originating tool call.
+	ToolCallID *string `json:"toolCallId,omitempty"`
 }
 
 // Content filtering mode to apply to all tools, or a map of tool name to content filtering
@@ -4154,8 +4264,6 @@ type HistoryTruncateResult struct {
 // removed.
 // Internal: HookInvokeRequest is an internal SDK API and is not part of the public surface.
 type HookInvokeRequest struct {
-	// Internal: HookType is part of the SDK's internal API surface and is not intended for
-	// external use.
 	HookType  HookType `json:"hookType"`
 	Input     any      `json:"input"`
 	SessionID string   `json:"sessionId"`
@@ -4167,6 +4275,40 @@ type HookInvokeRequest struct {
 // Internal: HookInvokeResponse is an internal SDK API and is not part of the public surface.
 type HookInvokeResponse struct {
 	Output any `json:"output,omitempty"`
+}
+
+// Optional project paths and host-exclusion behavior for server-scoped hook discovery.
+// Experimental: HooksDiscoverRequest is part of an experimental API and may change or be
+// removed.
+type HooksDiscoverRequest struct {
+	// When true, omit host-owned user and plugin hook rows and their diagnostics.
+	// Managed-policy hooks and trusted repository hooks remain visible, and host disabledHooks
+	// still contribute to each remaining row's effective enabled state. This filters sources
+	// rather than simulating a host with no settings.
+	ExcludeHostHooks *bool `json:"excludeHostHooks,omitempty"`
+	// Optional project directory paths whose trusted repository and project-expanded plugin
+	// hooks should be discovered. When omitted or empty, user, managed-policy, and globally
+	// enabled installed or explicit plugin hooks are returned without project expansion.
+	ProjectPaths []string `json:"projectPaths,omitzero"`
+}
+
+// Server-discovered hook actions and partial-load diagnostics from user, repository,
+// plugin, and managed-policy sources. Concrete sessions may include additional
+// session-specific hook sources.
+// Experimental: HooksDiscoverResult is part of an experimental API and may change or be
+// removed.
+type HooksDiscoverResult struct {
+	// Errors for hook sources or actions that could not be loaded, making the result partially
+	// incomplete. Other valid actions are still returned. Project-resolution and
+	// repository-settings errors are prefixed with their project path.
+	Errors []string `json:"errors"`
+	// All discovered hook actions. Byte-identical actions remain separate rows even when they
+	// share a disable key.
+	Hooks []DiscoveredHook `json:"hooks"`
+	// Non-fatal source-loading warnings. Discovery remains complete for the affected source,
+	// although the source had a recoverable issue. Repository-settings warnings are prefixed
+	// with their project path when attribution is available.
+	Warnings []string `json:"warnings"`
 }
 
 // Installed plugin record from global state, with marketplace, version, install time,
@@ -6825,6 +6967,10 @@ type ModelApplyStartupOverlayRequest struct {
 	DeferredResume *bool `json:"deferredResume,omitempty"`
 	// Model required by device-managed policy, when configured.
 	DeviceManagedModel *string `json:"deviceManagedModel,omitempty"`
+	// Startup default model from the enterprise policy helper, when configured. Weakest of the
+	// managed sources: it applies only when neither device nor server policy names a model, and
+	// an explicit user selection still wins.
+	PolicyHelperModel *string `json:"policyHelperModel,omitempty"`
 	// Context tier selected by repository settings, when configured.
 	RepoContextTier *string `json:"repoContextTier,omitempty"`
 	// Model selected by repository settings, when configured.
@@ -6866,6 +7012,12 @@ type ModelBillingPromo struct {
 	// Human-readable promotion message. Does not include the expiry timestamp; consumers may
 	// format endsAt and append it when present.
 	Message *string `json:"message,omitempty"`
+	// Whether the service asked hosts to give this promotion a prominent surface, such as a
+	// dedicated banner, in addition to listing it with the model. `true` requests that surface
+	// and `false` asks for the model list only. Absent means the service expressed no
+	// preference — for example a response that predates the field — so hosts should apply their
+	// own default rather than read it as `false`.
+	ShowBanner *bool `json:"showBanner,omitempty"`
 }
 
 // Token-level pricing information for this model
@@ -7159,8 +7311,8 @@ type ModelSwitchToRequest struct {
 	RequireAvailable *bool `json:"requireAvailable,omitempty"`
 	// When true, evaluate context-window compaction policy before applying the switch.
 	RunCompactionPreflight *bool `json:"runCompactionPreflight,omitempty"`
-	// Origin to record on the effective `session.model_change` event. Defaults to `sdk` when
-	// omitted.
+	// Origin to record on the effective `session.model_change` event for trusted in-process
+	// calls. Transport SDK calls are always recorded as `sdk`, regardless of this value.
 	Source *ModelChangeSource `json:"source,omitempty"`
 	// Output verbosity level to request for supported models
 	Verbosity *Verbosity `json:"verbosity,omitempty"`
@@ -9740,6 +9892,9 @@ type QueuePendingItems struct {
 	ID string `json:"id"`
 	// Whether this item is a queued user message or a queued slash command / model change
 	Kind QueuePendingItemsKind `json:"kind"`
+	// Stable identity of the queued user message. Present for message rows and absent for slash
+	// commands and model changes.
+	MessageID *string `json:"messageId,omitempty"`
 }
 
 // Snapshot of the session's pending queued items and immediate-steering messages.
@@ -9889,10 +10044,8 @@ type RegisterExtensionLaunchProviderResult struct {
 // Internal: RegisterExtensionToolsParams is an internal SDK API and is not part of the
 // public surface.
 type RegisterExtensionToolsParams struct {
-	// In-process ExtensionLoader handle (CLI-only optimization). Marked internal: this field is
-	// excluded from the public SDK surface. When the CLI migrates to a process-separated SDK,
-	// extension discovery/launch moves entirely into the runtime — the CLI passes pure config
-	// (search paths, disabled ids) via SessionOptions instead.
+	// In-process ExtensionLoader handle used only by the CLI and excluded from the public SDK
+	// surface.
 	// Internal: Loader is part of the SDK's internal API surface and is not intended for
 	// external use.
 	Loader any `json:"loader"`
@@ -9908,8 +10061,7 @@ type RegisterExtensionToolsParams struct {
 // Internal: RegisterExtensionToolsResult is an internal SDK API and is not part of the
 // public surface.
 type RegisterExtensionToolsResult struct {
-	// In-process unsubscribe function (CLI-only optimization). Marked internal: replaced by an
-	// explicit `extensions.unregister` RPC in the SDK migration.
+	// In-process unsubscribe function used only by the CLI.
 	// Internal: Unsubscribe is part of the SDK's internal API surface and is not intended for
 	// external use.
 	Unsubscribe any `json:"unsubscribe"`
@@ -10146,6 +10298,10 @@ type RemoteSessionRepository struct {
 type RunOptions struct {
 	// Per-invocation resource ceiling overrides.
 	Limits *FactoryRunLimits `json:"limits,omitempty"`
+	// Whether to emit factory phase names to the session transcript.
+	LogPhaseNames *bool `json:"logPhaseNames,omitempty"`
+	// Whether to notify the originating session when the factory completes.
+	NotifyOnComplete *bool `json:"notifyOnComplete,omitempty"`
 	// Run identifier whose journal and progress should seed this resumed run.
 	ResumeFromRunID *string `json:"resumeFromRunId,omitempty"`
 }
@@ -10160,20 +10316,16 @@ type RuntimeShutdownResult struct {
 type SandboxConfig struct {
 	// Whether to auto-add the current working directory to readwritePaths. Default: true.
 	AddCurrentWorkingDirectory *bool `json:"addCurrentWorkingDirectory,omitempty"`
-	// Whether to auto-grant read access to the tool directories discovered on PATH and in
-	// toolchain environment variables (GOROOT, CARGO_HOME, JAVA_HOME, VIRTUAL_ENV, and
-	// similar), and to common developer-tool caches, registries, and toolchains in their
-	// default home locations (cargo, go, npm, Maven, and more), plus read-write access to (and
-	// up-front creation of) the scratch caches builds write on every run (go-build, ccache,
-	// sccache, Gradle caches, Cargo lock/tracker files), so builds work without extra
-	// configuration; a relocated CARGO_HOME additionally gets its Cargo lock files granted
-	// read-write. Set to false to disable every grant listed above: user-installed toolchains
-	// (rustup, nvm, pyenv, conda, pipx) then need explicit userPolicy.filesystem entries —
-	// readonlyPaths to read them, plus readwriteFiles for a relocated CARGO_HOME's
-	// .package-cache and .global-cache, which Cargo locks on every build. Only these
-	// developer-tool grants are affected: the working directory (see
-	// addCurrentWorkingDirectory), temporary storage, session log paths, and system locations
-	// follow their own rules and stay granted, so commands still run. Default: true (enabled by
+	// Whether to auto-grant read access to tool directories discovered on PATH and in toolchain
+	// environment variables (GOROOT, JAVA_HOME, VIRTUAL_ENV, and similar), and to common
+	// developer-tool caches, config, and toolchains. Writable grants cover scratch caches, the
+	// Unix GitHub CLI cache, and Cargo's registry, git store, and lock/tracker files. A
+	// relocated CARGO_HOME gets the same narrow split: registry and git are read-write; bin is
+	// read-only; the home root, config.toml, and credentials.toml stay ungranted. Set to false
+	// to disable every grant listed above; user-installed toolchains and caches then need
+	// explicit userPolicy.filesystem readonlyPaths and readwritePaths entries. The working
+	// directory (see addCurrentWorkingDirectory), temporary storage, session log paths, and
+	// system locations follow their own rules and stay granted. Default: true (enabled by
 	// default; set to false to opt out).
 	AllowDevToolAccess *bool `json:"allowDevToolAccess,omitempty"`
 	// Credential-injection capability flags.
@@ -10254,11 +10406,14 @@ type SandboxConfigUserPolicyNetwork struct {
 	AllowLocalNetwork *bool `json:"allowLocalNetwork,omitempty"`
 	// Whether outbound network traffic is allowed at all.
 	AllowOutbound *bool `json:"allowOutbound,omitempty"`
-	// HTTP proxy the sandboxed process routes traffic through. Enforced on Windows and
-	// cooperative (honored by well-behaved tools, not strictly enforced) on Linux and macOS.
-	// Credentials go in the separate `username`/`password` fields. A credential-free http://
-	// loopback proxy URL is routed through the localhost proxy automatically; an https:// or
-	// authenticated loopback URL is used as-is.
+	// HTTP proxy for sandboxed process traffic. Linux restricts egress to the proxy endpoint,
+	// requires that endpoint to be reachable over IPv4 (the [::] dual-stack wildcard is
+	// accepted and routed through the IPv4 gateway), and does not support proxy credentials.
+	// macOS relies on applications honoring proxy environment variables. Windows also
+	// configures a per-AppContainer WinHTTP proxy, but enforcement depends on the application's
+	// networking stack. Configure supported credentials in the separate `username` and
+	// `password` fields. A credential-free http:// loopback URL uses the localhost proxy form,
+	// while an https:// or authenticated loopback URL uses the URL form.
 	Proxy *SandboxConfigUserPolicyNetworkProxy `json:"proxy,omitempty"`
 }
 
@@ -10274,12 +10429,12 @@ type SandboxConfigUserPolicyNetworkProxy struct {
 	// settings.json); the field is masked in the dialog and redacted by /settings show.
 	Password *string `json:"password,omitempty"`
 	// Proxy URL (e.g. http://proxy.example.com:8080). The port is optional and defaults to the
-	// scheme's standard port when omitted. Credentials must not be embedded here — a
-	// `user:pass@` authority is rejected; put them in the separate `username`/`password`
-	// fields. A credential-free http:// loopback URL is routed through the localhost proxy
-	// automatically; loopback covers localhost and any *.localhost subdomain, the whole
-	// 127.0.0.0/8 range, ::1, and IPv4-mapped loopback (::ffff:127.0.0.1). An https:// URL, or
-	// one with a username/password set, is used as-is.
+	// scheme's standard port when omitted; an explicit port must be between 1 and 65535.
+	// Credentials must not be embedded here — a `user:pass@` authority is rejected; put them in
+	// the separate `username`/`password` fields. A credential-free http:// loopback proxy URL
+	// is routed through the localhost proxy automatically; loopback covers localhost and any
+	// *.localhost subdomain, the whole 127.0.0.0/8 range, ::1, and IPv4-mapped loopback
+	// (::ffff:127.0.0.1). An https:// URL, or one with a username/password set, is used as-is.
 	URL string `json:"url"`
 	// Optional username for proxy authentication. Combined with the URL (and `password`) into
 	// `user:pass@host` when the sandboxed process routes through the proxy.
@@ -10292,6 +10447,18 @@ type SandboxConfigUserPolicyNetworkProxy struct {
 type SandboxConfigUserPolicySeatbelt struct {
 	// Whether the macOS seatbelt profile may access the keychain.
 	KeychainAccess *bool `json:"keychainAccess,omitempty"`
+}
+
+// Managed sandbox enforcement state for a session.
+// Experimental: SandboxEnforcementStatus is part of an experimental API and may change or
+// be removed.
+type SandboxEnforcementStatus struct {
+	// Whether an enforcement failure has permanently blocked the session.
+	Blocked bool `json:"blocked"`
+	// The first sandbox enforcement failure that blocked the session.
+	Reason *string `json:"reason,omitempty"`
+	// Whether the effective managed policy requires an available sandbox backend.
+	Required bool `json:"required"`
 }
 
 // Register an absolute-time scheduled prompt.
@@ -11890,6 +12057,9 @@ type SessionOpenOptions struct {
 	EnableOnDemandInstructionDiscovery *bool `json:"enableOnDemandInstructionDiscovery,omitempty"`
 	// Whether shell-script safety heuristics are enabled.
 	EnableScriptSafety *bool `json:"enableScriptSafety,omitempty"`
+	// Whether skill loading is enabled. When omitted, an SDK skill provider enables skills by
+	// default.
+	EnableSkills *bool `json:"enableSkills,omitempty"`
 	// Whether model responses stream as delta events.
 	EnableStreaming *bool `json:"enableStreaming,omitempty"`
 	// How MCP server environment values are interpreted.
@@ -11913,6 +12083,16 @@ type SessionOpenOptions struct {
 	ExpAssignments any `json:"expAssignments,omitempty"`
 	// Feature-flag values resolved by the host.
 	FeatureFlags map[string]bool `json:"featureFlags,omitzero"`
+	// Whether the requesting SDK session has a skill provider. The provider remains ephemeral
+	// and is never persisted in session options or history. When enableSkills is false, it
+	// remains bound but dormant and receives no callbacks. Cloud, relay, handoff, and raw
+	// sessions.open flows reject it because they cannot safely pre-register the callback
+	// handler.
+	// Experimental: HasSkillProvider is part of an experimental API and may change or be
+	// removed.
+	// Internal: HasSkillProvider is part of the SDK's internal API surface and is not intended
+	// for external use.
+	HasSkillProvider *bool `json:"hasSkillProvider,omitempty"`
 	// Built-in subagent names to include in this session. When specified, only these built-ins
 	// are available, subject to runtime availability and exclusions. Custom agents with the
 	// same name remain available.
@@ -12077,10 +12257,8 @@ func (SessionsOpenAttach) Kind() SessionOpenParamsKind {
 // Experimental: SessionsOpenCloud is part of an experimental API and may change or be
 // removed.
 type SessionsOpenCloud struct {
-	// In-process callback invoked when the cloud task is created (before connection). Marked
-	// internal because a function reference cannot cross the JSON-RPC boundary. Disappears in
-	// the SDK migration: the field is purely cosmetic (it flips a single CLI phase label from
-	// 'creating' to 'connecting') and the wire-clean version just drops the intermediate phase.
+	// In-process callback invoked when the cloud task is created, before connection. Internal
+	// because function references cannot cross the JSON-RPC boundary.
 	// Internal: OnTaskCreated is part of the SDK's internal API surface and is not intended for
 	// external use.
 	OnTaskCreated any `json:"onTaskCreated,omitempty"`
@@ -12810,12 +12988,27 @@ type SessionsPruneOldRequest struct {
 	OlderThanDays int64 `json:"olderThanDays"`
 }
 
+// Pagination options for reading an inactive or active local session's persisted event
+// journal.
+// Experimental: SessionsReadPersistedEventsRequest is part of an experimental API and may
+// change or be removed.
+type SessionsReadPersistedEventsRequest struct {
+	// Opaque cursor returned by a previous persisted-event read. Omit on the first call.
+	Cursor *string `json:"cursor,omitempty"`
+	// Direction to page through persisted history. Forward starts at the beginning; backward
+	// starts with the newest events. Events in each page remain chronological.
+	Direction *EventsReadDirection `json:"direction,omitempty"`
+	// Maximum number of events to return in this batch (1–1000, default 200).
+	Max *int64 `json:"max,omitempty"`
+	// Session ID whose persisted event journal should be read.
+	SessionID string `json:"sessionId"`
+}
+
 // Optional registration options.
 // Experimental: SessionsRegisterExtensionToolsOnSessionOptions is part of an experimental
 // API and may change or be removed.
 type SessionsRegisterExtensionToolsOnSessionOptions struct {
-	// In-process `() => boolean` gating callback (CLI-only optimization). Marked internal:
-	// replaced by runtime-side enable/disable RPCs in the SDK migration.
+	// In-process `() => boolean` gating callback used only by the CLI.
 	// Internal: Enabled is part of the SDK's internal API surface and is not intended for
 	// external use.
 	Enabled any `json:"enabled,omitempty"`
@@ -12999,8 +13192,9 @@ type SessionUpdateOptionsParams struct {
 	EnableScriptSafety *bool `json:"enableScriptSafety,omitempty"`
 	// Whether to enable cross-session store writes and reads.
 	EnableSessionStore *bool `json:"enableSessionStore,omitempty"`
-	// Whether to enable skill directory scanning and loading. Falls back to
-	// enableConfigDiscovery when unset.
+	// Whether skill loading is enabled. Explicit false disables every source, including a bound
+	// SDK provider; changing the value invalidates the loaded skill snapshot. When omitted,
+	// creation falls back to enableConfigDiscovery unless an SDK skill provider is registered.
 	EnableSkills *bool `json:"enableSkills,omitempty"`
 	// Whether to stream model responses.
 	EnableStreaming *bool `json:"enableStreaming,omitempty"`
@@ -13418,6 +13612,66 @@ type SkillList struct {
 	Skills []Skill `json:"skills"`
 }
 
+// Catalog-only metadata for one SDK-provided skill. The complete SKILL.md is fetched
+// separately and lazily.
+// Experimental: SkillProviderDescriptor is part of an experimental API and may change or be
+// removed.
+type SkillProviderDescriptor struct {
+	// Optional freeform argument hint used by slash-command catalogs.
+	ArgumentHint *string `json:"argumentHint,omitempty"`
+	// Description used in skill catalogs without fetching content.
+	Description string `json:"description"`
+	// Whether model invocation is disabled. Defaults to false.
+	DisableModelInvocation *bool `json:"disableModelInvocation,omitempty"`
+	// Invocation and display name.
+	Name string `json:"name"`
+	// Whether users may invoke the skill directly. Defaults to true.
+	UserInvocable *bool `json:"userInvocable,omitempty"`
+}
+
+// Identifies the target session.
+// Experimental: SkillProviderListRequest is part of an experimental API and may change or
+// be removed.
+type SkillProviderListRequest struct {
+	// Target session identifier
+	SessionID string `json:"sessionId"`
+}
+
+// Catalog metadata returned by an SDK session's skill provider. Catalogs are limited to
+// 1024 descriptors and 1 MiB of aggregate metadata.
+// Experimental: SkillProviderListResult is part of an experimental API and may change or be
+// removed.
+// Internal: SkillProviderListResult is an internal SDK API and is not part of the public
+// surface.
+type SkillProviderListResult struct {
+	// Skill descriptors in provider order. Invocation names must be unique under
+	// case-insensitive comparison.
+	Skills []SkillProviderDescriptor `json:"skills"`
+}
+
+// Identifies one SDK-provided skill by invocation name.
+// Experimental: SkillProviderReadRequest is part of an experimental API and may change or
+// be removed.
+// Internal: SkillProviderReadRequest is an internal SDK API and is not part of the public
+// surface.
+type SkillProviderReadRequest struct {
+	// Invocation name of the skill to read.
+	Name string `json:"name"`
+	// Target session identifier
+	SessionID string `json:"sessionId"`
+}
+
+// Complete text-only SKILL.md content returned by an SDK session's skill provider. Related
+// files and assets are not supported.
+// Experimental: SkillProviderReadResult is part of an experimental API and may change or be
+// removed.
+// Internal: SkillProviderReadResult is an internal SDK API and is not part of the public
+// surface.
+type SkillProviderReadResult struct {
+	// Complete SKILL.md text. The runtime enforces a 1 MiB UTF-8 byte limit.
+	Markdown string `json:"markdown"`
+}
+
 // Skill names to mark as disabled in global configuration, replacing any previous list.
 // Experimental: SkillsConfigSetDisabledSkillsRequest is part of an experimental API and may
 // change or be removed.
@@ -13504,11 +13758,14 @@ type SkillsInvokedSkill struct {
 	AllowedTools []string `json:"allowedTools,omitzero"`
 	// Full content of the skill file
 	Content string `json:"content"`
+	// Whether model invocation was disabled when this skill was invoked
+	DisableModelInvocation *bool `json:"disableModelInvocation,omitempty"`
 	// Turn number when the skill was invoked
 	InvokedAtTurn int64 `json:"invokedAtTurn"`
 	// Unique identifier for the skill
 	Name string `json:"name"`
-	// Path to the SKILL.md file
+	// Path to the SKILL.md file, or an empty string for an SDK-provided skill without a
+	// filesystem identity
 	Path string `json:"path"`
 }
 
@@ -13642,6 +13899,8 @@ func (SlashCommandAgentPromptResult) Kind() SlashCommandInvocationResultKind {
 type SlashCommandCompletedResult struct {
 	// Optional user-facing message describing the completed command
 	Message *string `json:"message,omitempty"`
+	// Optional target session mode applied without submitting an agent prompt
+	Mode *SessionMode `json:"mode,omitempty"`
 	// True when the invocation mutated user runtime settings; consumers caching settings should
 	// refresh
 	RuntimeSettingsChanged *bool `json:"runtimeSettingsChanged,omitempty"`
@@ -13809,6 +14068,8 @@ type SubagentSettingsEntry struct {
 	EffortLevel *string `json:"effortLevel,omitempty"`
 	// Model override for matching subagents
 	Model *string `json:"model,omitempty"`
+	// Whether the configured model strategy is preferred or required
+	ModelPolicy *AgentModelPolicy `json:"modelPolicy,omitempty"`
 }
 
 // Task completion notification with summary from the agent
@@ -14284,12 +14545,8 @@ type ToolsGetBuiltinDescriptorsRequest struct {
 	BackgroundTaskNotificationsEnabled *bool `json:"backgroundTaskNotificationsEnabled,omitempty"`
 	// Whether tool descriptors should include authoring metadata.
 	IncludeAuthor *bool `json:"includeAuthor,omitempty"`
-	// Whether line numbers should be omitted from the view tool descriptor.
-	NoViewLineNumbers *bool `json:"noViewLineNumbers,omitempty"`
 	// Whether descriptors should favor fewer user-intervention prompts.
 	ReduceUserIntervention *bool `json:"reduceUserIntervention,omitempty"`
-	// Whether shell commands may only run asynchronously.
-	ShellAsyncOnlyEnabled *bool `json:"shellAsyncOnlyEnabled,omitempty"`
 	// Shell-specific names and description lines for shell tools.
 	ShellConfig *ToolsShellDescriptorConfig `json:"shellConfig,omitempty"`
 	// Whether the configured shell supports PowerShell 7 syntax.
@@ -14676,14 +14933,12 @@ type UIElicitationStringOneOfFieldOneOf struct {
 // removed.
 type UIEphemeralQueryRequest struct {
 	// In-process `AbortSignal` forwarded to the model client to cancel an in-flight request.
-	// Marked internal: excluded from the public SDK surface. Replaced by an explicit
-	// cancellation token + cancel RPC in the SDK migration.
+	// Internal and excluded from the public SDK surface.
 	// Internal: AbortSignal is part of the SDK's internal API surface and is not intended for
 	// external use.
 	AbortSignal any `json:"abortSignal,omitempty"`
 	// In-process streaming callback `(text) => void` invoked with each token as the model emits
-	// it. Marked internal: excluded from the public SDK surface. In a process-separated SDK
-	// this is replaced by a streaming RPC that yields chunks and a final answer.
+	// it. Internal and excluded from the public SDK surface.
 	// Internal: OnChunk is part of the SDK's internal API surface and is not intended for
 	// external use.
 	OnChunk any `json:"onChunk,omitempty"`
@@ -15626,6 +15881,18 @@ const (
 	AgentInfoSourceUser AgentInfoSource = "user"
 )
 
+// Whether configured models are advisory preferences or required constraints
+// Experimental: AgentModelPolicy is part of an experimental API and may change or be
+// removed.
+type AgentModelPolicy string
+
+const (
+	// Treat the authored models as advisory preferences that callers may override.
+	AgentModelPolicyPreferred AgentModelPolicy = "preferred"
+	// Require subagent execution to use one of the authored models.
+	AgentModelPolicyRequired AgentModelPolicy = "required"
+)
+
 // Kind of attention required when status === "attention". Meaningful only when status ===
 // "attention".
 // Experimental: AgentRegistryLiveTargetEntryAttentionKind is part of an experimental API
@@ -15811,6 +16078,19 @@ const (
 	AuthInfoTypeToken           AuthInfoType = "token"
 	AuthInfoTypeTokenProvider   AuthInfoType = "token-provider"
 	AuthInfoTypeUser            AuthInfoType = "user"
+)
+
+// Routing preference used when the session model is `auto`.
+// Experimental: AutoTier is part of an experimental API and may change or be removed.
+type AutoTier string
+
+const (
+	// Balance efficiency and intelligence.
+	AutoTierBalance AutoTier = "balance"
+	// Optimize for efficiency.
+	AutoTierEfficiency AutoTier = "efficiency"
+	// Optimize for intelligence.
+	AutoTierIntelligence AutoTier = "intelligence"
 )
 
 // Custom input-format kind.
@@ -16054,14 +16334,20 @@ const (
 	CatalogNetworkFailureReasonConnectionRefused CatalogNetworkFailureReason = "connection-refused"
 	// The authority's name could not be resolved.
 	CatalogNetworkFailureReasonDns CatalogNetworkFailureReason = "dns"
-	// The authority returned a status the runtime treats as a failure.
+	// The authority returned another status the runtime treats as a failure.
 	CatalogNetworkFailureReasonHTTPStatus CatalogNetworkFailureReason = "http-status"
 	// No network is available, so nothing was attempted.
 	CatalogNetworkFailureReasonOffline CatalogNetworkFailureReason = "offline"
+	// The configured proxy returned 407 and requires authentication.
+	CatalogNetworkFailureReasonProxyAuthenticationRequired CatalogNetworkFailureReason = "proxy-authentication-required"
+	// The authority rate-limited requests and supplied or implied a bounded cooldown.
+	CatalogNetworkFailureReasonRateLimited CatalogNetworkFailureReason = "rate-limited"
 	// A redirect was refused by the runtime's redirect policy.
 	CatalogNetworkFailureReasonRedirectRejected CatalogNetworkFailureReason = "redirect-rejected"
 	// The response exceeded the permitted size.
 	CatalogNetworkFailureReasonResponseTooLarge CatalogNetworkFailureReason = "response-too-large"
+	// The authority returned a transient 5xx response.
+	CatalogNetworkFailureReasonServiceUnavailable CatalogNetworkFailureReason = "service-unavailable"
 	// The request exceeded its time budget.
 	CatalogNetworkFailureReasonTimeout CatalogNetworkFailureReason = "timeout"
 	// The TLS handshake or certificate validation failed.
@@ -16524,6 +16810,7 @@ const (
 	FactoryRunFailureTypeFactoryAccountingIncomplete FactoryRunFailureType = "factory_accounting_incomplete"
 	FactoryRunFailureTypeFactoryDurableFailure       FactoryRunFailureType = "factory_durable_failure"
 	FactoryRunFailureTypeFactoryLimitReached         FactoryRunFailureType = "factory_limit_reached"
+	FactoryRunFailureTypeFactoryProviderDisconnected FactoryRunFailureType = "factory_provider_disconnected"
 	FactoryRunFailureTypeFactoryResumeDeclined       FactoryRunFailureType = "factory_resume_declined"
 )
 
@@ -16677,7 +16964,24 @@ const (
 	HMACAuthInfoHostHTTPSGitHubCom HMACAuthInfoHost = "https://github.com"
 )
 
-// Hook event name dispatched through the SDK callback transport.
+// Configuration tier that contributed a discovered hook action.
+// Experimental: HookOrigin is part of an experimental API and may change or be removed.
+type HookOrigin string
+
+const (
+	// Hook provided by an enabled installed or explicit plugin. Projectless rows omit
+	// projectPath and do not expand a project directory.
+	HookOriginPlugin HookOrigin = "plugin"
+	// Hook enforced by centrally managed policy.
+	HookOriginPolicy HookOrigin = "policy"
+	// Hook loaded from repository settings or the repository hook directory.
+	HookOriginRepository HookOrigin = "repository"
+	// Hook loaded from user settings or the user's hook directory.
+	HookOriginUser HookOrigin = "user"
+)
+
+// Hook event name. Discovery emits the file-configurable subset; SDK callbacks additionally
+// support callback-only events.
 // Experimental: HookType is part of an experimental API and may change or be removed.
 type HookType string
 
@@ -18582,7 +18886,7 @@ const (
 	SkillDiscoveryScopeProject SkillDiscoveryScope = "project"
 )
 
-// Source location type (e.g., project, personal-copilot, plugin, builtin)
+// Source location type (e.g., project, personal-copilot, plugin, builtin, sdk)
 // Experimental: SkillSource is part of an experimental API and may change or be removed.
 type SkillSource string
 
@@ -18601,6 +18905,8 @@ const (
 	SkillSourcePlugin SkillSource = "plugin"
 	// Skill defined in the current project's skill directories.
 	SkillSourceProject SkillSource = "project"
+	// Pathless skill supplied lazily by an SDK skill provider.
+	SkillSourceSDK SkillSource = "sdk"
 )
 
 // Optional completion hint for the input (e.g. 'directory' for filesystem path completion)
@@ -19235,6 +19541,32 @@ func (a *ServerExtensionsAPI) Enable(ctx context.Context, params *DiscoveredExte
 		return nil, err
 	}
 	var result ExtensionsEnableResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: ServerHooksAPI contains experimental APIs that may change or be removed.
+type ServerHooksAPI serverAPI
+
+// Discovers hook actions enabled under server-side discovery settings from user,
+// repository, plugin, and managed-policy sources.
+//
+// RPC method: hooks.discover.
+//
+// Parameters: Optional project paths and host-exclusion behavior for server-scoped hook
+// discovery.
+//
+// Returns: Server-discovered hook actions and partial-load diagnostics from user,
+// repository, plugin, and managed-policy sources. Concrete sessions may include additional
+// session-specific hook sources.
+func (a *ServerHooksAPI) Discover(ctx context.Context, params *HooksDiscoverRequest) (*HooksDiscoverResult, error) {
+	raw, err := a.client.Request(ctx, "hooks.discover", params)
+	if err != nil {
+		return nil, err
+	}
+	var result HooksDiscoverResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -20225,6 +20557,31 @@ func (a *ServerSessionsAPI) PruneOld(ctx context.Context, params *SessionsPruneO
 	return &result, nil
 }
 
+// ReadPersistedEvents reads a page of durable events directly from a local session's
+// persisted journal without creating, resuming, or activating the session. The initial
+// backward read uses a bounded tail scan for fast first paint; cursor continuations
+// preserve the session event-log paging semantics. Persisted events may omit payloads that
+// are reconstructed only for an active session.
+//
+// RPC method: sessions.readPersistedEvents.
+//
+// Parameters: Pagination options for reading an inactive or active local session's
+// persisted event journal.
+//
+// Returns: Batch of session events returned by a read, with cursor and continuation
+// metadata.
+func (a *ServerSessionsAPI) ReadPersistedEvents(ctx context.Context, params *SessionsReadPersistedEventsRequest) (*EventsReadResult, error) {
+	raw, err := a.client.Request(ctx, "sessions.readPersistedEvents", params)
+	if err != nil {
+		return nil, err
+	}
+	var result EventsReadResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // ReleaseLock releases the in-use lock held by this process for a session.
 //
 // RPC method: sessions.releaseLock.
@@ -20598,6 +20955,7 @@ type ServerRPC struct {
 	Catalog         *ServerCatalogAPI
 	Commands        *ServerCommandsAPI
 	Extensions      *ServerExtensionsAPI
+	Hooks           *ServerHooksAPI
 	Instructions    *ServerInstructionsAPI
 	LlmInference    *ServerLlmInferenceAPI
 	ManagedSettings *ServerManagedSettingsAPI
@@ -20636,7 +20994,7 @@ func (a *ServerRPC) Ping(ctx context.Context, params *PingRequest) (*PingResult,
 
 // RegisterExtensionLaunchProvider registers the calling SDK client as the per-entrypoint
 // extension launch provider. Call before creating any sessions. When omitted, the runtime
-// temporarily falls back to its built-in Node launcher for backward compatibility.
+// uses its built-in extension launcher.
 //
 // RPC method: registerExtensionLaunchProvider.
 // Experimental: RegisterExtensionLaunchProvider is an experimental API and may change or be
@@ -20662,6 +21020,7 @@ func NewServerRPC(client *jsonrpc2.Client) *ServerRPC {
 	r.Catalog = (*ServerCatalogAPI)(&r.common)
 	r.Commands = (*ServerCommandsAPI)(&r.common)
 	r.Extensions = (*ServerExtensionsAPI)(&r.common)
+	r.Hooks = (*ServerHooksAPI)(&r.common)
 	r.Instructions = (*ServerInstructionsAPI)(&r.common)
 	r.LlmInference = (*ServerLlmInferenceAPI)(&r.common)
 	r.ManagedSettings = (*ServerManagedSettingsAPI)(&r.common)
@@ -21205,6 +21564,9 @@ func (a *CommandsAPI) Enqueue(ctx context.Context, params *EnqueueCommandParams)
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["command"] = params.Command
+		if params.DisplayText != nil {
+			req["displayText"] = *params.DisplayText
+		}
 	}
 	raw, err := a.client.Request(ctx, "session.commands.enqueue", req)
 	if err != nil {
@@ -21902,6 +22264,12 @@ func (a *FactoryAPI) Resume(ctx context.Context, params *FactoryResumeRequest) (
 	if params != nil {
 		if params.Limits != nil {
 			req["limits"] = *params.Limits
+		}
+		if params.LogPhaseNames != nil {
+			req["logPhaseNames"] = *params.LogPhaseNames
+		}
+		if params.NotifyOnComplete != nil {
+			req["notifyOnComplete"] = *params.NotifyOnComplete
 		}
 		req["runId"] = params.RunID
 	}
@@ -24986,6 +25354,28 @@ func (a *RemoteAPI) NotifySteerableChanged(ctx context.Context, params *RemoteNo
 	return &result, nil
 }
 
+// Experimental: SandboxAPI contains experimental APIs that may change or be removed.
+type SandboxAPI sessionAPI
+
+// GetEnforcementStatus returns whether managed policy requires sandbox enforcement and
+// whether an enforcement failure has permanently blocked the session.
+//
+// RPC method: session.sandbox.getEnforcementStatus.
+//
+// Returns: Managed sandbox enforcement state for a session.
+func (a *SandboxAPI) GetEnforcementStatus(ctx context.Context) (*SandboxEnforcementStatus, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request(ctx, "session.sandbox.getEnforcementStatus", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SandboxEnforcementStatus
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // Experimental: ScheduleAPI contains experimental APIs that may change or be removed.
 type ScheduleAPI sessionAPI
 
@@ -25617,14 +26007,8 @@ func (a *ToolsAPI) GetBuiltinDescriptors(ctx context.Context, params *ToolsGetBu
 		if params.IncludeAuthor != nil {
 			req["includeAuthor"] = *params.IncludeAuthor
 		}
-		if params.NoViewLineNumbers != nil {
-			req["noViewLineNumbers"] = *params.NoViewLineNumbers
-		}
 		if params.ReduceUserIntervention != nil {
 			req["reduceUserIntervention"] = *params.ReduceUserIntervention
-		}
-		if params.ShellAsyncOnlyEnabled != nil {
-			req["shellAsyncOnlyEnabled"] = *params.ShellAsyncOnlyEnabled
 		}
 		if params.ShellConfig != nil {
 			req["shellConfig"] = *params.ShellConfig
@@ -26541,6 +26925,7 @@ type SessionRPC struct {
 	Provider         *ProviderAPI
 	Queue            *QueueAPI
 	Remote           *RemoteAPI
+	Sandbox          *SandboxAPI
 	Schedule         *ScheduleAPI
 	Shell            *ShellAPI
 	Skills           *SkillsAPI
@@ -26862,6 +27247,7 @@ func NewSessionRPC(client *jsonrpc2.Client, sessionID string) *SessionRPC {
 	r.Provider = (*ProviderAPI)(&r.common)
 	r.Queue = (*QueueAPI)(&r.common)
 	r.Remote = (*RemoteAPI)(&r.common)
+	r.Sandbox = (*SandboxAPI)(&r.common)
 	r.Schedule = (*ScheduleAPI)(&r.common)
 	r.Shell = (*ShellAPI)(&r.common)
 	r.Skills = (*SkillsAPI)(&r.common)
@@ -26967,6 +27353,72 @@ func (a *InternalCommandsAPI) FinalizeInvocationEffect(ctx context.Context, para
 		return nil, err
 	}
 	var result CommandsFinalizeInvocationEffectResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: InternalFactoryAPI contains experimental APIs that may change or be removed.
+type InternalFactoryAPI internalSessionAPI
+
+// ResumeFromTool internal tool-originated factory resume.
+//
+// RPC method: session.factory.resumeFromTool.
+//
+// Parameters: Internal parameters for resuming a factory run from a tool.
+//
+// Returns: Resolved persisted factory identity and resumed run envelope.
+// Internal: ResumeFromTool is part of the SDK's internal handshake/plumbing; external
+// callers should not use it.
+func (a *InternalFactoryAPI) ResumeFromTool(ctx context.Context, params *FactoryToolResumeRequest) (*FactoryResumeResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.Limits != nil {
+			req["limits"] = *params.Limits
+		}
+		req["runId"] = params.RunID
+		if params.ToolCallID != nil {
+			req["toolCallId"] = *params.ToolCallID
+		}
+	}
+	raw, err := a.client.Request(ctx, "session.factory.resumeFromTool", req)
+	if err != nil {
+		return nil, err
+	}
+	var result FactoryResumeResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// RunFromTool internal tool-originated factory invocation.
+//
+// RPC method: session.factory.runFromTool.
+//
+// Parameters: Internal parameters for invoking a registered factory from a tool.
+//
+// Returns: Complete current or terminal factory run envelope.
+// Internal: RunFromTool is part of the SDK's internal handshake/plumbing; external callers
+// should not use it.
+func (a *InternalFactoryAPI) RunFromTool(ctx context.Context, params *FactoryToolRunRequest) (*FactoryRunResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["args"] = params.Args
+		req["name"] = params.Name
+		if params.Options != nil {
+			req["options"] = *params.Options
+		}
+		if params.ToolCallID != nil {
+			req["toolCallId"] = *params.ToolCallID
+		}
+	}
+	raw, err := a.client.Request(ctx, "session.factory.runFromTool", req)
+	if err != nil {
+		return nil, err
+	}
+	var result FactoryRunResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -27299,6 +27751,9 @@ func (a *InternalModelAPI) ApplyStartupOverlay(ctx context.Context, params *Mode
 		}
 		if params.DeviceManagedModel != nil {
 			req["deviceManagedModel"] = *params.DeviceManagedModel
+		}
+		if params.PolicyHelperModel != nil {
+			req["policyHelperModel"] = *params.PolicyHelperModel
 		}
 		if params.RepoContextTier != nil {
 			req["repoContextTier"] = *params.RepoContextTier
@@ -27771,6 +28226,7 @@ type InternalSessionRPC struct {
 
 	Canvas     *InternalCanvasAPI
 	Commands   *InternalCommandsAPI
+	Factory    *InternalFactoryAPI
 	GitHubAuth *InternalGitHubAuthAPI
 	MCP        *InternalMCPAPI
 	Model      *InternalModelAPI
@@ -27816,6 +28272,7 @@ func NewInternalSessionRPC(client *jsonrpc2.Client, sessionID string) *InternalS
 	r.common = internalSessionAPI{client: client, sessionID: sessionID}
 	r.Canvas = (*InternalCanvasAPI)(&r.common)
 	r.Commands = (*InternalCommandsAPI)(&r.common)
+	r.Factory = (*InternalFactoryAPI)(&r.common)
 	r.GitHubAuth = (*InternalGitHubAuthAPI)(&r.common)
 	r.MCP = (*InternalMCPAPI)(&r.common)
 	r.Model = (*InternalModelAPI)(&r.common)
