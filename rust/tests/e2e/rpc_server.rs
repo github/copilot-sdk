@@ -47,6 +47,30 @@ async fn should_call_rpc_ping_with_typed_params_and_result() {
 }
 
 #[tokio::test]
+async fn should_clear_the_managed_settings_cache() {
+    super::support::with_shared_e2e_context(
+        &E2E,
+        "rpc_server",
+        "should_clear_the_managed_settings_cache",
+        |ctx| {
+            Box::pin(async move {
+                let client = ctx.start_client().await;
+
+                client
+                    .rpc()
+                    .managed_settings()
+                    .clear_cache()
+                    .await
+                    .expect("clear managed settings cache");
+
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
+    .await;
+}
+
+#[tokio::test]
 async fn should_call_rpc_models_list_with_typed_result() {
     // TODO(cli-1.0.81-2): CLI 1.0.81-2 stopped honoring client-level GitHub tokens over the
     // in-process (FFI) host, which resolves auth from the ambient environment instead.
@@ -891,4 +915,4 @@ fn paths_equal(left: &str, right: &str) -> bool {
     normalize(left) == normalize(right)
 }
 static E2E: super::support::SharedE2eGroup =
-    super::support::SharedE2eGroup::standard("rpc_server", 11);
+    super::support::SharedE2eGroup::standard("rpc_server", 12);

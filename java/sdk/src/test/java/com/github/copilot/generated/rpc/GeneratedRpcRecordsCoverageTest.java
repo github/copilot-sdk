@@ -13,6 +13,7 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.copilot.TestUtil;
 
 /**
@@ -48,7 +49,7 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void mcpConfigRemoveParams_record() {
-        var params = new McpConfigRemoveParams("old-server");
+        var params = new McpConfigRemoveParams("old-server", null);
         assertEquals("old-server", params.name());
     }
 
@@ -326,15 +327,28 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionModelSwitchToParams_record() {
-        var params = new SessionModelSwitchToParams("sess-32", "claude-sonnet-5", "high", null, null, null, null, null,
-                null, null, null, null, null, null, null);
+        var params = new SessionModelSwitchToParams("sess-32", "claude-sonnet-5", null, "high", null, null, null, null,
+                null, null, null, null, null, null, null, null);
         assertEquals("sess-32", params.sessionId());
         assertEquals("claude-sonnet-5", params.modelId());
+        assertNull(params.autoTier());
         assertEquals("high", params.reasoningEffort());
         assertNull(params.reasoningSummary());
         assertNull(params.verbosity());
         assertNull(params.modelCapabilities());
         assertNull(params.deferIfModelChangeQueued());
+    }
+
+    @Test
+    void sessionModelSwitchParams_distinguishRequiredNullFromOmittedOptionalValue() {
+        var mapper = new ObjectMapper();
+        var switchAutoTier = mapper.valueToTree(new SessionModelSwitchAutoTierParams("sess-32", null, null));
+        assertTrue(switchAutoTier.has("autoTier"));
+        assertTrue(switchAutoTier.get("autoTier").isNull());
+
+        var switchTo = mapper.valueToTree(new SessionModelSwitchToParams("sess-32", "auto", null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null));
+        assertFalse(switchTo.has("autoTier"));
     }
 
     @Test
@@ -657,13 +671,13 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionModelGetCurrentResult_record() {
-        var result = new SessionModelGetCurrentResult("claude-sonnet-5", null, null);
+        var result = new SessionModelGetCurrentResult("claude-sonnet-5", null, null, null, null, null);
         assertEquals("claude-sonnet-5", result.modelId());
     }
 
     @Test
     void sessionModelSwitchToResult_record() {
-        var result = new SessionModelSwitchToResult("gpt-5", true, null, null, null, null, null, null);
+        var result = new SessionModelSwitchToResult("gpt-5", true, null, null, null, null, null, null, null);
         assertEquals("gpt-5", result.modelId());
         assertEquals(true, result.deferred());
     }
@@ -819,8 +833,8 @@ class GeneratedRpcRecordsCoverageTest {
         var policy = new ModelPolicy(ModelPolicyState.ENABLED, null);
         var promo = new ModelBillingPromo("summer-2026", 25.0, "2026-08-01T00:00:00Z", "Summer discount", true);
         var billing = new ModelBilling(1.0, null, null, promo);
-        var modelItem = new Model("gpt-5", "GPT-5", capabilities, policy, billing, null, null, null, null, null, null,
-                null, null);
+        var modelItem = new Model("gpt-5", "GPT-5", capabilities, null, policy, billing, null, null, null, null, null,
+                null, null, null);
         var result = new ModelsListResult(List.of(modelItem));
 
         assertEquals(1, result.models().size());
@@ -857,8 +871,8 @@ class GeneratedRpcRecordsCoverageTest {
         var limits = new ModelCapabilitiesOverrideLimits(100000L, 8192L, 128000L, limitsVision);
         var supports = new ModelCapabilitiesOverrideSupports(true, true, null);
         var capabilities = new ModelCapabilitiesOverride(supports, limits);
-        var params = new SessionModelSwitchToParams("sess-m", "gpt-5", null, null, null, capabilities, null, null, null,
-                null, null, null, null, null, null);
+        var params = new SessionModelSwitchToParams("sess-m", "gpt-5", null, null, null, null, capabilities, null, null,
+                null, null, null, null, null, null, null);
 
         assertEquals("gpt-5", params.modelId());
         assertNotNull(params.modelCapabilities());

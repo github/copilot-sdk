@@ -36,6 +36,7 @@ public record SessionMetadataSnapshotResult(
     /** True when the session was detected to be in use by another process at construction time. Local consumers may surface a confirmation prompt before fully attaching. Always false for new sessions. */
     @JsonProperty("alreadyInUse") Boolean alreadyInUse,
     /** Absolute path to the session's workspace directory on disk, or null if the session has no associated workspace */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("workspacePath") String workspacePath,
     /** User-provided name supplied at session construction (via `--name`), if any. Immutable after construction. */
     @JsonProperty("initialName") String initialName,
@@ -52,6 +53,7 @@ public record SessionMetadataSnapshotResult(
     /** Currently selected model identifier, if any */
     @JsonProperty("selectedModel") String selectedModel,
     /** Current session limits, or null when no limits are active */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("sessionLimits") SessionLimitsConfig sessionLimits,
     /** Public-facing workspace metadata for this session, or null if the session has no associated workspace. Excludes runtime-internal fields (GitHub IDs, summary count, internal flags). */
     @JsonProperty("workspace") SessionMetadataSnapshotResultWorkspace workspace

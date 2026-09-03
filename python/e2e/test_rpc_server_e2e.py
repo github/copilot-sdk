@@ -137,6 +137,10 @@ class TestRpcServer:
         assert result.message == "pong: typed rpc test"
         assert result.timestamp is not None
 
+    async def test_should_clear_the_managed_settings_cache(self, ctx: E2ETestContext):
+        await ctx.client.start()
+        assert await ctx.client.rpc.managed_settings.clear_cache() is None
+
     async def test_should_reject_llm_inference_response_frames_for_missing_request(
         self, ctx: E2ETestContext
     ):

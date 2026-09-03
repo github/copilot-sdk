@@ -549,6 +549,7 @@ impl Session {
     pub async fn set_model(&self, model: &str, opts: Option<SetModelOptions>) -> Result<(), Error> {
         let opts = opts.unwrap_or_default();
         let request = ModelSwitchToRequest {
+            auto_tier: None,
             compaction_decision: None,
             context_tier: opts.context_tier,
             defer_if_model_change_queued: None,

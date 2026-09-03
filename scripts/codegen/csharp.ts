@@ -1828,6 +1828,9 @@ function emitRpcClass(
         if (isMillisecondsDurationProperty(propName, prop)) lines.push(`    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]`);
         const propVisibility = pushCSharpInternalAttribute(lines, prop);
         lines.push(`    [JsonPropertyName("${propName}")]`);
+        if (isReq && csharpType.endsWith("?")) {
+            lines.push(`    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]`);
+        }
 
         let defaultVal = "";
         let propAccessors = "{ get; set; }";

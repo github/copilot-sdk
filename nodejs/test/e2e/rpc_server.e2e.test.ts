@@ -103,6 +103,11 @@ describe("Server-scoped RPC", async () => {
         expect(Date.parse(result.timestamp)).not.toBeNaN();
     });
 
+    it("should clear the managed settings cache", async () => {
+        await client.start();
+        await expect(client.rpc.managedSettings.clearCache()).resolves.toBeNull();
+    });
+
     it("should reject llm inference response frames for missing request", async () => {
         await client.start();
 

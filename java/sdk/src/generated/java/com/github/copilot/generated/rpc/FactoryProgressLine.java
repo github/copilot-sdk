@@ -26,6 +26,7 @@ public record FactoryProgressLine(
     /** Resume attempt that emitted this record. */
     @JsonProperty("attempt") Long attempt,
     /** Phase active when the record was emitted, or null before any phase. */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("phaseId") String phaseId,
     /** Epoch milliseconds when the record was persisted. */
     @JsonProperty("recordedAt") Long recordedAt,

@@ -6745,6 +6745,7 @@ public sealed class FactoryCurrentPhase
 
     /// <summary>Zero-based declared phase ordinal, or null for an undeclared phase.</summary>
     [JsonPropertyName("ordinal")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public long? Ordinal { get; set; }
 }
 
@@ -6775,14 +6776,17 @@ public sealed class FactoryRunSummary
 {
     /// <summary>Epoch milliseconds when the current active segment started, or null while inactive.</summary>
     [JsonPropertyName("activeSegmentStartedAt")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public long? ActiveSegmentStartedAt { get; set; }
 
     /// <summary>Approved effective resource ceilings, or null until approved.</summary>
     [JsonPropertyName("approved")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public FactoryDeclaredLimits? Approved { get; set; }
 
     /// <summary>Epoch milliseconds when the run completed, or null while nonterminal.</summary>
     [JsonPropertyName("completedAt")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public long? CompletedAt { get; set; }
 
     /// <summary>Durable resource consumption.</summary>
@@ -6795,6 +6799,7 @@ public sealed class FactoryRunSummary
 
     /// <summary>Current phase identity, or null before any phase is entered.</summary>
     [JsonPropertyName("currentPhase")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public FactoryCurrentPhase? CurrentPhase { get; set; }
 
     /// <summary>Resource ceilings declared by the factory.</summary>
@@ -6831,6 +6836,7 @@ public sealed class FactoryRunSummary
 
     /// <summary>Epoch milliseconds when execution first started, or null before start.</summary>
     [JsonPropertyName("startedAt")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public long? StartedAt { get; set; }
 
     /// <summary>Current factory run status.</summary>
@@ -6839,6 +6845,7 @@ public sealed class FactoryRunSummary
 
     /// <summary>Terminal run outcome, or null while nonterminal.</summary>
     [JsonPropertyName("terminal")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public FactoryRunTerminal? Terminal { get; set; }
 
     /// <summary>Total direct factory agents spawned across all attempts.</summary>
@@ -6930,6 +6937,7 @@ public sealed class FactoryAgentSummary
 
     /// <summary>Phase identifier active when the agent was launched, or null.</summary>
     [JsonPropertyName("phaseId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public string? PhaseId { get; set; }
 
     /// <summary>Model requested when the agent was launched.</summary>
@@ -6995,6 +7003,7 @@ public sealed class FactoryPhaseObservation
 
     /// <summary>Zero-based declared phase ordinal, or null for an undeclared phase.</summary>
     [JsonPropertyName("ordinal")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public long? Ordinal { get; set; }
 
     /// <summary>Epoch milliseconds when this phase first started; for a skipped phase, the synthetic skip timestamp (equal to `completedAt`).</summary>
@@ -7028,6 +7037,7 @@ public sealed class FactoryProgressLine
 
     /// <summary>Phase active when the record was emitted, or null before any phase.</summary>
     [JsonPropertyName("phaseId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public string? PhaseId { get; set; }
 
     /// <summary>Epoch milliseconds when the record was persisted.</summary>
@@ -7057,10 +7067,12 @@ public sealed class FactoryProgressPage
 
     /// <summary>Newest sequence number in this page, or null when empty.</summary>
     [JsonPropertyName("newestSeq")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public long? NewestSeq { get; set; }
 
     /// <summary>Oldest sequence number in this page, or null when empty.</summary>
     [JsonPropertyName("oldestSeq")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public long? OldestSeq { get; set; }
 
     /// <summary>Progress records in sequence order.</summary>
@@ -7078,6 +7090,7 @@ public sealed class FactoryRunDetail
 {
     /// <summary>Epoch milliseconds when the current active segment started, or null while inactive.</summary>
     [JsonPropertyName("activeSegmentStartedAt")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public long? ActiveSegmentStartedAt { get; set; }
 
     /// <summary>Durable identities and live statuses for direct factory agents.</summary>
@@ -7086,10 +7099,12 @@ public sealed class FactoryRunDetail
 
     /// <summary>Approved effective resource ceilings, or null until approved.</summary>
     [JsonPropertyName("approved")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public FactoryDeclaredLimits? Approved { get; set; }
 
     /// <summary>Epoch milliseconds when the run completed, or null while nonterminal.</summary>
     [JsonPropertyName("completedAt")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public long? CompletedAt { get; set; }
 
     /// <summary>Durable resource consumption.</summary>
@@ -7102,6 +7117,7 @@ public sealed class FactoryRunDetail
 
     /// <summary>Current phase identity, or null before any phase is entered.</summary>
     [JsonPropertyName("currentPhase")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public FactoryCurrentPhase? CurrentPhase { get; set; }
 
     /// <summary>Resource ceilings declared by the factory.</summary>
@@ -7146,6 +7162,7 @@ public sealed class FactoryRunDetail
 
     /// <summary>Epoch milliseconds when execution first started, or null before start.</summary>
     [JsonPropertyName("startedAt")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public long? StartedAt { get; set; }
 
     /// <summary>Current factory run status.</summary>
@@ -7154,6 +7171,7 @@ public sealed class FactoryRunDetail
 
     /// <summary>Terminal run outcome, or null while nonterminal.</summary>
     [JsonPropertyName("terminal")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public FactoryRunTerminal? Terminal { get; set; }
 
     /// <summary>Total direct factory agents spawned across all attempts.</summary>
@@ -7676,6 +7694,7 @@ internal sealed class ModelSwitchAutoTierRequest
 {
     /// <summary>Auto preference to activate when a future user turn using the `auto` model safely mints a replacement model and token pair. Pass null to return to provider-default Auto routing.</summary>
     [JsonPropertyName("autoTier")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public AutoTier? AutoTier { get; set; }
 
     /// <summary>Target session identifier.</summary>
@@ -7907,6 +7926,7 @@ public sealed class NameGetResult
 {
     /// <summary>The session name (user-set or auto-generated), or null if not yet set.</summary>
     [JsonPropertyName("name")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public string? Name { get; set; }
 }
 
@@ -7963,6 +7983,7 @@ public sealed class PlanReadResult
 {
     /// <summary>The content of the plan file, or null if it does not exist.</summary>
     [JsonPropertyName("content")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public string? Content { get; set; }
 
     /// <summary>Whether the plan file exists in the workspace.</summary>
@@ -7971,6 +7992,7 @@ public sealed class PlanReadResult
 
     /// <summary>Absolute file path of the plan file, or null if workspace is not enabled.</summary>
     [JsonPropertyName("path")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public string? Path { get; set; }
 }
 
@@ -8167,6 +8189,7 @@ public sealed class WorkspacesGetWorkspaceResult
 
     /// <summary>Current workspace metadata, or null if not available.</summary>
     [JsonPropertyName("workspace")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public WorkspacesGetWorkspaceResultWorkspace? Workspace { get; set; }
 }
 
@@ -8307,6 +8330,7 @@ public sealed class WorkspacesReadCheckpointResult
 {
     /// <summary>Checkpoint content as a UTF-8 string, or null when the checkpoint or workspace is missing.</summary>
     [JsonPropertyName("content")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public string? Content { get; set; }
 }
 
@@ -8382,6 +8406,7 @@ public sealed class WorkspacesReadAutopilotObjectiveResult
 {
     /// <summary>Autopilot objective file content, or null when missing.</summary>
     [JsonPropertyName("content")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public string? Content { get; set; }
 }
 
@@ -8474,6 +8499,7 @@ public sealed class WorkspacesSaveLargePasteResult
 {
     /// <summary>Saved-paste descriptor, or null when the workspace is unavailable (e.g. CCA runtime, non-infinite sessions, remote sessions).</summary>
     [JsonPropertyName("saved")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public WorkspacesSaveLargePasteResultSaved? Saved { get; set; }
 }
 
@@ -12969,6 +12995,7 @@ public sealed class BuiltinToolDescriptor
 
     /// <summary>Optional custom input format used instead of a JSON Schema.</summary>
     [JsonPropertyName("format")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public BuiltinToolFormat? Format { get; set; }
 
     /// <summary>Whether the tool provides a specialized intention summary.</summary>
@@ -12977,10 +13004,12 @@ public sealed class BuiltinToolDescriptor
 
     /// <summary>JSON Schema for the tool input, or null when the tool uses a custom format.</summary>
     [JsonPropertyName("inputSchema")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public BuiltinToolInputSchema? InputSchema { get; set; }
 
     /// <summary>Optional supplemental usage instructions for the tool.</summary>
     [JsonPropertyName("instructions")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public string? Instructions { get; set; }
 
     /// <summary>Whether the tool executes commands in a terminal.</summary>
@@ -12997,10 +13026,12 @@ public sealed class BuiltinToolDescriptor
 
     /// <summary>Optional human-readable title for the tool.</summary>
     [JsonPropertyName("title")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public string? Title { get; set; }
 
     /// <summary>Optional tool category discriminator.</summary>
     [JsonPropertyName("type")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public string? Type { get; set; }
 }
 
@@ -13567,6 +13598,7 @@ public sealed class ToolsGetCurrentMetadataResult
 {
     /// <summary>Current tool metadata, or null when tools have not been initialized yet.</summary>
     [JsonPropertyName("tools")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public IList<CurrentToolMetadata>? Tools { get; set; }
 }
 
@@ -16158,6 +16190,7 @@ public sealed class SessionMetadataSnapshot
 
     /// <summary>Current session limits, or null when no limits are active.</summary>
     [JsonPropertyName("sessionLimits")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public SessionLimitsConfig? SessionLimits { get; set; }
 
     /// <summary>ISO 8601 timestamp of when the session started.</summary>
@@ -16178,6 +16211,7 @@ public sealed class SessionMetadataSnapshot
 
     /// <summary>Absolute path to the session's workspace directory on disk, or null if the session has no associated workspace.</summary>
     [JsonPropertyName("workspacePath")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public string? WorkspacePath { get; set; }
 }
 

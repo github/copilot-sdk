@@ -28,8 +28,10 @@ public record SessionFactoryGetRunProgressResult(
     /** Progress records in sequence order. */
     @JsonProperty("records") List<FactoryProgressLine> records,
     /** Oldest sequence number in this page, or null when empty. */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("oldestSeq") Long oldestSeq,
     /** Newest sequence number in this page, or null when empty. */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("newestSeq") Long newestSeq,
     /** Whether progress records older than this page exist. */
     @JsonProperty("hasMoreOlder") Boolean hasMoreOlder,

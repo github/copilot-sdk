@@ -26,6 +26,7 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionWorkspacesGetWorkspaceResult(
     /** Current workspace metadata, or null if not available */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("workspace") SessionWorkspacesGetWorkspaceResultWorkspace workspace,
     /** Absolute filesystem path to the workspace directory. Omitted when the session has no workspace (e.g. remote sessions). */
     @JsonProperty("path") String path

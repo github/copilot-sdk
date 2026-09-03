@@ -2486,6 +2486,7 @@ impl Client {
                 .client_info
                 .as_ref()
                 .and_then(ClientInfo::to_wire),
+            supported_task_kinds: None,
         };
         let value = self
             .call(
