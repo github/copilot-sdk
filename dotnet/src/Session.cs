@@ -11,6 +11,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 using System.Threading.Channels;
 
 namespace GitHub.Copilot;
@@ -1936,10 +1937,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
 
         if (options.ClearAutoTier)
         {
-            // The generated request omits a null tier, which the runtime reads as
-            // "leave the preference alone" rather than "use provider-default
-            // routing", so send a request that always writes the null.
-            var request = new ClearAutoTierModelSwitchToRequest
+            var request = new ModelSwitchToRequest
             {
                 SessionId = SessionId,
                 ModelId = model,
@@ -1948,7 +1946,11 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 ModelCapabilities = options.ModelCapabilities,
                 ContextTier = options.ContextTier,
             };
-            await CopilotClient.InvokeRpcAsync(Rpc, "session.model.switchTo", [request], cancellationToken);
+            await CopilotClient.InvokeRpcAsync(
+                Rpc,
+                "session.model.switchTo",
+                [WithExplicitNullAutoTier(request, RpcJsonContext.Default.ModelSwitchToRequest)],
+                cancellationToken);
             return;
         }
 
@@ -1998,46 +2000,33 @@ public sealed partial class CopilotSession : IAsyncDisposable
     {
         ThrowIfDisposed();
 
-        // `autoTier` is a required field whose null value means "use provider-default
-        // routing", so this cannot go through the generated wrapper, which omits nulls.
-        var request = new SwitchAutoTierRequest { SessionId = SessionId, AutoTier = autoTier };
+        if (autoTier is not null)
+        {
+            return await Rpc.Model.SwitchAutoTierAsync(autoTier, cancellationToken: cancellationToken);
+        }
+
+        var request = new ModelSwitchAutoTierRequest { SessionId = SessionId };
         return await CopilotClient.InvokeRpcAsync<ModelSwitchAutoTierResult>(
-            Rpc, "session.model.switchAutoTier", [request], cancellationToken);
+            Rpc,
+            "session.model.switchAutoTier",
+            [WithExplicitNullAutoTier(request, RpcJsonContext.Default.ModelSwitchAutoTierRequest)],
+            cancellationToken);
     }
 
-    internal sealed class SwitchAutoTierRequest
+    /// <summary>
+    /// Serializes a generated request and restores the <c>autoTier</c> property as an explicit null.
+    /// </summary>
+    /// <remarks>
+    /// The generated request types omit <c>autoTier</c> when it is null. The runtime reads an
+    /// omitted tier as "leave the current preference alone" and an explicit null as "return to
+    /// provider-default Auto routing", so the null has to survive serialization. Serializing the
+    /// generated type keeps every other field on the request in sync with the schema.
+    /// </remarks>
+    private static JsonObject WithExplicitNullAutoTier<T>(T request, JsonTypeInfo<T> typeInfo)
     {
-        [JsonPropertyName("sessionId")]
-        public string SessionId { get; set; } = string.Empty;
-
-        [JsonPropertyName("autoTier")]
-        [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
-        public AutoTier? AutoTier { get; set; }
-    }
-
-    internal sealed class ClearAutoTierModelSwitchToRequest
-    {
-        [JsonPropertyName("sessionId")]
-        public string SessionId { get; set; } = string.Empty;
-
-        [JsonPropertyName("modelId")]
-        public string ModelId { get; set; } = string.Empty;
-
-        [JsonPropertyName("autoTier")]
-        [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
-        public AutoTier? AutoTier { get; set; }
-
-        [JsonPropertyName("reasoningEffort")]
-        public string? ReasoningEffort { get; set; }
-
-        [JsonPropertyName("reasoningSummary")]
-        public ReasoningSummary? ReasoningSummary { get; set; }
-
-        [JsonPropertyName("modelCapabilities")]
-        public ModelCapabilitiesOverride? ModelCapabilities { get; set; }
-
-        [JsonPropertyName("contextTier")]
-        public ContextTier? ContextTier { get; set; }
+        var payload = JsonSerializer.SerializeToNode(request, typeInfo)!.AsObject();
+        payload["autoTier"] = null;
+        return payload;
     }
 
     /// <summary>
@@ -2232,8 +2221,6 @@ public sealed partial class CopilotSession : IAsyncDisposable
     [JsonSerializable(typeof(SendMessageRequest))]
     [JsonSerializable(typeof(SendMessageResponse))]
     [JsonSerializable(typeof(SessionAbortRequest))]
-    [JsonSerializable(typeof(SwitchAutoTierRequest))]
-    [JsonSerializable(typeof(ClearAutoTierModelSwitchToRequest))]
     [JsonSerializable(typeof(SessionDestroyRequest))]
     [JsonSerializable(typeof(SessionEndHookInput))]
     [JsonSerializable(typeof(SessionEndHookOutput))]

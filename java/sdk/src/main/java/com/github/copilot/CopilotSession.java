@@ -2099,8 +2099,7 @@ public final class CopilotSession implements AutoCloseable {
         }
         ModelCapabilitiesOverrideLimits limits = null;
         if (modelCapabilities.getLimits() != null) {
-            limits = new ObjectMapper().convertValue(modelCapabilities.getLimits(),
-                    ModelCapabilitiesOverrideLimits.class);
+            limits = MAPPER.convertValue(modelCapabilities.getLimits(), ModelCapabilitiesOverrideLimits.class);
         }
         return new ModelCapabilitiesOverride(supports, limits);
     }
@@ -2159,7 +2158,7 @@ public final class CopilotSession implements AutoCloseable {
         // The generated params record omits null properties, but returning to
         // provider-default Auto routing requires sending an explicit null tier, so
         // build the payload directly and reinstate the null.
-        ObjectNode payload = new ObjectMapper().valueToTree(params);
+        ObjectNode payload = MAPPER.valueToTree(params);
         payload.putNull("autoTier");
         return rpc.invoke("session.model.switchTo", payload, Void.class);
     }
@@ -2207,7 +2206,7 @@ public final class CopilotSession implements AutoCloseable {
         // The generated params record omits null properties, but the runtime
         // distinguishes an explicit null tier (return to provider-default routing)
         // from an absent one, so build the payload directly and reinstate the null.
-        ObjectNode payload = new ObjectMapper().valueToTree(params);
+        ObjectNode payload = MAPPER.valueToTree(params);
         payload.putNull("autoTier");
         return rpc.invoke("session.model.switchAutoTier", payload, SessionModelSwitchAutoTierResult.class);
     }

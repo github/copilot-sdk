@@ -6,6 +6,7 @@ This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.py
 
 import asyncio
 import inspect
+import json
 import os
 from datetime import UTC, datetime
 from tempfile import TemporaryDirectory
@@ -2684,6 +2685,38 @@ class TestSetAutoTier:
             assert result.status == ModelSwitchAutoTierStatus.PENDING
             assert result.effective_auto_tier == AutoTierEnum.BALANCE
             assert result.activating_auto_tier is None
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_set_auto_tier_accepts_the_enum_it_returns(self):
+        """The tier on a result or event is an enum, so it has to be valid input too."""
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        await client.start()
+
+        try:
+            session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all
+            )
+
+            captured = {}
+            original_request = client._client.request
+
+            async def mock_request(method, params, **kwargs):
+                captured[method] = params
+                if method == "session.model.switchAutoTier":
+                    return {"status": "pending", "effectiveAutoTier": "intelligence"}
+                return await original_request(method, params, **kwargs)
+
+            client._client.request = mock_request
+            await session.set_auto_tier(AutoTierEnum.INTELLIGENCE)
+
+            params = captured["session.model.switchAutoTier"]
+            # The value must be a plain string; the JSON-RPC encoder cannot
+            # serialize an enum.
+            assert params["autoTier"] == "intelligence"
+            assert isinstance(params["autoTier"], str)
+            json.dumps(params)
         finally:
             await client.force_stop()
 

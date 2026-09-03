@@ -4,6 +4,7 @@ package copilot
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"sync"
@@ -1868,7 +1869,7 @@ func (s *Session) SetModel(ctx context.Context, model string, opts *SetModelOpti
 	params := &rpc.ModelSwitchToRequest{ModelID: model}
 	if opts != nil {
 		if opts.AutoTier != nil && opts.ClearAutoTier {
-			return fmt.Errorf("failed to set model: AutoTier and ClearAutoTier are mutually exclusive")
+			return errors.New("failed to set model: AutoTier and ClearAutoTier are mutually exclusive")
 		}
 		params.ReasoningEffort = opts.ReasoningEffort
 		params.ReasoningSummary = opts.ReasoningSummary
@@ -1879,20 +1880,17 @@ func (s *Session) SetModel(ctx context.Context, model string, opts *SetModelOpti
 		if opts.ClearAutoTier {
 			// The generated request omits a nil AutoTier, which the runtime
 			// reads as "leave the preference alone" rather than "use default
-			// routing", so send an explicit null instead.
-			req := map[string]any{"sessionId": s.SessionID, "modelId": model, "autoTier": nil}
-			if opts.ReasoningEffort != nil {
-				req["reasoningEffort"] = *opts.ReasoningEffort
+			// routing", so serialize the request and write the null back.
+			raw, err := json.Marshal(params)
+			if err != nil {
+				return fmt.Errorf("failed to set model: %w", err)
 			}
-			if opts.ReasoningSummary != nil {
-				req["reasoningSummary"] = *opts.ReasoningSummary
+			var req map[string]any
+			if err := json.Unmarshal(raw, &req); err != nil {
+				return fmt.Errorf("failed to set model: %w", err)
 			}
-			if opts.ContextTier != nil {
-				req["contextTier"] = *opts.ContextTier
-			}
-			if opts.ModelCapabilities != nil {
-				req["modelCapabilities"] = *opts.ModelCapabilities
-			}
+			req["sessionId"] = s.SessionID
+			req["autoTier"] = nil
 			if _, err := s.client.Request(ctx, "session.model.switchTo", req); err != nil {
 				return fmt.Errorf("failed to set model: %w", err)
 			}

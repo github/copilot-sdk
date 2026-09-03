@@ -19,6 +19,7 @@ import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from enum import Enum
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, Literal, NotRequired, Required, TypedDict, cast
 
@@ -26,6 +27,9 @@ from ._diagnostics import log_timing
 from ._jsonrpc import JsonRpcError, ProcessExitedError
 from ._telemetry import get_trace_context, trace_context
 from .canvas import CanvasError, CanvasHandler, OpenCanvasInstance
+from .generated.rpc import (
+    AutoTier as _RpcAutoTier,
+)
 from .generated.rpc import (
     BuiltinToolInputSchemaType,
     CanvasProviderCloseRequest,
@@ -192,6 +196,18 @@ class _Unset:
 
 
 _UNSET = _Unset()
+
+
+def _auto_tier_to_wire(auto_tier: AutoTier | _RpcAutoTier | None) -> str | None:
+    """Normalize an Auto tier to its wire value.
+
+    Callers may pass either the ``AutoTier`` string literal or the generated
+    ``AutoTier`` enum, which is the type the SDK hands back on results and
+    events. The JSON-RPC encoder only understands plain strings.
+    """
+    if isinstance(auto_tier, Enum):
+        return str(auto_tier.value)
+    return auto_tier
 
 
 class SessionFsCapabilities(TypedDict, total=False):
@@ -3067,7 +3083,7 @@ class CopilotSession:
         reasoning_summary: ReasoningSummary | None = None,
         context_tier: ContextTier | None = None,
         model_capabilities: ModelCapabilitiesOverride | None = None,
-        auto_tier: AutoTier | None | _Unset = _UNSET,
+        auto_tier: AutoTier | _RpcAutoTier | None | _Unset = _UNSET,
     ) -> None:
         """
         Change the model for this session.
@@ -3122,11 +3138,13 @@ class CopilotSession:
         # request for default Auto routing into "leave the preference alone", so
         # send the payload directly to preserve an explicit null.
         params = {k: v for k, v in request.to_dict().items() if v is not None}
-        params["autoTier"] = auto_tier
+        params["autoTier"] = _auto_tier_to_wire(auto_tier)
         params["sessionId"] = self.session_id
         await self._client.request("session.model.switchTo", params)
 
-    async def set_auto_tier(self, auto_tier: AutoTier | None) -> ModelSwitchAutoTierResult:
+    async def set_auto_tier(
+        self, auto_tier: AutoTier | _RpcAutoTier | None
+    ) -> ModelSwitchAutoTierResult:
         """
         Change the Auto routing preference without changing the selected model.
 
@@ -3165,7 +3183,7 @@ class CopilotSession:
         return ModelSwitchAutoTierResult.from_dict(
             await self._client.request(
                 "session.model.switchAutoTier",
-                {"sessionId": self.session_id, "autoTier": auto_tier},
+                {"sessionId": self.session_id, "autoTier": _auto_tier_to_wire(auto_tier)},
             )
         )
 

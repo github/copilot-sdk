@@ -596,7 +596,7 @@ public sealed class ClientSessionLifetimeTests
 
         var request = Assert.Single(server.Requests, request => request.Method == "session.model.switchAutoTier");
         Assert.Equal("intelligence", request.Params.GetProperty("autoTier").GetString());
-        Assert.Equal("pending", result.Status.ToString());
+        Assert.Equal(ModelSwitchAutoTierStatus.Pending, result.Status);
         Assert.Equal(AutoTier.Balance, result.EffectiveAutoTier);
     }
 
