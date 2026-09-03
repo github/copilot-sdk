@@ -121,7 +121,7 @@ def resolve_library_path(runtime_entrypoint: str) -> str | None:
 
     1. The natural platform library name next to the CLI (bundled/flat layout,
        what the Python download-at-first-use path writes).
-    2. ``runtime.node`` next to the CLI (prepared npm runtime layout).
+    2. ``runtime.node`` next to the CLI (prepared release-package layout).
     3. ``prebuilds/<platform>/runtime.node`` next to the CLI (package-root layout).
 
     Returns the absolute path, or ``None`` when neither exists.
@@ -211,7 +211,7 @@ def _load_library(library_path: str) -> _FfiLibrary:
             return _FfiLibrary(_loaded_library)
 
         # Load with immediate binding (RTLD_NOW) on POSIX, matching the .NET/Rust
-        # hosts. The runtime cdylib from the npm platform package is self-contained;
+        # hosts. The runtime cdylib from the platform release package is self-contained;
         # eager binding surfaces any load problem here rather than at first call.
         if sys.platform == "win32":
             lib = ctypes.WinDLL(library_path)

@@ -259,6 +259,34 @@ func TestInstallAtWritesBinaryAndLicense(t *testing.T) {
 	}
 }
 
+func TestPathInstallsAdjacentRuntimePair(t *testing.T) {
+	resetGlobals()
+	tempDir := t.TempDir()
+	wrapper := []byte("wrapper")
+	node := []byte("runtime")
+	wrapperHash := sha256.Sum256(wrapper)
+	nodeHash := sha256.Sum256(node)
+	Setup(Config{
+		Cli:                   bytes.NewReader(wrapper),
+		CliHash:               wrapperHash[:],
+		RuntimeExecutable:     bytes.NewReader(wrapper),
+		RuntimeExecutableHash: wrapperHash[:],
+		RuntimeNode:           bytes.NewReader(node),
+		RuntimeNodeHash:       nodeHash[:],
+		Version:               "1.2.3",
+		Dir:                   tempDir,
+	})
+
+	runtimePath := RuntimePath()
+	installDir := filepath.Dir(runtimePath)
+	if got, err := os.ReadFile(filepath.Join(installDir, runtimeExecutableName())); err != nil || !bytes.Equal(got, wrapper) {
+		t.Fatalf("runtime wrapper content=%q err=%v", got, err)
+	}
+	if got, err := os.ReadFile(filepath.Join(installDir, "runtime.node")); err != nil || !bytes.Equal(got, node) {
+		t.Fatalf("runtime.node content=%q err=%v", got, err)
+	}
+}
+
 func TestInstallAtExistingBinaryHashMismatch(t *testing.T) {
 	resetGlobals()
 	tempDir := t.TempDir()

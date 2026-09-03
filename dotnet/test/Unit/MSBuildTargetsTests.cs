@@ -2,8 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Net;
+using System.Net.Sockets;
 using System.Runtime.CompilerServices;
+using System.Security.Cryptography;
 using System.Text;
 using Xunit;
 
@@ -16,17 +20,16 @@ namespace GitHub.Copilot.Test.Unit;
 /// a subprocess so we exercise real MSBuild evaluation.
 /// </summary>
 /// <remarks>
-/// These tests deliberately do not exercise the network-bound default download path; they
-/// pin a fake <c>CopilotCliVersion</c> and supply a fake CLI binary via
-/// <c>CopilotCliBinaryPath</c>. That is sufficient to cover the regression in issue
-/// #921 ("preinstalled CLI is ignored and copy/register are skipped when
-/// CopilotSkipCliDownload=true").
+/// Download tests use a loopback release server; they never access the default GitHub URL.
 /// </remarks>
 public class MSBuildTargetsTests
 {
     private static readonly string TargetsFilePath = FindTargetsFile();
 
     private static readonly string BinaryName = OperatingSystem.IsWindows() ? "copilot.exe" : "copilot";
+
+    private static readonly string RuntimeWrapperName =
+        OperatingSystem.IsWindows() ? "copilot-runtime.exe" : "copilot-runtime";
 
     [Fact]
     public async Task PreinstalledCliBinaryPath_IsHonored_DownloadSkipped_AndCopiedToOutput()
@@ -107,14 +110,103 @@ public class MSBuildTargetsTests
     }
 
     [Fact]
+    public async Task ReleaseAsset_IsDownloadedVerifiedExtractedAndCached()
+    {
+        using var sandbox = MSBuildSandbox.Create();
+        var archive = sandbox.CreateReleaseArchive("release-runtime-wrapper");
+        var assetName = $"github-copilot-0.0.0-test-{GetReleasePlatform()}.tgz";
+        var assetPath = $"/v0.0.0-test/{assetName}";
+        var checksumsPath = "/v0.0.0-test/SHA256SUMS.txt";
+        var checksum = ComputeSha256(archive);
+        using var server = new ReleaseServer(new Dictionary<string, byte[]>
+        {
+            [checksumsPath] = Encoding.UTF8.GetBytes($"{checksum}  {assetName}\n"),
+            [assetPath] = archive,
+        });
+
+        var properties = new Dictionary<string, string>
+        {
+            ["CopilotCliReleaseBaseUrl"] = server.BaseUrl,
+        };
+        var firstBuild = await sandbox.BuildAsync(properties);
+
+        Assert.True(firstBuild.Succeeded, firstBuild.FailureMessage());
+        Assert.Equal("release-runtime-wrapper", File.ReadAllText(sandbox.ExpectedOutputBinary()));
+        Assert.Equal("release-runtime-wrapper", File.ReadAllText(sandbox.ExpectedRuntimeAsset(RuntimeWrapperName)));
+        Assert.Equal("runtime", File.ReadAllText(sandbox.ExpectedRuntimeAsset("runtime.node")));
+        Assert.True(File.Exists(sandbox.ExpectedCacheAsset(".copilot-runtime-complete")));
+        Assert.False(File.Exists(sandbox.ExpectedRuntimeAsset(".copilot-runtime-complete")));
+        Assert.Equal(1, server.RequestPaths.Count(path => path == checksumsPath));
+        Assert.Equal(1, server.RequestPaths.Count(path => path == assetPath));
+        Assert.False(File.Exists(sandbox.ExpectedRuntimeAsset("SHA256SUMS.txt")));
+
+        var secondBuild = await sandbox.BuildAsync(properties);
+
+        Assert.True(secondBuild.Succeeded, secondBuild.FailureMessage());
+        Assert.Equal(2, server.RequestPaths.Count);
+    }
+
+    [Fact]
+    public async Task IncompleteCache_WithRuntimePairButNoMarker_IsReacquired()
+    {
+        using var sandbox = MSBuildSandbox.Create();
+        sandbox.WriteRuntimeCacheAsset("prebuilds", GetReleasePlatform(), RuntimeWrapperName, "partial-wrapper");
+        sandbox.WriteRuntimeCacheAsset("prebuilds", GetReleasePlatform(), "runtime.node", "partial-runtime");
+        var archive = sandbox.CreateReleaseArchive("complete-wrapper");
+        var assetName = $"github-copilot-0.0.0-test-{GetReleasePlatform()}.tgz";
+        var assetPath = $"/v0.0.0-test/{assetName}";
+        var checksumsPath = "/v0.0.0-test/SHA256SUMS.txt";
+        using var server = new ReleaseServer(new Dictionary<string, byte[]>
+        {
+            [checksumsPath] = Encoding.UTF8.GetBytes($"{ComputeSha256(archive)}  {assetName}\n"),
+            [assetPath] = archive,
+        });
+
+        var result = await sandbox.BuildAsync(new Dictionary<string, string>
+        {
+            ["CopilotCliReleaseBaseUrl"] = server.BaseUrl,
+        });
+
+        Assert.True(result.Succeeded, result.FailureMessage());
+        Assert.Equal(1, server.RequestPaths.Count(path => path == checksumsPath));
+        Assert.Equal(1, server.RequestPaths.Count(path => path == assetPath));
+        Assert.Equal("complete-wrapper", File.ReadAllText(sandbox.ExpectedRuntimeAsset(RuntimeWrapperName)));
+        Assert.Equal("runtime", File.ReadAllText(sandbox.ExpectedRuntimeAsset("runtime.node")));
+        Assert.True(File.Exists(sandbox.ExpectedCacheAsset(".copilot-runtime-complete")));
+    }
+
+    [Fact]
+    public async Task ReleaseAsset_WithChecksumMismatch_FailsBeforeExtraction()
+    {
+        using var sandbox = MSBuildSandbox.Create();
+        var archive = Encoding.UTF8.GetBytes("not the expected archive");
+        var assetName = $"github-copilot-0.0.0-test-{GetReleasePlatform()}.tgz";
+        using var server = new ReleaseServer(new Dictionary<string, byte[]>
+        {
+            ["/v0.0.0-test/SHA256SUMS.txt"] =
+                Encoding.UTF8.GetBytes($"{new string('0', 64)} *{assetName}\n"),
+            [$"/v0.0.0-test/{assetName}"] = archive,
+        });
+
+        var result = await sandbox.BuildAsync(new Dictionary<string, string>
+        {
+            ["CopilotCliReleaseBaseUrl"] = server.BaseUrl,
+        });
+
+        Assert.False(result.Succeeded, "Build should fail when the release checksum does not match.");
+        Assert.Contains($"Checksum mismatch for {assetName}", result.StandardOutput, StringComparison.Ordinal);
+        Assert.False(File.Exists(sandbox.ExpectedOutputBinary()));
+    }
+
+    [Fact]
     public async Task RuntimePackageAssets_AreFilteredAndCopiedToOutput()
     {
         using var sandbox = MSBuildSandbox.Create();
         var preinstalled = sandbox.WritePreinstalledBinary("fake-cli-contents");
-        sandbox.WriteRuntimeCacheAsset("prebuilds", GetNpmPlatform(), "runtime.node", "runtime");
-        sandbox.WriteRuntimeCacheAsset("prebuilds", GetNpmPlatform(),
-            OperatingSystem.IsWindows() ? "copilot-runtime.exe" : "copilot-runtime", "wrapper");
-        sandbox.WriteRuntimeCacheAsset("ripgrep", "bin", GetNpmPlatform(), "rg", "ripgrep");
+        sandbox.WriteRuntimeCacheAsset("prebuilds", GetReleasePlatform(), "runtime.node", "runtime");
+        sandbox.WriteRuntimeCacheAsset("prebuilds", GetReleasePlatform(),
+            RuntimeWrapperName, "wrapper");
+        sandbox.WriteRuntimeCacheAsset("ripgrep", "bin", GetReleasePlatform(), "rg", "ripgrep");
         sandbox.WriteRuntimeCacheAsset("definitions", "future.json", "{}");
         sandbox.WriteRuntimeCacheAsset("copilot-sdk", "extension.js", "extension");
         sandbox.WriteRuntimeCacheAsset("preloads", "extension_bootstrap.mjs", "preload");
@@ -130,7 +222,7 @@ public class MSBuildTargetsTests
         });
 
         Assert.True(result.Succeeded, result.FailureMessage());
-        Assert.Equal("ripgrep", File.ReadAllText(sandbox.ExpectedRuntimeAsset("ripgrep", "bin", GetNpmPlatform(), "rg")));
+        Assert.Equal("ripgrep", File.ReadAllText(sandbox.ExpectedRuntimeAsset("ripgrep", "bin", GetReleasePlatform(), "rg")));
         Assert.Equal("{}", File.ReadAllText(sandbox.ExpectedRuntimeAsset("definitions", "future.json")));
         Assert.Equal("extension", File.ReadAllText(sandbox.ExpectedRuntimeAsset("copilot-sdk", "extension.js")));
         Assert.Equal("preload", File.ReadAllText(sandbox.ExpectedRuntimeAsset("preloads", "extension_bootstrap.mjs")));
@@ -186,7 +278,7 @@ public class MSBuildTargetsTests
             "Could not locate GitHub.Copilot.SDK.targets relative to test assembly or source file.");
     }
 
-    private static string GetNpmPlatform()
+    private static string GetReleasePlatform()
     {
         var arch = System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture
             == System.Runtime.InteropServices.Architecture.Arm64
@@ -195,6 +287,16 @@ public class MSBuildTargetsTests
         if (OperatingSystem.IsWindows()) return $"win32-{arch}";
         if (OperatingSystem.IsMacOS()) return $"darwin-{arch}";
         return $"linux-{arch}";
+    }
+
+    private static string ComputeSha256(byte[] contents)
+    {
+#if NETFRAMEWORK
+        using var sha256 = SHA256.Create();
+        return BitConverter.ToString(sha256.ComputeHash(contents)).Replace("-", "").ToLowerInvariant();
+#else
+        return Convert.ToHexString(SHA256.HashData(contents)).ToLowerInvariant();
+#endif
     }
 
     /// <summary>
@@ -244,6 +346,36 @@ public class MSBuildTargetsTests
             return path;
         }
 
+        public byte[] CreateReleaseArchive(string runtimeWrapperContents)
+        {
+            var sourceDir = Path.Combine(ProjectDir, "release-source");
+            var packageDir = Path.Combine(sourceDir, "package");
+            var prebuildDir = Path.Combine(packageDir, "prebuilds", GetReleasePlatform());
+            Directory.CreateDirectory(prebuildDir);
+            File.WriteAllText(Path.Combine(prebuildDir, "runtime.node"), "runtime");
+            File.WriteAllText(Path.Combine(prebuildDir, RuntimeWrapperName), runtimeWrapperContents);
+
+            var archivePath = Path.Combine(ProjectDir, "release-asset.tgz");
+            var tarPath = OperatingSystem.IsWindows()
+                ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "System32", "tar.exe")
+                : "tar";
+            var startInfo = new ProcessStartInfo(tarPath)
+            {
+                Arguments = $"-czf \"{archivePath}\" -C \"{sourceDir}\" package",
+                RedirectStandardError = true,
+                UseShellExecute = false,
+            };
+            using var process = Process.Start(startInfo) ??
+                throw new InvalidOperationException("Failed to start tar while creating a release test asset.");
+            var standardError = process.StandardError.ReadToEnd();
+            process.WaitForExit();
+            if (process.ExitCode != 0)
+            {
+                throw new InvalidOperationException($"tar failed while creating a release test asset: {standardError}");
+            }
+            return File.ReadAllBytes(archivePath);
+        }
+
         public string ExpectedOutputBinary()
         {
             var rid = GetPortableRid();
@@ -253,14 +385,20 @@ public class MSBuildTargetsTests
         public void WriteRuntimeCacheAsset(params string[] pathAndContents)
         {
             var pathParts = pathAndContents.Take(pathAndContents.Length - 1).ToArray();
+            var path = ExpectedCacheAsset(pathParts);
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllText(path, pathAndContents[^1]);
+        }
+
+        public string ExpectedCacheAsset(params string[] pathParts)
+        {
             var path = Path.Combine(ProjectDir, "obj", "Debug", "net8.0", "copilot-cli", "0.0.0-test",
-                GetNpmPlatform());
+                GetReleasePlatform());
             foreach (var part in pathParts)
             {
                 path = Path.Combine(path, part);
             }
-            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            File.WriteAllText(path, pathAndContents[^1]);
+            return path;
         }
 
         public string ExpectedRuntimeAsset(params string[] pathParts)
@@ -369,6 +507,92 @@ public class MSBuildTargetsTests
                 System.Runtime.InteropServices.Architecture.Arm64 => "linux-arm64",
                 _ => "linux-x64",
             };
+        }
+    }
+
+    private sealed class ReleaseServer : IDisposable
+    {
+        private readonly IReadOnlyDictionary<string, byte[]> _responses;
+        private readonly TcpListener _listener = new(IPAddress.Loopback, 0);
+        private readonly CancellationTokenSource _cancellation = new();
+        private readonly Task _serverTask;
+
+        public ReleaseServer(IReadOnlyDictionary<string, byte[]> responses)
+        {
+            _responses = responses;
+            _listener.Start();
+            var endpoint = (IPEndPoint)_listener.LocalEndpoint;
+            BaseUrl = $"http://127.0.0.1:{endpoint.Port}";
+            _serverTask = ServeAsync();
+        }
+
+        public string BaseUrl { get; }
+
+        public ConcurrentQueue<string> RequestPaths { get; } = new();
+
+        public void Dispose()
+        {
+            _cancellation.Cancel();
+            _listener.Stop();
+            try { _serverTask.GetAwaiter().GetResult(); }
+            catch (OperationCanceledException) { }
+            _cancellation.Dispose();
+        }
+
+        private async Task ServeAsync()
+        {
+            while (!_cancellation.IsCancellationRequested)
+            {
+                TcpClient client;
+                try
+                {
+                    client = await _listener.AcceptTcpClientAsync();
+                }
+                catch (ObjectDisposedException) when (_cancellation.IsCancellationRequested)
+                {
+                    break;
+                }
+                catch (SocketException) when (_cancellation.IsCancellationRequested)
+                {
+                    break;
+                }
+                await RespondAsync(client);
+            }
+        }
+
+        private async Task RespondAsync(TcpClient client)
+        {
+            using (client)
+            {
+                var stream = client.GetStream();
+                using var reader = new StreamReader(stream, Encoding.ASCII, false, 1024, leaveOpen: true);
+                var requestLine = await reader.ReadLineAsync();
+                string? header;
+                do
+                {
+                    header = await reader.ReadLineAsync();
+                }
+                while (!string.IsNullOrEmpty(header));
+
+                var path = requestLine?.Split(' ', StringSplitOptions.RemoveEmptyEntries).ElementAtOrDefault(1) ?? "";
+                RequestPaths.Enqueue(path);
+                var found = _responses.TryGetValue(path, out var body);
+                body ??= Encoding.UTF8.GetBytes("Not found");
+                var status = found ? "200 OK" : "404 Not Found";
+                var responseHeaders = Encoding.ASCII.GetBytes(
+                    $"HTTP/1.1 {status}\r\nContent-Length: {body.Length}\r\nConnection: close\r\n\r\n");
+                await WriteBytesAsync(stream, responseHeaders);
+                await WriteBytesAsync(stream, body);
+            }
+        }
+
+        private static Task WriteBytesAsync(Stream stream, byte[] contents)
+        {
+#if NETFRAMEWORK
+            return stream.WriteAsync(contents, 0, contents.Length);
+#else
+            return stream.WriteAsync(contents).AsTask();
+#endif
         }
     }
 

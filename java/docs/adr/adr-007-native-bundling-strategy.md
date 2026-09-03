@@ -361,7 +361,7 @@ The pattern follows DJL's `LibUtils.loadLibrary()` approach: detect the platform
   2. Locates the matching `runtime.node` binary on the classpath (via `getResourceAsStream` from the classifier JAR).
   3. Extracts `runtime.node` and the transitional CLI entrypoint into `~/.copilot/runtime-cache/` if valid cached files are not already present.
   4. Loads it via [JNA](#references) using the C ABI entry points, per the [binding technology decision](#binding-technology-jna-over-panama-ffm) above. The JNA-specific code is confined behind an internal binding interface to preserve a future FFM migration path.
-* A validated supported-host profile fetches the matching platform tarball from the pinned `github/copilot-cli` release, verifies its release SHA-256, and packages the version-matched runtime files.
+* A validated supported-host profile fetches `github-copilot-<version>-<classifier>.tgz` from the pinned `github/copilot-cli` release, verifies it against the release's `SHA256SUMS.txt`, and packages the version-matched runtime files without an npm runtime-package fallback.
 * The current release work publishes the `linux-x64`, `linux-arm64`, `win32-x64`, `win32-arm64`, and `darwin-arm64` classifiers. The planned classifier set expands to the other detected platforms.
 * Adding an implemented platform requires validated host activation, a profile that supplies the classifier and platform CLI filename, and lifecycle bindings for the shared host validation, fetch, script test, package, and verification executions.
 * `cli-native.node` is not bundled. It provides terminal UI features that are irrelevant to the Java SDK's programmatic API surface.

@@ -34,12 +34,14 @@ CHECKSUMS_URL="https://github.com/github/copilot-cli/releases/download/v${VERSIO
 SHA256SUMS="$(curl --fail --silent --show-error --location --retry 3 "${CHECKSUMS_URL}")"
 
 ASSETS=(
-  "copilot-darwin-arm64.tar.gz"
-  "copilot-darwin-x64.tar.gz"
-  "copilot-linux-arm64.tar.gz"
-  "copilot-linux-x64.tar.gz"
-  "copilot-win32-arm64.zip"
-  "copilot-win32-x64.zip"
+  "github-copilot-${VERSION}-darwin-arm64.tgz"
+  "github-copilot-${VERSION}-darwin-x64.tgz"
+  "github-copilot-${VERSION}-linux-arm64.tgz"
+  "github-copilot-${VERSION}-linux-x64.tgz"
+  "github-copilot-${VERSION}-linuxmusl-arm64.tgz"
+  "github-copilot-${VERSION}-linuxmusl-x64.tgz"
+  "github-copilot-${VERSION}-win32-arm64.tgz"
+  "github-copilot-${VERSION}-win32-x64.tgz"
 )
 
 TEMP_OUTPUT="${OUTPUT}.tmp.$$"

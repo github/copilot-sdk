@@ -163,7 +163,7 @@ jobs:
 
           git commit -m "Update Copilot CLI to $VERSION
 
-          - Updated the Node.js CLI release pin
+          - Updated the shared CLI release pin
           - Re-ran code generators
           - Formatted generated code"
 
@@ -173,7 +173,7 @@ jobs:
           Automated update of the Copilot CLI release to version `PLACEHOLDER_VERSION`.
 
           ### Changes
-          - Updated the release pin in `nodejs/package.json`
+          - Updated the shared release pin in `nodejs/package.json`
           - Validated the release assets listed in `SHA256SUMS.txt`
           - Re-ran all code generators (`scripts/codegen`)
           - Formatted generated output
@@ -221,7 +221,7 @@ jobs:
           else
             gh pr create \
               --draft \
-              --title "Update @github/copilot to $VERSION" \
+              --title "Update Copilot CLI to $VERSION" \
               --body "$PR_BODY" \
               --base main \
               --head "$BRANCH"

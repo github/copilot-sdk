@@ -1,4 +1,4 @@
-#[path = "build/in_process.rs"]
+#[path = "build/runtime.rs"]
 mod implementation;
 
 fn main() {
