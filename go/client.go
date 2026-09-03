@@ -985,6 +985,19 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	}
 	req.SessionID = localSessionID
 
+	// unregisterSession removes only the session created by this call and stops
+	// its event consumer. The latter is essential on CreateSession error paths:
+	// newSession starts processEvents eagerly, and no caller receives the failed
+	// session to disconnect it.
+	unregisterSession := func(sessionID string, s *Session) {
+		c.sessionsMux.Lock()
+		if c.sessions[sessionID] == s {
+			delete(c.sessions, sessionID)
+		}
+		c.sessionsMux.Unlock()
+		s.stopEventProcessing()
+	}
+
 	// initializeSession creates the session, wires up handlers, and registers
 	// it in the sessions map. Invoked from the read loop the instant the
 	// session.create response arrives (synchronously, before the next
@@ -1038,17 +1051,13 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 
 		if c.options.SessionFS != nil {
 			if config.CreateSessionFSProvider == nil {
-				c.sessionsMux.Lock()
-				delete(c.sessions, sessionID)
-				c.sessionsMux.Unlock()
+				unregisterSession(sessionID, s)
 				return nil, fmt.Errorf("CreateSessionFSProvider is required in session config when SessionFS is enabled in client options")
 			}
 			provider := config.CreateSessionFSProvider(s)
 			if c.options.SessionFS.Capabilities != nil && c.options.SessionFS.Capabilities.Sqlite {
 				if _, ok := provider.(SessionFSSqliteProvider); !ok {
-					c.sessionsMux.Lock()
-					delete(c.sessions, sessionID)
-					c.sessionsMux.Unlock()
+					unregisterSession(sessionID, s)
 					return nil, fmt.Errorf("SessionFS capabilities declare SQLite support but the provider does not implement SessionFSSqliteProvider")
 				}
 			}
@@ -1105,9 +1114,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	result, err := c.client.RequestWithInlineResponse(ctx, "session.create", req, inlineCb)
 	if err != nil {
 		if registeredSessionID != "" {
-			c.sessionsMux.Lock()
-			delete(c.sessions, registeredSessionID)
-			c.sessionsMux.Unlock()
+			unregisterSession(registeredSessionID, session)
 		}
 		return nil, fmt.Errorf("failed to create session: %w", err)
 	}
@@ -1115,9 +1122,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	var response createSessionResponse
 	if err := json.Unmarshal(result, &response); err != nil {
 		if registeredSessionID != "" {
-			c.sessionsMux.Lock()
-			delete(c.sessions, registeredSessionID)
-			c.sessionsMux.Unlock()
+			unregisterSession(registeredSessionID, session)
 		}
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
@@ -1127,9 +1132,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	}
 
 	if localSessionID != "" && response.SessionID != "" && response.SessionID != localSessionID {
-		c.sessionsMux.Lock()
-		delete(c.sessions, registeredSessionID)
-		c.sessionsMux.Unlock()
+		unregisterSession(registeredSessionID, session)
 		return nil, fmt.Errorf("session.create returned sessionId %s but the caller requested %s", response.SessionID, localSessionID)
 	}
 	if config.OnMCPAuthRequest != nil {
@@ -1411,6 +1414,11 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 			}
 		}
 		c.sessionsMux.Unlock()
+		// newSession starts processEvents eagerly, before the RPC confirms the
+		// resume; every failure path here restores the previously-registered
+		// session (if any) but never returns this failed one to the caller, so
+		// its event consumer must be stopped here or it leaks forever.
+		session.stopEventProcessing()
 	}
 
 	if c.options.SessionFS != nil {

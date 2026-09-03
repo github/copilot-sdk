@@ -1356,7 +1356,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         }
         catch (Exception ex)
         {
-            session?.RemoveFromClient();
+            session?.Unregister();
 
             if (ex is not OperationCanceledException)
             {
@@ -1561,7 +1561,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         }
         catch (Exception ex)
         {
-            session?.RemoveFromClient();
+            session?.Unregister();
             if (ex is not OperationCanceledException)
             {
                 LoggingHelpers.LogTiming(_logger, LogLevel.Warning, ex,

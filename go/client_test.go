@@ -924,6 +924,225 @@ func sessionIDFromParams(t *testing.T, params json.RawMessage) string {
 	return decoded.SessionID
 }
 
+func TestClient_CreateSessionFailureClosesRegisteredSession(t *testing.T) {
+	tests := []struct {
+		name       string
+		response   func(string) (json.RawMessage, *jsonrpc2.Error)
+		wantErrSub string
+	}{
+		{
+			name: "RPC failure",
+			response: func(string) (json.RawMessage, *jsonrpc2.Error) {
+				return nil, &jsonrpc2.Error{Code: -32000, Message: "session creation failed"}
+			},
+			wantErrSub: "failed to create session",
+		},
+		{
+			name: "invalid response",
+			response: func(string) (json.RawMessage, *jsonrpc2.Error) {
+				return json.RawMessage(`"invalid"`), nil
+			},
+			wantErrSub: "failed to unmarshal response",
+		},
+		{
+			name: "session ID mismatch",
+			response: func(string) (json.RawMessage, *jsonrpc2.Error) {
+				return json.RawMessage(`{"sessionId":"different-session"}`), nil
+			},
+			wantErrSub: "but the caller requested failed-session",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
+			t.Cleanup(server.Stop)
+			client := &Client{
+				client:   rpcClient,
+				RPC:      rpc.NewServerRPC(rpcClient),
+				sessions: make(map[string]*Session),
+			}
+
+			captured := make(chan *Session, 1)
+			server.SetRequestHandler("session.create", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+				sessionID := sessionIDFromParams(t, params)
+				client.sessionsMux.Lock()
+				session := client.sessions[sessionID]
+				client.sessionsMux.Unlock()
+				captured <- session
+				return tt.response(sessionID)
+			})
+
+			_, err := client.CreateSession(t.Context(), &SessionConfig{SessionID: "failed-session"})
+			if err == nil || !strings.Contains(err.Error(), tt.wantErrSub) {
+				t.Fatalf("CreateSession error = %v, want substring %q", err, tt.wantErrSub)
+			}
+
+			session := <-captured
+			if session == nil {
+				t.Fatal("session was not registered before session.create")
+			}
+			assertSessionEventChannelClosed(t, session)
+			assertSessionNotRegistered(t, client, "failed-session")
+		})
+	}
+}
+
+func TestClient_CreateSessionInitializationFailureClosesRegisteredSession(t *testing.T) {
+	rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
+	t.Cleanup(server.Stop)
+	client := &Client{
+		client:   rpcClient,
+		RPC:      rpc.NewServerRPC(rpcClient),
+		sessions: make(map[string]*Session),
+		options: ClientOptions{SessionFS: &SessionFSConfig{
+			InitialWorkingDirectory: "/",
+			SessionStatePath:        "/session-state",
+			Conventions:             rpc.SessionFSSetProviderConventionsPosix,
+			Capabilities:            &SessionFSCapabilities{Sqlite: true},
+		}},
+	}
+
+	var captured *Session
+	_, err := client.CreateSession(t.Context(), &SessionConfig{
+		SessionID: "failed-session-fs",
+		CreateSessionFSProvider: func(session *Session) SessionFSProvider {
+			captured = session
+			return noSQLiteSessionFSProvider{}
+		},
+	})
+	if err == nil || !strings.Contains(err.Error(), "does not implement SessionFSSqliteProvider") {
+		t.Fatalf("CreateSession error = %v, want SQLite provider validation error", err)
+	}
+	if captured == nil {
+		t.Fatal("CreateSessionFSProvider did not receive the registered session")
+	}
+	assertSessionEventChannelClosed(t, captured)
+	assertSessionNotRegistered(t, client, "failed-session-fs")
+}
+
+func TestClient_ResumeSessionFailureClosesRegisteredSession(t *testing.T) {
+	tests := []struct {
+		name       string
+		response   func(string) (json.RawMessage, *jsonrpc2.Error)
+		wantErrSub string
+	}{
+		{
+			name: "RPC failure",
+			response: func(string) (json.RawMessage, *jsonrpc2.Error) {
+				return nil, &jsonrpc2.Error{Code: -32000, Message: "session resume failed"}
+			},
+			wantErrSub: "failed to resume session",
+		},
+		{
+			name: "invalid response",
+			response: func(string) (json.RawMessage, *jsonrpc2.Error) {
+				return json.RawMessage(`"invalid"`), nil
+			},
+			wantErrSub: "failed to unmarshal response",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
+			t.Cleanup(server.Stop)
+			client := &Client{
+				client:   rpcClient,
+				RPC:      rpc.NewServerRPC(rpcClient),
+				sessions: make(map[string]*Session),
+			}
+
+			captured := make(chan *Session, 1)
+			server.SetRequestHandler("session.resume", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+				sessionID := sessionIDFromParams(t, params)
+				client.sessionsMux.Lock()
+				session := client.sessions[sessionID]
+				client.sessionsMux.Unlock()
+				captured <- session
+				return tt.response(sessionID)
+			})
+
+			_, err := client.ResumeSession(t.Context(), "resumed-session", &ResumeSessionConfig{})
+			if err == nil || !strings.Contains(err.Error(), tt.wantErrSub) {
+				t.Fatalf("ResumeSession error = %v, want substring %q", err, tt.wantErrSub)
+			}
+
+			session := <-captured
+			if session == nil {
+				t.Fatal("session was not registered before session.resume")
+			}
+			assertSessionEventChannelClosed(t, session)
+			assertSessionNotRegistered(t, client, "resumed-session")
+		})
+	}
+}
+
+func TestClient_ResumeSessionInitializationFailureClosesRegisteredSession(t *testing.T) {
+	rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
+	t.Cleanup(server.Stop)
+	client := &Client{
+		client:   rpcClient,
+		RPC:      rpc.NewServerRPC(rpcClient),
+		sessions: make(map[string]*Session),
+		options: ClientOptions{SessionFS: &SessionFSConfig{
+			InitialWorkingDirectory: "/",
+			SessionStatePath:        "/session-state",
+			Conventions:             rpc.SessionFSSetProviderConventionsPosix,
+			Capabilities:            &SessionFSCapabilities{Sqlite: true},
+		}},
+	}
+
+	var captured *Session
+	_, err := client.ResumeSession(t.Context(), "resumed-session-fs", &ResumeSessionConfig{
+		CreateSessionFSProvider: func(session *Session) SessionFSProvider {
+			captured = session
+			return noSQLiteSessionFSProvider{}
+		},
+	})
+	if err == nil || !strings.Contains(err.Error(), "does not implement SessionFSSqliteProvider") {
+		t.Fatalf("ResumeSession error = %v, want SQLite provider validation error", err)
+	}
+	if captured == nil {
+		t.Fatal("CreateSessionFSProvider did not receive the registered session")
+	}
+	assertSessionEventChannelClosed(t, captured)
+	assertSessionNotRegistered(t, client, "resumed-session-fs")
+}
+
+func assertSessionEventChannelClosed(t *testing.T, session *Session) {
+	t.Helper()
+	select {
+	case <-session.eventDone:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for session event processing to stop")
+	}
+}
+
+func assertSessionNotRegistered(t *testing.T, client *Client, sessionID string) {
+	t.Helper()
+	client.sessionsMux.Lock()
+	defer client.sessionsMux.Unlock()
+	if _, ok := client.sessions[sessionID]; ok {
+		t.Fatalf("session %q is still registered", sessionID)
+	}
+}
+
+type noSQLiteSessionFSProvider struct{}
+
+func (noSQLiteSessionFSProvider) ReadFile(string) (string, error)         { return "", nil }
+func (noSQLiteSessionFSProvider) WriteFile(string, string, *int) error    { return nil }
+func (noSQLiteSessionFSProvider) AppendFile(string, string, *int) error   { return nil }
+func (noSQLiteSessionFSProvider) Exists(string) (bool, error)             { return false, nil }
+func (noSQLiteSessionFSProvider) Stat(string) (*SessionFSFileInfo, error) { return nil, nil }
+func (noSQLiteSessionFSProvider) MakeDirectory(string, bool, *int) error  { return nil }
+func (noSQLiteSessionFSProvider) ReadDirectory(string) ([]string, error)  { return nil, nil }
+func (noSQLiteSessionFSProvider) ReadDirectoryWithTypes(string) ([]rpc.SessionFSReaddirWithTypesEntry, error) {
+	return nil, nil
+}
+func (noSQLiteSessionFSProvider) Remove(string, bool, bool) error { return nil }
+func (noSQLiteSessionFSProvider) Rename(string, string) error     { return nil }
+
 func assertRuntimeShutdownNotCalled(t *testing.T, shutdownCalled <-chan struct{}) {
 	t.Helper()
 	select {
