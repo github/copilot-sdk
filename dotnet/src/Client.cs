@@ -2716,14 +2716,12 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
     private async Task CancelExternalToolsWhenConnectionClosesAsync(JsonRpc rpc)
     {
-        try
+        await Task.WhenAny(rpc.Completion).ConfigureAwait(false);
+        if (rpc.Completion.Exception is { } exception)
         {
-            await rpc.Completion.ConfigureAwait(false);
+            _logger.LogDebug(exception, "JSON-RPC connection completed with an error");
         }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(ex, "JSON-RPC connection completed with an error");
-        }
+
         var connectionTask = _connectionTask;
         if (connectionTask is null
             || connectionTask.Status != System.Threading.Tasks.TaskStatus.RanToCompletion

@@ -896,10 +896,9 @@ public sealed partial class CopilotSession : IAsyncDisposable
             return;
         }
 
-        var cancellationSource = CancellationTokenSource.CreateLinkedTokenSource(_externalToolLifetime.Token);
+        using var cancellationSource = CancellationTokenSource.CreateLinkedTokenSource(_externalToolLifetime.Token);
         if (!_pendingExternalTools.TryAdd(requestId, cancellationSource))
         {
-            cancellationSource.Dispose();
             return;
         }
 
@@ -1033,7 +1032,6 @@ public sealed partial class CopilotSession : IAsyncDisposable
         {
             ((ICollection<KeyValuePair<string, CancellationTokenSource>>)_pendingExternalTools)
                 .Remove(new(requestId, cancellationSource));
-            cancellationSource.Dispose();
         }
 
         static string GetSingleParameterName(AIFunction tool)
