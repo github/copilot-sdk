@@ -3148,6 +3148,9 @@ class CopilotSession:
         """
         Change the Auto routing preference without changing the selected model.
 
+        **Experimental.** Part of an experimental Auto routing surface and may
+        change or be removed in a future release.
+
         The runtime does not apply the preference immediately. It records the
         request and commits it only when a later user turn using the ``auto``
         model successfully obtains a usable model from the provider. A

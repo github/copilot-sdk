@@ -606,6 +606,9 @@ impl Session {
     ///
     /// Pass `None` to return to the provider's default Auto routing.
     ///
+    /// **Experimental.** Part of an experimental Auto routing surface and may
+    /// change or be removed in a future release.
+    ///
     /// # Cancel safety
     ///
     /// **Cancel-safe.** Single `session.model.switchAutoTier` RPC; the

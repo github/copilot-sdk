@@ -2086,6 +2086,9 @@ export class CopilotSession {
              * runtime rejects this option when `model` is anything other than
              * `auto`; use {@link setAutoTier} to change the preference without
              * changing the selected model.
+             *
+             * @experimental Part of an experimental Auto routing surface and may
+             * change or be removed in a future release.
              */
             autoTier?: AutoTier | null;
         }
@@ -2112,6 +2115,9 @@ export class CopilotSession {
      * @param autoTier - Routing preference to activate, or `null` to return to
      *   the provider's default Auto routing
      * @returns The runtime's immediate acknowledgement and Auto preference snapshot
+     *
+     * @experimental Part of an experimental Auto routing surface and may change
+     * or be removed in a future release.
      *
      * @example
      * ```typescript

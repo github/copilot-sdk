@@ -1848,9 +1848,15 @@ type SetModelOptions struct {
 	// The runtime rejects this option when the model is anything other than
 	// "auto". Use [Session.SetAutoTier] to change the preference without
 	// changing the selected model.
+	//
+	// Experimental: AutoTier is part of an experimental Auto routing surface and
+	// may change or be removed.
 	AutoTier *AutoTier
 	// ClearAutoTier returns to the provider's default Auto routing as part of
 	// this switch. It is mutually exclusive with AutoTier.
+	//
+	// Experimental: ClearAutoTier is part of an experimental Auto routing surface
+	// and may change or be removed.
 	ClearAutoTier bool
 }
 
@@ -1920,6 +1926,9 @@ func (s *Session) SetModel(ctx context.Context, model string, opts *SetModelOpti
 // that has not yet been claimed by a turn.
 //
 // Pass nil to return to the provider's default Auto routing.
+//
+// Experimental: SetAutoTier is part of an experimental Auto routing surface and
+// may change or be removed.
 //
 // Example:
 //

@@ -4808,6 +4808,9 @@ pub struct SetModelOptions {
 
 /// Auto routing preference requested alongside a model switch.
 ///
+/// **Experimental.** Part of an experimental Auto routing surface and may change
+/// or be removed in a future release.
+///
 /// This is a three-state choice. Leaving [`SetModelOptions::auto_tier`] as
 /// `None` leaves the current preference alone, which is different from
 /// [`AutoTierPreference::ProviderDefault`], which actively clears it.
