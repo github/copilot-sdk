@@ -221,7 +221,10 @@ public final class CopilotClient implements AutoCloseable {
         // Parse CliUrl if provided
         if (this.options.getCliUrl() != null && !this.options.getCliUrl().isEmpty()) {
             URI uri = CliServerManager.parseCliUrl(this.options.getCliUrl());
-            this.optionsHost = uri.getHost();
+            String host = uri.getHost();
+            this.optionsHost = host != null && host.startsWith("[") && host.endsWith("]")
+                    ? host.substring(1, host.length() - 1)
+                    : host;
             this.optionsPort = uri.getPort();
         } else {
             this.optionsHost = null;

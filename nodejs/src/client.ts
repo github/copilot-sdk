@@ -14,7 +14,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
-import { Socket } from "node:net";
+import { isIPv6, Socket } from "node:net";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import {
     createMessageConnection,
@@ -748,22 +748,38 @@ export class CopilotClient {
 
     /**
      * Parse CLI URL into host and port
-     * Supports formats: "host:port", "http://host:port", "https://host:port", or just "port"
+     * Supports formats: "host:port", "[ipv6]:port", "http://host:port", "https://host:port", or just "port"
      */
     private parseCliUrl(url: string): { host: string; port: number } {
         // Remove protocol if present
-        let cleanUrl = url.replace(/^https?:\/\//, "");
+        const cleanUrl = url.replace(/^https?:\/\//, "");
 
         // Check if it's just a port number
         if (/^\d+$/.test(cleanUrl)) {
             return { host: "localhost", port: parseInt(cleanUrl, 10) };
         }
 
+        // Handle the canonical bracketed IPv6 host:port form without changing
+        // the existing parser behavior for other inputs.
+        const ipv6Match = cleanUrl.match(/^\[([^\]]+)\]:(\d+)$/);
+        if (ipv6Match) {
+            const host = ipv6Match[1];
+            if (!isIPv6(host)) {
+                throw new Error(`Invalid cliUrl format: ${url}`);
+            }
+
+            const port = parseInt(ipv6Match[2], 10);
+            if (isNaN(port) || port <= 0 || port > 65535) {
+                throw new Error(`Invalid port in cliUrl: ${url}`);
+            }
+            return { host, port };
+        }
+
         // Parse host:port format
         const parts = cleanUrl.split(":");
         if (parts.length !== 2) {
             throw new Error(
-                `Invalid cliUrl format: ${url}. Expected "host:port", "http://host:port", or "port"`
+                `Invalid cliUrl format: ${url}. Expected "host:port", "[ipv6]:port", "http://host:port", or "port"`
             );
         }
 

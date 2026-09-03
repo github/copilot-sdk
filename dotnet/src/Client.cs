@@ -177,7 +177,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                     throw new ArgumentException("GitHubToken and UseLoggedInUser cannot be combined with RuntimeConnection.ForUri (the existing runtime manages its own auth).", nameof(options));
                 }
                 var parsed = ParseRuntimeUrl(uri.Url);
-                _optionsHost = parsed.Host;
+                _optionsHost = parsed.Host.Trim('[', ']');
                 _optionsPort = parsed.Port;
                 break;
 
@@ -308,7 +308,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// <summary>
     /// Parses a runtime URL into a URI with host and port.
     /// </summary>
-    /// <param name="url">The URL to parse. Supports formats: "port", "host:port", "http://host:port".</param>
+    /// <param name="url">The URL to parse. Supports formats: "port", "host:port", "[ipv6]:port", "http://host:port".</param>
     private static Uri ParseRuntimeUrl(string url)
     {
         // If it's just a port number, treat as localhost

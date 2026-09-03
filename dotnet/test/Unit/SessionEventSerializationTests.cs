@@ -48,6 +48,40 @@ public class SessionEventSerializationTests
         }
     }
 
+    [Theory]
+    [InlineData("message-1")]
+    [InlineData(null)]
+    public void UserMessageEvent_MessageId_UsesCamelCaseAndIsOptional(string? messageId)
+    {
+        var messageIdProperty = messageId is null ? "" : $""", "messageId": "{messageId}" """;
+        var json = $$"""
+            {
+                "id": "11111111-1111-1111-1111-111111111111",
+                "timestamp": "2026-08-28T00:00:00Z",
+                "parentId": null,
+                "type": "user.message",
+                "data": {
+                    "content": "hello"
+                    {{messageIdProperty}}
+                }
+            }
+            """;
+
+        var sessionEvent = Assert.IsType<UserMessageEvent>(SessionEvent.FromJson(json));
+        Assert.Equal(messageId, sessionEvent.Data.MessageId);
+
+        using var document = JsonDocument.Parse(sessionEvent.ToJson());
+        var data = document.RootElement.GetProperty("data");
+        if (messageId is null)
+        {
+            Assert.False(data.TryGetProperty("messageId", out _));
+        }
+        else
+        {
+            Assert.Equal(messageId, data.GetProperty("messageId").GetString());
+        }
+    }
+
     public static TheoryData<SessionEvent, string> JsonElementBackedEvents => new()
     {
         {

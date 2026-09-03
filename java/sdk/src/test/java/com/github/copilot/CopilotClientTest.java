@@ -180,6 +180,15 @@ public class CopilotClientTest {
     }
 
     @Test
+    void testBracketedIpv6CliUrlNormalizesHost() throws Exception {
+        try (var client = new CopilotClient(new CopilotClientOptions().setCliUrl("[::1]:4321"))) {
+            Field hostField = CopilotClient.class.getDeclaredField("optionsHost");
+            hostField.setAccessible(true);
+            assertEquals("::1", hostField.get(client));
+        }
+    }
+
+    @Test
     void testCliUrlMutualExclusionWithCliPath() {
         var options = new CopilotClientOptions().setCliUrl("localhost:3000").setCliPath("/path/to/cli");
 
