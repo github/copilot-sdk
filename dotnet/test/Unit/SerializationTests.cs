@@ -596,32 +596,6 @@ public class SerializationTests
     }
 
     [Fact]
-    public void SessionRequests_SerializeAuthClientIdMetadataUrl_AndOmitWhenUnset()
-    {
-        var options = GetSerializerOptions();
-        const string url = "https://example.com/oauth/client-metadata.json";
-
-        foreach (var requestName in new[] { "CreateSessionRequest", "ResumeSessionRequest" })
-        {
-            var requestType = GetNestedType(typeof(CopilotClient), requestName);
-            var configured = CreateInternalRequest(
-                requestType,
-                ("SessionId", "session-id"),
-                ("AuthClientIdMetadataUrl", url));
-            using var configuredDocument = JsonDocument.Parse(
-                JsonSerializer.Serialize(configured, requestType, options));
-            Assert.Equal(
-                url,
-                configuredDocument.RootElement.GetProperty("authClientIdMetadataUrl").GetString());
-
-            var unset = CreateInternalRequest(requestType, ("SessionId", "session-id"));
-            using var unsetDocument = JsonDocument.Parse(
-                JsonSerializer.Serialize(unset, requestType, options));
-            Assert.False(unsetDocument.RootElement.TryGetProperty("authClientIdMetadataUrl", out _));
-        }
-    }
-
-    [Fact]
     public void SessionConfigClone_PreservesExpAssignments()
     {
         var config = new SessionConfig

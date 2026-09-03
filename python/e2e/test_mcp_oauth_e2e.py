@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qs, urlparse
 
 import httpx
 import pytest
@@ -12,6 +13,7 @@ from copilot.generated.rpc import (
     MCPAppsCallToolRequest,
     MCPListToolsRequest,
     MCPOauthHandlePendingRequest,
+    MCPOauthLoginRequest,
     MCPOauthPendingRequestResponse,
 )
 from copilot.session import MCPServerConfig, PermissionHandler
@@ -26,17 +28,22 @@ EXPECTED_TOKEN = "sdk-host-token"
 REFRESH_TOKEN = f"{EXPECTED_TOKEN}-refresh"
 UPSCOPE_TOKEN = f"{EXPECTED_TOKEN}-upscope"
 REAUTH_TOKEN = f"{EXPECTED_TOKEN}-reauth"
+CIMD_URL = "https://github.com/copilot/cli/client-metadata.json"
 
 pytestmark = pytest.mark.asyncio(loop_scope="module")
 
 
-async def _start_oauth_mcp_server() -> tuple[str, asyncio.subprocess.Process]:
+async def _start_oauth_mcp_server(cimd_supported: bool = False) -> tuple[str, asyncio.subprocess.Process]:
     process = await asyncio.create_subprocess_exec(
         "node",
         TEST_MCP_OAUTH_SERVER,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
-        env={**os.environ, "EXPECTED_TOKEN": EXPECTED_TOKEN},
+        env={
+            **os.environ,
+            "EXPECTED_TOKEN": EXPECTED_TOKEN,
+            "CIMD_SUPPORTED": "true" if cimd_supported else "false",
+        },
     )
     assert process.stdout is not None
 
@@ -100,6 +107,32 @@ async def _wait_for_mcp_server_status(
 
 
 class TestMcpOAuth:
+    async def test_uses_cimd_url_instead_of_dynamic_registration(self, ctx: E2ETestContext):
+        url, process = await _start_oauth_mcp_server(cimd_supported=True)
+        server_name = "oauth-cimd-mcp"
+        try:
+            session = await ctx.client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                auth_client_id_metadata_url=CIMD_URL,
+                mcp_servers={
+                    server_name: MCPServerConfig(
+                        type="http",
+                        url=f"{url}/mcp",
+                        tools=["*"],
+                    )
+                },
+            )
+            await _wait_for_mcp_server_status(session, server_name, McpServerStatus.NEEDS_AUTH)
+            result = await session.rpc.mcp.oauth.login(
+                MCPOauthLoginRequest(server_name=server_name)
+            )
+            assert result.authorization_url is not None
+            assert parse_qs(urlparse(result.authorization_url).query)["client_id"] == [CIMD_URL]
+            assert not any(request.get("path") == "/register" for request in await _requests(url))
+            await session.disconnect()
+        finally:
+            await _stop_process(process)
+
     async def test_should_satisfy_mcp_oauth_using_host_provided_token(self, ctx: E2ETestContext):
         url, process = await _start_oauth_mcp_server()
         server_name = "oauth-protected-mcp"

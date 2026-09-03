@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use github_copilot_sdk::handler::{McpAuthHandler, McpAuthRequest, McpAuthResult};
-use github_copilot_sdk::rpc::{McpAppsCallToolRequest, McpListToolsRequest};
+use github_copilot_sdk::rpc::{McpAppsCallToolRequest, McpListToolsRequest, McpOauthLoginRequest};
 use github_copilot_sdk::session::Session;
 use github_copilot_sdk::session_events::{McpOauthRequestReason, McpServerStatus};
 use github_copilot_sdk::{IndexMap, McpHttpServerConfig, McpServerConfig, RequestId, SessionId};
@@ -22,6 +22,61 @@ const EXPECTED_TOKEN: &str = "sdk-host-token";
 const REFRESH_TOKEN: &str = "sdk-host-token-refresh";
 const UPSCOPE_TOKEN: &str = "sdk-host-token-upscope";
 const REAUTH_TOKEN: &str = "sdk-host-token-reauth";
+const CIMD_URL: &str = "https://github.com/copilot/cli/client-metadata.json";
+
+#[tokio::test]
+async fn should_use_cimd_url_instead_of_dynamic_registration() {
+    with_e2e_context_no_snapshot(|ctx| {
+        Box::pin(async move {
+            let mut oauth_server = OAuthMcpServer::start_with_cimd(
+                ctx.repo_root()
+                    .join("test/harness/test-mcp-oauth-server.mjs"),
+            )
+            .await;
+            let server_name = "oauth-cimd-mcp";
+            let client = ctx.start_client().await;
+            let session = client
+                .create_session(
+                    ctx.approve_all_session_config()
+                        .with_auth_client_id_metadata_url(CIMD_URL)
+                        .with_mcp_servers(IndexMap::from([(
+                            server_name.to_string(),
+                            McpServerConfig::Http(McpHttpServerConfig {
+                                tools: Some(vec!["*".to_string()]),
+                                timeout: None,
+                                url: format!("{}/mcp", oauth_server.url),
+                                headers: HashMap::new(),
+                            }),
+                        )])),
+                )
+                .await
+                .expect("create session");
+            wait_for_mcp_server_status(&session, server_name, McpServerStatus::NeedsAuth).await;
+            let result = session
+                .rpc()
+                .mcp()
+                .oauth()
+                .login(McpOauthLoginRequest {
+                    server_name: server_name.to_string(),
+                    ..Default::default()
+                })
+                .await
+                .expect("MCP OAuth login");
+            let authorization_url = result.authorization_url.expect("authorization URL");
+            assert_eq!(
+                url::Url::parse(&authorization_url)
+                    .expect("valid authorization URL")
+                    .query_pairs()
+                    .find(|(key, _)| key == "client_id")
+                    .map(|(_, value)| value.into_owned()),
+                Some(CIMD_URL.to_string())
+            );
+            let requests = oauth_server.requests().await;
+            assert!(requests.iter().all(|request| request.path != "/register"));
+        })
+    })
+    .await;
+}
 
 #[tokio::test]
 async fn should_satisfy_mcp_oauth_using_host_provided_token() {
@@ -482,6 +537,7 @@ impl McpAuthHandler for BlockingAuthHandler {
 #[derive(Deserialize)]
 struct OAuthMcpRequest {
     authorization: Option<String>,
+    path: String,
 }
 
 struct OAuthMcpServer {
@@ -491,9 +547,18 @@ struct OAuthMcpServer {
 
 impl OAuthMcpServer {
     async fn start(script: PathBuf) -> Self {
+        Self::start_with_mode(script, false).await
+    }
+
+    async fn start_with_cimd(script: PathBuf) -> Self {
+        Self::start_with_mode(script, true).await
+    }
+
+    async fn start_with_mode(script: PathBuf, cimd: bool) -> Self {
         let mut child = Command::new("node")
             .arg(script)
             .env("EXPECTED_TOKEN", EXPECTED_TOKEN)
+            .env("CIMD_SUPPORTED", if cimd { "true" } else { "false" })
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .kill_on_drop(true)

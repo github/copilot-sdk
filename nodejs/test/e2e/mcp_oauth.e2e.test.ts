@@ -19,6 +19,7 @@ const EXPECTED_TOKEN = "sdk-host-token";
 const REFRESH_TOKEN = `${EXPECTED_TOKEN}-refresh`;
 const UPSCOPE_TOKEN = `${EXPECTED_TOKEN}-upscope`;
 const REAUTH_TOKEN = `${EXPECTED_TOKEN}-reauth`;
+const CIMD_URL = "https://github.com/copilot/cli/client-metadata.json";
 
 describe("MCP OAuth host auth", async () => {
     const { copilotClient: client } = await createSdkTestContext({
@@ -28,6 +29,34 @@ describe("MCP OAuth host auth", async () => {
                 MCP_APPS: "true",
             },
         },
+    });
+
+    it("should use the host CIMD URL instead of dynamic registration", { timeout: 120_000 }, async () => {
+        const oauthServer = await startOAuthMcpServer({ cimdSupported: true });
+        const serverName = "oauth-cimd-mcp";
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            authClientIdMetadataUrl: CIMD_URL,
+            mcpServers: {
+                [serverName]: {
+                    type: "http",
+                    url: `${oauthServer.url}/mcp`,
+                    tools: ["*"],
+                } as MCPServerConfig,
+            },
+        });
+        onTestFinished(() => disconnectSession(session));
+
+        await waitForMcpServerStatus(session, serverName, "needs-auth");
+        const result = await session.rpc.mcp.oauth.login({
+            serverName,
+            clientName: "SDK E2E",
+        });
+
+        expect(result.authorizationUrl).toBeDefined();
+        expect(new URL(result.authorizationUrl!).searchParams.get("client_id")).toBe(CIMD_URL);
+        const requests = await oauthServer.requests();
+        expect(requests.filter((request) => request.path === "/register")).toHaveLength(0);
     });
 
     it("should satisfy MCP OAuth using host-provided token", { timeout: 120_000 }, async () => {
@@ -308,12 +337,12 @@ async function callWhoami(
     expect(result.content).toEqual([{ type: "text", text: "oauth-test-user" }]);
 }
 
-async function startOAuthMcpServer(): Promise<{
+async function startOAuthMcpServer(options: { cimdSupported?: boolean } = {}): Promise<{
     url: string;
-    requests: () => Promise<Array<{ authorization: string | null }>>;
+    requests: () => Promise<Array<{ authorization: string | null; path: string }>>;
 }> {
     const child = spawn(process.execPath, [TEST_MCP_OAUTH_SERVER], {
-        env: { ...process.env, EXPECTED_TOKEN },
+        env: { ...process.env, EXPECTED_TOKEN, CIMD_SUPPORTED: options.cimdSupported ? "true" : "false" },
         stdio: ["ignore", "pipe", "pipe"],
     });
     onTestFinished(() => stopChild(child));

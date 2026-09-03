@@ -285,20 +285,6 @@ public class SessionRequestBuilderTest {
     }
 
     @Test
-    void testBuildCreateRequestForwardsAuthClientIdMetadataUrl() {
-        var url = "https://example.com/oauth/client-metadata.json";
-        var config = new SessionConfig().setAuthClientIdMetadataUrl(url);
-        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config, "sid-auth");
-        assertEquals(url, request.getAuthClientIdMetadataUrl());
-    }
-
-    @Test
-    void testBuildCreateRequestOmitsAuthClientIdMetadataUrlWhenUnset() {
-        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(new SessionConfig(), "sid-auth-unset");
-        assertNull(request.getAuthClientIdMetadataUrl());
-    }
-
-    @Test
     void testBuildCreateRequestForwardsSessionPolicyOptions() {
         var sessionLimits = new SessionLimitsConfig(30.0);
         var config = new SessionConfig().setExcludedBuiltInAgents(List.of("explore")).setEnableCitations(true)
@@ -502,20 +488,6 @@ public class SessionRequestBuilderTest {
         var config = new ResumeSessionConfig().setMcpOAuthTokenStorage("persistent");
         ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-13", config);
         assertEquals("persistent", request.getMcpOAuthTokenStorage());
-    }
-
-    @Test
-    void testBuildResumeRequestForwardsAuthClientIdMetadataUrl() {
-        var url = "https://example.com/oauth/client-metadata.json";
-        var config = new ResumeSessionConfig().setAuthClientIdMetadataUrl(url);
-        ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-14", config);
-        assertEquals(url, request.getAuthClientIdMetadataUrl());
-    }
-
-    @Test
-    void testBuildResumeRequestOmitsAuthClientIdMetadataUrlWhenUnset() {
-        ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-15", new ResumeSessionConfig());
-        assertNull(request.getAuthClientIdMetadataUrl());
     }
 
     @Test

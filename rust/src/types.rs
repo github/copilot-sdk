@@ -6930,37 +6930,6 @@ mod tests {
     }
 
     #[test]
-    fn auth_client_id_metadata_url_reaches_create_and_resume_wire_payloads() {
-        let url = "https://example.com/oauth/client-metadata.json";
-
-        let (create_wire, _) = SessionConfig::default()
-            .with_auth_client_id_metadata_url(url)
-            .into_wire(None)
-            .expect("default create has no duplicate handlers");
-        let create_json = serde_json::to_value(&create_wire).unwrap();
-        assert_eq!(create_json["authClientIdMetadataUrl"], url);
-
-        let (resume_wire, _) = ResumeSessionConfig::new(SessionId::from("sess-1"))
-            .with_auth_client_id_metadata_url(url)
-            .into_wire()
-            .expect("default resume has no duplicate handlers");
-        let resume_json = serde_json::to_value(&resume_wire).unwrap();
-        assert_eq!(resume_json["authClientIdMetadataUrl"], url);
-
-        let (empty_create_wire, _) = SessionConfig::default()
-            .into_wire(None)
-            .expect("default create has no duplicate handlers");
-        let empty_create_json = serde_json::to_value(&empty_create_wire).unwrap();
-        assert!(empty_create_json.get("authClientIdMetadataUrl").is_none());
-
-        let (empty_resume_wire, _) = ResumeSessionConfig::new(SessionId::from("sess-2"))
-            .into_wire()
-            .expect("default resume has no duplicate handlers");
-        let empty_resume_json = serde_json::to_value(&empty_resume_wire).unwrap();
-        assert!(empty_resume_json.get("authClientIdMetadataUrl").is_none());
-    }
-
-    #[test]
     fn session_config_clones_disabled_mcp_servers() {
         let create = SessionConfig::default().with_disabled_mcp_servers(["local-files"]);
         let mut create_clone = create.clone();

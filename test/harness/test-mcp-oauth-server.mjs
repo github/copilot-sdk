@@ -25,6 +25,7 @@ export async function startOAuthMcpServer({
   expectedToken = DEFAULT_EXPECTED_TOKEN,
   host = "127.0.0.1",
   port = 0,
+  cimdSupported = false,
 } = {}) {
   const requests = [];
   const tokens = {
@@ -47,6 +48,7 @@ export async function startOAuthMcpServer({
       `http://${req.headers.host ?? `${host}:${port}`}`,
     );
     const baseUrl = url.origin;
+    const body = await readBody(req);
 
     if (req.method === "GET" && url.pathname === "/__requests") {
       respondJson(res, 200, requests);
@@ -76,6 +78,23 @@ export async function startOAuthMcpServer({
         token_endpoint: `${baseUrl}/token`,
         response_types_supported: ["code"],
         grant_types_supported: ["authorization_code"],
+        ...(cimdSupported
+          ? { client_id_metadata_document_supported: true }
+          : {}),
+      });
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/register") {
+      requests.push({
+        method: req.method,
+        path: url.pathname,
+        authorization: req.headers.authorization ?? null,
+        body,
+      });
+      respondJson(res, 201, {
+        client_id: "registered-client",
+        client_id_issued_at: Math.floor(Date.now() / 1000),
       });
       return;
     }
@@ -85,7 +104,6 @@ export async function startOAuthMcpServer({
       return;
     }
 
-    const body = await readBody(req);
     requests.push({
       method: req.method,
       path: url.pathname,
@@ -316,6 +334,7 @@ function respondJson(res, statusCode, body) {
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const server = await startOAuthMcpServer({
     expectedToken: process.env.EXPECTED_TOKEN ?? DEFAULT_EXPECTED_TOKEN,
+    cimdSupported: process.env.CIMD_SUPPORTED === "true",
   });
   console.log(`Listening: ${server.url}`);
   process.on("SIGTERM", async () => {
