@@ -163,11 +163,7 @@ func TestTaskProgressUnmarshalsTaskAgentProgressVariants(t *testing.T) {
 }
 
 func TestCommandsInvokeUnmarshalsSlashCommandInvocationResult(t *testing.T) {
-	clientToServerReader, clientToServerWriter := io.Pipe()
-	serverToClientReader, serverToClientWriter := io.Pipe()
-
-	client := jsonrpc2.NewClient(clientToServerWriter, serverToClientReader)
-	server := jsonrpc2.NewClient(serverToClientWriter, clientToServerReader)
+	client, server := newTestRPCPair(t)
 	server.SetRequestHandler("session.commands.invoke", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
 		var request struct {
 			Input     string `json:"input"`
@@ -181,17 +177,6 @@ func TestCommandsInvokeUnmarshalsSlashCommandInvocationResult(t *testing.T) {
 			return nil, &jsonrpc2.Error{Code: -32602, Message: "unexpected invoke request"}
 		}
 		return json.RawMessage(`{"kind":"text","text":"hello","markdown":true}`), nil
-	})
-
-	client.Start()
-	server.Start()
-	t.Cleanup(func() {
-		client.Stop()
-		server.Stop()
-		_ = clientToServerWriter.Close()
-		_ = clientToServerReader.Close()
-		_ = serverToClientWriter.Close()
-		_ = serverToClientReader.Close()
 	})
 
 	input := "details"
@@ -362,11 +347,7 @@ func TestUIElicitationSchemaPropertyJSONUnion(t *testing.T) {
 }
 
 func TestAutopilotObjectiveGetState(t *testing.T) {
-	clientToServerReader, clientToServerWriter := io.Pipe()
-	serverToClientReader, serverToClientWriter := io.Pipe()
-
-	client := jsonrpc2.NewClient(clientToServerWriter, serverToClientReader)
-	server := jsonrpc2.NewClient(serverToClientWriter, clientToServerReader)
+	client, server := newTestRPCPair(t)
 	responses := []json.RawMessage{
 		json.RawMessage(`{"state":null}`),
 		json.RawMessage(`{"state":{"id":1,"objective":"Ship the release","status":"active","turnCount":2,"creditCountNanoAiu":"0"}}`),
@@ -387,17 +368,6 @@ func TestAutopilotObjectiveGetState(t *testing.T) {
 		response := responses[callIndex]
 		callIndex++
 		return response, nil
-	})
-
-	client.Start()
-	server.Start()
-	t.Cleanup(func() {
-		client.Stop()
-		server.Stop()
-		_ = clientToServerWriter.Close()
-		_ = clientToServerReader.Close()
-		_ = serverToClientWriter.Close()
-		_ = serverToClientReader.Close()
 	})
 
 	api := NewSessionRPC(client, "session-1").AutopilotObjective
@@ -473,4 +443,26 @@ func TestAutopilotObjectiveGetState(t *testing.T) {
 		completed.CreditLimit.CreditsUsedNanoAiu != "1250000000" {
 		t.Fatalf("completed credit limit = %#v", completed.CreditLimit)
 	}
+}
+
+func newTestRPCPair(t *testing.T) (*jsonrpc2.Client, *jsonrpc2.Client) {
+	t.Helper()
+
+	clientToServerReader, clientToServerWriter := io.Pipe()
+	serverToClientReader, serverToClientWriter := io.Pipe()
+	client := jsonrpc2.NewClient(clientToServerWriter, serverToClientReader)
+	server := jsonrpc2.NewClient(serverToClientWriter, clientToServerReader)
+
+	client.Start()
+	server.Start()
+	t.Cleanup(func() {
+		client.Stop()
+		server.Stop()
+		_ = clientToServerWriter.Close()
+		_ = clientToServerReader.Close()
+		_ = serverToClientWriter.Close()
+		_ = serverToClientReader.Close()
+	})
+
+	return client, server
 }
