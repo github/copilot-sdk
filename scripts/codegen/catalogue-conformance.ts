@@ -20,6 +20,11 @@ const sdkPackageLock = JSON.parse(
 ) as { packages?: Record<string, { version?: string }> };
 const expectedPackageVersion =
     sdkPackageLock.packages?.["node_modules/@github/copilot"]?.version;
+const javaCodegenPackageJson = JSON.parse(
+    await fs.readFile(path.join(REPO_ROOT, "java/scripts/codegen/package.json"), "utf8")
+) as { dependencies?: Record<string, string> };
+const javaCodegenPackageVersion =
+    javaCodegenPackageJson.dependencies?.["@github/copilot"];
 const packageJson = JSON.parse(
     await fs.readFile(path.join(packageRoot, "package.json"), "utf8")
 ) as { version?: string };
@@ -50,6 +55,10 @@ assert(
 assert(
     packageJson.version === expectedPackageVersion,
     `expected @github/copilot ${expectedPackageVersion}, received ${packageJson.version ?? "unknown"}`
+);
+assert(
+    javaCodegenPackageVersion === expectedPackageVersion,
+    `java/scripts/codegen must pin @github/copilot exactly to ${expectedPackageVersion}`
 );
 assert(
     schema.server?.catalog?.search?.rpcMethod === "catalog.search",

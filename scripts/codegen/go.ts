@@ -1817,7 +1817,7 @@ function emitGoFlatDiscriminatedUnion(
 
     const unmarshalFuncName = goUnexportedFunctionName("unmarshal", typeName);
     const rawDataName = `Raw${typeName}${ctx.discriminatedUnionRawVariantSuffix ?? "Data"}`;
-    const hasRawVariant = discriminator.valueKind === "string";
+    const hasRawVariant = discriminator.valueKind === "string" && typeName !== "CatalogCandidate";
     const markerName = toGoUnexportedIdentifier(typeName);
     ctx.discriminatedUnions.set(typeName, { typeName, unmarshalFuncName });
 
@@ -1906,7 +1906,7 @@ function emitGoFlatDiscriminatedUnion(
         unmarshalLines.push(`\t\treturn &${rawDataName}{Discriminator: ${rawDiscExpr}, Raw: data}, nil`);
     }
     unmarshalLines.push(`\t}`);
-    if (discriminator.valueKind === "boolean") {
+    if (!hasRawVariant) {
         unmarshalLines.push(`\treturn nil, errors.New("data did not match any union variant for ${typeName}")`);
     }
     unmarshalLines.push(`}`);

@@ -136,3 +136,20 @@ func TestCatalogSearchResultPreservesRefusalsAndFailures(t *testing.T) {
 		})
 	}
 }
+
+func TestCatalogSearchResultRejectsUnknownCandidateKinds(t *testing.T) {
+	_, err := unmarshalCatalogSearchResult([]byte(`{
+		"kind":"succeeded",
+		"searchId":"search-unknown",
+		"candidates":[{
+			"kind":"future-kind",
+			"handle":"opaque:future/03-do-not-parse",
+			"rawCard":{"secret":"must-not-survive"}
+		}],
+		"truncated":false,
+		"negotiated":{"runtimeProtocolVersion":1,"grantedCapabilities":[]}
+	}`))
+	if err == nil {
+		t.Fatal("unknown catalogue candidate kind with rawCard must be rejected")
+	}
+}

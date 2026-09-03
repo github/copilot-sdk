@@ -270,3 +270,38 @@ async def test_catalog_search_preserves_refusals_and_failures(payload, expected_
     )
 
     assert isinstance(result, expected_type)
+
+
+@pytest.mark.asyncio
+async def test_catalog_search_rejects_unknown_candidate_kinds():
+    client = AsyncMock()
+    client.request = AsyncMock(
+        return_value={
+            "kind": "succeeded",
+            "searchId": "search-unknown",
+            "candidates": [
+                {
+                    "kind": "future-kind",
+                    "handle": "opaque:future/03-do-not-parse",
+                    "rawCard": {"secret": "must-not-survive"},
+                }
+            ],
+            "truncated": False,
+            "negotiated": {
+                "runtimeProtocolVersion": 1,
+                "grantedCapabilities": [],
+            },
+        }
+    )
+    api = ServerCatalogApi(client)
+
+    with pytest.raises(ValueError, match="Unknown CatalogCandidate kind"):
+        await api.search(
+            CatalogSearchRequest(
+                contract=CatalogClientContract(
+                    protocol_version=1,
+                    required_capabilities=[],
+                ),
+                query="example",
+            )
+        )

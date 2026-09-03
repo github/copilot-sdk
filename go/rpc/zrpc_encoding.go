@@ -696,20 +696,8 @@ func unmarshalCatalogCandidate(data []byte) (CatalogCandidate, error) {
 			return nil, err
 		}
 		return &d, nil
-	default:
-		return &RawCatalogCandidateData{Discriminator: raw.Kind, Raw: data}, nil
 	}
-}
-
-func (r RawCatalogCandidateData) MarshalJSON() ([]byte, error) {
-	if r.Raw != nil {
-		return r.Raw, nil
-	}
-	return json.Marshal(struct {
-		Kind CatalogCandidateKind `json:"kind"`
-	}{
-		Kind: r.Discriminator,
-	})
+	return nil, errors.New("data did not match any union variant for CatalogCandidate")
 }
 
 func unmarshalCatalogCandidateSource(data []byte) (CatalogCandidateSource, error) {

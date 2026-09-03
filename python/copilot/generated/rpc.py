@@ -40065,7 +40065,7 @@ def _load_CatalogCandidate(obj: Any) -> "CatalogCandidate":
     match kind:
         case "mcp-server": return CatalogMCPServerCandidate.from_dict(obj)
         case "ai-skill": return CatalogAISkillCandidate.from_dict(obj)
-        case _: raise ValueError(f"Unknown CatalogCandidate kind: {kind!r}")
+    raise ValueError(f"Unknown CatalogCandidate kind: {kind!r}")
 
 # Where a candidate's card came from. Exactly one of a URL or embedded data: the union has no variant carrying both, and no variant carrying neither, so the rule holds structurally rather than by validation.
 CatalogCandidateSource = CatalogCandidateSourceURL | CatalogCandidateSourceEmbedded
@@ -40076,7 +40076,7 @@ def _load_CatalogCandidateSource(obj: Any) -> "CatalogCandidateSource":
     match kind:
         case "url": return CatalogCandidateSourceURL.from_dict(obj)
         case "embedded": return CatalogCandidateSourceEmbedded.from_dict(obj)
-        case _: raise ValueError(f"Unknown CatalogCandidateSource kind: {kind!r}")
+    raise ValueError(f"Unknown CatalogCandidateSource kind: {kind!r}")
 
 # Outcome of a catalog.search call: either bounded inert candidates, or one typed refusal. Never a partial success.
 CatalogSearchResult = CatalogSearchSucceeded | CatalogNegotiationRefusedError | CatalogUnsupportedKindError | CatalogInvalidRequestError | CatalogAuthenticationRequiredError | CatalogPolicyRejectedError | CatalogNetworkFailureError | CatalogUnsafeRetrievalError | CatalogMalformedCardError | CatalogContractViolationError | CatalogUnavailableError
@@ -40096,7 +40096,7 @@ def _load_CatalogSearchResult(obj: Any) -> "CatalogSearchResult":
         case "malformed-card": return CatalogMalformedCardError.from_dict(obj)
         case "contract-violation": return CatalogContractViolationError.from_dict(obj)
         case "unavailable": return CatalogUnavailableError.from_dict(obj)
-        case _: raise ValueError(f"Unknown CatalogSearchResult kind: {kind!r}")
+    raise ValueError(f"Unknown CatalogSearchResult kind: {kind!r}")
 
 # A content block within a tool result, which may be text, terminal output, image, audio, or a resource
 ExternalToolTextResultForLlmContent = ExternalToolTextResultForLlmContentText | ExternalToolTextResultForLlmContentTerminal | ExternalToolTextResultForLlmContentShellExit | ExternalToolTextResultForLlmContentImage | ExternalToolTextResultForLlmContentAudio | ExternalToolTextResultForLlmContentResourceLink | ExternalToolTextResultForLlmContentResource

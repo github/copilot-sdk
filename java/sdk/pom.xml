@@ -796,6 +796,7 @@ did not produce the multi-release output. Re-build on JDK 25+ and verify the
                                     <workingDirectory>${project.parent.basedir}/scripts/codegen</workingDirectory>
                                     <arguments>
                                         <argument>install</argument>
+                                        <argument>--save-exact</argument>
                                         <argument>@github/copilot@${copilot.schema.version}</argument>
                                     </arguments>
                                 </configuration>

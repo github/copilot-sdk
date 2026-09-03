@@ -1465,16 +1465,6 @@ type CatalogCandidate interface {
 	Kind() CatalogCandidateKind
 }
 
-type RawCatalogCandidateData struct {
-	Discriminator CatalogCandidateKind
-	Raw           json.RawMessage
-}
-
-func (RawCatalogCandidateData) catalogCandidate() {}
-func (r RawCatalogCandidateData) Kind() CatalogCandidateKind {
-	return r.Discriminator
-}
-
 // An inert AI skill catalog result. AI skills are discovery-only and cannot be represented
 // as installable through this surface.
 // Experimental: CatalogAiSkillCandidate is part of an experimental API and may change or be
