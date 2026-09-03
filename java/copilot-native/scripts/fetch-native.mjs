@@ -7,10 +7,10 @@
  *
  * Steps:
  *   1. Read the pinned version from `nodejs/package.json`.
- *   2. Download the platform release asset and `SHA256SUMS.txt` from the matching release.
+ *   2. Download the platform npm tarball and `SHA256SUMS.txt` from the matching release.
  *   3. Verify the downloaded tarball against the release checksum.
  *   4. Stage the hostless runtime tree, flattening the selected prebuild directory
- *      beside the release archive's retained top-level runtime assets.
+ *      beside the package's retained top-level runtime assets.
  *   5. Write an inventory consumed by the SDK's generic classpath extractor.
  *   6. Write `<staging>/<classifier>/native/<classifier>/platform.properties`.
  *
@@ -49,18 +49,13 @@ if (!repoRoot || !stagingDir || !classifier) {
 }
 
 const packagePath = path.join(repoRoot, 'nodejs', 'package.json');
-let packageJson;
-try {
-  packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
-} catch (error) {
-  throw new Error(`Could not read pinned Copilot CLI version from ${packagePath}: ${error.message}`);
-}
+const packageName = `@github/copilot-${classifier}`;
+const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
 const version = packageJson.copilotCliVersion;
 if (!version) {
   console.error(`Could not find copilotCliVersion in ${packagePath}`);
   process.exit(1);
 }
-const assetName = `github-copilot-${version}-${classifier}.tgz`;
 
 const outDir = path.join(stagingDir, classifier);
 const resourceDir = path.join(outDir, 'native', classifier);
@@ -75,7 +70,7 @@ const stagingSchema = 'hostless-runtime-v3';
 const stampPath = path.join(outDir, '.version');
 
 // Idempotence: skip the download only when every required staged artifact
-// matches the release identity recorded in the stamp.
+// matches the package identity recorded in the stamp.
 if (
   fs.existsSync(runtimePath) &&
   fs.existsSync(wrapperPath) &&
@@ -95,7 +90,7 @@ if (
     stampTreeDigest === currentTreeDigest &&
     currentPlatformProperties === expectedPlatformProperties
   ) {
-    console.log(`${assetName} already staged at ${runtimePath}`);
+    console.log(`${packageName}@${version} already staged at ${runtimePath}`);
     process.exit(0);
   }
 }
@@ -103,7 +98,8 @@ if (
 fs.rmSync(outDir, { recursive: true, force: true });
 fs.mkdirSync(resourceDir, { recursive: true });
 
-console.log(`Downloading ${assetName} ...`);
+console.log(`Downloading ${packageName}@${version} ...`);
+const assetName = `github-copilot-${version}-${classifier}.tgz`;
 const releaseBase = (
   process.env.COPILOT_CLI_DOWNLOAD_BASE_URL ??
   'https://github.com/github/copilot-cli/releases/download'
@@ -122,9 +118,8 @@ if (process.env.COPILOT_CLI_RELEASE_TARBALL) {
 if (!expectedHash || !/^[a-fA-F0-9]{64}$/.test(expectedHash)) {
   throw new Error(`Missing or invalid SHA-256 for ${assetName}`);
 }
-expectedHash = expectedHash.toLowerCase();
 const actual = createHash('sha256').update(archive).digest('hex');
-if (actual !== expectedHash) {
+if (actual !== expectedHash.toLowerCase()) {
   console.error(`Integrity verification failed for ${assetName}`);
   console.error(`  expected: ${expectedHash}`);
   console.error(`  actual:   ${actual}`);
@@ -171,7 +166,7 @@ inventory.sort();
 fs.writeFileSync(inventoryPath, `${inventory.join('\n')}\n`);
 
 if (!fs.existsSync(runtimePath) || !fs.existsSync(wrapperPath)) {
-  throw new Error(`Release asset ${assetName} is missing the runtime wrapper pair`);
+  throw new Error(`Package ${packageName}@${version} is missing the runtime wrapper pair`);
 }
 fs.writeFileSync(platformPropertiesPath, expectedPlatformProperties);
 const treeDigest = digestTree(resourceDir);
@@ -236,7 +231,7 @@ async function download(url) {
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       // lgtm[js/file-access-to-http] The repository-pinned CLI version intentionally selects the release asset.
-      const response = await fetch(url, { signal: AbortSignal.timeout(60_000) });
+      const response = await fetch(url);
       if (response.ok) {
         return Buffer.from(await response.arrayBuffer());
       }

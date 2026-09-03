@@ -30,9 +30,10 @@ python -m copilot download-runtime
 ```
 
 This downloads the platform release package, verifies it against the release's
-`SHA256SUMS.txt`, and caches `copilot-runtime`, its adjacent `runtime.node`, and
-the hostless runtime assets locally. If you skip this step, the SDK downloads the
-same package automatically on first managed stdio/TCP use.
+`SHA256SUMS.txt`, and directly stages `copilot-runtime`, its adjacent `runtime.node`,
+and the filtered hostless runtime assets locally without retaining the downloaded
+archive. If you skip this step, the SDK performs the same staging automatically on
+first managed stdio/TCP use.
 
 To pre-provision the native library required by the in-process (FFI) transport
 (see [In-process (FFI) transport](#in-process-ffi-transport)), pass `--in-process`:
@@ -43,7 +44,7 @@ python -m copilot download-runtime --in-process
 
 This also creates a `copilot` compatibility entrypoint from `copilot-runtime`
 inside the complete materialized bundle. Its adjacent `runtime.node` can then be
-used for in-process hosting. The cached release package is reused, so this does
+used for in-process hosting. That canonical staged library is reused, so this does
 not download a second runtime artifact.
 
 | Platform | Cache path |

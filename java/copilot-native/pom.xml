@@ -59,11 +59,10 @@
             <!--
                 On a supported build host, download and verify the matching native
                 runtime binary. The helper script reads the pinned version and
-                release SHA256SUMS.txt, downloads the exact
-                github-copilot-&lt;version&gt;-&lt;classifier&gt;.tgz asset from
-                github/copilot-cli, verifies it, and extracts runtime.node into the
-                staging directory. It uses Node.js directly and does not install or
-                fall back to npm runtime packages.
+                release SHA256SUMS.txt, downloads the platform npm tarball from
+                github/copilot-cli, verifies it, and extracts runtime.node into
+                the staging directory. Requires Node.js, which is already required
+                for the Java E2E tests.
             -->
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
@@ -910,7 +909,7 @@
             </build>
         </profile>
         <!--
-            Skip the Copilot CLI release download when building offline or when only the
+            Skip the npm download when building offline or when only the
             placeholder JAR is needed: mvn -Dcopilot.native.skip.download=true
         -->
         <profile>

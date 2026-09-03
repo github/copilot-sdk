@@ -2,10 +2,10 @@
 
 The platform-specific GitHub release package contains the out-of-process runtime
 wrapper, native runtime library, and runtime assets, but omits the legacy SEA
-``copilot[.exe]``. It is downloaded and verified once, then materialized into the
-SDK's existing cache layout. ``download_cli`` preserves the historical CLI filename
-by creating a compatibility alias from the runtime wrapper inside the complete
-materialized bundle:
+``copilot[.exe]``. Its bytes are downloaded and verified, then the filtered hostless
+bundle is materialized directly into the SDK's existing cache layout. ``download_cli``
+preserves the historical CLI filename by creating a compatibility alias from the
+runtime wrapper inside the complete materialized bundle:
 
 - Linux:   ~/.cache/github-copilot-sdk/cli/{version}/prebuilds/{platform}/copilot
 - macOS:   ~/Library/Caches/github-copilot-sdk/cli/{version}/prebuilds/{platform}/copilot
@@ -161,60 +161,8 @@ def _verify_checksum(data: bytes, expected_hash: str, filename: str) -> None:
         )
 
 
-def _validate_file(path: Path, label: str) -> None:
-    if not path.is_file() or path.stat().st_size == 0:
-        raise RuntimeError(f"{label} not found or empty at {path}.")
-
-
-def _extract_release_package(data: bytes, destination: Path) -> None:
-    """Safely extract the npm-style ``package/`` tree from a release tarball."""
-    with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as archive:
-        for member in archive:
-            parts = PurePosixPath(member.name).parts
-            if len(parts) < 2 or parts[0] != "package":
-                continue
-            relative = Path(*parts[1:])
-            if relative.is_absolute() or ".." in relative.parts:
-                raise RuntimeError(f"Unsafe release package path: {member.name}")
-            target = destination / relative
-            if member.isdir():
-                target.mkdir(parents=True, exist_ok=True)
-                continue
-            if not member.isfile():
-                raise RuntimeError(f"Unsupported release package entry: {member.name}")
-            extracted = archive.extractfile(member)
-            if extracted is None:
-                raise RuntimeError(f"Failed to read release package entry: {member.name}")
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_bytes(extracted.read())
-            if sys.platform != "win32":
-                target.chmod(member.mode & 0o777)
-
-
-def _release_package_dir(version: str, runtime_platform: str) -> Path:
-    return get_cache_dir(version) / "packages" / runtime_platform
-
-
-def _validate_release_package(package_dir: Path, runtime_platform: str) -> None:
-    prebuilds = package_dir / "prebuilds" / runtime_platform
-    wrapper_name = "copilot-runtime.exe" if sys.platform == "win32" else "copilot-runtime"
-    _validate_file(prebuilds / wrapper_name, "Copilot runtime wrapper")
-    _validate_file(prebuilds / "runtime.node", "Copilot runtime.node")
-
-
-def _ensure_release_package(version: str, *, force: bool = False) -> Path:
-    """Download, verify, and cache the unified platform release package."""
-    runtime_platform = get_runtime_platform()
-    package_dir = _release_package_dir(version, runtime_platform)
-    if package_dir.exists() and not force:
-        _validate_release_package(package_dir, runtime_platform)
-        return package_dir
-    if _should_skip_download():
-        raise RuntimeError(
-            f"Copilot runtime release package is not cached in {package_dir} "
-            "and automatic downloads are disabled."
-        )
-
+def _fetch_verified_release_package(version: str, runtime_platform: str) -> bytes:
+    """Download and verify the unified platform release package."""
     asset_name = get_release_asset_name(version, runtime_platform)
     expected_hash = _fetch_checksums(version).get(asset_name)
     if not expected_hash:
@@ -222,27 +170,16 @@ def _ensure_release_package(version: str, *, force: bool = False) -> Path:
     url = get_download_url(version, asset_name)
     data = _fetch_url_bytes(url, timeout=600)
     _verify_checksum(data, expected_hash, asset_name)
+    return data
 
-    import shutil
 
-    package_dir.parent.mkdir(parents=True, exist_ok=True)
-    staging_dir = Path(tempfile.mkdtemp(dir=package_dir.parent, prefix=".release-package-"))
-    staged_package = staging_dir / "package"
-    try:
-        staged_package.mkdir()
-        _extract_release_package(data, staged_package)
-        _validate_release_package(staged_package, runtime_platform)
-        if force and package_dir.exists():
-            shutil.rmtree(package_dir)
-        try:
-            staged_package.replace(package_dir)
-        except OSError:
-            if not package_dir.exists():
-                raise
-            _validate_release_package(package_dir, runtime_platform)
-    finally:
-        shutil.rmtree(staging_dir, ignore_errors=True)
-    return package_dir
+def _runtime_bundle_is_complete(pair_dir: Path, wrapper_name: str) -> bool:
+    required = (
+        pair_dir / wrapper_name,
+        pair_dir / "runtime.node",
+        pair_dir / _HOSTLESS_ASSETS_MARKER,
+    )
+    return all(path.is_file() and path.stat().st_size > 0 for path in required)
 
 
 def download_cli(version: str | None = None, *, force: bool = False) -> str:
@@ -360,24 +297,23 @@ def _hostless_runtime_path(member_name: str, runtime_platform: str) -> Path | No
     return destination
 
 
-def _materialize_runtime_bundle(
-    package_dir: Path, runtime_platform: str, destination: Path
-) -> None:
-    """Copy the hostless runtime tree, retaining unknown package assets by default."""
-    import shutil
-
-    for source in package_dir.rglob("*"):
-        if source.is_dir():
-            continue
-        member_name = PurePosixPath("package", *source.relative_to(package_dir).parts).as_posix()
-        relative = _hostless_runtime_path(member_name, runtime_platform)
-        if relative is None:
-            continue
-        if not source.is_file():
-            raise RuntimeError(f"Unsupported runtime package entry: {member_name}")
-        target = destination / relative
-        target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(source, target)
+def _materialize_runtime_bundle(data: bytes, runtime_platform: str, destination: Path) -> None:
+    """Extract the hostless runtime tree, retaining unknown package assets by default."""
+    with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as archive:
+        for member in archive:
+            relative = _hostless_runtime_path(member.name, runtime_platform)
+            if relative is None or member.isdir():
+                continue
+            if not member.isfile():
+                raise RuntimeError(f"Unsupported runtime package entry: {member.name}")
+            extracted = archive.extractfile(member)
+            if extracted is None:
+                raise RuntimeError(f"Failed to read runtime package entry: {member.name}")
+            target = destination / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(extracted.read())
+            if sys.platform != "win32":
+                target.chmod(member.mode & 0o777)
 
 
 def ensure_runtime_wrapper(version: str | None = None, force: bool = False) -> str:
@@ -394,20 +330,26 @@ def ensure_runtime_wrapper(version: str | None = None, force: bool = False) -> s
 
     wrapper_exists = wrapper_path.is_file() and wrapper_path.stat().st_size > 0
     runtime_exists = runtime_path.is_file() and runtime_path.stat().st_size > 0
-    if wrapper_exists and runtime_exists and assets_marker.is_file() and not force:
+    if _runtime_bundle_is_complete(pair_dir, wrapper_name) and not force:
         return str(wrapper_path)
     if not force and wrapper_exists != runtime_exists:
         raise RuntimeError(
             f"Incomplete Copilot runtime bundle in {pair_dir}: "
             f"{wrapper_name} and runtime.node are required."
         )
-    package_dir = _ensure_release_package(ver, force=force)
+    if _should_skip_download():
+        raise RuntimeError(
+            f"Copilot runtime bundle is not cached in {pair_dir} "
+            "and automatic downloads are disabled."
+        )
+
+    data = _fetch_verified_release_package(ver, runtime_platform)
     import shutil
 
     pair_dir.parent.mkdir(parents=True, exist_ok=True)
     staging_dir = Path(tempfile.mkdtemp(dir=pair_dir.parent, prefix=".runtime-bundle-"))
     try:
-        _materialize_runtime_bundle(package_dir, runtime_platform, staging_dir)
+        _materialize_runtime_bundle(data, runtime_platform, staging_dir)
         staged_wrapper = staging_dir / wrapper_name
         staged_runtime = staging_dir / "runtime.node"
         if (
@@ -446,14 +388,15 @@ def ensure_runtime_wrapper(version: str | None = None, force: bool = False) -> s
 def ensure_runtime_library(cli_path: str, version: str | None = None) -> str | None:
     """Ensure the native in-process (FFI) runtime library sits next to ``cli_path``.
 
-    The unified platform release package contains ``runtime.node`` under
-    ``package/prebuilds/<platform>``. This helper copies that verified library next
-    to the CLI binary under its natural platform name (``libcopilot_runtime.so`` /
-    ``.dylib`` / ``copilot_runtime.dll``).
+    The canonical staged bundle contains ``prebuilds/<platform>/runtime.node``.
+    This helper reuses that verified library and copies it next to the CLI binary
+    under its natural platform name (``libcopilot_runtime.so`` / ``.dylib`` /
+    ``copilot_runtime.dll``).
 
-    This is opt-in — only invoked when the in-process transport is actually selected
-    (lazy) or via ``python -m copilot download-runtime --in-process`` (explicit). The
-    default stdio download path never fetches these extra bytes.
+    Copying the library next to an external CLI is opt-in — this is only invoked when
+    the in-process transport is selected (lazy) or via
+    ``python -m copilot download-runtime --in-process`` (explicit). The default stdio
+    path leaves the library in the canonical staged bundle.
 
     Returns the absolute path to the library, or None if it could not be provisioned
     (e.g. download disabled or unsupported platform). Raises RuntimeError on
@@ -481,19 +424,22 @@ def ensure_runtime_library(cli_path: str, version: str | None = None) -> str | N
     if lib_path.exists():
         return str(lib_path)
 
-    package_dir = _release_package_dir(ver, runtime_platform)
-    if _should_skip_download() and not package_dir.exists():
+    pair_dir = get_cache_dir(ver) / "prebuilds" / runtime_platform
+    wrapper_name = "copilot-runtime.exe" if sys.platform == "win32" else "copilot-runtime"
+    if _should_skip_download() and not _runtime_bundle_is_complete(pair_dir, wrapper_name):
         return None
-    package_dir = _ensure_release_package(ver)
-    lib_bytes = (package_dir / "prebuilds" / runtime_platform / "runtime.node").read_bytes()
+    wrapper_path = Path(ensure_runtime_wrapper(ver))
+    canonical_runtime = wrapper_path.with_name("runtime.node")
 
     # Write atomically next to the CLI so concurrent starts don't observe a partial
     # library. A rename within the same directory is atomic on POSIX and Windows.
+    import shutil
+
     cli_dir.mkdir(parents=True, exist_ok=True)
     fd, tmp_name = tempfile.mkstemp(dir=cli_dir, prefix=".runtime-lib-")
     try:
-        with os.fdopen(fd, "wb") as out:
-            out.write(lib_bytes)
+        with os.fdopen(fd, "wb") as out, canonical_runtime.open("rb") as source:
+            shutil.copyfileobj(source, out)
         os.replace(tmp_name, lib_path)
     except OSError:
         try:
@@ -534,8 +480,11 @@ def get_or_download_cli(version: str | None = None) -> str | None:
     except RuntimeError:
         return None
 
-    if _should_skip_download() and not _release_package_dir(ver, runtime_platform).exists():
-        return None
+    if _should_skip_download():
+        pair_dir = get_cache_dir(ver) / "prebuilds" / runtime_platform
+        wrapper_name = "copilot-runtime.exe" if sys.platform == "win32" else "copilot-runtime"
+        if not _runtime_bundle_is_complete(pair_dir, wrapper_name):
+            return None
 
     # Download
     return download_cli(ver)

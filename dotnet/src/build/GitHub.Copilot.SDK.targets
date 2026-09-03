@@ -55,12 +55,9 @@
        <PropertyGroup>
          <CopilotCliReleaseBaseUrl>https://your-mirror.example.com/copilot-cli/releases/download</CopilotCliReleaseBaseUrl>
        </PropertyGroup>
-       COPILOT_CLI_DOWNLOAD_BASE_URL is also honored. CopilotNpmRegistryUrl remains
-       a compatibility alias, but its value is interpreted as a release base URL;
-       these targets never fall back to npm. -->
+       COPILOT_CLI_DOWNLOAD_BASE_URL is also honored. -->
   <PropertyGroup>
     <CopilotCliReleaseBaseUrl Condition="'$(CopilotCliReleaseBaseUrl)' == '' And '$(COPILOT_CLI_DOWNLOAD_BASE_URL)' != ''">$(COPILOT_CLI_DOWNLOAD_BASE_URL)</CopilotCliReleaseBaseUrl>
-    <CopilotCliReleaseBaseUrl Condition="'$(CopilotCliReleaseBaseUrl)' == '' And '$(CopilotNpmRegistryUrl)' != ''">$(CopilotNpmRegistryUrl)</CopilotCliReleaseBaseUrl>
     <CopilotCliReleaseBaseUrl Condition="'$(CopilotCliReleaseBaseUrl)' == ''">https://github.com/github/copilot-cli/releases/download</CopilotCliReleaseBaseUrl>
   </PropertyGroup>
 

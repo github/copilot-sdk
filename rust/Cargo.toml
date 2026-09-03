@@ -21,6 +21,7 @@ include = [
     "README.md",
     "LICENSE",
     "cli-version.txt",
+    "cli-version-in-process.txt",
 ]
 
 [lib]
@@ -28,7 +29,7 @@ name = "github_copilot_sdk"
 
 [features]
 default = ["bundled-cli"]
-bundled-cli = ["dep:tar", "dep:flate2"]
+bundled-cli = ["dep:tar", "dep:flate2", "dep:zip"]
 bundled-in-process = ["bundled-cli", "dep:libloading"]
 derive = ["dep:schemars"]
 test-support = []
@@ -68,6 +69,7 @@ reqwest = { version = "0.12", default-features = false, features = ["stream", "h
 tokio-tungstenite = { version = "0.24", default-features = false, features = ["connect", "native-tls"] }
 
 [target.'cfg(windows)'.dependencies]
+zip = { version = "2", default-features = false, features = ["deflate"], optional = true }
 windows-sys = { version = "0.61", default-features = false, features = [
     "Win32_Foundation",
     "Win32_System_Diagnostics_ToolHelp",
@@ -124,3 +126,4 @@ sha2 = "0.10"
 tar = "0.4"
 ureq = { version = "2", default-features = false, features = ["native-tls"] }
 native-tls = "0.2"
+zip = { version = "2", default-features = false, features = ["deflate"] }

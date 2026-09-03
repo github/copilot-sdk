@@ -318,8 +318,9 @@ public final class NativeRuntimeLoader {
      *
      * <p>
      * Checks, in order, the flat bundled layout ({@code runtime.node} directly next
-     * to the CLI) and the release-package layout
-     * ({@code prebuilds/<classifier>/runtime.node} next to the CLI).
+     * to the CLI) and the npm package layout
+     * ({@code prebuilds/<classifier>/runtime.node} next to the CLI), matching the
+     * two layouts the {@code @github/copilot-<platform>} packages may ship.
      */
     static Path resolveFromCliPath(String cliPathStr) throws IOException {
         if (cliPathStr == null || cliPathStr.isBlank()) {

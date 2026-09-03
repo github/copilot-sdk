@@ -2,12 +2,11 @@
 //! crate (gated on the `bundled-cli` cargo feature, which is in the default
 //! feature set).
 //!
-//! All bundled builds embed a filtered archive derived from the platform's
-//! `github-copilot-<version>-<platform>.tgz` GitHub Release asset. It contains
-//! the CLI executable, runtime wrapper, and auxiliary runtime assets; enabling
-//! `bundled-in-process` additionally includes the native runtime library.
-//! Extraction to a real on-disk path is deferred until the relevant installer
-//! is called.
+//! Normal builds embed the platform release archive from GitHub Releases.
+//! Builds with `bundled-in-process` instead embed a filtered archive from the
+//! platform npm package containing the CLI executable, runtime wrapper, native
+//! runtime artifacts, and auxiliary runtime assets. Extraction to a real
+//! on-disk path is deferred until the relevant installer is called.
 //!
 //! The embedded bytes are part of the consumer's signed binary and therefore
 //! trusted *as the source of truth* — but the bytes that land on disk are not.

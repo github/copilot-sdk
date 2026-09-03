@@ -6,7 +6,9 @@ import hashlib
 import io
 import os
 import tarfile
+from concurrent.futures import ThreadPoolExecutor
 from http.client import IncompleteRead
+from threading import Barrier
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -117,7 +119,7 @@ def test_rejects_release_package_without_checksum(tmp_path):
             _cli_download.ensure_runtime_wrapper(version="1.2.3")
 
 
-def test_cli_and_runtime_share_one_cached_release_package(tmp_path, monkeypatch):
+def test_cli_and_runtime_share_one_staged_bundle(tmp_path, monkeypatch):
     version = "1.2.3"
     runtime_platform = "linux-x64"
     cli_name = "copilot.exe" if os.name == "nt" else "copilot"
@@ -125,7 +127,6 @@ def test_cli_and_runtime_share_one_cached_release_package(tmp_path, monkeypatch)
     data = _release_package(runtime_platform)
     cache_dir = tmp_path / "cache"
     install_dir = cache_dir / "prebuilds" / runtime_platform
-    package_dir = cache_dir / "packages" / runtime_platform
     fetch = _release_fetches(version, runtime_platform, data)
 
     with (
@@ -142,7 +143,7 @@ def test_cli_and_runtime_share_one_cached_release_package(tmp_path, monkeypatch)
     assert wrapper == str(install_dir / wrapper_name)
     assert (install_dir / cli_name).read_bytes() == b"wrapper"
     assert not (cache_dir / cli_name).exists()
-    assert not (package_dir / cli_name).exists()
+    assert not (cache_dir / "packages").exists()
     assert (install_dir / wrapper_name).read_bytes() == b"wrapper"
     assert (install_dir / "runtime.node").read_bytes() == b"runtime"
     assert (install_dir / "ripgrep" / "bin" / runtime_platform / "rg").read_bytes() == b"ripgrep"
@@ -155,7 +156,69 @@ def test_cli_and_runtime_share_one_cached_release_package(tmp_path, monkeypatch)
         assert (install_dir / wrapper_name).stat().st_mode & 0o111
 
 
-def test_skip_download_returns_none_without_cached_package(tmp_path, monkeypatch):
+def test_concurrent_staging_materializes_one_complete_bundle(tmp_path):
+    version = "1.2.3"
+    runtime_platform = "linux-x64"
+    wrapper_name = "copilot-runtime.exe" if os.name == "nt" else "copilot-runtime"
+    data = _release_package(runtime_platform)
+    cache_dir = tmp_path / "cache"
+    fetch = _release_fetches(version, runtime_platform, data)
+    fetch_barrier = Barrier(2)
+
+    def concurrent_fetch(url: str, *, timeout: int) -> bytes:
+        fetch_barrier.wait(timeout=10)
+        return fetch(url, timeout=timeout)
+
+    with (
+        patch.object(_cli_download, "get_cache_dir", return_value=cache_dir),
+        patch.object(_cli_download, "get_runtime_platform", return_value=runtime_platform),
+        patch.object(_cli_download, "_fetch_url_bytes", side_effect=concurrent_fetch) as fetch_mock,
+        ThreadPoolExecutor(max_workers=2) as executor,
+    ):
+        futures = [executor.submit(_cli_download.ensure_runtime_wrapper, version) for _ in range(2)]
+        wrappers = [future.result() for future in futures]
+
+    install_dir = cache_dir / "prebuilds" / runtime_platform
+    expected_wrapper = str(install_dir / wrapper_name)
+    assert wrappers == [expected_wrapper, expected_wrapper]
+    assert (install_dir / wrapper_name).read_bytes() == b"wrapper"
+    assert (install_dir / "runtime.node").read_bytes() == b"runtime"
+    assert (install_dir / ".hostless-runtime-assets-v2").is_file()
+    assert not list((cache_dir / "prebuilds").glob(".runtime-bundle-*"))
+    assert not (cache_dir / "packages").exists()
+    assert fetch_mock.call_count == 4
+
+
+def test_force_restages_complete_bundle_and_compatibility_alias(tmp_path):
+    version = "1.2.3"
+    runtime_platform = "linux-x64"
+    cli_name = "copilot.exe" if os.name == "nt" else "copilot"
+    wrapper_name = "copilot-runtime.exe" if os.name == "nt" else "copilot-runtime"
+    data = _release_package(runtime_platform)
+    cache_dir = tmp_path / "cache"
+    install_dir = cache_dir / "prebuilds" / runtime_platform
+    install_dir.mkdir(parents=True)
+    (install_dir / cli_name).write_bytes(b"old-alias")
+    (install_dir / wrapper_name).write_bytes(b"old-wrapper")
+    (install_dir / "runtime.node").write_bytes(b"old-runtime")
+    (install_dir / ".hostless-runtime-assets-v2").write_text("1\n", encoding="ascii")
+    fetch = _release_fetches(version, runtime_platform, data)
+
+    with (
+        patch.object(_cli_download, "get_cache_dir", return_value=cache_dir),
+        patch.object(_cli_download, "get_runtime_platform", return_value=runtime_platform),
+        patch.object(_cli_download, "_fetch_url_bytes", side_effect=fetch) as fetch_mock,
+    ):
+        cli = _cli_download.download_cli(version, force=True)
+
+    assert cli == str(install_dir / cli_name)
+    assert (install_dir / cli_name).read_bytes() == b"wrapper"
+    assert (install_dir / wrapper_name).read_bytes() == b"wrapper"
+    assert (install_dir / "runtime.node").read_bytes() == b"runtime"
+    assert fetch_mock.call_count == 2
+
+
+def test_skip_download_returns_none_without_cached_bundle(tmp_path, monkeypatch):
     monkeypatch.setenv("COPILOT_SKIP_CLI_DOWNLOAD", "true")
     runtime_platform = "linux-x64"
 
@@ -189,7 +252,7 @@ def test_cached_cli_rejects_alias_from_incomplete_bundle(tmp_path):
             _cli_download.download_cli(version)
 
 
-def test_explicit_cli_gets_library_from_cached_release_package(tmp_path):
+def test_explicit_cli_reuses_library_from_canonical_staged_bundle(tmp_path):
     version = "1.2.3"
     runtime_platform = "linux-x64"
     data = _release_package(runtime_platform)
@@ -211,6 +274,8 @@ def test_explicit_cli_gets_library_from_cached_release_package(tmp_path):
 
     assert library == str(cli_dir / _ffi_runtime_host._natural_library_name())
     assert (cli_dir / _ffi_runtime_host._natural_library_name()).read_bytes() == b"runtime"
+    assert (cache_dir / "prebuilds" / runtime_platform / "runtime.node").read_bytes() == b"runtime"
+    assert not (cache_dir / "packages").exists()
     assert wrapper.endswith(
         f"prebuilds/{runtime_platform}/"
         f"{'copilot-runtime.exe' if os.name == 'nt' else 'copilot-runtime'}"

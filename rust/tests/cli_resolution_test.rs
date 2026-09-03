@@ -197,8 +197,8 @@ async fn extract_dir_runtime_override_is_honored() {
     let _ = fake;
 }
 
-/// Build-time version pins, when present, must contain the release asset
-/// checksum for every supported target.
+/// Build-time version pins, when present, must match the selected bundling
+/// implementation's checksum format.
 /// When absent, build.rs falls through to `../nodejs/package.json` and
 /// the release's `SHA256SUMS.txt` —
 /// both are accepted, this test only checks the pin file's format if it's
@@ -206,15 +206,19 @@ async fn extract_dir_runtime_override_is_honored() {
 #[test]
 fn pin_file_when_present_is_well_formed() {
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
-    let filename = "cli-version.txt";
+    let (filename, expected_package_count) = if cfg!(feature = "bundled-in-process") {
+        ("cli-version-in-process.txt", 8)
+    } else {
+        ("cli-version.txt", 6)
+    };
     let pin = PathBuf::from(manifest_dir).join(filename);
     if !pin.is_file() {
         // Contributor build path — no assertion needed.
         return;
     }
     let contents = std::fs::read_to_string(&pin).expect("read CLI version snapshot");
-    let mut version = None;
-    let mut assets = Vec::new();
+    let mut saw_version = false;
+    let mut package_count = 0;
     for raw in contents.lines() {
         let line = raw.trim();
         if line.is_empty() || line.starts_with('#') {
@@ -225,7 +229,7 @@ fn pin_file_when_present_is_well_formed() {
             .unwrap_or_else(|| panic!("malformed line: {raw:?}"));
         assert!(!value.trim().is_empty(), "empty value for key {key:?}");
         if key.trim() == "version" {
-            version = Some(value.trim().to_string());
+            saw_version = true;
         } else {
             assert_eq!(
                 value.trim().len(),
@@ -236,22 +240,11 @@ fn pin_file_when_present_is_well_formed() {
                 value.trim().bytes().all(|byte| byte.is_ascii_hexdigit()),
                 "invalid SHA-256 hash for key {key:?}"
             );
-            assets.push(key.trim().to_string());
+            package_count += 1;
         }
     }
-    let version = version.unwrap_or_else(|| panic!("{filename} missing `version=` line"));
-    let expected_assets = [
-        "darwin-arm64",
-        "darwin-x64",
-        "linux-arm64",
-        "linux-x64",
-        "linuxmusl-arm64",
-        "linuxmusl-x64",
-        "win32-arm64",
-        "win32-x64",
-    ]
-    .map(|platform| format!("github-copilot-{version}-{platform}.tgz"));
-    assert_eq!(assets, expected_assets);
+    assert!(saw_version, "{filename} missing `version=` line");
+    assert_eq!(package_count, expected_package_count);
 }
 
 /// With `bundled-cli` on AND a supported target, `install_bundled_cli`

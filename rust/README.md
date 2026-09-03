@@ -965,9 +965,8 @@ github-copilot-sdk = { version = "0.1", default-features = false }
 
    The resolved version is baked into the crate via `cargo:rustc-env=COPILOT_SDK_CLI_VERSION` regardless of mode. The runtime resolver consumes it to recompute the on-disk path by convention, so no absolute paths leak into the rlib.
 
-2. **Build time:** `build.rs` downloads
-   `github-copilot-<version>-<platform>.tgz` and verifies its SHA-256 against
-   the release's `SHA256SUMS.txt` or the publish snapshot.
+2. **Build time:** `build.rs` downloads the platform-specific release archive and
+   verifies its SHA-256 against the release's `SHA256SUMS.txt` or the publish snapshot.
    Then:
    - **`bundled-cli` on (default):** creates and embeds a minimal archive containing the CLI executable, `copilot-runtime[.exe]`, and `runtime.node`.
    - **`bundled-in-process` on:** the archive additionally contains the platform-native runtime library (`.dll`, `.so`, or `.dylib`).
@@ -1066,7 +1065,7 @@ In embed mode `build.rs` re-downloads on every clean build by default. Set `BUND
 
 ### Platforms
 
-Supported: `darwin-arm64`, `darwin-x64`, `linux-x64`, `linux-arm64`, `linuxmusl-x64`, `linuxmusl-arm64`, `win32-x64`, `win32-arm64`. The target platform is auto-detected from Cargo's target OS, architecture, and environment (cross-compilation works).
+Supported: `darwin-arm64`, `darwin-x64`, `linux-x64`, `linux-arm64`, `win32-x64`, `win32-arm64`. The target platform is auto-detected from `CARGO_CFG_TARGET_OS` and `CARGO_CFG_TARGET_ARCH` (cross-compilation works).
 
 ## Features
 
