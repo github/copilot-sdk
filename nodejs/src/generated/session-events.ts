@@ -23,6 +23,7 @@ export type SessionEvent =
   | InfoEvent
   | WarningEvent
   | ModelChangeEvent
+  | AutoTierSwitchFailedEvent
   | ModeChangedEvent
   | ModeNoticeDeliveredEvent
   | SessionLimitsChangedEvent
@@ -126,6 +127,8 @@ export type SessionEvent =
   | CustomAgentsUpdatedEvent
   | McpServersLoadedEvent
   | McpServerStatusChangedEvent
+  | McpServerRemovedEvent
+  | McpServerNeedsReconnectEvent
   | McpToolsListChangedEvent
   | McpResourcesListChangedEvent
   | McpPromptsListChangedEvent
@@ -250,6 +253,18 @@ export type ModelChangeSource =
   | "automatic"
   /** An SDK or RPC caller selected the model. */
   | "sdk";
+/**
+ * Terminal reason an Auto preference activation failed.
+ */
+export type AutoTierSwitchFailureReason =
+  /** The candidate model was rejected by model policy. */
+  | "policy_rejected"
+  /** The Auto routing request failed or returned an unusable response. */
+  | "request_failed"
+  /** The runtime could not prepare the Auto routing request. */
+  | "setup_failed"
+  /** The provider does not support Auto routing. */
+  | "unsupported";
 /**
  * Permission mode for the session.
  */
@@ -713,6 +728,14 @@ export type SystemNotificationAgentCompletedStatus =
   | "completed"
   /** The agent failed. */
   | "failed";
+export type SystemNotificationFactoryPauseInfo =
+  | {
+      type: "user";
+    }
+  | {
+      key: string;
+      type: "checkpoint";
+    };
 /**
  * Terminal status reached by a factory execution attempt.
  */
@@ -721,6 +744,7 @@ export type SystemNotificationFactoryCompletedStatus =
   | "completed"
   /** The factory was halted. */
   | "halted"
+  | "paused"
   /** The factory was cancelled. */
   | "cancelled"
   /** The factory failed. */
@@ -1033,6 +1057,7 @@ export type FactoryRunSettledStatus =
   | "completed"
   /** The run was stopped by a limit, an approval refusal or another policy decision. */
   | "halted"
+  | "paused"
   /** The run was cancelled by its caller or by session disposal. */
   | "cancelled"
   /** The run failed, with `failureType` carrying the class when it has one. */
@@ -1885,6 +1910,10 @@ export interface ModelChangeEvent {
  */
 export interface ModelChangeData {
   /**
+   * Committed Auto preference after the model configuration change, when applicable.
+   */
+  autoTier?: AutoTier | null;
+  /**
    * Reason the change happened, when not user-initiated. `"rate_limit_auto_switch"` for changes triggered by the auto-mode-switch rate-limit recovery path, or `"refusal_fallback"` when the active model declined a request (content refusal) and the runtime switched to the configured refusal-fallback model. UI clients can use this to render contextual copy.
    */
   cause?: string;
@@ -1896,6 +1925,7 @@ export interface ModelChangeData {
    * Newly selected model identifier
    */
   newModel: string;
+  previousAutoTier?: AutoTier;
   /**
    * Model that was previously selected, if any
    */
@@ -1913,6 +1943,47 @@ export interface ModelChangeData {
   reasoningSummary?: ReasoningSummary;
   source?: ModelChangeSource;
   verbosity?: Verbosity;
+}
+/**
+ * Session event "session.auto_tier_switch_failed". A transient Auto preference failure emitted when the runtime cannot mint or accept a usable model and token pair. The previously effective preference remains active, so SDK clients can surface a non-blocking failure without changing their committed-tier state. This event is ephemeral and is not persisted or replayed on resume.
+ */
+export interface AutoTierSwitchFailedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: AutoTierSwitchFailedData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "session.auto_tier_switch_failed".
+   */
+  type: "session.auto_tier_switch_failed";
+}
+/**
+ * A transient Auto preference failure emitted when the runtime cannot mint or accept a usable model and token pair. The previously effective preference remains active, so SDK clients can surface a non-blocking failure without changing their committed-tier state. This event is ephemeral and is not persisted or replayed on resume.
+ */
+export interface AutoTierSwitchFailedData {
+  effectiveAutoTier?: AutoTier;
+  reason: AutoTierSwitchFailureReason;
+  /**
+   * Auto preference that failed to activate, or null when returning to provider-default routing failed.
+   */
+  requestedAutoTier: AutoTier | null;
 }
 /**
  * Session event "session.mode_changed". Agent mode change details including previous and new modes
@@ -7761,6 +7832,7 @@ export interface SystemNotificationFactoryCompleted {
    * Machine-readable terminal failure details, when present.
    */
   failure?: JsonValue;
+  pauseInfo?: SystemNotificationFactoryPauseInfo;
   /**
    * Bounded prompt-safe preview of the completed result.
    */
@@ -11183,6 +11255,84 @@ export interface McpServerStatusChangedData {
    */
   serverName: string;
   status: McpServerStatus;
+}
+/**
+ * Session event "session.mcp_server_removed". Payload of `session.mcp_server_removed` identifying an MCP server the graph no longer runs.
+ */
+export interface McpServerRemovedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: McpServerRemovedData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "session.mcp_server_removed".
+   */
+  type: "session.mcp_server_removed";
+}
+/**
+ * Payload of `session.mcp_server_removed` identifying an MCP server the graph no longer runs.
+ */
+export interface McpServerRemovedData {
+  /**
+   * Name of the MCP server that was removed from the graph
+   */
+  serverName: string;
+}
+/**
+ * Session event "session.mcp_server_needs_reconnect". Payload of `session.mcp_server_needs_reconnect` identifying an MCP server whose connection must be re-established.
+ */
+export interface McpServerNeedsReconnectEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: McpServerNeedsReconnectData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "session.mcp_server_needs_reconnect".
+   */
+  type: "session.mcp_server_needs_reconnect";
+}
+/**
+ * Payload of `session.mcp_server_needs_reconnect` identifying an MCP server whose connection must be re-established.
+ */
+export interface McpServerNeedsReconnectData {
+  /**
+   * Name of the MCP server that needs to reconnect
+   */
+  serverName: string;
 }
 /**
  * Session event "mcp.tools.list_changed". Payload identifying the MCP server associated with a list change.

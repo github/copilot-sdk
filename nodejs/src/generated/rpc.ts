@@ -664,6 +664,18 @@ export type CatalogUnavailableTransportReason =
   /** Eligible remotes could not be enumerated, so no explicit choice can be offered. */
   | "remote-enumeration-unavailable";
 /**
+ * Why the runtime requests client-task cancellation.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ClientTaskCancelReason".
+ */
+/** @experimental */
+export type ClientTaskCancelReason =
+  /** A caller requested task cancellation. */
+  | "cancel_requested"
+  /** The session is shutting down. */
+  | "session_shutdown";
+/**
  * Coarse command category for grouping and behavior: runtime built-in, skill-backed command, or SDK/client-owned command
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -745,6 +757,20 @@ export type ConnectedRemoteSessionMetadataKind =
   | "remote-session"
   /** GitHub Copilot coding agent session. */
   | "coding-agent";
+/**
+ * Closed set of public task kinds a connection can negotiate.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "TaskKind".
+ */
+/** @experimental */
+export type TaskKind =
+  /** Runtime-owned background agent task. */
+  | "agent"
+  /** Runtime-owned shell task. */
+  | "shell"
+  /** Client-owned externally executed task. */
+  | "client";
 /**
  * Controls how MCP tool result content is filtered: none leaves content unchanged, markdown sanitizes HTML while preserving Markdown-friendly output, and hidden_characters removes characters that can hide directives.
  *
@@ -1122,6 +1148,7 @@ export type FactoryRunStatus =
   | "completed"
   /** The run was interrupted while resource budget remained. */
   | "halted"
+  | "paused"
   /** The run was cancelled before completion. */
   | "cancelled"
   /** The factory body failed or reached a cumulative resource ceiling. */
@@ -1140,6 +1167,7 @@ export type FactoryRunFailure =
        * Approved effective ceiling that was reached.
        */
       value: number;
+      suggestedValue?: number;
       /**
        * Factory run identifier.
        */
@@ -1216,6 +1244,16 @@ export type FactoryRunFailureKind =
   | "timeoutSeconds"
   /** The run's settled subagent model usage exceeded the approved AI-credit ceiling, or no headroom remained for another subagent. */
   | "maxAiCredits";
+
+/** @experimental */
+export type FactoryPauseInfo =
+  | {
+      type: "user";
+    }
+  | {
+      key: string;
+      type: "checkpoint";
+    };
 /**
  * Kind of factory progress line.
  *
@@ -1228,6 +1266,9 @@ export type FactoryLogLineKind =
   | "log"
   /** A named factory phase marker. */
   | "phase";
+
+/** @experimental */
+export type FactoryPauseCheckpointAction = "continue" | "pause";
 /**
  * Derived lifecycle state of a factory phase.
  *
@@ -2374,6 +2415,18 @@ export type ModelListRequest =
        */
       skipCache?: boolean;
     };
+/**
+ * Whether the requested preference was already effective or was accepted for later transactional activation.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ModelSwitchAutoTierStatus".
+ */
+/** @experimental */
+export type ModelSwitchAutoTierStatus =
+  /** The requested preference is already effective. No activation is pending for it, although this request may have cancelled an earlier unclaimed preference reported in `supersededAutoTier`. */
+  | "unchanged"
+  /** The request was accepted but has not committed. A later user turn using the `auto` model must mint and validate the replacement before it becomes effective. */
+  | "pending";
 /**
  * Provider type. Defaults to "openai" for generic OpenAI-compatible APIs.
  *
@@ -3560,13 +3613,158 @@ export type TaskExecutionMode =
   /** The task is managed in the background. */
   | "background";
 /**
- * Tracked task union returned by task APIs, containing either an agent task or a shell task.
+ * Active status a client owner may publish with a progress update.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "TaskClientActiveStatus".
+ */
+/** @experimental */
+export type TaskClientActiveStatus =
+  /** The external owner is actively working. */
+  | "running"
+  /** The external owner is connected but waiting. */
+  | "idle";
+/**
+ * Client-owned tasks always execute outside the runtime in background mode.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "TaskClientExecutionMode".
+ */
+/** @experimental */
+export type TaskClientExecutionMode = "background";
+/**
+ * Discriminator for a client-owned task.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "TaskClientType".
+ */
+/** @experimental */
+export type TaskClientType = "client";
+/**
+ * Lifecycle status of a client-owned task.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "TaskClientStatus".
+ */
+/** @experimental */
+export type TaskClientStatus =
+  /** The external owner is actively working. */
+  | "running"
+  /** The external owner is connected but waiting. */
+  | "idle"
+  /** The owner reported successful completion. */
+  | "completed"
+  /** The owner reported failure. */
+  | "failed"
+  /** The owner reported or confirmed cancellation. */
+  | "cancelled"
+  /** The bound owner join disappeared; external executor state is unknown. */
+  | "orphaned";
+/**
+ * Connection class owning a client task.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "TaskClientOwnerKind".
+ */
+/** @experimental */
+export type TaskClientOwnerKind =
+  /** A discovered extension connection owns the task. */
+  | "extension"
+  /** A generic SDK connection owns the task. */
+  | "sdk";
+/**
+ * Presence of the task's bound join.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "TaskClientOwnerPresence".
+ */
+/** @experimental */
+export type TaskClientOwnerPresence =
+  /** The bound session join is connected. */
+  | "connected"
+  /** The bound session join is disconnected. */
+  | "disconnected";
+/**
+ * Progress or terminal update for a client-owned task.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "TaskClientUpdate".
+ */
+/** @experimental */
+export type TaskClientUpdate =
+  | {
+      status?: TaskClientActiveStatus;
+      /**
+       * Optional progress message appended to recent activity when nonempty
+       */
+      message?: string;
+      /**
+       * Optional progress phase; null clears the current phase
+       */
+      phase?: string | null;
+      /**
+       * Optional completion percentage; null clears the current percentage
+       */
+      percentage?: number | null;
+      /**
+       * Client task update variant discriminator.
+       */
+      kind: "progress";
+    }
+  | {
+      /**
+       * Optional final progress message
+       */
+      message?: string;
+      /**
+       * Optional opaque successful terminal result
+       */
+      result?: JsonValue;
+      /**
+       * Client task update variant discriminator.
+       */
+      kind: "completed";
+    }
+  | {
+      /**
+       * Optional final progress message
+       */
+      message?: string;
+      /**
+       * Human-readable terminal failure message
+       */
+      error: string;
+      /**
+       * Optional owner-supplied terminal failure code
+       */
+      code?: string;
+      /**
+       * Client task update variant discriminator.
+       */
+      kind: "failed";
+    }
+  | {
+      /**
+       * Optional final progress message
+       */
+      message?: string;
+      /**
+       * Optional human-readable cancellation reason
+       */
+      reason?: string;
+      /**
+       * Client task update variant discriminator.
+       */
+      kind: "cancelled";
+    };
+/**
+ * Tracked task union returned by task APIs, containing an agent, client, or shell task.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "TaskInfo".
  */
 /** @experimental */
-export type TaskInfo = TaskAgentInfo | TaskShellInfo;
+export type TaskInfo = TaskAgentInfo | TaskClientInfo | TaskShellInfo;
 /**
  * Whether the shell runs inside a managed PTY session or as an independent background process
  *
@@ -3586,7 +3784,7 @@ export type TaskShellInfoAttachmentMode =
  * via the `definition` "TaskProgress".
  */
 /** @experimental */
-export type TaskProgress = (TaskAgentProgress | TaskShellProgress) | null;
+export type TaskProgress = TaskAgentProgress | TaskClientProgress | TaskShellProgress | null;
 /**
  * Canonical result returned by a session tool.
  *
@@ -6048,6 +6246,45 @@ export interface CatalogUnavailableTransportError {
   message: string;
 }
 /**
+ * Runtime-to-owner cancellation request for a client-owned task.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ClientTaskCancelRequest".
+ */
+/** @experimental */
+export interface ClientTaskCancelRequest {
+  /**
+   * Session that owns the client task
+   */
+  sessionId: string;
+  /**
+   * Canonical runtime-generated task identifier
+   */
+  id: string;
+  /**
+   * Owner-scoped task key included for correlation
+   */
+  clientTaskId: string;
+  /**
+   * Opaque identifier shared by coalesced cancellation callers
+   */
+  cancellationId: string;
+  reason: ClientTaskCancelReason;
+}
+/**
+ * Whether the client authoritatively confirmed its external work stopped.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ClientTaskCancelResult".
+ */
+/** @experimental */
+export interface ClientTaskCancelResult {
+  /**
+   * True only when the owner confirms that external work stopped before responding
+   */
+  cancelled: boolean;
+}
+/**
  * Slash commands available in the session, after applying any include/exclude filters.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -6490,6 +6727,10 @@ export interface ConnectRequest {
   enableGitHubTelemetryForwarding?: boolean;
   clientInfo?: ConnectClientInfo;
   /**
+   * Task kinds this connection can decode when observing session tasks. Omit to retain agent and shell compatibility.
+   */
+  supportedTaskKinds?: TaskKind[];
+  /**
    * Connection token; required when the server was started with COPILOT_CONNECTION_TOKEN
    */
   token?: string;
@@ -6515,6 +6756,10 @@ export interface ConnectResult {
    * Server package version
    */
   version: string;
+  /**
+   * Task kinds the server may return to this connection.
+   */
+  taskKinds?: TaskKind[];
 }
 /**
  * Local file system absolute paths within the session working directory to check against its content-exclusion policy.
@@ -6589,7 +6834,7 @@ export interface ContextHeaviestMessage {
   tokens: number;
 }
 /**
- * The currently selected model, reasoning effort, and context tier for the session. The context tier reflects `Session.getContextTier()`, restored from the session journal on resume.
+ * The session's authoritative model snapshot. Auto preference fields are configuration for the virtual `auto` model and do not change the selected model identifier. The context tier reflects `Session.getContextTier()`, restored from the session journal on resume.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "CurrentModel".
@@ -6605,6 +6850,15 @@ export interface CurrentModel {
    */
   reasoningEffort?: string;
   contextTier?: ContextTier;
+  autoTier?: AutoTier;
+  /**
+   * Latest unclaimed Auto preference waiting for a future user turn. Null means the pending request is returning to provider-default routing.
+   */
+  pendingAutoTier?: AutoTier | null;
+  /**
+   * Auto preference currently claimed by an in-progress activation. Null means the activation is returning to provider-default routing.
+   */
+  activatingAutoTier?: AutoTier | null;
 }
 /**
  * Lightweight metadata for a currently initialized session tool
@@ -7484,6 +7738,10 @@ export interface FactoryAbortRequest {
    * Factory run identifier.
    */
   runId: string;
+  /**
+   * Opaque token identifying the execution attempt to abort.
+   */
+  executionToken: string;
 }
 /**
  * Acknowledgement that a factory request was accepted.
@@ -7950,6 +8208,7 @@ export interface FactoryRunSummary {
    * Terminal run outcome, or null while nonterminal.
    */
   terminal: FactoryRunTerminal | null;
+  canResume: boolean;
 }
 /**
  * Durable factory resource consumption.
@@ -7993,6 +8252,7 @@ export interface FactoryRunTerminal {
    * Prompt-safe preview of the completed result.
    */
   resultPreview?: string;
+  pauseInfo: FactoryPauseInfo | null;
 }
 /**
  * One ordered factory progress line.
@@ -8032,6 +8292,33 @@ export interface FactoryLogRequest {
    * Ordered progress lines to append.
    */
   lines: FactoryLogLine[];
+}
+/**
+ * Parameters for an owned durable pause checkpoint.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryPauseCheckpointRequest".
+ */
+/** @experimental */
+export interface FactoryPauseCheckpointRequest {
+  runId: string;
+  executionToken: string;
+  key: string;
+}
+
+/** @experimental */
+export interface FactoryPauseCheckpointResult {
+  action: FactoryPauseCheckpointAction;
+}
+/**
+ * Parameters for pausing a running factory.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryPauseRequest".
+ */
+/** @experimental */
+export interface FactoryPauseRequest {
+  runId: string;
 }
 /**
  * Durable lifecycle and timing for one factory phase.
@@ -8187,19 +8474,19 @@ export interface FactoryRunLimits {
   /**
    * Maximum number of factory subagents that may run concurrently.
    */
-  maxConcurrentSubagents?: number;
+  maxConcurrentSubagents?: number | null;
   /**
    * Maximum total number of factory subagents that may be admitted.
    */
-  maxTotalSubagents?: number;
+  maxTotalSubagents?: number | null;
   /**
    * Maximum accumulated active-execution time in seconds. Active execution includes the entire extension body, subprocess waits, queued-agent waits, and sleeps; time between resumed attempts is not counted.
    */
-  timeoutSeconds?: number;
+  timeoutSeconds?: number | null;
   /**
    * Maximum AI credits consumed by factory subagents and their descendants. The post-paid ceiling is soft: parallel turns can settle beyond it before the run stops.
    */
-  maxAiCredits?: number;
+  maxAiCredits?: number | null;
 }
 /**
  * Resolved persisted factory identity and resumed run envelope.
@@ -8249,6 +8536,7 @@ export interface FactoryRunResult {
    * Partial journal and progress snapshot for a halted, cancelled, or errored run.
    */
   snapshot?: JsonValue;
+  pauseInfo?: FactoryPauseInfo;
 }
 /**
  * Full factory run observability detail.
@@ -8325,6 +8613,7 @@ export interface FactoryRunDetail {
    * Terminal run outcome, or null while nonterminal.
    */
   terminal: FactoryRunTerminal | null;
+  canResume: boolean;
   /**
    * Lifecycle and timing observations for each factory phase.
    */
@@ -10457,6 +10746,10 @@ export interface McpConfigRemoveRequest {
    * Name of the MCP server to remove
    */
   name: string;
+  /**
+   * OAuth Client ID Metadata Document URL whose persisted credentials should also be removed.
+   */
+  authClientIdMetadataUrl?: string;
 }
 /**
  * MCP server name and replacement configuration to write to user configuration.
@@ -12223,6 +12516,12 @@ export interface Model {
    */
   name: string;
   capabilities: ModelCapabilities;
+  /**
+   * Provider-supplied model metadata. Keys and JSON-compatible values are preserved unchanged. This is factual metadata published by the model provider; it carries no picker or UX semantics.
+   */
+  metadata?: {
+    [k: string]: JsonValue | undefined;
+  };
   policy?: ModelPolicy;
   billing?: ModelBilling;
   /**
@@ -12702,6 +13001,43 @@ export interface ModelsListRequest {
    */
   gitHubToken?: string;
 }
+/**
+ * An Auto preference request for the session. This updates Auto configuration only; it does not change the selected model to `auto`.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ModelSwitchAutoTierRequest".
+ */
+/** @experimental */
+export interface ModelSwitchAutoTierRequest {
+  /**
+   * Auto preference to activate when a future user turn using the `auto` model safely mints a replacement model and token pair. Pass null to return to provider-default Auto routing.
+   */
+  autoTier: AutoTier | null;
+  source?: ModelChangeSource;
+}
+/**
+ * Immediate acknowledgement and Auto preference snapshot after a switch request. This result never implies that a pending preference committed.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ModelSwitchAutoTierResult".
+ */
+/** @experimental */
+export interface ModelSwitchAutoTierResult {
+  status: ModelSwitchAutoTierStatus;
+  effectiveAutoTier?: AutoTier;
+  /**
+   * Latest unclaimed Auto preference waiting for a future user turn.
+   */
+  pendingAutoTier?: AutoTier | null;
+  /**
+   * Auto preference currently claimed by an in-progress activation. Null means the activation is returning to provider-default routing.
+   */
+  activatingAutoTier?: AutoTier | null;
+  /**
+   * Earlier unclaimed preference replaced by this request. This can be present with either status, including when selecting the effective preference cancels pending work.
+   */
+  supersededAutoTier?: AutoTier | null;
+}
 
 /** @experimental */
 export interface ModelSwitchConfirmation {
@@ -12730,6 +13066,10 @@ export interface ModelSwitchToRequest {
    * Model selection id to switch to, as returned by `list`. A bare id (e.g. `claude-sonnet-4.6`) names a Copilot (CAPI) model; a provider-qualified id (`provider/id`, e.g. `acme/claude-sonnet`) targets a registry BYOK model.
    */
   modelId: string;
+  /**
+   * Optional Auto routing preference to stage atomically with selecting `auto`. Pass null to return to provider-default Auto routing. This field is rejected when `modelId` is not `auto`.
+   */
+  autoTier?: AutoTier | null;
   /**
    * Reasoning effort level to use for the model. CAPI values are model-defined and validated against the selected model; BYOK providers may define additional values. "none" disables reasoning. When omitted, no effort override is applied.
    */
@@ -12802,6 +13142,7 @@ export interface ModelSwitchToResult {
    * Deprecation warnings associated with the selected model or options.
    */
   deprecationWarnings?: string[];
+  modelState?: CurrentModel;
 }
 /**
  * Agent interaction mode to apply to the session.
@@ -16582,6 +16923,30 @@ export interface SandboxConfig {
    * Whether to auto-add the current working directory to readwritePaths. Default: true.
    */
   addCurrentWorkingDirectory?: boolean;
+  /**
+   * Whether MCP servers the session launches are confined by the sandbox. Only an explicit `false` opts out; doing so also lets remote-MCP egress leave the sandbox, so the flag and `enabled` are always read together. Ignored while `enabled` is false. Default: true (enabled by default; set to false to opt out).
+   */
+  sandboxMcpServers?: boolean;
+  /**
+   * Whether language servers the session launches are confined by the sandbox. Only an explicit `false` opts out. Ignored while `enabled` is false. Default: true (enabled by default; set to false to opt out).
+   */
+  sandboxLspServers?: boolean;
+  /**
+   * Whether the agent may request that an individual command run outside the sandbox, which the host then approves or denies through the usual permission flow. A host capability flag rather than part of the policy: it is stripped from the effective spawn policy and only has an effect while `enabled` is true. Fail-closed, unlike the opt-out flags on this object: omitting it offers no bypass. Default: false (opt-in).
+   */
+  allowBypass?: boolean;
+  /**
+   * Set by the runtime when a managed policy forced `sandboxMcpServers` on and took the local opt-out away. Provenance rather than policy: it lets a sandbox startup failure point at the administrator instead of a setting the next managed merge would override, and it is ignored when comparing two configs for change. Only the managed merge may set it; a caller-supplied value is stripped.
+   *
+   * @internal
+   */
+  managedMcpRoutingLocked?: boolean;
+  /**
+   * The `sandboxLspServers` counterpart of `managedMcpRoutingLocked`.
+   *
+   * @internal
+   */
+  managedLspRoutingLocked?: boolean;
   auth?: SandboxConfigAuth;
   /**
    * Whether to auto-grant read access to tool directories discovered on PATH and in toolchain environment variables (GOROOT, JAVA_HOME, VIRTUAL_ENV, and similar), and to common developer-tool caches, config, and toolchains. Writable grants cover scratch caches, the Unix GitHub CLI cache, and Cargo's registry, git store, and lock/tracker files. A relocated CARGO_HOME gets the same narrow split: registry and git are read-write; bin is read-only; the home root, config.toml, and credentials.toml stay ungranted. Set to false to disable every grant listed above; user-installed toolchains and caches then need explicit userPolicy.filesystem readonlyPaths and readwritePaths entries. The working directory (see addCurrentWorkingDirectory), temporary storage, session log paths, and system locations follow their own rules and stay granted. Default: true (enabled by default; set to false to opt out).
@@ -18291,6 +18656,10 @@ export interface SessionOpenOptions {
    * Identifier of the client driving the session.
    */
   clientName?: string;
+  /**
+   * OAuth Client ID Metadata Document URL used by this host for MCP authorization.
+   */
+  authClientIdMetadataUrl?: string;
   /**
    * Structured client kind used for runtime behavior gates.
    */
@@ -20840,6 +21209,157 @@ export interface TaskProgressLine {
    */
   timestamp: string;
 }
+/**
+ * Tracked client-owned task metadata.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "TaskClientInfo".
+ */
+/** @experimental */
+export interface TaskClientInfo {
+  type: TaskClientType;
+  /**
+   * Canonical runtime-generated task identifier
+   */
+  id: string;
+  /**
+   * Owner-scoped registration and reclaim key
+   */
+  clientTaskId: string;
+  /**
+   * Optional task display name
+   */
+  displayName?: string;
+  /**
+   * Task description
+   */
+  description: string;
+  status: TaskClientStatus;
+  owner: TaskClientOwner;
+  /**
+   * ISO 8601 timestamp when the task started
+   */
+  startedAt: string;
+  /**
+   * ISO 8601 timestamp of the latest accepted lifecycle change
+   */
+  updatedAt: string;
+  /**
+   * ISO 8601 timestamp when the task reached a terminal status
+   */
+  completedAt?: string;
+  /**
+   * Accumulated active execution time in milliseconds
+   */
+  activeTimeMs: number;
+  /**
+   * ISO 8601 timestamp when the current active segment started
+   */
+  activeStartedAt?: string;
+  /**
+   * ISO 8601 timestamp when the connected owner entered idle status
+   */
+  idleSince?: string;
+  /**
+   * ISO 8601 timestamp of the most recent orphan transition
+   */
+  orphanedAt?: string;
+  /**
+   * ISO 8601 timestamp of the most recent successful reclaim
+   */
+  reclaimedAt?: string;
+  executionMode: TaskClientExecutionMode;
+  /**
+   * Whether the currently bound owner can receive a cancellation request
+   */
+  canCancel: boolean;
+  /**
+   * Sequence number of the latest accepted owner update
+   */
+  sequence: number;
+  /**
+   * Opaque successful terminal result supplied by the task owner
+   */
+  result?: JsonValue;
+  /**
+   * Human-readable terminal failure message
+   */
+  error?: string;
+  /**
+   * Optional owner-supplied terminal failure code
+   */
+  errorCode?: string;
+  /**
+   * Human-readable reason for terminal cancellation
+   */
+  cancellationReason?: string;
+}
+/**
+ * Public owner attribution for a client-owned task. Identifiers are opaque and never authorize requests.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "TaskClientOwner".
+ */
+/** @experimental */
+export interface TaskClientOwner {
+  /**
+   * Opaque session-scoped participant identity
+   */
+  participantId: string;
+  /**
+   * Opaque identity of the currently or most recently bound session join
+   */
+  joinId: string;
+  kind: TaskClientOwnerKind;
+  /**
+   * Display-only owner name
+   */
+  displayName?: string;
+  /**
+   * Display-only owner source
+   */
+  source?: string;
+  presence: TaskClientOwnerPresence;
+  /**
+   * ISO 8601 timestamp when the bound join disconnected
+   */
+  disconnectedAt?: string;
+}
+/**
+ * Generic progress for a client-owned task.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "TaskClientProgress".
+ */
+/** @experimental */
+export interface TaskClientProgress {
+  type: TaskClientType;
+  status: TaskClientStatus;
+  /**
+   * Sequence number of the latest accepted owner update
+   */
+  sequence: number;
+  /**
+   * ISO 8601 timestamp of the latest accepted lifecycle change
+   */
+  updatedAt: string;
+  /**
+   * Current owner-defined progress phase
+   */
+  phase?: string;
+  /**
+   * Current completion percentage from zero through one hundred
+   */
+  percentage?: number;
+  /**
+   * Most recent nonempty progress message
+   */
+  lastMessage?: string;
+  /**
+   * Recent server-timestamped progress messages
+   */
+  recentActivity: TaskProgressLine[];
+}
 
 /** @experimental */
 export interface TaskCompletionDecision {
@@ -21058,6 +21578,54 @@ export interface TasksPromoteToBackgroundResult {
 /** @experimental */
 export interface TasksRefreshResult {}
 /**
+ * Registers or reclaims a client-owned task.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "TasksRegisterRequest".
+ */
+/** @experimental */
+export interface TasksRegisterRequest {
+  type: TaskClientType;
+  /**
+   * Owner-scoped idempotency key used for registration and reclaim
+   */
+  clientTaskId: string;
+  /**
+   * Human-readable description of the external work
+   */
+  description: string;
+  /**
+   * Optional short display name for the external work
+   */
+  displayName?: string;
+  /**
+   * Whether the owner supports runtime cancellation requests
+   */
+  cancellable: boolean;
+  /**
+   * Expected current sequence for idempotent registration or orphan reclaim
+   */
+  expectedSequence?: number;
+}
+/**
+ * Result of registering or reclaiming a client-owned task.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "TasksRegisterResult".
+ */
+/** @experimental */
+export interface TasksRegisterResult {
+  task: TaskClientInfo;
+  /**
+   * True only when this invocation created a new task
+   */
+  created: boolean;
+  /**
+   * True only when this invocation reclaimed an orphaned task
+   */
+  reclaimed: boolean;
+}
+/**
  * Identifier of the completed or cancelled task to remove from tracking.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -21162,6 +21730,42 @@ export interface TasksStartAgentResult {
    * Generated agent ID for the background task
    */
   agentId: string;
+}
+/**
+ * Updates a client-owned task.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "TasksUpdateRequest".
+ */
+/** @experimental */
+export interface TasksUpdateRequest {
+  /**
+   * Canonical runtime-generated task identifier
+   */
+  id: string;
+  /**
+   * Owner update sequence to apply
+   */
+  sequence: number;
+  update: TaskClientUpdate;
+}
+/**
+ * Result of publishing a client-owned task update.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "TasksUpdateResult".
+ */
+/** @experimental */
+export interface TasksUpdateResult {
+  task: TaskClientInfo;
+  /**
+   * Whether this invocation changed task state
+   */
+  applied: boolean;
+  /**
+   * Whether this invocation repeated the latest accepted update
+   */
+  duplicate: boolean;
 }
 /**
  * Wait until all in-flight background tasks (agents + shells) and any follow-up turns scheduled by their completions have settled. Returns when the runtime is fully drained or after an internal timeout (default 10 minutes; configurable via COPILOT_TASK_WAIT_TIMEOUT_SECONDS).
@@ -22927,6 +23531,11 @@ export interface WorkspacesWriteAutopilotObjectiveResult {
 }
 
 /** @experimental */
+export interface SessionFactoryPauseAtCheckpointResult {
+  action: FactoryPauseCheckpointAction;
+}
+
+/** @experimental */
 export interface SessionModelListRequest {
   /**
    * If true, bypasses the per-session model list cache and re-fetches from CAPI.
@@ -23523,6 +24132,11 @@ export function createServerRpc(connection: MessageConnection) {
              */
             read: async (): Promise<ManagedSettingsReadResult> =>
                 connection.sendRequest("managedSettings.read", {}),
+            /**
+             * Force-refreshes enterprise managed settings for every account: wipes the persistent server-policy cache (the whole `<cacheHome>/managed-settings` directory) and drops this runtime process's in-memory retained server policy. It does not itself fetch policy — the effect is that the next time a session resolves managed settings for an account, that resolution re-fetches the account's org policy from the network instead of serving a cached response. Note that `managedSettings.read` returns only device/MDM settings and never triggers the account server-policy fetch, so a host implementing "sync account policy" should start a fresh session resolution rather than treat a subsequent `managedSettings.read` as the refreshed org policy. Mirrors the invalidation a sign-out performs, broadened from the one signing-out account to all of them; device/MDM layers describe the machine, not the account, and are left untouched. Rejects if the on-disk cache cannot be removed.
+             */
+            clearCache: async (): Promise<void> =>
+                connection.sendRequest("managedSettings.clearCache", {}),
         },
         /** @experimental */
         runtime: {
@@ -24118,6 +24732,15 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             cancel: async (params: FactoryCancelRequest): Promise<FactoryRunResult> =>
                 connection.sendRequest("session.factory.cancel", { sessionId, ...params }),
             /**
+             * Pauses a running factory and returns its settled run envelope.
+             *
+             * @param params Parameters for pausing a running factory.
+             *
+             * @returns Complete current or terminal factory run envelope.
+             */
+            pause: async (params: FactoryPauseRequest): Promise<FactoryRunResult> =>
+                connection.sendRequest("session.factory.pause", { sessionId, ...params }),
+            /**
              * Records a batch of ordered factory progress lines.
              *
              * @param params Parameters for recording factory progress.
@@ -24160,9 +24783,9 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
         /** @experimental */
         model: {
             /**
-             * Gets the currently selected model for the session.
+             * Gets the session's authoritative model snapshot, including the committed Auto preference and any newer unclaimed Auto preference waiting for a future user turn.
              *
-             * @returns The currently selected model, reasoning effort, and context tier for the session. The context tier reflects `Session.getContextTier()`, restored from the session journal on resume.
+             * @returns The session's authoritative model snapshot. Auto preference fields are configuration for the virtual `auto` model and do not change the selected model identifier. The context tier reflects `Session.getContextTier()`, restored from the session journal on resume.
              */
             getCurrent: async (): Promise<CurrentModel> =>
                 connection.sendRequest("session.model.getCurrent", { sessionId }),
@@ -24175,6 +24798,15 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              */
             switchTo: async (params: ModelSwitchToRequest): Promise<ModelSwitchToResult> =>
                 connection.sendRequest("session.model.switchTo", { sessionId, ...params }),
+            /**
+             * Requests an Auto preference change without changing the session's selected model. The latest unclaimed request wins; the runtime commits it only after a later prompt using the `auto` model mints a usable model and token pair. A `pending` response confirms that the request was accepted, not that it committed. Observe eventual success through `session.model_change`, failure through the ephemeral `session.auto_tier_switch_failed` event, or current unclaimed state through `session.model.getCurrent`.
+             *
+             * @param params An Auto preference request for the session. This updates Auto configuration only; it does not change the selected model to `auto`.
+             *
+             * @returns Immediate acknowledgement and Auto preference snapshot after a switch request. This result never implies that a pending preference committed.
+             */
+            switchAutoTier: async (params: ModelSwitchAutoTierRequest): Promise<ModelSwitchAutoTierResult> =>
+                connection.sendRequest("session.model.switchAutoTier", { sessionId, ...params }),
             /**
              * Updates the session's reasoning effort without changing the selected model.
              *
@@ -24514,6 +25146,24 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              */
             list: async (): Promise<TaskList> =>
                 connection.sendRequest("session.tasks.list", { sessionId }),
+            /**
+             * Registers a client-owned task, or reclaims an orphaned task belonging to the same extension principal.
+             *
+             * @param params Registers or reclaims a client-owned task.
+             *
+             * @returns Result of registering or reclaiming a client-owned task.
+             */
+            register: async (params: TasksRegisterRequest): Promise<TasksRegisterResult> =>
+                connection.sendRequest("session.tasks.register", { sessionId, ...params }),
+            /**
+             * Publishes generic progress or a terminal outcome for a client-owned task.
+             *
+             * @param params Updates a client-owned task.
+             *
+             * @returns Result of publishing a client-owned task update.
+             */
+            update: async (params: TasksUpdateRequest): Promise<TasksUpdateResult> =>
+                connection.sendRequest("session.tasks.update", { sessionId, ...params }),
             /**
              * Refreshes metadata for any detached background shells the runtime knows about.
              *
@@ -25953,6 +26603,13 @@ export function createInternalSessionRpc(connection: MessageConnection, sessionI
              */
             resumeFromTool: async (params: FactoryToolResumeRequest): Promise<FactoryResumeResult> =>
                 connection.sendRequest("session.factory.resumeFromTool", { sessionId, ...params }),
+            /**
+             * Atomically pauses an owned factory attempt at a durable checkpoint.
+             *
+             * @param params Parameters for an owned durable pause checkpoint.
+             */
+            pauseAtCheckpoint: async (params: FactoryPauseCheckpointRequest): Promise<SessionFactoryPauseAtCheckpointResult> =>
+                connection.sendRequest("session.factory.pauseAtCheckpoint", { sessionId, ...params }),
         },
         /** @experimental */
         model: {
@@ -26192,6 +26849,19 @@ export interface FactoryHandler {
     abort(params: FactoryAbortRequest): Promise<FactoryAckResult>;
 }
 
+/** Handler for `tasks` client session API methods. */
+/** @experimental */
+export interface TasksHandler {
+    /**
+     * Asks the client currently bound to a client-owned session task to confirm that its external work stopped.
+     *
+     * @param params Runtime-to-owner cancellation request for a client-owned task.
+     *
+     * @returns Whether the client authoritatively confirmed its external work stopped.
+     */
+    cancel(params: ClientTaskCancelRequest): Promise<ClientTaskCancelResult>;
+}
+
 /** Handler for `sessionFs` client session API methods. */
 /** @experimental */
 export interface SessionFsHandler {
@@ -26332,6 +27002,7 @@ export interface CanvasHandler {
 export interface ClientSessionApiHandlers {
     providerToken?: ProviderTokenHandler;
     factory?: FactoryHandler;
+    tasks?: TasksHandler;
     sessionFs?: SessionFsHandler;
     canvas?: CanvasHandler;
 }
@@ -26360,6 +27031,11 @@ export function registerClientSessionApiHandlers(
         const handler = getHandlers(params.sessionId).factory;
         if (!handler) throw new Error(`No factory handler registered for session: ${params.sessionId}`);
         return handler.abort(params);
+    });
+    connection.onRequest("tasks.cancel", async (params: ClientTaskCancelRequest) => {
+        const handler = getHandlers(params.sessionId).tasks;
+        if (!handler) throw new Error(`No tasks handler registered for session: ${params.sessionId}`);
+        return handler.cancel(params);
     });
     connection.onRequest("sessionFs.readFile", async (params: SessionFsReadFileRequest) => {
         const handler = getHandlers(params.sessionId).sessionFs;
