@@ -20,7 +20,10 @@ go get github.com/github/copilot-sdk/go
 Try the interactive chat sample (from the repo root):
 
 ```bash
-cd go/samples
+cd nodejs
+npm ci
+export COPILOT_CLI_PATH="$(npm run --silent prepare:runtime -- --print-path)"
+cd ../go/samples
 go run chat.go
 ```
 

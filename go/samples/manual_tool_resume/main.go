@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 	"time"
 
 	copilot "github.com/github/copilot-sdk/go"
 	"github.com/github/copilot-sdk/go/rpc"
+	"github.com/github/copilot-sdk/go/samples/internal/sampleutil"
 )
 
 const timeout = 2 * time.Minute
@@ -32,7 +32,10 @@ func manualTool() copilot.Tool {
 }
 
 func newClient() *copilot.Client {
-	cliPath := filepath.Join("..", "..", "nodejs", "node_modules", "@github", "copilot", "index.js")
+	cliPath, err := sampleutil.CLIPath()
+	if err != nil {
+		panic(err)
+	}
 	return copilot.NewClient(&copilot.ClientOptions{Connection: copilot.StdioConnection{Path: cliPath}})
 }
 
