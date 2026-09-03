@@ -65,6 +65,9 @@ type Session struct {
 	handlerMutex                sync.RWMutex
 	toolHandlers                map[string]ToolHandler
 	toolHandlersM               sync.RWMutex
+	pendingExternalTools        map[string]*pendingExternalTool
+	pendingExternalToolsM       sync.Mutex
+	externalToolsClosed         bool
 	permissionHandler           PermissionHandlerFunc
 	permissionMux               sync.RWMutex
 	managedSettings             bool
@@ -103,6 +106,11 @@ type Session struct {
 
 	// RPC provides typed session-scoped RPC methods.
 	RPC *rpc.SessionRPC
+}
+
+type pendingExternalTool struct {
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 // WorkspacePath returns the path to the session workspace directory when infinite
@@ -1389,7 +1397,19 @@ func fromRPCElicitationRequestedSchema(schema *rpc.ElicitationRequestedSchema) *
 // serial, FIFO dispatch without blocking the read loop.
 func (s *Session) dispatchEvent(event SessionEvent) {
 	s.updateOpenCanvasesFromEvent(event)
-	go s.handleBroadcastEvent(event)
+
+	broadcastHandled := false
+	switch data := event.Data.(type) {
+	case *ExternalToolRequestedData:
+		s.startExternalTool(data)
+		broadcastHandled = true
+	case *ExternalToolCompletedData:
+		s.cancelExternalTool(data.RequestID)
+		broadcastHandled = true
+	}
+	if !broadcastHandled {
+		go s.handleBroadcastEvent(event)
+	}
 
 	// Send to the event channel in a closure with a recover guard.
 	// Disconnect closes eventCh, and in Go sending on a closed channel
@@ -1436,20 +1456,6 @@ func (s *Session) processEvents() {
 // cause RPC deadlocks.
 func (s *Session) handleBroadcastEvent(event SessionEvent) {
 	switch d := event.Data.(type) {
-	case *ExternalToolRequestedData:
-		handler, ok := s.getToolHandler(d.ToolName)
-		if !ok {
-			return
-		}
-		var tp, ts string
-		if d.Traceparent != nil {
-			tp = *d.Traceparent
-		}
-		if d.Tracestate != nil {
-			ts = *d.Tracestate
-		}
-		s.executeToolAndRespond(d.RequestID, d.ToolName, d.ToolCallID, d.Arguments, handler, tp, ts)
-
 	case *PermissionRequestedData:
 		if d.ResolvedByHook != nil && *d.ResolvedByHook {
 			return // Already resolved by a permissionRequest hook; no client action needed.
@@ -1532,11 +1538,90 @@ func (s *Session) handleBroadcastEvent(event SessionEvent) {
 	}
 }
 
+func (s *Session) startExternalTool(data *ExternalToolRequestedData) {
+	handler, ok := s.getToolHandler(data.ToolName)
+	if !ok {
+		return
+	}
+
+	var traceparent, tracestate string
+	if data.Traceparent != nil {
+		traceparent = *data.Traceparent
+	}
+	if data.Tracestate != nil {
+		tracestate = *data.Tracestate
+	}
+	traceCtx := contextWithTraceParent(context.Background(), traceparent, tracestate)
+	ctx, cancel := context.WithCancel(traceCtx)
+	pending := &pendingExternalTool{ctx: ctx, cancel: cancel}
+
+	s.pendingExternalToolsM.Lock()
+	if s.externalToolsClosed {
+		s.pendingExternalToolsM.Unlock()
+		cancel()
+		return
+	}
+	if s.pendingExternalTools == nil {
+		s.pendingExternalTools = make(map[string]*pendingExternalTool)
+	}
+	if _, exists := s.pendingExternalTools[data.RequestID]; exists {
+		s.pendingExternalToolsM.Unlock()
+		cancel()
+		return
+	}
+	s.pendingExternalTools[data.RequestID] = pending
+	s.pendingExternalToolsM.Unlock()
+
+	go s.executeToolAndRespond(data.RequestID, data.ToolName, data.ToolCallID, data.Arguments, handler, pending)
+}
+
+func (s *Session) cancelExternalTool(requestID string) {
+	s.pendingExternalToolsM.Lock()
+	pending := s.pendingExternalTools[requestID]
+	delete(s.pendingExternalTools, requestID)
+	s.pendingExternalToolsM.Unlock()
+	if pending != nil {
+		pending.cancel()
+	}
+}
+
+func (s *Session) cancelPendingExternalTools() {
+	s.pendingExternalToolsM.Lock()
+	s.externalToolsClosed = true
+	pendingTools := s.pendingExternalTools
+	s.pendingExternalTools = nil
+	s.pendingExternalToolsM.Unlock()
+	for _, pending := range pendingTools {
+		pending.cancel()
+	}
+}
+
+func (s *Session) claimExternalTool(requestID string, pending *pendingExternalTool) bool {
+	s.pendingExternalToolsM.Lock()
+	defer s.pendingExternalToolsM.Unlock()
+	if s.pendingExternalTools[requestID] != pending {
+		return false
+	}
+	delete(s.pendingExternalTools, requestID)
+	return true
+}
+
 // executeToolAndRespond executes a tool handler and sends the result back via RPC.
-func (s *Session) executeToolAndRespond(requestID, toolName, toolCallID string, arguments any, handler ToolHandler, traceparent, tracestate string) {
-	ctx := contextWithTraceParent(context.Background(), traceparent, tracestate)
+func (s *Session) executeToolAndRespond(requestID, toolName, toolCallID string, arguments any, handler ToolHandler, pending *pendingExternalTool) {
+	ctx := pending.ctx
+	defer func() {
+		s.pendingExternalToolsM.Lock()
+		if s.pendingExternalTools[requestID] == pending {
+			delete(s.pendingExternalTools, requestID)
+		}
+		s.pendingExternalToolsM.Unlock()
+		pending.cancel()
+	}()
 	defer func() {
 		if r := recover(); r != nil {
+			if !s.claimExternalTool(requestID, pending) {
+				return
+			}
 			errMsg := fmt.Sprintf("tool panic: %v", r)
 			s.RPC.Tools.HandlePendingToolCall(ctx, &rpc.HandlePendingToolCallRequest{
 				RequestID: requestID,
@@ -1563,8 +1648,14 @@ func (s *Session) executeToolAndRespond(requestID, toolName, toolCallID string, 
 			invocation.AvailableTools = metadata.Tools
 		}
 	}
+	if ctx.Err() != nil {
+		return
+	}
 
 	result, err := handler(invocation)
+	if !s.claimExternalTool(requestID, pending) {
+		return
+	}
 	if err != nil {
 		errMsg := err.Error()
 		s.RPC.Tools.HandlePendingToolCall(ctx, &rpc.HandlePendingToolCallRequest{
@@ -1727,6 +1818,7 @@ func (s *Session) GetEvents(ctx context.Context) ([]SessionEvent, error) {
 //	    log.Printf("Failed to disconnect session: %v", err)
 //	}
 func (s *Session) Disconnect() error {
+	s.cancelPendingExternalTools()
 	_, err := s.client.Request(context.Background(), "session.destroy", sessionDestroyRequest{SessionID: s.SessionID})
 
 	s.closeOnce.Do(func() { close(s.eventCh) })

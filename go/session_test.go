@@ -33,6 +33,42 @@ func newTestEvent() SessionEvent {
 	return SessionEvent{Data: &SessionIdleData{}}
 }
 
+func TestExternalToolCompletedCancelsBlockedHandler(t *testing.T) {
+	session, cleanup := newTestSession()
+	defer cleanup()
+
+	started := make(chan struct{})
+	cancelled := make(chan struct{})
+	session.registerTools([]Tool{{
+		Name: "blocked_tool",
+		Handler: func(invocation ToolInvocation) (ToolResult, error) {
+			close(started)
+			<-invocation.TraceContext.Done()
+			close(cancelled)
+			return ToolResult{}, invocation.TraceContext.Err()
+		},
+	}})
+
+	session.dispatchEvent(SessionEvent{Data: &ExternalToolRequestedData{
+		RequestID:  "request-1",
+		SessionID:  "session-1",
+		ToolCallID: "tool-call-1",
+		ToolName:   "blocked_tool",
+	}})
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("tool handler did not start")
+	}
+
+	session.dispatchEvent(SessionEvent{Data: &ExternalToolCompletedData{RequestID: "request-1"}})
+	select {
+	case <-cancelled:
+	case <-time.After(time.Second):
+		t.Fatal("tool handler was not cancelled")
+	}
+}
+
 func ptr[T any](value T) *T {
 	return &value
 }

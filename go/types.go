@@ -1743,7 +1743,9 @@ type ToolInvocation struct {
 	// TraceContext carries the W3C Trace Context propagated from the CLI's
 	// execute_tool span.  Pass this to OpenTelemetry-aware code so that
 	// child spans created inside the handler are parented to the CLI span.
-	// When no trace context is available this will be context.Background().
+	// It is cancelled when the external tool request completes or the session
+	// disconnects, so background work must derive its own lifetime if it should
+	// outlive the invocation.
 	TraceContext context.Context
 }
 

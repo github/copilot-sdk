@@ -597,6 +597,10 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// </example>
     public async Task ForceStopAsync()
     {
+        foreach (var session in _sessions.Values)
+        {
+            session.CancelPendingExternalTools();
+        }
         _sessions.Clear();
         ClearGitHubTokenProviders();
 
@@ -2680,6 +2684,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 ClientGlobalApiRegistration.RegisterClientGlobalApiHandlers(rpc, _clientGlobalApis);
             }
             rpc.StartListening();
+            _ = CancelExternalToolsWhenConnectionClosesAsync(rpc);
             LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
                 "CopilotClient.ConnectToServerAsync transport setup complete. Elapsed={Elapsed}",
                 setupTimestamp);
@@ -2700,6 +2705,22 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 catch (Exception ex) { _logger.LogDebug(ex, "Failed to dispose TCP stream after startup failure"); }
             }
             throw;
+        }
+    }
+
+    private async Task CancelExternalToolsWhenConnectionClosesAsync(JsonRpc rpc)
+    {
+        await rpc.Completion.ConfigureAwait(false);
+        var connectionTask = _connectionTask;
+        if (connectionTask is null
+            || connectionTask.Status != System.Threading.Tasks.TaskStatus.RanToCompletion
+            || !ReferenceEquals(connectionTask.Result.Rpc, rpc))
+        {
+            return;
+        }
+        foreach (var session in _sessions.Values)
+        {
+            session.CancelPendingExternalTools();
         }
     }
 

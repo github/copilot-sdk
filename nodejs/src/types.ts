@@ -687,6 +687,8 @@ export interface ToolInvocation {
     traceparent?: string;
     /** W3C Trace Context tracestate from the CLI's execute_tool span. */
     tracestate?: string;
+    /** Aborted when the runtime completes this request or the session disconnects. */
+    signal?: AbortSignal;
 }
 
 export type ToolHandler<TArgs = unknown> = (

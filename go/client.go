@@ -684,8 +684,15 @@ func (c *Client) ForceStop() {
 
 	// Clear sessions immediately without trying to destroy them
 	c.sessionsMux.Lock()
+	sessions := make([]*Session, 0, len(c.sessions))
+	for _, session := range c.sessions {
+		sessions = append(sessions, session)
+	}
 	c.sessions = make(map[string]*Session)
 	c.sessionsMux.Unlock()
+	for _, session := range sessions {
+		session.cancelPendingExternalTools()
+	}
 	c.clearGitHubTokenProviders()
 
 	c.startStopMux.Lock()
@@ -2489,6 +2496,15 @@ func (c *Client) clearGitHubTokenProviders() {
 
 func (c *Client) handleConnectionClose() {
 	c.clearGitHubTokenProviders()
+	c.sessionsMux.Lock()
+	sessions := make([]*Session, 0, len(c.sessions))
+	for _, session := range c.sessions {
+		sessions = append(sessions, session)
+	}
+	c.sessionsMux.Unlock()
+	for _, session := range sessions {
+		session.cancelPendingExternalTools()
+	}
 	// Avoid deadlocking with Stop/ForceStop, which hold startStopMux while
 	// waiting for the JSON-RPC read loop to finish.
 	go func() {

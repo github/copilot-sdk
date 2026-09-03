@@ -3858,6 +3858,227 @@ async fn external_tool_requested_dispatches_to_handler_and_responds() {
 }
 
 #[tokio::test]
+async fn external_tool_completed_cancels_blocked_handler() {
+    struct DropProbe(Option<tokio::sync::oneshot::Sender<()>>);
+
+    impl Drop for DropProbe {
+        fn drop(&mut self) {
+            if let Some(sender) = self.0.take() {
+                let _ = sender.send(());
+            }
+        }
+    }
+
+    struct BlockingTool {
+        started: parking_lot::Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
+        cancelled: parking_lot::Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
+    }
+
+    #[async_trait]
+    impl tool::ToolHandler for BlockingTool {
+        async fn call(
+            &self,
+            _invocation: ToolInvocation,
+        ) -> Result<ToolResult, github_copilot_sdk::Error> {
+            if let Some(sender) = self.started.lock().take() {
+                let _ = sender.send(());
+            }
+            let _probe = DropProbe(self.cancelled.lock().take());
+            std::future::pending().await
+        }
+    }
+
+    let (started_tx, started_rx) = tokio::sync::oneshot::channel();
+    let (cancelled_tx, cancelled_rx) = tokio::sync::oneshot::channel();
+    let (_session, mut server) = create_session_pair_with_config(|cfg| {
+        cfg.with_tools(vec![
+            Tool::new("blocked_tool")
+                .with_description("Blocks")
+                .with_parameters(serde_json::json!({"type":"object"}))
+                .with_handler(Arc::new(BlockingTool {
+                    started: parking_lot::Mutex::new(Some(started_tx)),
+                    cancelled: parking_lot::Mutex::new(Some(cancelled_tx)),
+                })),
+        ])
+    })
+    .await;
+
+    server
+        .send_event(
+            "external_tool.requested",
+            serde_json::json!({
+                "requestId": "request-cancel-1",
+                "sessionId": server.session_id,
+                "toolCallId": "tool-call-cancel-1",
+                "toolName": "blocked_tool",
+                "arguments": {},
+            }),
+        )
+        .await;
+    timeout(TIMEOUT, started_rx).await.unwrap().unwrap();
+
+    server
+        .send_event(
+            "external_tool.completed",
+            serde_json::json!({ "requestId": "request-cancel-1" }),
+        )
+        .await;
+
+    timeout(TIMEOUT, cancelled_rx).await.unwrap().unwrap();
+}
+
+#[tokio::test]
+async fn connection_close_cancels_blocked_external_tool() {
+    struct DropProbe(Option<tokio::sync::oneshot::Sender<()>>);
+
+    impl Drop for DropProbe {
+        fn drop(&mut self) {
+            if let Some(sender) = self.0.take() {
+                let _ = sender.send(());
+            }
+        }
+    }
+
+    struct BlockingTool {
+        started: parking_lot::Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
+        cancelled: parking_lot::Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
+    }
+
+    #[async_trait]
+    impl tool::ToolHandler for BlockingTool {
+        async fn call(
+            &self,
+            _invocation: ToolInvocation,
+        ) -> Result<ToolResult, github_copilot_sdk::Error> {
+            if let Some(sender) = self.started.lock().take() {
+                let _ = sender.send(());
+            }
+            let _probe = DropProbe(self.cancelled.lock().take());
+            std::future::pending().await
+        }
+    }
+
+    let (started_tx, started_rx) = tokio::sync::oneshot::channel();
+    let (cancelled_tx, cancelled_rx) = tokio::sync::oneshot::channel();
+    let (_session, mut server) = create_session_pair_with_config(|cfg| {
+        cfg.with_tools(vec![
+            Tool::new("blocked_tool")
+                .with_description("Blocks")
+                .with_parameters(serde_json::json!({"type":"object"}))
+                .with_handler(Arc::new(BlockingTool {
+                    started: parking_lot::Mutex::new(Some(started_tx)),
+                    cancelled: parking_lot::Mutex::new(Some(cancelled_tx)),
+                })),
+        ])
+    })
+    .await;
+
+    server
+        .send_event(
+            "external_tool.requested",
+            serde_json::json!({
+                "requestId": "request-connection-close",
+                "sessionId": server.session_id,
+                "toolCallId": "tool-call-connection-close",
+                "toolName": "blocked_tool",
+                "arguments": {},
+            }),
+        )
+        .await;
+    timeout(TIMEOUT, started_rx).await.unwrap().unwrap();
+
+    drop(server);
+
+    timeout(TIMEOUT, cancelled_rx).await.unwrap().unwrap();
+}
+
+#[tokio::test]
+async fn disconnect_cancels_external_tools_before_stopping_session() {
+    struct DropProbe(Option<tokio::sync::oneshot::Sender<()>>);
+
+    impl Drop for DropProbe {
+        fn drop(&mut self) {
+            if let Some(sender) = self.0.take() {
+                let _ = sender.send(());
+            }
+        }
+    }
+
+    struct BlockingTool {
+        started: parking_lot::Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
+        cancelled: parking_lot::Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
+    }
+
+    #[async_trait]
+    impl tool::ToolHandler for BlockingTool {
+        async fn call(
+            &self,
+            _invocation: ToolInvocation,
+        ) -> Result<ToolResult, github_copilot_sdk::Error> {
+            if let Some(sender) = self.started.lock().take() {
+                let _ = sender.send(());
+            }
+            let _probe = DropProbe(self.cancelled.lock().take());
+            std::future::pending().await
+        }
+    }
+
+    let (started_tx, started_rx) = tokio::sync::oneshot::channel();
+    let (cancelled_tx, mut cancelled_rx) = tokio::sync::oneshot::channel();
+    let (session, mut server) = create_session_pair_with_config(|cfg| {
+        cfg.with_tools(vec![
+            Tool::new("blocked_tool")
+                .with_description("Blocks")
+                .with_parameters(serde_json::json!({"type":"object"}))
+                .with_handler(Arc::new(BlockingTool {
+                    started: parking_lot::Mutex::new(Some(started_tx)),
+                    cancelled: parking_lot::Mutex::new(Some(cancelled_tx)),
+                })),
+        ])
+    })
+    .await;
+    let session = Arc::new(session);
+    let lifetime = session.cancellation_token();
+
+    server
+        .send_event(
+            "external_tool.requested",
+            serde_json::json!({
+                "requestId": "request-disconnect",
+                "sessionId": server.session_id,
+                "toolCallId": "tool-call-disconnect",
+                "toolName": "blocked_tool",
+                "arguments": {},
+            }),
+        )
+        .await;
+    timeout(TIMEOUT, started_rx).await.unwrap().unwrap();
+
+    let disconnect = tokio::spawn({
+        let session = session.clone();
+        async move { session.disconnect().await }
+    });
+
+    let request = timeout(TIMEOUT, server.read_request()).await.unwrap();
+    assert_eq!(request["method"], "session.destroy");
+    assert!(!lifetime.is_cancelled());
+    assert!(
+        timeout(Duration::from_millis(50), &mut cancelled_rx)
+            .await
+            .is_err()
+    );
+
+    server.respond(&request, serde_json::json!({})).await;
+    timeout(TIMEOUT, cancelled_rx).await.unwrap().unwrap();
+    timeout(TIMEOUT, disconnect)
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap();
+    assert!(lifetime.is_cancelled());
+}
+
+#[tokio::test]
 async fn external_tool_broadcast_for_unknown_tool_is_not_responded_to() {
     // Phase H multi-client safety: a handler that doesn't claim the
     // requested tool name must not send an RPC response — another client

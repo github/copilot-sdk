@@ -7,6 +7,7 @@ package com.github.copilot;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
+import com.github.copilot.generated.ExternalToolRequestedEvent;
 import com.github.copilot.rpc.CopilotClientOptions;
 import com.github.copilot.rpc.DeleteSessionResponse;
 import com.github.copilot.rpc.GitHubTokenProviderResult;
@@ -15,12 +16,16 @@ import com.github.copilot.rpc.PingResponse;
 import com.github.copilot.rpc.SessionConfig;
 import com.github.copilot.rpc.SessionLifecycleEvent;
 import com.github.copilot.rpc.SessionLifecycleEventTypes;
+import com.github.copilot.rpc.ToolDefinition;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
@@ -111,6 +116,36 @@ public class CopilotClientTest {
         externalClient.stop().get();
 
         verify(externalRpc, never()).invoke(eq("runtime.shutdown"), any(), eq(Void.class));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void testForceStopCancelsPendingExternalTools() throws Exception {
+        var client = new CopilotClient(new CopilotClientOptions().setAutoStart(false));
+        var rpc = mock(JsonRpcClient.class);
+        setConnectionFuture(client, rpc, null);
+        var session = new CopilotSession("force-stop-session", rpc);
+        var toolFuture = new CompletableFuture<Object>();
+        var started = new CountDownLatch(1);
+        session.registerTools(List.of(ToolDefinition.create("blocked_tool", "Blocks", Map.of(), invocation -> {
+            started.countDown();
+            return toolFuture;
+        })));
+        Field sessionsField = CopilotClient.class.getDeclaredField("sessions");
+        sessionsField.setAccessible(true);
+        var sessions = (Map<String, CopilotSession>) sessionsField.get(client);
+        sessions.put(session.getSessionId(), session);
+
+        var requested = new ExternalToolRequestedEvent();
+        requested.setData(new ExternalToolRequestedEvent.ExternalToolRequestedEventData("request-force-stop",
+                session.getSessionId(), "tool-call-force-stop", "blocked_tool", null, Map.of(), null, null, null));
+        session.dispatchEvent(requested);
+        assertTrue(started.await(1, TimeUnit.SECONDS));
+
+        client.forceStop().get();
+
+        assertThrows(CancellationException.class, () -> toolFuture.get(1, TimeUnit.SECONDS));
+        assertTrue(sessions.isEmpty());
     }
 
     @Test
