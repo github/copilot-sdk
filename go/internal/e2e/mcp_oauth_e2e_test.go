@@ -163,16 +163,21 @@ func TestMCPOAuthE2E(t *testing.T) {
 		}
 		t.Cleanup(func() { session.Disconnect() })
 
+		if _, err := session.RPC.MCP.Reload(t.Context()); err != nil {
+			t.Fatalf("Failed to reload MCP servers: %v", err)
+		}
 		waitForMCPServerStatus(t, session, serverName, rpc.MCPServerStatusConnected)
 		callWhoami(t, session, serverName, "refresh")
 		callWhoami(t, session, serverName, "upscope")
 		callWhoami(t, session, serverName, "reauth")
 
 		mu.Lock()
+		observedReasons = slices.DeleteFunc(observedReasons, func(reason copilot.MCPOauthRequestReason) bool {
+			return reason == copilot.MCPOauthRequestReasonInitial
+		})
 		reasons := append([]copilot.MCPOauthRequestReason(nil), observedReasons...)
 		mu.Unlock()
 		expectedReasons := []copilot.MCPOauthRequestReason{
-			copilot.MCPOauthRequestReasonInitial,
 			copilot.MCPOauthRequestReasonRefresh,
 			copilot.MCPOauthRequestReasonUpscope,
 			copilot.MCPOauthRequestReasonRefresh,

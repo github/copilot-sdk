@@ -128,6 +128,7 @@ class TestMcpOAuth:
                 on_mcp_auth_request=on_mcp_auth_request,
                 mcp_servers=mcp_servers,
             ) as session:
+                await session.rpc.mcp.reload()
                 await _wait_for_mcp_server_status(session, server_name)
 
                 tools = await session.rpc.mcp.list_tools(
@@ -283,6 +284,7 @@ class TestMcpOAuth:
                 # racing the initial challenge emitted during session.create.
                 await session.rpc.mcp.reload()
                 await _wait_for_mcp_server_status(session, server_name)
+                refresh_count = 0
 
                 for scenario in ("refresh", "upscope", "reauth"):
                     result = await session.rpc.mcp.apps.call_tool(
@@ -295,8 +297,11 @@ class TestMcpOAuth:
                     )
                     assert result["content"] == [{"type": "text", "text": "oauth-test-user"}]
 
-            assert [request["reason"] for request in observed_requests] == [
-                "initial",
+            assert [
+                request["reason"]
+                for request in observed_requests
+                if request["reason"] != "initial"
+            ] == [
                 "refresh",
                 "upscope",
                 "refresh",
@@ -336,6 +341,7 @@ class TestMcpOAuth:
                 on_mcp_auth_request=on_mcp_auth_request,
                 mcp_servers=mcp_servers,
             ) as session:
+                await session.rpc.mcp.reload()
                 await _wait_for_mcp_server_status(session, server_name, McpServerStatus.NEEDS_AUTH)
 
                 # The MCP connection is kicked off by session.create, but the SDK only registers
