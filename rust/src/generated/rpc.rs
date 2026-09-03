@@ -3003,6 +3003,13 @@ impl<'a> SessionRpc<'a> {
         }
     }
 
+    /// `session.autopilotObjective.*` sub-namespace.
+    pub fn autopilot_objective(&self) -> SessionRpcAutopilotObjective<'a> {
+        SessionRpcAutopilotObjective {
+            session: self.session,
+        }
+    }
+
     /// `session.canvas.*` sub-namespace.
     pub fn canvas(&self) -> SessionRpcCanvas<'a> {
         SessionRpcCanvas {
@@ -3713,6 +3720,42 @@ impl<'a> SessionRpcAgent<'a> {
             .session
             .client()
             .call(rpc_methods::SESSION_AGENT_RELOAD, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+}
+
+/// `session.autopilotObjective.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct SessionRpcAutopilotObjective<'a> {
+    pub(crate) session: &'a Session,
+}
+
+impl<'a> SessionRpcAutopilotObjective<'a> {
+    /// Reads the current canonical autopilot objective state for this session.
+    ///
+    /// Wire method: `session.autopilotObjective.getState`.
+    ///
+    /// # Returns
+    ///
+    /// Canonical runtime state for the session's current autopilot objective.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn get_state(&self) -> Result<AutopilotObjectiveGetStateResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_AUTOPILOTOBJECTIVE_GETSTATE,
+                Some(wire_params),
+            )
             .await?;
         Ok(serde_json::from_value(_value)?)
     }

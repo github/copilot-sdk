@@ -730,6 +730,8 @@ pub mod rpc_methods {
     pub const SESSION_SCHEDULE_REARMSELFPACED: &str = "session.schedule.rearmSelfPaced";
     /// `session.schedule.stop`
     pub const SESSION_SCHEDULE_STOP: &str = "session.schedule.stop";
+    /// `session.autopilotObjective.getState`
+    pub const SESSION_AUTOPILOTOBJECTIVE_GETSTATE: &str = "session.autopilotObjective.getState";
     /// `providerToken.getToken`
     pub const PROVIDERTOKEN_GETTOKEN: &str = "providerToken.getToken";
     /// `factory.execute`
@@ -21069,6 +21071,73 @@ pub struct WorkspacesWriteAutopilotObjectiveResult {
     pub operation: String,
 }
 
+/// Current per-window credit limit and consumption for an autopilot objective.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AutopilotObjectiveCreditLimit {
+    /// Configured AI-credit cap, when one is set.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub credits: Option<f64>,
+    /// Window consumption in fractional AI credits, for display.
+    pub credits_used: f64,
+    /// Exact window consumption in integer nano-AIU, encoded as a decimal string.
+    pub credits_used_nano_aiu: String,
+}
+
+/// Public, persistence-independent projection of an autopilot objective.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AutopilotObjectiveState {
+    /// Optional summary recorded when the objective completed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub completion_summary: Option<String>,
+    /// Exact lifetime AI-credit consumption in integer nano-AIU, encoded as a decimal string.
+    pub credit_count_nano_aiu: String,
+    /// Current per-window credit limit and consumption, when configured.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub credit_limit: Option<AutopilotObjectiveCreditLimit>,
+    /// Session-local objective identifier.
+    pub id: i64,
+    /// User-provided objective text.
+    pub objective: String,
+    /// Optional reason the objective is paused.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pause_reason: Option<String>,
+    /// Current normalized lifecycle status.
+    pub status: AutopilotObjectiveStatus,
+    /// Number of objective turns started.
+    pub turn_count: i64,
+}
+
+/// Canonical runtime state for the session's current autopilot objective.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AutopilotObjectiveGetStateResult {
+    /// Current objective state, or `null` when the session has no objective.
+    pub state: Option<AutopilotObjectiveState>,
+}
+
 /// List of Copilot models available to the resolved user, including capabilities and billing metadata.
 ///
 /// <div class="warning">
@@ -26615,6 +26684,36 @@ pub struct SessionScheduleStopResult {
     /// The removed entry, or omitted if no entry matched.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub entry: Option<ScheduleEntry>,
+}
+
+/// Identifies the target session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionAutopilotObjectiveGetStateParams {
+    /// Target session identifier
+    pub session_id: SessionId,
+}
+
+/// Canonical runtime state for the session's current autopilot objective.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionAutopilotObjectiveGetStateResult {
+    /// Current objective state, or `null` when the session has no objective.
+    pub state: Option<AutopilotObjectiveState>,
 }
 
 /// A bearer token supplied by the SDK client for a BYOK provider. The runtime sets it as `Authorization: Bearer <token>` on the outbound request and does no caching; the SDK consumer owns token caching and refresh.
@@ -33108,6 +33207,31 @@ pub enum WorkspacesWorkspaceDetailsHostType {
     /// Workspace repository is hosted on Azure DevOps.
     #[serde(rename = "ado")]
     Ado,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Current normalized autopilot objective lifecycle status.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AutopilotObjectiveStatus {
+    /// The objective is actively running.
+    #[serde(rename = "active")]
+    Active,
+    /// The objective is paused and may be resumed.
+    #[serde(rename = "paused")]
+    Paused,
+    /// The objective completed.
+    #[serde(rename = "completed")]
+    Completed,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

@@ -105,6 +105,8 @@ public final class SessionRpc {
     public final SessionVisibilityApi visibility;
     /** API methods for the {@code schedule} namespace. */
     public final SessionScheduleApi schedule;
+    /** API methods for the {@code autopilotObjective} namespace. */
+    public final SessionAutopilotObjectiveApi autopilotObjective;
 
     /**
      * Creates a new session RPC client.
@@ -153,6 +155,7 @@ public final class SessionRpc {
         this.remote = new SessionRemoteApi(caller, sessionId);
         this.visibility = new SessionVisibilityApi(caller, sessionId);
         this.schedule = new SessionScheduleApi(caller, sessionId);
+        this.autopilotObjective = new SessionAutopilotObjectiveApi(caller, sessionId);
     }
 
     /**

@@ -3641,6 +3641,20 @@ export type WorkspacesWorkspaceDetailsHostType =
   /** Workspace repository is hosted on Azure DevOps. */
   | "ado";
 /**
+ * Current normalized autopilot objective lifecycle status.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AutopilotObjectiveStatus".
+ */
+/** @experimental */
+export type AutopilotObjectiveStatus =
+  /** The objective is actively running. */
+  | "active"
+  /** The objective is paused and may be resumed. */
+  | "paused"
+  /** The objective completed. */
+  | "completed";
+/**
  * List of all authenticated users
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -22303,6 +22317,75 @@ export interface WorkspacesWriteAutopilotObjectiveResult {
    */
   operation: string;
 }
+/**
+ * Current per-window credit limit and consumption for an autopilot objective.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AutopilotObjectiveCreditLimit".
+ */
+/** @experimental */
+export interface AutopilotObjectiveCreditLimit {
+  /**
+   * Configured AI-credit cap, when one is set.
+   */
+  credits?: number;
+  /**
+   * Window consumption in fractional AI credits, for display.
+   */
+  creditsUsed: number;
+  /**
+   * Exact window consumption in integer nano-AIU, encoded as a decimal string.
+   */
+  creditsUsedNanoAiu: string;
+}
+/**
+ * Canonical runtime state for the session's current autopilot objective.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AutopilotObjectiveGetStateResult".
+ */
+/** @experimental */
+export interface AutopilotObjectiveGetStateResult {
+  /**
+   * Current objective state, or `null` when the session has no objective.
+   */
+  state: AutopilotObjectiveState | null;
+}
+/**
+ * Public, persistence-independent projection of an autopilot objective.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AutopilotObjectiveState".
+ */
+/** @experimental */
+export interface AutopilotObjectiveState {
+  /**
+   * Session-local objective identifier.
+   */
+  id: number;
+  /**
+   * User-provided objective text.
+   */
+  objective: string;
+  status: AutopilotObjectiveStatus;
+  /**
+   * Number of objective turns started.
+   */
+  turnCount: number;
+  /**
+   * Optional reason the objective is paused.
+   */
+  pauseReason?: string;
+  /**
+   * Optional summary recorded when the objective completed.
+   */
+  completionSummary?: string;
+  /**
+   * Exact lifetime AI-credit consumption in integer nano-AIU, encoded as a decimal string.
+   */
+  creditCountNanoAiu: string;
+  creditLimit?: AutopilotObjectiveCreditLimit;
+}
 
 /** @experimental */
 export interface SessionModelListRequest {
@@ -25164,6 +25247,16 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              */
             stop: async (params: ScheduleStopRequest): Promise<ScheduleStopResult> =>
                 connection.sendRequest("session.schedule.stop", { sessionId, ...params }),
+        },
+        /** @experimental */
+        autopilotObjective: {
+            /**
+             * Reads the current canonical autopilot objective state for this session.
+             *
+             * @returns Canonical runtime state for the session's current autopilot objective.
+             */
+            getState: async (): Promise<AutopilotObjectiveGetStateResult> =>
+                connection.sendRequest("session.autopilotObjective.getState", { sessionId }),
         },
     };
 }

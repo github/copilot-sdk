@@ -17455,6 +17455,78 @@ internal sealed class ScheduleStopRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
+/// <summary>Current per-window credit limit and consumption for an autopilot objective.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class AutopilotObjectiveCreditLimit
+{
+    /// <summary>Configured AI-credit cap, when one is set.</summary>
+    [JsonPropertyName("credits")]
+    public double? Credits { get; set; }
+
+    /// <summary>Window consumption in fractional AI credits, for display.</summary>
+    [JsonPropertyName("creditsUsed")]
+    public double CreditsUsed { get; set; }
+
+    /// <summary>Exact window consumption in integer nano-AIU, encoded as a decimal string.</summary>
+    [JsonPropertyName("creditsUsedNanoAiu")]
+    public string CreditsUsedNanoAiu { get; set; } = string.Empty;
+}
+
+/// <summary>Public, persistence-independent projection of an autopilot objective.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class AutopilotObjectiveState
+{
+    /// <summary>Optional summary recorded when the objective completed.</summary>
+    [JsonPropertyName("completionSummary")]
+    public string? CompletionSummary { get; set; }
+
+    /// <summary>Exact lifetime AI-credit consumption in integer nano-AIU, encoded as a decimal string.</summary>
+    [JsonPropertyName("creditCountNanoAiu")]
+    public string CreditCountNanoAiu { get; set; } = string.Empty;
+
+    /// <summary>Current per-window credit limit and consumption, when configured.</summary>
+    [JsonPropertyName("creditLimit")]
+    public AutopilotObjectiveCreditLimit? CreditLimit { get; set; }
+
+    /// <summary>Session-local objective identifier.</summary>
+    [JsonPropertyName("id")]
+    public long Id { get; set; }
+
+    /// <summary>User-provided objective text.</summary>
+    [JsonPropertyName("objective")]
+    public string Objective { get; set; } = string.Empty;
+
+    /// <summary>Optional reason the objective is paused.</summary>
+    [JsonPropertyName("pauseReason")]
+    public string? PauseReason { get; set; }
+
+    /// <summary>Current normalized lifecycle status.</summary>
+    [JsonPropertyName("status")]
+    public AutopilotObjectiveStatus Status { get; set; }
+
+    /// <summary>Number of objective turns started.</summary>
+    [JsonPropertyName("turnCount")]
+    public long TurnCount { get; set; }
+}
+
+/// <summary>Canonical runtime state for the session's current autopilot objective.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class AutopilotObjectiveGetStateResult
+{
+    /// <summary>Current objective state, or `null` when the session has no objective.</summary>
+    [JsonPropertyName("state")]
+    public AutopilotObjectiveState? State { get; set; }
+}
+
+/// <summary>Identifies the target session.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class SessionAutopilotObjectiveGetStateRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
 /// <summary>A bearer token supplied by the SDK client for a BYOK provider. The runtime sets it as `Authorization: Bearer &lt;token&gt;` on the outbound request and does no caching; the SDK consumer owns token caching and refresh.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class ProviderTokenAcquireResult
@@ -28503,6 +28575,72 @@ public readonly struct SessionVisibilityStatus : IEquatable<SessionVisibilitySta
 }
 
 
+/// <summary>Current normalized autopilot objective lifecycle status.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct AutopilotObjectiveStatus : IEquatable<AutopilotObjectiveStatus>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="AutopilotObjectiveStatus"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="AutopilotObjectiveStatus"/>.</param>
+    [JsonConstructor]
+    public AutopilotObjectiveStatus(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="AutopilotObjectiveStatus"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The objective is actively running.</summary>
+    public static AutopilotObjectiveStatus Active { get; } = new("active");
+
+    /// <summary>The objective is paused and may be resumed.</summary>
+    public static AutopilotObjectiveStatus Paused { get; } = new("paused");
+
+    /// <summary>The objective completed.</summary>
+    public static AutopilotObjectiveStatus Completed { get; } = new("completed");
+
+    /// <summary>Returns a value indicating whether two <see cref="AutopilotObjectiveStatus"/> instances are equivalent.</summary>
+    public static bool operator ==(AutopilotObjectiveStatus left, AutopilotObjectiveStatus right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="AutopilotObjectiveStatus"/> instances are not equivalent.</summary>
+    public static bool operator !=(AutopilotObjectiveStatus left, AutopilotObjectiveStatus right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is AutopilotObjectiveStatus other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(AutopilotObjectiveStatus other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{AutopilotObjectiveStatus}"/> for serializing <see cref="AutopilotObjectiveStatus"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<AutopilotObjectiveStatus>
+    {
+        /// <inheritdoc />
+        public override AutopilotObjectiveStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, AutopilotObjectiveStatus value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AutopilotObjectiveStatus));
+        }
+    }
+}
+
+
 /// <summary>Error classification.</summary>
 [Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -30491,6 +30629,12 @@ public sealed class SessionRpc
 
     /// <summary>Schedule APIs.</summary>
     public ScheduleApi Schedule =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_session), null) ??
+        field;
+
+    /// <summary>AutopilotObjective APIs.</summary>
+    public AutopilotObjectiveApi AutopilotObjective =>
         field ??
         Interlocked.CompareExchange(ref field, new(_session), null) ??
         field;
@@ -34488,6 +34632,29 @@ public sealed class ScheduleApi
     }
 }
 
+/// <summary>Provides session-scoped AutopilotObjective APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class AutopilotObjectiveApi
+{
+    private readonly CopilotSession _session;
+
+    internal AutopilotObjectiveApi(CopilotSession session)
+    {
+        _session = session;
+    }
+
+    /// <summary>Reads the current canonical autopilot objective state for this session.</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Canonical runtime state for the session's current autopilot objective.</returns>
+    public async Task<AutopilotObjectiveGetStateResult> GetStateAsync(CancellationToken cancellationToken = default)
+    {
+        _session.ThrowIfDisposed();
+
+        var request = new SessionAutopilotObjectiveGetStateRequest { SessionId = _session.SessionId };
+        return await CopilotClient.InvokeRpcAsync<AutopilotObjectiveGetStateResult>(_session.Rpc, "session.autopilotObjective.getState", [request], cancellationToken);
+    }
+}
+
 /// <summary>Handles `providerToken` client session API methods.</summary>
 [Experimental(Diagnostics.Experimental)]
 public interface IProviderTokenHandler
@@ -35238,6 +35405,9 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(AuthIdentity))]
 [JsonSerializable(typeof(AuthInfo))]
 [JsonSerializable(typeof(AuthValidationError))]
+[JsonSerializable(typeof(AutopilotObjectiveCreditLimit))]
+[JsonSerializable(typeof(AutopilotObjectiveGetStateResult))]
+[JsonSerializable(typeof(AutopilotObjectiveState))]
 [JsonSerializable(typeof(BuiltInModelCatalog))]
 [JsonSerializable(typeof(BuiltInModelCatalogEntry))]
 [JsonSerializable(typeof(BuiltinToolDescriptor))]
@@ -35763,6 +35933,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SessionAuthLogoutUserRequest))]
 [JsonSerializable(typeof(SessionAuthStatus))]
 [JsonSerializable(typeof(SessionAuthSwitchRequest))]
+[JsonSerializable(typeof(SessionAutopilotObjectiveGetStateRequest))]
 [JsonSerializable(typeof(SessionBulkDeleteResult))]
 [JsonSerializable(typeof(SessionCancelAllBackgroundAgentsRequest))]
 [JsonSerializable(typeof(SessionCanvasListOpenRequest))]

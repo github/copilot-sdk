@@ -1042,6 +1042,48 @@ type AuthValidationError struct {
 // removed.
 type AuthValidationErrors []AuthValidationError
 
+// Current per-window credit limit and consumption for an autopilot objective.
+// Experimental: AutopilotObjectiveCreditLimit is part of an experimental API and may change
+// or be removed.
+type AutopilotObjectiveCreditLimit struct {
+	// Configured AI-credit cap, when one is set.
+	Credits *float64 `json:"credits,omitempty"`
+	// Window consumption in fractional AI credits, for display.
+	CreditsUsed float64 `json:"creditsUsed"`
+	// Exact window consumption in integer nano-AIU, encoded as a decimal string.
+	CreditsUsedNanoAiu string `json:"creditsUsedNanoAiu"`
+}
+
+// Canonical runtime state for the session's current autopilot objective.
+// Experimental: AutopilotObjectiveGetStateResult is part of an experimental API and may
+// change or be removed.
+type AutopilotObjectiveGetStateResult struct {
+	// Current objective state, or `null` when the session has no objective.
+	State *AutopilotObjectiveState `json:"state"`
+}
+
+// Public, persistence-independent projection of an autopilot objective.
+// Experimental: AutopilotObjectiveState is part of an experimental API and may change or be
+// removed.
+type AutopilotObjectiveState struct {
+	// Optional summary recorded when the objective completed.
+	CompletionSummary *string `json:"completionSummary,omitempty"`
+	// Exact lifetime AI-credit consumption in integer nano-AIU, encoded as a decimal string.
+	CreditCountNanoAiu string `json:"creditCountNanoAiu"`
+	// Current per-window credit limit and consumption, when configured.
+	CreditLimit *AutopilotObjectiveCreditLimit `json:"creditLimit,omitempty"`
+	// Session-local objective identifier.
+	ID int64 `json:"id"`
+	// User-provided objective text.
+	Objective string `json:"objective"`
+	// Optional reason the objective is paused.
+	PauseReason *string `json:"pauseReason,omitempty"`
+	// Current normalized lifecycle status.
+	Status AutopilotObjectiveStatus `json:"status"`
+	// Number of objective turns started.
+	TurnCount int64 `json:"turnCount"`
+}
+
 // The running runtime's complete catalog of well-known built-in model IDs, including
 // supported models and additional IDs with built-in metadata.
 // Experimental: BuiltInModelCatalog is part of an experimental API and may change or be
@@ -15554,6 +15596,20 @@ const (
 	AuthInfoTypeUser            AuthInfoType = "user"
 )
 
+// Current normalized autopilot objective lifecycle status.
+// Experimental: AutopilotObjectiveStatus is part of an experimental API and may change or
+// be removed.
+type AutopilotObjectiveStatus string
+
+const (
+	// The objective is actively running.
+	AutopilotObjectiveStatusActive AutopilotObjectiveStatus = "active"
+	// The objective completed.
+	AutopilotObjectiveStatusCompleted AutopilotObjectiveStatus = "completed"
+	// The objective is paused and may be resumed.
+	AutopilotObjectiveStatusPaused AutopilotObjectiveStatus = "paused"
+)
+
 // Custom input-format kind.
 // Experimental: BuiltinToolFormatType is part of an experimental API and may change or be
 // removed.
@@ -20734,6 +20790,28 @@ func (a *AgentAPI) SetPrompt(ctx context.Context, params *AgentSetPromptRequest)
 		return nil, err
 	}
 	var result SessionAgentSetPromptResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: AutopilotObjectiveAPI contains experimental APIs that may change or be
+// removed.
+type AutopilotObjectiveAPI sessionAPI
+
+// GetState reads the current canonical autopilot objective state for this session.
+//
+// RPC method: session.autopilotObjective.getState.
+//
+// Returns: Canonical runtime state for the session's current autopilot objective.
+func (a *AutopilotObjectiveAPI) GetState(ctx context.Context) (*AutopilotObjectiveGetStateResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request(ctx, "session.autopilotObjective.getState", req)
+	if err != nil {
+		return nil, err
+	}
+	var result AutopilotObjectiveGetStateResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -26181,43 +26259,44 @@ type SessionRPC struct {
 	// Reuse a single struct instead of allocating one for each service on the heap.
 	common sessionAPI
 
-	Agent            *AgentAPI
-	Canvas           *CanvasAPI
-	Commands         *CommandsAPI
-	Completions      *CompletionsAPI
-	ContentExclusion *ContentExclusionAPI
-	Debug            *DebugAPI
-	EventLog         *EventLogAPI
-	Extensions       *ExtensionsAPI
-	Factory          *FactoryAPI
-	Fleet            *FleetAPI
-	GitHubAuth       *GitHubAuthAPI
-	History          *HistoryAPI
-	Instructions     *InstructionsAPI
-	LimitPrediction  *LimitPredictionAPI
-	Lsp              *LspAPI
-	MCP              *MCPAPI
-	Metadata         *MetadataAPI
-	Mode             *ModeAPI
-	Model            *ModelAPI
-	Name             *NameAPI
-	Options          *OptionsAPI
-	Permissions      *PermissionsAPI
-	Plan             *PlanAPI
-	Plugins          *PluginsAPI
-	Provider         *ProviderAPI
-	Queue            *QueueAPI
-	Remote           *RemoteAPI
-	Schedule         *ScheduleAPI
-	Shell            *ShellAPI
-	Skills           *SkillsAPI
-	Tasks            *TasksAPI
-	Telemetry        *TelemetryAPI
-	Tools            *ToolsAPI
-	UI               *UIAPI
-	Usage            *UsageAPI
-	Visibility       *VisibilityAPI
-	Workspaces       *WorkspacesAPI
+	Agent              *AgentAPI
+	AutopilotObjective *AutopilotObjectiveAPI
+	Canvas             *CanvasAPI
+	Commands           *CommandsAPI
+	Completions        *CompletionsAPI
+	ContentExclusion   *ContentExclusionAPI
+	Debug              *DebugAPI
+	EventLog           *EventLogAPI
+	Extensions         *ExtensionsAPI
+	Factory            *FactoryAPI
+	Fleet              *FleetAPI
+	GitHubAuth         *GitHubAuthAPI
+	History            *HistoryAPI
+	Instructions       *InstructionsAPI
+	LimitPrediction    *LimitPredictionAPI
+	Lsp                *LspAPI
+	MCP                *MCPAPI
+	Metadata           *MetadataAPI
+	Mode               *ModeAPI
+	Model              *ModelAPI
+	Name               *NameAPI
+	Options            *OptionsAPI
+	Permissions        *PermissionsAPI
+	Plan               *PlanAPI
+	Plugins            *PluginsAPI
+	Provider           *ProviderAPI
+	Queue              *QueueAPI
+	Remote             *RemoteAPI
+	Schedule           *ScheduleAPI
+	Shell              *ShellAPI
+	Skills             *SkillsAPI
+	Tasks              *TasksAPI
+	Telemetry          *TelemetryAPI
+	Tools              *ToolsAPI
+	UI                 *UIAPI
+	Usage              *UsageAPI
+	Visibility         *VisibilityAPI
+	Workspaces         *WorkspacesAPI
 }
 
 // Aborts the current agent turn.
@@ -26503,6 +26582,7 @@ func NewSessionRPC(client *jsonrpc2.Client, sessionID string) *SessionRPC {
 	r := &SessionRPC{}
 	r.common = sessionAPI{client: client, sessionID: sessionID}
 	r.Agent = (*AgentAPI)(&r.common)
+	r.AutopilotObjective = (*AutopilotObjectiveAPI)(&r.common)
 	r.Canvas = (*CanvasAPI)(&r.common)
 	r.Commands = (*CommandsAPI)(&r.common)
 	r.Completions = (*CompletionsAPI)(&r.common)

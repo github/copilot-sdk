@@ -1082,6 +1082,94 @@ public class SerializationTests
         Assert.False(document.RootElement.TryGetProperty("toolReferences", out _));
     }
 
+    [Fact]
+    public void AutopilotObjectiveState_DeserializesCanonicalPayloads_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+
+        var noObjective = JsonSerializer.Deserialize<AutopilotObjectiveGetStateResult>(
+            """{"state":null}""",
+            options);
+        Assert.NotNull(noObjective);
+        Assert.Null(noObjective.State);
+
+        var active = DeserializeState(
+            """
+            {
+              "state": {
+                "id": 1,
+                "objective": "Ship the release",
+                "status": "active",
+                "turnCount": 2,
+                "creditCountNanoAiu": "0"
+              }
+            }
+            """,
+            options);
+        Assert.Equal(AutopilotObjectiveStatus.Active, active.Status);
+        Assert.Null(active.PauseReason);
+        Assert.Null(active.CompletionSummary);
+        Assert.Null(active.CreditLimit);
+
+        var paused = DeserializeState(
+            """
+            {
+              "state": {
+                "id": 2,
+                "objective": "Wait for approval",
+                "status": "paused",
+                "turnCount": 3,
+                "pauseReason": "Approval required",
+                "creditCountNanoAiu": "9007199254740993",
+                "creditLimit": {
+                  "creditsUsed": 9.007199254740993,
+                  "creditsUsedNanoAiu": "9007199254740993"
+                }
+              }
+            }
+            """,
+            options);
+        Assert.Equal(AutopilotObjectiveStatus.Paused, paused.Status);
+        Assert.Equal("Approval required", paused.PauseReason);
+        Assert.Equal("9007199254740993", paused.CreditCountNanoAiu);
+        Assert.NotNull(paused.CreditLimit);
+        Assert.Null(paused.CreditLimit.Credits);
+
+        var completed = DeserializeState(
+            """
+            {
+              "state": {
+                "id": 3,
+                "objective": "Publish the SDK",
+                "status": "completed",
+                "turnCount": 4,
+                "completionSummary": "Published",
+                "creditCountNanoAiu": "9007199254740994",
+                "creditLimit": {
+                  "credits": 2.5,
+                  "creditsUsed": 1.25,
+                  "creditsUsedNanoAiu": "1250000000"
+                }
+              }
+            }
+            """,
+            options);
+        Assert.Equal(AutopilotObjectiveStatus.Completed, completed.Status);
+        Assert.Equal("Published", completed.CompletionSummary);
+        Assert.NotNull(completed.CreditLimit);
+        Assert.Equal(2.5, completed.CreditLimit.Credits);
+        Assert.Equal("1250000000", completed.CreditLimit.CreditsUsedNanoAiu);
+    }
+
+    private static AutopilotObjectiveState DeserializeState(
+        string json,
+        JsonSerializerOptions options)
+    {
+        var result = JsonSerializer.Deserialize<AutopilotObjectiveGetStateResult>(json, options);
+        Assert.NotNull(result);
+        return Assert.IsType<AutopilotObjectiveState>(result.State);
+    }
+
     private static JsonSerializerOptions GetSerializerOptions()
     {
         var prop = typeof(CopilotClient)
