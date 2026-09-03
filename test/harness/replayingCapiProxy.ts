@@ -321,8 +321,7 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
           options.requestOptions.path === "/exchanges" &&
           options.requestOptions.method === "GET"
         ) {
-          const protocol =
-            replayProtocols[this.state?.backend ?? "capi"];
+          const protocol = replayProtocols[this.state?.backend ?? "capi"];
           const parsedExchanges = await Promise.all(
             this.exchanges
               .filter((exchange) => exchange.request.url === protocol.endpoint)
@@ -527,7 +526,8 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
             : options.body;
         if (state.storedData && isModelRequest && normalizedBody) {
           const streamingIsRequested =
-            (JSON.parse(normalizedBody) as { stream?: boolean }).stream === true;
+            (JSON.parse(normalizedBody) as { stream?: boolean }).stream ===
+            true;
 
           const savedError = await findSavedChatCompletionError(
             state.storedData,
@@ -1019,10 +1019,7 @@ function coalesceAdjacentUserMessages(requestBody: string): string {
   return JSON.stringify(request);
 }
 
-function openAIErrorBody(
-  code: string | undefined,
-  message: string,
-): unknown {
+function openAIErrorBody(code: string | undefined, message: string): unknown {
   const type = code ?? "rate_limited";
   return { error: { message, type, code: type } };
 }
@@ -1104,9 +1101,7 @@ function normalizeToolCalls(
         }
 
         if (tc.function?.name === "task") {
-          const configuredName = getBackgroundAgentName(
-            tc.function.arguments,
-          );
+          const configuredName = getBackgroundAgentName(tc.function.arguments);
           const fallbackName =
             unnamedBackgroundAgentCounter === 0
               ? "background-agent"
@@ -1525,15 +1520,12 @@ function normalizeGh401AuthMessages(result: string): string {
 
 function normalizeReadAgentResult(result: string): string {
   const normalized = result
+    .replace(/^Agent is idle \(waiting for messages\)\./, "Agent completed.")
     .replace(
-      /^Agent is idle \(waiting for messages\)\./,
-      "Agent completed.",
+      /^Agent completed\. (.*), status: idle,/,
+      "Agent completed. $1, status: completed,",
     )
-    .replace(/^Agent completed\. (.*), status: idle,/, "Agent completed. $1, status: completed,")
-    .replace(
-      /, total_turns: \d+(?=\r?\n|$)/,
-      ", total_turns: 0, duration: 0s",
-    )
+    .replace(/, total_turns: \d+(?=\r?\n|$)/, ", total_turns: 0, duration: 0s")
     .replace(/\r?\n\r?\n\[Turn \d+\]\r?\n/, "\n\n");
 
   return normalized
@@ -1556,7 +1548,7 @@ function normalizeAvailableToolNames(result: string): string {
 
 function normalizeInterruptedToolResult(result: string): string {
   return result.replace(
-    /^(?:Failed to execute `[^`]+` tool(?: with arguments: [\s\S]*?)? due to error: (?:Error: )?Session aborted|<shell context is being reconfigured; retry the command>)$/,
+    /^(?:Failed to execute `[^`]+` tool(?: with arguments: [\s\S]*?)? due to error: (?:Error: )?Session aborted|<shell context is being reconfigured; retry the command>|unknown attachedShellSession handle \d+)$/,
     "The execution of this tool, or a previous tool was interrupted.",
   );
 }
@@ -1828,10 +1820,17 @@ function findAssistantIndexAfterPrefix(
   savedMessages: NormalizedMessage[],
 ): number | undefined {
   const logFile = process.env.PROXY_DEBUG_LOG;
-  const log = (msg: string) => { if (logFile) try { appendFileSync(logFile, msg + "\n"); } catch {} };
+  const log = (msg: string) => {
+    if (logFile)
+      try {
+        appendFileSync(logFile, msg + "\n");
+      } catch {}
+  };
 
   if (requestMessages.length >= savedMessages.length) {
-    log(`prefix check failed: request.length=${requestMessages.length} >= saved.length=${savedMessages.length}`);
+    log(
+      `prefix check failed: request.length=${requestMessages.length} >= saved.length=${savedMessages.length}`,
+    );
     return undefined;
   }
 
@@ -1856,7 +1855,9 @@ function findAssistantIndexAfterPrefix(
     return nextIndex;
   }
 
-  log(`no assistant at nextIndex=${nextIndex}, saved.length=${savedMessages.length}`);
+  log(
+    `no assistant at nextIndex=${nextIndex}, saved.length=${savedMessages.length}`,
+  );
   return undefined;
 }
 
