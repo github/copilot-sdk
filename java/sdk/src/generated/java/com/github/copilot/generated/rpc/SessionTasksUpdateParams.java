@@ -11,11 +11,10 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.github.copilot.CopilotExperimental;
-import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * Handshake result reporting the server's protocol version and package version on success.
+ * Updates a client-owned task.
  *
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
@@ -24,14 +23,14 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record ConnectResult(
-    /** Always true on success */
-    @JsonProperty("ok") Boolean ok,
-    /** Server protocol version number */
-    @JsonProperty("protocolVersion") Long protocolVersion,
-    /** Server package version */
-    @JsonProperty("version") String version,
-    /** Task kinds the server may return to this connection. */
-    @JsonProperty("taskKinds") List<TaskKind> taskKinds
+public record SessionTasksUpdateParams(
+    /** Target session identifier */
+    @JsonProperty("sessionId") String sessionId,
+    /** Canonical runtime-generated task identifier */
+    @JsonProperty("id") String id,
+    /** Owner update sequence to apply */
+    @JsonProperty("sequence") Long sequence,
+    /** Progress or terminal update payload */
+    @JsonProperty("update") Object update
 ) {
 }

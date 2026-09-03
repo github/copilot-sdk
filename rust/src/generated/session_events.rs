@@ -37,6 +37,8 @@ pub enum SessionEventType {
     SessionWarning,
     #[serde(rename = "session.model_change")]
     SessionModelChange,
+    #[serde(rename = "session.auto_tier_switch_failed")]
+    SessionAutoTierSwitchFailed,
     #[serde(rename = "session.mode_changed")]
     SessionModeChanged,
     #[serde(rename = "session.mode_notice_delivered")]
@@ -379,6 +381,10 @@ pub enum SessionEventType {
     SessionMcpServersLoaded,
     #[serde(rename = "session.mcp_server_status_changed")]
     SessionMcpServerStatusChanged,
+    #[serde(rename = "session.mcp_server_removed")]
+    SessionMcpServerRemoved,
+    #[serde(rename = "session.mcp_server_needs_reconnect")]
+    SessionMcpServerNeedsReconnect,
     #[serde(rename = "mcp.tools.list_changed")]
     McpToolsListChanged,
     #[serde(rename = "mcp.resources.list_changed")]
@@ -483,6 +489,8 @@ pub enum SessionEventData {
     SessionWarning(SessionWarningData),
     #[serde(rename = "session.model_change")]
     SessionModelChange(SessionModelChangeData),
+    #[serde(rename = "session.auto_tier_switch_failed")]
+    SessionAutoTierSwitchFailed(SessionAutoTierSwitchFailedData),
     #[serde(rename = "session.mode_changed")]
     SessionModeChanged(SessionModeChangedData),
     #[serde(rename = "session.mode_notice_delivered")]
@@ -818,6 +826,10 @@ pub enum SessionEventData {
     SessionMcpServersLoaded(SessionMcpServersLoadedData),
     #[serde(rename = "session.mcp_server_status_changed")]
     SessionMcpServerStatusChanged(SessionMcpServerStatusChangedData),
+    #[serde(rename = "session.mcp_server_removed")]
+    SessionMcpServerRemoved(SessionMcpServerRemovedData),
+    #[serde(rename = "session.mcp_server_needs_reconnect")]
+    SessionMcpServerNeedsReconnect(SessionMcpServerNeedsReconnectData),
     #[serde(rename = "mcp.tools.list_changed")]
     McpToolsListChanged(McpToolsListChangedData),
     #[serde(rename = "mcp.resources.list_changed")]
@@ -1231,6 +1243,9 @@ pub struct SessionWarningData {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionModelChangeData {
+    /// Committed Auto preference after the model configuration change, when applicable.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auto_tier: Option<AutoTier>,
     /// Reason the change happened, when not user-initiated. `"rate_limit_auto_switch"` for changes triggered by the auto-mode-switch rate-limit recovery path, or `"refusal_fallback"` when the active model declined a request (content refusal) and the runtime switched to the configured refusal-fallback model. UI clients can use this to render contextual copy.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cause: Option<String>,
@@ -1239,6 +1254,9 @@ pub struct SessionModelChangeData {
     pub context_tier: Option<ContextTier>,
     /// Newly selected model identifier
     pub new_model: String,
+    /// Previously committed Auto preference, when one was explicitly selected.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub previous_auto_tier: Option<AutoTier>,
     /// Model that was previously selected, if any
     #[serde(skip_serializing_if = "Option::is_none")]
     pub previous_model: Option<String>,
@@ -1263,6 +1281,19 @@ pub struct SessionModelChangeData {
     /// Output verbosity level after the model change, if applicable
     #[serde(skip_serializing_if = "Option::is_none")]
     pub verbosity: Option<Verbosity>,
+}
+
+/// Session event "session.auto_tier_switch_failed". A transient Auto preference failure emitted when the runtime cannot mint or accept a usable model and token pair. The previously effective preference remains active, so SDK clients can surface a non-blocking failure without changing their committed-tier state. This event is ephemeral and is not persisted or replayed on resume.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionAutoTierSwitchFailedData {
+    /// Auto preference that remains effective after the failed request.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub effective_auto_tier: Option<AutoTier>,
+    /// Low-cardinality failure outcome reported by Auto resolution.
+    pub reason: AutoTierSwitchFailureReason,
+    /// Auto preference that failed to activate, or null when returning to provider-default routing failed.
+    pub requested_auto_tier: Option<AutoTier>,
 }
 
 /// Session event "session.mode_changed". Agent mode change details including previous and new modes
@@ -6238,6 +6269,22 @@ pub struct SessionMcpServerStatusChangedData {
     pub status: McpServerStatus,
 }
 
+/// Session event "session.mcp_server_removed". Payload of `session.mcp_server_removed` identifying an MCP server the graph no longer runs.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionMcpServerRemovedData {
+    /// Name of the MCP server that was removed from the graph
+    pub server_name: String,
+}
+
+/// Session event "session.mcp_server_needs_reconnect". Payload of `session.mcp_server_needs_reconnect` identifying an MCP server whose connection must be re-established.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionMcpServerNeedsReconnectData {
+    /// Name of the MCP server that needs to reconnect
+    pub server_name: String,
+}
+
 /// Session event "mcp.tools.list_changed". Payload identifying the MCP server associated with a list change.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -6727,6 +6774,27 @@ pub enum ModelChangeSource {
     /// An SDK or RPC caller selected the model.
     #[serde(rename = "sdk")]
     Sdk,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Terminal reason an Auto preference activation failed.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AutoTierSwitchFailureReason {
+    /// The candidate model was rejected by model policy.
+    #[serde(rename = "policy_rejected")]
+    PolicyRejected,
+    /// The Auto routing request failed or returned an unusable response.
+    #[serde(rename = "request_failed")]
+    RequestFailed,
+    /// The runtime could not prepare the Auto routing request.
+    #[serde(rename = "setup_failed")]
+    SetupFailed,
+    /// The provider does not support Auto routing.
+    #[serde(rename = "unsupported")]
+    Unsupported,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

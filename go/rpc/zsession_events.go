@@ -128,6 +128,7 @@ const (
 	// that may change or be removed.
 	SessionEventTypeSessionAutoModeResolved          SessionEventType = "session.auto_mode_resolved"
 	SessionEventTypeSessionAutopilotObjectiveChanged SessionEventType = "session.autopilot_objective_changed"
+	SessionEventTypeSessionAutoTierSwitchFailed      SessionEventType = "session.auto_tier_switch_failed"
 	SessionEventTypeSessionBackgroundTasksChanged    SessionEventType = "session.background_tasks_changed"
 	// Experimental: SessionEventTypeSessionBinaryAsset identifies an experimental event that
 	// may change or be removed.
@@ -185,6 +186,8 @@ const (
 	// Experimental: SessionEventTypeSessionManagedSettingsResolved identifies an experimental
 	// event that may change or be removed.
 	SessionEventTypeSessionManagedSettingsResolved SessionEventType = "session.managed_settings_resolved"
+	SessionEventTypeSessionMCPServerNeedsReconnect SessionEventType = "session.mcp_server_needs_reconnect"
+	SessionEventTypeSessionMCPServerRemoved        SessionEventType = "session.mcp_server_removed"
 	SessionEventTypeSessionMCPServersLoaded        SessionEventType = "session.mcp_servers_loaded"
 	SessionEventTypeSessionMCPServerStatusChanged  SessionEventType = "session.mcp_server_status_changed"
 	SessionEventTypeSessionModeChanged             SessionEventType = "session.mode_changed"
@@ -305,6 +308,21 @@ type PromptCacheBreakData struct {
 
 func (*PromptCacheBreakData) sessionEventData()      {}
 func (*PromptCacheBreakData) Type() SessionEventType { return SessionEventTypePromptCacheBreak }
+
+// A transient Auto preference failure emitted when the runtime cannot mint or accept a usable model and token pair. The previously effective preference remains active, so SDK clients can surface a non-blocking failure without changing their committed-tier state. This event is ephemeral and is not persisted or replayed on resume.
+type SessionAutoTierSwitchFailedData struct {
+	// Auto preference that remains effective after the failed request.
+	EffectiveAutoTier *AutoTier `json:"effectiveAutoTier,omitempty"`
+	// Low-cardinality failure outcome reported by Auto resolution.
+	Reason AutoTierSwitchFailureReason `json:"reason"`
+	// Auto preference that failed to activate, or null when returning to provider-default routing failed.
+	RequestedAutoTier *AutoTier `json:"requestedAutoTier"`
+}
+
+func (*SessionAutoTierSwitchFailedData) sessionEventData() {}
+func (*SessionAutoTierSwitchFailedData) Type() SessionEventType {
+	return SessionEventTypeSessionAutoTierSwitchFailed
+}
 
 // Agent intent description for current activity or plan
 type AssistantIntentData struct {
@@ -1577,12 +1595,16 @@ func (*ModelCallStartData) Type() SessionEventType { return SessionEventTypeMode
 
 // Model change details including previous and new model identifiers
 type SessionModelChangeData struct {
+	// Committed Auto preference after the model configuration change, when applicable.
+	AutoTier *AutoTier `json:"autoTier,omitempty"`
 	// Reason the change happened, when not user-initiated. `"rate_limit_auto_switch"` for changes triggered by the auto-mode-switch rate-limit recovery path, or `"refusal_fallback"` when the active model declined a request (content refusal) and the runtime switched to the configured refusal-fallback model. UI clients can use this to render contextual copy.
 	Cause *string `json:"cause,omitempty"`
 	// Context tier after the model change; null explicitly clears a previously selected tier
 	ContextTier *ContextTier `json:"contextTier,omitempty"`
 	// Newly selected model identifier
 	NewModel string `json:"newModel"`
+	// Previously committed Auto preference, when one was explicitly selected.
+	PreviousAutoTier *AutoTier `json:"previousAutoTier,omitempty"`
 	// Model that was previously selected, if any
 	PreviousModel *string `json:"previousModel,omitempty"`
 	// Reasoning effort level before the model change, if applicable
@@ -1820,6 +1842,28 @@ type SessionExtensionsLoadedData struct {
 func (*SessionExtensionsLoadedData) sessionEventData() {}
 func (*SessionExtensionsLoadedData) Type() SessionEventType {
 	return SessionEventTypeSessionExtensionsLoaded
+}
+
+// Payload of `session.mcp_server_needs_reconnect` identifying an MCP server whose connection must be re-established.
+type SessionMCPServerNeedsReconnectData struct {
+	// Name of the MCP server that needs to reconnect
+	ServerName string `json:"serverName"`
+}
+
+func (*SessionMCPServerNeedsReconnectData) sessionEventData() {}
+func (*SessionMCPServerNeedsReconnectData) Type() SessionEventType {
+	return SessionEventTypeSessionMCPServerNeedsReconnect
+}
+
+// Payload of `session.mcp_server_removed` identifying an MCP server the graph no longer runs.
+type SessionMCPServerRemovedData struct {
+	// Name of the MCP server that was removed from the graph
+	ServerName string `json:"serverName"`
+}
+
+func (*SessionMCPServerRemovedData) sessionEventData() {}
+func (*SessionMCPServerRemovedData) Type() SessionEventType {
+	return SessionEventTypeSessionMCPServerRemoved
 }
 
 // Payload of `session.mcp_server_status_changed` for one MCP server's status and optional failure error.
@@ -5117,6 +5161,20 @@ const (
 	AutopilotObjectiveChangedStatusCompleted AutopilotObjectiveChangedStatus = "completed"
 	// Objective is paused and will not drive autopilot continuations.
 	AutopilotObjectiveChangedStatusPaused AutopilotObjectiveChangedStatus = "paused"
+)
+
+// Terminal reason an Auto preference activation failed.
+type AutoTierSwitchFailureReason string
+
+const (
+	// The candidate model was rejected by model policy.
+	AutoTierSwitchFailureReasonPolicyRejected AutoTierSwitchFailureReason = "policy_rejected"
+	// The Auto routing request failed or returned an unusable response.
+	AutoTierSwitchFailureReasonRequestFailed AutoTierSwitchFailureReason = "request_failed"
+	// The runtime could not prepare the Auto routing request.
+	AutoTierSwitchFailureReasonSetupFailed AutoTierSwitchFailureReason = "setup_failed"
+	// The provider does not support Auto routing.
+	AutoTierSwitchFailureReasonUnsupported AutoTierSwitchFailureReason = "unsupported"
 )
 
 // Binary result type discriminator. Use "image" for images and "resource" for other binary data.
