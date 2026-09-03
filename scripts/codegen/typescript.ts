@@ -25,6 +25,7 @@ import {
     collectExperimentalOnlyRpcReferencedDefinitionNames,
     collectReachableDefinitionNames,
     collectRpcMethodReferencedDefinitionNames,
+    filterNodeByVisibility,
     findSharedSchemaDefinitions,
     hasSchemaPayload,
     parseExternalSchemaRef,
@@ -1076,15 +1077,16 @@ function handlerMethodName(rpcMethod: string): string {
  * `getHandler` callback that resolves a sessionId to a handler object.
  * Param types include sessionId — handler code can simply ignore it.
  */
-function emitClientSessionApiRegistration(clientSchema: Record<string, unknown>): string[] {
+export function emitClientSessionApiRegistration(clientSchema: Record<string, unknown>): string[] {
     const lines: string[] = [];
-    const groups = collectClientGroups(clientSchema);
+    const publicClientSchema = filterNodeByVisibility(clientSchema, "public") ?? {};
+    const groups = collectClientGroups(publicClientSchema);
 
     // Emit a handler interface per group
     for (const [groupName, methods] of groups) {
         const interfaceName = toPascalCase(groupName) + "Handler";
-        const groupDeprecated = isNodeFullyDeprecated(clientSchema[groupName] as Record<string, unknown>);
-        const groupExperimental = isNodeFullyExperimental(clientSchema[groupName] as Record<string, unknown>);
+        const groupDeprecated = isNodeFullyDeprecated(publicClientSchema[groupName] as Record<string, unknown>);
+        const groupExperimental = isNodeFullyExperimental(publicClientSchema[groupName] as Record<string, unknown>);
         if (groupDeprecated) {
             lines.push(`/** @deprecated Handler for \`${groupName}\` client session API methods. */`);
         } else if (groupExperimental) {

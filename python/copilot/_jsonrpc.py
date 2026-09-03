@@ -296,21 +296,7 @@ class JsonRpcClient:
 
     def _fail_pending_requests(self):
         """Fail all pending requests when process exits"""
-        if self._stderr_thread and self._stderr_thread is not threading.current_thread():
-            self._stderr_thread.join(timeout=1.0)
-
-        # Build error message with stderr output
-        stderr_output = self.get_stderr_output()
-        return_code = None
-        if hasattr(self.process, "poll"):
-            return_code = self.process.poll()
-
-        if stderr_output:
-            error_msg = f"CLI process exited with code {return_code}\nstderr: {stderr_output}"
-        elif return_code is not None:
-            error_msg = f"CLI process exited with code {return_code}"
-        else:
-            error_msg = "CLI process exited unexpectedly"
+        error_msg = self._get_process_exit_error()
 
         # Fail all pending requests
         with self._pending_lock:
@@ -319,6 +305,22 @@ class JsonRpcClient:
                     exc = ProcessExitedError(error_msg)
                     loop = future.get_loop()
                     loop.call_soon_threadsafe(future.set_exception, exc)
+
+    def _get_process_exit_error(self) -> str:
+        """Build an error message after the process and stderr readers finish."""
+        if self._stderr_thread and self._stderr_thread is not threading.current_thread():
+            self._stderr_thread.join(timeout=1.0)
+
+        stderr_output = self.get_stderr_output()
+        return_code = None
+        if hasattr(self.process, "poll"):
+            return_code = self.process.poll()
+
+        if stderr_output:
+            return f"CLI process exited with code {return_code}\nstderr: {stderr_output}"
+        if return_code is not None:
+            return f"CLI process exited with code {return_code}"
+        return "CLI process exited unexpectedly"
 
     def _read_exact(self, num_bytes: int) -> bytes:
         """

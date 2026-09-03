@@ -38,7 +38,7 @@ public record SessionModelSwitchToParams(
     @JsonProperty("modelCapabilities") ModelCapabilitiesOverride modelCapabilities,
     /** Explicit context tier for the selected model. `"default"` / `"long_context"` apply the requested tier; omit this field to use normal model behavior with no explicit tier. */
     @JsonProperty("contextTier") ContextTier contextTier,
-    /** Origin to record on the effective `session.model_change` event. Defaults to `sdk` when omitted. */
+    /** Origin to record on the effective `session.model_change` event for trusted in-process calls. Transport SDK calls are always recorded as `sdk`, regardless of this value. */
     @JsonProperty("source") ModelChangeSource source,
     /** When true, defer this switch (enqueue it) if another model change is already queued, even when no turn is active — so it drains last (FIFO) and wins over the already-queued change. Intended for genuine user-initiated model selections; internal restore/reapply switches omit it and apply immediately when no turn is active. When no other model change is queued this has no effect (a switch still applies immediately unless a turn is active). */
     @JsonProperty("deferIfModelChangeQueued") Boolean deferIfModelChangeQueued,

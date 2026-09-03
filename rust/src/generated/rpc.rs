@@ -64,6 +64,13 @@ impl<'a> ClientRpc<'a> {
         }
     }
 
+    /// `hooks.*` sub-namespace.
+    pub fn hooks(&self) -> ClientRpcHooks<'a> {
+        ClientRpcHooks {
+            client: self.client,
+        }
+    }
+
     /// `instructions.*` sub-namespace.
     pub fn instructions(&self) -> ClientRpcInstructions<'a> {
         ClientRpcInstructions {
@@ -653,6 +660,45 @@ impl<'a> ClientRpcExtensions<'a> {
             .call(rpc_methods::EXTENSIONS_DISABLE, Some(wire_params))
             .await?;
         Ok(())
+    }
+}
+
+/// `hooks.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct ClientRpcHooks<'a> {
+    pub(crate) client: &'a Client,
+}
+
+impl<'a> ClientRpcHooks<'a> {
+    /// Discovers hook actions enabled under server-side discovery settings from user, repository, plugin, and managed-policy sources.
+    ///
+    /// Wire method: `hooks.discover`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Optional project paths and host-exclusion behavior for server-scoped hook discovery.
+    ///
+    /// # Returns
+    ///
+    /// Server-discovered hook actions and partial-load diagnostics from user, repository, plugin, and managed-policy sources. Concrete sessions may include additional session-specific hook sources.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn discover(
+        &self,
+        params: HooksDiscoverRequest,
+    ) -> Result<HooksDiscoverResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::HOOKS_DISCOVER, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
     }
 }
 
@@ -1902,6 +1948,37 @@ impl<'a> ClientRpcSessions<'a> {
         let _value = self
             .client
             .call(rpc_methods::SESSIONS_GETMETADATA, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Reads a page of durable events directly from a local session's persisted journal without creating, resuming, or activating the session. The initial backward read uses a bounded tail scan for fast first paint; cursor continuations preserve the session event-log paging semantics. Persisted events may omit payloads that are reconstructed only for an active session.
+    ///
+    /// Wire method: `sessions.readPersistedEvents`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Pagination options for reading an inactive or active local session's persisted event journal.
+    ///
+    /// # Returns
+    ///
+    /// Batch of session events returned by a read, with cursor and continuation metadata.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn read_persisted_events(
+        &self,
+        params: SessionsReadPersistedEventsRequest,
+    ) -> Result<EventsReadResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::SESSIONS_READPERSISTEDEVENTS, Some(wire_params))
             .await?;
         Ok(serde_json::from_value(_value)?)
     }

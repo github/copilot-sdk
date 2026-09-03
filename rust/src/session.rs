@@ -1,14 +1,16 @@
 use std::collections::HashMap;
+use std::panic::AssertUnwindSafe;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use futures_util::FutureExt;
 use parking_lot::Mutex as ParkingLotMutex;
 use serde_json::Value;
 use tokio::sync::oneshot;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
-use tracing::{Instrument, warn};
+use tracing::{Instrument, error, warn};
 
 use crate::canvas::CanvasHandler;
 use crate::generated::api_types::{
@@ -323,10 +325,15 @@ impl Session {
     /// Stop the internal event loop. Called automatically on [`destroy`](Self::destroy).
     ///
     /// Cooperative: signals shutdown via the session's [`CancellationToken`]
-    /// and awaits the loop's natural exit rather than aborting the task.
-    /// Any in-flight handler (permission callback, tool call, elicitation
-    /// response) completes before the loop exits, so the CLI never sees a
-    /// half-handled request. See RFD-400 review finding #3.
+    /// and awaits the loop's natural exit rather than aborting the task, so
+    /// the loop always stops between iterations instead of at an arbitrary
+    /// await point. See RFD-400 review finding #3.
+    ///
+    /// Inbound requests are dispatched to their own spawned tasks, which this
+    /// call does not await. A handler (permission callback, tool call,
+    /// elicitation response) still running at teardown may therefore outlive
+    /// the loop, and its response can be lost if the connection closes first.
+    /// Await your own handler work before calling this if it must complete.
     pub async fn stop_event_loop(&self) {
         self.shutdown.cancel();
         let handle = self.event_loop.lock().take();
@@ -653,11 +660,11 @@ impl Drop for Session {
     fn drop(&mut self) {
         // Cooperative shutdown: cancel the event loop's token to signal
         // exit between iterations. The loop will see the cancellation on
-        // its next select poll and break cleanly without interrupting an
-        // in-flight handler. We do NOT abort the JoinHandle — that would
-        // land at any await point in the loop body, potentially leaving
-        // the CLI with an unanswered request id. RFD-400 review finding
-        // #3.
+        // its next select poll and break cleanly. We do NOT abort the
+        // JoinHandle — that would land at any await point in the loop body,
+        // potentially leaving the CLI with an unanswered request id.
+        // RFD-400 review finding #3. Requests already dispatched to their
+        // own tasks are not tracked here and may outlive the session.
         //
         // The handle itself is left in `event_loop` to be reaped by the
         // tokio runtime when it next polls; we intentionally don't await
@@ -1583,6 +1590,8 @@ fn spawn_event_loop(
                         let canvas_handler = canvas_handler.clone();
                         let session_fs_provider = session_fs_provider.clone();
                         let bearer_token_providers = bearer_token_providers.clone();
+                        let request_id = request.id;
+                        let method = request.method.clone();
                         tokio::spawn(
                             async move {
                                 let ctx = RequestDispatchContext {
@@ -1594,7 +1603,19 @@ fn spawn_event_loop(
                                     session_fs_provider: session_fs_provider.as_ref(),
                                     bearer_token_providers: &bearer_token_providers,
                                 };
-                                handle_request(&session_id, ctx, request).await;
+                                let dispatch = handle_request(&session_id, ctx, request);
+                                if AssertUnwindSafe(dispatch).catch_unwind().await.is_err() {
+                                    // Tokio isolates the panic to this task, so without a
+                                    // reply the CLI waits out its own timeout on this id.
+                                    error!(method = %method, "request handler panicked");
+                                    let _ = send_error_response(
+                                        &client,
+                                        request_id,
+                                        error_codes::INTERNAL_ERROR,
+                                        "request handler panicked",
+                                    )
+                                    .await;
+                                }
                             }
                             .instrument(span),
                         );

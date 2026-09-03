@@ -1326,15 +1326,36 @@ func TestClient_SessionIdleTimeoutSeconds(t *testing.T) {
 	})
 }
 
-func findCLIPathForTest() string {
-	base, err := filepath.Abs("../nodejs/node_modules/@github")
-	if err == nil {
-		matches, _ := filepath.Glob(filepath.Join(base, "copilot-*", "index.js"))
-		if len(matches) > 0 {
-			return matches[0]
+func findCLIPathForTest(t *testing.T) string {
+	t.Helper()
+
+	if cliPath := os.Getenv("COPILOT_CLI_PATH"); cliPath != "" {
+		if info, err := os.Stat(cliPath); err == nil && !info.IsDir() {
+			return cliPath
 		}
+		t.Fatalf("COPILOT_CLI_PATH does not point to a file: %s", cliPath)
 	}
-	return ""
+
+	nodeDir, err := filepath.Abs("../nodejs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	command := exec.Command(
+		"node",
+		"node_modules/tsx/dist/cli.mjs",
+		"scripts/prepare-runtime.ts",
+		"--print-path",
+	)
+	command.Dir = nodeDir
+	output, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("failed to prepare pinned Copilot CLI: %v\n%s", err, output)
+	}
+	cliPath := strings.TrimSpace(string(output))
+	if info, err := os.Stat(cliPath); err != nil || info.IsDir() {
+		t.Fatalf("prepared Copilot CLI path is not a file: %q", cliPath)
+	}
+	return cliPath
 }
 
 func TestCreateSessionRequest_ClientName(t *testing.T) {
@@ -2181,10 +2202,7 @@ func TestListModelsHandlerCachesResults(t *testing.T) {
 }
 
 func TestClient_StartContextCancellationDoesNotKillProcess(t *testing.T) {
-	cliPath := findCLIPathForTest()
-	if cliPath == "" {
-		t.Skip("CLI not found")
-	}
+	cliPath := findCLIPathForTest(t)
 
 	client := NewClient(&ClientOptions{Connection: StdioConnection{Path: cliPath}})
 	t.Cleanup(func() { client.ForceStop() })
@@ -2207,10 +2225,7 @@ func TestClient_StartContextCancellationDoesNotKillProcess(t *testing.T) {
 }
 
 func TestClient_StartStopRace(t *testing.T) {
-	cliPath := findCLIPathForTest()
-	if cliPath == "" {
-		t.Skip("CLI not found")
-	}
+	cliPath := findCLIPathForTest(t)
 	client := NewClient(&ClientOptions{Connection: StdioConnection{Path: cliPath}})
 	defer client.ForceStop()
 	errChan := make(chan error)

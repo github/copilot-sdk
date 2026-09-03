@@ -15,7 +15,7 @@ import java.util.Map;
 import javax.annotation.processing.Generated;
 
 /**
- * Agent metadata, including identifiers, display details, source, tools, model, MCP servers, skills, and file path.
+ * Agent metadata, including identifiers, display details, source, tools, model, models, MCP servers, skills, and file path.
  *
  * @since 1.0.0
  */
@@ -41,6 +41,10 @@ public record AgentInfo(
     @JsonProperty("tools") List<String> tools,
     /** Authored preferred model id for this agent. Runtime model selection may choose a different model; omitted means no authored preference. */
     @JsonProperty("model") String model,
+    /** Authored preferred model ids for this agent, in priority order. Runtime model selection chooses the first available model; omitted means no authored preference. */
+    @JsonProperty("models") List<String> models,
+    /** Whether authored models are preferences or required constraints. */
+    @JsonProperty("modelPolicy") AgentModelPolicy modelPolicy,
     /** MCP server configurations attached to this agent, keyed by server name. Server config shape mirrors the MCP `mcpServers` schema. */
     @JsonProperty("mcpServers") Map<String, Object> mcpServers,
     /** Skill names preloaded into this agent's context. Omitted means none. */

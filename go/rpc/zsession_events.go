@@ -55,6 +55,9 @@ type SessionEventType string
 const (
 	SessionEventTypeAbort            SessionEventType = "abort"
 	SessionEventTypeAgentInterrupted SessionEventType = "agent.interrupted"
+	// Experimental: SessionEventTypeAssistantFusionPhaseActivity identifies an experimental
+	// event that may change or be removed.
+	SessionEventTypeAssistantFusionPhaseActivity SessionEventType = "assistant.fusion_phase_activity"
 	// Experimental: SessionEventTypeAssistantFusionPhaseCompleted identifies an experimental
 	// event that may change or be removed.
 	SessionEventTypeAssistantFusionPhaseCompleted SessionEventType = "assistant.fusion_phase_completed"
@@ -146,9 +149,12 @@ const (
 	SessionEventTypeSessionCanvasRemoved SessionEventType = "session.canvas.removed"
 	// Experimental: SessionEventTypeSessionCanvasUnavailable identifies an experimental event
 	// that may change or be removed.
-	SessionEventTypeSessionCanvasUnavailable           SessionEventType = "session.canvas.unavailable"
-	SessionEventTypeSessionCompactionComplete          SessionEventType = "session.compaction_complete"
-	SessionEventTypeSessionCompactionStart             SessionEventType = "session.compaction_start"
+	SessionEventTypeSessionCanvasUnavailable  SessionEventType = "session.canvas.unavailable"
+	SessionEventTypeSessionCompactionComplete SessionEventType = "session.compaction_complete"
+	SessionEventTypeSessionCompactionStart    SessionEventType = "session.compaction_start"
+	// Experimental: SessionEventTypeSessionCompletionReceipt identifies an experimental event
+	// that may change or be removed.
+	SessionEventTypeSessionCompletionReceipt           SessionEventType = "session.completion_receipt"
 	SessionEventTypeSessionContextChanged              SessionEventType = "session.context_changed"
 	SessionEventTypeSessionContextCleared              SessionEventType = "session.context_cleared"
 	SessionEventTypeSessionCustomAgentsUpdated         SessionEventType = "session.custom_agents_updated"
@@ -472,6 +478,32 @@ type SessionAutopilotObjectiveChangedData struct {
 func (*SessionAutopilotObjectiveChangedData) sessionEventData() {}
 func (*SessionAutopilotObjectiveChangedData) Type() SessionEventType {
 	return SessionEventTypeSessionAutopilotObjectiveChanged
+}
+
+// Behavior-neutral record of structured runtime facts present when an agent completion decision is accepted.
+// Experimental: SessionCompletionReceiptData is part of an experimental API and may change or be removed.
+type SessionCompletionReceiptData struct {
+	// One-based accepted completion receipt ordinal in the durable session history.
+	Attempt int64 `json:"attempt"`
+	// Inclusive durable event range summarized by this receipt.
+	EventRange CompletionReceiptEventRange `json:"eventRange"`
+	// Number of failed structured tool completions in the covered range.
+	FailedToolCount int64 `json:"failedToolCount"`
+	// Final structured tool completion in the covered range, when one exists.
+	FinalTool *CompletionReceiptFinalTool `json:"finalTool,omitempty"`
+	// Version of the completion receipt payload.
+	SchemaVersion int64 `json:"schemaVersion"`
+	// Identifier of the assistant turn-end event that supplied the accepted completion boundary. This is the receipt's idempotency key, and always equals eventRange.endEventId.
+	SourceEventID string `json:"sourceEventId"`
+	// Runtime reason the completion decision was accepted.
+	StopReason CompletionReceiptStopReason `json:"stopReason"`
+	// Number of successful structured tool completions in the covered range.
+	SuccessfulToolCount int64 `json:"successfulToolCount"`
+}
+
+func (*SessionCompletionReceiptData) sessionEventData() {}
+func (*SessionCompletionReceiptData) Type() SessionEventType {
+	return SessionEventTypeSessionCompletionReceipt
 }
 
 // Canonical bytes for a content-addressed binary asset shared by reference across events
@@ -883,6 +915,34 @@ type SessionErrorData struct {
 func (*SessionErrorData) sessionEventData()      {}
 func (*SessionErrorData) Type() SessionEventType { return SessionEventTypeSessionError }
 
+// Experimental content-safe activity signal for a running HydraFusion phase.
+// Experimental: AssistantFusionPhaseActivityData is part of an experimental API and may change or be removed.
+type AssistantFusionPhaseActivityData struct {
+	// Kind of real activity observed.
+	Activity FusionPhaseActivityKind `json:"activity"`
+	// Conversation scope in which the phase executes.
+	ConversationScope FusionConversationScope `json:"conversationScope"`
+	// Identifier of the HydraFusion turn containing the phase.
+	FusionID string `json:"fusionId"`
+	// HydraFusion orchestration pattern containing the phase.
+	Pattern FusionPattern `json:"pattern"`
+	// Stable identifier for the concrete phase.
+	PhaseID string `json:"phaseId"`
+	// Kind of phase currently executing.
+	PhaseKind FusionPhaseKind `json:"phaseKind"`
+	// Semantic role assigned to the phase.
+	Role string `json:"role"`
+	// Opaque hashed correlation token for matching tool-started and tool-completed activity within this Fusion activity stream. It is not the tool call identifier exposed by tool lifecycle events.
+	ToolCallID *string `json:"toolCallId,omitempty"`
+	// Cumulative private response bytes observed for this model call. The event never includes response text.
+	TotalResponseSizeBytes *int64 `json:"totalResponseSizeBytes,omitempty"`
+}
+
+func (*AssistantFusionPhaseActivityData) sessionEventData() {}
+func (*AssistantFusionPhaseActivityData) Type() SessionEventType {
+	return SessionEventTypeAssistantFusionPhaseActivity
+}
+
 // Experimental durable HydraFusion phase output and lossless replay checkpoint.
 // Experimental: AssistantFusionPhaseCompletedData is part of an experimental API and may change or be removed.
 type AssistantFusionPhaseCompletedData struct {
@@ -1045,6 +1105,9 @@ type SessionFusionResolvedData struct {
 	ModelUniverseVersion *string `json:"modelUniverseVersion,omitempty"`
 	// Validated orchestration pattern selected for the turn.
 	Pattern FusionPattern `json:"pattern"`
+	// Presentation-neutral phase plan for clients that render workflow progress.
+	// Experimental: PhasePlan is part of an experimental API and may change or be removed.
+	PhasePlan []FusionPhasePlanStep `json:"phasePlan,omitzero"`
 	// Version of the validated execution-plan format.
 	PlanVersion *string `json:"planVersion,omitempty"`
 	// HydraFusion routing policy used to resolve the plan.
@@ -1817,6 +1880,8 @@ type UserMessageData struct {
 	InteractionID *string `json:"interactionId,omitempty"`
 	// True when this user message was auto-injected by autopilot's continuation loop rather than typed by the user; used to distinguish autopilot-driven turns in telemetry.
 	IsAutopilotContinuation *bool `json:"isAutopilotContinuation,omitempty"`
+	// Stable identity of the logical user message, matching the ID returned by send and retained by pending queue snapshots
+	MessageID *string `json:"messageId,omitempty"`
 	// Path-backed native document attachments that stayed on the tagged_files path flow because native upload could not read them or would exceed the request size limit
 	NativeDocumentPathFallbackPaths []string `json:"nativeDocumentPathFallbackPaths,omitzero"`
 	// Parent agent task ID for background telemetry correlated to this user turn
@@ -1849,6 +1914,8 @@ func (*PermissionCompletedData) Type() SessionEventType { return SessionEventTyp
 
 // Permission request notification requiring client approval with request details
 type PermissionRequestedData struct {
+	// Agent mode captured from the owning turn when permission evaluation began.
+	AgentMode *SessionMode `json:"agentMode,omitempty"`
 	// Details of the permission being requested
 	PermissionRequest PermissionRequest `json:"permissionRequest"`
 	// Derived user-facing permission prompt details for UI consumers
@@ -2335,17 +2402,19 @@ type SkillInvokedData struct {
 	Content string `json:"content"`
 	// Description of the skill from its SKILL.md frontmatter
 	Description *string `json:"description,omitempty"`
+	// Whether model invocation is disabled for this skill
+	DisableModelInvocation *bool `json:"disableModelInvocation,omitempty"`
 	// Model identifier active when the skill was invoked, when known
 	Model *string `json:"model,omitempty"`
 	// Name of the invoked skill
 	Name string `json:"name"`
-	// File path to the SKILL.md definition
+	// File path to the SKILL.md definition, or an empty string for an SDK-provided skill without a filesystem identity
 	Path string `json:"path"`
 	// Name of the plugin this skill originated from, when applicable
 	PluginName *string `json:"pluginName,omitempty"`
 	// Version of the plugin this skill originated from, when applicable
 	PluginVersion *string `json:"pluginVersion,omitempty"`
-	// Source identifier for where the skill was discovered. Known values include: project (workspace skill), inherited (parent-directory skill), personal-copilot (~/.copilot/skills), personal-agents (~/.agents/skills), custom (configured directory), plugin (installed plugin), builtin (bundled runtime skill), and remote (org/enterprise skill)
+	// Source identifier for where the skill was discovered. Known values include: project (workspace skill), inherited (parent-directory skill), personal-copilot (~/.copilot/skills), personal-agents (~/.agents/skills), custom (configured directory), plugin (installed plugin), builtin (bundled runtime skill), remote (org/enterprise skill), and sdk (SDK-provided skill)
 	Source *string `json:"source,omitempty"`
 	// What triggered the skill invocation: `user-invoked` (explicit user action, such as via a slash command or UI affordance), `agent-invoked` (agent requested the skill), or `context-load` (loaded as part of another context, such as preloading skills configured on a custom agent or subagent)
 	Trigger *SkillInvokedTrigger `json:"trigger,omitempty"`
@@ -2459,6 +2528,8 @@ type SubagentCompletedData struct {
 	FirstDispatchedModel *string `json:"firstDispatchedModel,omitempty"`
 	// Model used by the sub-agent
 	Model *string `json:"model,omitempty"`
+	// Why an explicit task-call model did not become the effective model
+	ModelOverrideReason *string `json:"modelOverrideReason,omitempty"`
 	// Tool call ID of the parent tool invocation that spawned this sub-agent
 	ToolCallID string `json:"toolCallId"`
 	// Total tokens (input + output) consumed by the sub-agent
@@ -2492,6 +2563,8 @@ type SubagentFailedData struct {
 	FirstDispatchedModel *string `json:"firstDispatchedModel,omitempty"`
 	// Model selected for the sub-agent, when known
 	Model *string `json:"model,omitempty"`
+	// Why an explicit task-call model did not become the effective model
+	ModelOverrideReason *string `json:"modelOverrideReason,omitempty"`
 	// Tool call ID of the parent tool invocation that spawned this sub-agent
 	ToolCallID string `json:"toolCallId"`
 	// Total tokens (input + output) consumed before the sub-agent failed
@@ -3123,7 +3196,27 @@ type CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail struct {
 	TokenType string `json:"tokenType"`
 }
 
-// A single loaded custom agent in `session.custom_agents_updated`, with identity, source, tools, invocability, and model override.
+// Inclusive durable event range summarized by a completion receipt.
+type CompletionReceiptEventRange struct {
+	// Identifier of the assistant turn-end event that ends the covered exchange. Always equals the receipt's sourceEventId, so either field is a valid join key.
+	EndEventID string `json:"endEventId"`
+	// Identifier of the user message that starts the covered exchange.
+	StartEventID string `json:"startEventId"`
+}
+
+// Final structured tool completion in the covered event range.
+type CompletionReceiptFinalTool struct {
+	// Process exit code from a structured shell result, when available.
+	ExitCode *int64 `json:"exitCode,omitempty"`
+	// Structured success or failure status from the tool completion event.
+	Status CompletionReceiptToolStatus `json:"status"`
+	// Unique identifier of the completed tool call.
+	ToolCallID string `json:"toolCallId"`
+	// Tool name from the matching tool execution start event, when available.
+	ToolName *string `json:"toolName,omitempty"`
+}
+
+// A single loaded custom agent in `session.custom_agents_updated`, with identity, source, tools, invocability, and authored model configuration.
 type CustomAgentsUpdatedAgent struct {
 	// Description of what the agent does
 	Description string `json:"description"`
@@ -3133,6 +3226,10 @@ type CustomAgentsUpdatedAgent struct {
 	ID string `json:"id"`
 	// Model override for this agent, if set
 	Model *string `json:"model,omitempty"`
+	// Whether authored models are preferences or required constraints
+	ModelPolicy *AgentModelPolicy `json:"modelPolicy,omitempty"`
+	// Authored model ids in priority order, if configured
+	Models []string `json:"models,omitzero"`
 	// Internal name of the agent
 	Name string `json:"name"`
 	// Source location: user, project, inherited, remote, or plugin
@@ -3207,6 +3304,19 @@ type FusionFollowUpRecommendation struct {
 	CompactionTurn FusionFollowUpAction `json:"compactionTurn"`
 	// Recommended routing action for the next user-message turn.
 	UserTurn FusionFollowUpAction `json:"userTurn"`
+}
+
+// Presentation-neutral phase planned for a HydraFusion turn.
+// Experimental: FusionPhasePlanStep is part of an experimental API and may change or be removed.
+type FusionPhasePlanStep struct {
+	// Whether the phase executes only when an earlier phase requests it.
+	Conditional bool `json:"conditional"`
+	// Kind of phase that may execute.
+	Kind FusionPhaseKind `json:"kind"`
+	// Semantic role assigned to the phase.
+	Role string `json:"role"`
+	// Conversation scope in which the phase executes.
+	Scope FusionConversationScope `json:"scope"`
 }
 
 // Aggregate concrete-model usage for one HydraFusion phase.
@@ -4355,7 +4465,7 @@ type SkillsLoadedSkill struct {
 	Name string `json:"name"`
 	// Absolute path to the skill file, if available
 	Path *string `json:"path,omitempty"`
-	// Source location type (e.g., project, personal-copilot, plugin, builtin)
+	// Source location type (e.g., project, personal-copilot, plugin, builtin, remote, sdk)
 	Source SkillSource `json:"source"`
 	// Whether the skill can be invoked by the user as a slash command
 	UserInvocable bool `json:"userInvocable"`
@@ -5068,6 +5178,34 @@ const (
 	CompactionTriggerThreshold CompactionTrigger = "threshold"
 )
 
+// Runtime reason the completion decision was accepted.
+type CompletionReceiptStopReason string
+
+const (
+	// The configured agentStop continuation limit was reached.
+	CompletionReceiptStopReasonAgentStopBlockLimit CompletionReceiptStopReason = "agent_stop_block_limit"
+	// The model reached a natural terminal response.
+	CompletionReceiptStopReasonNatural CompletionReceiptStopReason = "natural"
+	// A terminal tool ended the interaction.
+	CompletionReceiptStopReasonTerminalTool CompletionReceiptStopReason = "terminal_tool"
+)
+
+// Structured terminal status from a tool completion event.
+type CompletionReceiptToolStatus string
+
+const (
+	// The permissions service denied the tool call.
+	CompletionReceiptToolStatusDenied CompletionReceiptToolStatus = "denied"
+	// The tool failed without a more specific structured status.
+	CompletionReceiptToolStatusFailure CompletionReceiptToolStatus = "failure"
+	// The user rejected the tool call.
+	CompletionReceiptToolStatusRejected CompletionReceiptToolStatus = "rejected"
+	// The tool completed successfully.
+	CompletionReceiptToolStatusSuccess CompletionReceiptToolStatus = "success"
+	// The tool exceeded its time budget.
+	CompletionReceiptToolStatusTimeout CompletionReceiptToolStatus = "timeout"
+)
+
 // The user action: "accept" (submitted form), "decline" (explicitly refused), or "cancel" (dismissed)
 type ElicitationCompletedAction string
 
@@ -5196,6 +5334,19 @@ const (
 	FusionPatternCritique FusionPattern = "critique"
 	// Run one primary solver phase.
 	FusionPatternSingle FusionPattern = "single"
+)
+
+// Content-safe activity observed while a HydraFusion phase is running.
+// Experimental: FusionPhaseActivityKind is part of an experimental API and may change or be removed.
+type FusionPhaseActivityKind string
+
+const (
+	// The provider produced additional private output bytes.
+	FusionPhaseActivityKindModelOutput FusionPhaseActivityKind = "model_output"
+	// A tool finished executing inside the phase.
+	FusionPhaseActivityKindToolCompleted FusionPhaseActivityKind = "tool_completed"
+	// A tool began executing inside the phase.
+	FusionPhaseActivityKindToolStarted FusionPhaseActivityKind = "tool_started"
 )
 
 // HydraFusion phase kind.
