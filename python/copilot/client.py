@@ -15,8 +15,8 @@ Example:
 from __future__ import annotations
 
 import asyncio
-import ipaddress
 import inspect
+import ipaddress
 import logging
 import os
 import re
