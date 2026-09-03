@@ -1366,9 +1366,12 @@ type CanvasSessionContext struct {
 // Experimental: CapiSessionOptions is part of an experimental API and may change or be
 // removed.
 type CapiSessionOptions struct {
-	// Routing preference used when the session model is `auto`. The runtime persists the
-	// preference across cold resume. When omitted, the default routing behavior is used.
-	// Resuming an already-resident session cannot change its preference.
+	// Routing preference for sessions whose model is `auto`. On create or cold resume, this
+	// establishes the preference sent as `tier` on CAPI `/auto` requests; when omitted on cold
+	// resume, the runtime restores the last committed preference. On resident resume, a
+	// different value requests a safe switch after resume succeeds and cannot change an
+	// in-flight turn. Successful switches are persisted for later cold resume. When no
+	// preference is supplied or restored, CAPI default routing is used.
 	AutoTier *AutoTier `json:"autoTier,omitempty"`
 	// Whether to use WebSocket transport for the CAPI Responses API. Enabled by default when
 	// the model advertises `ws:/responses` support; set to `false` to force the HTTP Responses
@@ -1850,6 +1853,30 @@ func (CatalogUnsupportedKindError) Kind() CatalogSearchResultKind {
 	return CatalogSearchResultKindUnsupportedKind
 }
 
+// Runtime-to-owner cancellation request for a client-owned task.
+// Experimental: ClientTaskCancelRequest is part of an experimental API and may change or be
+// removed.
+type ClientTaskCancelRequest struct {
+	// Opaque identifier shared by coalesced cancellation callers
+	CancellationID string `json:"cancellationId"`
+	// Owner-scoped task key included for correlation
+	ClientTaskID string `json:"clientTaskId"`
+	// Canonical runtime-generated task identifier
+	ID string `json:"id"`
+	// Reason the runtime requests cancellation
+	Reason ClientTaskCancelReason `json:"reason"`
+	// Session that owns the client task
+	SessionID string `json:"sessionId"`
+}
+
+// Whether the client authoritatively confirmed its external work stopped.
+// Experimental: ClientTaskCancelResult is part of an experimental API and may change or be
+// removed.
+type ClientTaskCancelResult struct {
+	// True only when the owner confirms that external work stopped before responding
+	Cancelled bool `json:"cancelled"`
+}
+
 // Slash commands available in the session, after applying any include/exclude filters.
 // Experimental: CommandList is part of an experimental API and may change or be removed.
 type CommandList struct {
@@ -2073,6 +2100,9 @@ type ConnectRequest struct {
 	// using the process-global gate for ordinary events and an explicit session-scoped decision
 	// for host-only events.
 	EnableGitHubTelemetryForwarding *bool `json:"enableGitHubTelemetryForwarding,omitempty"`
+	// Task kinds this connection can decode when observing session tasks. Omit to retain agent
+	// and shell compatibility.
+	SupportedTaskKinds []TaskKind `json:"supportedTaskKinds,omitzero"`
 	// Connection token; required when the server was started with COPILOT_CONNECTION_TOKEN
 	Token *string `json:"token,omitempty"`
 }
@@ -2085,6 +2115,8 @@ type ConnectResult struct {
 	Ok bool `json:"ok"`
 	// Server protocol version number
 	ProtocolVersion int64 `json:"protocolVersion"`
+	// Task kinds the server may return to this connection.
+	TaskKinds []TaskKind `json:"taskKinds,omitzero"`
 	// Server package version
 	Version string `json:"version"`
 }
@@ -2341,15 +2373,24 @@ type CopilotUserResponseQuotaSnapshotsPremiumInteractions struct {
 	Unlimited *bool `json:"unlimited,omitempty"`
 }
 
-// The currently selected model, reasoning effort, and context tier for the session. The
-// context tier reflects `Session.getContextTier()`, restored from the session journal on
-// resume.
+// The session's authoritative model snapshot. Auto preference fields are configuration for
+// the virtual `auto` model and do not change the selected model identifier. The context
+// tier reflects `Session.getContextTier()`, restored from the session journal on resume.
 // Experimental: CurrentModel is part of an experimental API and may change or be removed.
 type CurrentModel struct {
+	// Auto preference currently claimed by an in-progress activation. Null means the activation
+	// is returning to provider-default routing.
+	ActivatingAutoTier *AutoTier `json:"activatingAutoTier,omitempty"`
+	// Auto preference currently committed for the session. This can remain available while
+	// another model is selected so a later switch to `auto` can reuse it.
+	AutoTier *AutoTier `json:"autoTier,omitempty"`
 	// Context tier for models that support multiple context-window sizes.
 	ContextTier *ContextTier `json:"contextTier,omitempty"`
 	// Currently active model identifier
 	ModelID *string `json:"modelId,omitempty"`
+	// Latest unclaimed Auto preference waiting for a future user turn. Null means the pending
+	// request is returning to provider-default routing.
+	PendingAutoTier *AutoTier `json:"pendingAutoTier,omitempty"`
 	// Reasoning effort level currently applied to the active model, when one is set. Reads
 	// `Session.getReasoningEffort()` synchronously after `getSelectedModel()` resolves so the
 	// two values are reported as a snapshot.
@@ -4772,6 +4813,11 @@ type LspInitializeRequest struct {
 	WorkingDirectory *string `json:"workingDirectory,omitempty"`
 }
 
+// Experimental: ManagedSettingsClearCacheResult is part of an experimental API and may
+// change or be removed.
+type ManagedSettingsClearCacheResult struct {
+}
+
 // Validated device-managed settings discovered before a session exists.
 // Experimental: ManagedSettingsReadResult is part of an experimental API and may change or
 // be removed.
@@ -5122,6 +5168,8 @@ type MCPConfigReloadResult struct {
 // Experimental: MCPConfigRemoveRequest is part of an experimental API and may change or be
 // removed.
 type MCPConfigRemoveRequest struct {
+	// OAuth Client ID Metadata Document URL whose persisted credentials should also be removed.
+	AuthClientIDMetadataURL *string `json:"authClientIdMetadataUrl,omitempty"`
 	// Name of the MCP server to remove
 	Name string `json:"name"`
 }
@@ -6933,6 +6981,10 @@ type Model struct {
 	// a recommended alternative. Present only when the service published at least one notice.
 	// Hosts should surface these without implying anything is wrong with the model.
 	InfoMessages []ModelMessage `json:"infoMessages,omitzero"`
+	// Provider-supplied model metadata. Keys and JSON-compatible values are preserved
+	// unchanged. This is factual metadata published by the model provider; it carries no picker
+	// or UX semantics.
+	Metadata map[string]any `json:"metadata,omitzero"`
 	// Model capability category for grouping in the model picker
 	ModelPickerCategory *ModelPickerCategory `json:"modelPickerCategory,omitempty"`
 	// Relative cost tier for token-based billing users
@@ -7261,6 +7313,38 @@ type ModelsListRequest struct {
 	SelectionID *string `json:"selectionId,omitempty"`
 }
 
+// An Auto preference request for the session. This updates Auto configuration only; it does
+// not change the selected model to `auto`.
+// Experimental: ModelSwitchAutoTierRequest is part of an experimental API and may change or
+// be removed.
+type ModelSwitchAutoTierRequest struct {
+	// Auto preference to activate when a future user turn using the `auto` model safely mints a
+	// replacement model and token pair. Pass null to return to provider-default Auto routing.
+	AutoTier *AutoTier `json:"autoTier"`
+	// Origin to record on the effective `session.model_change` event. Defaults to `sdk` when
+	// omitted.
+	Source *ModelChangeSource `json:"source,omitempty"`
+}
+
+// Immediate acknowledgement and Auto preference snapshot after a switch request. This
+// result never implies that a pending preference committed.
+// Experimental: ModelSwitchAutoTierResult is part of an experimental API and may change or
+// be removed.
+type ModelSwitchAutoTierResult struct {
+	// Auto preference currently claimed by an in-progress activation. Null means the activation
+	// is returning to provider-default routing.
+	ActivatingAutoTier *AutoTier `json:"activatingAutoTier,omitempty"`
+	// Auto preference currently committed for the session.
+	EffectiveAutoTier *AutoTier `json:"effectiveAutoTier,omitempty"`
+	// Latest unclaimed Auto preference waiting for a future user turn.
+	PendingAutoTier *AutoTier `json:"pendingAutoTier,omitempty"`
+	// Immediate request status. `pending` means accepted but not committed.
+	Status ModelSwitchAutoTierStatus `json:"status"`
+	// Earlier unclaimed preference replaced by this request. This can be present with either
+	// status, including when selecting the effective preference cancels pending work.
+	SupersededAutoTier *AutoTier `json:"supersededAutoTier,omitempty"`
+}
+
 // Experimental: ModelSwitchConfirmation is part of an experimental API and may change or be
 // removed.
 type ModelSwitchConfirmation struct {
@@ -7277,6 +7361,10 @@ type ModelSwitchConfirmation struct {
 // Experimental: ModelSwitchToRequest is part of an experimental API and may change or be
 // removed.
 type ModelSwitchToRequest struct {
+	// Optional Auto routing preference to stage atomically with selecting `auto`. Pass null to
+	// return to provider-default Auto routing. This field is rejected when `modelId` is not
+	// `auto`.
+	AutoTier *AutoTier `json:"autoTier,omitempty"`
 	// Explicit response to a model-switch compaction preflight. Omit to request a confirmation
 	// projection when compaction is necessary.
 	CompactionDecision *string `json:"compactionDecision,omitempty"`
@@ -7335,6 +7423,9 @@ type ModelSwitchToResult struct {
 	Message *string `json:"message,omitempty"`
 	// Currently active model identifier after the switch
 	ModelID *string `json:"modelId,omitempty"`
+	// Authoritative model and Auto preference state after an immediate switch. For deferred
+	// switches this remains the current state until the queued change drains.
+	ModelState *CurrentModel `json:"modelState,omitempty"`
 	// Persistence failure encountered after applying the model switch.
 	PersistenceError *string `json:"persistenceError,omitempty"`
 	// Lifecycle result for the requested switch
@@ -10316,6 +10407,12 @@ type RuntimeShutdownResult struct {
 type SandboxConfig struct {
 	// Whether to auto-add the current working directory to readwritePaths. Default: true.
 	AddCurrentWorkingDirectory *bool `json:"addCurrentWorkingDirectory,omitempty"`
+	// Whether the agent may request that an individual command run outside the sandbox, which
+	// the host then approves or denies through the usual permission flow. A host capability
+	// flag rather than part of the policy: it is stripped from the effective spawn policy and
+	// only has an effect while `enabled` is true. Fail-closed, unlike the opt-out flags on this
+	// object: omitting it offers no bypass. Default: false (opt-in).
+	AllowBypass *bool `json:"allowBypass,omitempty"`
 	// Whether to auto-grant read access to tool directories discovered on PATH and in toolchain
 	// environment variables (GOROOT, JAVA_HOME, VIRTUAL_ENV, and similar), and to common
 	// developer-tool caches, config, and toolchains. Writable grants cover scratch caches, the
@@ -10332,6 +10429,27 @@ type SandboxConfig struct {
 	Auth *SandboxConfigAuth `json:"auth,omitempty"`
 	// Whether sandboxing is enabled for the session.
 	Enabled bool `json:"enabled"`
+	// The `sandboxLspServers` counterpart of `managedMcpRoutingLocked`.
+	// Internal: ManagedLspRoutingLocked is part of the SDK's internal API surface and is not
+	// intended for external use.
+	ManagedLspRoutingLocked *bool `json:"managedLspRoutingLocked,omitempty"`
+	// Set by the runtime when a managed policy forced `sandboxMcpServers` on and took the local
+	// opt-out away. Provenance rather than policy: it lets a sandbox startup failure point at
+	// the administrator instead of a setting the next managed merge would override, and it is
+	// ignored when comparing two configs for change. Only the managed merge may set it; a
+	// caller-supplied value is stripped.
+	// Internal: ManagedMCPRoutingLocked is part of the SDK's internal API surface and is not
+	// intended for external use.
+	ManagedMCPRoutingLocked *bool `json:"managedMcpRoutingLocked,omitempty"`
+	// Whether language servers the session launches are confined by the sandbox. Only an
+	// explicit `false` opts out. Ignored while `enabled` is false. Default: true (enabled by
+	// default; set to false to opt out).
+	SandboxLspServers *bool `json:"sandboxLspServers,omitempty"`
+	// Whether MCP servers the session launches are confined by the sandbox. Only an explicit
+	// `false` opts out; doing so also lets remote-MCP egress leave the sandbox, so the flag and
+	// `enabled` are always read together. Ignored while `enabled` is false. Default: true
+	// (enabled by default; set to false to opt out).
+	SandboxMCPServers *bool `json:"sandboxMcpServers,omitempty"`
 	// User-managed sandbox policy fragment merged into the auto-discovered base policy.
 	UserPolicy *SandboxConfigUserPolicy `json:"userPolicy,omitempty"`
 }
@@ -11994,6 +12112,8 @@ type SessionOpenOptions struct {
 	AllowAllMCPServerInstructions *bool `json:"allowAllMcpServerInstructions,omitempty"`
 	// Whether ask_user is explicitly disabled.
 	AskUserDisabled *bool `json:"askUserDisabled,omitempty"`
+	// OAuth Client ID Metadata Document URL used by this host for MCP authorization.
+	AuthClientIDMetadataURL *string `json:"authClientIdMetadataUrl,omitempty"`
 	// Initial authentication info for the session.
 	AuthInfo AuthInfo `json:"authInfo,omitempty"`
 	// Allowlist of available tool names.
@@ -14072,6 +14192,102 @@ type SubagentSettingsEntry struct {
 	ModelPolicy *AgentModelPolicy `json:"modelPolicy,omitempty"`
 }
 
+// Public owner attribution for a client-owned task. Identifiers are opaque and never
+// authorize requests.
+// Experimental: TaskClientOwner is part of an experimental API and may change or be removed.
+type TaskClientOwner struct {
+	// ISO 8601 timestamp when the bound join disconnected
+	DisconnectedAt *time.Time `json:"disconnectedAt,omitempty"`
+	// Display-only owner name
+	DisplayName *string `json:"displayName,omitempty"`
+	// Opaque identity of the currently or most recently bound session join
+	JoinID string `json:"joinId"`
+	// Class of the task owner
+	Kind TaskClientOwnerKind `json:"kind"`
+	// Opaque session-scoped participant identity
+	ParticipantID string `json:"participantId"`
+	// Whether this task's bound join is currently connected
+	Presence TaskClientOwnerPresence `json:"presence"`
+	// Display-only owner source
+	Source *string `json:"source,omitempty"`
+}
+
+// Progress or terminal update for a client-owned task.
+// Experimental: TaskClientUpdate is part of an experimental API and may change or be
+// removed.
+type TaskClientUpdate interface {
+	taskClientUpdate()
+	Kind() TaskClientUpdateKind
+}
+
+type RawTaskClientUpdateData struct {
+	Discriminator TaskClientUpdateKind
+	Raw           json.RawMessage
+}
+
+func (RawTaskClientUpdateData) taskClientUpdate() {}
+func (r RawTaskClientUpdateData) Kind() TaskClientUpdateKind {
+	return r.Discriminator
+}
+
+// Reports terminal cancellation after external work stopped.
+type TaskClientUpdateCancelled struct {
+	// Optional final progress message
+	Message *string `json:"message,omitempty"`
+	// Optional human-readable cancellation reason
+	Reason *string `json:"reason,omitempty"`
+}
+
+func (TaskClientUpdateCancelled) taskClientUpdate() {}
+func (TaskClientUpdateCancelled) Kind() TaskClientUpdateKind {
+	return TaskClientUpdateKindCancelled
+}
+
+// Reports successful terminal completion.
+type TaskClientUpdateCompleted struct {
+	// Optional final progress message
+	Message *string `json:"message,omitempty"`
+	// Optional opaque successful terminal result
+	Result any `json:"result,omitempty"`
+}
+
+func (TaskClientUpdateCompleted) taskClientUpdate() {}
+func (TaskClientUpdateCompleted) Kind() TaskClientUpdateKind {
+	return TaskClientUpdateKindCompleted
+}
+
+// Reports terminal failure.
+type TaskClientUpdateFailed struct {
+	// Optional owner-supplied terminal failure code
+	Code *string `json:"code,omitempty"`
+	// Human-readable terminal failure message
+	Error string `json:"error"`
+	// Optional final progress message
+	Message *string `json:"message,omitempty"`
+}
+
+func (TaskClientUpdateFailed) taskClientUpdate() {}
+func (TaskClientUpdateFailed) Kind() TaskClientUpdateKind {
+	return TaskClientUpdateKindFailed
+}
+
+// Publishes nonterminal progress for a running or idle client task.
+type TaskClientUpdateProgress struct {
+	// Optional progress message appended to recent activity when nonempty
+	Message *string `json:"message,omitempty"`
+	// Optional completion percentage; null clears the current percentage
+	Percentage *float64 `json:"percentage,omitempty"`
+	// Optional progress phase; null clears the current phase
+	Phase *string `json:"phase,omitempty"`
+	// Optional active status transition
+	Status *TaskClientActiveStatus `json:"status,omitempty"`
+}
+
+func (TaskClientUpdateProgress) taskClientUpdate() {}
+func (TaskClientUpdateProgress) Kind() TaskClientUpdateKind {
+	return TaskClientUpdateKindProgress
+}
+
 // Task completion notification with summary from the agent
 // Experimental: TaskCompleteData is part of an experimental API and may change or be
 // removed.
@@ -14111,7 +14327,7 @@ type TaskCompletionDecision struct {
 	ReviewerResultMeta any `json:"reviewerResultMeta,omitempty"`
 }
 
-// Tracked task union returned by task APIs, containing either an agent task or a shell task.
+// Tracked task union returned by task APIs, containing an agent, client, or shell task.
 // Experimental: TaskInfo is part of an experimental API and may change or be removed.
 type TaskInfo interface {
 	taskInfo()
@@ -14180,6 +14396,58 @@ func (TaskAgentInfo) Type() TaskInfoType {
 	return TaskInfoTypeAgent
 }
 
+// Tracked client-owned task metadata.
+// Experimental: TaskClientInfo is part of an experimental API and may change or be removed.
+type TaskClientInfo struct {
+	// ISO 8601 timestamp when the current active segment started
+	ActiveStartedAt *time.Time `json:"activeStartedAt,omitempty"`
+	// Accumulated active execution time in milliseconds
+	ActiveTimeMs int64 `json:"activeTimeMs"`
+	// Whether the currently bound owner can receive a cancellation request
+	CanCancel bool `json:"canCancel"`
+	// Human-readable reason for terminal cancellation
+	CancellationReason *string `json:"cancellationReason,omitempty"`
+	// Owner-scoped registration and reclaim key
+	ClientTaskID string `json:"clientTaskId"`
+	// ISO 8601 timestamp when the task reached a terminal status
+	CompletedAt *time.Time `json:"completedAt,omitempty"`
+	// Task description
+	Description string `json:"description"`
+	// Optional task display name
+	DisplayName *string `json:"displayName,omitempty"`
+	// Human-readable terminal failure message
+	Error *string `json:"error,omitempty"`
+	// Optional owner-supplied terminal failure code
+	ErrorCode *string `json:"errorCode,omitempty"`
+	// Execution mode, which is always background for client-owned tasks
+	ExecutionMode TaskClientExecutionMode `json:"executionMode"`
+	// Canonical runtime-generated task identifier
+	ID string `json:"id"`
+	// ISO 8601 timestamp when the connected owner entered idle status
+	IdleSince *time.Time `json:"idleSince,omitempty"`
+	// ISO 8601 timestamp of the most recent orphan transition
+	OrphanedAt *time.Time `json:"orphanedAt,omitempty"`
+	// Public attribution and presence for the task owner
+	Owner TaskClientOwner `json:"owner"`
+	// ISO 8601 timestamp of the most recent successful reclaim
+	ReclaimedAt *time.Time `json:"reclaimedAt,omitempty"`
+	// Opaque successful terminal result supplied by the task owner
+	Result any `json:"result,omitempty"`
+	// Sequence number of the latest accepted owner update
+	Sequence int64 `json:"sequence"`
+	// ISO 8601 timestamp when the task started
+	StartedAt time.Time `json:"startedAt"`
+	// Client task lifecycle status
+	Status TaskClientStatus `json:"status"`
+	// ISO 8601 timestamp of the latest accepted lifecycle change
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+func (TaskClientInfo) taskInfo() {}
+func (TaskClientInfo) Type() TaskInfoType {
+	return TaskInfoTypeClient
+}
+
 // Tracked shell task metadata, including ID, command, status, timing, attachment/execution
 // mode, log path, and PID.
 // Experimental: TaskShellInfo is part of an experimental API and may change or be removed.
@@ -14221,6 +14489,8 @@ type TaskList struct {
 	Tasks []TaskInfo `json:"tasks"`
 }
 
+// Progress information for the task, discriminated by type. Returns null when no task with
+// this ID is currently tracked.
 // Experimental: TaskProgress is part of an experimental API and may change or be removed.
 type TaskProgress interface {
 	taskProgress()
@@ -14251,6 +14521,31 @@ type TaskAgentProgress struct {
 func (TaskAgentProgress) taskProgress() {}
 func (TaskAgentProgress) Type() TaskProgressType {
 	return TaskProgressTypeAgent
+}
+
+// Generic progress for a client-owned task.
+// Experimental: TaskClientProgress is part of an experimental API and may change or be
+// removed.
+type TaskClientProgress struct {
+	// Most recent nonempty progress message
+	LastMessage *string `json:"lastMessage,omitempty"`
+	// Current completion percentage from zero through one hundred
+	Percentage *float64 `json:"percentage,omitempty"`
+	// Current owner-defined progress phase
+	Phase *string `json:"phase,omitempty"`
+	// Recent server-timestamped progress messages
+	RecentActivity []TaskProgressLine `json:"recentActivity"`
+	// Sequence number of the latest accepted owner update
+	Sequence int64 `json:"sequence"`
+	// Current client task lifecycle status
+	Status TaskClientStatus `json:"status"`
+	// ISO 8601 timestamp of the latest accepted lifecycle change
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+func (TaskClientProgress) taskProgress() {}
+func (TaskClientProgress) Type() TaskProgressType {
+	return TaskProgressTypeClient
 }
 
 // Progress snapshot for a shell task, with recent stdout/stderr output and optional process
@@ -14356,6 +14651,36 @@ type TasksPromoteToBackgroundResult struct {
 type TasksRefreshResult struct {
 }
 
+// Registers or reclaims a client-owned task.
+// Experimental: TasksRegisterRequest is part of an experimental API and may change or be
+// removed.
+type TasksRegisterRequest struct {
+	// Whether the owner supports runtime cancellation requests
+	Cancellable bool `json:"cancellable"`
+	// Owner-scoped idempotency key used for registration and reclaim
+	ClientTaskID string `json:"clientTaskId"`
+	// Human-readable description of the external work
+	Description string `json:"description"`
+	// Optional short display name for the external work
+	DisplayName *string `json:"displayName,omitempty"`
+	// Expected current sequence for idempotent registration or orphan reclaim
+	ExpectedSequence *int64 `json:"expectedSequence,omitempty"`
+	// Task kind
+	Type TaskClientType `json:"type"`
+}
+
+// Result of registering or reclaiming a client-owned task.
+// Experimental: TasksRegisterResult is part of an experimental API and may change or be
+// removed.
+type TasksRegisterResult struct {
+	// True only when this invocation created a new task
+	Created bool `json:"created"`
+	// True only when this invocation reclaimed an orphaned task
+	Reclaimed bool `json:"reclaimed"`
+	// Authoritative registered or reclaimed task
+	Task TaskClientInfo `json:"task"`
+}
+
 // Identifier of the completed or cancelled task to remove from tracking.
 // Experimental: TasksRemoveRequest is part of an experimental API and may change or be
 // removed.
@@ -14418,6 +14743,30 @@ type TasksStartAgentRequest struct {
 type TasksStartAgentResult struct {
 	// Generated agent ID for the background task
 	AgentID string `json:"agentId"`
+}
+
+// Updates a client-owned task.
+// Experimental: TasksUpdateRequest is part of an experimental API and may change or be
+// removed.
+type TasksUpdateRequest struct {
+	// Canonical runtime-generated task identifier
+	ID string `json:"id"`
+	// Owner update sequence to apply
+	Sequence int64 `json:"sequence"`
+	// Progress or terminal update payload
+	Update TaskClientUpdate `json:"update"`
+}
+
+// Result of publishing a client-owned task update.
+// Experimental: TasksUpdateResult is part of an experimental API and may change or be
+// removed.
+type TasksUpdateResult struct {
+	// Whether this invocation changed task state
+	Applied bool `json:"applied"`
+	// Whether this invocation repeated the latest accepted update
+	Duplicate bool `json:"duplicate"`
+	// Authoritative task after processing the update
+	Task TaskClientInfo `json:"task"`
 }
 
 // Wait until all in-flight background tasks (agents + shells) and any follow-up turns
@@ -16435,6 +16784,18 @@ const (
 	CatalogUnsafeRetrievalReasonRedirectToBlockedAddress CatalogUnsafeRetrievalReason = "redirect-to-blocked-address"
 )
 
+// Why the runtime requests client-task cancellation.
+// Experimental: ClientTaskCancelReason is part of an experimental API and may change or be
+// removed.
+type ClientTaskCancelReason string
+
+const (
+	// A caller requested task cancellation.
+	ClientTaskCancelReasonCancelRequested ClientTaskCancelReason = "cancel_requested"
+	// The session is shutting down.
+	ClientTaskCancelReasonSessionShutdown ClientTaskCancelReason = "session_shutdown"
+)
+
 // Whether a pending slash-command invocation effect was applied or cancelled by the host.
 // Experimental: CommandsInvocationEffectOutcome is part of an experimental API and may
 // change or be removed.
@@ -17811,6 +18172,22 @@ const (
 	ModelPolicyStateUnconfigured ModelPolicyState = "unconfigured"
 )
 
+// Whether the requested preference was already effective or was accepted for later
+// transactional activation.
+// Experimental: ModelSwitchAutoTierStatus is part of an experimental API and may change or
+// be removed.
+type ModelSwitchAutoTierStatus string
+
+const (
+	// The request was accepted but has not committed. A later user turn using the `auto` model
+	// must mint and validate the replacement before it becomes effective.
+	ModelSwitchAutoTierStatusPending ModelSwitchAutoTierStatus = "pending"
+	// The requested preference is already effective. No activation is pending for it, although
+	// this request may have cancelled an earlier unclaimed preference reported in
+	// `supersededAutoTier`.
+	ModelSwitchAutoTierStatusUnchanged ModelSwitchAutoTierStatus = "unchanged"
+)
+
 // Why the binary data is absent: it exceeded the inline size limit, or its asset was
 // unavailable
 // Experimental: OmittedBinaryOmittedReason is part of an experimental API and may change or
@@ -18969,6 +19346,89 @@ const (
 	SubagentSettingsEntryContextTierLongContext SubagentSettingsEntryContextTier = "long_context"
 )
 
+// Active status a client owner may publish with a progress update.
+// Experimental: TaskClientActiveStatus is part of an experimental API and may change or be
+// removed.
+type TaskClientActiveStatus string
+
+const (
+	// The external owner is connected but waiting.
+	TaskClientActiveStatusIdle TaskClientActiveStatus = "idle"
+	// The external owner is actively working.
+	TaskClientActiveStatusRunning TaskClientActiveStatus = "running"
+)
+
+// Client-owned tasks always execute outside the runtime in background mode.
+// Experimental: TaskClientExecutionMode is part of an experimental API and may change or be
+// removed.
+type TaskClientExecutionMode string
+
+const (
+	TaskClientExecutionModeBackground TaskClientExecutionMode = "background"
+)
+
+// Connection class owning a client task.
+// Experimental: TaskClientOwnerKind is part of an experimental API and may change or be
+// removed.
+type TaskClientOwnerKind string
+
+const (
+	// A discovered extension connection owns the task.
+	TaskClientOwnerKindExtension TaskClientOwnerKind = "extension"
+	// A generic SDK connection owns the task.
+	TaskClientOwnerKindSDK TaskClientOwnerKind = "sdk"
+)
+
+// Presence of the task's bound join.
+// Experimental: TaskClientOwnerPresence is part of an experimental API and may change or be
+// removed.
+type TaskClientOwnerPresence string
+
+const (
+	// The bound session join is connected.
+	TaskClientOwnerPresenceConnected TaskClientOwnerPresence = "connected"
+	// The bound session join is disconnected.
+	TaskClientOwnerPresenceDisconnected TaskClientOwnerPresence = "disconnected"
+)
+
+// Lifecycle status of a client-owned task.
+// Experimental: TaskClientStatus is part of an experimental API and may change or be
+// removed.
+type TaskClientStatus string
+
+const (
+	// The owner reported or confirmed cancellation.
+	TaskClientStatusCancelled TaskClientStatus = "cancelled"
+	// The owner reported successful completion.
+	TaskClientStatusCompleted TaskClientStatus = "completed"
+	// The owner reported failure.
+	TaskClientStatusFailed TaskClientStatus = "failed"
+	// The external owner is connected but waiting.
+	TaskClientStatusIdle TaskClientStatus = "idle"
+	// The bound owner join disappeared; external executor state is unknown.
+	TaskClientStatusOrphaned TaskClientStatus = "orphaned"
+	// The external owner is actively working.
+	TaskClientStatusRunning TaskClientStatus = "running"
+)
+
+// Discriminator for a client-owned task.
+// Experimental: TaskClientType is part of an experimental API and may change or be removed.
+type TaskClientType string
+
+const (
+	TaskClientTypeClient TaskClientType = "client"
+)
+
+// Kind discriminator for TaskClientUpdate.
+type TaskClientUpdateKind string
+
+const (
+	TaskClientUpdateKindCancelled TaskClientUpdateKind = "cancelled"
+	TaskClientUpdateKindCompleted TaskClientUpdateKind = "completed"
+	TaskClientUpdateKindFailed    TaskClientUpdateKind = "failed"
+	TaskClientUpdateKindProgress  TaskClientUpdateKind = "progress"
+)
+
 // Semantic result of evaluating a task completion request
 // Experimental: TaskCompletionOutcome is part of an experimental API and may change or be
 // removed.
@@ -19000,16 +19460,31 @@ const (
 type TaskInfoType string
 
 const (
-	TaskInfoTypeAgent TaskInfoType = "agent"
-	TaskInfoTypeShell TaskInfoType = "shell"
+	TaskInfoTypeAgent  TaskInfoType = "agent"
+	TaskInfoTypeClient TaskInfoType = "client"
+	TaskInfoTypeShell  TaskInfoType = "shell"
+)
+
+// Closed set of public task kinds a connection can negotiate.
+// Experimental: TaskKind is part of an experimental API and may change or be removed.
+type TaskKind string
+
+const (
+	// Runtime-owned background agent task.
+	TaskKindAgent TaskKind = "agent"
+	// Client-owned externally executed task.
+	TaskKindClient TaskKind = "client"
+	// Runtime-owned shell task.
+	TaskKindShell TaskKind = "shell"
 )
 
 // Type discriminator for TaskProgress.
 type TaskProgressType string
 
 const (
-	TaskProgressTypeAgent TaskProgressType = "agent"
-	TaskProgressTypeShell TaskProgressType = "shell"
+	TaskProgressTypeAgent  TaskProgressType = "agent"
+	TaskProgressTypeClient TaskProgressType = "client"
+	TaskProgressTypeShell  TaskProgressType = "shell"
 )
 
 // Whether the shell runs inside a managed PTY session or as an independent background
@@ -19687,6 +20162,32 @@ func (a *ServerLlmInferenceAPI) SetProvider(ctx context.Context) (*LlmInferenceS
 // Experimental: ServerManagedSettingsAPI contains experimental APIs that may change or be
 // removed.
 type ServerManagedSettingsAPI serverAPI
+
+// ClearCache force-refreshes enterprise managed settings for every account: wipes the
+// persistent server-policy cache (the whole `<cacheHome>/managed-settings` directory) and
+// drops this runtime process's in-memory retained server policy. It does not itself fetch
+// policy — the effect is that the next time a session resolves managed settings for an
+// account, that resolution re-fetches the account's org policy from the network instead of
+// serving a cached response. Note that `managedSettings.read` returns only device/MDM
+// settings and never triggers the account server-policy fetch, so a host implementing "sync
+// account policy" should start a fresh session resolution rather than treat a subsequent
+// `managedSettings.read` as the refreshed org policy. Mirrors the invalidation a sign-out
+// performs, broadened from the one signing-out account to all of them; device/MDM layers
+// describe the machine, not the account, and are left untouched. Rejects if the on-disk
+// cache cannot be removed.
+//
+// RPC method: managedSettings.clearCache.
+func (a *ServerManagedSettingsAPI) ClearCache(ctx context.Context) (*ManagedSettingsClearCacheResult, error) {
+	raw, err := a.client.Request(ctx, "managedSettings.clearCache", nil)
+	if err != nil {
+		return nil, err
+	}
+	var result ManagedSettingsClearCacheResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
 
 // Read discovers device-managed settings from production MDM and managed-file sources,
 // validates them against the runtime-owned managed-settings schema, and returns the
@@ -23843,13 +24344,15 @@ func (a *ModeAPI) Set(ctx context.Context, params *ModeSetRequest) (*ModeSetResu
 // Experimental: ModelAPI contains experimental APIs that may change or be removed.
 type ModelAPI sessionAPI
 
-// GetCurrent gets the currently selected model for the session.
+// GetCurrent gets the session's authoritative model snapshot, including the committed Auto
+// preference and any newer unclaimed Auto preference waiting for a future user turn.
 //
 // RPC method: session.model.getCurrent.
 //
-// Returns: The currently selected model, reasoning effort, and context tier for the
-// session. The context tier reflects `Session.getContextTier()`, restored from the session
-// journal on resume.
+// Returns: The session's authoritative model snapshot. Auto preference fields are
+// configuration for the virtual `auto` model and do not change the selected model
+// identifier. The context tier reflects `Session.getContextTier()`, restored from the
+// session journal on resume.
 func (a *ModelAPI) GetCurrent(ctx context.Context) (*CurrentModel, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request(ctx, "session.model.getCurrent", req)
@@ -23920,6 +24423,40 @@ func (a *ModelAPI) SetReasoningEffort(ctx context.Context, params *ModelSetReaso
 	return &result, nil
 }
 
+// SwitchAutoTier requests an Auto preference change without changing the session's selected
+// model. The latest unclaimed request wins; the runtime commits it only after a later
+// prompt using the `auto` model mints a usable model and token pair. A `pending` response
+// confirms that the request was accepted, not that it committed. Observe eventual success
+// through `session.model_change`, failure through the ephemeral
+// `session.auto_tier_switch_failed` event, or current unclaimed state through
+// `session.model.getCurrent`.
+//
+// RPC method: session.model.switchAutoTier.
+//
+// Parameters: An Auto preference request for the session. This updates Auto configuration
+// only; it does not change the selected model to `auto`.
+//
+// Returns: Immediate acknowledgement and Auto preference snapshot after a switch request.
+// This result never implies that a pending preference committed.
+func (a *ModelAPI) SwitchAutoTier(ctx context.Context, params *ModelSwitchAutoTierRequest) (*ModelSwitchAutoTierResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["autoTier"] = params.AutoTier
+		if params.Source != nil {
+			req["source"] = *params.Source
+		}
+	}
+	raw, err := a.client.Request(ctx, "session.model.switchAutoTier", req)
+	if err != nil {
+		return nil, err
+	}
+	var result ModelSwitchAutoTierResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // SwitchTo switches the session to a model and optional reasoning configuration.
 //
 // RPC method: session.model.switchTo.
@@ -23931,6 +24468,9 @@ func (a *ModelAPI) SetReasoningEffort(ctx context.Context, params *ModelSetReaso
 func (a *ModelAPI) SwitchTo(ctx context.Context, params *ModelSwitchToRequest) (*ModelSwitchToResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
+		if params.AutoTier != nil {
+			req["autoTier"] = *params.AutoTier
+		}
 		if params.CompactionDecision != nil {
 			req["compactionDecision"] = *params.CompactionDecision
 		}
@@ -25807,6 +26347,39 @@ func (a *TasksAPI) Refresh(ctx context.Context) (*TasksRefreshResult, error) {
 	return &result, nil
 }
 
+// Registers a client-owned task, or reclaims an orphaned task belonging to the same
+// extension principal.
+//
+// RPC method: session.tasks.register.
+//
+// Parameters: Registers or reclaims a client-owned task.
+//
+// Returns: Result of registering or reclaiming a client-owned task.
+func (a *TasksAPI) Register(ctx context.Context, params *TasksRegisterRequest) (*TasksRegisterResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["cancellable"] = params.Cancellable
+		req["clientTaskId"] = params.ClientTaskID
+		req["description"] = params.Description
+		if params.DisplayName != nil {
+			req["displayName"] = *params.DisplayName
+		}
+		if params.ExpectedSequence != nil {
+			req["expectedSequence"] = *params.ExpectedSequence
+		}
+		req["type"] = params.Type
+	}
+	raw, err := a.client.Request(ctx, "session.tasks.register", req)
+	if err != nil {
+		return nil, err
+	}
+	var result TasksRegisterResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // Removes a completed or cancelled background task from tracking.
 //
 // RPC method: session.tasks.remove.
@@ -25886,6 +26459,31 @@ func (a *TasksAPI) StartAgent(ctx context.Context, params *TasksStartAgentReques
 		return nil, err
 	}
 	var result TasksStartAgentResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Update publishes generic progress or a terminal outcome for a client-owned task.
+//
+// RPC method: session.tasks.update.
+//
+// Parameters: Updates a client-owned task.
+//
+// Returns: Result of publishing a client-owned task update.
+func (a *TasksAPI) Update(ctx context.Context, params *TasksUpdateRequest) (*TasksUpdateResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["id"] = params.ID
+		req["sequence"] = params.Sequence
+		req["update"] = params.Update
+	}
+	raw, err := a.client.Request(ctx, "session.tasks.update", req)
+	if err != nil {
+		return nil, err
+	}
+	var result TasksUpdateResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -28479,12 +29077,26 @@ type SessionFSHandler interface {
 	WriteFile(request *SessionFSWriteFileRequest) (*SessionFSError, error)
 }
 
+// Experimental: TasksHandler contains experimental APIs that may change or be removed.
+type TasksHandler interface {
+	// Cancel asks the client currently bound to a client-owned session task to confirm that its
+	// external work stopped.
+	//
+	// RPC method: tasks.cancel.
+	//
+	// Parameters: Runtime-to-owner cancellation request for a client-owned task.
+	//
+	// Returns: Whether the client authoritatively confirmed its external work stopped.
+	Cancel(request *ClientTaskCancelRequest) (*ClientTaskCancelResult, error)
+}
+
 // ClientSessionAPIHandlers provides all client session API handler groups for a session.
 type ClientSessionAPIHandlers struct {
 	Canvas        CanvasHandler
 	Factory       FactoryHandler
 	ProviderToken ProviderTokenHandler
 	SessionFS     SessionFSHandler
+	Tasks         TasksHandler
 }
 
 func clientSessionHandlerError(err error) *jsonrpc2.Error {
@@ -28853,6 +29465,25 @@ func RegisterClientSessionAPIHandlers(client *jsonrpc2.Client, getHandlers func(
 			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No sessionFs handler registered for session: %s", request.SessionID)}
 		}
 		result, err := handlers.SessionFS.WriteFile(&request)
+		if err != nil {
+			return nil, clientSessionHandlerError(err)
+		}
+		raw, err := json.Marshal(result)
+		if err != nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
+		}
+		return raw, nil
+	})
+	client.SetRequestHandler("tasks.cancel", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		var request ClientTaskCancelRequest
+		if err := json.Unmarshal(params, &request); err != nil {
+			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
+		}
+		handlers := getHandlers(request.SessionID)
+		if handlers == nil || handlers.Tasks == nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No tasks handler registered for session: %s", request.SessionID)}
+		}
+		result, err := handlers.Tasks.Cancel(&request)
 		if err != nil {
 			return nil, clientSessionHandlerError(err)
 		}

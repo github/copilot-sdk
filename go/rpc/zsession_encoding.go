@@ -389,6 +389,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
+	case SessionEventTypeSessionAutoTierSwitchFailed:
+		var d SessionAutoTierSwitchFailedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
 	case SessionEventTypeSessionBackgroundTasksChanged:
 		var d SessionBackgroundTasksChangedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
@@ -559,6 +565,18 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 		e.Data = &d
 	case SessionEventTypeSessionManagedSettingsResolved:
 		var d SessionManagedSettingsResolvedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionMCPServerNeedsReconnect:
+		var d SessionMCPServerNeedsReconnectData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionMCPServerRemoved:
+		var d SessionMCPServerRemovedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}

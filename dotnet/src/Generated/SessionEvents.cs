@@ -84,6 +84,7 @@ namespace GitHub.Copilot;
 [JsonDerivedType(typeof(SessionLimitsExhaustedCompletedEvent), "session_limits_exhausted.completed")]
 [JsonDerivedType(typeof(SessionLimitsExhaustedRequestedEvent), "session_limits_exhausted.requested")]
 [JsonDerivedType(typeof(SessionAutoModeResolvedEvent), "session.auto_mode_resolved")]
+[JsonDerivedType(typeof(SessionAutoTierSwitchFailedEvent), "session.auto_tier_switch_failed")]
 [JsonDerivedType(typeof(SessionAutopilotObjectiveChangedEvent), "session.autopilot_objective_changed")]
 [JsonDerivedType(typeof(SessionBackgroundTasksChangedEvent), "session.background_tasks_changed")]
 [JsonDerivedType(typeof(SessionBinaryAssetEvent), "session.binary_asset")]
@@ -112,6 +113,8 @@ namespace GitHub.Copilot;
 [JsonDerivedType(typeof(SessionInfoEvent), "session.info")]
 [JsonDerivedType(typeof(SessionManagedSettingsEnforcedEvent), "session.managed_settings_enforced")]
 [JsonDerivedType(typeof(SessionManagedSettingsResolvedEvent), "session.managed_settings_resolved")]
+[JsonDerivedType(typeof(SessionMcpServerNeedsReconnectEvent), "session.mcp_server_needs_reconnect")]
+[JsonDerivedType(typeof(SessionMcpServerRemovedEvent), "session.mcp_server_removed")]
 [JsonDerivedType(typeof(SessionMcpServerStatusChangedEvent), "session.mcp_server_status_changed")]
 [JsonDerivedType(typeof(SessionMcpServersLoadedEvent), "session.mcp_servers_loaded")]
 [JsonDerivedType(typeof(SessionModeChangedEvent), "session.mode_changed")]
@@ -366,6 +369,19 @@ public sealed partial class SessionModelChangeEvent : SessionEvent
     /// <summary>The <c>session.model_change</c> event payload.</summary>
     [JsonPropertyName("data")]
     public required SessionModelChangeData Data { get; set; }
+}
+
+/// <summary>A transient Auto preference failure emitted when the runtime cannot mint or accept a usable model and token pair. The previously effective preference remains active, so SDK clients can surface a non-blocking failure without changing their committed-tier state. This event is ephemeral and is not persisted or replayed on resume.</summary>
+/// <remarks>Represents the <c>session.auto_tier_switch_failed</c> event.</remarks>
+public sealed partial class SessionAutoTierSwitchFailedEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "session.auto_tier_switch_failed";
+
+    /// <summary>The <c>session.auto_tier_switch_failed</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required SessionAutoTierSwitchFailedData Data { get; set; }
 }
 
 /// <summary>Agent mode change details including previous and new modes.</summary>
@@ -1790,6 +1806,32 @@ public sealed partial class SessionMcpServerStatusChangedEvent : SessionEvent
     public required SessionMcpServerStatusChangedData Data { get; set; }
 }
 
+/// <summary>Payload of `session.mcp_server_removed` identifying an MCP server the graph no longer runs.</summary>
+/// <remarks>Represents the <c>session.mcp_server_removed</c> event.</remarks>
+public sealed partial class SessionMcpServerRemovedEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "session.mcp_server_removed";
+
+    /// <summary>The <c>session.mcp_server_removed</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required SessionMcpServerRemovedData Data { get; set; }
+}
+
+/// <summary>Payload of `session.mcp_server_needs_reconnect` identifying an MCP server whose connection must be re-established.</summary>
+/// <remarks>Represents the <c>session.mcp_server_needs_reconnect</c> event.</remarks>
+public sealed partial class SessionMcpServerNeedsReconnectEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "session.mcp_server_needs_reconnect";
+
+    /// <summary>The <c>session.mcp_server_needs_reconnect</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required SessionMcpServerNeedsReconnectData Data { get; set; }
+}
+
 /// <summary>Payload identifying the MCP server associated with a list change.</summary>
 /// <remarks>Represents the <c>mcp.tools.list_changed</c> event.</remarks>
 public sealed partial class McpToolsListChangedEvent : SessionEvent
@@ -2323,6 +2365,11 @@ public sealed partial class SessionWarningData
 /// <summary>Model change details including previous and new model identifiers.</summary>
 public sealed partial class SessionModelChangeData
 {
+    /// <summary>Committed Auto preference after the model configuration change, when applicable.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("autoTier")]
+    public AutoTier? AutoTier { get; set; }
+
     /// <summary>Reason the change happened, when not user-initiated. `"rate_limit_auto_switch"` for changes triggered by the auto-mode-switch rate-limit recovery path, or `"refusal_fallback"` when the active model declined a request (content refusal) and the runtime switched to the configured refusal-fallback model. UI clients can use this to render contextual copy.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("cause")]
@@ -2336,6 +2383,11 @@ public sealed partial class SessionModelChangeData
     /// <summary>Newly selected model identifier.</summary>
     [JsonPropertyName("newModel")]
     public required string NewModel { get; set; }
+
+    /// <summary>Previously committed Auto preference, when one was explicitly selected.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("previousAutoTier")]
+    public AutoTier? PreviousAutoTier { get; set; }
 
     /// <summary>Model that was previously selected, if any.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -2376,6 +2428,23 @@ public sealed partial class SessionModelChangeData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("verbosity")]
     public Verbosity? Verbosity { get; set; }
+}
+
+/// <summary>A transient Auto preference failure emitted when the runtime cannot mint or accept a usable model and token pair. The previously effective preference remains active, so SDK clients can surface a non-blocking failure without changing their committed-tier state. This event is ephemeral and is not persisted or replayed on resume.</summary>
+public sealed partial class SessionAutoTierSwitchFailedData
+{
+    /// <summary>Auto preference that remains effective after the failed request.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("effectiveAutoTier")]
+    public AutoTier? EffectiveAutoTier { get; set; }
+
+    /// <summary>Low-cardinality failure outcome reported by Auto resolution.</summary>
+    [JsonPropertyName("reason")]
+    public required AutoTierSwitchFailureReason Reason { get; set; }
+
+    /// <summary>Auto preference that failed to activate, or null when returning to provider-default routing failed.</summary>
+    [JsonPropertyName("requestedAutoTier")]
+    public AutoTier? RequestedAutoTier { get; set; }
 }
 
 /// <summary>Agent mode change details including previous and new modes.</summary>
@@ -5853,6 +5922,22 @@ public sealed partial class SessionMcpServerStatusChangedData
     /// <summary>Connection status: connected, failed, needs-auth, pending, disabled, stopped, or not_configured.</summary>
     [JsonPropertyName("status")]
     public required McpServerStatus Status { get; set; }
+}
+
+/// <summary>Payload of `session.mcp_server_removed` identifying an MCP server the graph no longer runs.</summary>
+public sealed partial class SessionMcpServerRemovedData
+{
+    /// <summary>Name of the MCP server that was removed from the graph.</summary>
+    [JsonPropertyName("serverName")]
+    public required string ServerName { get; set; }
+}
+
+/// <summary>Payload of `session.mcp_server_needs_reconnect` identifying an MCP server whose connection must be re-established.</summary>
+public sealed partial class SessionMcpServerNeedsReconnectData
+{
+    /// <summary>Name of the MCP server that needs to reconnect.</summary>
+    [JsonPropertyName("serverName")]
+    public required string ServerName { get; set; }
 }
 
 /// <summary>Payload identifying the MCP server associated with a list change.</summary>
@@ -11233,6 +11318,73 @@ public readonly struct ModelChangeSource : IEquatable<ModelChangeSource>
     }
 }
 
+/// <summary>Terminal reason an Auto preference activation failed.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct AutoTierSwitchFailureReason : IEquatable<AutoTierSwitchFailureReason>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="AutoTierSwitchFailureReason"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="AutoTierSwitchFailureReason"/>.</param>
+    [JsonConstructor]
+    public AutoTierSwitchFailureReason(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="AutoTierSwitchFailureReason"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The candidate model was rejected by model policy.</summary>
+    public static AutoTierSwitchFailureReason PolicyRejected { get; } = new("policy_rejected");
+
+    /// <summary>The Auto routing request failed or returned an unusable response.</summary>
+    public static AutoTierSwitchFailureReason RequestFailed { get; } = new("request_failed");
+
+    /// <summary>The runtime could not prepare the Auto routing request.</summary>
+    public static AutoTierSwitchFailureReason SetupFailed { get; } = new("setup_failed");
+
+    /// <summary>The provider does not support Auto routing.</summary>
+    public static AutoTierSwitchFailureReason Unsupported { get; } = new("unsupported");
+
+    /// <summary>Returns a value indicating whether two <see cref="AutoTierSwitchFailureReason"/> instances are equivalent.</summary>
+    public static bool operator ==(AutoTierSwitchFailureReason left, AutoTierSwitchFailureReason right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="AutoTierSwitchFailureReason"/> instances are not equivalent.</summary>
+    public static bool operator !=(AutoTierSwitchFailureReason left, AutoTierSwitchFailureReason right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is AutoTierSwitchFailureReason other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(AutoTierSwitchFailureReason other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{AutoTierSwitchFailureReason}"/> for serializing <see cref="AutoTierSwitchFailureReason"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<AutoTierSwitchFailureReason>
+    {
+        /// <inheritdoc />
+        public override AutoTierSwitchFailureReason Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, AutoTierSwitchFailureReason value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AutoTierSwitchFailureReason));
+        }
+    }
+}
+
 /// <summary>Permission mode for the session.</summary>
 [Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -16307,6 +16459,8 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(SandboxDecisionEvent))]
 [JsonSerializable(typeof(SessionAutoModeResolvedData))]
 [JsonSerializable(typeof(SessionAutoModeResolvedEvent))]
+[JsonSerializable(typeof(SessionAutoTierSwitchFailedData))]
+[JsonSerializable(typeof(SessionAutoTierSwitchFailedEvent))]
 [JsonSerializable(typeof(SessionAutopilotObjectiveChangedData))]
 [JsonSerializable(typeof(SessionAutopilotObjectiveChangedEvent))]
 [JsonSerializable(typeof(SessionBackgroundTasksChangedData))]
@@ -16370,6 +16524,10 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(SessionManagedSettingsEnforcedEvent))]
 [JsonSerializable(typeof(SessionManagedSettingsResolvedData))]
 [JsonSerializable(typeof(SessionManagedSettingsResolvedEvent))]
+[JsonSerializable(typeof(SessionMcpServerNeedsReconnectData))]
+[JsonSerializable(typeof(SessionMcpServerNeedsReconnectEvent))]
+[JsonSerializable(typeof(SessionMcpServerRemovedData))]
+[JsonSerializable(typeof(SessionMcpServerRemovedEvent))]
 [JsonSerializable(typeof(SessionMcpServerStatusChangedData))]
 [JsonSerializable(typeof(SessionMcpServerStatusChangedEvent))]
 [JsonSerializable(typeof(SessionMcpServersLoadedData))]

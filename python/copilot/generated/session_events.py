@@ -136,6 +136,7 @@ class SessionEventType(Enum):
     SESSION_INFO = "session.info"
     SESSION_WARNING = "session.warning"
     SESSION_MODEL_CHANGE = "session.model_change"
+    SESSION_AUTO_TIER_SWITCH_FAILED = "session.auto_tier_switch_failed"
     SESSION_MODE_CHANGED = "session.mode_changed"
     SESSION_MODE_NOTICE_DELIVERED = "session.mode_notice_delivered"
     SESSION_SESSION_LIMITS_CHANGED = "session.session_limits_changed"
@@ -262,6 +263,8 @@ class SessionEventType(Enum):
     SESSION_CUSTOM_AGENTS_UPDATED = "session.custom_agents_updated"
     SESSION_MCP_SERVERS_LOADED = "session.mcp_servers_loaded"
     SESSION_MCP_SERVER_STATUS_CHANGED = "session.mcp_server_status_changed"
+    SESSION_MCP_SERVER_REMOVED = "session.mcp_server_removed"
+    SESSION_MCP_SERVER_NEEDS_RECONNECT = "session.mcp_server_needs_reconnect"
     MCP_TOOLS_LIST_CHANGED = "mcp.tools.list_changed"
     MCP_RESOURCES_LIST_CHANGED = "mcp.resources.list_changed"
     MCP_PROMPTS_LIST_CHANGED = "mcp.prompts.list_changed"
@@ -7587,6 +7590,34 @@ class SandboxDecisionData:
 
 
 @dataclass
+class SessionAutoTierSwitchFailedData:
+    "A transient Auto preference failure emitted when the runtime cannot mint or accept a usable model and token pair. The previously effective preference remains active, so SDK clients can surface a non-blocking failure without changing their committed-tier state. This event is ephemeral and is not persisted or replayed on resume."
+    reason: AutoTierSwitchFailureReason
+    requested_auto_tier: AutoTier | None
+    effective_auto_tier: AutoTier | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "SessionAutoTierSwitchFailedData":
+        assert isinstance(obj, dict)
+        reason = parse_enum(AutoTierSwitchFailureReason, obj.get("reason"))
+        requested_auto_tier = from_union([from_none, lambda x: parse_enum(AutoTier, x)], obj.get("requestedAutoTier"))
+        effective_auto_tier = from_union([from_none, lambda x: parse_enum(AutoTier, x)], obj.get("effectiveAutoTier"))
+        return SessionAutoTierSwitchFailedData(
+            reason=reason,
+            requested_auto_tier=requested_auto_tier,
+            effective_auto_tier=effective_auto_tier,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["reason"] = to_enum(AutoTierSwitchFailureReason, self.reason)
+        result["requestedAutoTier"] = from_union([from_none, lambda x: to_enum(AutoTier, x)], self.requested_auto_tier)
+        if self.effective_auto_tier is not None:
+            result["effectiveAutoTier"] = from_union([from_none, lambda x: to_enum(AutoTier, x)], self.effective_auto_tier)
+        return result
+
+
+@dataclass
 class SessionAutopilotObjectiveChangedData:
     "Autopilot objective state file operation details indicating what changed"
     operation: AutopilotObjectiveChangedOperation
@@ -8290,6 +8321,44 @@ class SessionLimitsExhaustedResponse:
 
 
 @dataclass
+class SessionMcpServerNeedsReconnectData:
+    "Payload of `session.mcp_server_needs_reconnect` identifying an MCP server whose connection must be re-established."
+    server_name: str
+
+    @staticmethod
+    def from_dict(obj: Any) -> "SessionMcpServerNeedsReconnectData":
+        assert isinstance(obj, dict)
+        server_name = from_str(obj.get("serverName"))
+        return SessionMcpServerNeedsReconnectData(
+            server_name=server_name,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["serverName"] = from_str(self.server_name)
+        return result
+
+
+@dataclass
+class SessionMcpServerRemovedData:
+    "Payload of `session.mcp_server_removed` identifying an MCP server the graph no longer runs."
+    server_name: str
+
+    @staticmethod
+    def from_dict(obj: Any) -> "SessionMcpServerRemovedData":
+        assert isinstance(obj, dict)
+        server_name = from_str(obj.get("serverName"))
+        return SessionMcpServerRemovedData(
+            server_name=server_name,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["serverName"] = from_str(self.server_name)
+        return result
+
+
+@dataclass
 class SessionMcpServerStatusChangedData:
     "Payload of `session.mcp_server_status_changed` for one MCP server's status and optional failure error."
     server_name: str
@@ -8387,8 +8456,10 @@ class SessionModeNoticeDeliveredData:
 class SessionModelChangeData:
     "Model change details including previous and new model identifiers"
     new_model: str
+    auto_tier: AutoTier | None = None
     cause: str | None = None
     context_tier: ContextTier | None = None
+    previous_auto_tier: AutoTier | None = None
     previous_model: str | None = None
     previous_reasoning_effort: str | None = None
     previous_reasoning_summary: ReasoningSummary | None = None
@@ -8402,8 +8473,10 @@ class SessionModelChangeData:
     def from_dict(obj: Any) -> "SessionModelChangeData":
         assert isinstance(obj, dict)
         new_model = from_str(obj.get("newModel"))
+        auto_tier = from_union([from_none, lambda x: parse_enum(AutoTier, x)], obj.get("autoTier"))
         cause = from_union([from_none, from_str], obj.get("cause"))
         context_tier = from_union([from_none, lambda x: parse_enum(ContextTier, x)], obj.get("contextTier"))
+        previous_auto_tier = from_union([from_none, lambda x: parse_enum(AutoTier, x)], obj.get("previousAutoTier"))
         previous_model = from_union([from_none, from_str], obj.get("previousModel"))
         previous_reasoning_effort = from_union([from_none, from_str], obj.get("previousReasoningEffort"))
         previous_reasoning_summary = from_union([from_none, lambda x: parse_enum(ReasoningSummary, x)], obj.get("previousReasoningSummary"))
@@ -8414,8 +8487,10 @@ class SessionModelChangeData:
         verbosity = from_union([from_none, lambda x: parse_enum(Verbosity, x)], obj.get("verbosity"))
         return SessionModelChangeData(
             new_model=new_model,
+            auto_tier=auto_tier,
             cause=cause,
             context_tier=context_tier,
+            previous_auto_tier=previous_auto_tier,
             previous_model=previous_model,
             previous_reasoning_effort=previous_reasoning_effort,
             previous_reasoning_summary=previous_reasoning_summary,
@@ -8429,10 +8504,14 @@ class SessionModelChangeData:
     def to_dict(self) -> dict:
         result: dict = {}
         result["newModel"] = from_str(self.new_model)
+        if self.auto_tier is not None:
+            result["autoTier"] = from_union([from_none, lambda x: to_enum(AutoTier, x)], self.auto_tier)
         if self.cause is not None:
             result["cause"] = from_union([from_none, from_str], self.cause)
         if self.context_tier is not None:
             result["contextTier"] = from_union([from_none, lambda x: to_enum(ContextTier, x)], self.context_tier)
+        if self.previous_auto_tier is not None:
+            result["previousAutoTier"] = from_union([from_none, lambda x: to_enum(AutoTier, x)], self.previous_auto_tier)
         if self.previous_model is not None:
             result["previousModel"] = from_union([from_none, from_str], self.previous_model)
         if self.previous_reasoning_effort is not None:
@@ -12033,6 +12112,18 @@ class AutoTier(Enum):
     INTELLIGENCE = "intelligence"
 
 
+class AutoTierSwitchFailureReason(Enum):
+    "Terminal reason an Auto preference activation failed."
+    # The candidate model was rejected by model policy.
+    POLICY_REJECTED = "policy_rejected"
+    # The Auto routing request failed or returned an unusable response.
+    REQUEST_FAILED = "request_failed"
+    # The runtime could not prepare the Auto routing request.
+    SETUP_FAILED = "setup_failed"
+    # The provider does not support Auto routing.
+    UNSUPPORTED = "unsupported"
+
+
 class AutopilotObjectiveChangedOperation(Enum):
     "The type of operation performed on the autopilot objective state file"
     # Autopilot objective state file was created for a new objective.
@@ -12647,7 +12738,7 @@ class WorkspaceFileChangedOperation(Enum):
     UPDATE = "update"
 
 
-SessionEventData = SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionTitleChangedData | SessionScheduleCreatedData | SessionScheduleCancelledData | SessionScheduleRearmedData | SessionAutopilotObjectiveChangedData | SessionInfoData | SessionWarningData | SessionModelChangeData | SessionModeChangedData | SessionModeNoticeDeliveredData | SessionSessionLimitsChangedData | SessionPermissionsChangedData | SessionPlanChangedData | SessionTodosChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionUsageCheckpointData | SessionContextChangedData | SessionUsageInfoData | SessionContextClearedData | SessionCompactionStartData | SessionCompactionCompleteData | SessionTaskCompleteData | SessionCompletionReceiptData | SessionFusionRouteStartedData | SessionFusionRouteFailedData | SessionFusionResolvedData | SessionFusionCompletedData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantTurnRetryData | AgentInterruptedData | AssistantIntentData | AssistantFusionPhaseStartedData | AssistantFusionPhaseActivityData | AssistantFusionPhaseCompletedData | AssistantFusionPhaseFailedData | AssistantServerToolProgressData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantToolCallDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageStartData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantIdleData | AssistantUsageData | PromptCacheBreakData | ModelCallFailureData | ModelCallFinishedData | ModelCallStartData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolExecutionProgressData | ToolExecutionCompleteData | ToolSearchActivatedData | SkillInvokedData | SandboxDecisionData | SubagentStartedData | SubagentConfiguredData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | HookProgressData | SessionBinaryAssetData | SystemMessageData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | McpHeadersRefreshRequiredData | McpHeadersRefreshCompletedData | SessionCustomNotificationData | UiEphemeralQueryData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | AutoModeSwitchRequestedData | AutoModeSwitchCompletedData | SessionLimitsExhaustedRequestedData | SessionLimitsExhaustedCompletedData | SessionAutoModeResolvedData | SessionManagedSettingsResolvedData | SessionManagedSettingsEnforcedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | FactoryRunUpdatedData | FactoryRunStartedData | FactoryRunSettledData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | McpToolsListChangedData | McpResourcesListChangedData | McpPromptsListChangedData | SessionExtensionsLoadedData | SessionCanvasOpenedData | SessionCanvasRegistryChangedData | SessionCanvasClosedData | SessionCanvasUnavailableData | SessionCanvasRecordedData | SessionCanvasRemovedData | SessionExtensionsAttachmentsPushedData | McpAppToolCallCompleteData | RawSessionEventData | Data
+SessionEventData = SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionTitleChangedData | SessionScheduleCreatedData | SessionScheduleCancelledData | SessionScheduleRearmedData | SessionAutopilotObjectiveChangedData | SessionInfoData | SessionWarningData | SessionModelChangeData | SessionAutoTierSwitchFailedData | SessionModeChangedData | SessionModeNoticeDeliveredData | SessionSessionLimitsChangedData | SessionPermissionsChangedData | SessionPlanChangedData | SessionTodosChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionUsageCheckpointData | SessionContextChangedData | SessionUsageInfoData | SessionContextClearedData | SessionCompactionStartData | SessionCompactionCompleteData | SessionTaskCompleteData | SessionCompletionReceiptData | SessionFusionRouteStartedData | SessionFusionRouteFailedData | SessionFusionResolvedData | SessionFusionCompletedData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantTurnRetryData | AgentInterruptedData | AssistantIntentData | AssistantFusionPhaseStartedData | AssistantFusionPhaseActivityData | AssistantFusionPhaseCompletedData | AssistantFusionPhaseFailedData | AssistantServerToolProgressData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantToolCallDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageStartData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantIdleData | AssistantUsageData | PromptCacheBreakData | ModelCallFailureData | ModelCallFinishedData | ModelCallStartData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolExecutionProgressData | ToolExecutionCompleteData | ToolSearchActivatedData | SkillInvokedData | SandboxDecisionData | SubagentStartedData | SubagentConfiguredData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | HookProgressData | SessionBinaryAssetData | SystemMessageData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | McpHeadersRefreshRequiredData | McpHeadersRefreshCompletedData | SessionCustomNotificationData | UiEphemeralQueryData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | AutoModeSwitchRequestedData | AutoModeSwitchCompletedData | SessionLimitsExhaustedRequestedData | SessionLimitsExhaustedCompletedData | SessionAutoModeResolvedData | SessionManagedSettingsResolvedData | SessionManagedSettingsEnforcedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | FactoryRunUpdatedData | FactoryRunStartedData | FactoryRunSettledData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | SessionMcpServerRemovedData | SessionMcpServerNeedsReconnectData | McpToolsListChangedData | McpResourcesListChangedData | McpPromptsListChangedData | SessionExtensionsLoadedData | SessionCanvasOpenedData | SessionCanvasRegistryChangedData | SessionCanvasClosedData | SessionCanvasUnavailableData | SessionCanvasRecordedData | SessionCanvasRemovedData | SessionExtensionsAttachmentsPushedData | McpAppToolCallCompleteData | RawSessionEventData | Data
 
 
 @dataclass
@@ -12686,6 +12777,7 @@ class SessionEvent:
             case SessionEventType.SESSION_INFO: data = SessionInfoData.from_dict(data_obj)
             case SessionEventType.SESSION_WARNING: data = SessionWarningData.from_dict(data_obj)
             case SessionEventType.SESSION_MODEL_CHANGE: data = SessionModelChangeData.from_dict(data_obj)
+            case SessionEventType.SESSION_AUTO_TIER_SWITCH_FAILED: data = SessionAutoTierSwitchFailedData.from_dict(data_obj)
             case SessionEventType.SESSION_MODE_CHANGED: data = SessionModeChangedData.from_dict(data_obj)
             case SessionEventType.SESSION_MODE_NOTICE_DELIVERED: data = SessionModeNoticeDeliveredData.from_dict(data_obj)
             case SessionEventType.SESSION_SESSION_LIMITS_CHANGED: data = SessionSessionLimitsChangedData.from_dict(data_obj)
@@ -12794,6 +12886,8 @@ class SessionEvent:
             case SessionEventType.SESSION_CUSTOM_AGENTS_UPDATED: data = SessionCustomAgentsUpdatedData.from_dict(data_obj)
             case SessionEventType.SESSION_MCP_SERVERS_LOADED: data = SessionMcpServersLoadedData.from_dict(data_obj)
             case SessionEventType.SESSION_MCP_SERVER_STATUS_CHANGED: data = SessionMcpServerStatusChangedData.from_dict(data_obj)
+            case SessionEventType.SESSION_MCP_SERVER_REMOVED: data = SessionMcpServerRemovedData.from_dict(data_obj)
+            case SessionEventType.SESSION_MCP_SERVER_NEEDS_RECONNECT: data = SessionMcpServerNeedsReconnectData.from_dict(data_obj)
             case SessionEventType.MCP_TOOLS_LIST_CHANGED: data = McpToolsListChangedData.from_dict(data_obj)
             case SessionEventType.MCP_RESOURCES_LIST_CHANGED: data = McpResourcesListChangedData.from_dict(data_obj)
             case SessionEventType.MCP_PROMPTS_LIST_CHANGED: data = McpPromptsListChangedData.from_dict(data_obj)
@@ -12904,6 +12998,7 @@ __all__ = [
     "AutoModeSwitchRequestedData",
     "AutoModeSwitchResponse",
     "AutoTier",
+    "AutoTierSwitchFailureReason",
     "AutopilotObjectiveChangedOperation",
     "AutopilotObjectiveChangedStatus",
     "BinaryAssetReference",
@@ -13081,6 +13176,7 @@ __all__ = [
     "SandboxDecisionData",
     "ScheduleOrigin",
     "SessionAutoModeResolvedData",
+    "SessionAutoTierSwitchFailedData",
     "SessionAutopilotObjectiveChangedData",
     "SessionBackgroundTasksChangedData",
     "SessionBinaryAssetData",
@@ -13117,6 +13213,8 @@ __all__ = [
     "SessionLimitsExhaustedResponseAction",
     "SessionManagedSettingsEnforcedData",
     "SessionManagedSettingsResolvedData",
+    "SessionMcpServerNeedsReconnectData",
+    "SessionMcpServerRemovedData",
     "SessionMcpServerStatusChangedData",
     "SessionMcpServersLoadedData",
     "SessionMode",
