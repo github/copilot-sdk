@@ -2626,8 +2626,11 @@ impl Client {
 
     #[cfg(feature = "test-support")]
     #[doc(hidden)]
+    /// Count the sessions currently registered on this client's notification
+    /// router. Deliberately never materialises the session IDs themselves so
+    /// they cannot leak into test diagnostics.
     pub fn registered_session_count_for_test(&self) -> usize {
-        self.registered_session_ids().len()
+        self.inner.router.session_count()
     }
 
     #[cfg(feature = "test-support")]

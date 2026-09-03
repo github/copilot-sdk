@@ -206,6 +206,17 @@ fn expect_error<T>(result: Result<T, github_copilot_sdk::Error>) -> github_copil
     }
 }
 
+/// Assert the router holds exactly one registration, and that it is
+/// `session_id`.
+///
+/// The failure message is a fixed string: session IDs are never written to
+/// test output.
+fn assert_only_registration(client: &Client, session_id: &SessionId, context: &str) {
+    let registered = client.registered_session_ids_for_test();
+    let matches_expected = registered.len() == 1 && registered[0] == *session_id;
+    assert!(matches_expected, "{context}");
+}
+
 /// Poll (bounded) until the client's router has no registered sessions.
 ///
 /// Diagnostics report how many registrations are outstanding rather than
@@ -963,10 +974,10 @@ async fn stale_create_guard_does_not_unregister_same_id_retry() {
 
     // The stale guard runs now. It must not touch the live registration.
     drop(first);
-    assert_eq!(
-        client.registered_session_ids_for_test(),
-        vec![session_id.clone()],
-        "a stale startup guard unregistered the live retry"
+    assert_only_registration(
+        &client,
+        &session_id,
+        "a stale startup guard unregistered the live retry",
     );
 
     server
@@ -1015,10 +1026,10 @@ async fn stale_resume_guard_does_not_unregister_same_id_retry() {
     assert_eq!(second_req["method"], "session.resume");
 
     drop(first);
-    assert_eq!(
-        client.registered_session_ids_for_test(),
-        vec![session_id.clone()],
-        "a stale startup guard unregistered the live retry"
+    assert_only_registration(
+        &client,
+        &session_id,
+        "a stale startup guard unregistered the live retry",
     );
 
     // Hand the surviving startup to a task: resume issues a follow-up
@@ -1079,10 +1090,10 @@ async fn dropping_superseded_session_does_not_unregister_its_replacement() {
 
     // The superseded handle goes away; the live session must survive.
     drop(first_session);
-    assert_eq!(
-        client.registered_session_ids_for_test(),
-        vec![session_id.clone()],
-        "dropping a superseded Session unregistered its replacement"
+    assert_only_registration(
+        &client,
+        &session_id,
+        "dropping a superseded Session unregistered its replacement",
     );
 
     server
@@ -1223,7 +1234,7 @@ async fn deferred_create_cancelled_after_callback_registered_is_cleaned_up() {
     let session = timeout(TIMEOUT, retry).await.unwrap().unwrap().unwrap();
     assert_eq!(session.id().as_str(), "registered-then-cancelled");
     assert_eq!(
-        client.registered_session_ids_for_test().len(),
+        client.registered_session_count_for_test(),
         1,
         "retry must hold exactly one registration"
     );

@@ -126,6 +126,12 @@ impl SessionRouter {
         self.sessions.lock().keys().cloned().collect()
     }
 
+    /// Count the currently-registered sessions without exposing their IDs.
+    #[cfg(any(test, feature = "test-support"))]
+    pub(crate) fn session_count(&self) -> usize {
+        self.sessions.lock().len()
+    }
+
     /// Drop all registered session channels.
     ///
     /// Used by [`Client::force_stop`](crate::Client::force_stop) to release
