@@ -14,7 +14,7 @@ import type {
 } from "./generated/rpc.js";
 import type { ContextTier } from "./generated/session-events.js";
 import type { CopilotSession } from "./session.js";
-import type { FactoryLimits, FactoryMeta } from "./types.js";
+import type { FactoryMeta } from "./types.js";
 
 export type { FactoryRunResult };
 export type {

@@ -1656,8 +1656,8 @@ describe("factories", () => {
         session.registerFactories([factory]);
 
         let settled = false;
-        const execution = session.clientSessionApis.factory!
-            .execute({
+        const execution = session.clientSessionApis
+            .factory!.execute({
                 sessionId: session.sessionId,
                 name: "checkpoint-pause",
                 runId: "run-checkpoint-pause",
@@ -2223,16 +2223,12 @@ describe("factories", () => {
     it("ignores a late abort for an older execution token with the same run id", async () => {
         const oldAgent = Promise.withResolvers<{ result: string }>();
         const currentAgent = Promise.withResolvers<{ result: string }>();
-        const sendRequest = vi.fn(
-            async (method: string, params: { executionToken?: string }) => {
-                if (method !== "session.factory.agent") {
-                    return {};
-                }
-                return params.executionToken === "old-token"
-                    ? oldAgent.promise
-                    : currentAgent.promise;
+        const sendRequest = vi.fn(async (method: string, params: { executionToken?: string }) => {
+            if (method !== "session.factory.agent") {
+                return {};
             }
-        );
+            return params.executionToken === "old-token" ? oldAgent.promise : currentAgent.promise;
+        });
         const session = new CopilotSession("session-token-scoped-abort", {
             sendRequest,
         } as never);
@@ -2264,9 +2260,7 @@ describe("factories", () => {
             executionToken: "current-token",
             args: {},
         });
-        await vi.waitFor(() =>
-            expect(sendRequest).toHaveBeenCalledTimes(2)
-        );
+        await vi.waitFor(() => expect(sendRequest).toHaveBeenCalledTimes(2));
 
         await session.clientSessionApis.factory!.abort({
             sessionId: session.sessionId,
