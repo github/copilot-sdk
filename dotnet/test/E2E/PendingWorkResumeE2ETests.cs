@@ -331,6 +331,8 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
             Assert.Equal("beta", await originalToolBStarted.Task);
 
             await suspendedClient.ForceStopAsync();
+            releaseOriginalToolA.TrySetResult("ORIGINAL_A_SHOULD_NOT_WIN");
+            releaseOriginalToolB.TrySetResult("ORIGINAL_B_SHOULD_NOT_WIN");
 
             await using var resumedClient = Ctx.CreateClient(options: new CopilotClientOptions { Connection = RuntimeConnection.ForUri(cliUrl, connectionToken: SharedToken) });
             var session2 = await Ctx.ResumeSessionAsync(resumedClient, sessionId, new ResumeSessionConfig

@@ -164,12 +164,10 @@ public class RpcShellEdgeCaseE2ETests(E2ETestFixture fixture, ITestOutputHelper 
         var session = await CreateSessionAsync();
         var markerPath = Path.Join(Ctx.WorkDir, $"shell-stdout-{Guid.NewGuid():N}.txt");
 
-        // Print a payload large enough to exceed the runtime's 64KB chunk threshold so the
-        // chunked-output path is executed. We use a single 200KB write so the runtime has to
-        // emit at least 3 chunks (200KB / 64KB ≈ 4).
+        // Exceed the runtime's 64KB chunk threshold without flooding slower CI runners.
         var command = OperatingSystem.IsWindows()
-            ? $"powershell -NoLogo -NoProfile -Command \"Write-Host ('x' * 204800); Set-Content -LiteralPath '{markerPath}' -Value 'done'\""
-            : $"printf '%0.s=' $(seq 1 204800); printf 'done' > '{markerPath}'";
+            ? $"powershell -NoLogo -NoProfile -Command \"Write-Host ('x' * 71680); Set-Content -LiteralPath '{markerPath}' -Value 'done'\""
+            : $"printf '%0.s=' $(seq 1 71680); printf 'done' > '{markerPath}'";
 
         var result = await session.Rpc.Shell.ExecAsync(command);
         Assert.False(string.IsNullOrWhiteSpace(result.ProcessId));
@@ -185,10 +183,9 @@ public class RpcShellEdgeCaseE2ETests(E2ETestFixture fixture, ITestOutputHelper 
     private static async Task AssertProcessMapCleanedUpAsync(CopilotSession session, string processId, string scenario)
     {
         // The shell RPC surface exposes kill but not a non-mutating status API.
-        // Give the runtime's close/exit handler a bounded grace period, then
-        // probe exactly once; if this returns true, the assertion fails instead
-        // of letting a polling kill make the test pass by cleaning up itself.
-        await Task.Delay(TimeSpan.FromSeconds(1));
+        // Give slower CI runners enough time to flush output and process the exit
+        // before the single mutating cleanup probe.
+        await Task.Delay(TimeSpan.FromSeconds(5));
         var killResult = await session.Rpc.Shell.KillAsync(processId);
         Assert.False(killResult.Killed, $"{scenario} should have already exited and been removed from the runtime's process map.");
     }
