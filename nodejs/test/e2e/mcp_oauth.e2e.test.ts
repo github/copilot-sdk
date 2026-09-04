@@ -19,6 +19,7 @@ const EXPECTED_TOKEN = "sdk-host-token";
 const REFRESH_TOKEN = `${EXPECTED_TOKEN}-refresh`;
 const UPSCOPE_TOKEN = `${EXPECTED_TOKEN}-upscope`;
 const REAUTH_TOKEN = `${EXPECTED_TOKEN}-reauth`;
+const CHILD_SHUTDOWN_TIMEOUT_MS = 1_000;
 
 describe("MCP OAuth host auth", async () => {
     const { copilotClient: client } = await createSdkTestContext({
@@ -375,15 +376,53 @@ async function disconnectSession(session: CopilotSession): Promise<void> {
     }
 }
 
-function stopChild(child: ChildProcessWithoutNullStreams): Promise<void> {
-    if (child.exitCode !== null || child.killed) {
-        return Promise.resolve();
+async function stopChild(child: ChildProcessWithoutNullStreams): Promise<void> {
+    if (hasChildExited(child)) {
+        return;
     }
-    const exitPromise = new Promise<void>((resolvePromise) => {
-        child.once("exit", () => resolvePromise());
-    });
+
     child.kill("SIGTERM");
-    return exitPromise;
+    if (await waitForChildExit(child, CHILD_SHUTDOWN_TIMEOUT_MS)) {
+        return;
+    }
+
+    child.kill("SIGKILL");
+    if (!(await waitForChildExit(child, CHILD_SHUTDOWN_TIMEOUT_MS))) {
+        throw new Error("OAuth MCP server did not exit after SIGKILL");
+    }
+}
+
+function hasChildExited(child: ChildProcessWithoutNullStreams): boolean {
+    return child.exitCode !== null || child.signalCode !== null;
+}
+
+function waitForChildExit(
+    child: ChildProcessWithoutNullStreams,
+    timeoutMs: number
+): Promise<boolean> {
+    if (hasChildExited(child)) {
+        return Promise.resolve(true);
+    }
+
+    return new Promise<boolean>((resolvePromise) => {
+        let settled = false;
+        const finish = (exited: boolean) => {
+            if (settled) {
+                return;
+            }
+            settled = true;
+            clearTimeout(timeout);
+            child.off("exit", onExit);
+            resolvePromise(exited);
+        };
+        const onExit = () => finish(true);
+        const timeout = setTimeout(() => finish(false), timeoutMs);
+
+        child.once("exit", onExit);
+        if (hasChildExited(child)) {
+            onExit();
+        }
+    });
 }
 
 function createAsyncQueue<T>(): { push(value: T): void; next(): Promise<T> } {
