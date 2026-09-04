@@ -69,6 +69,91 @@ const EXTERNAL_SCHEMA_RUST_TYPE_MODULE: Record<string, Record<string, string>> =
 	},
 };
 
+/** Add the live allowlist RPC until the pinned CLI schema includes the paired runtime contract. */
+function addModelSetAllowedModelsRpc(schema: ApiSchema): ApiSchema {
+	const requestDescription =
+		"Host-supplied exact CAPI model IDs to allow for this running session. The runtime intersects the list with repository `.github/allowed_models.txt` policy. Omit or pass null to clear the host restriction; an explicit empty or disjoint list is rejected.";
+	const resultDescription =
+		"The applied host allowlist and effective session model policy after intersection.";
+	const allowedModelsProperty: JSONSchema7 = {
+		anyOf: [
+			{
+				type: "array",
+				items: { type: "string" },
+			},
+			{ type: "null" },
+		],
+		description: "Exact model IDs to permit, or null to clear the host restriction.",
+	};
+	const requestDefinition: JSONSchema7 = {
+		type: "object",
+		properties: {
+			allowedModels: allowedModelsProperty,
+		},
+		additionalProperties: false,
+		description: requestDescription,
+		title: "ModelSetAllowedModelsRequest",
+	};
+	const resultDefinition: JSONSchema7 = {
+		type: "object",
+		properties: {
+			allowedModels: {
+				type: "array",
+				items: { type: "string" },
+				description: "Normalized host allowlist. Omitted when the host restriction was cleared.",
+			},
+			effectiveAllowedModels: {
+				type: "array",
+				items: { type: "string" },
+				description:
+					"Effective exact IDs or repository policy patterns after applying the host restriction. Omitted by relay clients whose AHP host applies the policy asynchronously.",
+			},
+			fallbackModel: {
+				type: "string",
+				description: "Effective deterministic fallback model, when the policy defines one.",
+			},
+			modelId: {
+				type: "string",
+				description:
+					"Selected session model after reconciling a now-disallowed concrete selection.",
+			},
+		},
+		additionalProperties: false,
+		description: resultDescription,
+		title: "ModelSetAllowedModelsResult",
+	};
+
+	const session = (schema.session ??= {});
+	const model = (session.model ??= {}) as Record<string, unknown>;
+	model.setAllowedModels ??= {
+		rpcMethod: "session.model.setAllowedModels",
+		description: "Replaces or clears the host-supplied model allowlist for a running session.",
+		params: {
+			...requestDefinition,
+			properties: {
+				sessionId: {
+					type: "string",
+					description: "Target session identifier",
+				},
+				allowedModels: allowedModelsProperty,
+			},
+			required: ["sessionId"],
+			stability: "experimental",
+		},
+		result: {
+			$ref: "#/definitions/ModelSetAllowedModelsResult",
+			description: resultDescription,
+		},
+		stability: "experimental",
+	} satisfies RpcMethod;
+
+	const definitions = (schema.definitions ??= {});
+	definitions.ModelSetAllowedModelsRequest ??= requestDefinition;
+	definitions.ModelSetAllowedModelsResult ??= resultDefinition;
+
+	return schema;
+}
+
 function rustDeprecatedAttributes(indent = ""): string[] {
 	return [`${indent}#[doc(hidden)]`, `${indent}#[deprecated]`];
 }
@@ -2219,8 +2304,10 @@ async function generate(): Promise<void> {
 	const sessionEventsRaw = normalizeSchemaBrandCasing(
 		JSON.parse(await fs.readFile(sessionEventsSchemaPath, "utf-8")),
 	);
-	const apiRaw = normalizeSchemaBrandCasing(
-		JSON.parse(await fs.readFile(apiSchemaPath, "utf-8")) as ApiSchema,
+	const apiRaw = addModelSetAllowedModelsRpc(
+		normalizeSchemaBrandCasing(
+			JSON.parse(await fs.readFile(apiSchemaPath, "utf-8")) as ApiSchema,
+		),
 	);
 
 	const sessionEventsSchema = propagateInternalVisibility(
