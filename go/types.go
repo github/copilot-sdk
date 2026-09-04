@@ -1511,6 +1511,8 @@ type SessionConfig struct {
 	PluginDirectories []string
 	// InstructionDirectories is a list of additional directories to search for custom instruction files
 	InstructionDirectories []string
+	// CustomAgentDirectories is a list of additional directories to search for custom agent files
+	CustomAgentDirectories []string
 	// DisabledSkills is a list of skill names to disable
 	DisabledSkills []string
 	// DisabledMCPServers is a list of exact MCP server names to disable for this session.
@@ -2070,6 +2072,8 @@ type ResumeSessionConfig struct {
 	PluginDirectories []string
 	// InstructionDirectories is a list of additional directories to search for custom instruction files
 	InstructionDirectories []string
+	// CustomAgentDirectories is a list of additional directories to search for custom agent files
+	CustomAgentDirectories []string
 	// DisabledSkills is a list of skill names to disable
 	DisabledSkills []string
 	// DisabledMCPServers is a list of exact MCP server names to disable for this session.
@@ -2643,6 +2647,7 @@ type createSessionRequest struct {
 	SkillDirectories                   []string                               `json:"skillDirectories,omitempty"`
 	PluginDirectories                  []string                               `json:"pluginDirectories,omitempty"`
 	InstructionDirectories             []string                               `json:"instructionDirectories,omitempty"`
+	CustomAgentDirectories             []string                               `json:"customAgentDirectories,omitempty"`
 	DisabledSkills                     []string                               `json:"disabledSkills,omitempty"`
 	DisabledMCPServers                 *[]string                              `json:"disabledMcpServers,omitempty"`
 	InfiniteSessions                   *InfiniteSessionConfig                 `json:"infiniteSessions,omitempty"`
@@ -2744,6 +2749,7 @@ type resumeSessionRequest struct {
 	SkillDirectories                   []string                               `json:"skillDirectories,omitempty"`
 	PluginDirectories                  []string                               `json:"pluginDirectories,omitempty"`
 	InstructionDirectories             []string                               `json:"instructionDirectories,omitempty"`
+	CustomAgentDirectories             []string                               `json:"customAgentDirectories,omitempty"`
 	DisabledSkills                     []string                               `json:"disabledSkills,omitempty"`
 	DisabledMCPServers                 *[]string                              `json:"disabledMcpServers,omitempty"`
 	InfiniteSessions                   *InfiniteSessionConfig                 `json:"infiniteSessions,omitempty"`

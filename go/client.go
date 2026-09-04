@@ -910,6 +910,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.SkillDirectories = config.SkillDirectories
 	req.PluginDirectories = config.PluginDirectories
 	req.InstructionDirectories = config.InstructionDirectories
+	req.CustomAgentDirectories = config.CustomAgentDirectories
 	req.DisabledSkills = config.DisabledSkills
 	if config.DisabledMCPServers != nil {
 		req.DisabledMCPServers = &config.DisabledMCPServers
@@ -1329,6 +1330,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	req.SkillDirectories = config.SkillDirectories
 	req.PluginDirectories = config.PluginDirectories
 	req.InstructionDirectories = config.InstructionDirectories
+	req.CustomAgentDirectories = config.CustomAgentDirectories
 	req.DisabledSkills = config.DisabledSkills
 	if config.DisabledMCPServers != nil {
 		req.DisabledMCPServers = &config.DisabledMCPServers

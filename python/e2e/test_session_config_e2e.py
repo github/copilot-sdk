@@ -666,6 +666,63 @@ class TestSessionConfig:
         await session2.disconnect()
         await session1.disconnect()
 
+    async def test_should_apply_custom_agent_directories_on_create(self, ctx: E2ETestContext):
+        project_dir = os.path.join(ctx.work_dir, "agent-create-project")
+        agent_dir = os.path.join(ctx.work_dir, "extra-create-agents")
+        os.makedirs(project_dir, exist_ok=True)
+        os.makedirs(agent_dir, exist_ok=True)
+        with open(os.path.join(agent_dir, "reviewer.agent.md"), "w", encoding="utf-8") as f:
+            f.write(
+                "---\nname: reviewer\ndescription: Reviews code carefully.\n---\n"
+                "You review code carefully."
+            )
+
+        session = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all,
+            working_directory=project_dir,
+            custom_agent_directories=[agent_dir],
+        )
+
+        await session.send_and_wait("What is 1+1?")
+
+        exchanges = await ctx.get_exchanges()
+        assert exchanges
+        assert "reviewer" in _get_task_agent_types(exchanges[-1])
+
+        await session.disconnect()
+
+    async def test_should_apply_custom_agent_directories_on_resume(self, ctx: E2ETestContext):
+        project_dir = os.path.join(ctx.work_dir, "agent-resume-project")
+        agent_dir = os.path.join(ctx.work_dir, "extra-resume-agents")
+        os.makedirs(project_dir, exist_ok=True)
+        os.makedirs(agent_dir, exist_ok=True)
+        with open(os.path.join(agent_dir, "reviewer.agent.md"), "w", encoding="utf-8") as f:
+            f.write(
+                "---\nname: reviewer\ndescription: Reviews code carefully.\n---\n"
+                "You review code carefully."
+            )
+
+        session1 = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all,
+            working_directory=project_dir,
+        )
+
+        session2 = await ctx.client.resume_session(
+            session1.session_id,
+            on_permission_request=PermissionHandler.approve_all,
+            working_directory=project_dir,
+            custom_agent_directories=[agent_dir],
+        )
+
+        await session2.send_and_wait("What is 1+1?")
+
+        exchanges = await ctx.get_exchanges()
+        assert exchanges
+        assert "reviewer" in _get_task_agent_types(exchanges[-1])
+
+        await session2.disconnect()
+        await session1.disconnect()
+
     async def test_should_apply_availabletools_on_session_resume(self, ctx: E2ETestContext):
         session1 = await ctx.client.create_session(
             on_permission_request=PermissionHandler.approve_all,

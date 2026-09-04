@@ -2463,6 +2463,52 @@ describe("CopilotClient", () => {
         spy.mockRestore();
     });
 
+    it("forwards customAgentDirectories in session.create request", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => stopClient(client));
+
+        const customAgentDirectories = ["C:\\extra-agents", "C:\\more-agents"];
+        const spy = vi.spyOn((client as any).connection!, "sendRequest");
+        await client.createSession({
+            customAgentDirectories,
+            onPermissionRequest: approveAll,
+        });
+
+        expect(spy).toHaveBeenCalledWith(
+            "session.create",
+            expect.objectContaining({ customAgentDirectories })
+        );
+    });
+
+    it("forwards customAgentDirectories in session.resume request", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => stopClient(client));
+
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+        const customAgentDirectories = ["C:\\resume-agents"];
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+        await client.resumeSession(session.sessionId, {
+            customAgentDirectories,
+            onPermissionRequest: approveAll,
+        });
+
+        expect(spy).toHaveBeenCalledWith(
+            "session.resume",
+            expect.objectContaining({
+                customAgentDirectories,
+                sessionId: session.sessionId,
+            })
+        );
+        spy.mockRestore();
+    });
+
     it("does not request permissions on session.resume when using the default joinSession handler", async () => {
         const client = new CopilotClient();
         await client.start();

@@ -183,6 +183,9 @@ public final class ResumeSessionRequest {
     @JsonProperty("instructionDirectories")
     private List<String> instructionDirectories;
 
+    @JsonProperty("customAgentDirectories")
+    private List<String> customAgentDirectories;
+
     @JsonProperty("pluginDirectories")
     private List<String> pluginDirectories;
 
@@ -905,6 +908,18 @@ public final class ResumeSessionRequest {
      */
     public void setInstructionDirectories(List<String> instructionDirectories) {
         this.instructionDirectories = instructionDirectories;
+    }
+
+    /** Gets custom agent directories. @return the custom agent directories */
+    public List<String> getCustomAgentDirectories() {
+        return customAgentDirectories == null ? null : Collections.unmodifiableList(customAgentDirectories);
+    }
+
+    /**
+     * Sets custom agent directories. @param customAgentDirectories the directories
+     */
+    public void setCustomAgentDirectories(List<String> customAgentDirectories) {
+        this.customAgentDirectories = customAgentDirectories;
     }
 
     /** Gets plugin directories. @return the plugin directories */
