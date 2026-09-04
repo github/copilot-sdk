@@ -6,6 +6,7 @@ using GitHub.Copilot.Rpc;
 using GitHub.Copilot.Test.Harness;
 using System.Diagnostics;
 using System.Net.Http;
+using System.Net;
 using System.Text.Json;
 using System.Threading.Channels;
 using Xunit;
@@ -19,6 +20,30 @@ public class McpOAuthE2ETests(E2ETestFixture fixture, ITestOutputHelper output) 
     private const string RefreshToken = ExpectedToken + "-refresh";
     private const string UpscopeToken = ExpectedToken + "-upscope";
     private const string ReauthToken = ExpectedToken + "-reauth";
+    private const string CimdUrl = "https://github.com/copilot/cli/client-metadata.json";
+
+    [Fact]
+    public async Task Should_Use_Cimd_Url_Instead_Of_Dynamic_Registration()
+    {
+        await using var oauthServer = await OAuthMcpServer.StartAsync(ExpectedToken, cimdSupported: true);
+        const string serverName = "oauth-cimd-mcp";
+        await using var session = await CreateSessionAsync(new SessionConfig
+        {
+            AuthClientIdMetadataUrl = CimdUrl,
+            McpServers = new Dictionary<string, McpServerConfig>
+            {
+                [serverName] = new McpHttpServerConfig { Url = $"{oauthServer.Url}/mcp", Tools = ["*"] }
+            }
+        });
+        await WaitForMcpServerStatusAsync(session, serverName, McpServerStatus.NeedsAuth);
+        var result = await session.Rpc.Mcp.Oauth.LoginAsync(serverName);
+        Assert.NotNull(result.AuthorizationUrl);
+        var clientId = new Uri(result.AuthorizationUrl!).Query.TrimStart('?')
+            .Split('&').Single(part => part.StartsWith("client_id=", StringComparison.Ordinal))
+            .Split('=', 2)[1];
+        Assert.Equal(CimdUrl, WebUtility.UrlDecode(clientId));
+        Assert.DoesNotContain(await oauthServer.GetRequestsAsync(), request => request.Path == "/register");
+    }
 
     [Fact]
     public async Task Should_Satisfy_MCP_OAuth_Using_Host_Provided_Token()
@@ -282,7 +307,7 @@ public class McpOAuthE2ETests(E2ETestFixture fixture, ITestOutputHelper output) 
 
         public string Url { get; }
 
-        public static async Task<OAuthMcpServer> StartAsync(string expectedToken)
+        public static async Task<OAuthMcpServer> StartAsync(string expectedToken, bool cimdSupported = false)
         {
             var repoRoot = FindRepoRoot();
             var script = GetRepoRelativePath(repoRoot, "test", "harness", "test-mcp-oauth-server.mjs");
@@ -295,6 +320,7 @@ public class McpOAuthE2ETests(E2ETestFixture fixture, ITestOutputHelper output) 
                 UseShellExecute = false
             };
             startInfo.Environment["EXPECTED_TOKEN"] = expectedToken;
+            startInfo.Environment["CIMD_SUPPORTED"] = cimdSupported ? "true" : "false";
 
             var process = Process.Start(startInfo)
                 ?? throw new InvalidOperationException("Failed to start OAuth MCP server.");
@@ -326,7 +352,8 @@ public class McpOAuthE2ETests(E2ETestFixture fixture, ITestOutputHelper output) 
                     element.TryGetProperty("authorization", out var authorization)
                         && authorization.ValueKind is JsonValueKind.String
                             ? authorization.GetString()
-                            : null))
+                            : null,
+                    element.GetProperty("path").GetString()!))
                 .ToList();
         }
 
@@ -370,5 +397,5 @@ public class McpOAuthE2ETests(E2ETestFixture fixture, ITestOutputHelper output) 
             => "\"" + argument.Replace("\"", "\\\"") + "\"";
     }
 
-    private sealed record OAuthMcpRequest(string? Authorization);
+    private sealed record OAuthMcpRequest(string? Authorization, string Path);
 }

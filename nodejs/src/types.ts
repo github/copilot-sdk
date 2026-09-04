@@ -2741,6 +2741,12 @@ export interface SessionConfigBase {
     mcpOAuthTokenStorage?: "persistent" | "in-memory";
 
     /**
+     * OAuth Client ID Metadata Document URL identifying the host for MCP authorization.
+     * When unset, no host identity is supplied.
+     */
+    authClientIdMetadataUrl?: string;
+
+    /**
      * MCP server configurations for the session.
      * Keys are server names, values are server configurations.
      */

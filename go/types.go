@@ -1493,6 +1493,9 @@ type SessionConfig struct {
 	// MCPOAuthTokenStorage controls how MCP OAuth tokens are stored for this session.
 	// When empty, the runtime default ("in-memory") is used.
 	MCPOAuthTokenStorage string
+	// AuthClientIDMetadataURL identifies the host for MCP OAuth authorization.
+	// When empty, no host identity is supplied.
+	AuthClientIDMetadataURL string
 	// CustomAgents configures custom agents for the session
 	CustomAgents []CustomAgentConfig
 	// DefaultAgent configures the default agent (the built-in agent that handles turns when no custom agent is selected).
@@ -2053,6 +2056,9 @@ type ResumeSessionConfig struct {
 	// MCPOAuthTokenStorage controls how MCP OAuth tokens are stored for this session.
 	// When empty, the runtime default ("in-memory") is used.
 	MCPOAuthTokenStorage string
+	// AuthClientIDMetadataURL identifies the host for MCP OAuth authorization.
+	// When empty, no host identity is supplied.
+	AuthClientIDMetadataURL string
 	// CustomAgents configures custom agents for the session
 	CustomAgents []CustomAgentConfig
 	// DefaultAgent configures the default agent (the built-in agent that handles turns when no custom agent is selected).
@@ -2626,6 +2632,7 @@ type createSessionRequest struct {
 	EnableGitHubTelemetryForwarding    *bool                                  `json:"enableGitHubTelemetryForwarding,omitempty"`
 	MCPServers                         map[string]MCPServerConfig             `json:"mcpServers,omitempty"`
 	MCPOAuthTokenStorage               string                                 `json:"mcpOAuthTokenStorage,omitempty"`
+	AuthClientIDMetadataURL            string                                 `json:"authClientIdMetadataUrl,omitempty"`
 	EnvValueMode                       string                                 `json:"envValueMode,omitempty"`
 	CustomAgents                       []CustomAgentConfig                    `json:"customAgents,omitempty"`
 	DefaultAgent                       *DefaultAgentConfig                    `json:"defaultAgent,omitempty"`
@@ -2737,6 +2744,7 @@ type resumeSessionRequest struct {
 	EnableGitHubTelemetryForwarding    *bool                                  `json:"enableGitHubTelemetryForwarding,omitempty"`
 	MCPServers                         map[string]MCPServerConfig             `json:"mcpServers,omitempty"`
 	MCPOAuthTokenStorage               string                                 `json:"mcpOAuthTokenStorage,omitempty"`
+	AuthClientIDMetadataURL            string                                 `json:"authClientIdMetadataUrl,omitempty"`
 	EnvValueMode                       string                                 `json:"envValueMode,omitempty"`
 	CustomAgents                       []CustomAgentConfig                    `json:"customAgents,omitempty"`
 	DefaultAgent                       *DefaultAgentConfig                    `json:"defaultAgent,omitempty"`

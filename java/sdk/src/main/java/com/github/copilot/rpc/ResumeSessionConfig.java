@@ -86,6 +86,7 @@ public class ResumeSessionConfig {
     private Boolean includeSubAgentStreamingEvents;
     private Map<String, McpServerConfig> mcpServers;
     private String mcpOAuthTokenStorage;
+    private String authClientIdMetadataUrl;
     private List<CustomAgentConfig> customAgents;
     private DefaultAgentConfig defaultAgent;
     private String agent;
@@ -1429,6 +1430,29 @@ public class ResumeSessionConfig {
     }
 
     /**
+     * Gets the OAuth Client ID Metadata Document URL identifying the host.
+     *
+     * @return the metadata URL, or {@code null} if not set
+     */
+    public String getAuthClientIdMetadataUrl() {
+        return authClientIdMetadataUrl;
+    }
+
+    /**
+     * Sets the OAuth Client ID Metadata Document URL identifying the host for MCP
+     * authorization. Re-supply the same host identity used when the session was
+     * created.
+     *
+     * @param authClientIdMetadataUrl
+     *            the metadata URL
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setAuthClientIdMetadataUrl(String authClientIdMetadataUrl) {
+        this.authClientIdMetadataUrl = authClientIdMetadataUrl;
+        return this;
+    }
+
+    /**
      * Gets the custom agent configurations.
      *
      * @return the list of custom agent configurations
@@ -2119,6 +2143,8 @@ public class ResumeSessionConfig {
         copy.streaming = this.streaming;
         copy.includeSubAgentStreamingEvents = this.includeSubAgentStreamingEvents;
         copy.mcpServers = this.mcpServers != null ? new java.util.HashMap<>(this.mcpServers) : null;
+        copy.mcpOAuthTokenStorage = this.mcpOAuthTokenStorage;
+        copy.authClientIdMetadataUrl = this.authClientIdMetadataUrl;
         copy.customAgents = this.customAgents != null ? new ArrayList<>(this.customAgents) : null;
         copy.defaultAgent = this.defaultAgent;
         copy.agent = this.agent;
