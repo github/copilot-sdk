@@ -2893,9 +2893,14 @@ type sessionGetMessagesResponse struct {
 	Events []SessionEvent `json:"events"`
 }
 
-// sessionDestroyRequest is the request for session.destroy
-type sessionDestroyRequest struct {
+// sessionDetachRequest is the request for session.detach.
+type sessionDetachRequest struct {
 	SessionID string `json:"sessionId"`
+}
+
+type sessionDetachResponse struct {
+	Success bool   `json:"success"`
+	Error   string `json:"error,omitempty"`
 }
 
 // sessionAbortRequest is the request for session.abort

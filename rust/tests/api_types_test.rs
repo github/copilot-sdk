@@ -7,8 +7,8 @@ use github_copilot_sdk::rpc::{
     Extension, ExtensionList, ExtensionSource, ExtensionStatus, ExtensionsDisableRequest,
     ExtensionsEnableRequest, FleetStartRequest, FleetStartResult, ModelSetAllowedModelsRequest,
     ModelSetAllowedModelsResult, ModelSwitchAutoTierRequest, ModelSwitchAutoTierResult,
-    ModelSwitchAutoTierStatus, QueuePendingItems, QueuePendingItemsKind, SendAgentMode,
-    TasksStartAgentRequest,
+    ModelSwitchAutoTierStatus, QueuePendingItems, QueuePendingItemsKind, SandboxConfig,
+    SendAgentMode, TasksStartAgentRequest,
 };
 use github_copilot_sdk::session_events::{
     PermissionRequest, PermissionRequestedData, SessionEventData, TypedSessionEvent,
@@ -219,6 +219,30 @@ fn queue_pending_message_id_is_optional_for_older_hosts() {
             .unwrap()
             .get("messageId")
             .is_none()
+    );
+}
+
+#[test]
+fn sandbox_allow_bypass_round_trips_as_optional_camel_case() {
+    let mut enabled = SandboxConfig::default();
+    enabled.enabled = true;
+    enabled.allow_bypass = Some(true);
+    let value = serde_json::to_value(enabled).unwrap();
+    assert_eq!(
+        value,
+        serde_json::json!({
+            "allowBypass": true,
+            "enabled": true,
+        })
+    );
+    let round_tripped: SandboxConfig = serde_json::from_value(value).unwrap();
+    assert_eq!(round_tripped.allow_bypass, Some(true));
+
+    let mut omitted = SandboxConfig::default();
+    omitted.enabled = true;
+    assert_eq!(
+        serde_json::to_value(omitted).unwrap(),
+        serde_json::json!({ "enabled": true })
     );
 }
 

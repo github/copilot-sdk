@@ -2917,8 +2917,10 @@ func serveInMemoryRuntime(t *testing.T, stdinR *io.PipeReader, stdoutW *io.PipeW
 			result = map[string]any{"id": "interest-1"}
 		case "session.options.update":
 			result = map[string]any{"success": true}
-		case "session.skills.reload", "session.destroy":
+		case "session.skills.reload":
 			result = map[string]any{}
+		case "session.detach":
+			result = map[string]any{"success": true}
 		default:
 			t.Errorf("unexpected JSON-RPC method %s", request.Method)
 			return

@@ -66,6 +66,12 @@ pub mod session_events;
 /// [`Client::rpc`] and [`session::Session::rpc`](crate::session::Session::rpc).
 pub mod rpc;
 
+#[derive(serde::Deserialize)]
+struct SessionDetachResponse {
+    success: bool,
+    error: Option<String>,
+}
+
 // Auto-generated protocol-type modules. Crate-private so the only public
 // access path is via the `session_events` and `rpc` facade modules above —
 // callers can never depend on the implementation-detail layout under
@@ -2259,6 +2265,25 @@ impl Client {
         self.call_with_inline_callback(method, params, None).await
     }
 
+    pub(crate) async fn detach_session(&self, session_id: &str) -> Result<()> {
+        let value = self
+            .call(
+                "session.detach",
+                Some(serde_json::json!({ "sessionId": session_id })),
+            )
+            .await?;
+        let response: SessionDetachResponse = serde_json::from_value(value)?;
+        if response.success {
+            return Ok(());
+        }
+        Err(Error::with_message(
+            ErrorKind::Session(SessionErrorKind::DetachFailed),
+            response
+                .error
+                .unwrap_or_else(|| "unknown error".to_string()),
+        ))
+    }
+
     /// Same as [`call`](Self::call), but installs an `inline_callback`
     /// that runs synchronously on the JSON-RPC read task the instant the
     /// successful response is parsed, before it is delivered to this
@@ -2646,12 +2671,7 @@ impl Client {
         let mut first_error = None;
 
         for session_id in self.inner.router.session_ids() {
-            if let Err(error) = self
-                .call(
-                    "session.destroy",
-                    Some(serde_json::json!({ "sessionId": session_id })),
-                )
-                .await
+            if let Err(error) = self.detach_session(&session_id).await
                 && first_error.is_none()
             {
                 first_error = Some(error);
@@ -2777,10 +2797,10 @@ impl Client {
 
     /// Cooperatively shut down the client and the CLI child process.
     ///
-    /// Walks every still-registered session and sends `session.destroy`
+    /// Walks every still-registered session and sends `session.detach`
     /// for each one, asks SDK-owned runtimes to shut down, terminates the
     /// Windows-owned CLI Job Object when present, and reaps the root process.
-    /// Errors from per-session destroys, runtime shutdown, and final process
+    /// Errors from per-session detaches, runtime shutdown, and final process
     /// termination are collected into [`StopErrors`] rather than
     /// short-circuiting on the first failure — so callers see the full picture
     /// of teardown.
@@ -2809,21 +2829,15 @@ impl Client {
         self.inner.extension_launch_provider.clear();
 
         // Snapshot the registered session IDs without holding the router
-        // lock across the destroy RPCs.
+        // lock across the detach RPCs.
         for session_id in self.inner.router.session_ids() {
-            match self
-                .call(
-                    "session.destroy",
-                    Some(serde_json::json!({ "sessionId": session_id })),
-                )
-                .await
-            {
+            match self.detach_session(&session_id).await {
                 Ok(_) => {}
                 Err(e) => {
                     warn!(
                         session_id = %session_id,
                         error = %e,
-                        "session.destroy failed during Client::stop",
+                        "session.detach failed during Client::stop",
                     );
                     errors.push(e);
                 }

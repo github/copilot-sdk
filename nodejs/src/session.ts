@@ -2019,10 +2019,19 @@ export class CopilotSession {
         if (this.disconnected) {
             return;
         }
-        await this.connection.sendRequest("session.destroy", {
-            sessionId: this.sessionId,
-        });
+        let response: { success: boolean; error?: string } = { success: false };
+        for (let attempt = 0; attempt < 2 && !response.success; attempt++) {
+            response = (await this.connection.sendRequest("session.detach", {
+                sessionId: this.sessionId,
+            })) as { success: boolean; error?: string };
+        }
+        if (!response.success) {
+            throw new Error(
+                `Failed to disconnect session ${this.sessionId}: ${response.error || "Unknown error"}`
+            );
+        }
         this._markDisconnected();
+        this.onDisconnected?.();
     }
 
     /** Enables `await using session = ...` syntax for automatic cleanup. */

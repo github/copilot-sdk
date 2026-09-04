@@ -18,6 +18,25 @@ namespace GitHub.Copilot.Test.Unit;
 public class SerializationTests
 {
     [Fact]
+    public void SandboxConfig_RoundtripsAllowBypass_AndOmitsWhenAbsent()
+    {
+        var options = GetSerializerOptions();
+        var configured = new SandboxConfig { Enabled = true, AllowBypass = true };
+
+        var json = JsonSerializer.Serialize(configured, options);
+        using var document = JsonDocument.Parse(json);
+        Assert.True(document.RootElement.GetProperty("allowBypass").GetBoolean());
+
+        var roundTripped = JsonSerializer.Deserialize<SandboxConfig>(json, options);
+        Assert.NotNull(roundTripped);
+        Assert.True(roundTripped.AllowBypass);
+
+        var omitted = JsonSerializer.Serialize(new SandboxConfig { Enabled = true }, options);
+        using var omittedDocument = JsonDocument.Parse(omitted);
+        Assert.False(omittedDocument.RootElement.TryGetProperty("allowBypass", out _));
+    }
+
+    [Fact]
     public void ProviderConfig_CanSerializeHeaders_WithSdkOptions()
     {
         var options = GetSerializerOptions();

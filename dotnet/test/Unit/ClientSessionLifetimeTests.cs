@@ -1950,7 +1950,7 @@ public sealed class ClientSessionLifetimeTests
                 {
                     ["success"] = true
                 },
-                "session.destroy" => await DestroySessionAsync(cancellationToken),
+                "session.detach" => await DetachSessionAsync(cancellationToken),
                 "runtime.shutdown" => HandleRuntimeShutdown(),
                 _ => throw new InvalidOperationException($"Unexpected RPC method '{method}'.")
             };
@@ -1987,7 +1987,7 @@ public sealed class ClientSessionLifetimeTests
             };
         }
 
-        private async Task<Dictionary<string, object?>> DestroySessionAsync(CancellationToken cancellationToken)
+        private async Task<Dictionary<string, object?>> DetachSessionAsync(CancellationToken cancellationToken)
         {
             if (_delayDestroy)
             {
@@ -1995,7 +1995,7 @@ public sealed class ClientSessionLifetimeTests
                 await _allowDestroy.Task.WaitAsync(cancellationToken);
             }
 
-            return [];
+            return new Dictionary<string, object?> { ["success"] = true };
         }
 
         private Dictionary<string, object?> HandleRuntimeShutdown()

@@ -1,0 +1,16 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Please remember this exact secret marker for later - MARKER-7f3ac21e. Reply with only the single word
+          "Acknowledged".
+      - role: assistant
+        content: Acknowledged
+      - role: user
+        content: What was the exact secret marker I asked you to remember earlier? Reply with only that marker value and nothing
+          else.
+      - role: assistant
+        content: MARKER-7f3ac21e

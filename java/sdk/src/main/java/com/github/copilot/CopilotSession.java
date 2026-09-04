@@ -2432,10 +2432,20 @@ public final class CopilotSession implements AutoCloseable {
         timeoutScheduler.shutdownNow();
         releaseGitHubTokenProviderRegistration();
 
+        RuntimeException detachFailure = null;
         try {
-            rpc.invoke("session.destroy", Map.of("sessionId", sessionId), Void.class).get(5, TimeUnit.SECONDS);
+            SessionDetachResponse response = rpc
+                    .invoke("session.detach", Map.of("sessionId", sessionId), SessionDetachResponse.class)
+                    .get(5, TimeUnit.SECONDS);
+            if (response == null || !response.success()) {
+                String detail = response != null && response.error() != null ? response.error() : "unknown error";
+                detachFailure = new IllegalStateException("Failed to detach session " + sessionId + ": " + detail);
+            }
         } catch (Exception e) {
-            LOG.log(Level.FINE, "Error destroying session", e);
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            detachFailure = new IllegalStateException("Failed to detach session " + sessionId, e);
         }
 
         eventHandlers.clear();
@@ -2447,9 +2457,17 @@ public final class CopilotSession implements AutoCloseable {
         exitPlanModeHandler.set(null);
         autoModeSwitchHandler.set(null);
         hooksHandler.set(null);
+
+        if (detachFailure != null) {
+            throw detachFailure;
+        }
     }
 
     // ===== Internal response types for agent API =====
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record SessionDetachResponse(@JsonProperty("success") boolean success, @JsonProperty("error") String error) {
+    }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     private record AgentListResponse(@JsonProperty("agents") List<AgentInfo> agents) {

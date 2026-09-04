@@ -296,6 +296,50 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
     }
 
     [Fact]
+    public async Task Should_Recover_Marker_After_Cold_Resume_With_Explicit_Session_Id()
+    {
+        await using var isolatedCtx = await E2ETestContext.CreateAsync();
+        await isolatedCtx.ConfigureForTestAsync("session", nameof(Should_Recover_Marker_After_Cold_Resume_With_Explicit_Session_Id));
+
+        var sessionId = $"e2e-cold-resume-{Guid.NewGuid()}";
+
+        var client1 = isolatedCtx.CreateClient();
+        var session1 = await isolatedCtx.CreateSessionAsync(client1, new SessionConfig
+        {
+            SessionId = sessionId,
+            OnPermissionRequest = PermissionHandler.ApproveAll,
+        });
+        Assert.Equal(sessionId, session1.SessionId);
+
+        var answer = await session1.SendAndWaitAsync(new MessageOptions
+        {
+            Prompt = "Please remember this exact secret marker for later - MARKER-7f3ac21e. Reply with only the single word \"Acknowledged\".",
+        });
+        Assert.NotNull(answer);
+        Assert.Contains("Acknowledged", answer!.Data.Content ?? string.Empty);
+
+        await session1.DisposeAsync();
+        await client1.ForceStopAsync();
+
+        var client2 = isolatedCtx.CreateClient();
+        var session2 = await isolatedCtx.ResumeSessionAsync(client2, sessionId, new ResumeSessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll,
+        });
+        Assert.Equal(sessionId, session2.SessionId);
+
+        var answer2 = await session2.SendAndWaitAsync(new MessageOptions
+        {
+            Prompt = "What was the exact secret marker I asked you to remember earlier? Reply with only that marker value and nothing else.",
+        });
+        Assert.NotNull(answer2);
+        Assert.Contains("MARKER-7f3ac21e", answer2!.Data.Content ?? string.Empty);
+
+        await session2.DisposeAsync();
+        await client2.ForceStopAsync();
+    }
+
+    [Fact]
     public async Task Should_Throw_Error_When_Resuming_Non_Existent_Session()
     {
         await Assert.ThrowsAsync<IOException>(() =>

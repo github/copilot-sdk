@@ -1635,6 +1635,7 @@ class CopilotSession:
         self._open_canvases_lock = threading.Lock()
         self._rpc: SessionRpc | None = None
         self._destroyed = False
+        self._disconnect_lock = asyncio.Lock()
         self._on_disconnect = on_disconnect
 
     def _set_disconnect_callback(self, callback: Callable[[], None]) -> None:
@@ -3009,19 +3010,19 @@ class CopilotSession:
             >>> # Clean up when done — session can still be resumed later
             >>> await session.disconnect()
         """
-        # Ensure that the check and update of _destroyed are atomic so that
-        # only the first caller proceeds to send the destroy RPC.
-        with self._event_handlers_lock:
-            if self._destroyed:
-                return
-            self._destroyed = True
-
-        try:
-            await self._client.request("session.destroy", {"sessionId": self.session_id})
-        finally:
-            self._run_disconnect_callback()
-            # Clear handlers even if the request fails.
+        async with self._disconnect_lock:
             with self._event_handlers_lock:
+                if self._destroyed:
+                    return
+
+            response = await self._client.request("session.detach", {"sessionId": self.session_id})
+            if not response.get("success"):
+                detail = response.get("error") or "unknown error"
+                raise RuntimeError(f"Failed to detach session {self.session_id}: {detail}")
+
+            self._run_disconnect_callback()
+            with self._event_handlers_lock:
+                self._destroyed = True
                 self._event_handlers.clear()
             with self._tool_handlers_lock:
                 self._tool_handlers.clear()
