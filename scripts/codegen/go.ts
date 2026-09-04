@@ -13,7 +13,11 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { promisify } from "util";
 import wordwrap from "wordwrap";
-import { analyseDiscriminatedUnion, type UnknownVariantPolicy } from "./schema-unions.js";
+import {
+    analyseDiscriminatedUnion,
+    analyseNestedClosedUnionResult,
+    type UnknownVariantPolicy,
+} from "./schema-unions.js";
 import {
     addManagedApprovalRequiredToPermissionRequests,
     cloneSchemaForCodegen,
@@ -569,7 +573,7 @@ interface GoCodegenCtx {
     definitions?: DefinitionCollections;
     wrapComments?: boolean;
     discriminatedUnionRawVariantSuffix?: string;
-    applyClosedUnionUnknownVariantPolicy?: boolean;
+    rejectUnknownUnionTypeNames?: Set<string>;
     skipDefinitionTypeNames?: Set<string>;
     encodingBlocks?: Set<string>;
     unionVariantMarshalers?: Set<string>;
@@ -1120,7 +1124,7 @@ function registerGoExternalUnionUnmarshalers(
             definitions: externalDefinitions,
             wrapComments: ctx.wrapComments,
             discriminatedUnionRawVariantSuffix: ctx.discriminatedUnionRawVariantSuffix,
-            applyClosedUnionUnknownVariantPolicy: ctx.applyClosedUnionUnknownVariantPolicy,
+            rejectUnknownUnionTypeNames: ctx.rejectUnknownUnionTypeNames,
             packageName: ctx.packageName,
         };
 
@@ -2813,7 +2817,7 @@ function planGoUnion(typeName: string, schema: JSONSchema7, ctx: GoCodegenCtx, i
     const description = (schema as JSONSchema7).description;
     const discriminator = findGoDiscriminator(members, ctx, typeName);
     if (discriminator) {
-        if (ctx.applyClosedUnionUnknownVariantPolicy) {
+        if (ctx.rejectUnknownUnionTypeNames?.has(typeName)) {
             discriminator.unknownVariantPolicy =
                 analyseDiscriminatedUnion(schema, (variant) =>
                     resolveGoUnionMember(variant, ctx.definitions)
@@ -3109,7 +3113,11 @@ function goGeneratedEncodingFileCode(schemaFileName: string, packageName: string
     return wrapComments ? wrapGeneratedGoComments(code) : code;
 }
 
-function generateGoRpcTypeCode(definitions: Record<string, JSONSchema7>, definitionCollections: DefinitionCollections): GoGeneratedTypeCode {
+function generateGoRpcTypeCode(
+    definitions: Record<string, JSONSchema7>,
+    definitionCollections: DefinitionCollections,
+    rejectUnknownUnionTypeNames: Set<string>
+): GoGeneratedTypeCode {
     const ctx: GoCodegenCtx = {
         structs: [],
         encoding: [],
@@ -3118,7 +3126,7 @@ function generateGoRpcTypeCode(definitions: Record<string, JSONSchema7>, definit
         discriminatedUnions: new Map(),
         generatedNames: new Set(),
         definitions: definitionCollections,
-        applyClosedUnionUnknownVariantPolicy: true,
+        rejectUnknownUnionTypeNames,
         packageName: "rpc",
     };
     ctx.skipDefinitionTypeNames = collectGoDiscriminatedUnionVariantDefinitionTypeNames(definitions, ctx);
@@ -3849,6 +3857,14 @@ async function generateRpc(schemaPath?: string): Promise<void> {
             Object.entries(rpcDefinitions.definitions ?? {}).filter(([, value]) => typeof value === "object" && value !== null)
         ) as Record<string, JSONSchema7>,
     };
+    const rejectUnknownUnionTypeNames = new Set<string>();
+    for (const method of allMethods) {
+        const analysis = analyseNestedClosedUnionResult(method.result, allDefinitions);
+        if (!analysis) continue;
+        for (const name of analysis.unionDefinitionNames) {
+            rejectUnknownUnionTypeNames.add(goDefinitionName(name));
+        }
+    }
 
     for (const method of allMethods) {
         const resultSchema = getMethodResultSchema(method);
@@ -3905,7 +3921,11 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     rpcDefinitions = allDefinitionCollections;
 
     // Strip trailing whitespace from generated output (gofmt requirement)
-    const generatedRpcCode = generateGoRpcTypeCode(allDefinitions, allDefinitionCollections);
+    const generatedRpcCode = generateGoRpcTypeCode(
+        allDefinitions,
+        allDefinitionCollections,
+        rejectUnknownUnionTypeNames
+    );
     let generatedTypeCode = stripTrailingGoWhitespace(generatedRpcCode.typeCode);
     const generatedEncodingCode = stripTrailingGoWhitespace(generatedRpcCode.encodingCode);
 

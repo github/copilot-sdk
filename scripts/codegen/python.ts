@@ -10,6 +10,7 @@ import fs from "fs/promises";
 import path from "path";
 import type { JSONSchema7, JSONSchema7Definition } from "json-schema";
 import { fileURLToPath } from "url";
+import { analyseNestedClosedUnionResult } from "./schema-unions.js";
 import {
     addManagedApprovalRequiredToPermissionRequests,
     cloneSchemaForCodegen,
@@ -353,7 +354,8 @@ interface ResolvedRefBasedUnion {
 function postProcessRefBasedDiscriminatedUnionsForPython(
     code: string,
     definitions: Record<string, JSONSchema7>,
-    definitionCollections: DefinitionCollections
+    definitionCollections: DefinitionCollections,
+    explicitFailureUnionNames: ReadonlySet<string>
 ): { code: string; unions: ResolvedRefBasedUnion[] } {
     interface UnionInfo {
         aliasName: string;
@@ -508,9 +510,15 @@ function postProcessRefBasedDiscriminatedUnionsForPython(
         for (const m of actualDispatch) {
             dispatcherLines.push(`        case ${pyDiscriminatorValueExpr(m.value)}: return ${m.typeName}.from_dict(obj)`);
         }
-        dispatcherLines.push(
-            `    raise ValueError(f"Unknown ${actualAliasName} ${union.discriminatorProp}: {kind!r}")`
-        );
+        if (explicitFailureUnionNames.has(union.aliasName)) {
+            dispatcherLines.push(
+                `    raise ValueError(f"Unknown ${actualAliasName} ${union.discriminatorProp}: {kind!r}")`
+            );
+        } else {
+            dispatcherLines.push(
+                `        case _: raise ValueError(f"Unknown ${actualAliasName} ${union.discriminatorProp}: {kind!r}")`
+            );
+        }
 
         code = `${code.trimEnd()}\n\n\n${aliasLine}\n\n\n${dispatcherLines.join("\n")}\n`;
     }
@@ -3058,6 +3066,14 @@ async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSONSchema
     }
 
     const allDefinitions = combinedSchema.definitions! as Record<string, JSONSchema7>;
+    const explicitFailureUnionNames = new Set<string>();
+    for (const method of allMethods) {
+        const analysis = analyseNestedClosedUnionResult(method.result, allDefinitions);
+        if (!analysis) continue;
+        for (const name of analysis.unionDefinitionNames) {
+            explicitFailureUnionNames.add(name);
+        }
+    }
     preservePythonRpcStringDateFields(allDefinitions);
     const allDefinitionCollections: DefinitionCollections = {
         definitions: { ...(combinedSchema.$defs ?? {}), ...allDefinitions },
@@ -3138,7 +3154,8 @@ async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSONSchema
     const { code: typesCodeAfterUnions, unions: refBasedUnions } = postProcessRefBasedDiscriminatedUnionsForPython(
         typesCode,
         allDefinitions,
-        allDefinitionCollections
+        allDefinitionCollections,
+        explicitFailureUnionNames
     );
     typesCode = typesCodeAfterUnions;
     typesCode = modernizePython(typesCode);

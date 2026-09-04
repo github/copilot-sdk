@@ -11,7 +11,10 @@ import fs from "fs/promises";
 import type { JSONSchema7 } from "json-schema";
 import path from "path";
 import { fileURLToPath } from "url";
-import { analyseDiscriminatedUnionVariants } from "../../../scripts/codegen/schema-unions.js";
+import {
+    analyseDiscriminatedUnionVariants,
+    analyseNestedClosedUnionResult,
+} from "../../../scripts/codegen/schema-unions.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1465,13 +1468,7 @@ async function generateRpcTypes(schemaPath: string): Promise<void> {
     for (const section of [schema.server, schema.session, schema.clientSession, schema.clientGlobal]) {
         if (!section) continue;
         for (const [, method] of collectRpcMethods(section)) {
-            const result = resolveRef(method.result ?? undefined);
-            const union = result?.anyOf ?? result?.oneOf;
-            if (
-                union
-                && Array.isArray(union)
-                && findDiscriminator(resolveUnionVariants(union as JSONSchema7[]))
-            ) {
+            if (analyseNestedClosedUnionResult(method.result, currentDefinitions)) {
                 collectPromotedNestedUnionTypes(method.result);
             }
         }

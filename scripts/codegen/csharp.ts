@@ -14,6 +14,7 @@ import { promisify } from "util";
 import type { JSONSchema7 } from "json-schema";
 import {
     analyseDiscriminatedUnionVariants,
+    analyseNestedClosedUnionResult,
     type UnknownVariantPolicy,
 } from "./schema-unions.js";
 import {
@@ -1600,6 +1601,7 @@ let rpcKnownTypes = new Map<string, string>();
 let rpcEnumOutput: string[] = [];
 let externalRpcValueTypes = new Set<string>();
 let rpcRootJsonSerializableTypes = new Set<string>();
+let rpcRejectUnknownUnionTypeNames = new Set<string>();
 
 /** Schema definitions available during RPC generation (for $ref resolution). */
 let rpcDefinitions: DefinitionCollections = { definitions: {}, $defs: {} };
@@ -1745,8 +1747,9 @@ function resolveRpcType(schema: JSONSchema7, isRequired: boolean, parentClassNam
                         rpcPropertyResolver,
                         isSchemaExperimental(schema) || experimentalRpcTypes.has(baseClassName),
                         {
-                            unknownVariantPolicy:
-                                analyseDiscriminatedUnionVariants(variants)?.unknownVariantPolicy,
+                            unknownVariantPolicy: rpcRejectUnknownUnionTypeNames.has(baseClassName)
+                                ? analyseDiscriminatedUnionVariants(variants)?.unknownVariantPolicy
+                                : undefined,
                         }
                     );
                     classes.push(polymorphicCode);
@@ -2654,6 +2657,26 @@ function generateRpcCode(
         ...collectRpcMethods(schema.clientSession || {}),
         ...collectRpcMethods(schema.clientGlobal || {}),
     ];
+    const schemaDefinitions = {
+        ...Object.fromEntries(
+            Object.entries(rpcDefinitions.$defs ?? {}).filter(
+                ([, value]) => typeof value === "object" && value !== null
+            )
+        ) as Record<string, JSONSchema7>,
+        ...Object.fromEntries(
+            Object.entries(rpcDefinitions.definitions ?? {}).filter(
+                ([, value]) => typeof value === "object" && value !== null
+            )
+        ) as Record<string, JSONSchema7>,
+    };
+    rpcRejectUnknownUnionTypeNames = new Set<string>();
+    for (const method of allMethods) {
+        const analysis = analyseNestedClosedUnionResult(method.result, schemaDefinitions);
+        if (!analysis) continue;
+        for (const name of analysis.unionDefinitionNames) {
+            rpcRejectUnknownUnionTypeNames.add(typeToClassName(name));
+        }
+    }
     for (const name of collectRpcMethodReferencedDefinitionNames(
         allMethods.filter((method) => method.stability !== "experimental"),
         rpcDefinitions

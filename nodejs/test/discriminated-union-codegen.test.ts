@@ -4,21 +4,38 @@ import { describe, expect, it } from "vitest";
 import { collectNestedDiscriminatedUnionTypeNames } from "../../java/scripts/codegen/java.ts";
 import {
     analyseDiscriminatedUnion,
+    analyseNestedClosedUnionResult,
     schemaDiscriminatorValueKey,
 } from "../../scripts/codegen/schema-unions.ts";
 import { createRpcResultProjectionBundle } from "../../scripts/codegen/typescript.ts";
 import type { DefinitionCollections } from "../../scripts/codegen/utils.ts";
 
 const definitions: Record<string, JSONSchema7> = {
-    SyntheticEnvelope: {
+    SyntheticResult: {
+        anyOf: [
+            { $ref: "#/definitions/SyntheticSucceeded" },
+            { $ref: "#/definitions/SyntheticFailed" },
+        ],
+    },
+    SyntheticSucceeded: {
         type: "object",
         additionalProperties: false,
-        required: ["choices"],
+        required: ["kind", "choices"],
         properties: {
+            kind: { const: "succeeded" },
             choices: {
                 type: "array",
                 items: { $ref: "#/definitions/SyntheticChoice" },
             },
+        },
+    },
+    SyntheticFailed: {
+        type: "object",
+        additionalProperties: false,
+        required: ["kind", "message"],
+        properties: {
+            kind: { const: "failed" },
+            message: { type: "string" },
         },
     },
     SyntheticChoice: {
@@ -95,13 +112,13 @@ describe("schema-driven discriminated union codegen", () => {
 
     it("builds nested runtime projections for an equivalent synthetic result", () => {
         const projection = createRpcResultProjectionBundle(
-            { $ref: "#/definitions/SyntheticEnvelope" },
+            { $ref: "#/definitions/SyntheticResult" },
             collections
         );
 
         expect(projection?.root).toEqual({
             kind: "ref",
-            name: "SyntheticEnvelope",
+            name: "SyntheticResult",
         });
         expect(projection?.definitions.SyntheticChoice).toMatchObject({
             kind: "union",
@@ -125,8 +142,16 @@ describe("schema-driven discriminated union codegen", () => {
 
     it("promotes every nested synthetic union for Java generation", () => {
         expect(
+            analyseNestedClosedUnionResult(
+                { $ref: "#/definitions/SyntheticResult" },
+                definitions
+            )?.unionDefinitionNames
+        ).toEqual(
+            new Set(["SyntheticResult", "SyntheticChoice", "SyntheticSource"])
+        );
+        expect(
             collectNestedDiscriminatedUnionTypeNames(
-                { $ref: "#/definitions/SyntheticEnvelope" },
+                { $ref: "#/definitions/SyntheticResult" },
                 definitions
             )
         ).toEqual(new Set(["SyntheticChoice", "SyntheticSource"]));

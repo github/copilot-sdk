@@ -3,7 +3,10 @@ import type { JSONSchema7 } from "json-schema";
 import path from "path";
 
 import { COPILOT_CLI_VERSION } from "../../nodejs/src/cliVersion.js";
-import { analyseDiscriminatedUnion } from "./schema-unions.js";
+import {
+    analyseDiscriminatedUnion,
+    analyseNestedClosedUnionResult,
+} from "./schema-unions.js";
 import { getApiSchemaPath, REPO_ROOT } from "./utils.js";
 
 const FORBIDDEN_CANDIDATE_FIELDS = ["card", "cardData", "rawCard"];
@@ -16,6 +19,19 @@ function referencedDefinitionNames(schema: JSONSchema7): string[] {
     return (((schema.anyOf ?? schema.oneOf) as JSONSchema7[]) ?? []).map(
         (variant) => variant.$ref?.split("/").at(-1) ?? "",
     );
+}
+
+function collectRpcMethods(
+    node: unknown,
+): Array<{ rpcMethod: string; result?: JSONSchema7 }> {
+    if (!node || typeof node !== "object") return [];
+    if (
+        "rpcMethod" in node &&
+        typeof (node as { rpcMethod?: unknown }).rpcMethod === "string"
+    ) {
+        return [node as { rpcMethod: string; result?: JSONSchema7 }];
+    }
+    return Object.values(node).flatMap(collectRpcMethods);
 }
 
 const schemaPath = await getApiSchemaPath();
@@ -107,6 +123,30 @@ for (const name of [
         `${name} variants must remain closed to unknown payload fields`,
     );
 }
+
+const selectedNestedUnionMethods = collectRpcMethods(schema)
+    .map((method) => ({
+        method,
+        analysis: analyseNestedClosedUnionResult(
+            method.result,
+            schema.definitions,
+        ),
+    }))
+    .filter((entry) => entry.analysis !== undefined);
+assert(
+    selectedNestedUnionMethods.map(({ method }) => method.rpcMethod).join(",") ===
+        "catalog.search",
+    `unexpected nested-union result methods: ${selectedNestedUnionMethods
+        .map(({ method }) => method.rpcMethod)
+        .join(", ")}`,
+);
+assert(
+    [...selectedNestedUnionMethods[0].analysis!.unionDefinitionNames]
+        .sort()
+        .join(",") ===
+        "CatalogCandidate,CatalogCandidateSource,CatalogSearchResult",
+    "nested-union policy graph must remain limited to the proven catalogue result unions",
+);
 
 for (const name of candidateVariants) {
     const properties = schema.definitions[name]?.properties;

@@ -21,6 +21,11 @@ export interface SchemaDiscriminatedUnion {
     unknownVariantPolicy: UnknownVariantPolicy;
 }
 
+export interface NestedClosedUnionResult {
+    rootDefinitionName?: string;
+    unionDefinitionNames: Set<string>;
+}
+
 export type SchemaVariantResolver = (
     schema: JSONSchema7,
 ) => JSONSchema7 | undefined;
@@ -142,4 +147,103 @@ export function analyseDiscriminatedUnion(
         variants as JSONSchema7[],
         resolveVariant,
     );
+}
+
+function localDefinitionName(schema: JSONSchema7): string | undefined {
+    return schema.$ref?.match(/^#\/(?:definitions|\$defs)\/([^/]+)$/)?.[1];
+}
+
+function resolveLocalSchema(
+    schema: JSONSchema7,
+    definitions: Record<string, JSONSchema7>,
+): JSONSchema7 | undefined {
+    const name = localDefinitionName(schema);
+    return name ? definitions[name] : schema;
+}
+
+/**
+ * Select the narrow nested-union shape that requires promoted list elements:
+ * a closed discriminated result whose variant directly owns an array of another
+ * closed discriminated union. Nested closed unions below those list elements
+ * are included in the same policy graph.
+ */
+export function analyseNestedClosedUnionResult(
+    root: JSONSchema7 | null | undefined,
+    definitions: Record<string, JSONSchema7>,
+): NestedClosedUnionResult | undefined {
+    if (!root) return undefined;
+    const resolveVariant = (schema: JSONSchema7): JSONSchema7 | undefined =>
+        resolveLocalSchema(schema, definitions);
+    const resolvedRoot = resolveVariant(root);
+    if (!resolvedRoot) return undefined;
+    const rootUnion = analyseDiscriminatedUnion(resolvedRoot, resolveVariant);
+    if (rootUnion?.unknownVariantPolicy !== "reject") return undefined;
+
+    const nestedArrayItems: JSONSchema7[] = [];
+    for (const variant of rootUnion.variants) {
+        for (const property of Object.values(variant.schema.properties ?? {})) {
+            if (!property || typeof property !== "object") continue;
+            const resolvedProperty = resolveVariant(property as JSONSchema7);
+            if (
+                resolvedProperty?.type !== "array" ||
+                !resolvedProperty.items ||
+                Array.isArray(resolvedProperty.items)
+            ) {
+                continue;
+            }
+            const items = resolvedProperty.items as JSONSchema7;
+            const resolvedItems = resolveVariant(items);
+            if (
+                resolvedItems &&
+                analyseDiscriminatedUnion(resolvedItems, resolveVariant)
+                    ?.unknownVariantPolicy === "reject"
+            ) {
+                nestedArrayItems.push(items);
+            }
+        }
+    }
+    if (nestedArrayItems.length === 0) return undefined;
+
+    const unionDefinitionNames = new Set<string>();
+    const rootDefinitionName = localDefinitionName(root);
+    if (rootDefinitionName) unionDefinitionNames.add(rootDefinitionName);
+    const visitedDefinitions = new Set<string>();
+    const visit = (schema: JSONSchema7): void => {
+        const definitionName = localDefinitionName(schema);
+        if (definitionName) {
+            if (visitedDefinitions.has(definitionName)) return;
+            visitedDefinitions.add(definitionName);
+            const definition = definitions[definitionName];
+            if (!definition) return;
+            if (
+                analyseDiscriminatedUnion(definition, resolveVariant)
+                    ?.unknownVariantPolicy === "reject"
+            ) {
+                unionDefinitionNames.add(definitionName);
+            }
+            visit(definition);
+            return;
+        }
+
+        for (const property of Object.values(schema.properties ?? {})) {
+            if (property && typeof property === "object") {
+                visit(property as JSONSchema7);
+            }
+        }
+        if (schema.items && !Array.isArray(schema.items)) {
+            visit(schema.items as JSONSchema7);
+        }
+        for (const branch of [
+            ...(schema.anyOf ?? []),
+            ...(schema.oneOf ?? []),
+            ...(schema.allOf ?? []),
+        ]) {
+            if (branch && typeof branch === "object") {
+                visit(branch as JSONSchema7);
+            }
+        }
+    };
+    for (const items of nestedArrayItems) visit(items);
+
+    return { rootDefinitionName, unionDefinitionNames };
 }

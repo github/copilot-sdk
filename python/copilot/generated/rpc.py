@@ -40037,7 +40037,7 @@ def _load_AgentRegistrySpawnResult(obj: Any) -> "AgentRegistrySpawnResult":
         case "spawn-error": return AgentRegistrySpawnError.from_dict(obj)
         case "registry-timeout": return AgentRegistrySpawnRegistryTimeout.from_dict(obj)
         case "validation-error": return AgentRegistrySpawnValidationError.from_dict(obj)
-    raise ValueError(f"Unknown AgentRegistrySpawnResult kind: {kind!r}")
+        case _: raise ValueError(f"Unknown AgentRegistrySpawnResult kind: {kind!r}")
 
 # Authentication credentials accepted only at native protocol ingress. Runtime outputs use credential-free `AuthIdentity` metadata.
 AuthInfo = HMACAuthInfo | EnvAuthInfo | TokenAuthInfo | TokenProviderAuthInfo | CopilotAPITokenAuthInfo | UserAuthInfo | GhCLIAuthInfo | APIKeyAuthInfo
@@ -40054,7 +40054,7 @@ def _load_AuthInfo(obj: Any) -> "AuthInfo":
         case "user": return UserAuthInfo.from_dict(obj)
         case "gh-cli": return GhCLIAuthInfo.from_dict(obj)
         case "api-key": return APIKeyAuthInfo.from_dict(obj)
-    raise ValueError(f"Unknown AuthInfo type: {kind!r}")
+        case _: raise ValueError(f"Unknown AuthInfo type: {kind!r}")
 
 # One inert catalog result, represented as an MCP server or discovery-only AI skill variant so kind, media type, provenance, and installability cannot contradict each other.
 CatalogCandidate = CatalogMCPServerCandidate | CatalogAISkillCandidate
@@ -40112,7 +40112,7 @@ def _load_ExternalToolTextResultForLlmContent(obj: Any) -> "ExternalToolTextResu
         case "audio": return ExternalToolTextResultForLlmContentAudio.from_dict(obj)
         case "resource_link": return ExternalToolTextResultForLlmContentResourceLink.from_dict(obj)
         case "resource": return ExternalToolTextResultForLlmContentResource.from_dict(obj)
-    raise ValueError(f"Unknown ExternalToolTextResultForLlmContent type: {kind!r}")
+        case _: raise ValueError(f"Unknown ExternalToolTextResultForLlmContent type: {kind!r}")
 
 # Outcome of an mcp.planInstall call: either a normalised plan, or one typed refusal. Nothing is written in either case.
 MCPPlanInstallResult = MCPPlanInstallPlanned | CatalogNegotiationRefusedError | CatalogHandleRejectedError | CatalogInvalidRequestError | CatalogAuthenticationRequiredError | CatalogPolicyRejectedError | CatalogNetworkFailureError | CatalogUnsafeRetrievalError | CatalogMalformedCardError | CatalogContractViolationError | CatalogUnavailableTransportError | CatalogNotInstallableError | CatalogUnavailableError
@@ -40134,7 +40134,7 @@ def _load_MCPPlanInstallResult(obj: Any) -> "MCPPlanInstallResult":
         case "unavailable-transport": return CatalogUnavailableTransportError.from_dict(obj)
         case "not-installable": return CatalogNotInstallableError.from_dict(obj)
         case "unavailable": return CatalogUnavailableError.from_dict(obj)
-    raise ValueError(f"Unknown MCPPlanInstallResult kind: {kind!r}")
+        case _: raise ValueError(f"Unknown MCPPlanInstallResult kind: {kind!r}")
 
 # What an install plan is computed from: a candidate handle from a previous search, or a card supplied directly.
 MCPPlanInstallSource = MCPPlanInstallSourceCandidate | MCPPlanInstallSourceCard
@@ -40145,7 +40145,7 @@ def _load_MCPPlanInstallSource(obj: Any) -> "MCPPlanInstallSource":
     match kind:
         case "candidate": return MCPPlanInstallSourceCandidate.from_dict(obj)
         case "card": return MCPPlanInstallSourceCard.from_dict(obj)
-    raise ValueError(f"Unknown MCPPlanInstallSource kind: {kind!r}")
+        case _: raise ValueError(f"Unknown MCPPlanInstallSource kind: {kind!r}")
 
 # One non-secret value a transport choice needs, represented as a scalar or enumerated variant so enum values cannot be missing or attached to another type.
 MCPPlanRequiredValue = MCPPlanRequiredValueScalar | MCPPlanRequiredValueEnum
@@ -40156,7 +40156,7 @@ def _load_MCPPlanRequiredValue(obj: Any) -> "MCPPlanRequiredValue":
     match kind:
         case "scalar": return MCPPlanRequiredValueScalar.from_dict(obj)
         case "enum": return MCPPlanRequiredValueEnum.from_dict(obj)
-    raise ValueError(f"Unknown MCPPlanRequiredValue kind: {kind!r}")
+        case _: raise ValueError(f"Unknown MCPPlanRequiredValue kind: {kind!r}")
 
 # One eligible way to run the server, represented as a tagged package or remote variant so package identity and endpoint states cannot contradict the install method.
 MCPPlanTransportChoice = MCPPlanTransportChoicePackage | MCPPlanTransportChoiceRemote
@@ -40167,7 +40167,7 @@ def _load_MCPPlanTransportChoice(obj: Any) -> "MCPPlanTransportChoice":
     match kind:
         case "package": return MCPPlanTransportChoicePackage.from_dict(obj)
         case "remote": return MCPPlanTransportChoiceRemote.from_dict(obj)
-    raise ValueError(f"Unknown MCPPlanTransportChoice installMethod: {kind!r}")
+        case _: raise ValueError(f"Unknown MCPPlanTransportChoice installMethod: {kind!r}")
 
 # A card supplied directly by the caller. Exactly one of a URL or embedded data, encoded structurally so neither both nor neither can be expressed.
 MCPServerCardReference = MCPServerCardURL | MCPServerCardEmbedded
@@ -40178,7 +40178,7 @@ def _load_MCPServerCardReference(obj: Any) -> "MCPServerCardReference":
     match kind:
         case "url": return MCPServerCardURL.from_dict(obj)
         case "embedded": return MCPServerCardEmbedded.from_dict(obj)
-    raise ValueError(f"Unknown MCPServerCardReference kind: {kind!r}")
+        case _: raise ValueError(f"Unknown MCPServerCardReference kind: {kind!r}")
 
 # The client's response to the pending permission prompt
 PermissionDecision = PermissionDecisionApproveOnce | PermissionDecisionApproveForSession | PermissionDecisionApproveForLocation | PermissionDecisionApprovePermanently | PermissionDecisionReject | PermissionDecisionUserNotAvailable | PermissionDecisionApproved | PermissionDecisionApprovedForSession | PermissionDecisionApprovedForLocation | PermissionDecisionCancelled | PermissionDecisionDeniedByRules | PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser | PermissionDecisionDeniedInteractivelyByUser | PermissionDecisionDeniedByContentExclusionPolicy | PermissionDecisionDeniedByPermissionRequestHook
@@ -40202,7 +40202,7 @@ def _load_PermissionDecision(obj: Any) -> "PermissionDecision":
         case "denied-interactively-by-user": return PermissionDecisionDeniedInteractivelyByUser.from_dict(obj)
         case "denied-by-content-exclusion-policy": return PermissionDecisionDeniedByContentExclusionPolicy.from_dict(obj)
         case "denied-by-permission-request-hook": return PermissionDecisionDeniedByPermissionRequestHook.from_dict(obj)
-    raise ValueError(f"Unknown PermissionDecision kind: {kind!r}")
+        case _: raise ValueError(f"Unknown PermissionDecision kind: {kind!r}")
 
 # Approval to persist for this location
 PermissionDecisionApproveForLocationApproval = PermissionDecisionApproveForLocationApprovalCommands | PermissionDecisionApproveForLocationApprovalRead | PermissionDecisionApproveForLocationApprovalWrite | PermissionDecisionApproveForLocationApprovalMCP | PermissionDecisionApproveForLocationApprovalMCPSampling | PermissionDecisionApproveForLocationApprovalMemory | PermissionDecisionApproveForLocationApprovalCustomTool | PermissionDecisionApproveForLocationApprovalExtensionManagement | PermissionDecisionApproveForLocationApprovalFactory | PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess | PermissionDecisionApproveForLocationApprovalExtensionEnvAccess
@@ -40222,7 +40222,7 @@ def _load_PermissionDecisionApproveForLocationApproval(obj: Any) -> "PermissionD
         case "factory": return PermissionDecisionApproveForLocationApprovalFactory.from_dict(obj)
         case "extension-permission-access": return PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess.from_dict(obj)
         case "extension-env-access": return PermissionDecisionApproveForLocationApprovalExtensionEnvAccess.from_dict(obj)
-    raise ValueError(f"Unknown PermissionDecisionApproveForLocationApproval kind: {kind!r}")
+        case _: raise ValueError(f"Unknown PermissionDecisionApproveForLocationApproval kind: {kind!r}")
 
 # Session-scoped approval to remember (tool prompts only; omitted for path/url prompts)
 PermissionDecisionApproveForSessionApproval = PermissionDecisionApproveForSessionApprovalCommands | PermissionDecisionApproveForSessionApprovalRead | PermissionDecisionApproveForSessionApprovalWrite | PermissionDecisionApproveForSessionApprovalMCP | PermissionDecisionApproveForSessionApprovalMCPSampling | PermissionDecisionApproveForSessionApprovalMemory | PermissionDecisionApproveForSessionApprovalCustomTool | PermissionDecisionApproveForSessionApprovalExtensionManagement | PermissionDecisionApproveForSessionApprovalFactory | PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess | PermissionDecisionApproveForSessionApprovalExtensionEnvAccess
@@ -40242,7 +40242,7 @@ def _load_PermissionDecisionApproveForSessionApproval(obj: Any) -> "PermissionDe
         case "factory": return PermissionDecisionApproveForSessionApprovalFactory.from_dict(obj)
         case "extension-permission-access": return PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess.from_dict(obj)
         case "extension-env-access": return PermissionDecisionApproveForSessionApprovalExtensionEnvAccess.from_dict(obj)
-    raise ValueError(f"Unknown PermissionDecisionApproveForSessionApproval kind: {kind!r}")
+        case _: raise ValueError(f"Unknown PermissionDecisionApproveForSessionApproval kind: {kind!r}")
 
 # Tool approval to persist and apply
 PermissionsLocationsAddToolApprovalDetails = PermissionsLocationsAddToolApprovalDetailsCommands | PermissionsLocationsAddToolApprovalDetailsRead | PermissionsLocationsAddToolApprovalDetailsWrite | PermissionsLocationsAddToolApprovalDetailsMCP | PermissionsLocationsAddToolApprovalDetailsMCPSampling | PermissionsLocationsAddToolApprovalDetailsMemory | PermissionsLocationsAddToolApprovalDetailsCustomTool | PermissionsLocationsAddToolApprovalDetailsExtensionManagement | PermissionsLocationsAddToolApprovalDetailsFactory | PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess | PermissionsLocationsAddToolApprovalDetailsExtensionEnvAccess
@@ -40262,7 +40262,7 @@ def _load_PermissionsLocationsAddToolApprovalDetails(obj: Any) -> "PermissionsLo
         case "factory": return PermissionsLocationsAddToolApprovalDetailsFactory.from_dict(obj)
         case "extension-permission-access": return PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess.from_dict(obj)
         case "extension-env-access": return PermissionsLocationsAddToolApprovalDetailsExtensionEnvAccess.from_dict(obj)
-    raise ValueError(f"Unknown PermissionsLocationsAddToolApprovalDetails kind: {kind!r}")
+        case _: raise ValueError(f"Unknown PermissionsLocationsAddToolApprovalDetails kind: {kind!r}")
 
 # Attachment union accepted by push input, covering files, directories, GitHub objects, blobs, snippets, and extension context.
 PushAttachment = PushAttachmentFile | PushAttachmentDirectory | PushAttachmentSelection | PushAttachmentGitHubReference | PushAttachmentGitHubCommit | PushAttachmentGitHubRelease | PushAttachmentGitHubActionsJob | PushAttachmentGitHubRepository | PushAttachmentGitHubFileDiff | PushAttachmentGitHubTreeComparison | PushAttachmentGitHubURL | PushAttachmentGitHubFile | PushAttachmentGitHubSnippet | PushAttachmentBlob | ExtensionContextPushInput
@@ -40286,7 +40286,7 @@ def _load_PushAttachment(obj: Any) -> "PushAttachment":
         case "github_snippet": return PushAttachmentGitHubSnippet.from_dict(obj)
         case "blob": return PushAttachmentBlob.from_dict(obj)
         case "extension_context": return ExtensionContextPushInput.from_dict(obj)
-    raise ValueError(f"Unknown PushAttachment type: {kind!r}")
+        case _: raise ValueError(f"Unknown PushAttachment type: {kind!r}")
 
 # Result of the queued command execution.
 QueuedCommandResult = QueuedCommandHandled | QueuedCommandNotHandled
@@ -40297,7 +40297,7 @@ def _load_QueuedCommandResult(obj: Any) -> "QueuedCommandResult":
     match kind:
         case True: return QueuedCommandHandled.from_dict(obj)
         case False: return QueuedCommandNotHandled.from_dict(obj)
-    raise ValueError(f"Unknown QueuedCommandResult handled: {kind!r}")
+        case _: raise ValueError(f"Unknown QueuedCommandResult handled: {kind!r}")
 
 # State of the runtime-managed remote-control singleton.
 RemoteControlStatus = RemoteControlStatusOff | RemoteControlStatusConnecting | RemoteControlStatusActive | RemoteControlStatusError
@@ -40310,7 +40310,7 @@ def _load_RemoteControlStatus(obj: Any) -> "RemoteControlStatus":
         case "connecting": return RemoteControlStatusConnecting.from_dict(obj)
         case "active": return RemoteControlStatusActive.from_dict(obj)
         case "error": return RemoteControlStatusError.from_dict(obj)
-    raise ValueError(f"Unknown RemoteControlStatus state: {kind!r}")
+        case _: raise ValueError(f"Unknown RemoteControlStatus state: {kind!r}")
 
 # Local or remote session metadata entry. Narrow on `isRemote` to access source-specific fields.
 SessionListEntry = LocalSessionMetadataValue | RemoteSessionMetadataValue
@@ -40321,7 +40321,7 @@ def _load_SessionListEntry(obj: Any) -> "SessionListEntry":
     match kind:
         case False: return LocalSessionMetadataValue.from_dict(obj)
         case True: return RemoteSessionMetadataValue.from_dict(obj)
-    raise ValueError(f"Unknown SessionListEntry isRemote: {kind!r}")
+        case _: raise ValueError(f"Unknown SessionListEntry isRemote: {kind!r}")
 
 # Open a session by creating, resuming, attaching, connecting to a remote, or handing off.
 SessionOpenParams = SessionsOpenCreate | SessionsOpenResume | SessionsOpenResumeLast | SessionsOpenAttach | SessionsOpenRemote | SessionsOpenCloud | SessionsOpenHandoff
@@ -40337,7 +40337,7 @@ def _load_SessionOpenParams(obj: Any) -> "SessionOpenParams":
         case "remote": return SessionsOpenRemote.from_dict(obj)
         case "cloud": return SessionsOpenCloud.from_dict(obj)
         case "handoff": return SessionsOpenHandoff.from_dict(obj)
-    raise ValueError(f"Unknown SessionOpenParams kind: {kind!r}")
+        case _: raise ValueError(f"Unknown SessionOpenParams kind: {kind!r}")
 
 # Authentication credentials accepted by session.gitHubAuth.setCredentials. Session-owned token-provider identities cannot be installed through this method.
 SettableAuthInfo = HMACAuthInfo | EnvAuthInfo | SettableTokenAuthInfo | CopilotAPITokenAuthInfo | UserAuthInfo | GhCLIAuthInfo | APIKeyAuthInfo
@@ -40353,7 +40353,7 @@ def _load_SettableAuthInfo(obj: Any) -> "SettableAuthInfo":
         case "user": return UserAuthInfo.from_dict(obj)
         case "gh-cli": return GhCLIAuthInfo.from_dict(obj)
         case "api-key": return APIKeyAuthInfo.from_dict(obj)
-    raise ValueError(f"Unknown SettableAuthInfo type: {kind!r}")
+        case _: raise ValueError(f"Unknown SettableAuthInfo type: {kind!r}")
 
 # Result of invoking the slash command (text output, prompt to send to the agent, completion, or subcommand selection).
 SlashCommandInvocationResult = SlashCommandTextResult | SlashCommandAgentPromptResult | SlashCommandCompletedResult | SlashCommandSelectSubcommandResult | SlashCommandAddTimelineEntryResult | SlashCommandShowDialogResult | SlashCommandSetModelResult | SlashCommandSetPlanModelResult
@@ -40370,7 +40370,7 @@ def _load_SlashCommandInvocationResult(obj: Any) -> "SlashCommandInvocationResul
         case "show-dialog": return SlashCommandShowDialogResult.from_dict(obj)
         case "set-model": return SlashCommandSetModelResult.from_dict(obj)
         case "set-plan-model": return SlashCommandSetPlanModelResult.from_dict(obj)
-    raise ValueError(f"Unknown SlashCommandInvocationResult kind: {kind!r}")
+        case _: raise ValueError(f"Unknown SlashCommandInvocationResult kind: {kind!r}")
 
 # Tracked task union returned by task APIs, containing an agent, client, or shell task.
 TaskInfo = TaskAgentInfo | TaskClientInfo | TaskShellInfo
@@ -40382,7 +40382,7 @@ def _load_TaskInfo(obj: Any) -> "TaskInfo":
         case "agent": return TaskAgentInfo.from_dict(obj)
         case "client": return TaskClientInfo.from_dict(obj)
         case "shell": return TaskShellInfo.from_dict(obj)
-    raise ValueError(f"Unknown TaskInfo type: {kind!r}")
+        case _: raise ValueError(f"Unknown TaskInfo type: {kind!r}")
 
 
 AccountGetAllUsersResult = list

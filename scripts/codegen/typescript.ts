@@ -13,6 +13,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import {
     analyseDiscriminatedUnion,
+    analyseNestedClosedUnionResult,
     schemaDiscriminatorValueKey,
 } from "./schema-unions.js";
 import {
@@ -941,18 +942,12 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
     rpcDefinitions = collectDefinitionCollections(schema as Record<string, unknown>);
     rpcResultProjections = new Map();
     rpcResultProjectionDefinitions = new Map();
+    const schemaDefinitions = {
+        ...(rpcDefinitions.$defs as Record<string, JSONSchema7>),
+        ...(rpcDefinitions.definitions as Record<string, JSONSchema7>),
+    };
     for (const method of rpcMethods) {
-        const resultSchema = getMethodResultSchema(method);
-        const resultUnion = resultSchema
-            ? analyseDiscriminatedUnion(
-                resultSchema,
-                (variant) =>
-                    resolveObjectSchema(variant, rpcDefinitions) ??
-                    resolveSchema(variant, rpcDefinitions) ??
-                    variant
-            )
-            : undefined;
-        if (resultUnion?.unknownVariantPolicy !== "reject") continue;
+        if (!analyseNestedClosedUnionResult(method.result, schemaDefinitions)) continue;
         const projection = createRpcResultProjectionBundle(method.result, rpcDefinitions);
         if (!projection) continue;
         rpcResultProjections.set(method.rpcMethod, projection.root);
