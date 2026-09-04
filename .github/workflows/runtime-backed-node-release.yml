@@ -318,6 +318,9 @@ jobs:
       (inputs.resume_run_id != '' || needs.package.result == 'success')
     needs: [boundary, package]
     runs-on: ubuntu-latest
+    concurrency:
+      group: sdk-runtime-internal-${{ inputs.channel == 'unstable' && 'unstable' || inputs.sdk_ref }}
+      cancel-in-progress: false
     environment: cicd
     permissions:
       actions: read
