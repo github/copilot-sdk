@@ -4,9 +4,9 @@ import { fileURLToPath } from "node:url";
 
 const [version, mode] = process.argv.slice(2);
 if (!version || !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z._-]+)?$/.test(version)) {
-    throw new Error("Usage: set-cli-version.js <semver> [--npm-package]");
+    throw new Error("Usage: set-cli-version.js <semver> [--npm-package|--local-package]");
 }
-if (mode !== undefined && mode !== "--npm-package") {
+if (mode !== undefined && mode !== "--npm-package" && mode !== "--local-package") {
     throw new Error(`Unknown option: ${mode}`);
 }
 
@@ -30,7 +30,7 @@ const cliAssets = [
     "copilot-win32-x64.zip",
 ];
 const useNpmPackage = mode === "--npm-package";
-if (!useNpmPackage) {
+if (mode === undefined) {
     const checksumsUrl = `https://github.com/github/copilot-cli/releases/download/v${version}/SHA256SUMS.txt`;
     const response = await fetch(checksumsUrl);
     if (!response.ok) {

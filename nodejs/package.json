@@ -35,8 +35,10 @@
     "scripts": {
         "clean": "rimraf --glob dist *.tgz",
         "build": "tsx esbuild-copilotsdk-nodejs.ts",
+        "acquire:runtime-packages": "tsx scripts/runtime-package-acquisition.ts",
         "pack:release": "tsx scripts/package-sdk.ts",
         "verify:release-packages": "tsx scripts/verify-release-packages.ts",
+        "release:manifest": "tsx scripts/release-manifest.ts",
         "prepare:runtime": "tsx scripts/prepare-runtime.ts",
         "test": "vitest run",
         "test:watch": "vitest",

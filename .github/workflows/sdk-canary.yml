@@ -1,45 +1,47 @@
 name: "SDK Canary Test/Publish"
 
-# Nightly-style canary pipeline. First installs an explicit version of the
-# @github/copilot runtime, builds the Node SDK, and runs the Node e2e suite
-# against it to prove runtime <-> SDK compatibility. When that gate passes (and
-# mode allows), publishes an SDK canary pinned to the tested runtime to the
-# internal Azure Artifacts feed only (never public npm).
-
 env:
-  HUSKY: 0
-  # Internal org-scoped Azure Artifacts feed — single source of truth so the
-  # feed name isn't repeated across steps. The SDK canary publishes here and
-  # (when runtime_source=internal) installs the runtime from here; it must NEVER
-  # reach public npm (@github/copilot-sdk is a live public package).
-  FEED_URL: https://pkgs.dev.azure.com/devdiv/_packaging/copilot-canary/npm/registry/
-  # Azure DevOps resource ID used to mint an ADO access token for the feed.
   ADO_RESOURCE: 499b84ac-1321-427f-aa17-267ca6975798
+  FEED_URL: https://pkgs.dev.azure.com/devdiv/_packaging/copilot-canary/npm/registry/
+  HUSKY: 0
 
 on:
   workflow_dispatch:
     inputs:
+      channel:
+        description: "Release channel"
+        required: true
+        type: choice
+        options:
+          - canary
+        default: canary
       runtime_version:
-        description: "Exact github/copilot-cli release (public) or @github/copilot package version (internal)"
+        description: "Exact runtime package version"
+        required: true
+        type: string
+      runtime_sha:
+        description: "Full github/copilot-agent-runtime source SHA"
         required: true
         type: string
       runtime_source:
-        description: "Where to install the runtime from"
+        description: "Runtime package registry"
         required: true
         type: choice
         options:
-          - public
-          - internal
-        default: public
+          - azure
+        default: azure
+      runtime_run_id:
+        description: "Source runtime workflow run ID"
+        required: true
+        type: string
       mode:
-        description: "publish (tests must pass), publish-force (publish even if tests fail), or tests-only (run gate, never publish)"
-        required: false
+        description: "Run tests and package verification, with optional internal publication"
+        required: true
         type: choice
-        default: publish
         options:
-          - publish
-          - publish-force
           - tests-only
+          - internal
+        default: tests-only
   repository_dispatch:
     types: [runtime-canary]
 
@@ -47,382 +49,312 @@ permissions:
   contents: read
   id-token: write
 
-# Serialize runs per ref so two overlapping canary runs can't race the feed
-# publish. cancel-in-progress: false — never kill an in-flight publish.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: sdk-canary-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
   resolve:
-    name: "Resolve runtime inputs"
+    name: Resolve canary inputs
     if: github.event.repository.fork == false
     runs-on: ubuntu-latest
     permissions: {}
     outputs:
-      RUNTIME_VERSION: ${{ steps.normalize.outputs.RUNTIME_VERSION }}
-      RUNTIME_SOURCE: ${{ steps.normalize.outputs.RUNTIME_SOURCE }}
-      PUBLISH_MODE: ${{ steps.normalize.outputs.PUBLISH_MODE }}
+      mode: ${{ steps.normalize.outputs.mode }}
+      runtime_run_id: ${{ steps.normalize.outputs.runtime_run_id }}
+      runtime_sha: ${{ steps.normalize.outputs.runtime_sha }}
+      runtime_source: ${{ steps.normalize.outputs.runtime_source }}
+      runtime_version: ${{ steps.normalize.outputs.runtime_version }}
     steps:
-      # Normalize whichever trigger fired into a single (RUNTIME_VERSION,
-      # RUNTIME_SOURCE, PUBLISH_MODE) triple that every downstream step
-      # references. workflow_dispatch reads the human-supplied inputs;
-      # repository_dispatch reads client_payload and forces source=internal
-      # (a runtime canary only exists on the feed), defaulting mode to publish.
-      - name: Normalize inputs
+      - name: Normalize and validate inputs
         id: normalize
         env:
           EVENT_NAME: ${{ github.event_name }}
-          INPUT_VERSION: ${{ inputs.runtime_version }}
-          INPUT_SOURCE: ${{ inputs.runtime_source }}
+          INPUT_CHANNEL: ${{ inputs.channel }}
           INPUT_MODE: ${{ inputs.mode }}
-          PAYLOAD_VERSION: ${{ github.event.client_payload.runtime_version }}
-          PAYLOAD_SOURCE: ${{ github.event.client_payload.runtime_source }}
+          INPUT_RUNTIME_RUN_ID: ${{ inputs.runtime_run_id }}
+          INPUT_RUNTIME_SHA: ${{ inputs.runtime_sha }}
+          INPUT_RUNTIME_SOURCE: ${{ inputs.runtime_source }}
+          INPUT_RUNTIME_VERSION: ${{ inputs.runtime_version }}
+          PAYLOAD_CHANNEL: ${{ github.event.client_payload.channel }}
           PAYLOAD_MODE: ${{ github.event.client_payload.mode }}
+          PAYLOAD_RUNTIME_RUN_ID: ${{ github.event.client_payload.runtime_run_id }}
+          PAYLOAD_RUNTIME_SHA: ${{ github.event.client_payload.runtime_sha }}
+          PAYLOAD_RUNTIME_SOURCE: ${{ github.event.client_payload.runtime_source }}
+          PAYLOAD_RUNTIME_VERSION: ${{ github.event.client_payload.runtime_version }}
         run: |
           set -euo pipefail
-          case "$EVENT_NAME" in
-            workflow_dispatch)
-              VERSION="$INPUT_VERSION"
-              SOURCE="$INPUT_SOURCE"
-              MODE="$INPUT_MODE"
-              ;;
-            repository_dispatch)
-              VERSION="$PAYLOAD_VERSION"
-              # A runtime canary only ever exists on the internal feed.
-              SOURCE="${PAYLOAD_SOURCE:-internal}"
-              MODE="${PAYLOAD_MODE:-publish}"
-              ;;
-            *)
-              echo "::error::Unsupported event '$EVENT_NAME'."
-              exit 1
-              ;;
-          esac
-          if [ -z "$VERSION" ]; then echo "::error::Could not determine runtime version."; exit 1; fi
-          if [ -z "$SOURCE" ]; then SOURCE="public"; fi
-          case "$SOURCE" in
-            public|internal) ;;
-            *) echo "::error::Invalid runtime source '$SOURCE'. Expected one of: public, internal."; exit 1 ;;
-          esac
-          if [ -z "$MODE" ]; then MODE="publish"; fi
-          case "$MODE" in
-            publish|publish-force|tests-only) ;;
-            *) echo "::error::Invalid publish mode '$MODE'. Expected one of: publish, publish-force, tests-only."; exit 1 ;;
-          esac
-          echo "Resolved RUNTIME_VERSION=$VERSION RUNTIME_SOURCE=$SOURCE PUBLISH_MODE=$MODE"
-          echo "RUNTIME_VERSION=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "RUNTIME_SOURCE=$SOURCE" >> "$GITHUB_OUTPUT"
-          echo "PUBLISH_MODE=$MODE" >> "$GITHUB_OUTPUT"
-
-      - name: Validate runtime version (semver)
-        env:
-          RUNTIME_VERSION: ${{ steps.normalize.outputs.RUNTIME_VERSION }}
-        run: |
-          if [[ ! "$RUNTIME_VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
-            echo "::error::Invalid runtime version '$RUNTIME_VERSION'. Expected semver (e.g. 1.0.69 or 1.0.70-canary.abc123)."
-            exit 1
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            CHANNEL="$INPUT_CHANNEL"
+            MODE="$INPUT_MODE"
+            RUNTIME_RUN_ID="$INPUT_RUNTIME_RUN_ID"
+            RUNTIME_SHA="$INPUT_RUNTIME_SHA"
+            RUNTIME_SOURCE="$INPUT_RUNTIME_SOURCE"
+            RUNTIME_VERSION="$INPUT_RUNTIME_VERSION"
+          else
+            CHANNEL="${PAYLOAD_CHANNEL:-canary}"
+            MODE="${PAYLOAD_MODE:-internal}"
+            RUNTIME_RUN_ID="$PAYLOAD_RUNTIME_RUN_ID"
+            RUNTIME_SHA="$PAYLOAD_RUNTIME_SHA"
+            RUNTIME_SOURCE="${PAYLOAD_RUNTIME_SOURCE:-azure}"
+            RUNTIME_VERSION="$PAYLOAD_RUNTIME_VERSION"
+            case "$MODE" in
+              publish|publish-force) MODE="internal" ;;
+            esac
+            case "$RUNTIME_SOURCE" in
+              internal) RUNTIME_SOURCE="azure" ;;
+            esac
           fi
+          [ "$CHANNEL" = "canary" ] || { echo "::error::sdk-canary.yml only accepts channel=canary."; exit 1; }
+          [ "$RUNTIME_SOURCE" = "azure" ] || { echo "::error::Canary runtime_source must be azure."; exit 1; }
+          case "$MODE" in
+            tests-only|internal) ;;
+            *) echo "::error::Canary mode must be tests-only or internal."; exit 1 ;;
+          esac
+          [[ "$RUNTIME_VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]] ||
+            { echo "::error::runtime_version must be exact SemVer."; exit 1; }
+          [[ "$RUNTIME_SHA" =~ ^[0-9a-f]{40}$ ]] ||
+            { echo "::error::runtime_sha must be a lowercase full SHA."; exit 1; }
+          [[ "$RUNTIME_RUN_ID" =~ ^[0-9]+$ ]] ||
+            { echo "::error::runtime_run_id must be numeric."; exit 1; }
+          {
+            echo "mode=$MODE"
+            echo "runtime_run_id=$RUNTIME_RUN_ID"
+            echo "runtime_sha=$RUNTIME_SHA"
+            echo "runtime_source=$RUNTIME_SOURCE"
+            echo "runtime_version=$RUNTIME_VERSION"
+          } >> "$GITHUB_OUTPUT"
+
+  acquire-runtime:
+    name: Acquire exact runtime packages
+    needs: resolve
+    runs-on: ubuntu-latest
+    environment: cicd
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./nodejs
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: actions/setup-node@v6
+        with:
+          cache: npm
+          cache-dependency-path: ./nodejs/package-lock.json
+          node-version: 22
+      - run: npm ci --ignore-scripts
+      - name: Azure login
+        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
+        with:
+          allow-no-subscriptions: true
+          client-id: ${{ vars.CPD_ID_CLIENT_ID }}
+          tenant-id: ${{ vars.CPD_ID_TENANT_ID }}
+      - name: Configure authentication-only Azure npm access
+        run: |
+          set -euo pipefail
+          TOKEN="$(az account get-access-token --resource "$ADO_RESOURCE" --query accessToken -o tsv)"
+          echo "::add-mask::$TOKEN"
+          FEED_AUTH_REGISTRY="${FEED_URL#https:}"
+          FEED_AUTH_BASE="${FEED_AUTH_REGISTRY%registry/}"
+          printf '%s\n' \
+            "${FEED_AUTH_REGISTRY}:_authToken=${TOKEN}" \
+            "${FEED_AUTH_BASE}:_authToken=${TOKEN}" > "$HOME/.npmrc"
+      - name: Download and validate all runtime platforms
+        env:
+          RUNTIME_SHA: ${{ needs.resolve.outputs.runtime_sha }}
+          RUNTIME_VERSION: ${{ needs.resolve.outputs.runtime_version }}
+        run: |
+          npm run acquire:runtime-packages -- \
+            --version "$RUNTIME_VERSION" \
+            --sha "$RUNTIME_SHA" \
+            --registry "$FEED_URL" \
+            --output "$RUNNER_TEMP/runtime-packages"
+      - uses: actions/upload-artifact@v7.0.0
+        with:
+          name: canary-runtime-${{ needs.resolve.outputs.runtime_version }}-${{ needs.resolve.outputs.runtime_sha }}
+          path: ${{ runner.temp }}/runtime-packages
+          if-no-files-found: error
+          retention-days: 7
 
   test:
-    name: "E2E tests (${{ matrix.os }})"
-    needs: resolve
-    if: github.event.repository.fork == false
-    environment: cicd
+    name: Runtime-backed Node tests (${{ matrix.os }})
+    needs: [resolve, acquire-runtime]
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
-    env:
-      POWERSHELL_UPDATECHECK: Off
-      RUNTIME_VERSION: ${{ needs.resolve.outputs.RUNTIME_VERSION }}
-      RUNTIME_SOURCE: ${{ needs.resolve.outputs.RUNTIME_SOURCE }}
+    environment: cicd
     defaults:
       run:
         shell: bash
         working-directory: ./nodejs
     steps:
       - uses: actions/checkout@v6.0.2
-
       - uses: actions/setup-node@v6
         with:
-          cache: "npm"
-          cache-dependency-path: "./nodejs/package-lock.json"
+          cache: npm
+          cache-dependency-path: ./nodejs/package-lock.json
           node-version: 22
-
-      - name: Install SDK dependencies
-        run: npm ci --ignore-scripts
-
+      - run: npm ci --ignore-scripts
       - name: Install test harness dependencies
         working-directory: ./test/harness
         run: npm ci --ignore-scripts
-
-      - name: Azure Login (OIDC -> id-cpd-ci)
-        if: env.RUNTIME_SOURCE == 'internal'
-        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
+      - uses: actions/download-artifact@v8.0.0
         with:
-          client-id: "${{ vars.CPD_ID_CLIENT_ID }}" # id-cpd-ci
-          tenant-id: "${{ vars.CPD_ID_TENANT_ID }}"
-          allow-no-subscriptions: true
-
-      # Route ONLY @github/* (the runtime + its platform packages) to the
-      # internal feed via a scoped registry. All other deps (e.g. detect-libc)
-      # still resolve from public npm. A global --registry would break because
-      # detect-libc is not on the feed.
-      - name: Configure canary feed (.npmrc)
-        if: env.RUNTIME_SOURCE == 'internal'
+          name: canary-runtime-${{ needs.resolve.outputs.runtime_version }}-${{ needs.resolve.outputs.runtime_sha }}
+          path: ${{ runner.temp }}/runtime-packages
+      - name: Select the acquired runtime
+        env:
+          COPILOT_SDK_RUNTIME_PACKAGE_DIR: ${{ runner.temp }}/runtime-packages
+          RUNTIME_VERSION: ${{ needs.resolve.outputs.runtime_version }}
         run: |
           set -euo pipefail
-          TOKEN="$(az account get-access-token --resource "$ADO_RESOURCE" --query accessToken -o tsv)"
-          echo "::add-mask::$TOKEN"
-          # Derive the protocol-relative auth scopes from FEED_URL so the feed
-          # name lives in exactly one place (the workflow-level env).
-          FEED_AUTH_REGISTRY="${FEED_URL#https:}"
-          FEED_AUTH_BASE="${FEED_AUTH_REGISTRY%registry/}"
-          NPMRC="$(printf '%s\n' \
-            "@github:registry=${FEED_URL}" \
-            "${FEED_AUTH_REGISTRY}:_authToken=${TOKEN}" \
-            "${FEED_AUTH_BASE}:_authToken=${TOKEN}")"
-          printf '%s\n' "$NPMRC" > .npmrc
-          echo "Wrote scoped @github registry .npmrc to ./nodejs"
-
-      - name: Override runtime version
-        run: |
-          set -euo pipefail
-          if [ "$RUNTIME_SOURCE" = "internal" ]; then
-            echo "Installing internal @github/copilot@${RUNTIME_VERSION}"
-            npm install "@github/copilot@${RUNTIME_VERSION}" --save-exact --ignore-scripts
-            node scripts/set-cli-version.js "$RUNTIME_VERSION" --npm-package
-          else
-            echo "Pinning github/copilot-cli release ${RUNTIME_VERSION}"
-            node scripts/set-cli-version.js "$RUNTIME_VERSION"
-            npm install --ignore-scripts
-          fi
-
-      - name: Verify release runtime
-        run: |
-          set -euo pipefail
-          runtime_path=$(npm run --silent prepare:runtime -- --print-path)
-          node -e "
-            const fs = require('node:fs');
-            const path = require('node:path');
-            const runtime = process.argv[1];
-            const runtimeStat = fs.statSync(runtime);
-            if (!runtimeStat.isFile()) throw new Error('Runtime wrapper is not a file');
-            if (process.platform !== 'win32' && (runtimeStat.mode & 0o111) === 0) {
-              throw new Error('Runtime wrapper is not executable');
-            }
-            if (!fs.statSync(path.join(path.dirname(runtime), 'runtime.node')).isFile()) {
-              throw new Error('runtime.node is not adjacent to the runtime wrapper');
-            }
-          " "$runtime_path"
-          legacy_path=$(npm run --silent prepare:runtime -- --print-legacy-path)
-          node "$legacy_path" --version | grep -F "$RUNTIME_VERSION"
+          node scripts/set-cli-version.js "$RUNTIME_VERSION" --local-package
+          runtime_path="$(npm run --silent prepare:runtime -- --print-path)"
+          "$runtime_path" --version | grep -F "$RUNTIME_VERSION"
           echo "COPILOT_CLI_PATH=$runtime_path" >> "$GITHUB_ENV"
-
-      - name: Build SDK
-        run: npm run build
-
+      - run: npm run build
       - name: Warm up PowerShell
         if: runner.os == 'Windows'
         run: pwsh.exe -Command "Write-Host 'PowerShell ready'"
-
-      - name: Run Node.js SDK e2e tests
+      - name: Run Node SDK tests
         env:
           COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
         run: npm test
 
-  publish:
-    name: "Publish SDK canary (internal feed)"
-    needs: [resolve, test]
-    # Publish runs only when the gate permits it. Mode governs behavior:
-    #  - tests-only: never publish (skips this job entirely).
-    #  - publish: publish only when the e2e gate is green (the default for both
-    #    the human and automated triggers).
-    #  - publish-force: publish even on a non-green gate — a human-acknowledged
-    #    flake override, audited via the ::warning:: step below and the run actor.
-    # publish-force only skips the e2e *signal* — the publish job still runs the
-    # build (so a broken build can't publish) and enforces the feed-only guards.
-    if: >
-      !cancelled() &&
-      github.event.repository.fork == false &&
-      needs.resolve.result == 'success' &&
-      needs.resolve.outputs.PUBLISH_MODE != 'tests-only' &&
-      (needs.test.result == 'success' ||
-       needs.resolve.outputs.PUBLISH_MODE == 'publish-force')
-    environment: cicd
+  package:
+    name: Build and verify nine SDK packages
+    needs: [resolve, acquire-runtime, test]
     runs-on: ubuntu-latest
     permissions:
+      actions: read
       contents: read
-      id-token: write
-    env:
-      RUNTIME_VERSION: ${{ needs.resolve.outputs.RUNTIME_VERSION }}
-      RUNTIME_SOURCE: ${{ needs.resolve.outputs.RUNTIME_SOURCE }}
+    outputs:
+      artifact_name: ${{ steps.identity.outputs.artifact_name }}
+      sdk_version: ${{ steps.identity.outputs.sdk_version }}
     defaults:
       run:
         shell: bash
         working-directory: ./nodejs
     steps:
-      - name: Warn — publishing despite failed e2e gate (publish-force)
-        # always() so this audit is never skipped by prior-step status; it fires
-        # specifically when publish proceeded on a non-green gate via publish-force.
-        # Runs at the workspace root because it executes before checkout, so the
-        # job's default working-directory (./nodejs) does not exist yet.
-        if: always() && needs.test.result != 'success' && needs.resolve.outputs.PUBLISH_MODE == 'publish-force'
-        working-directory: ${{ github.workspace }}
-        run: |
-          echo "::warning title=e2e gate bypassed::Publishing SDK canary despite a non-passing e2e gate (test job result: ${{ needs.test.result }}) via publish-force. Triggered by '${{ github.actor }}' through '${{ github.event_name }}'. The e2e signal was bypassed; build + feed-only guards still apply."
-
       - uses: actions/checkout@v6.0.2
+      - uses: actions/setup-node@v6
+        with:
+          cache: npm
+          cache-dependency-path: ./nodejs/package-lock.json
+          node-version: 22
+      - run: npm ci --ignore-scripts
+      - uses: actions/download-artifact@v8.0.0
+        with:
+          name: canary-runtime-${{ needs.resolve.outputs.runtime_version }}-${{ needs.resolve.outputs.runtime_sha }}
+          path: ${{ runner.temp }}/runtime-packages
+      - name: Freeze SDK canary version
+        id: identity
+        env:
+          SDK_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          PUBLIC_LATEST="$(node scripts/get-version.js current)"
+          BASE="${PUBLIC_LATEST%%-*}"
+          IFS=. read -r MAJOR MINOR PATCH <<< "$BASE"
+          SDK_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))-canary.${GITHUB_RUN_NUMBER}.g${SDK_SHA:0:7}"
+          npm exec -- semver "$SDK_VERSION"
+          echo "sdk_version=$SDK_VERSION" >> "$GITHUB_OUTPUT"
+          echo "artifact_name=nodejs-canary-$SDK_VERSION" >> "$GITHUB_OUTPUT"
+      - name: Build package set
+        env:
+          COPILOT_SDK_RUNTIME_PACKAGE_DIR: ${{ runner.temp }}/runtime-packages
+          RUNTIME_VERSION: ${{ needs.resolve.outputs.runtime_version }}
+          SDK_VERSION: ${{ steps.identity.outputs.sdk_version }}
+        run: |
+          set -euo pipefail
+          VERSION="$SDK_VERSION" node scripts/set-version.js
+          node scripts/set-cli-version.js "$RUNTIME_VERSION" --local-package
+          grep -F "COPILOT_CLI_USE_NPM_PACKAGE = false" src/cliVersion.ts
+          npm run build
+          npm run pack:release
+          npm run verify:release-packages
+      - name: Create retained release manifest
+        env:
+          RELEASE_CHANNEL: canary
+          RUNTIME_RUN_ID: ${{ needs.resolve.outputs.runtime_run_id }}
+          RUNTIME_SHA: ${{ needs.resolve.outputs.runtime_sha }}
+          RUNTIME_SOURCE: azure
+          RUNTIME_VERSION: ${{ needs.resolve.outputs.runtime_version }}
+          SDK_REF: ${{ github.ref }}
+          SDK_SHA: ${{ github.sha }}
+          SDK_VERSION: ${{ steps.identity.outputs.sdk_version }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+          WORKFLOW_RUN_NUMBER: ${{ github.run_number }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          WORKFLOW_CREATED_AT="$(gh api "/repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" --jq .created_at)"
+          export WORKFLOW_CREATED_AT
+          npm run release:manifest -- create release-manifest.json .
+          npm run release:manifest -- verify release-manifest.json .
+      - uses: actions/upload-artifact@v7.0.0
+        with:
+          name: ${{ steps.identity.outputs.artifact_name }}
+          path: |
+            nodejs/release-manifest.json
+            nodejs/github-copilot-sdk-*.tgz
+          if-no-files-found: error
+          retention-days: 30
 
+  publish-internal:
+    name: Publish and verify SDK canary internally
+    if: needs.resolve.outputs.mode == 'internal'
+    needs: [resolve, package]
+    runs-on: ubuntu-latest
+    environment: cicd
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6.0.2
       - uses: actions/setup-node@v6
         with:
           node-version: 22
-
-      # Default public registry: installs build deps and the currently pinned
-      # runtime. Do NOT write any feed .npmrc or scoped @github:registry line
-      # here, or npm ci would try to fetch the runtime from the upstream-less
-      # feed and 404.
-      - name: Install SDK dependencies
-        run: npm ci --ignore-scripts
-
-      - name: Compute SDK canary version
-        id: sdkver
-        env:
-          RUN_NUMBER: ${{ github.run_number }}
-          SHA: ${{ github.sha }}
-        run: |
-          set -euo pipefail
-          SHORT_SHA="${SHA:0:7}"
-          # Base the canary on the NEXT patch of the public SDK latest so canaries
-          # correlate with public releases: they sort ABOVE the current public
-          # latest and BELOW the eventual real release of that next patch (a
-          # prerelease of X.Y.Z always sorts below X.Y.Z), so a canary can never
-          # shadow the real release when it ships.
-          # Reuse the repo's own version helper (scripts/get-version.js) so this
-          # stays consistent with publish.yml: `current` returns the latest public
-          # dist-tag version, read-only from public npm (never the feed), then
-          # we bump the patch ourselves to keep strict patch+1 semantics.
-          PUBLIC_LATEST="$(node scripts/get-version.js current || true)"
-          BASE="${PUBLIC_LATEST%%-*}"; BASE="${BASE%%+*}"
-          if [[ "$BASE" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
-            NEXT="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.$(( BASH_REMATCH[3] + 1 ))"
-          else
-            echo "::error::Could not resolve public SDK latest version (got '$PUBLIC_LATEST'); refusing to publish a canary with an unknown base."
-            exit 1
-          fi
-          SDK_VERSION="${NEXT}-canary.${RUN_NUMBER}.g${SHORT_SHA}"
-          if [[ ! "$SDK_VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
-            echo "::error::Computed SDK canary version '$SDK_VERSION' is not valid semver."
-            exit 1
-          fi
-          echo "SDK canary version: $SDK_VERSION"
-          echo "SDK_VERSION=$SDK_VERSION" >> "$GITHUB_OUTPUT"
-
-      - name: Set package and runtime versions
-        env:
-          SDK_VERSION: ${{ steps.sdkver.outputs.SDK_VERSION }}
-        run: |
-          set -euo pipefail
-          npm version "$SDK_VERSION" --no-git-tag-version --allow-same-version
-          if [ "$RUNTIME_SOURCE" = "internal" ]; then
-            npm pkg set "dependencies.@github/copilot=$RUNTIME_VERSION"
-            node scripts/set-cli-version.js "$RUNTIME_VERSION" --npm-package
-          else
-            node scripts/set-cli-version.js "$RUNTIME_VERSION"
-          fi
-          echo "Pinned github/copilot-cli release to $(npm pkg get copilotCliVersion)"
-
-      - name: Build SDK
-        run: npm run build
-
-      - name: Package public release runtimes
-        if: env.RUNTIME_SOURCE == 'public'
-        run: npm run pack:release
-
-      - name: Azure Login (OIDC -> id-cpd-ci)
+      - run: npm ci --ignore-scripts
+        working-directory: ./nodejs
+      - uses: actions/download-artifact@v8.0.0
+        with:
+          name: ${{ needs.package.outputs.artifact_name }}
+          path: ./dist
+      - name: Azure login
         uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
         with:
-          client-id: "${{ vars.CPD_ID_CLIENT_ID }}" # id-cpd-ci
-          tenant-id: "${{ vars.CPD_ID_TENANT_ID }}"
           allow-no-subscriptions: true
-
-      # Auth-only .npmrc: just the two token lines, NO scoped registry line.
-      # The publish target is supplied explicitly via publishConfig + --registry.
-      - name: Configure feed auth (.npmrc)
+          client-id: ${{ vars.CPD_ID_CLIENT_ID }}
+          tenant-id: ${{ vars.CPD_ID_TENANT_ID }}
+      - name: Configure authentication-only Azure npm access
         run: |
           set -euo pipefail
           TOKEN="$(az account get-access-token --resource "$ADO_RESOURCE" --query accessToken -o tsv)"
           echo "::add-mask::$TOKEN"
-          # Derive the protocol-relative auth scopes from FEED_URL (single source
-          # of truth). NO scoped @github:registry line here — publish target is
-          # supplied explicitly via publishConfig + --registry.
           FEED_AUTH_REGISTRY="${FEED_URL#https:}"
           FEED_AUTH_BASE="${FEED_AUTH_REGISTRY%registry/}"
           printf '%s\n' \
             "${FEED_AUTH_REGISTRY}:_authToken=${TOKEN}" \
-            "${FEED_AUTH_BASE}:_authToken=${TOKEN}" > .npmrc
-          echo "Wrote auth-only .npmrc to ./nodejs"
-
-      # Belt and suspenders (2 of 3): pin the publish target in the package too.
-      - name: Set publishConfig registry
-        run: npm pkg set "publishConfig.registry=$FEED_URL"
-
-      # Belt and suspenders (3 of 3): fail loudly unless the effective publish
-      # target is the internal feed. Guards against ever reaching public npm.
-      - name: Assert publish target is the internal feed
+            "${FEED_AUTH_BASE}:_authToken=${TOKEN}" > "$HOME/.npmrc"
+      - name: Publish exact manifest package set
         run: |
-          set -euo pipefail
-          EFFECTIVE="$(npm pkg get publishConfig.registry | tr -d '"')"
-          echo "Effective publishConfig.registry: $EFFECTIVE"
-          if [ "$EFFECTIVE" != "$FEED_URL" ]; then
-            echo "::error::publishConfig.registry ('$EFFECTIVE') is not the internal feed ('$FEED_URL'). Refusing to publish."
-            exit 1
-          fi
-
-      - name: Publish SDK canary to internal feed
-        run: |
-          set -euo pipefail
-          if [ "$RUNTIME_SOURCE" = "internal" ]; then
-            node scripts/npm-release.js publish . canary "$FEED_URL" azure
-            exit
-          fi
-          shopt -s nullglob
-          TARBALLS=(./github-copilot-sdk-*.tgz)
-          if [ "${#TARBALLS[@]}" -ne 9 ]; then
-            echo "::error::Expected nine Node.js package tarballs, found ${#TARBALLS[@]}."
-            exit 1
-          fi
-          MAIN_TARBALL=""
-          for TARBALL in "${TARBALLS[@]}"; do
-            PACKAGE_NAME="$(tar -xOf "$TARBALL" package/package.json | jq -r .name)"
-            if [ "$PACKAGE_NAME" = "@github/copilot-sdk" ]; then
-              MAIN_TARBALL="$TARBALL"
-            else
-              node scripts/npm-release.js publish "$TARBALL" canary "$FEED_URL" azure
-            fi
-          done
-          if [ -z "$MAIN_TARBALL" ]; then
-            echo "::error::Main @github/copilot-sdk tarball not found."
-            exit 1
-          fi
-          node scripts/npm-release.js publish "$MAIN_TARBALL" canary "$FEED_URL" azure
-
-      - name: Summarize published canary
+          node nodejs/scripts/npm-release.js publish-manifest \
+            dist/release-manifest.json dist canary "$FEED_URL" azure
+      - name: Clean install and runtime version check
         env:
-          SDK_VERSION: ${{ steps.sdkver.outputs.SDK_VERSION }}
+          RUNTIME_VERSION: ${{ needs.resolve.outputs.runtime_version }}
+          SDK_VERSION: ${{ needs.package.outputs.sdk_version }}
         run: |
           set -euo pipefail
-          {
-            echo "## SDK canary published"
-            echo ""
-            echo "| | |"
-            echo "| --- | --- |"
-            if [ "$RUNTIME_SOURCE" = "public" ]; then
-              echo "| Runtime consumed | \`github/copilot-cli@${RUNTIME_VERSION}\` release assets |"
-            else
-              echo "| Runtime consumed | \`@github/copilot@${RUNTIME_VERSION}\` |"
-            fi
-            echo "| Canary SDK produced | \`@github/copilot-sdk@${SDK_VERSION}\` |"
-            echo "| Feed | ${FEED_URL} |"
-          } >> "$GITHUB_STEP_SUMMARY"
+          VERIFY_ROOT="$RUNNER_TEMP/sdk-canary-verification"
+          mkdir -p "$VERIFY_ROOT"
+          cd "$VERIFY_ROOT"
+          npm init -y >/dev/null
+          printf '%s\n' "@github:registry=${FEED_URL}" >> "$HOME/.npmrc"
+          npm install --ignore-scripts "@github/copilot-sdk@${SDK_VERSION}"
+          RUNTIME="./node_modules/@github/copilot-sdk-linux-x64/prebuilds/linux-x64/copilot-runtime"
+          "$RUNTIME" --version | grep -F "$RUNTIME_VERSION"

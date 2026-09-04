@@ -61,6 +61,8 @@ These secrets are used by the Java SDK Maven Central publishing workflow (`java-
 ## Secrets not managed in this repository
 
 * **`GITHUB_TOKEN`**: Automatically provided by GitHub Actions. No manual management required.
+  The unstable Node SDK workflow grants it `packages: read` only while acquiring
+  signed runtime packages from GitHub Packages.
 
 ## Further reading
 
