@@ -47,6 +47,32 @@ async fn should_call_rpc_ping_with_typed_params_and_result() {
 }
 
 #[tokio::test]
+async fn should_clear_the_managed_settings_cache() {
+    if super::support::skip_inprocess("managedSettings.clearCache is unavailable in-process") {
+        return;
+    }
+    with_e2e_context(
+        "rpc_server",
+        "should_clear_the_managed_settings_cache",
+        |ctx| {
+            Box::pin(async move {
+                let client = ctx.start_client().await;
+
+                client
+                    .rpc()
+                    .managed_settings()
+                    .clear_cache()
+                    .await
+                    .expect("clear managed settings cache");
+
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
+    .await;
+}
+
+#[tokio::test]
 async fn should_call_rpc_models_list_with_typed_result() {
     // TODO(cli-1.0.81-2): CLI 1.0.81-2 stopped honoring client-level GitHub tokens over the
     // in-process (FFI) host, which resolves auth from the ambient environment instead.

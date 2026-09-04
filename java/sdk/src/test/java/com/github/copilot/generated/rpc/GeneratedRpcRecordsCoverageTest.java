@@ -13,6 +13,7 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.copilot.TestUtil;
 
 /**
@@ -330,11 +331,24 @@ class GeneratedRpcRecordsCoverageTest {
                 null, null, null, null, null, null, null, null);
         assertEquals("sess-32", params.sessionId());
         assertEquals("claude-sonnet-5", params.modelId());
+        assertNull(params.autoTier());
         assertEquals("high", params.reasoningEffort());
         assertNull(params.reasoningSummary());
         assertNull(params.verbosity());
         assertNull(params.modelCapabilities());
         assertNull(params.deferIfModelChangeQueued());
+    }
+
+    @Test
+    void sessionModelSwitchParams_distinguishRequiredNullFromOmittedOptionalValue() {
+        var mapper = new ObjectMapper();
+        var switchAutoTier = mapper.valueToTree(new SessionModelSwitchAutoTierParams("sess-32", null, null));
+        assertTrue(switchAutoTier.has("autoTier"));
+        assertTrue(switchAutoTier.get("autoTier").isNull());
+
+        var switchTo = mapper.valueToTree(new SessionModelSwitchToParams("sess-32", "auto", null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null));
+        assertFalse(switchTo.has("autoTier"));
     }
 
     @Test

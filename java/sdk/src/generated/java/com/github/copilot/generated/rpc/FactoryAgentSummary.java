@@ -28,6 +28,7 @@ public record FactoryAgentSummary(
     /** Owning factory run identifier. */
     @JsonProperty("runId") String runId,
     /** Phase identifier active when the agent was launched, or null. */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("phaseId") String phaseId,
     /** Friendly, non-unique name intended for display */
     @JsonProperty("label") String label,

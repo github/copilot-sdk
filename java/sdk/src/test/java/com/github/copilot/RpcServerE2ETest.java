@@ -96,6 +96,17 @@ class RpcServerE2ETest {
     }
 
     @Test
+    void testShouldClearTheManagedSettingsCache() throws Exception {
+        ctx.configureForTest("rpc_server", "should_clear_the_managed_settings_cache");
+
+        try (var client = ctx.createClient()) {
+            client.start().get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+
+            client.getRpc().managedSettings.clearCache().get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        }
+    }
+
+    @Test
     void testShouldRejectLlmInferenceResponseFramesForMissingRequest() throws Exception {
         ctx.initializeProxy();
 

@@ -26,6 +26,7 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionToolsGetCurrentMetadataResult(
     /** Current tool metadata, or null when tools have not been initialized yet */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("tools") List<CurrentToolMetadata> tools
 ) {
 }

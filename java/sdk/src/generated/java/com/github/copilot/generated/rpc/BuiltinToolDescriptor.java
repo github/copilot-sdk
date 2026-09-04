@@ -24,16 +24,21 @@ public record BuiltinToolDescriptor(
     /** Stable name used to invoke the built-in tool. */
     @JsonProperty("name") String name,
     /** Optional human-readable title for the tool. */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("title") String title,
     /** Model-facing description of the tool's behavior. */
     @JsonProperty("description") String description,
     /** JSON Schema for the tool input, or null when the tool uses a custom format. */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("inputSchema") BuiltinToolInputSchema inputSchema,
     /** Optional supplemental usage instructions for the tool. */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("instructions") String instructions,
     /** Optional tool category discriminator. */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("type") String type,
     /** Optional custom input format used instead of a JSON Schema. */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("format") BuiltinToolFormat format,
     /** Policy describing which tool metadata may be recorded without obfuscation. */
     @JsonProperty("safeForTelemetry") Object safeForTelemetry,

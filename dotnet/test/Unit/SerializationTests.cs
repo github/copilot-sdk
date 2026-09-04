@@ -1175,6 +1175,35 @@ public class SerializationTests
     }
 #pragma warning restore GHCP001
 
+    [Fact]
+    public void ModelSwitchRequests_DistinguishRequiredNullFromOmittedOptionalValue()
+    {
+        var options = GetSerializerOptions();
+        var assembly = typeof(CopilotClient).Assembly;
+
+        var switchAutoTierType = assembly.GetType("GitHub.Copilot.Rpc.ModelSwitchAutoTierRequest");
+        Assert.NotNull(switchAutoTierType);
+        var switchAutoTierRequest = CreateInternalRequest(
+            switchAutoTierType!,
+            ("SessionId", "session-id"),
+            ("AutoTier", null));
+        using var switchAutoTierDocument = JsonDocument.Parse(
+            JsonSerializer.Serialize(switchAutoTierRequest, switchAutoTierType!, options));
+        Assert.True(switchAutoTierDocument.RootElement.TryGetProperty("autoTier", out var requiredAutoTier));
+        Assert.Equal(JsonValueKind.Null, requiredAutoTier.ValueKind);
+
+        var switchToType = assembly.GetType("GitHub.Copilot.Rpc.ModelSwitchToRequest");
+        Assert.NotNull(switchToType);
+        var switchToRequest = CreateInternalRequest(
+            switchToType!,
+            ("SessionId", "session-id"),
+            ("ModelId", "auto"),
+            ("AutoTier", null));
+        using var switchToDocument = JsonDocument.Parse(
+            JsonSerializer.Serialize(switchToRequest, switchToType!, options));
+        Assert.False(switchToDocument.RootElement.TryGetProperty("autoTier", out _));
+    }
+
     private static JsonSerializerOptions GetSerializerOptions()
     {
         var prop = typeof(CopilotClient)

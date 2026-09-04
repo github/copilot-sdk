@@ -38,12 +38,15 @@ public record SessionFactoryGetRunDetailResult(
     /** Epoch milliseconds when the run was created. */
     @JsonProperty("createdAt") Long createdAt,
     /** Epoch milliseconds when execution first started, or null before start. */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("startedAt") Long startedAt,
     /** Epoch milliseconds when the durable run was last updated. */
     @JsonProperty("updatedAt") Long updatedAt,
     /** Epoch milliseconds when the run completed, or null while nonterminal. */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("completedAt") Long completedAt,
     /** Current phase identity, or null before any phase is entered. */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("currentPhase") FactoryCurrentPhase currentPhase,
     /** Number of phases declared by the factory. */
     @JsonProperty("declaredPhaseCount") Long declaredPhaseCount,
@@ -56,12 +59,15 @@ public record SessionFactoryGetRunDetailResult(
     /** Resource ceilings declared by the factory. */
     @JsonProperty("declaredLimits") FactoryDeclaredLimits declaredLimits,
     /** Approved effective resource ceilings, or null until approved. */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("approved") FactoryDeclaredLimits approved,
     /** Epoch milliseconds when this live-overlay snapshot was observed. */
     @JsonProperty("observedAt") Long observedAt,
     /** Epoch milliseconds when the current active segment started, or null while inactive. */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("activeSegmentStartedAt") Long activeSegmentStartedAt,
     /** Terminal run outcome, or null while nonterminal. */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("terminal") FactoryRunTerminal terminal,
     /** Lifecycle and timing observations for each factory phase. */
     @JsonProperty("phases") List<FactoryPhaseObservation> phases,
