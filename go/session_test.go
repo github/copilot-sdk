@@ -80,6 +80,72 @@ func TestSession_SetModelOmitsContextTierWhenUnset(t *testing.T) {
 	if _, ok := params["contextTier"]; ok {
 		t.Fatalf("expected contextTier to be omitted, got %v", params["contextTier"])
 	}
+	if _, ok := params["autoTier"]; ok {
+		t.Fatalf("expected autoTier to be omitted, got %v", params["autoTier"])
+	}
+}
+
+func TestSession_SetModelForwardsAutoTier(t *testing.T) {
+	tier := AutoTierIntelligence
+	params := captureSetModelRequestForModel(t, "auto", &SetModelOptions{AutoTier: &tier})
+
+	if params["modelId"] != "auto" {
+		t.Fatalf("expected modelId auto, got %v", params["modelId"])
+	}
+	if params["autoTier"] != "intelligence" {
+		t.Fatalf("expected autoTier intelligence, got %v", params["autoTier"])
+	}
+}
+
+func TestSession_SetModelSendsExplicitNullAutoTierWhenCleared(t *testing.T) {
+	params := captureSetModelRequestForModel(t, "auto", &SetModelOptions{ResetAutoTier: true})
+
+	// An explicit null must survive to the wire. Omitting it would mean "leave
+	// the preference alone" rather than "use provider-default routing".
+	value, ok := params["autoTier"]
+	if !ok {
+		t.Fatal("expected autoTier to be present")
+	}
+	if value != nil {
+		t.Fatalf("expected autoTier to be null, got %v", value)
+	}
+}
+
+func TestSession_SetModelRejectsConflictingAutoTierOptions(t *testing.T) {
+	tier := AutoTierBalance
+	session := &Session{SessionID: "session-1"}
+
+	err := session.SetModel(context.Background(), "auto", &SetModelOptions{
+		AutoTier:      &tier,
+		ResetAutoTier: true,
+	})
+	if err == nil {
+		t.Fatal("expected an error when AutoTier and ResetAutoTier are both set")
+	}
+}
+
+func TestSession_SetAutoTierForwardsTier(t *testing.T) {
+	tier := AutoTierEfficiency
+	params := captureSetAutoTierRequest(t, &tier)
+
+	if params["sessionId"] != "session-1" {
+		t.Fatalf("expected sessionId session-1, got %v", params["sessionId"])
+	}
+	if params["autoTier"] != "efficiency" {
+		t.Fatalf("expected autoTier efficiency, got %v", params["autoTier"])
+	}
+}
+
+func TestSession_SetAutoTierSendsExplicitNull(t *testing.T) {
+	params := captureSetAutoTierRequest(t, nil)
+
+	value, ok := params["autoTier"]
+	if !ok {
+		t.Fatal("expected autoTier to be present")
+	}
+	if value != nil {
+		t.Fatalf("expected autoTier to be null, got %v", value)
+	}
 }
 
 func TestSession_MCPAuthRequestSendsHostToken(t *testing.T) {
@@ -283,6 +349,28 @@ func TestMCPOauthRequiredDataAllowsOptionalMetadata(t *testing.T) {
 
 func captureSetModelRequest(t *testing.T, opts *SetModelOptions) map[string]any {
 	t.Helper()
+	return captureModelRequest(t, "session.model.switchTo", func(session *Session) error {
+		return session.SetModel(context.Background(), "gpt-4.1", opts)
+	})
+}
+
+func captureSetModelRequestForModel(t *testing.T, model string, opts *SetModelOptions) map[string]any {
+	t.Helper()
+	return captureModelRequest(t, "session.model.switchTo", func(session *Session) error {
+		return session.SetModel(context.Background(), model, opts)
+	})
+}
+
+func captureSetAutoTierRequest(t *testing.T, autoTier *AutoTier) map[string]any {
+	t.Helper()
+	return captureModelRequest(t, "session.model.switchAutoTier", func(session *Session) error {
+		_, err := session.SetAutoTier(context.Background(), autoTier)
+		return err
+	})
+}
+
+func captureModelRequest(t *testing.T, method string, invoke func(*Session) error) map[string]any {
+	t.Helper()
 
 	stdinR, stdinW := io.Pipe()
 	stdoutR, stdoutW := io.Pipe()
@@ -314,8 +402,8 @@ func captureSetModelRequest(t *testing.T, opts *SetModelOptions) map[string]any 
 			errCh <- err
 			return
 		}
-		if request.Method != "session.model.switchTo" {
-			errCh <- fmt.Errorf("expected session.model.switchTo, got %s", request.Method)
+		if request.Method != method {
+			errCh <- fmt.Errorf("expected %s, got %s", method, request.Method)
 			return
 		}
 
@@ -324,7 +412,7 @@ func captureSetModelRequest(t *testing.T, opts *SetModelOptions) map[string]any 
 		response := map[string]any{
 			"jsonrpc": "2.0",
 			"id":      json.RawMessage(request.ID),
-			"result":  map[string]any{},
+			"result":  map[string]any{"status": "pending"},
 		}
 		data, err := json.Marshal(response)
 		if err != nil {
@@ -342,8 +430,8 @@ func captureSetModelRequest(t *testing.T, opts *SetModelOptions) map[string]any 
 		client:    client,
 		RPC:       rpc.NewSessionRPC(client, "session-1"),
 	}
-	if err := session.SetModel(context.Background(), "gpt-4.1", opts); err != nil {
-		t.Fatalf("SetModel failed: %v", err)
+	if err := invoke(session); err != nil {
+		t.Fatalf("model request failed: %v", err)
 	}
 
 	select {
@@ -352,7 +440,7 @@ func captureSetModelRequest(t *testing.T, opts *SetModelOptions) map[string]any 
 	case err := <-errCh:
 		t.Fatal(err)
 	case <-time.After(2 * time.Second):
-		t.Fatal("timed out waiting for session.model.switchTo request")
+		t.Fatalf("timed out waiting for %s request", method)
 	}
 	return nil
 }

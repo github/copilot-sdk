@@ -92,6 +92,7 @@ from .generated.session_events import (
 )
 from .session import (
     AutoModeSwitchHandler,
+    AutoTier,
     BearerTokenProvider,
     CommandDefinition,
     ContextTier,
@@ -264,10 +265,6 @@ def _exp_assignment_response_to_dict(
     return wire
 
 
-AutoTier = Literal["efficiency", "balance", "intelligence"]
-"""Routing preference used when the session model is ``auto``."""
-
-
 class CapiSessionOptions(TypedDict, total=False):
     """Provider-scoped Copilot API (CAPI) session options."""
 
@@ -276,9 +273,13 @@ class CapiSessionOptions(TypedDict, total=False):
 
     Requires a runtime with Auto tier support and V2 Auto routing. When omitted
     on create, the runtime uses its default routing behavior. The runtime persists
-    this preference across cold resume; an explicit tier on cold resume overrides
-    the persisted value. For an already-resident session, omission preserves the
-    current tier and a different tier is rejected.
+    this preference across cold resume; when omitted on cold resume, it restores
+    the last committed preference. On resident resume, a different tier requests a
+    safe switch that takes effect after resume succeeds and never disturbs a turn
+    that is already running.
+
+    To change the preference on a live session, call
+    :meth:`CopilotSession.set_auto_tier` instead.
     """
 
     enable_web_socket_responses: bool

@@ -2447,9 +2447,11 @@ public sealed class CapiSessionOptions
     /// </summary>
     /// <remarks>
     /// Requires a runtime that supports Auto tiers; it has no effect outside V2 Auto.
-    /// When omitted, the runtime uses its default on create and preserves the persisted or current
-    /// tier on resume. An explicit tier overrides the persisted tier on a cold resume; a conflicting
-    /// tier on a resident session resume is rejected by the runtime.
+    /// When omitted, the runtime uses its default on create and restores the last committed
+    /// tier on cold resume. On resident resume, a different tier requests a safe switch that
+    /// takes effect after resume succeeds and never disturbs a turn that is already running.
+    /// To change the preference on a live session, use
+    /// <see cref="CopilotSession.SetAutoTierAsync"/>.
     /// </remarks>
     [JsonPropertyName("autoTier")]
     public AutoTier? AutoTier { get; set; }
@@ -3017,6 +3019,26 @@ public struct SetModelOptions
 
     /// <summary>Per-property overrides for model capabilities, deep-merged over runtime defaults.</summary>
     public ModelCapabilitiesOverride? ModelCapabilities { get; set; }
+
+    /// <summary>
+    /// Routing preference to stage atomically with selecting the <c>auto</c> model.
+    /// </summary>
+    /// <remarks>
+    /// Leave unset to leave the current preference alone. Set
+    /// <see cref="ResetAutoTier"/> instead to return to the provider's default Auto
+    /// routing. The runtime rejects this option when the model is anything other than
+    /// <c>auto</c>; use <see cref="CopilotSession.SetAutoTierAsync"/> to change the
+    /// preference without changing the selected model.
+    /// </remarks>
+    [Experimental(Diagnostics.Experimental)]
+    public AutoTier? AutoTier { get; set; }
+
+    /// <summary>
+    /// Returns to the provider's default Auto routing as part of this switch.
+    /// Mutually exclusive with <see cref="AutoTier"/>.
+    /// </summary>
+    [Experimental(Diagnostics.Experimental)]
+    public bool ResetAutoTier { get; set; }
 }
 
 /// <summary>

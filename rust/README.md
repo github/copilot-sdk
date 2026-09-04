@@ -380,9 +380,30 @@ let config = SessionConfig::default()
 The same options work with `ResumeSessionConfig::with_capi` and can be combined
 with `with_enable_web_socket_responses(false)`. The SDK omits an unset tier:
 the runtime chooses its default on create and preserves the persisted/current
-tier on resume. An explicit tier overrides the persisted tier on cold resume;
-the runtime rejects a conflicting tier when the session is already resident
-in memory. The SDK does not choose a default or manage tier persistence.
+tier on resume. An explicit tier overrides the persisted tier on cold resume. On
+resident resume, a different tier requests a safe switch applied after the
+resume succeeds; it cannot change a turn that is already in flight. The SDK does not choose a default or manage tier persistence.
+
+### Changing the Auto tier during a session
+
+Change the Auto routing preference without changing the selected model. The runtime does not apply the preference immediately: it records the request and commits it only when a later user turn using the `auto` model successfully obtains a usable model from the provider, so a `pending` status confirms acceptance rather than effect. Only the most recent request survives.
+
+Watch for the outcome through the `session.model_change` event on success or the ephemeral `session.auto_tier_switch_failed` event on failure. Read the authoritative committed, pending, and activating preferences at any time through the session's `model.getCurrent` RPC method.
+
+```rust,ignore
+use github_copilot_sdk::{AutoTier, ModelSwitchAutoTierStatus};
+
+let result = session.set_auto_tier(Some(AutoTier::Intelligence)).await?;
+if result.status == ModelSwitchAutoTierStatus::Pending {
+    // Accepted, but not yet in effect.
+}
+
+// Return to the provider's default Auto routing.
+session.set_auto_tier(None).await?;
+```
+
+`set_model` accepts the same preference through `SetModelOptions::with_auto_tier`, which stages the tier atomically with selecting `auto`. Use `with_reset_auto_tier` instead to return to provider-default routing.
+
 See [Auto tier persistence](../docs/features/session-persistence.md#auto-tier-persistence)
 for the lifecycle rules.
 
@@ -696,6 +717,36 @@ while let Ok(event) = events.recv().await {
 
 When streaming is off (the default), only the final `assistant.message` and `assistant.reasoning` events fire. Delta events arrive in order; concatenating their `delta` text payloads reproduces the final message.
 
+#### Subscribing before the session starts
+
+`session.subscribe()` can only be called once the session exists, so any event the runtime emits while `session.create` / `session.resume` is still in flight is broadcast with no receiver installed and is not delivered. Ephemeral events such as `session.idle` are not written to the session log either, so `get_messages` can't recover them afterwards.
+
+`Client::prepare_session` / `Client::prepare_resume_session` close that window. They return a `PreparedSession` that owns the session's broadcast channel up front:
+
+```rust,ignore
+let prepared = client.prepare_session(
+    SessionConfig::default().with_event_buffer_capacity(2048),
+)?;
+
+// Installed before any wire activity happens.
+let mut events = prepared.subscribe();
+tokio::spawn(async move {
+    while let Ok(event) = events.recv().await {
+        println!("{}", event.event_type);
+    }
+});
+
+let session = prepared.start().await?;
+```
+
+`prepare_*` is synchronous and inert — it validates the buffer capacity, allocates a local channel and cancellation token, and touches neither the router nor the transport until `start()` is first polled. `start(self)` consumes the handle and `PreparedSession` is deliberately not `Clone`, so a prepared session can never spawn two event loops. Dropping an unstarted handle leaves no state and closes its subscriptions; dropping the `start()` future cancels the startup, unregisters the session, and lets a same-ID retry succeed. Cleanup removes only the exact registration that startup owned, so a retry started while an abandoned attempt is still unwinding is never evicted by it.
+
+The buffer is finite — `session::DEFAULT_EVENT_BUFFER_CAPACITY` (512) unless `event_buffer_capacity` overrides it, and `Some(0)` is rejected as `ErrorKind::InvalidConfig` rather than clamped. Subscribers that fall behind observe `RecvErrorKind::Lagged` with the skipped count instead of applying backpressure, so a consumer that needs a lossless view of a large startup burst must configure enough capacity or drain concurrently with `start()`.
+
+For cloud sessions where the server assigns the session ID, notifications can't be routed until the create response arrives; the guarantee is that *routed* events are never dropped for lack of a receiver. Pin `session_id` for full pre-response coverage.
+
+`create_session` / `resume_session` are unchanged wrappers over `prepare_*(...)?.start()`, with identical RPC sequences and error kinds.
+
 ### Infinite Sessions
 
 Enable the SDK's session-store integration so conversations persist across CLI restarts and grow beyond the model's context window via automatic compaction:
@@ -899,6 +950,12 @@ none of them are scheduled for removal.
   arg vectors for "prepend before subcommand" vs "append after the
   built-in flags", giving precise control over CLI invocation order
   without string-splicing.
+- **`Client::prepare_session` / `prepare_resume_session`** — return an inert
+  `PreparedSession` whose `subscribe()` installs an event receiver before any
+  protocol activity, so startup events (including ephemeral `session.idle`)
+  aren't dropped. Other SDKs register callbacks on a config object instead,
+  which sidesteps the problem in a way Rust's broadcast-based `subscribe()`
+  cannot.
 
 ## Layout
 
@@ -906,7 +963,7 @@ none of them are scheduled for removal.
 | ----------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | `lib.rs`          | `Client`, `ClientOptions`, `CliProgram`, `Transport`, `Error`                                                              |
 | `extension_launch_provider.rs` | Connection-global `ExtensionLaunchProvider` trait and launch profile DTOs                                      |
-| `session.rs`      | `Session` struct, event loop, `send`/`send_and_wait`, `Client::create_session`/`resume_session`                            |
+| `session.rs`      | `Session` struct, `PreparedSession`, event loop, `send`/`send_and_wait`, `Client::create_session`/`resume_session`/`prepare_session`/`prepare_resume_session` |
 | `subscription.rs` | `EventSubscription` / `LifecycleSubscription` (`Stream`-able observer handles for `subscribe()` / `subscribe_lifecycle()`) |
 | `handler.rs`      | `PermissionHandler`, `ElicitationHandler`, `UserInputHandler`, `ExitPlanModeHandler`, `AutoModeSwitchHandler` traits; `ApproveAllHandler`, `DenyAllHandler`           |
 | `hooks.rs`        | `SessionHooks` trait, `HookEvent`/`HookOutput` enums, typed hook inputs/outputs                                            |
@@ -928,7 +985,7 @@ Enable `bundled-in-process` to additionally embed the native runtime library
 and use `Transport::InProcess`:
 
 ```toml
-github-copilot-sdk = { version = "0.1", features = ["bundled-in-process"] }
+github-copilot-sdk = { version = "1", features = ["bundled-in-process"] }
 ```
 
 `CliProgram::Path` and raw `ClientOptions::extra_args` apply only to
@@ -938,7 +995,7 @@ provisioned compatible runtime package with in-process transport.
 For builds that prefer a smaller artifact, disable the `bundled-cli` feature:
 
 ```toml
-github-copilot-sdk = { version = "0.1", default-features = false }
+github-copilot-sdk = { version = "1", default-features = false }
 ```
 
 > **You become responsible for supplying the runtime at deployment.** With
@@ -1076,20 +1133,17 @@ Supported: `darwin-arm64`, `darwin-x64`, `linux-x64`, `linux-arm64`, `win32-x64`
 | `derive` | — | `schema_for::<T>()` for generating JSON Schema from Rust types (adds `schemars`). |
 
 ```toml
-# These examples use registry syntax for illustration; until the crate is
-# published, use a path or git dependency instead.
-
 # Default — bundles the Copilot CLI in your binary.
-github-copilot-sdk = "0.1"
+github-copilot-sdk = "1"
 
 # Enable the in-process transport and bundle its native runtime library.
-github-copilot-sdk = { version = "0.1", features = ["bundled-in-process"] }
+github-copilot-sdk = { version = "1", features = ["bundled-in-process"] }
 
 # Opt out of bundling — supply the CLI explicitly at runtime.
-github-copilot-sdk = { version = "0.1", default-features = false }
+github-copilot-sdk = { version = "1", default-features = false }
 
 # Derive JSON Schema for tool parameters (adds to default bundled-cli).
-github-copilot-sdk = { version = "0.1", features = ["derive"] }
+github-copilot-sdk = { version = "1", features = ["derive"] }
 ```
 
 ## Development

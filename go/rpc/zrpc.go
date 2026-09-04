@@ -1070,6 +1070,49 @@ type AuthValidationError struct {
 // removed.
 type AuthValidationErrors []AuthValidationError
 
+// Current per-window credit limit and consumption for an autopilot objective.
+// Experimental: AutopilotObjectiveCreditLimit is part of an experimental API and may change
+// or be removed.
+type AutopilotObjectiveCreditLimit struct {
+	// Configured AI-credit cap, when one is set.
+	Credits *float64 `json:"credits,omitempty"`
+	// Window consumption in fractional AI credits, for display.
+	CreditsUsed float64 `json:"creditsUsed"`
+	// Exact window consumption in non-negative integer nano-AIU, encoded as a decimal string.
+	CreditsUsedNanoAiu string `json:"creditsUsedNanoAiu"`
+}
+
+// Canonical runtime state for the session's current autopilot objective.
+// Experimental: AutopilotObjectiveGetStateResult is part of an experimental API and may
+// change or be removed.
+type AutopilotObjectiveGetStateResult struct {
+	// Current objective state, or `null` when the session has no objective.
+	State *AutopilotObjectiveState `json:"state"`
+}
+
+// Public, persistence-independent projection of an autopilot objective.
+// Experimental: AutopilotObjectiveState is part of an experimental API and may change or be
+// removed.
+type AutopilotObjectiveState struct {
+	// Optional summary recorded when the objective completed.
+	CompletionSummary *string `json:"completionSummary,omitempty"`
+	// Exact lifetime AI-credit consumption in non-negative integer nano-AIU, encoded as a
+	// decimal string.
+	CreditCountNanoAiu string `json:"creditCountNanoAiu"`
+	// Current per-window consumption and optional cap, when a credit-tracking window is present.
+	CreditLimit *AutopilotObjectiveCreditLimit `json:"creditLimit,omitempty"`
+	// Session-local objective identifier.
+	ID int64 `json:"id"`
+	// User-provided objective text.
+	Objective string `json:"objective"`
+	// Optional reason the objective is paused.
+	PauseReason *string `json:"pauseReason,omitempty"`
+	// Current normalized lifecycle status.
+	Status AutopilotObjectiveStatus `json:"status"`
+	// Number of objective turns started.
+	TurnCount int64 `json:"turnCount"`
+}
+
 // The running runtime's complete catalog of well-known built-in model IDs, including
 // supported models and additional IDs with built-in metadata.
 // Experimental: BuiltInModelCatalog is part of an experimental API and may change or be
@@ -6522,6 +6565,10 @@ type MCPServer struct {
 	Error *string `json:"error,omitempty"`
 	// Server name (config key)
 	Name string `json:"name"`
+	// Server-advertised metadata for a connected server. Omitted when no live connection
+	// metadata is available, including while pending or when failed, disabled, stopped, or not
+	// configured.
+	ServerMetadata *MCPServerMetadata `json:"serverMetadata,omitempty"`
 	// Configuration source: user, workspace, plugin, or builtin
 	Source *MCPServerSource `json:"source,omitempty"`
 	// Plugin name that provided this server, when source is plugin.
@@ -6692,6 +6739,15 @@ type MCPServerList struct {
 	Host *MCPHostState `json:"host,omitempty"`
 	// Configured MCP servers
 	Servers []MCPServer `json:"servers"`
+}
+
+// Server-advertised metadata learned through modern discovery or legacy initialization.
+// Experimental: MCPServerMetadata is part of an experimental API and may change or be
+// removed.
+type MCPServerMetadata struct {
+	// Non-empty natural-language guidance for using the server, or null when the server omitted
+	// instructions or advertised an empty string.
+	Instructions *string `json:"instructions"`
 }
 
 // Recorded MCP server pending-auth state.
@@ -9011,6 +9067,8 @@ type PluginInstallResult struct {
 	PostInstallMessage *string `json:"postInstallMessage,omitempty"`
 	// Number of skills discovered and installed from the plugin
 	SkillsInstalled int64 `json:"skillsInstalled"`
+	// Where the completed plugin tree was staged before atomic promotion
+	StagingMode *PluginInstallStagingMode `json:"stagingMode,omitempty"`
 }
 
 // Plugins installed for the session, with their enabled state and version metadata.
@@ -14155,6 +14213,10 @@ type SlashCommandSelectSubcommandOption struct {
 // Experimental: SlashCommandTimelineEntry is part of an experimental API and may change or
 // be removed.
 type SlashCommandTimelineEntry struct {
+	// What the user must do to recover, when the entry reports a failure the runtime knows an
+	// action for. The `text` never names a client affordance, so a client that offers one
+	// renders it from this value.
+	Remediation *RemediationAction `json:"remediation,omitempty"`
 	// Text displayed for the timeline entry.
 	Text string `json:"text"`
 	// Timeline entry presentation type.
@@ -16429,6 +16491,20 @@ const (
 	AuthInfoTypeUser            AuthInfoType = "user"
 )
 
+// Current normalized autopilot objective lifecycle status.
+// Experimental: AutopilotObjectiveStatus is part of an experimental API and may change or
+// be removed.
+type AutopilotObjectiveStatus string
+
+const (
+	// The objective is actively running.
+	AutopilotObjectiveStatusActive AutopilotObjectiveStatus = "active"
+	// The objective completed.
+	AutopilotObjectiveStatusCompleted AutopilotObjectiveStatus = "completed"
+	// The objective is paused and may be resumed.
+	AutopilotObjectiveStatusPaused AutopilotObjectiveStatus = "paused"
+)
+
 // Routing preference used when the session model is `auto`.
 // Experimental: AutoTier is part of an experimental API and may change or be removed.
 type AutoTier string
@@ -18495,6 +18571,18 @@ const (
 	PermissionsSetApproveAllSourceUserSetting PermissionsSetApproveAllSource = "user_setting"
 )
 
+// Where completed plugin content was staged before atomic promotion.
+// Experimental: PluginInstallStagingMode is part of an experimental API and may change or
+// be removed.
+type PluginInstallStagingMode string
+
+const (
+	// A sibling of the destination plugin directory, used when external staging is unavailable.
+	PluginInstallStagingModeDestinationSibling PluginInstallStagingMode = "destination_sibling"
+	// A sibling of the installed-plugins root, outside the recursively watched tree.
+	PluginInstallStagingModeExternal PluginInstallStagingMode = "external"
+)
+
 // Controls whether the runtime may defer loading an external tool definition.
 // Experimental: ProtocolExternalToolDefer is part of an experimental API and may change or
 // be removed.
@@ -18642,6 +18730,31 @@ const (
 	ReasoningSummaryDetailed ReasoningSummary = "detailed"
 	// Do not request reasoning summaries from the model.
 	ReasoningSummaryNone ReasoningSummary = "none"
+)
+
+// What the user must do to recover from a failure, named as an action rather than as one
+// client's affordance. The runtime cannot know which affordance a client offers — a slash
+// command, a settings pane, a link — so the accompanying message stays host-agnostic and
+// each client renders its own copy from this value. Absent when the runtime knows of no
+// action the user can take.
+// Experimental: RemediationAction is part of an experimental API and may change or be
+// removed.
+type RemediationAction string
+
+const (
+	// Permit outbound network access in the sandbox policy.
+	RemediationActionAllowSandboxOutbound RemediationAction = "allow_sandbox_outbound"
+	// Review or widen the sandbox policy. The blocked path or host is named by the accompanying
+	// message or by the tool result the action arrived with.
+	RemediationActionReviewSandboxPolicy RemediationAction = "review_sandbox_policy"
+	// Inspect which account is currently authenticated before deciding what to change.
+	RemediationActionShowAccount RemediationAction = "show_account"
+	// Authenticate again with the Copilot backend. The current credential is absent, expired,
+	// or rejected.
+	RemediationActionSignIn RemediationAction = "sign_in"
+	// Authenticate as a different account. The current account exists but lacks access to the
+	// requested resource.
+	RemediationActionSwitchAccount RemediationAction = "switch_account"
 )
 
 // State discriminator for RemoteControlStatus.
@@ -21920,6 +22033,28 @@ func (a *AgentAPI) SetPrompt(ctx context.Context, params *AgentSetPromptRequest)
 		return nil, err
 	}
 	var result SessionAgentSetPromptResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: AutopilotObjectiveAPI contains experimental APIs that may change or be
+// removed.
+type AutopilotObjectiveAPI sessionAPI
+
+// GetState reads the current canonical autopilot objective state for this session.
+//
+// RPC method: session.autopilotObjective.getState.
+//
+// Returns: Canonical runtime state for the session's current autopilot objective.
+func (a *AutopilotObjectiveAPI) GetState(ctx context.Context) (*AutopilotObjectiveGetStateResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request(ctx, "session.autopilotObjective.getState", req)
+	if err != nil {
+		return nil, err
+	}
+	var result AutopilotObjectiveGetStateResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -27496,44 +27631,45 @@ type SessionRPC struct {
 	// Reuse a single struct instead of allocating one for each service on the heap.
 	common sessionAPI
 
-	Agent            *AgentAPI
-	Canvas           *CanvasAPI
-	Commands         *CommandsAPI
-	Completions      *CompletionsAPI
-	ContentExclusion *ContentExclusionAPI
-	Debug            *DebugAPI
-	EventLog         *EventLogAPI
-	Extensions       *ExtensionsAPI
-	Factory          *FactoryAPI
-	Fleet            *FleetAPI
-	GitHubAuth       *GitHubAuthAPI
-	History          *HistoryAPI
-	Instructions     *InstructionsAPI
-	LimitPrediction  *LimitPredictionAPI
-	Lsp              *LspAPI
-	MCP              *MCPAPI
-	Metadata         *MetadataAPI
-	Mode             *ModeAPI
-	Model            *ModelAPI
-	Name             *NameAPI
-	Options          *OptionsAPI
-	Permissions      *PermissionsAPI
-	Plan             *PlanAPI
-	Plugins          *PluginsAPI
-	Provider         *ProviderAPI
-	Queue            *QueueAPI
-	Remote           *RemoteAPI
-	Sandbox          *SandboxAPI
-	Schedule         *ScheduleAPI
-	Shell            *ShellAPI
-	Skills           *SkillsAPI
-	Tasks            *TasksAPI
-	Telemetry        *TelemetryAPI
-	Tools            *ToolsAPI
-	UI               *UIAPI
-	Usage            *UsageAPI
-	Visibility       *VisibilityAPI
-	Workspaces       *WorkspacesAPI
+	Agent              *AgentAPI
+	AutopilotObjective *AutopilotObjectiveAPI
+	Canvas             *CanvasAPI
+	Commands           *CommandsAPI
+	Completions        *CompletionsAPI
+	ContentExclusion   *ContentExclusionAPI
+	Debug              *DebugAPI
+	EventLog           *EventLogAPI
+	Extensions         *ExtensionsAPI
+	Factory            *FactoryAPI
+	Fleet              *FleetAPI
+	GitHubAuth         *GitHubAuthAPI
+	History            *HistoryAPI
+	Instructions       *InstructionsAPI
+	LimitPrediction    *LimitPredictionAPI
+	Lsp                *LspAPI
+	MCP                *MCPAPI
+	Metadata           *MetadataAPI
+	Mode               *ModeAPI
+	Model              *ModelAPI
+	Name               *NameAPI
+	Options            *OptionsAPI
+	Permissions        *PermissionsAPI
+	Plan               *PlanAPI
+	Plugins            *PluginsAPI
+	Provider           *ProviderAPI
+	Queue              *QueueAPI
+	Remote             *RemoteAPI
+	Sandbox            *SandboxAPI
+	Schedule           *ScheduleAPI
+	Shell              *ShellAPI
+	Skills             *SkillsAPI
+	Tasks              *TasksAPI
+	Telemetry          *TelemetryAPI
+	Tools              *ToolsAPI
+	UI                 *UIAPI
+	Usage              *UsageAPI
+	Visibility         *VisibilityAPI
+	Workspaces         *WorkspacesAPI
 }
 
 // Aborts the current agent turn.
@@ -27819,6 +27955,7 @@ func NewSessionRPC(client *jsonrpc2.Client, sessionID string) *SessionRPC {
 	r := &SessionRPC{}
 	r.common = sessionAPI{client: client, sessionID: sessionID}
 	r.Agent = (*AgentAPI)(&r.common)
+	r.AutopilotObjective = (*AutopilotObjectiveAPI)(&r.common)
 	r.Canvas = (*CanvasAPI)(&r.common)
 	r.Commands = (*CommandsAPI)(&r.common)
 	r.Completions = (*CompletionsAPI)(&r.common)

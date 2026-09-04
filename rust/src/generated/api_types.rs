@@ -11,10 +11,10 @@ use serde::{Deserialize, Serialize};
 
 use super::session_events::{
     AbortReason, AgentModelPolicy, AutoTier, ContextTier, McpOauthHttpResponse,
-    McpOauthWWWAuthenticateParams, McpServerSource, McpServerStatus, ModelChangeSource,
-    OmittedBinaryOmittedReason, PermissionMode, PermissionPromptRequest, PermissionRule,
-    ReasoningSummary, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource,
-    TaskCompletionOutcome, UserToolSessionApproval, Verbosity,
+    McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource, McpServerStatus,
+    ModelChangeSource, OmittedBinaryOmittedReason, PermissionMode, PermissionPromptRequest,
+    PermissionRule, ReasoningSummary, RemediationAction, SessionLimitsConfig, SessionMode,
+    ShutdownType, SkillSource, TaskCompletionOutcome, UserToolSessionApproval, Verbosity,
 };
 use crate::types::{RequestId, SessionEvent, SessionId};
 
@@ -355,6 +355,8 @@ pub mod rpc_methods {
     pub const SESSION_WORKSPACES_SAVELARGEPASTE: &str = "session.workspaces.saveLargePaste";
     /// `session.workspaces.diff`
     pub const SESSION_WORKSPACES_DIFF: &str = "session.workspaces.diff";
+    /// `session.autopilotObjective.getState`
+    pub const SESSION_AUTOPILOTOBJECTIVE_GETSTATE: &str = "session.autopilotObjective.getState";
     /// `session.completions.getTriggerCharacters`
     pub const SESSION_COMPLETIONS_GETTRIGGERCHARACTERS: &str =
         "session.completions.getTriggerCharacters";
@@ -2516,6 +2518,73 @@ pub struct AuthValidationError {
     pub github_message: Option<String>,
     /// Authentication validation error message
     pub message: String,
+}
+
+/// Current per-window credit limit and consumption for an autopilot objective.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AutopilotObjectiveCreditLimit {
+    /// Configured AI-credit cap, when one is set.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub credits: Option<f64>,
+    /// Window consumption in fractional AI credits, for display.
+    pub credits_used: f64,
+    /// Exact window consumption in non-negative integer nano-AIU, encoded as a decimal string.
+    pub credits_used_nano_aiu: String,
+}
+
+/// Public, persistence-independent projection of an autopilot objective.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AutopilotObjectiveState {
+    /// Optional summary recorded when the objective completed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub completion_summary: Option<String>,
+    /// Exact lifetime AI-credit consumption in non-negative integer nano-AIU, encoded as a decimal string.
+    pub credit_count_nano_aiu: String,
+    /// Current per-window consumption and optional cap, when a credit-tracking window is present.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub credit_limit: Option<AutopilotObjectiveCreditLimit>,
+    /// Session-local objective identifier.
+    pub id: i64,
+    /// User-provided objective text.
+    pub objective: String,
+    /// Optional reason the objective is paused.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pause_reason: Option<String>,
+    /// Current normalized lifecycle status.
+    pub status: AutopilotObjectiveStatus,
+    /// Number of objective turns started.
+    pub turn_count: i64,
+}
+
+/// Canonical runtime state for the session's current autopilot objective.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AutopilotObjectiveGetStateResult {
+    /// Current objective state, or `null` when the session has no objective.
+    pub state: Option<AutopilotObjectiveState>,
 }
 
 /// A well-known model in the runtime's built-in catalog.
@@ -9219,6 +9288,9 @@ pub struct McpServer {
     pub error: Option<String>,
     /// Server name (config key)
     pub name: String,
+    /// Server-advertised metadata for a connected server. Omitted when no live connection metadata is available, including while pending or when failed, disabled, stopped, or not configured.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub server_metadata: Option<McpServerMetadata>,
     /// Configuration source: user, workspace, plugin, or builtin
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source: Option<McpServerSource>,
@@ -12854,6 +12926,9 @@ pub struct PluginInstallResult {
     pub post_install_message: Option<String>,
     /// Number of skills discovered and installed from the plugin
     pub skills_installed: i64,
+    /// Where the completed plugin tree was staged before atomic promotion
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub staging_mode: Option<PluginInstallStagingMode>,
 }
 
 /// Plugins installed for the session, with their enabled state and version metadata.
@@ -19100,6 +19175,9 @@ pub struct SkillsLoadDiagnostics {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SlashCommandTimelineEntry {
+    /// What the user must do to recover, when the entry reports a failure the runtime knows an action for. The `text` never names a client affordance, so a client that offers one renders it from this value.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub remediation: Option<RemediationAction>,
     /// Text displayed for the timeline entry.
     pub text: String,
     /// Timeline entry presentation type.
@@ -22166,6 +22244,9 @@ pub struct PluginsInstallResult {
     pub post_install_message: Option<String>,
     /// Number of skills discovered and installed from the plugin
     pub skills_installed: i64,
+    /// Where the completed plugin tree was staged before atomic promotion
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub staging_mode: Option<PluginInstallStagingMode>,
 }
 
 /// Result of updating a single plugin.
@@ -24419,6 +24500,36 @@ pub struct SessionWorkspacesDiffResult {
     /// Why the session diff could not be produced, when applicable. Set only when `session` mode was requested and `isFallback` is true, so a client can tell the permanent `file-change-tracking-disabled` apart from the transient `session-busy`, which the same request answers once the session settles. Never set for `unstaged` or `branch` mode, and never `unsupported-remote-session`: a remote session's captures live on its own host, so a `session`-mode diff is rejected for one rather than answered with a controller-side fallback.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub unavailable_reason: Option<HistoryRewindUnavailableReason>,
+}
+
+/// Identifies the target session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionAutopilotObjectiveGetStateParams {
+    /// Target session identifier
+    pub session_id: SessionId,
+}
+
+/// Canonical runtime state for the session's current autopilot objective.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionAutopilotObjectiveGetStateResult {
+    /// Current objective state, or `null` when the session has no objective.
+    pub state: Option<AutopilotObjectiveState>,
 }
 
 /// Identifies the target session.
@@ -28668,6 +28779,31 @@ pub enum AuthInfoType {
     Unknown,
 }
 
+/// Current normalized autopilot objective lifecycle status.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AutopilotObjectiveStatus {
+    /// The objective is actively running.
+    #[serde(rename = "active")]
+    Active,
+    /// The objective is paused and may be resumed.
+    #[serde(rename = "paused")]
+    Paused,
+    /// The objective completed.
+    #[serde(rename = "completed")]
+    Completed,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// Custom input-format kind.
 ///
 /// <div class="warning">
@@ -32744,6 +32880,28 @@ pub enum PermissionsSetApproveAllSource {
     /// Allow-all was enabled through an RPC caller.
     #[serde(rename = "rpc")]
     Rpc,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Where completed plugin content was staged before atomic promotion.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PluginInstallStagingMode {
+    /// A sibling of the installed-plugins root, outside the recursively watched tree.
+    #[serde(rename = "external")]
+    External,
+    /// A sibling of the destination plugin directory, used when external staging is unavailable.
+    #[serde(rename = "destination_sibling")]
+    DestinationSibling,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

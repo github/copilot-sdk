@@ -981,7 +981,7 @@ Always include PINEAPPLE_COCONUT_42.
       }
     });
 
-    test("matches semantically equivalent interrupted shell results", async () => {
+    test("matches semantically equivalent interrupted tool results", async () => {
       const originalShellConfig =
         process.platform === "win32"
           ? ShellConfig.powerShell
@@ -1056,8 +1056,7 @@ Always include PINEAPPLE_COCONUT_42.
                 {
                   role: "tool",
                   tool_call_id: "runtime-call-id",
-                  content:
-                    "<shell context is being reconfigured; retry the command>",
+                  content: "Session aborted",
                 },
               ],
             },

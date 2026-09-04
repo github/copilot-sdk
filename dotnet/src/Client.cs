@@ -762,7 +762,13 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                         s_stderrPumpShutdownTimeout);
                 }
 
-                AddCleanupError(errors, ex, logger);
+                // Once the owned process has exited, stderr is diagnostic-only. A descendant
+                // can briefly retain the inherited pipe on Windows, but that must not turn a
+                // successful process shutdown into a client cleanup failure.
+                if (!processExited)
+                {
+                    AddCleanupError(errors, ex, logger);
+                }
             }
             catch (Exception ex)
             {

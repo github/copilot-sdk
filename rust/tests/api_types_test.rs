@@ -3,16 +3,17 @@
 
 #![allow(clippy::unwrap_used)]
 
-use github_copilot_sdk::AutoTier;
 use github_copilot_sdk::rpc::{
     Extension, ExtensionList, ExtensionSource, ExtensionStatus, ExtensionsDisableRequest,
     ExtensionsEnableRequest, FleetStartRequest, FleetStartResult, ModelSetAllowedModelsRequest,
-    ModelSetAllowedModelsResult, QueuePendingItems, QueuePendingItemsKind, SendAgentMode,
+    ModelSetAllowedModelsResult, ModelSwitchAutoTierRequest, ModelSwitchAutoTierResult,
+    ModelSwitchAutoTierStatus, QueuePendingItems, QueuePendingItemsKind, SendAgentMode,
     TasksStartAgentRequest,
 };
 use github_copilot_sdk::session_events::{
     PermissionRequest, PermissionRequestedData, SessionEventData, TypedSessionEvent,
 };
+use github_copilot_sdk::{AutoTier, AutoTierPreference, SetModelOptions};
 
 #[test]
 fn session_events_deserialize_auto_tier() {
@@ -233,4 +234,66 @@ fn running_extension(id: &str, name: &str) -> Extension {
         },
         status: ExtensionStatus::Running,
     }
+}
+
+#[test]
+fn switch_auto_tier_request_serializes_explicit_null_tier() {
+    // `autoTier` is a required field whose null value means "use provider-default
+    // routing", so it must survive serialization rather than being skipped.
+    let request = ModelSwitchAutoTierRequest {
+        auto_tier: None,
+        source: None,
+    };
+    let wire = serde_json::to_value(&request).unwrap();
+
+    assert_eq!(wire.get("autoTier"), Some(&serde_json::Value::Null));
+    assert!(wire.get("source").is_none());
+}
+
+#[test]
+fn switch_auto_tier_request_serializes_each_tier() {
+    for (tier, expected) in [
+        (AutoTier::Efficiency, "efficiency"),
+        (AutoTier::Balance, "balance"),
+        (AutoTier::Intelligence, "intelligence"),
+    ] {
+        let request = ModelSwitchAutoTierRequest {
+            auto_tier: Some(tier),
+            source: None,
+        };
+        let wire = serde_json::to_value(&request).unwrap();
+        assert_eq!(wire["autoTier"], serde_json::json!(expected));
+    }
+}
+
+#[test]
+fn switch_auto_tier_result_deserializes_full_snapshot() {
+    let result: ModelSwitchAutoTierResult = serde_json::from_value(serde_json::json!({
+        "status": "pending",
+        "effectiveAutoTier": "balance",
+        "pendingAutoTier": "intelligence",
+        "activatingAutoTier": null,
+        "supersededAutoTier": null
+    }))
+    .unwrap();
+
+    assert_eq!(result.status, ModelSwitchAutoTierStatus::Pending);
+    assert_eq!(result.effective_auto_tier, Some(AutoTier::Balance));
+    assert_eq!(result.pending_auto_tier, Some(AutoTier::Intelligence));
+    assert_eq!(result.activating_auto_tier, None);
+}
+
+#[test]
+fn set_model_options_distinguishes_unset_tier_from_reset() {
+    let untouched = SetModelOptions::default();
+    assert_eq!(untouched.auto_tier, None);
+
+    let explicit = SetModelOptions::default().with_auto_tier(AutoTier::Intelligence);
+    assert_eq!(
+        explicit.auto_tier,
+        Some(AutoTierPreference::Tier(AutoTier::Intelligence))
+    );
+
+    let cleared = SetModelOptions::default().with_reset_auto_tier();
+    assert_eq!(cleared.auto_tier, Some(AutoTierPreference::Reset));
 }

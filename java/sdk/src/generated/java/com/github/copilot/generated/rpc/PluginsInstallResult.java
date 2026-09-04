@@ -28,6 +28,8 @@ public record PluginsInstallResult(
     @JsonProperty("plugin") InstalledPluginInfo plugin,
     /** Number of skills discovered and installed from the plugin */
     @JsonProperty("skillsInstalled") Long skillsInstalled,
+    /** Where the completed plugin tree was staged before atomic promotion */
+    @JsonProperty("stagingMode") PluginInstallStagingMode stagingMode,
     /** Optional post-install message provided by the plugin (e.g. setup instructions) */
     @JsonProperty("postInstallMessage") String postInstallMessage,
     /** Set when the install path is deprecated (e.g. direct repo / URL / local installs). Callers should surface this to end users. */

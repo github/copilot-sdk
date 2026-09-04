@@ -2315,10 +2315,12 @@ type CapiSessionOptions struct {
 
 	// AutoTier selects the routing tier for model "auto" with V2 Auto.
 	// Requires a runtime that supports Auto tiers; it has no effect outside V2 Auto.
-	// When unset, the runtime uses its default on create and preserves the
-	// persisted or current tier on resume. An explicit tier overrides the
-	// persisted tier on a cold resume; a conflicting tier on a resident
-	// session resume is rejected by the runtime.
+	// When unset, the runtime uses its default on create and restores the last
+	// committed tier on cold resume. On resident resume, a different tier
+	// requests a safe switch that takes effect after resume succeeds and never
+	// disturbs a turn that is already running.
+	//
+	// To change the preference on a live session, use [Session.SetAutoTier].
 	AutoTier AutoTier `json:"autoTier,omitempty"`
 }
 
