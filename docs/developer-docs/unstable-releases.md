@@ -15,17 +15,17 @@ The runtime workflow dispatches `.github/workflows/runtime-sdk.yml`. This
 runtime-driven Node entry is separate from `publish.yml`, which remains the
 manual stable and prerelease entry for all SDK languages. `runtime-sdk.yml`
 invokes `runtime-backed-node-release.yml` for runtime acquisition,
-cross-platform tests, packaging, manifest retention, recovery, and optional
-internal publication. It alone contains public unstable npm publication.
+cross-platform tests, packaging, manifest retention, and optional internal
+publication. It alone contains public unstable npm publication.
 
 The runtime dispatch includes these inputs:
 
-* `channel`: `canary` or `unstable`
-* `runtime_version`: Exact runtime package version
-* `runtime_sha`: Lowercase, 40-character `github/copilot-agent-runtime` SHA
-* `runtime_source`: `azure` for canary or `github-packages` for unstable
-* `runtime_run_id`: Source runtime workflow run ID and receiver idempotency key
-* `mode`: `tests-only` or `internal` for canary; `internal` for unstable
+- `channel`: `canary` or `unstable`
+- `runtime_version`: Exact runtime package version
+- `runtime_sha`: Lowercase, 40-character `github/copilot-agent-runtime` SHA
+- `runtime_source`: `azure` for canary or `github-packages` for unstable
+- `runtime_run_id`: Source runtime workflow run ID and receiver idempotency key
+- `mode`: `tests-only` or `internal` for canary; `internal` for unstable
 
 Maintainers can dispatch `runtime-sdk.yml` directly with the same inputs. The
 optional `version` input is available only for unstable and must be an unstable
@@ -56,14 +56,15 @@ or recalculating its identity.
 
 Canary `tests-only` runs stop after package verification. Canary `internal`
 runs publish platform packages before the umbrella package to the Azure
-`copilot-canary` feed, then perform a clean install and runtime version check.
+`copilot-canary` feed, then perform a clean install and package version check.
 No canary job has a public npm publication path.
 
 Every unstable run publishes the retained platform tarballs and umbrella
 tarball to Azure first. A clean internal install must start the exact selected
-runtime before public publication begins. The public job uses npm trusted
-publishing from `runtime-sdk.yml` and publishes the same tarballs under the
-`unstable` dist-tag, with the umbrella package last.
+SDK package version before public publication begins. The strict acquisition
+and package validation gates verify the embedded runtime identity. The public
+job uses npm trusted publishing from `runtime-sdk.yml` and publishes the same
+tarballs under the `unstable` dist-tag, with the umbrella package last.
 
 Before either publication, the workflow checks all nine package coordinates.
 An existing package counts as complete only when registry integrity matches
@@ -87,13 +88,6 @@ provenance, but the runtime run ID is not part of the immutable release
 identity. Exact duplicate dispatches wait for and mirror the canonical run.
 If that run fails or is canceled, rerun the original run rather than
 dispatching another release.
-
-Use `resume_run_id` only when the canonical run cannot be rerun. Start a new
-manual `runtime-sdk.yml` unstable run with the same dispatch tuple and the
-canonical SDK workflow run ID. The workflow validates the marker and GitHub API
-provenance, downloads the canonical retained artifact, verifies its manifest
-and all nine SHA-512 integrity values, and uses the recorded identities. It
-never rebuilds or substitutes packages.
 
 ## Registry setup
 
