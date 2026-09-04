@@ -64,10 +64,12 @@ jobs:
           # CAPI model turns, causing repeated per-test timeouts until the
           # 30-minute job limit. Stdio CAPI and in-process BYOK remain enabled.
           # This affects every OS equally (it is a CLI/CAPI regression, not a
-          # platform-specific one), so Windows is excluded from the `capi`
-          # in-process cell for the same reason as Linux/macOS below; see the
-          # windows-latest/inprocess include cells further down for its
-          # in-process coverage via the alternate backends.
+          # platform-specific one), so Linux/macOS are excluded from the `capi`
+          # in-process cell here; see the ubuntu-latest/inprocess include cells
+          # further down for their in-process coverage via the alternate
+          # backends. windows-latest/inprocess has no in-process coverage at
+          # all right now (capi or otherwise) -- see the comment further down
+          # by the removed windows-latest/inprocess include cells for why.
           - os: ubuntu-latest
             transport: inprocess
           - os: macos-latest
@@ -186,28 +188,15 @@ jobs:
             backend: openai-completions
             shard: full
             test-filter: "FullyQualifiedName~GitHub.Copilot.Test.E2E&E2EBackend!=SelfConfiguredBackend&E2EBackend!=CapiOnly"
-          # Windows in-process coverage (github/copilot-sdk#2525). Previously excluded
-          # entirely because of a napi-oop cleanup race and a suspected in-process SQLite
-          # file-locking issue on shutdown; napi-oop is no longer used by the runtime, and
-          # FfiRuntimeHost.Dispose() now bounds its wait on native shutdown so a slow or
-          # stuck runtime teardown cannot hang the job. Uses the same non-capi backends as
-          # the Linux cell above to avoid the unrelated CLI 1.0.81-2 in-process CAPI
-          # regression tracked separately.
-          - os: windows-latest
-            transport: inprocess
-            backend: anthropic-messages
-            shard: full
-            test-filter: "FullyQualifiedName~GitHub.Copilot.Test.E2E&E2EBackend!=SelfConfiguredBackend&E2EBackend!=CapiOnly"
-          - os: windows-latest
-            transport: inprocess
-            backend: openai-responses
-            shard: full
-            test-filter: "FullyQualifiedName~GitHub.Copilot.Test.E2E&E2EBackend!=SelfConfiguredBackend&E2EBackend!=CapiOnly"
-          - os: windows-latest
-            transport: inprocess
-            backend: openai-completions
-            shard: full
-            test-filter: "FullyQualifiedName~GitHub.Copilot.Test.E2E&E2EBackend!=SelfConfiguredBackend&E2EBackend!=CapiOnly"
+          # Windows in-process coverage was attempted here (github/copilot-sdk#2525):
+          # FfiRuntimeHost.Dispose() now bounds its wait on native shutdown (see below),
+          # which should have made this safe to enable now that napi-oop is gone. But
+          # actually running it on real Windows CI (github/copilot-sdk#2531) reproduced
+          # native `System.AccessViolationException` crashes in ConnectionWrite during
+          # ordinary connection I/O -- unrelated to shutdown/disposal, and independently
+          # matched by a SIGSEGV in the Rust SDK's own Windows in-process CI in the same
+          # PR. That rules out an SDK-side binding bug; tracked upstream at
+          # github/copilot-agent-runtime#18990. Re-add windows-latest here once resolved.
     runs-on: ${{ matrix.os }}
     # A hung test used to run until the runner died (~50 min) and the dying
     # runner never uploaded its logs, so the failures were undiagnosable.
