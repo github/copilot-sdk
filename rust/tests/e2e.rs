@@ -29,10 +29,10 @@ mod copilot_request_handler;
 mod elicitation;
 #[path = "e2e/error_resilience.rs"]
 mod error_resilience;
-#[path = "e2e/external_tool_cancellation.rs"]
-mod external_tool_cancellation;
 #[path = "e2e/event_fidelity.rs"]
 mod event_fidelity;
+#[path = "e2e/external_tool_cancellation.rs"]
+mod external_tool_cancellation;
 #[path = "e2e/github_telemetry.rs"]
 mod github_telemetry;
 #[path = "e2e/hooks.rs"]

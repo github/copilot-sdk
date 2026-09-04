@@ -17,9 +17,7 @@ pytestmark = pytest.mark.asyncio(loop_scope="module")
 
 
 class TestExternalToolCancellation:
-    async def test_should_cancel_tool_handler_when_session_disconnects(
-        self, ctx: E2ETestContext
-    ):
+    async def test_should_cancel_tool_handler_when_session_disconnects(self, ctx: E2ETestContext):
         tool_started = asyncio.Event()
         tool_cancelled = asyncio.Event()
         release_tool: asyncio.Future = asyncio.get_event_loop().create_future()
