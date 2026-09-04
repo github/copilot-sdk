@@ -206,45 +206,45 @@ async fn extract_dir_runtime_override_is_honored() {
 #[test]
 fn pin_file_when_present_is_well_formed() {
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
-    let (filename, expected_package_count) = if cfg!(feature = "bundled-in-process") {
-        ("cli-version-in-process.txt", 8)
-    } else {
-        ("cli-version.txt", 6)
-    };
-    let pin = PathBuf::from(manifest_dir).join(filename);
-    if !pin.is_file() {
-        // Contributor build path — no assertion needed.
-        return;
-    }
-    let contents = std::fs::read_to_string(&pin).expect("read CLI version snapshot");
-    let mut saw_version = false;
-    let mut package_count = 0;
-    for raw in contents.lines() {
-        let line = raw.trim();
-        if line.is_empty() || line.starts_with('#') {
+    for filename in ["cli-version.txt", "cli-version-in-process.txt"] {
+        let pin = PathBuf::from(manifest_dir).join(filename);
+        if !pin.is_file() {
+            // Contributor build path — no assertion needed.
             continue;
         }
-        let (key, value) = line
-            .split_once('=')
-            .unwrap_or_else(|| panic!("malformed line: {raw:?}"));
-        assert!(!value.trim().is_empty(), "empty value for key {key:?}");
-        if key.trim() == "version" {
-            saw_version = true;
-        } else {
-            assert_eq!(
-                value.trim().len(),
-                64,
-                "invalid SHA-256 hash for key {key:?}"
-            );
-            assert!(
-                value.trim().bytes().all(|byte| byte.is_ascii_hexdigit()),
-                "invalid SHA-256 hash for key {key:?}"
-            );
-            package_count += 1;
+        let contents = std::fs::read_to_string(&pin).expect("read CLI version snapshot");
+        let mut saw_version = false;
+        let mut package_count = 0;
+        for raw in contents.lines() {
+            let line = raw.trim();
+            if line.is_empty() || line.starts_with('#') {
+                continue;
+            }
+            let (key, value) = line
+                .split_once('=')
+                .unwrap_or_else(|| panic!("malformed line: {raw:?}"));
+            assert!(!value.trim().is_empty(), "empty value for key {key:?}");
+            if key.trim() == "version" {
+                saw_version = true;
+            } else {
+                assert_eq!(
+                    value.trim().len(),
+                    64,
+                    "invalid SHA-256 hash for key {key:?}"
+                );
+                assert!(
+                    value.trim().bytes().all(|byte| byte.is_ascii_hexdigit()),
+                    "invalid SHA-256 hash for key {key:?}"
+                );
+                package_count += 1;
+            }
         }
+        assert!(saw_version, "{filename} missing `version=` line");
+        assert_eq!(
+            package_count, 8,
+            "{filename} has incomplete platform hashes"
+        );
     }
-    assert!(saw_version, "{filename} missing `version=` line");
-    assert_eq!(package_count, expected_package_count);
 }
 
 /// With `bundled-cli` on AND a supported target, `install_bundled_cli`
@@ -274,26 +274,38 @@ fn install_bundled_cli_returns_extracted_path() {
         first, second,
         "install_bundled_cli must be idempotent across calls"
     );
+}
 
-    #[cfg(feature = "bundled-in-process")]
-    {
-        let runtime_name = if cfg!(windows) {
-            "copilot_runtime.dll"
-        } else if cfg!(target_os = "macos") {
-            "libcopilot_runtime.dylib"
-        } else {
-            "libcopilot_runtime.so"
-        };
-        let runtime = first
-            .parent()
-            .expect("install directory")
-            .join(runtime_name);
-        assert!(
-            runtime.is_file(),
-            "bundled runtime library was not installed: {}",
-            runtime.display()
-        );
-    }
+#[cfg(all(feature = "bundled-cli", has_bundled_cli))]
+#[test]
+fn bundled_cli_is_distinct_from_runtime_and_supports_version_probe() {
+    let cli = install_bundled_cli().expect("bundled CLI should install");
+    let runtime = install_bundled_runtime().expect("bundled runtime should install");
+
+    assert_ne!(cli, runtime);
+    assert_ne!(
+        std::fs::metadata(&cli).expect("CLI metadata").len(),
+        std::fs::metadata(&runtime)
+            .expect("runtime wrapper metadata")
+            .len(),
+        "the full CLI must not alias the runtime wrapper bytes"
+    );
+
+    let output = std::process::Command::new(&cli)
+        .arg("--binary-version")
+        .output()
+        .expect("run bundled CLI version probe");
+    assert!(
+        output.status.success(),
+        "bundled CLI version probe failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        String::from_utf8_lossy(&output.stdout).contains(env!("COPILOT_SDK_CLI_VERSION")),
+        "bundled CLI version output did not contain {}: {}",
+        env!("COPILOT_SDK_CLI_VERSION"),
+        String::from_utf8_lossy(&output.stdout)
+    );
 }
 
 /// With `bundled-cli` off (or the target unsupported), the public API
@@ -330,6 +342,24 @@ fn install_bundled_runtime_returns_wrapper_bundle() {
         "runtime.node was not installed: {}",
         runtime_node.display()
     );
+    #[cfg(feature = "bundled-in-process")]
+    {
+        let runtime_library = first
+            .parent()
+            .expect("install directory")
+            .join(if cfg!(windows) {
+                "copilot_runtime.dll"
+            } else if cfg!(target_os = "macos") {
+                "libcopilot_runtime.dylib"
+            } else {
+                "libcopilot_runtime.so"
+            });
+        assert!(
+            runtime_library.is_file(),
+            "bundled runtime library was not installed: {}",
+            runtime_library.display()
+        );
+    }
     let second = install_bundled_runtime().expect("second call should also succeed");
     assert_eq!(first, second);
 }

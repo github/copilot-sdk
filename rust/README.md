@@ -103,7 +103,7 @@ transports.
 | `transport`         | `Transport`                 | `Default`, `Stdio`, `InProcess`, `Tcp`, or `External`             |
 | `extension_launch_provider` | `Option<Arc<dyn ExtensionLaunchProvider>>` | Connection-global extension launch resolver |
 
-With the default `CliProgram::Resolve`, managed stdio and TCP transports resolve an explicit `CliProgram::Path(path)`, `COPILOT_CLI_PATH`, then the bundled `copilot-runtime` wrapper and adjacent `runtime.node`. In-process transport retains its CLI-entrypoint resolution. There is no PATH scanning.
+With the default `CliProgram::Resolve`, managed stdio and TCP transports resolve an explicit `CliProgram::Path(path)`, `COPILOT_CLI_PATH`, then the bundled `copilot-runtime` wrapper and adjacent `runtime.node`. In-process transport loads the native runtime library adjacent to that resolved runtime bundle. There is no PATH scanning.
 
 #### Extension launch provider
 
@@ -977,12 +977,13 @@ none of them are scheduled for removal.
 
 ## Bundled runtime artifacts
 
-The SDK provisions its runtime at build time. By default the `bundled-cli`
-feature embeds the verified `copilot-runtime` wrapper and adjacent
-`runtime.node` in your compiled crate. The compatible CLI artifact remains
-available separately for `install_bundled_cli` and in-process hosting.
-Enable `bundled-in-process` to additionally embed the native runtime library
-and use `Transport::InProcess`:
+The SDK provisions two verified artifacts at build time. By default the
+`bundled-cli` feature embeds both the full Copilot CLI/Node SEA and a separate
+runtime bundle containing `copilot-runtime`, adjacent `runtime.node`, and its
+required assets. Managed transports use only the runtime bundle; the full CLI
+is available through `install_bundled_cli` for diagnostics and version probes.
+Enable `bundled-in-process` to additionally include the native runtime library
+in the runtime bundle and use `Transport::InProcess`:
 
 ```toml
 github-copilot-sdk = { version = "1", features = ["bundled-in-process"] }
@@ -1017,17 +1018,24 @@ github-copilot-sdk = { version = "1", default-features = false }
 ### How it works
 
 1. **Version pin.** `build.rs` reads the CLI version from one of two sources:
-   - `cli-version.txt` at the crate root (present in published crate tarballs and vendored slots).
+   - `cli-version.txt` and `cli-version-in-process.txt` at the crate root
+     (present in published crate tarballs and vendored slots).
    - Otherwise, `../nodejs/package.json` (contributor build inside the github/copilot-sdk repo).
 
    The resolved version is baked into the crate via `cargo:rustc-env=COPILOT_SDK_CLI_VERSION` regardless of mode. The runtime resolver consumes it to recompute the on-disk path by convention, so no absolute paths leak into the rlib.
 
-2. **Build time:** `build.rs` downloads the platform-specific release archive and
-   verifies its SHA-256 against the release's `SHA256SUMS.txt` or the publish snapshot.
+2. **Build time:** `build.rs` downloads the platform-specific full CLI archive
+   and runtime package, then verifies both SHA-256 hashes against the release's
+   `SHA256SUMS.txt` or the publish snapshots.
    Then:
-   - **`bundled-cli` on (default):** creates and embeds a minimal archive containing the CLI executable, `copilot-runtime[.exe]`, and `runtime.node`.
-   - **`bundled-in-process` on:** the archive additionally contains the platform-native runtime library (`.dll`, `.so`, or `.dylib`).
-   - **`bundled-cli` off:** extracts the same artifacts directly into the platform cache using staging files and atomic renames.
+   - **`bundled-cli` on (default):** embeds the full CLI release archive and a
+     separately filtered runtime archive containing `copilot-runtime[.exe]`,
+     `runtime.node`, and required assets.
+   - **`bundled-in-process` on:** the runtime archive additionally contains the
+     platform-native runtime library (`.dll`, `.so`, or `.dylib`).
+   - **`bundled-cli` off:** downloads only the runtime package and extracts its
+     managed runtime artifacts directly into the platform cache using staging
+     files and atomic renames.
 
 3. **Runtime:** in both modes the artifacts share one versioned directory:
 
@@ -1075,9 +1083,9 @@ For managed child-process transports, `Client::start` resolves the program in th
 3. **`bundled-cli` on:** the embedded wrapper pair, lazily extracted on first call.
 4. **`bundled-cli` off:** the build-time-extracted wrapper pair in the per-user cache.
 
-In-process transport resolves the compatible CLI artifact from
-`COPILOT_CLI_PATH`, the embedded archive, or the build-time cache. There is no
-PATH scanning.
+In-process transport loads the native runtime library adjacent to the runtime
+wrapper selected from `COPILOT_CLI_PATH`, the embedded runtime archive, or the
+build-time cache. There is no PATH scanning.
 
 ### Reaching the bundled binary without a `Client`
 
@@ -1118,11 +1126,19 @@ returns the wrapper path.
 
 ### Download cache (build-time, embed mode)
 
-In embed mode `build.rs` re-downloads on every clean build by default. Set `BUNDLED_CLI_CACHE_DIR=<path>` to cache the verified archive between builds (CI keys this on `<os>-<version>` for ~zero-cost rebuilds on cache hits). With `bundled-cli` disabled there is no separate archive cache — the extracted binary itself is the cache.
+In embed mode `build.rs` downloads both verified archives on every clean build
+by default. Set `BUNDLED_CLI_CACHE_DIR=<path>` to cache them between builds (CI
+keys this on `<os>-<version>` for near-zero-cost rebuilds on cache hits). For
+Copilot CLI 1.0.83-5, the two upstream archives total roughly 132-157 MB per
+platform before the runtime package is filtered. With `bundled-cli` disabled
+there is no separate archive cache: the extracted runtime bundle is the cache.
 
 ### Platforms
 
-Supported: `darwin-arm64`, `darwin-x64`, `linux-x64`, `linux-arm64`, `win32-x64`, `win32-arm64`. The target platform is auto-detected from `CARGO_CFG_TARGET_OS` and `CARGO_CFG_TARGET_ARCH` (cross-compilation works).
+Supported: `darwin-arm64`, `darwin-x64`, `linux-x64`, `linux-arm64`,
+`linuxmusl-x64`, `linuxmusl-arm64`, `win32-x64`, and `win32-arm64`. The target
+platform is auto-detected from `CARGO_CFG_TARGET_OS`, `CARGO_CFG_TARGET_ARCH`,
+and `CARGO_CFG_TARGET_ENV` (cross-compilation works).
 
 ## Features
 

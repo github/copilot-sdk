@@ -2,11 +2,11 @@
 //! crate (gated on the `bundled-cli` cargo feature, which is in the default
 //! feature set).
 //!
-//! Normal builds embed the platform release archive from GitHub Releases.
-//! Builds with `bundled-in-process` instead embed a filtered archive from the
-//! platform npm package containing the CLI executable, runtime wrapper, native
-//! runtime artifacts, and auxiliary runtime assets. Extraction to a real
-//! on-disk path is deferred until the relevant installer is called.
+//! Builds embed two platform release payloads from GitHub Releases: the full
+//! CLI archive and a filtered runtime archive containing the wrapper,
+//! `runtime.node`, auxiliary runtime assets, and optionally the in-process
+//! runtime library. Extraction to a real on-disk path is deferred until the
+//! relevant installer is called.
 //!
 //! The embedded bytes are part of the consumer's signed binary and therefore
 //! trusted *as the source of truth* — but the bytes that land on disk are not.
@@ -41,7 +41,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use tracing::{info, warn};
 
 // When the `bundled-cli` cargo feature is enabled and the target platform is
-// supported, build.rs generates `bundled_cli.rs` exposing the selected archive.
+// supported, build.rs generates `bundled_cli.rs` exposing both selected archives.
 // The CLI version is exposed crate-wide via the
 // `cargo:rustc-env=COPILOT_SDK_CLI_VERSION` emit (see `build.rs`), and the
 // binary name is OS-derived — so no other generated constants are needed.
@@ -101,7 +101,11 @@ pub(crate) fn path() -> Option<PathBuf> {
             #[cfg(has_bundled_cli)]
             {
                 let dir = default_install_dir(CLI_VERSION);
-                match install_cli_bundle(&dir, build_time::CLI_ARCHIVE) {
+                match install_cli(
+                    &dir,
+                    build_time::CLI_ARCHIVE,
+                    build_time::CLI_BINARY_SIZE,
+                ) {
                     Ok(path) => {
                         info!(path = %path.display(), version = CLI_VERSION, "embedded CLI installed");
                         return Some(path);
@@ -129,7 +133,11 @@ pub(crate) fn path() -> Option<PathBuf> {
 pub(crate) fn install_at(extract_dir: &Path) -> Option<PathBuf> {
     #[cfg(has_bundled_cli)]
     {
-        match install_cli_bundle(extract_dir, build_time::CLI_ARCHIVE) {
+        match install_cli(
+            extract_dir,
+            build_time::CLI_ARCHIVE,
+            build_time::CLI_BINARY_SIZE,
+        ) {
             Ok(path) => {
                 info!(path = %path.display(), version = CLI_VERSION, "embedded CLI installed");
                 return Some(path);
@@ -155,7 +163,7 @@ pub(crate) fn runtime_path() -> Option<PathBuf> {
             #[cfg(has_bundled_cli)]
             {
                 let dir = default_install_dir(CLI_VERSION);
-                match install_runtime(&dir, build_time::CLI_ARCHIVE) {
+                match install_runtime(&dir, build_time::RUNTIME_ARCHIVE) {
                     Ok(path) => {
                         info!(path = %path.display(), version = CLI_VERSION, "embedded runtime installed");
                         return Some(path);
@@ -183,7 +191,7 @@ pub(crate) fn install_runtime_at(extract_dir: &Path) -> Option<PathBuf> {
                 return None;
             }
         };
-        match install_runtime(&install_dir, build_time::CLI_ARCHIVE) {
+        match install_runtime(&install_dir, build_time::RUNTIME_ARCHIVE) {
             Ok(path) => {
                 info!(path = %path.display(), version = CLI_VERSION, "embedded runtime installed");
                 return Some(path);
@@ -265,22 +273,13 @@ const RUNTIME_LIBRARY_NAME: &str = "libcopilot_runtime.dylib";
 const RUNTIME_LIBRARY_NAME: &str = "libcopilot_runtime.so";
 
 #[cfg(has_bundled_cli)]
-fn install_cli_bundle(install_dir: &Path, archive: &[u8]) -> Result<PathBuf, EmbeddedCliError> {
-    install_cli(install_dir, archive)?;
-    install_hostless_assets(install_dir, archive)?;
-    #[cfg(feature = "bundled-in-process")]
-    {
-        install_runtime_library(install_dir, archive)?;
-    }
-    Ok(install_dir.join(CLI_BINARY_NAME))
-}
-
-#[cfg(has_bundled_cli)]
 fn install_runtime(install_dir: &Path, archive: &[u8]) -> Result<PathBuf, EmbeddedCliError> {
     fs::create_dir_all(install_dir)
         .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::CreateDir, e))?;
     install_hostless_assets(install_dir, archive)?;
     install_runtime_pair(install_dir, archive)?;
+    #[cfg(feature = "bundled-in-process")]
+    install_runtime_library(install_dir, archive)?;
     Ok(install_dir.join(RUNTIME_BINARY_NAME))
 }
 
@@ -414,7 +413,11 @@ fn install_adjacent_file(
 }
 
 #[cfg(has_bundled_cli)]
-fn install_cli(install_dir: &Path, archive: &[u8]) -> Result<PathBuf, EmbeddedCliError> {
+fn install_cli(
+    install_dir: &Path,
+    archive: &[u8],
+    expected_binary_size: u64,
+) -> Result<PathBuf, EmbeddedCliError> {
     let verbose = std::env::var("COPILOT_CLI_INSTALL_VERBOSE").ok().as_deref() == Some("1");
 
     fs::create_dir_all(install_dir)
@@ -427,7 +430,7 @@ fn install_cli(install_dir: &Path, archive: &[u8]) -> Result<PathBuf, EmbeddedCl
     // marker we wrote *after* verifying it. Re-validate cheaply (size +
     // executable-image magic) so a binary that was later truncated or
     // quarantined by antivirus is re-extracted instead of trusted blindly.
-    if existing_install_is_valid(&final_path, &marker_path) {
+    if existing_install_is_valid(&final_path, &marker_path, expected_binary_size) {
         if verbose {
             eprintln!("embedded CLI already installed at {}", final_path.display());
         }
@@ -438,7 +441,7 @@ fn install_cli(install_dir: &Path, archive: &[u8]) -> Result<PathBuf, EmbeddedCl
     // consumer's trusted, signed binary — so they are the known-good
     // reference we verify the on-disk file against after publishing.
     let start = std::time::Instant::now();
-    let bytes = extract_binary(archive, CLI_BINARY_NAME)?;
+    let bytes = extract_cli_binary(archive)?;
     if bytes.is_empty() {
         return Err(EmbeddedCliError::with_message(
             EmbeddedCliErrorKind::Verification,
@@ -495,7 +498,11 @@ fn marker_path(install_dir: &Path) -> PathBuf {
 /// modes (zero-length / truncated / quarantined-to-garbage) without re-reading
 /// the whole file.
 #[cfg(any(has_bundled_cli, test))]
-fn existing_install_is_valid(final_path: &Path, marker_path: &Path) -> bool {
+fn existing_install_is_valid(
+    final_path: &Path,
+    marker_path: &Path,
+    expected_binary_size: u64,
+) -> bool {
     let Ok(meta) = fs::metadata(final_path) else {
         return false;
     };
@@ -503,7 +510,9 @@ fn existing_install_is_valid(final_path: &Path, marker_path: &Path) -> bool {
         return false;
     }
     match read_marker_len(marker_path) {
-        Some(expected) if expected == meta.len() => looks_like_valid_image(final_path),
+        Some(expected) if expected == expected_binary_size && expected == meta.len() => {
+            looks_like_valid_image(final_path)
+        }
         _ => false,
     }
 }
@@ -694,6 +703,32 @@ fn read_marker_len(marker_path: &Path) -> Option<u64> {
         .ok()
 }
 
+#[cfg(all(has_bundled_cli, not(windows)))]
+fn extract_cli_binary(archive: &[u8]) -> Result<Vec<u8>, EmbeddedCliError> {
+    extract_binary(archive, CLI_BINARY_NAME)
+}
+
+#[cfg(all(has_bundled_cli, windows))]
+fn extract_cli_binary(archive: &[u8]) -> Result<Vec<u8>, EmbeddedCliError> {
+    let reader = std::io::Cursor::new(archive);
+    let mut zip = zip::ZipArchive::new(reader)
+        .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Archive, e))?;
+    for index in 0..zip.len() {
+        let mut entry = zip
+            .by_index(index)
+            .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Archive, e))?;
+        if entry.name() == CLI_BINARY_NAME || entry.name().ends_with(&format!("/{CLI_BINARY_NAME}"))
+        {
+            let mut bytes = Vec::with_capacity(entry.size() as usize);
+            entry
+                .read_to_end(&mut bytes)
+                .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Archive, e))?;
+            return Ok(bytes);
+        }
+    }
+    Err(EmbeddedCliErrorKind::BinaryNotFoundInArchive.into())
+}
+
 #[cfg(has_bundled_cli)]
 fn extract_binary(archive: &[u8], binary_name: &str) -> Result<Vec<u8>, EmbeddedCliError> {
     let gz = flate2::read::GzDecoder::new(archive);
@@ -858,8 +893,8 @@ mod tests {
 
     #[cfg(all(has_bundled_cli, feature = "bundled-in-process"))]
     #[test]
-    fn embedded_archive_contains_runtime_assets_and_excludes_cli_only_files() {
-        let gz = flate2::read::GzDecoder::new(build_time::CLI_ARCHIVE);
+    fn embedded_runtime_archive_contains_runtime_assets_and_excludes_cli() {
+        let gz = flate2::read::GzDecoder::new(build_time::RUNTIME_ARCHIVE);
         let mut archive = tar::Archive::new(gz);
         let mut names: Vec<String> = archive
             .entries()
@@ -875,12 +910,12 @@ mod tests {
             .collect();
         names.sort();
 
-        assert!(names.contains(&CLI_BINARY_NAME.to_string()));
         assert!(names.contains(&RUNTIME_LIBRARY_NAME.to_string()));
         assert!(names.contains(&RUNTIME_BINARY_NAME.to_string()));
         assert!(names.contains(&RUNTIME_NODE_NAME.to_string()));
         assert!(names.iter().any(|name| name.starts_with("ripgrep/")));
         assert!(names.iter().any(|name| name.starts_with("definitions/")));
+        assert!(!names.contains(&CLI_BINARY_NAME.to_string()));
         assert!(!names.contains(&"app.js".to_string()));
     }
 
@@ -911,7 +946,11 @@ mod tests {
         assert!(final_path.is_file(), "binary should be published");
         assert_eq!(fs::read(&final_path).expect("read"), bytes);
         assert_eq!(read_marker_len(&marker), Some(bytes.len() as u64));
-        assert!(existing_install_is_valid(&final_path, &marker));
+        assert!(existing_install_is_valid(
+            &final_path,
+            &marker,
+            bytes.len() as u64
+        ));
 
         // No leftover temp files in the install dir.
         let leftovers: Vec<_> = fs::read_dir(dir.path())
@@ -945,28 +984,40 @@ mod tests {
         let bytes = fake_image(4096);
 
         // Missing binary entirely.
-        assert!(!existing_install_is_valid(&final_path, &marker));
+        assert!(!existing_install_is_valid(&final_path, &marker, 1));
 
         // Valid binary but no marker (e.g. installed by an older SDK).
         fs::write(&final_path, &bytes).expect("write binary");
         assert!(
-            !existing_install_is_valid(&final_path, &marker),
+            !existing_install_is_valid(&final_path, &marker, bytes.len() as u64),
             "an install without a marker must not be trusted"
         );
 
         // Marker present but the binary was later truncated (partial write /
         // antivirus). Marker still records the original full size.
         write_marker(&marker, bytes.len() as u64).expect("marker");
-        assert!(existing_install_is_valid(&final_path, &marker));
+        assert!(existing_install_is_valid(
+            &final_path,
+            &marker,
+            bytes.len() as u64
+        ));
+        assert!(
+            !existing_install_is_valid(&final_path, &marker, bytes.len() as u64 + 1),
+            "a marker from the wrapper-as-CLI regression must not validate the full CLI"
+        );
         fs::write(&final_path, &bytes[..bytes.len() / 2]).expect("truncate");
         assert!(
-            !existing_install_is_valid(&final_path, &marker),
+            !existing_install_is_valid(&final_path, &marker, bytes.len() as u64),
             "a truncated binary must be detected via the size marker"
         );
 
         // Zero-length binary (quarantined to empty).
         fs::write(&final_path, b"").expect("empty");
-        assert!(!existing_install_is_valid(&final_path, &marker));
+        assert!(!existing_install_is_valid(
+            &final_path,
+            &marker,
+            bytes.len() as u64
+        ));
     }
 
     #[test]
@@ -981,7 +1032,7 @@ mod tests {
         write_marker(&marker, garbage.len() as u64).expect("marker");
 
         assert!(
-            !existing_install_is_valid(&final_path, &marker),
+            !existing_install_is_valid(&final_path, &marker, garbage.len() as u64),
             "a non-executable image must be rejected even with a matching marker"
         );
     }
@@ -1038,15 +1089,17 @@ mod tests {
         fs::write(dir.path().join(RUNTIME_NODE_NAME), b"stale runtime").expect("seed runtime");
         fs::write(dir.path().join(RUNTIME_BINARY_NAME), b"stale wrapper").expect("seed wrapper");
 
-        install_runtime(dir.path(), build_time::CLI_ARCHIVE).expect("install runtime");
+        install_runtime(dir.path(), build_time::RUNTIME_ARCHIVE).expect("install runtime");
 
         assert_eq!(
             fs::read(dir.path().join(RUNTIME_NODE_NAME)).expect("read runtime"),
-            extract_binary(build_time::CLI_ARCHIVE, RUNTIME_NODE_NAME).expect("extract runtime")
+            extract_binary(build_time::RUNTIME_ARCHIVE, RUNTIME_NODE_NAME)
+                .expect("extract runtime")
         );
         assert_eq!(
             fs::read(dir.path().join(RUNTIME_BINARY_NAME)).expect("read wrapper"),
-            extract_binary(build_time::CLI_ARCHIVE, RUNTIME_BINARY_NAME).expect("extract wrapper")
+            extract_binary(build_time::RUNTIME_ARCHIVE, RUNTIME_BINARY_NAME)
+                .expect("extract wrapper")
         );
     }
 
