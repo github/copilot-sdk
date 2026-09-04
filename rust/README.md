@@ -390,7 +390,7 @@ Change the Auto routing preference without changing the selected model. The runt
 
 Watch for the outcome through the `session.model_change` event on success or the ephemeral `session.auto_tier_switch_failed` event on failure. Read the authoritative committed, pending, and activating preferences at any time through the session's `model.getCurrent` RPC method.
 
-```rust
+```rust,ignore
 use github_copilot_sdk::{AutoTier, ModelSwitchAutoTierStatus};
 
 let result = session.set_auto_tier(Some(AutoTier::Intelligence)).await?;

@@ -1,7 +1,7 @@
+use github_copilot_sdk::SetModelOptions;
 use github_copilot_sdk::rpc::ModelSwitchAutoTierStatus;
 use github_copilot_sdk::session::Session;
 use github_copilot_sdk::session_events::AutoTier;
-use github_copilot_sdk::SetModelOptions;
 
 use super::support::with_dedicated_e2e_context;
 
