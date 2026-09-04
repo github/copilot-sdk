@@ -6,9 +6,10 @@ const OPAQUE_MCP_HANDLE: &str = "opaque:mcp/01-do-not-parse";
 const OPAQUE_SKILL_HANDLE: &str = "opaque:skill/02-do-not-parse";
 
 #[test]
-fn catalog_search_result_preserves_candidate_semantics() {
+fn closed_union_preserves_known_nested_variants() {
     let result: CatalogSearchResult = serde_json::from_value(serde_json::json!({
         "kind": "succeeded",
+        "rawCard": {"secret": "must-not-survive"},
         "searchId": "search-01",
         "candidates": [
             {
@@ -19,7 +20,11 @@ fn catalog_search_result_preserves_candidate_semantics() {
                 "installability": "installable",
                 "displayName": "Example MCP",
                 "rawCard": {"secret": "must-not-survive"},
-                "source": {"kind": "url", "url": "https://catalog.example/mcp.json"},
+                "source": {
+                    "kind": "url",
+                    "url": "https://catalog.example/mcp.json",
+                    "rawCard": {"secret": "must-not-survive"}
+                },
                 "provenance": {
                     "authority": "catalog.example",
                     "observedAt": "2026-09-02T11:00:00Z",
@@ -34,7 +39,10 @@ fn catalog_search_result_preserves_candidate_semantics() {
                 "installability": "not-installable-kind",
                 "displayName": "Example skill",
                 "rawCard": {"secret": "must-not-survive"},
-                "source": {"kind": "embedded"},
+                "source": {
+                    "kind": "embedded",
+                    "rawCard": {"secret": "must-not-survive"}
+                },
                 "provenance": {
                     "authority": "catalog.example",
                     "observedAt": "2026-09-02T11:00:00Z",
@@ -65,6 +73,7 @@ fn catalog_search_result_preserves_candidate_semantics() {
     assert!(matches!(skill.source, CatalogCandidateSource::Embedded(_)));
 
     let wire = serde_json::to_value(&result).unwrap();
+    assert!(wire.get("rawCard").is_none());
     for candidate in wire["candidates"].as_array().unwrap() {
         let fields = candidate.as_object().unwrap();
         for forbidden in ["card", "cardData", "rawCard"] {
@@ -73,11 +82,12 @@ fn catalog_search_result_preserves_candidate_semantics() {
                 "candidate leaked {forbidden}"
             );
         }
+        assert!(candidate["source"].get("rawCard").is_none());
     }
 }
 
 #[test]
-fn catalog_search_result_preserves_refusals_and_failures() {
+fn closed_union_preserves_refusals_and_failures() {
     let authentication: CatalogSearchResult = serde_json::from_value(serde_json::json!({
         "kind": "authentication-required",
         "reason": "no-credential",
@@ -100,4 +110,70 @@ fn catalog_search_result_preserves_refusals_and_failures() {
         panic!("expected a network failure");
     };
     assert_eq!(failure.retry_after_seconds, Some(30));
+}
+
+#[test]
+fn closed_union_rejects_unknown_and_missing_discriminators() {
+    let invalid_payloads = [
+        serde_json::json!({"kind": "future-result", "rawCard": {"secret": "must-not-survive"}}),
+        serde_json::json!({"rawCard": {"secret": "must-not-survive"}}),
+        serde_json::json!({
+            "kind": "succeeded",
+            "searchId": "search-invalid",
+            "candidates": [{"kind": "future-candidate", "rawCard": {"secret": "must-not-survive"}}],
+            "truncated": false,
+            "negotiated": {"runtimeProtocolVersion": 1, "grantedCapabilities": []}
+        }),
+        serde_json::json!({
+            "kind": "succeeded",
+            "searchId": "search-invalid",
+            "candidates": [{"rawCard": {"secret": "must-not-survive"}}],
+            "truncated": false,
+            "negotiated": {"runtimeProtocolVersion": 1, "grantedCapabilities": []}
+        }),
+        serde_json::json!({
+            "kind": "succeeded",
+            "searchId": "search-invalid",
+            "candidates": [{
+                "kind": "mcp-server",
+                "handle": OPAQUE_MCP_HANDLE,
+                "handleExpiresAt": "2026-09-02T12:00:00Z",
+                "mediaType": "application/mcp-server-card+json",
+                "installability": "installable",
+                "displayName": "Example MCP",
+                "source": {"kind": "future-source", "rawCard": {"secret": "must-not-survive"}},
+                "provenance": {
+                    "authority": "catalog.example",
+                    "observedAt": "2026-09-02T11:00:00Z",
+                    "mediaType": "application/mcp-server-card+json"
+                }
+            }],
+            "truncated": false,
+            "negotiated": {"runtimeProtocolVersion": 1, "grantedCapabilities": []}
+        }),
+        serde_json::json!({
+            "kind": "succeeded",
+            "searchId": "search-invalid",
+            "candidates": [{
+                "kind": "mcp-server",
+                "handle": OPAQUE_MCP_HANDLE,
+                "handleExpiresAt": "2026-09-02T12:00:00Z",
+                "mediaType": "application/mcp-server-card+json",
+                "installability": "installable",
+                "displayName": "Example MCP",
+                "source": {"rawCard": {"secret": "must-not-survive"}},
+                "provenance": {
+                    "authority": "catalog.example",
+                    "observedAt": "2026-09-02T11:00:00Z",
+                    "mediaType": "application/mcp-server-card+json"
+                }
+            }],
+            "truncated": false,
+            "negotiated": {"runtimeProtocolVersion": 1, "grantedCapabilities": []}
+        }),
+    ];
+
+    for payload in invalid_payloads {
+        assert!(serde_json::from_value::<CatalogSearchResult>(payload).is_err());
+    }
 }

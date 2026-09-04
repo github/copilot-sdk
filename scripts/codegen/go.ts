@@ -13,6 +13,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { promisify } from "util";
 import wordwrap from "wordwrap";
+import { analyseDiscriminatedUnion, type UnknownVariantPolicy } from "./schema-unions.js";
 import {
     addManagedApprovalRequiredToPermissionRequests,
     cloneSchemaForCodegen,
@@ -530,6 +531,7 @@ interface GoDiscriminatorInfo {
     valueKind: GoDiscriminatorValueKind;
     mapping: Map<GoDiscriminatorValue, GoDiscriminatedUnionVariant[]>;
     variants: GoDiscriminatedUnionVariant[];
+    unknownVariantPolicy: UnknownVariantPolicy;
 }
 
 interface GoRequiredFieldDiscriminatorInfo {
@@ -567,6 +569,7 @@ interface GoCodegenCtx {
     definitions?: DefinitionCollections;
     wrapComments?: boolean;
     discriminatedUnionRawVariantSuffix?: string;
+    applyClosedUnionUnknownVariantPolicy?: boolean;
     skipDefinitionTypeNames?: Set<string>;
     encodingBlocks?: Set<string>;
     unionVariantMarshalers?: Set<string>;
@@ -685,7 +688,13 @@ function findGoDiscriminator(
             }
         }
         if (valid && mapping.size > 0 && unionVariants.length === variants.length) {
-            return { property: propName, valueKind: firstDiscriminatorValues.kind, mapping, variants: unionVariants };
+            return {
+                property: propName,
+                valueKind: firstDiscriminatorValues.kind,
+                mapping,
+                variants: unionVariants,
+                unknownVariantPolicy: "preserve",
+            };
         }
     }
     return null;
@@ -1111,6 +1120,7 @@ function registerGoExternalUnionUnmarshalers(
             definitions: externalDefinitions,
             wrapComments: ctx.wrapComments,
             discriminatedUnionRawVariantSuffix: ctx.discriminatedUnionRawVariantSuffix,
+            applyClosedUnionUnknownVariantPolicy: ctx.applyClosedUnionUnknownVariantPolicy,
             packageName: ctx.packageName,
         };
 
@@ -1817,7 +1827,10 @@ function emitGoFlatDiscriminatedUnion(
 
     const unmarshalFuncName = goUnexportedFunctionName("unmarshal", typeName);
     const rawDataName = `Raw${typeName}${ctx.discriminatedUnionRawVariantSuffix ?? "Data"}`;
-    const hasRawVariant = discriminator.valueKind === "string" && typeName !== "CatalogCandidate";
+    // Preserve existing wrapper types for source compatibility; closed unions never decode into them.
+    const emitsRawVariant = discriminator.valueKind === "string";
+    const acceptsRawVariant =
+        emitsRawVariant && discriminator.unknownVariantPolicy === "preserve";
     const markerName = toGoUnexportedIdentifier(typeName);
     ctx.discriminatedUnions.set(typeName, { typeName, unmarshalFuncName });
 
@@ -1894,25 +1907,25 @@ function emitGoFlatDiscriminatedUnion(
                 unmarshalLines.push(`\t\t\treturn &d, nil`);
                 unmarshalLines.push(`\t\t}`);
             }
-            if (hasRawVariant) {
+            if (acceptsRawVariant) {
                 unmarshalLines.push(`\t\treturn &${rawDataName}{Discriminator: ${rawDiscExpr}, Raw: data}, nil`);
             } else {
                 unmarshalLines.push(`\t\treturn nil, errors.New("data did not match any union variant for ${typeName}")`);
             }
         }
     }
-    if (hasRawVariant) {
+    if (acceptsRawVariant) {
         unmarshalLines.push(`\tdefault:`);
         unmarshalLines.push(`\t\treturn &${rawDataName}{Discriminator: ${rawDiscExpr}, Raw: data}, nil`);
     }
     unmarshalLines.push(`\t}`);
-    if (!hasRawVariant) {
+    if (!acceptsRawVariant) {
         unmarshalLines.push(`\treturn nil, errors.New("data did not match any union variant for ${typeName}")`);
     }
     unmarshalLines.push(`}`);
     pushGoEncodingBlock(unmarshalLines, ctx);
 
-    if (hasRawVariant) {
+    if (emitsRawVariant) {
         lines.push(`type ${rawDataName} struct {`);
         lines.push(`\tDiscriminator ${discGoType}`);
         lines.push(`\tRaw           json.RawMessage`);
@@ -2800,6 +2813,12 @@ function planGoUnion(typeName: string, schema: JSONSchema7, ctx: GoCodegenCtx, i
     const description = (schema as JSONSchema7).description;
     const discriminator = findGoDiscriminator(members, ctx, typeName);
     if (discriminator) {
+        if (ctx.applyClosedUnionUnknownVariantPolicy) {
+            discriminator.unknownVariantPolicy =
+                analyseDiscriminatedUnion(schema, (variant) =>
+                    resolveGoUnionMember(variant, ctx.definitions)
+                )?.unknownVariantPolicy ?? "preserve";
+        }
         return { kind: "discriminated", typeName, schema, description, discriminator };
     }
 
@@ -3099,6 +3118,7 @@ function generateGoRpcTypeCode(definitions: Record<string, JSONSchema7>, definit
         discriminatedUnions: new Map(),
         generatedNames: new Set(),
         definitions: definitionCollections,
+        applyClosedUnionUnknownVariantPolicy: true,
         packageName: "rpc",
     };
     ctx.skipDefinitionTypeNames = collectGoDiscriminatedUnionVariantDefinitionTypeNames(definitions, ctx);

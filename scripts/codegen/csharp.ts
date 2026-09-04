@@ -13,6 +13,10 @@ import { fileURLToPath } from "url";
 import { promisify } from "util";
 import type { JSONSchema7 } from "json-schema";
 import {
+    analyseDiscriminatedUnionVariants,
+    type UnknownVariantPolicy,
+} from "./schema-unions.js";
+import {
     cloneSchemaForCodegen,
     fixNullableRequiredRefsInApiSchema,
     getApiSchemaPath,
@@ -796,6 +800,7 @@ type PropertyTypeResolver = (
 
 interface DiscriminatedUnionGenerationOptions {
     sealLeafTypes?: boolean;
+    unknownVariantPolicy?: UnknownVariantPolicy;
 }
 
 function isBooleanDiscriminator(discriminatorInfo: DiscriminatorInfo): boolean {
@@ -916,9 +921,16 @@ function generatePolymorphicClasses(
 
     lines.push(...xmlDocCommentWithFallback(description, `Polymorphic base type discriminated by <c>${escapeXml(discriminatorProperty)}</c>.`, ""));
     if (experimental) pushExperimentalAttribute(lines);
+    const unknownDerivedTypeHandling =
+        options.unknownVariantPolicy === "reject"
+            ? "FailSerialization"
+            : "FallBackToBaseType";
     lines.push(`[JsonPolymorphic(`);
     lines.push(`    TypeDiscriminatorPropertyName = "${discriminatorProperty}",`);
-    lines.push(`    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]`);
+    if (options.unknownVariantPolicy === "reject") {
+        lines.push(`    IgnoreUnrecognizedTypeDiscriminators = false,`);
+    }
+    lines.push(`    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.${unknownDerivedTypeHandling})]`);
 
     for (const { value } of discriminatorInfo.mapping.values()) {
         const constValue = String(value);
@@ -929,6 +941,9 @@ function generatePolymorphicClasses(
     lines.push(`public partial class ${renamedBase}`);
     lines.push(`{`);
     lines.push(`    /// <summary>The type discriminator.</summary>`);
+    if (options.unknownVariantPolicy === "reject") {
+        lines.push(`    [JsonRequired]`);
+    }
     lines.push(`    [JsonPropertyName("${discriminatorProperty}")]`);
     lines.push(`    public virtual string ${toPascalCase(discriminatorProperty)} { get; set; } = string.Empty;`);
     for (const propName of baseProperties) {
@@ -1719,7 +1734,21 @@ function resolveRpcType(schema: JSONSchema7, isRequired: boolean, parentClassNam
                         }
                         return result;
                     };
-                    const polymorphicCode = generateDiscriminatedUnionClass(baseClassName, discriminatorInfo, variants, rpcKnownTypes, nestedMap, rpcEnumOutput, schema.description, rpcPropertyResolver, isSchemaExperimental(schema) || experimentalRpcTypes.has(baseClassName));
+                    const polymorphicCode = generateDiscriminatedUnionClass(
+                        baseClassName,
+                        discriminatorInfo,
+                        variants,
+                        rpcKnownTypes,
+                        nestedMap,
+                        rpcEnumOutput,
+                        schema.description,
+                        rpcPropertyResolver,
+                        isSchemaExperimental(schema) || experimentalRpcTypes.has(baseClassName),
+                        {
+                            unknownVariantPolicy:
+                                analyseDiscriminatedUnionVariants(variants)?.unknownVariantPolicy,
+                        }
+                    );
                     classes.push(polymorphicCode);
                     for (const nested of nestedMap.values()) classes.push(nested);
                 }

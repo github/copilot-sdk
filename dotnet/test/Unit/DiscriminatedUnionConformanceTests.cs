@@ -3,11 +3,11 @@ using System.Text.Json.Serialization.Metadata;
 using GitHub.Copilot.Rpc;
 using Xunit;
 
-#pragma warning disable GHCP001 // The catalogue search schema is experimental in CLI 1.0.83-2.
+#pragma warning disable GHCP001 // The catalogue search schema is experimental.
 
 namespace GitHub.Copilot.Test.Unit;
 
-public class CatalogueConformanceTests
+public class DiscriminatedUnionConformanceTests
 {
     private const string OpaqueMcpHandle = "opaque:mcp/01-do-not-parse";
     private const string OpaqueSkillHandle = "opaque:skill/02-do-not-parse";
@@ -22,6 +22,7 @@ public class CatalogueConformanceTests
         const string json = """
             {
               "kind": "succeeded",
+              "rawCard": { "secret": "must-not-survive" },
               "searchId": "search-01",
               "candidates": [
                 {
@@ -32,7 +33,7 @@ public class CatalogueConformanceTests
                   "installability": "installable",
                   "displayName": "Example MCP",
                   "rawCard": { "secret": "must-not-survive" },
-                  "source": { "kind": "url", "url": "https://catalog.example/mcp.json" },
+                  "source": { "kind": "url", "url": "https://catalog.example/mcp.json", "rawCard": { "secret": "must-not-survive" } },
                   "provenance": {
                     "authority": "catalog.example",
                     "observedAt": "2026-09-02T11:00:00Z",
@@ -47,7 +48,7 @@ public class CatalogueConformanceTests
                   "installability": "not-installable-kind",
                   "displayName": "Example skill",
                   "rawCard": { "secret": "must-not-survive" },
-                  "source": { "kind": "embedded" },
+                  "source": { "kind": "embedded", "rawCard": { "secret": "must-not-survive" } },
                   "provenance": {
                     "authority": "catalog.example",
                     "observedAt": "2026-09-02T11:00:00Z",
@@ -74,11 +75,13 @@ public class CatalogueConformanceTests
 
         using var encoded = JsonDocument.Parse(JsonSerializer.Serialize<CatalogSearchResult>(
             result, SerializerOptions));
+        Assert.False(encoded.RootElement.TryGetProperty("rawCard", out _));
         foreach (var candidate in encoded.RootElement.GetProperty("candidates").EnumerateArray())
         {
             Assert.False(candidate.TryGetProperty("card", out _));
             Assert.False(candidate.TryGetProperty("cardData", out _));
             Assert.False(candidate.TryGetProperty("rawCard", out _));
+            Assert.False(candidate.GetProperty("source").TryGetProperty("rawCard", out _));
         }
     }
 
@@ -95,5 +98,76 @@ public class CatalogueConformanceTests
                 """{"kind":"network-failure","reason":"timeout","retryAfterSeconds":30,"message":"The catalogue timed out."}""",
                 SerializerOptions));
         Assert.Equal(30, network.RetryAfterSeconds);
+    }
+
+    [Fact]
+    public void ClosedUnions_RejectUnknownAndMissingDiscriminators()
+    {
+        string[] invalidPayloads =
+        [
+            """{"kind":"future-result","rawCard":{"secret":"must-not-survive"}}""",
+            """{"rawCard":{"secret":"must-not-survive"}}""",
+            """
+            {
+              "kind":"succeeded",
+              "searchId":"search-invalid",
+              "candidates":[{"kind":"future-candidate","rawCard":{"secret":"must-not-survive"}}],
+              "truncated":false,
+              "negotiated":{"runtimeProtocolVersion":1,"grantedCapabilities":[]}
+            }
+            """,
+            """
+            {
+              "kind":"succeeded",
+              "searchId":"search-invalid",
+              "candidates":[{"rawCard":{"secret":"must-not-survive"}}],
+              "truncated":false,
+              "negotiated":{"runtimeProtocolVersion":1,"grantedCapabilities":[]}
+            }
+            """,
+            """
+            {
+              "kind":"succeeded",
+              "searchId":"search-invalid",
+              "candidates":[{
+                "kind":"mcp-server",
+                "handle":"opaque:mcp/01-do-not-parse",
+                "handleExpiresAt":"2026-09-02T12:00:00Z",
+                "mediaType":"application/mcp-server-card+json",
+                "installability":"installable",
+                "displayName":"Example MCP",
+                "source":{"kind":"future-source","rawCard":{"secret":"must-not-survive"}},
+                "provenance":{"authority":"catalog.example","observedAt":"2026-09-02T11:00:00Z","mediaType":"application/mcp-server-card+json"}
+              }],
+              "truncated":false,
+              "negotiated":{"runtimeProtocolVersion":1,"grantedCapabilities":[]}
+            }
+            """,
+            """
+            {
+              "kind":"succeeded",
+              "searchId":"search-invalid",
+              "candidates":[{
+                "kind":"mcp-server",
+                "handle":"opaque:mcp/01-do-not-parse",
+                "handleExpiresAt":"2026-09-02T12:00:00Z",
+                "mediaType":"application/mcp-server-card+json",
+                "installability":"installable",
+                "displayName":"Example MCP",
+                "source":{"rawCard":{"secret":"must-not-survive"}},
+                "provenance":{"authority":"catalog.example","observedAt":"2026-09-02T11:00:00Z","mediaType":"application/mcp-server-card+json"}
+              }],
+              "truncated":false,
+              "negotiated":{"runtimeProtocolVersion":1,"grantedCapabilities":[]}
+            }
+            """,
+        ];
+
+        foreach (string json in invalidPayloads)
+        {
+            Exception? exception = Record.Exception(() =>
+                JsonSerializer.Deserialize<CatalogSearchResult>(json, SerializerOptions));
+            Assert.True(exception is JsonException, $"Invalid closed union payload was accepted: {json}");
+        }
     }
 }

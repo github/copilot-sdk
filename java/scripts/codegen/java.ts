@@ -11,6 +11,7 @@ import fs from "fs/promises";
 import type { JSONSchema7 } from "json-schema";
 import path from "path";
 import { fileURLToPath } from "url";
+import { analyseDiscriminatedUnionVariants } from "../../../scripts/codegen/schema-unions.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -333,34 +334,24 @@ interface DiscriminatorInfo {
  * A discriminator is a property with a `const` value that uniquely identifies each variant.
  */
 function findDiscriminator(variants: JSONSchema7[]): DiscriminatorInfo | null {
-    if (variants.length === 0) return null;
-    const firstVariant = variants[0];
-    if (!firstVariant.properties) return null;
-
-    for (const [propName, propSchema] of Object.entries(firstVariant.properties).sort(([a], [b]) => a.localeCompare(b))) {
-        if (typeof propSchema !== "object") continue;
-        const schema = propSchema as JSONSchema7;
-        if (schema.const === undefined) continue;
-
-        const mapping = new Map<string, { value: unknown; schema: JSONSchema7 }>();
-        let isValidDiscriminator = true;
-
-        for (const variant of variants) {
-            if (!variant.properties) { isValidDiscriminator = false; break; }
-            const variantProp = variant.properties[propName];
-            if (typeof variantProp !== "object") { isValidDiscriminator = false; break; }
-            const variantSchema = variantProp as JSONSchema7;
-            if (variantSchema.const === undefined) { isValidDiscriminator = false; break; }
-            const key = String(variantSchema.const);
-            if (mapping.has(key)) { isValidDiscriminator = false; break; }
-            mapping.set(key, { value: variantSchema.const, schema: variant });
-        }
-
-        if (isValidDiscriminator && mapping.size === variants.length) {
-            return { property: propName, mapping };
-        }
+    const analysis = analyseDiscriminatedUnionVariants(variants);
+    if (
+        !analysis ||
+        analysis.variants.some((variant) => variant.discriminatorValues.length !== 1) ||
+        analysis.mapping.some((entry) => entry.variants.length !== 1)
+    ) {
+        return null;
     }
-    return null;
+
+    return {
+        property: analysis.property,
+        mapping: new Map(
+            analysis.mapping.map((entry) => [
+                String(entry.value),
+                { value: entry.value, schema: entry.variants[0].schema },
+            ])
+        ),
+    };
 }
 
 /**
@@ -378,9 +369,13 @@ function resolveUnionVariants(variants: JSONSchema7[]): JSONSchema7[] {
         .filter((v) => v.type !== "null");
 }
 
-function collectPromotedNestedUnionTypes(root: unknown): void {
+export function collectNestedDiscriminatedUnionTypeNames(
+    root: unknown,
+    definitions: Record<string, JSONSchema7>
+): Set<string> {
+    const promotedTypes = new Set<string>();
     const visitedDefinitions = new Set<string>();
-    const visit = (node: unknown): void => {
+    const visit = (node: unknown, isRoot = false): void => {
         if (Array.isArray(node)) {
             for (const item of node) visit(item);
             return;
@@ -392,15 +387,22 @@ function collectPromotedNestedUnionTypes(root: unknown): void {
             const name = schema.$ref.slice("#/definitions/".length);
             if (visitedDefinitions.has(name)) return;
             visitedDefinitions.add(name);
-            const definition = currentDefinitions[name];
+            const definition = definitions[name];
             if (definition) {
                 const union = definition.anyOf ?? definition.oneOf;
                 if (
                     union
                     && Array.isArray(union)
-                    && findDiscriminator(resolveUnionVariants(union as JSONSchema7[]))
+                    && analyseDiscriminatedUnionVariants(
+                        union as JSONSchema7[],
+                        (variant) => {
+                            if (!variant.$ref?.startsWith("#/definitions/")) return variant;
+                            return definitions[variant.$ref.slice("#/definitions/".length)];
+                        }
+                    )
+                    && !isRoot
                 ) {
-                    promotedNestedUnionTypes.add(name);
+                    promotedTypes.add(name);
                 }
                 visit(definition);
             }
@@ -411,7 +413,14 @@ function collectPromotedNestedUnionTypes(root: unknown): void {
             visit(value);
         }
     };
-    visit(root);
+    visit(root, true);
+    return promotedTypes;
+}
+
+function collectPromotedNestedUnionTypes(root: unknown): void {
+    for (const name of collectNestedDiscriminatedUnionTypeNames(root, currentDefinitions)) {
+        promotedNestedUnionTypes.add(name);
+    }
 }
 
 /**
@@ -1456,8 +1465,14 @@ async function generateRpcTypes(schemaPath: string): Promise<void> {
     for (const section of [schema.server, schema.session, schema.clientSession, schema.clientGlobal]) {
         if (!section) continue;
         for (const [, method] of collectRpcMethods(section)) {
-            if (method.rpcMethod === "catalog.search") {
-                collectPromotedNestedUnionTypes(method);
+            const result = resolveRef(method.result ?? undefined);
+            const union = result?.anyOf ?? result?.oneOf;
+            if (
+                union
+                && Array.isArray(union)
+                && findDiscriminator(resolveUnionVariants(union as JSONSchema7[]))
+            ) {
+                collectPromotedNestedUnionTypes(method.result);
             }
         }
     }
@@ -2461,7 +2476,9 @@ async function main(): Promise<void> {
     console.log("\n✅ Java code generation complete!");
 }
 
-main().catch((err) => {
-    console.error("❌ Code generation failed:", err);
-    process.exit(1);
-});
+if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {
+    main().catch((err) => {
+        console.error("❌ Code generation failed:", err);
+        process.exit(1);
+    });
+}

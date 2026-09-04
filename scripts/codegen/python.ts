@@ -508,15 +508,9 @@ function postProcessRefBasedDiscriminatedUnionsForPython(
         for (const m of actualDispatch) {
             dispatcherLines.push(`        case ${pyDiscriminatorValueExpr(m.value)}: return ${m.typeName}.from_dict(obj)`);
         }
-        if (actualAliasName.startsWith("Catalog")) {
-            dispatcherLines.push(
-                `    raise ValueError(f"Unknown ${actualAliasName} ${union.discriminatorProp}: {kind!r}")`
-            );
-        } else {
-            dispatcherLines.push(
-                `        case _: raise ValueError(f"Unknown ${actualAliasName} ${union.discriminatorProp}: {kind!r}")`
-            );
-        }
+        dispatcherLines.push(
+            `    raise ValueError(f"Unknown ${actualAliasName} ${union.discriminatorProp}: {kind!r}")`
+        );
 
         code = `${code.trimEnd()}\n\n\n${aliasLine}\n\n\n${dispatcherLines.join("\n")}\n`;
     }
@@ -1781,15 +1775,9 @@ function tryEmitPyRefBasedDiscriminatedUnion(
                 `        case ${pyDiscriminatorValueExpr(m.value)}: return ${m.typeName}.from_dict(obj)`
             );
         }
-        if (aliasName.startsWith("Catalog")) {
-            lines.push(
-                `    raise ValueError(f"Unknown ${aliasName} ${discriminator.property}: {kind!r}")`
-            );
-        } else {
-            lines.push(
-                `        case _: raise ValueError(f"Unknown ${aliasName} ${discriminator.property}: {kind!r}")`
-            );
-        }
+        lines.push(
+            `        case _: raise ValueError(f"Unknown ${aliasName} ${discriminator.property}: {kind!r}")`
+        );
         ctx.classes.push(lines.join("\n"));
     }
 

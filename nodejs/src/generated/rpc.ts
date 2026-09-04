@@ -23710,16 +23710,1271 @@ export interface SessionFsSqliteExistsRequest {
   sessionId: string;
 }
 
-const FORBIDDEN_CATALOG_RESPONSE_FIELDS = new Set(["card", "cardData", "rawCard"]);
+type RpcResultProjection =
+    | { kind: "ref"; name: string }
+    | { kind: "array"; items: RpcResultProjection | null }
+    | { kind: "object"; closed: boolean; properties: Record<string, RpcResultProjection | null> }
+    | { kind: "union"; discriminator: string; variants: Record<string, RpcResultProjection> };
 
-function sanitizeCatalogSearchResult(value: unknown): unknown {
-    if (Array.isArray(value)) return value.map(sanitizeCatalogSearchResult);
-    if (value === null || typeof value !== "object") return value;
-    return Object.fromEntries(
-        Object.entries(value)
-            .filter(([key]) => !FORBIDDEN_CATALOG_RESPONSE_FIELDS.has(key))
-            .map(([key, child]) => [key, sanitizeCatalogSearchResult(child)]),
-    );
+const RPC_RESULT_PROJECTIONS: Record<string, RpcResultProjection> = {
+    "mcp.planInstall": {
+        "kind": "ref",
+        "name": "McpPlanInstallResult"
+    },
+    "catalog.search": {
+        "kind": "ref",
+        "name": "CatalogSearchResult"
+    },
+    "agentRegistry.spawn": {
+        "kind": "ref",
+        "name": "AgentRegistrySpawnResult"
+    },
+    "session.gitHubAuth.login": {
+        "kind": "ref",
+        "name": "AuthInfo"
+    },
+    "session.commands.invoke": {
+        "kind": "ref",
+        "name": "SlashCommandInvocationResult"
+    },
+    "session.limitPrediction.predict": {
+        "kind": "ref",
+        "name": "SessionLimitPredictionResult"
+    }
+};
+
+const RPC_RESULT_PROJECTION_DEFINITIONS: Record<string, RpcResultProjection> = {
+    "McpPlanResourceIdentity": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "canonicalName": null,
+            "serverName": null,
+            "version": null,
+            "registryId": null
+        }
+    },
+    "CardDigest": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "algorithm": null,
+            "value": null
+        }
+    },
+    "McpPlanProvenance": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "authority": null,
+            "validatedAt": null,
+            "cardDigest": {
+                "kind": "ref",
+                "name": "CardDigest"
+            },
+            "mediaType": null
+        }
+    },
+    "McpPlanRequiredValueScalar": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "kind": null,
+            "key": null,
+            "category": null,
+            "valueType": null,
+            "required": null,
+            "defaultValue": null,
+            "title": null,
+            "description": null,
+            "isRepeated": null
+        }
+    },
+    "McpPlanRequiredValueEnum": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "kind": null,
+            "key": null,
+            "category": null,
+            "valueType": null,
+            "required": null,
+            "defaultValue": null,
+            "title": null,
+            "description": null,
+            "enumValues": null,
+            "isRepeated": null
+        }
+    },
+    "McpPlanRequiredValue": {
+        "kind": "union",
+        "discriminator": "kind",
+        "variants": {
+            "string:\"scalar\"": {
+                "kind": "ref",
+                "name": "McpPlanRequiredValueScalar"
+            },
+            "string:\"enum\"": {
+                "kind": "ref",
+                "name": "McpPlanRequiredValueEnum"
+            }
+        }
+    },
+    "McpPlanSecretPlaceholder": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "key": null,
+            "placeholder": null,
+            "title": null
+        }
+    },
+    "McpPlanTransportChoicePackage": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "choiceId": null,
+            "transport": null,
+            "installMethod": null,
+            "packageType": null,
+            "packageIdentifier": null,
+            "requiredValues": {
+                "kind": "array",
+                "items": {
+                    "kind": "ref",
+                    "name": "McpPlanRequiredValue"
+                }
+            },
+            "secretPlaceholders": {
+                "kind": "array",
+                "items": {
+                    "kind": "ref",
+                    "name": "McpPlanSecretPlaceholder"
+                }
+            }
+        }
+    },
+    "McpPlanTransportChoiceRemote": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "choiceId": null,
+            "transport": null,
+            "installMethod": null,
+            "endpoint": null,
+            "requiredValues": {
+                "kind": "array",
+                "items": {
+                    "kind": "ref",
+                    "name": "McpPlanRequiredValue"
+                }
+            },
+            "secretPlaceholders": {
+                "kind": "array",
+                "items": {
+                    "kind": "ref",
+                    "name": "McpPlanSecretPlaceholder"
+                }
+            }
+        }
+    },
+    "McpPlanTransportChoice": {
+        "kind": "union",
+        "discriminator": "installMethod",
+        "variants": {
+            "string:\"package\"": {
+                "kind": "ref",
+                "name": "McpPlanTransportChoicePackage"
+            },
+            "string:\"remote\"": {
+                "kind": "ref",
+                "name": "McpPlanTransportChoiceRemote"
+            }
+        }
+    },
+    "McpPlanTarget": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "scope": null,
+            "configKey": null
+        }
+    },
+    "McpPlanPolicyResult": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "decision": null,
+            "source": null,
+            "reason": null
+        }
+    },
+    "McpPlanConfigurationChange": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "operation": null,
+            "scope": null,
+            "configKey": null,
+            "changedFields": null,
+            "secretReferences": null
+        }
+    },
+    "McpInstallPlan": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "planHandle": null,
+            "planHandleExpiresAt": null,
+            "identity": {
+                "kind": "ref",
+                "name": "McpPlanResourceIdentity"
+            },
+            "provenance": {
+                "kind": "ref",
+                "name": "McpPlanProvenance"
+            },
+            "transportChoices": {
+                "kind": "array",
+                "items": {
+                    "kind": "ref",
+                    "name": "McpPlanTransportChoice"
+                }
+            },
+            "recommendedTransportChoiceId": null,
+            "target": {
+                "kind": "ref",
+                "name": "McpPlanTarget"
+            },
+            "policy": {
+                "kind": "ref",
+                "name": "McpPlanPolicyResult"
+            },
+            "configurationChanges": {
+                "kind": "array",
+                "items": {
+                    "kind": "ref",
+                    "name": "McpPlanConfigurationChange"
+                }
+            },
+            "reloadRequired": null,
+            "requiresInteractiveConfiguration": null
+        }
+    },
+    "CatalogNegotiatedContract": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "runtimeProtocolVersion": null,
+            "grantedCapabilities": null
+        }
+    },
+    "McpPlanInstallPlanned": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "kind": null,
+            "plan": {
+                "kind": "ref",
+                "name": "McpInstallPlan"
+            },
+            "negotiated": {
+                "kind": "ref",
+                "name": "CatalogNegotiatedContract"
+            }
+        }
+    },
+    "CatalogNegotiationRefusedError": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "kind": null,
+            "reason": null,
+            "runtimeProtocolVersion": null,
+            "minimumSupportedProtocolVersion": null,
+            "supportedCapabilities": null,
+            "unsupportedCapabilities": null,
+            "message": null
+        }
+    },
+    "CatalogHandleRejectedError": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "kind": null,
+            "handleType": null,
+            "reason": null,
+            "message": null
+        }
+    },
+    "CatalogInvalidRequestError": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "kind": null,
+            "field": null,
+            "message": null
+        }
+    },
+    "CatalogAuthenticationRequiredError": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "kind": null,
+            "reason": null,
+            "message": null
+        }
+    },
+    "CatalogPolicyRejectedError": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "kind": null,
+            "source": null,
+            "message": null
+        }
+    },
+    "CatalogNetworkFailureError": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "kind": null,
+            "reason": null,
+            "statusCode": null,
+            "retryAfterSeconds": null,
+            "message": null
+        }
+    },
+    "CatalogUnsafeRetrievalError": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "kind": null,
+            "reason": null,
+            "message": null
+        }
+    },
+    "CatalogMalformedCardError": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "kind": null,
+            "reason": null,
+            "mediaType": null,
+            "message": null
+        }
+    },
+    "CatalogContractViolationError": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "kind": null,
+            "reason": null,
+            "message": null
+        }
+    },
+    "CatalogUnavailableTransportError": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "kind": null,
+            "reason": null,
+            "message": null
+        }
+    },
+    "CatalogNotInstallableError": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "kind": null,
+            "reason": null,
+            "message": null
+        }
+    },
+    "CatalogUnavailableError": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "kind": null,
+            "reason": null,
+            "message": null
+        }
+    },
+    "McpPlanInstallResult": {
+        "kind": "union",
+        "discriminator": "kind",
+        "variants": {
+            "string:\"planned\"": {
+                "kind": "ref",
+                "name": "McpPlanInstallPlanned"
+            },
+            "string:\"negotiation-refused\"": {
+                "kind": "ref",
+                "name": "CatalogNegotiationRefusedError"
+            },
+            "string:\"handle-rejected\"": {
+                "kind": "ref",
+                "name": "CatalogHandleRejectedError"
+            },
+            "string:\"invalid-request\"": {
+                "kind": "ref",
+                "name": "CatalogInvalidRequestError"
+            },
+            "string:\"authentication-required\"": {
+                "kind": "ref",
+                "name": "CatalogAuthenticationRequiredError"
+            },
+            "string:\"policy-rejected\"": {
+                "kind": "ref",
+                "name": "CatalogPolicyRejectedError"
+            },
+            "string:\"network-failure\"": {
+                "kind": "ref",
+                "name": "CatalogNetworkFailureError"
+            },
+            "string:\"unsafe-retrieval\"": {
+                "kind": "ref",
+                "name": "CatalogUnsafeRetrievalError"
+            },
+            "string:\"malformed-card\"": {
+                "kind": "ref",
+                "name": "CatalogMalformedCardError"
+            },
+            "string:\"contract-violation\"": {
+                "kind": "ref",
+                "name": "CatalogContractViolationError"
+            },
+            "string:\"unavailable-transport\"": {
+                "kind": "ref",
+                "name": "CatalogUnavailableTransportError"
+            },
+            "string:\"not-installable\"": {
+                "kind": "ref",
+                "name": "CatalogNotInstallableError"
+            },
+            "string:\"unavailable\"": {
+                "kind": "ref",
+                "name": "CatalogUnavailableError"
+            }
+        }
+    },
+    "CatalogCandidateSourceUrl": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "kind": null,
+            "url": null
+        }
+    },
+    "CatalogCandidateSourceEmbedded": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "kind": null
+        }
+    },
+    "CatalogCandidateSource": {
+        "kind": "union",
+        "discriminator": "kind",
+        "variants": {
+            "string:\"url\"": {
+                "kind": "ref",
+                "name": "CatalogCandidateSourceUrl"
+            },
+            "string:\"embedded\"": {
+                "kind": "ref",
+                "name": "CatalogCandidateSourceEmbedded"
+            }
+        }
+    },
+    "CatalogMcpServerCandidateProvenance": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "authority": null,
+            "observedAt": null,
+            "mediaType": null
+        }
+    },
+    "CatalogMcpServerCandidate": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "handle": null,
+            "handleExpiresAt": null,
+            "kind": null,
+            "mediaType": null,
+            "installability": null,
+            "displayName": null,
+            "description": null,
+            "publisher": null,
+            "source": {
+                "kind": "ref",
+                "name": "CatalogCandidateSource"
+            },
+            "provenance": {
+                "kind": "ref",
+                "name": "CatalogMcpServerCandidateProvenance"
+            }
+        }
+    },
+    "CatalogAiSkillCandidateProvenance": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "authority": null,
+            "observedAt": null,
+            "mediaType": null
+        }
+    },
+    "CatalogAiSkillCandidate": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "handle": null,
+            "handleExpiresAt": null,
+            "kind": null,
+            "mediaType": null,
+            "installability": null,
+            "displayName": null,
+            "description": null,
+            "publisher": null,
+            "source": {
+                "kind": "ref",
+                "name": "CatalogCandidateSource"
+            },
+            "provenance": {
+                "kind": "ref",
+                "name": "CatalogAiSkillCandidateProvenance"
+            }
+        }
+    },
+    "CatalogCandidate": {
+        "kind": "union",
+        "discriminator": "kind",
+        "variants": {
+            "string:\"mcp-server\"": {
+                "kind": "ref",
+                "name": "CatalogMcpServerCandidate"
+            },
+            "string:\"ai-skill\"": {
+                "kind": "ref",
+                "name": "CatalogAiSkillCandidate"
+            }
+        }
+    },
+    "CatalogSearchSucceeded": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "kind": null,
+            "searchId": null,
+            "candidates": {
+                "kind": "array",
+                "items": {
+                    "kind": "ref",
+                    "name": "CatalogCandidate"
+                }
+            },
+            "truncated": null,
+            "negotiated": {
+                "kind": "ref",
+                "name": "CatalogNegotiatedContract"
+            }
+        }
+    },
+    "CatalogUnsupportedKindError": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "kind": null,
+            "requestedKinds": null,
+            "supportedKinds": null,
+            "message": null
+        }
+    },
+    "CatalogSearchResult": {
+        "kind": "union",
+        "discriminator": "kind",
+        "variants": {
+            "string:\"succeeded\"": {
+                "kind": "ref",
+                "name": "CatalogSearchSucceeded"
+            },
+            "string:\"negotiation-refused\"": {
+                "kind": "ref",
+                "name": "CatalogNegotiationRefusedError"
+            },
+            "string:\"unsupported-kind\"": {
+                "kind": "ref",
+                "name": "CatalogUnsupportedKindError"
+            },
+            "string:\"invalid-request\"": {
+                "kind": "ref",
+                "name": "CatalogInvalidRequestError"
+            },
+            "string:\"authentication-required\"": {
+                "kind": "ref",
+                "name": "CatalogAuthenticationRequiredError"
+            },
+            "string:\"policy-rejected\"": {
+                "kind": "ref",
+                "name": "CatalogPolicyRejectedError"
+            },
+            "string:\"network-failure\"": {
+                "kind": "ref",
+                "name": "CatalogNetworkFailureError"
+            },
+            "string:\"unsafe-retrieval\"": {
+                "kind": "ref",
+                "name": "CatalogUnsafeRetrievalError"
+            },
+            "string:\"malformed-card\"": {
+                "kind": "ref",
+                "name": "CatalogMalformedCardError"
+            },
+            "string:\"contract-violation\"": {
+                "kind": "ref",
+                "name": "CatalogContractViolationError"
+            },
+            "string:\"unavailable\"": {
+                "kind": "ref",
+                "name": "CatalogUnavailableError"
+            }
+        }
+    },
+    "AgentRegistryLiveTargetEntry": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "schemaVersion": null,
+            "kind": null,
+            "pid": null,
+            "host": null,
+            "port": null,
+            "sessionId": null,
+            "sessionName": null,
+            "cwd": null,
+            "branch": null,
+            "model": null,
+            "status": null,
+            "attentionKind": null,
+            "statusRevision": null,
+            "lastTerminalEvent": null,
+            "startedAt": null,
+            "copilotVersion": null,
+            "lastSeenMs": null,
+            "token": null
+        }
+    },
+    "AgentRegistryLogCapture": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "enabled": null,
+            "path": null,
+            "openError": null,
+            "openErrorReason": null
+        }
+    },
+    "AgentRegistrySpawnSpawned": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "kind": null,
+            "entry": {
+                "kind": "ref",
+                "name": "AgentRegistryLiveTargetEntry"
+            },
+            "initialPromptSent": null,
+            "initialPromptError": null,
+            "logCapture": {
+                "kind": "ref",
+                "name": "AgentRegistryLogCapture"
+            }
+        }
+    },
+    "AgentRegistrySpawnError": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "kind": null,
+            "message": null,
+            "code": null
+        }
+    },
+    "AgentRegistrySpawnRegistryTimeout": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "kind": null,
+            "childPid": null,
+            "logCapture": {
+                "kind": "ref",
+                "name": "AgentRegistryLogCapture"
+            }
+        }
+    },
+    "AgentRegistrySpawnValidationError": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "kind": null,
+            "reason": null,
+            "field": null,
+            "message": null
+        }
+    },
+    "AgentRegistrySpawnResult": {
+        "kind": "union",
+        "discriminator": "kind",
+        "variants": {
+            "string:\"spawned\"": {
+                "kind": "ref",
+                "name": "AgentRegistrySpawnSpawned"
+            },
+            "string:\"spawn-error\"": {
+                "kind": "ref",
+                "name": "AgentRegistrySpawnError"
+            },
+            "string:\"registry-timeout\"": {
+                "kind": "ref",
+                "name": "AgentRegistrySpawnRegistryTimeout"
+            },
+            "string:\"validation-error\"": {
+                "kind": "ref",
+                "name": "AgentRegistrySpawnValidationError"
+            }
+        }
+    },
+    "CopilotUserResponseEndpoints": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "api": null,
+            "origin-tracker": null,
+            "proxy": null,
+            "telemetry": null,
+            "exp": null
+        }
+    },
+    "CopilotUserResponseQuotaSnapshotsChat": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "entitlement": null,
+            "overage_count": null,
+            "overage_permitted": null,
+            "percent_remaining": null,
+            "quota_id": null,
+            "quota_remaining": null,
+            "remaining": null,
+            "unlimited": null,
+            "timestamp_utc": null,
+            "has_quota": null,
+            "quota_reset_at": null,
+            "token_based_billing": null
+        }
+    },
+    "CopilotUserResponseQuotaSnapshotsCompletions": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "entitlement": null,
+            "overage_count": null,
+            "overage_permitted": null,
+            "percent_remaining": null,
+            "quota_id": null,
+            "quota_remaining": null,
+            "remaining": null,
+            "unlimited": null,
+            "timestamp_utc": null,
+            "has_quota": null,
+            "quota_reset_at": null,
+            "token_based_billing": null
+        }
+    },
+    "CopilotUserResponseQuotaSnapshotsPremiumInteractions": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "entitlement": null,
+            "overage_count": null,
+            "overage_permitted": null,
+            "percent_remaining": null,
+            "quota_id": null,
+            "quota_remaining": null,
+            "remaining": null,
+            "unlimited": null,
+            "timestamp_utc": null,
+            "has_quota": null,
+            "quota_reset_at": null,
+            "token_based_billing": null
+        }
+    },
+    "CopilotUserResponseQuotaSnapshots": {
+        "kind": "object",
+        "closed": false,
+        "properties": {
+            "chat": {
+                "kind": "ref",
+                "name": "CopilotUserResponseQuotaSnapshotsChat"
+            },
+            "completions": {
+                "kind": "ref",
+                "name": "CopilotUserResponseQuotaSnapshotsCompletions"
+            },
+            "premium_interactions": {
+                "kind": "ref",
+                "name": "CopilotUserResponseQuotaSnapshotsPremiumInteractions"
+            }
+        }
+    },
+    "CopilotUserResponse": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "login": null,
+            "access_type_sku": null,
+            "analytics_tracking_id": null,
+            "assigned_date": null,
+            "can_signup_for_limited": null,
+            "chat_enabled": null,
+            "copilot_plan": null,
+            "copilotignore_enabled": null,
+            "endpoints": {
+                "kind": "ref",
+                "name": "CopilotUserResponseEndpoints"
+            },
+            "organization_login_list": null,
+            "organization_list": null,
+            "codex_agent_enabled": null,
+            "is_mcp_enabled": null,
+            "quota_reset_date": null,
+            "quota_snapshots": {
+                "kind": "ref",
+                "name": "CopilotUserResponseQuotaSnapshots"
+            },
+            "restricted_telemetry": null,
+            "is_staff": null,
+            "te": null,
+            "token_based_billing": null,
+            "can_upgrade_plan": null,
+            "quota_reset_date_utc": null,
+            "limited_user_quotas": null,
+            "limited_user_reset_date": null,
+            "monthly_quotas": null,
+            "cloud_session_storage_enabled": null,
+            "cli_remote_control_enabled": null
+        }
+    },
+    "HMACAuthInfo": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "type": null,
+            "host": null,
+            "hmac": null,
+            "copilotUser": {
+                "kind": "ref",
+                "name": "CopilotUserResponse"
+            }
+        }
+    },
+    "EnvAuthInfo": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "type": null,
+            "host": null,
+            "login": null,
+            "token": null,
+            "envVar": null,
+            "copilotUser": {
+                "kind": "ref",
+                "name": "CopilotUserResponse"
+            }
+        }
+    },
+    "TokenAuthInfo": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "type": null,
+            "host": null,
+            "token": null,
+            "registrationId": null,
+            "copilotUser": {
+                "kind": "ref",
+                "name": "CopilotUserResponse"
+            }
+        }
+    },
+    "TokenProviderAuthInfo": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "type": null,
+            "host": null,
+            "registrationId": null,
+            "copilotUser": {
+                "kind": "ref",
+                "name": "CopilotUserResponse"
+            }
+        }
+    },
+    "CopilotApiTokenAuthInfo": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "type": null,
+            "host": null,
+            "copilotUser": {
+                "kind": "ref",
+                "name": "CopilotUserResponse"
+            }
+        }
+    },
+    "UserAuthInfo": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "type": null,
+            "host": null,
+            "login": null,
+            "copilotUser": {
+                "kind": "ref",
+                "name": "CopilotUserResponse"
+            }
+        }
+    },
+    "GhCliAuthInfo": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "type": null,
+            "host": null,
+            "login": null,
+            "token": null,
+            "copilotUser": {
+                "kind": "ref",
+                "name": "CopilotUserResponse"
+            }
+        }
+    },
+    "ApiKeyAuthInfo": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "type": null,
+            "apiKey": null,
+            "host": null,
+            "copilotUser": {
+                "kind": "ref",
+                "name": "CopilotUserResponse"
+            }
+        }
+    },
+    "AuthInfo": {
+        "kind": "union",
+        "discriminator": "type",
+        "variants": {
+            "string:\"hmac\"": {
+                "kind": "ref",
+                "name": "HMACAuthInfo"
+            },
+            "string:\"env\"": {
+                "kind": "ref",
+                "name": "EnvAuthInfo"
+            },
+            "string:\"token\"": {
+                "kind": "ref",
+                "name": "TokenAuthInfo"
+            },
+            "string:\"token-provider\"": {
+                "kind": "ref",
+                "name": "TokenProviderAuthInfo"
+            },
+            "string:\"copilot-api-token\"": {
+                "kind": "ref",
+                "name": "CopilotApiTokenAuthInfo"
+            },
+            "string:\"user\"": {
+                "kind": "ref",
+                "name": "UserAuthInfo"
+            },
+            "string:\"gh-cli\"": {
+                "kind": "ref",
+                "name": "GhCliAuthInfo"
+            },
+            "string:\"api-key\"": {
+                "kind": "ref",
+                "name": "ApiKeyAuthInfo"
+            }
+        }
+    },
+    "SlashCommandTextResult": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "kind": null,
+            "text": null,
+            "markdown": null,
+            "preserveAnsi": null,
+            "runtimeSettingsChanged": null
+        }
+    },
+    "SlashCommandAgentPromptResult": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "kind": null,
+            "prompt": null,
+            "displayPrompt": null,
+            "mode": null,
+            "notice": null,
+            "runtimeSettingsChanged": null
+        }
+    },
+    "SlashCommandCompletedResult": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "kind": null,
+            "message": null,
+            "mode": null,
+            "runtimeSettingsChanged": null
+        }
+    },
+    "SlashCommandSelectSubcommandOption": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "name": null,
+            "description": null,
+            "group": null
+        }
+    },
+    "SlashCommandSelectSubcommandResult": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "kind": null,
+            "command": null,
+            "title": null,
+            "options": {
+                "kind": "array",
+                "items": {
+                    "kind": "ref",
+                    "name": "SlashCommandSelectSubcommandOption"
+                }
+            },
+            "runtimeSettingsChanged": null
+        }
+    },
+    "SlashCommandTimelineEntry": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "type": null,
+            "text": null,
+            "url": null,
+            "remediation": null
+        }
+    },
+    "SlashCommandAddTimelineEntryResult": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "kind": null,
+            "entry": {
+                "kind": "ref",
+                "name": "SlashCommandTimelineEntry"
+            },
+            "prefillInput": null,
+            "runtimeSettingsChanged": null
+        }
+    },
+    "SlashCommandModelPickerDialog": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "kind": null,
+            "modelToEnable": null,
+            "scope": null,
+            "target": null
+        }
+    },
+    "SlashCommandShowDialogResult": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "kind": null,
+            "dialog": {
+                "kind": "ref",
+                "name": "SlashCommandModelPickerDialog"
+            },
+            "runtimeSettingsChanged": null
+        }
+    },
+    "SlashCommandSetModelResult": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "kind": null,
+            "model": null,
+            "scope": null,
+            "warning": null,
+            "reasoningEffort": null,
+            "revertOnCancel": null,
+            "repoScope": null,
+            "runtimeSettingsChanged": null
+        }
+    },
+    "SlashCommandSetPlanModelResult": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "kind": null,
+            "planModel": null,
+            "message": null,
+            "runtimeSettingsChanged": null
+        }
+    },
+    "SlashCommandInvocationResult": {
+        "kind": "union",
+        "discriminator": "kind",
+        "variants": {
+            "string:\"text\"": {
+                "kind": "ref",
+                "name": "SlashCommandTextResult"
+            },
+            "string:\"agent-prompt\"": {
+                "kind": "ref",
+                "name": "SlashCommandAgentPromptResult"
+            },
+            "string:\"completed\"": {
+                "kind": "ref",
+                "name": "SlashCommandCompletedResult"
+            },
+            "string:\"select-subcommand\"": {
+                "kind": "ref",
+                "name": "SlashCommandSelectSubcommandResult"
+            },
+            "string:\"add-timeline-entry\"": {
+                "kind": "ref",
+                "name": "SlashCommandAddTimelineEntryResult"
+            },
+            "string:\"show-dialog\"": {
+                "kind": "ref",
+                "name": "SlashCommandShowDialogResult"
+            },
+            "string:\"set-model\"": {
+                "kind": "ref",
+                "name": "SlashCommandSetModelResult"
+            },
+            "string:\"set-plan-model\"": {
+                "kind": "ref",
+                "name": "SlashCommandSetPlanModelResult"
+            }
+        }
+    },
+    "SessionLimitPredictionTierOption": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "tier": null,
+            "cap": null
+        }
+    },
+    "SessionLimitPredictionBaselineData": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "windowStart": null,
+            "windowEnd": null
+        }
+    },
+    "SessionLimitPredictionDetails": {
+        "kind": "object",
+        "closed": true,
+        "properties": {
+            "clientType": null,
+            "modelId": null,
+            "source": null,
+            "sourceKey": null,
+            "family": null,
+            "tiers": {
+                "kind": "array",
+                "items": {
+                    "kind": "ref",
+                    "name": "SessionLimitPredictionTierOption"
+                }
+            },
+            "baselineData": {
+                "kind": "ref",
+                "name": "SessionLimitPredictionBaselineData"
+            },
+            "recommendedTier": null,
+            "recommendedCap": null
+        }
+    },
+    "SessionLimitPredictionResult": {
+        "kind": "union",
+        "discriminator": "kind",
+        "variants": {
+            "string:\"available\"": {
+                "kind": "object",
+                "closed": true,
+                "properties": {
+                    "prediction": {
+                        "kind": "ref",
+                        "name": "SessionLimitPredictionDetails"
+                    },
+                    "kind": null
+                }
+            },
+            "string:\"unavailable\"": {
+                "kind": "object",
+                "closed": true,
+                "properties": {
+                    "reason": null,
+                    "kind": null
+                }
+            }
+        }
+    }
+};
+
+function projectRpcResult(value: unknown, projection: RpcResultProjection, path = "$"): unknown {
+    if (projection.kind === "ref") {
+        const definition = RPC_RESULT_PROJECTION_DEFINITIONS[projection.name];
+        if (!definition) throw new TypeError(`Missing RPC result projection for ${projection.name}`);
+        return projectRpcResult(value, definition, path);
+    }
+    if (projection.kind === "array") {
+        if (!Array.isArray(value)) throw new TypeError(`Invalid RPC result at ${path}: expected an array`);
+        return projection.items ? value.map((item, index) => projectRpcResult(item, projection.items!, `${path}[${index}]`)) : value;
+    }
+    if (value === null || typeof value !== "object" || Array.isArray(value)) {
+        throw new TypeError(`Invalid RPC result at ${path}: expected an object`);
+    }
+    const record = value as Record<string, unknown>;
+    if (projection.kind === "union") {
+        const discriminator = record[projection.discriminator];
+        const key = `${typeof discriminator}:${JSON.stringify(discriminator)}`;
+        const variant = projection.variants[key];
+        if (!variant) {
+            throw new TypeError(`Invalid RPC result at ${path}: unknown or missing ${projection.discriminator} discriminator`);
+        }
+        return projectRpcResult(value, variant, path);
+    }
+    const result: Record<string, unknown> = projection.closed ? {} : { ...record };
+    for (const [name, child] of Object.entries(projection.properties)) {
+        if (!Object.hasOwn(record, name)) continue;
+        result[name] = child ? projectRpcResult(record[name], child, `${path}.${name}`) : record[name];
+    }
+    return result;
 }
 
 /** Create typed server-scoped RPC methods (no session required). */
@@ -23904,7 +25159,10 @@ export function createServerRpc(connection: MessageConnection) {
              * @returns Outcome of an mcp.planInstall call: either a normalised plan, or one typed refusal. Nothing is written in either case.
              */
             planInstall: async (params: McpPlanInstallRequest): Promise<McpPlanInstallResult> =>
-                connection.sendRequest("mcp.planInstall", params),
+                projectRpcResult(
+                    await connection.sendRequest("mcp.planInstall", params),
+                    RPC_RESULT_PROJECTIONS["mcp.planInstall"],
+                ) as McpPlanInstallResult,
         },
         /** @experimental */
         extensions: {
@@ -23947,8 +25205,9 @@ export function createServerRpc(connection: MessageConnection) {
              * @returns Outcome of a catalog.search call: either bounded inert candidates, or one typed refusal. Never a partial success.
              */
             search: async (params: CatalogSearchRequest): Promise<CatalogSearchResult> =>
-                sanitizeCatalogSearchResult(
+                projectRpcResult(
                     await connection.sendRequest("catalog.search", params),
+                    RPC_RESULT_PROJECTIONS["catalog.search"],
                 ) as CatalogSearchResult,
         },
         /** @experimental */
@@ -24468,7 +25727,10 @@ export function createServerRpc(connection: MessageConnection) {
              * @returns Outcome of an agentRegistry.spawn call.
              */
             spawn: async (params: AgentRegistrySpawnRequest): Promise<AgentRegistrySpawnResult> =>
-                connection.sendRequest("agentRegistry.spawn", params),
+                projectRpcResult(
+                    await connection.sendRequest("agentRegistry.spawn", params),
+                    RPC_RESULT_PROJECTIONS["agentRegistry.spawn"],
+                ) as AgentRegistrySpawnResult,
         },
     };
 }
@@ -25775,7 +27037,10 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              * @returns Result of invoking the slash command (text output, prompt to send to the agent, completion, or subcommand selection).
              */
             invoke: async (params: CommandsInvokeRequest): Promise<SlashCommandInvocationResult> =>
-                connection.sendRequest("session.commands.invoke", { sessionId, ...params }),
+                projectRpcResult(
+                    await connection.sendRequest("session.commands.invoke", { sessionId, ...params }),
+                    RPC_RESULT_PROJECTIONS["session.commands.invoke"],
+                ) as SlashCommandInvocationResult,
             /**
              * Reports completion of a pending client-handled slash command.
              *
@@ -26473,7 +27738,10 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              * @returns Prediction result. Available results include prediction details; unavailable results include an explicit reason.
              */
             predict: async (params?: SessionLimitPredictionPredictRequest): Promise<SessionLimitPredictionResult> =>
-                connection.sendRequest("session.limitPrediction.predict", { sessionId, ...params }),
+                projectRpcResult(
+                    await connection.sendRequest("session.limitPrediction.predict", { sessionId, ...params }),
+                    RPC_RESULT_PROJECTIONS["session.limitPrediction.predict"],
+                ) as SessionLimitPredictionResult,
         },
         /** @experimental */
         remote: {
@@ -26589,7 +27857,10 @@ export function createInternalSessionRpc(connection: MessageConnection, sessionI
              * @returns Authentication credentials accepted only at native protocol ingress. Runtime outputs use credential-free `AuthIdentity` metadata.
              */
             login: async (params: SessionAuthLoginRequest): Promise<AuthInfo> =>
-                connection.sendRequest("session.gitHubAuth.login", { sessionId, ...params }),
+                projectRpcResult(
+                    await connection.sendRequest("session.gitHubAuth.login", { sessionId, ...params }),
+                    RPC_RESULT_PROJECTIONS["session.gitHubAuth.login"],
+                ) as AuthInfo,
             /**
              * Switches the session to another available authentication.
              *

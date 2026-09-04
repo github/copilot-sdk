@@ -625,7 +625,8 @@ internal sealed class AccountGetQuotaRequest
 [Experimental(Diagnostics.Experimental)]
 [JsonPolymorphic(
     TypeDiscriminatorPropertyName = "type",
-    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+    IgnoreUnrecognizedTypeDiscriminators = false,
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FailSerialization)]
 [JsonDerivedType(typeof(AuthInfoHmac), "hmac")]
 [JsonDerivedType(typeof(AuthInfoEnv), "env")]
 [JsonDerivedType(typeof(AuthInfoToken), "token")]
@@ -637,6 +638,7 @@ internal sealed class AccountGetQuotaRequest
 public partial class AuthInfo
 {
     /// <summary>The type discriminator.</summary>
+    [JsonRequired]
     [JsonPropertyName("type")]
     public virtual string Type { get; set; } = string.Empty;
 }
@@ -1313,7 +1315,8 @@ internal sealed class McpDiscoverRequest
 [Experimental(Diagnostics.Experimental)]
 [JsonPolymorphic(
     TypeDiscriminatorPropertyName = "kind",
-    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+    IgnoreUnrecognizedTypeDiscriminators = false,
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FailSerialization)]
 [JsonDerivedType(typeof(McpPlanInstallResultPlanned), "planned")]
 [JsonDerivedType(typeof(McpPlanInstallResultNegotiationRefused), "negotiation-refused")]
 [JsonDerivedType(typeof(McpPlanInstallResultHandleRejected), "handle-rejected")]
@@ -1330,6 +1333,7 @@ internal sealed class McpDiscoverRequest
 public partial class McpPlanInstallResult
 {
     /// <summary>The type discriminator.</summary>
+    [JsonRequired]
     [JsonPropertyName("kind")]
     public virtual string Kind { get; set; } = string.Empty;
 }
@@ -1479,12 +1483,14 @@ public sealed class McpPlanTarget
 [Experimental(Diagnostics.Experimental)]
 [JsonPolymorphic(
     TypeDiscriminatorPropertyName = "installMethod",
-    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+    IgnoreUnrecognizedTypeDiscriminators = false,
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FailSerialization)]
 [JsonDerivedType(typeof(McpPlanTransportChoicePackage), "package")]
 [JsonDerivedType(typeof(McpPlanTransportChoiceRemote), "remote")]
 public partial class McpPlanTransportChoice
 {
     /// <summary>The type discriminator.</summary>
+    [JsonRequired]
     [JsonPropertyName("installMethod")]
     public virtual string InstallMethod { get; set; } = string.Empty;
 }
@@ -1495,12 +1501,14 @@ public partial class McpPlanTransportChoice
 [Experimental(Diagnostics.Experimental)]
 [JsonPolymorphic(
     TypeDiscriminatorPropertyName = "kind",
-    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+    IgnoreUnrecognizedTypeDiscriminators = false,
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FailSerialization)]
 [JsonDerivedType(typeof(McpPlanRequiredValueScalar), "scalar")]
 [JsonDerivedType(typeof(McpPlanRequiredValueEnum), "enum")]
 public partial class McpPlanRequiredValue
 {
     /// <summary>The type discriminator.</summary>
+    [JsonRequired]
     [JsonPropertyName("kind")]
     public virtual string Kind { get; set; } = string.Empty;
 }
@@ -2074,12 +2082,14 @@ public sealed class CatalogClientContract
 [Experimental(Diagnostics.Experimental)]
 [JsonPolymorphic(
     TypeDiscriminatorPropertyName = "kind",
-    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+    IgnoreUnrecognizedTypeDiscriminators = false,
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FailSerialization)]
 [JsonDerivedType(typeof(McpPlanInstallSourceCandidate), "candidate")]
 [JsonDerivedType(typeof(McpPlanInstallSourceCard), "card")]
 public partial class McpPlanInstallSource
 {
     /// <summary>The type discriminator.</summary>
+    [JsonRequired]
     [JsonPropertyName("kind")]
     public virtual string Kind { get; set; } = string.Empty;
 }
@@ -2114,12 +2124,14 @@ public partial class McpPlanInstallSourceCandidate : McpPlanInstallSource
 [Experimental(Diagnostics.Experimental)]
 [JsonPolymorphic(
     TypeDiscriminatorPropertyName = "kind",
-    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+    IgnoreUnrecognizedTypeDiscriminators = false,
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FailSerialization)]
 [JsonDerivedType(typeof(McpServerCardReferenceUrl), "url")]
 [JsonDerivedType(typeof(McpServerCardReferenceEmbedded), "embedded")]
 public partial class McpServerCardReference
 {
     /// <summary>The type discriminator.</summary>
+    [JsonRequired]
     [JsonPropertyName("kind")]
     public virtual string Kind { get; set; } = string.Empty;
 }
@@ -2347,7 +2359,8 @@ internal sealed class DiscoveredExtensionsDisableRequest
 [Experimental(Diagnostics.Experimental)]
 [JsonPolymorphic(
     TypeDiscriminatorPropertyName = "kind",
-    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+    IgnoreUnrecognizedTypeDiscriminators = false,
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FailSerialization)]
 [JsonDerivedType(typeof(CatalogSearchResultSucceeded), "succeeded")]
 [JsonDerivedType(typeof(CatalogSearchResultNegotiationRefused), "negotiation-refused")]
 [JsonDerivedType(typeof(CatalogSearchResultUnsupportedKind), "unsupported-kind")]
@@ -2362,6 +2375,7 @@ internal sealed class DiscoveredExtensionsDisableRequest
 public partial class CatalogSearchResult
 {
     /// <summary>The type discriminator.</summary>
+    [JsonRequired]
     [JsonPropertyName("kind")]
     public virtual string Kind { get; set; } = string.Empty;
 }
@@ -2372,12 +2386,14 @@ public partial class CatalogSearchResult
 [Experimental(Diagnostics.Experimental)]
 [JsonPolymorphic(
     TypeDiscriminatorPropertyName = "kind",
-    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+    IgnoreUnrecognizedTypeDiscriminators = false,
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FailSerialization)]
 [JsonDerivedType(typeof(CatalogCandidateMcpServer), "mcp-server")]
 [JsonDerivedType(typeof(CatalogCandidateAiSkill), "ai-skill")]
 public partial class CatalogCandidate
 {
     /// <summary>The type discriminator.</summary>
+    [JsonRequired]
     [JsonPropertyName("kind")]
     public virtual string Kind { get; set; } = string.Empty;
 }
@@ -2407,12 +2423,14 @@ public sealed class CatalogMcpServerCandidateProvenance
 [Experimental(Diagnostics.Experimental)]
 [JsonPolymorphic(
     TypeDiscriminatorPropertyName = "kind",
-    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+    IgnoreUnrecognizedTypeDiscriminators = false,
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FailSerialization)]
 [JsonDerivedType(typeof(CatalogCandidateSourceUrl), "url")]
 [JsonDerivedType(typeof(CatalogCandidateSourceEmbedded), "embedded")]
 public partial class CatalogCandidateSource
 {
     /// <summary>The type discriminator.</summary>
+    [JsonRequired]
     [JsonPropertyName("kind")]
     public virtual string Kind { get; set; } = string.Empty;
 }
@@ -4758,7 +4776,8 @@ internal sealed class SessionsGetBoardEntryCountRequest
 [Experimental(Diagnostics.Experimental)]
 [JsonPolymorphic(
     TypeDiscriminatorPropertyName = "state",
-    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+    IgnoreUnrecognizedTypeDiscriminators = false,
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FailSerialization)]
 [JsonDerivedType(typeof(RemoteControlStatusOff), "off")]
 [JsonDerivedType(typeof(RemoteControlStatusConnecting), "connecting")]
 [JsonDerivedType(typeof(RemoteControlStatusActive), "active")]
@@ -4766,6 +4785,7 @@ internal sealed class SessionsGetBoardEntryCountRequest
 public partial class RemoteControlStatus
 {
     /// <summary>The type discriminator.</summary>
+    [JsonRequired]
     [JsonPropertyName("state")]
     public virtual string State { get; set; } = string.Empty;
 }
@@ -5007,7 +5027,8 @@ internal sealed class ConfigureSessionExtensionsParams
 [Experimental(Diagnostics.Experimental)]
 [JsonPolymorphic(
     TypeDiscriminatorPropertyName = "kind",
-    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+    IgnoreUnrecognizedTypeDiscriminators = false,
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FailSerialization)]
 [JsonDerivedType(typeof(AgentRegistrySpawnResultSpawned), "spawned")]
 [JsonDerivedType(typeof(AgentRegistrySpawnResultSpawnError), "spawn-error")]
 [JsonDerivedType(typeof(AgentRegistrySpawnResultRegistryTimeout), "registry-timeout")]
@@ -5015,6 +5036,7 @@ internal sealed class ConfigureSessionExtensionsParams
 public partial class AgentRegistrySpawnResult
 {
     /// <summary>The type discriminator.</summary>
+    [JsonRequired]
     [JsonPropertyName("kind")]
     public virtual string Kind { get; set; } = string.Empty;
 }
@@ -5624,7 +5646,8 @@ public sealed class SessionSetCredentialsResult
 [Experimental(Diagnostics.Experimental)]
 [JsonPolymorphic(
     TypeDiscriminatorPropertyName = "type",
-    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+    IgnoreUnrecognizedTypeDiscriminators = false,
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FailSerialization)]
 [JsonDerivedType(typeof(SettableAuthInfoHmac), "hmac")]
 [JsonDerivedType(typeof(SettableAuthInfoEnv), "env")]
 [JsonDerivedType(typeof(SettableAuthInfoToken), "token")]
@@ -5635,6 +5658,7 @@ public sealed class SessionSetCredentialsResult
 public partial class SettableAuthInfo
 {
     /// <summary>The type discriminator.</summary>
+    [JsonRequired]
     [JsonPropertyName("type")]
     public virtual string Type { get; set; } = string.Empty;
 }
@@ -6050,12 +6074,14 @@ public sealed class DebugCollectLogsEntry
 [Experimental(Diagnostics.Experimental)]
 [JsonPolymorphic(
     TypeDiscriminatorPropertyName = "kind",
-    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+    IgnoreUnrecognizedTypeDiscriminators = false,
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FailSerialization)]
 [JsonDerivedType(typeof(DebugCollectLogsDestinationArchive), "archive")]
 [JsonDerivedType(typeof(DebugCollectLogsDestinationDirectory), "directory")]
 public partial class DebugCollectLogsDestination
 {
     /// <summary>The type discriminator.</summary>
+    [JsonRequired]
     [JsonPropertyName("kind")]
     public virtual string Kind { get; set; } = string.Empty;
 }
@@ -6386,7 +6412,8 @@ internal sealed class CanvasProviderUnregisterRequest
 [Experimental(Diagnostics.Experimental)]
 [JsonPolymorphic(
     TypeDiscriminatorPropertyName = "type",
-    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+    IgnoreUnrecognizedTypeDiscriminators = false,
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FailSerialization)]
 [JsonDerivedType(typeof(FactoryRunFailureFactoryLimitReached), "factory_limit_reached")]
 [JsonDerivedType(typeof(FactoryRunFailureFactoryResumeDeclined), "factory_resume_declined")]
 [JsonDerivedType(typeof(FactoryRunFailureFactoryDurableFailure), "factory_durable_failure")]
@@ -6395,6 +6422,7 @@ internal sealed class CanvasProviderUnregisterRequest
 public partial class FactoryRunFailure
 {
     /// <summary>The type discriminator.</summary>
+    [JsonRequired]
     [JsonPropertyName("type")]
     public virtual string Type { get; set; } = string.Empty;
 }
@@ -8914,13 +8942,15 @@ internal sealed class TasksStartAgentRequest
 [Experimental(Diagnostics.Experimental)]
 [JsonPolymorphic(
     TypeDiscriminatorPropertyName = "type",
-    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+    IgnoreUnrecognizedTypeDiscriminators = false,
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FailSerialization)]
 [JsonDerivedType(typeof(TaskInfoAgent), "agent")]
 [JsonDerivedType(typeof(TaskInfoClient), "client")]
 [JsonDerivedType(typeof(TaskInfoShell), "shell")]
 public partial class TaskInfo
 {
     /// <summary>The type discriminator.</summary>
+    [JsonRequired]
     [JsonPropertyName("type")]
     public virtual string Type { get; set; } = string.Empty;
 }
@@ -9404,7 +9434,8 @@ public sealed class TasksUpdateResult
 [Experimental(Diagnostics.Experimental)]
 [JsonPolymorphic(
     TypeDiscriminatorPropertyName = "kind",
-    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+    IgnoreUnrecognizedTypeDiscriminators = false,
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FailSerialization)]
 [JsonDerivedType(typeof(TaskClientUpdateProgress), "progress")]
 [JsonDerivedType(typeof(TaskClientUpdateCompleted), "completed")]
 [JsonDerivedType(typeof(TaskClientUpdateFailed), "failed")]
@@ -9412,6 +9443,7 @@ public sealed class TasksUpdateResult
 public partial class TaskClientUpdate
 {
     /// <summary>The type discriminator.</summary>
+    [JsonRequired]
     [JsonPropertyName("kind")]
     public virtual string Kind { get; set; } = string.Empty;
 }
@@ -9567,13 +9599,15 @@ internal sealed class SessionTasksWaitForPendingRequest
 [Experimental(Diagnostics.Experimental)]
 [JsonPolymorphic(
     TypeDiscriminatorPropertyName = "type",
-    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+    IgnoreUnrecognizedTypeDiscriminators = false,
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FailSerialization)]
 [JsonDerivedType(typeof(TaskProgressAgent), "agent")]
 [JsonDerivedType(typeof(TaskProgressClient), "client")]
 [JsonDerivedType(typeof(TaskProgressShell), "shell")]
 public partial class TaskProgress
 {
     /// <summary>The type discriminator.</summary>
+    [JsonRequired]
     [JsonPropertyName("type")]
     public virtual string Type { get; set; } = string.Empty;
 }
@@ -12482,7 +12516,8 @@ internal sealed class SessionExtensionsReloadRequest
 [Experimental(Diagnostics.Experimental)]
 [JsonPolymorphic(
     TypeDiscriminatorPropertyName = "type",
-    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+    IgnoreUnrecognizedTypeDiscriminators = false,
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FailSerialization)]
 [JsonDerivedType(typeof(PushAttachmentFile), "file")]
 [JsonDerivedType(typeof(PushAttachmentDirectory), "directory")]
 [JsonDerivedType(typeof(PushAttachmentSelection), "selection")]
@@ -12501,6 +12536,7 @@ internal sealed class SessionExtensionsReloadRequest
 public partial class PushAttachment
 {
     /// <summary>The type discriminator.</summary>
+    [JsonRequired]
     [JsonPropertyName("type")]
     public virtual string Type { get; set; } = string.Empty;
 }
@@ -13221,7 +13257,8 @@ public sealed class ExternalToolTextResultForLlmBinaryResultsForLlm
 [Experimental(Diagnostics.Experimental)]
 [JsonPolymorphic(
     TypeDiscriminatorPropertyName = "type",
-    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+    IgnoreUnrecognizedTypeDiscriminators = false,
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FailSerialization)]
 [JsonDerivedType(typeof(ExternalToolTextResultForLlmContentText), "text")]
 [JsonDerivedType(typeof(ExternalToolTextResultForLlmContentTerminal), "terminal")]
 [JsonDerivedType(typeof(ExternalToolTextResultForLlmContentShellExit), "shell_exit")]
@@ -13232,6 +13269,7 @@ public sealed class ExternalToolTextResultForLlmBinaryResultsForLlm
 public partial class ExternalToolTextResultForLlmContent
 {
     /// <summary>The type discriminator.</summary>
+    [JsonRequired]
     [JsonPropertyName("type")]
     public virtual string Type { get; set; } = string.Empty;
 }
@@ -13824,7 +13862,8 @@ internal sealed class SessionCommandsListRequestWithSession
 [Experimental(Diagnostics.Experimental)]
 [JsonPolymorphic(
     TypeDiscriminatorPropertyName = "kind",
-    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+    IgnoreUnrecognizedTypeDiscriminators = false,
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FailSerialization)]
 [JsonDerivedType(typeof(SlashCommandInvocationResultText), "text")]
 [JsonDerivedType(typeof(SlashCommandInvocationResultAgentPrompt), "agent-prompt")]
 [JsonDerivedType(typeof(SlashCommandInvocationResultCompleted), "completed")]
@@ -13836,6 +13875,7 @@ internal sealed class SessionCommandsListRequestWithSession
 public partial class SlashCommandInvocationResult
 {
     /// <summary>The type discriminator.</summary>
+    [JsonRequired]
     [JsonPropertyName("kind")]
     public virtual string Kind { get; set; } = string.Empty;
 }
@@ -14832,7 +14872,8 @@ public sealed class PermissionDecisionContext
 [Experimental(Diagnostics.Experimental)]
 [JsonPolymorphic(
     TypeDiscriminatorPropertyName = "kind",
-    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+    IgnoreUnrecognizedTypeDiscriminators = false,
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FailSerialization)]
 [JsonDerivedType(typeof(PermissionDecisionApproveOnce), "approve-once")]
 [JsonDerivedType(typeof(PermissionDecisionApproveForSession), "approve-for-session")]
 [JsonDerivedType(typeof(PermissionDecisionApproveForLocation), "approve-for-location")]
@@ -14851,6 +14892,7 @@ public sealed class PermissionDecisionContext
 public partial class PermissionDecision
 {
     /// <summary>The type discriminator.</summary>
+    [JsonRequired]
     [JsonPropertyName("kind")]
     public virtual string Kind { get; set; } = string.Empty;
 }
@@ -14876,7 +14918,8 @@ public partial class PermissionDecisionApproveOnce : PermissionDecision
 [Experimental(Diagnostics.Experimental)]
 [JsonPolymorphic(
     TypeDiscriminatorPropertyName = "kind",
-    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+    IgnoreUnrecognizedTypeDiscriminators = false,
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FailSerialization)]
 [JsonDerivedType(typeof(PermissionDecisionApproveForSessionApprovalCommands), "commands")]
 [JsonDerivedType(typeof(PermissionDecisionApproveForSessionApprovalRead), "read")]
 [JsonDerivedType(typeof(PermissionDecisionApproveForSessionApprovalWrite), "write")]
@@ -14891,6 +14934,7 @@ public partial class PermissionDecisionApproveOnce : PermissionDecision
 public partial class PermissionDecisionApproveForSessionApproval
 {
     /// <summary>The type discriminator.</summary>
+    [JsonRequired]
     [JsonPropertyName("kind")]
     public virtual string Kind { get; set; } = string.Empty;
 }
@@ -15073,7 +15117,8 @@ public partial class PermissionDecisionApproveForSession : PermissionDecision
 [Experimental(Diagnostics.Experimental)]
 [JsonPolymorphic(
     TypeDiscriminatorPropertyName = "kind",
-    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+    IgnoreUnrecognizedTypeDiscriminators = false,
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FailSerialization)]
 [JsonDerivedType(typeof(PermissionDecisionApproveForLocationApprovalCommands), "commands")]
 [JsonDerivedType(typeof(PermissionDecisionApproveForLocationApprovalRead), "read")]
 [JsonDerivedType(typeof(PermissionDecisionApproveForLocationApprovalWrite), "write")]
@@ -15088,6 +15133,7 @@ public partial class PermissionDecisionApproveForSession : PermissionDecision
 public partial class PermissionDecisionApproveForLocationApproval
 {
     /// <summary>The type discriminator.</summary>
+    [JsonRequired]
     [JsonPropertyName("kind")]
     public virtual string Kind { get; set; } = string.Empty;
 }
@@ -15863,7 +15909,8 @@ public sealed class PermissionsLocationsAddToolApprovalResult
 [Experimental(Diagnostics.Experimental)]
 [JsonPolymorphic(
     TypeDiscriminatorPropertyName = "kind",
-    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+    IgnoreUnrecognizedTypeDiscriminators = false,
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FailSerialization)]
 [JsonDerivedType(typeof(PermissionsLocationsAddToolApprovalDetailsCommands), "commands")]
 [JsonDerivedType(typeof(PermissionsLocationsAddToolApprovalDetailsRead), "read")]
 [JsonDerivedType(typeof(PermissionsLocationsAddToolApprovalDetailsWrite), "write")]
@@ -15878,6 +15925,7 @@ public sealed class PermissionsLocationsAddToolApprovalResult
 public partial class PermissionsLocationsAddToolApprovalDetails
 {
     /// <summary>The type discriminator.</summary>
+    [JsonRequired]
     [JsonPropertyName("kind")]
     public virtual string Kind { get; set; } = string.Empty;
 }
@@ -18193,12 +18241,14 @@ internal sealed class SessionUsageGetMetricsRequest
 [Experimental(Diagnostics.Experimental)]
 [JsonPolymorphic(
     TypeDiscriminatorPropertyName = "kind",
-    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+    IgnoreUnrecognizedTypeDiscriminators = false,
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FailSerialization)]
 [JsonDerivedType(typeof(SessionLimitPredictionResultAvailable), "available")]
 [JsonDerivedType(typeof(SessionLimitPredictionResultUnavailable), "unavailable")]
 public partial class SessionLimitPredictionResult
 {
     /// <summary>The type discriminator.</summary>
+    [JsonRequired]
     [JsonPropertyName("kind")]
     public virtual string Kind { get; set; } = string.Empty;
 }

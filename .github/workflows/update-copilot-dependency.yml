@@ -91,7 +91,7 @@ jobs:
         env:
           VERSION: ${{ inputs.version }}
         working-directory: ./java/scripts/codegen
-        run: npm install "@github/copilot@$VERSION"
+        run: npm install --save-exact "@github/copilot@$VERSION"
 
       - name: Update Java POM CLI version property
         env:

@@ -1,6 +1,7 @@
 """Tests for generated RPC method behavior."""
 
 import json
+from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
@@ -156,11 +157,12 @@ def test_queued_command_result_serializes_boolean_discriminator(
 
 
 @pytest.mark.asyncio
-async def test_catalog_search_preserves_typed_candidates_and_opaque_handles():
+async def test_closed_union_preserves_typed_nested_variants_and_opaque_handles():
     client = AsyncMock()
     client.request = AsyncMock(
         return_value={
             "kind": "succeeded",
+            "rawCard": {"secret": "must-not-survive"},
             "searchId": "search-01",
             "candidates": [
                 {
@@ -174,6 +176,7 @@ async def test_catalog_search_preserves_typed_candidates_and_opaque_handles():
                     "source": {
                         "kind": "url",
                         "url": "https://catalog.example/mcp.json",
+                        "rawCard": {"secret": "must-not-survive"},
                     },
                     "provenance": {
                         "authority": "catalog.example",
@@ -189,7 +192,10 @@ async def test_catalog_search_preserves_typed_candidates_and_opaque_handles():
                     "installability": "not-installable-kind",
                     "displayName": "Example skill",
                     "rawCard": {"secret": "must-not-survive"},
-                    "source": {"kind": "embedded"},
+                    "source": {
+                        "kind": "embedded",
+                        "rawCard": {"secret": "must-not-survive"},
+                    },
                     "provenance": {
                         "authority": "catalog.example",
                         "observedAt": "2026-09-02T11:00:00Z",
@@ -227,8 +233,11 @@ async def test_catalog_search_preserves_typed_candidates_and_opaque_handles():
     assert skill.handle == OPAQUE_SKILL_HANDLE
     assert isinstance(mcp.source, CatalogCandidateSourceURL)
     assert isinstance(skill.source, CatalogCandidateSourceEmbedded)
-    for candidate in result.to_dict()["candidates"]:
+    encoded = result.to_dict()
+    assert "rawCard" not in encoded
+    for candidate in encoded["candidates"]:
         assert {"card", "cardData", "rawCard"}.isdisjoint(candidate)
+        assert "rawCard" not in candidate["source"]
 
 
 @pytest.mark.asyncio
@@ -254,7 +263,7 @@ async def test_catalog_search_preserves_typed_candidates_and_opaque_handles():
         ),
     ],
 )
-async def test_catalog_search_preserves_refusals_and_failures(payload, expected_type):
+async def test_closed_union_preserves_refusals_and_failures(payload, expected_type):
     client = AsyncMock()
     client.request = AsyncMock(return_value=payload)
     api = ServerCatalogApi(client)
@@ -273,29 +282,68 @@ async def test_catalog_search_preserves_refusals_and_failures(payload, expected_
 
 
 @pytest.mark.asyncio
-async def test_catalog_search_rejects_unknown_candidate_kinds():
-    client = AsyncMock()
-    client.request = AsyncMock(
-        return_value={
-            "kind": "succeeded",
-            "searchId": "search-unknown",
-            "candidates": [
-                {
-                    "kind": "future-kind",
-                    "handle": "opaque:future/03-do-not-parse",
-                    "rawCard": {"secret": "must-not-survive"},
-                }
-            ],
-            "truncated": False,
-            "negotiated": {
-                "runtimeProtocolVersion": 1,
-                "grantedCapabilities": [],
-            },
+@pytest.mark.parametrize(
+    "case",
+    [
+        "unknown-result",
+        "missing-result",
+        "unknown-candidate",
+        "missing-candidate",
+        "unknown-source",
+        "missing-source",
+    ],
+)
+async def test_closed_union_rejects_unknown_and_missing_discriminators(case):
+    candidate: dict[str, Any] = {
+        "kind": "mcp-server",
+        "handle": OPAQUE_MCP_HANDLE,
+        "handleExpiresAt": "2026-09-02T12:00:00Z",
+        "mediaType": "application/mcp-server-card+json",
+        "installability": "installable",
+        "displayName": "Example MCP",
+        "source": {
+            "kind": "url",
+            "url": "https://catalog.example/mcp.json",
+        },
+        "provenance": {
+            "authority": "catalog.example",
+            "observedAt": "2026-09-02T11:00:00Z",
+            "mediaType": "application/mcp-server-card+json",
+        },
+    }
+    payload: dict[str, Any] = {
+        "kind": "succeeded",
+        "searchId": "search-invalid",
+        "candidates": [candidate],
+        "truncated": False,
+        "negotiated": {
+            "runtimeProtocolVersion": 1,
+            "grantedCapabilities": [],
+        },
+    }
+    if case == "unknown-result":
+        payload = {"kind": "future-result", "rawCard": {"secret": "must-not-survive"}}
+    elif case == "missing-result":
+        payload = {"rawCard": {"secret": "must-not-survive"}}
+    elif case == "unknown-candidate":
+        candidate["kind"] = "future-candidate"
+        candidate["rawCard"] = {"secret": "must-not-survive"}
+    elif case == "missing-candidate":
+        del candidate["kind"]
+        candidate["rawCard"] = {"secret": "must-not-survive"}
+    elif case == "unknown-source":
+        candidate["source"] = {
+            "kind": "future-source",
+            "rawCard": {"secret": "must-not-survive"},
         }
-    )
+    elif case == "missing-source":
+        candidate["source"] = {"rawCard": {"secret": "must-not-survive"}}
+
+    client = AsyncMock()
+    client.request = AsyncMock(return_value=payload)
     api = ServerCatalogApi(client)
 
-    with pytest.raises(ValueError, match="Unknown CatalogCandidate kind"):
+    with pytest.raises(ValueError, match="Unknown .* kind"):
         await api.search(
             CatalogSearchRequest(
                 contract=CatalogClientContract(

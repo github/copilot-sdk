@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "conformance": "tsx catalogue-conformance.ts",
+    "conformance": "tsx schema-conformance.ts",
     "generate": "npm run conformance && tsx typescript.ts && tsx csharp.ts && tsx python.ts && tsx go.ts && tsx rust.ts",
     "generate:ts": "tsx typescript.ts",
     "generate:csharp": "tsx csharp.ts",

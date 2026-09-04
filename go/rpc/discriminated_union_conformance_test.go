@@ -10,9 +10,10 @@ const (
 	opaqueSkillHandle = "opaque:skill/02-do-not-parse"
 )
 
-func TestCatalogSearchResultPreservesCandidateSemantics(t *testing.T) {
+func TestClosedDiscriminatedUnionPreservesKnownNestedVariants(t *testing.T) {
 	result, err := unmarshalCatalogSearchResult([]byte(`{
 		"kind":"succeeded",
+		"rawCard":{"secret":"must-not-survive"},
 		"searchId":"search-01",
 		"candidates":[
 			{
@@ -23,7 +24,7 @@ func TestCatalogSearchResultPreservesCandidateSemantics(t *testing.T) {
 				"installability":"installable",
 				"displayName":"Example MCP",
 				"rawCard":{"secret":"must-not-survive"},
-				"source":{"kind":"url","url":"https://catalog.example/mcp.json"},
+				"source":{"kind":"url","url":"https://catalog.example/mcp.json","rawCard":{"secret":"must-not-survive"}},
 				"provenance":{
 					"authority":"catalog.example",
 					"observedAt":"2026-09-02T11:00:00Z",
@@ -38,7 +39,7 @@ func TestCatalogSearchResultPreservesCandidateSemantics(t *testing.T) {
 				"installability":"not-installable-kind",
 				"displayName":"Example skill",
 				"rawCard":{"secret":"must-not-survive"},
-				"source":{"kind":"embedded"},
+				"source":{"kind":"embedded","rawCard":{"secret":"must-not-survive"}},
 				"provenance":{
 					"authority":"catalog.example",
 					"observedAt":"2026-09-02T11:00:00Z",
@@ -86,6 +87,9 @@ func TestCatalogSearchResultPreservesCandidateSemantics(t *testing.T) {
 	if err := json.Unmarshal(encoded, &wire); err != nil {
 		t.Fatalf("decode catalogue wire result: %v", err)
 	}
+	if _, exists := wire["rawCard"]; exists {
+		t.Fatalf("result leaked rawCard: %s", encoded)
+	}
 	for _, candidate := range wire["candidates"].([]any) {
 		fields := candidate.(map[string]any)
 		for _, forbidden := range []string{"card", "cardData", "rawCard"} {
@@ -93,10 +97,13 @@ func TestCatalogSearchResultPreservesCandidateSemantics(t *testing.T) {
 				t.Fatalf("candidate leaked %q: %s", forbidden, encoded)
 			}
 		}
+		if _, exists := fields["source"].(map[string]any)["rawCard"]; exists {
+			t.Fatalf("candidate source leaked rawCard: %s", encoded)
+		}
 	}
 }
 
-func TestCatalogSearchResultPreservesRefusalsAndFailures(t *testing.T) {
+func TestClosedDiscriminatedUnionPreservesRefusalsAndFailures(t *testing.T) {
 	tests := []struct {
 		name    string
 		payload string
@@ -137,19 +144,38 @@ func TestCatalogSearchResultPreservesRefusalsAndFailures(t *testing.T) {
 	}
 }
 
-func TestCatalogSearchResultRejectsUnknownCandidateKinds(t *testing.T) {
-	_, err := unmarshalCatalogSearchResult([]byte(`{
-		"kind":"succeeded",
-		"searchId":"search-unknown",
-		"candidates":[{
-			"kind":"future-kind",
-			"handle":"opaque:future/03-do-not-parse",
-			"rawCard":{"secret":"must-not-survive"}
-		}],
-		"truncated":false,
-		"negotiated":{"runtimeProtocolVersion":1,"grantedCapabilities":[]}
-	}`))
-	if err == nil {
-		t.Fatal("unknown catalogue candidate kind with rawCard must be rejected")
+func TestClosedDiscriminatedUnionRejectsUnknownAndMissingDiscriminators(t *testing.T) {
+	validCandidatePrefix := `{
+		"handle":"opaque:mcp/01-do-not-parse",
+		"handleExpiresAt":"2026-09-02T12:00:00Z",
+		"mediaType":"application/mcp-server-card+json",
+		"installability":"installable",
+		"displayName":"Example MCP",
+		"provenance":{
+			"authority":"catalog.example",
+			"observedAt":"2026-09-02T11:00:00Z",
+			"mediaType":"application/mcp-server-card+json"
+		},`
+	searchPrefix := `{"kind":"succeeded","searchId":"search-invalid","candidates":[`
+	searchSuffix := `],"truncated":false,"negotiated":{"runtimeProtocolVersion":1,"grantedCapabilities":[]}}`
+	tests := map[string]string{
+		"unknown outer discriminator": `{"kind":"future-result","rawCard":{"secret":"must-not-survive"}}`,
+		"missing outer discriminator": `{"rawCard":{"secret":"must-not-survive"}}`,
+		"unknown candidate discriminator": searchPrefix + validCandidatePrefix +
+			`"kind":"future-candidate","source":{"kind":"url","url":"https://catalog.example/mcp.json"},"rawCard":{"secret":"must-not-survive"}}` + searchSuffix,
+		"missing candidate discriminator": searchPrefix + validCandidatePrefix +
+			`"source":{"kind":"url","url":"https://catalog.example/mcp.json"},"rawCard":{"secret":"must-not-survive"}}` + searchSuffix,
+		"unknown nested discriminator": searchPrefix + validCandidatePrefix +
+			`"kind":"mcp-server","source":{"kind":"future-source","rawCard":{"secret":"must-not-survive"}}}` + searchSuffix,
+		"missing nested discriminator": searchPrefix + validCandidatePrefix +
+			`"kind":"mcp-server","source":{"rawCard":{"secret":"must-not-survive"}}}` + searchSuffix,
+	}
+
+	for name, payload := range tests {
+		t.Run(name, func(t *testing.T) {
+			if _, err := unmarshalCatalogSearchResult([]byte(payload)); err == nil {
+				t.Fatal("invalid closed union payload must be rejected")
+			}
+		})
 	}
 }

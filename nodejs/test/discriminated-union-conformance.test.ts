@@ -63,16 +63,50 @@ function successWireResult(): unknown {
     if (result.kind !== "succeeded") throw new Error("Expected a successful search.");
     return {
         ...result,
+        rawCard: { secret: "must-not-survive" },
         candidates: result.candidates.map((candidate) => ({
             ...candidate,
             card: { secret: "must-not-survive" },
             cardData: { secret: "must-not-survive" },
             rawCard: { secret: "must-not-survive" },
+            source: {
+                ...candidate.source,
+                rawCard: { secret: "must-not-survive" },
+            },
         })),
     };
 }
 
-describe("catalogue binding conformance", () => {
+function invalidWireResult(kind: string): unknown {
+    const result = structuredClone(successWireResult()) as {
+        kind?: string;
+        candidates: Array<{ kind?: string; source: { kind?: string } }>;
+    };
+    switch (kind) {
+        case "unknown-result":
+            result.kind = "future-result";
+            return result;
+        case "missing-result":
+            delete result.kind;
+            return result;
+        case "unknown-candidate":
+            result.candidates[0].kind = "future-candidate";
+            return result;
+        case "missing-candidate":
+            delete result.candidates[0].kind;
+            return result;
+        case "unknown-source":
+            result.candidates[0].source.kind = "future-source";
+            return result;
+        case "missing-source":
+            delete result.candidates[0].source.kind;
+            return result;
+        default:
+            throw new Error(`Unknown invalid result fixture: ${kind}`);
+    }
+}
+
+describe("closed discriminated union conformance", () => {
     it("transports typed candidates, refusals, and failures unchanged", async () => {
         const clientToServer = new PassThrough();
         const serverToClient = new PassThrough();
@@ -105,6 +139,9 @@ describe("catalogue binding conformance", () => {
                     message: "The catalogue timed out.",
                 } satisfies CatalogSearchResult;
             }
+            if (params.query.startsWith("invalid:")) {
+                return invalidWireResult(params.query.slice("invalid:".length));
+            }
             return successWireResult();
         });
         client.listen();
@@ -130,10 +167,12 @@ describe("catalogue binding conformance", () => {
         const encodedCandidates = JSON.parse(JSON.stringify(success)).candidates as Array<
             Record<string, unknown>
         >;
+        expect(success).not.toHaveProperty("rawCard");
         for (const candidate of encodedCandidates) {
             expect(candidate).not.toHaveProperty("card");
             expect(candidate).not.toHaveProperty("cardData");
             expect(candidate).not.toHaveProperty("rawCard");
+            expect(candidate.source).not.toHaveProperty("rawCard");
         }
 
         await expect(
@@ -147,5 +186,18 @@ describe("catalogue binding conformance", () => {
             reason: "timeout",
             retryAfterSeconds: 30,
         });
+
+        for (const invalid of [
+            "unknown-result",
+            "missing-result",
+            "unknown-candidate",
+            "missing-candidate",
+            "unknown-source",
+            "missing-source",
+        ]) {
+            await expect(
+                rpc.catalog.search({ ...request, query: `invalid:${invalid}` })
+            ).rejects.toThrow(/unknown or missing kind discriminator/);
+        }
     });
 });

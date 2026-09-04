@@ -69,9 +69,8 @@ func unmarshalAuthInfo(data []byte) (AuthInfo, error) {
 			return nil, err
 		}
 		return &d, nil
-	default:
-		return &RawAuthInfoData{Discriminator: raw.Type, Raw: data}, nil
 	}
+	return nil, errors.New("data did not match any union variant for AuthInfo")
 }
 
 func (r RawAuthInfoData) MarshalJSON() ([]byte, error) {
@@ -272,9 +271,8 @@ func unmarshalAgentRegistrySpawnResult(data []byte) (AgentRegistrySpawnResult, e
 			return nil, err
 		}
 		return &d, nil
-	default:
-		return &RawAgentRegistrySpawnResultData{Discriminator: raw.Kind, Raw: data}, nil
 	}
+	return nil, errors.New("data did not match any union variant for AgentRegistrySpawnResult")
 }
 
 func (r RawAgentRegistrySpawnResultData) MarshalJSON() ([]byte, error) {
@@ -435,9 +433,8 @@ func unmarshalAttachment(data []byte) (Attachment, error) {
 			return nil, err
 		}
 		return &d, nil
-	default:
-		return &RawAttachmentData{Discriminator: raw.Type, Raw: data}, nil
 	}
+	return nil, errors.New("data did not match any union variant for Attachment")
 }
 
 func (r RawAttachmentData) MarshalJSON() ([]byte, error) {
@@ -700,6 +697,17 @@ func unmarshalCatalogCandidate(data []byte) (CatalogCandidate, error) {
 	return nil, errors.New("data did not match any union variant for CatalogCandidate")
 }
 
+func (r RawCatalogCandidateData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		Kind CatalogCandidateKind `json:"kind"`
+	}{
+		Kind: r.Discriminator,
+	})
+}
+
 func unmarshalCatalogCandidateSource(data []byte) (CatalogCandidateSource, error) {
 	if string(data) == "null" {
 		return nil, nil
@@ -725,9 +733,8 @@ func unmarshalCatalogCandidateSource(data []byte) (CatalogCandidateSource, error
 			return nil, err
 		}
 		return &d, nil
-	default:
-		return &RawCatalogCandidateSourceData{Discriminator: raw.Kind, Raw: data}, nil
 	}
+	return nil, errors.New("data did not match any union variant for CatalogCandidateSource")
 }
 
 func (r RawCatalogCandidateSourceData) MarshalJSON() ([]byte, error) {
@@ -932,9 +939,8 @@ func unmarshalCatalogSearchResult(data []byte) (CatalogSearchResult, error) {
 			return nil, err
 		}
 		return &d, nil
-	default:
-		return &RawCatalogSearchResultData{Discriminator: raw.Kind, Raw: data}, nil
 	}
+	return nil, errors.New("data did not match any union variant for CatalogSearchResult")
 }
 
 func (r RawCatalogSearchResultData) MarshalJSON() ([]byte, error) {
@@ -1195,9 +1201,8 @@ func unmarshalDebugCollectLogsDestination(data []byte) (DebugCollectLogsDestinat
 			return nil, err
 		}
 		return &d, nil
-	default:
-		return &RawDebugCollectLogsDestinationData{Discriminator: raw.Kind, Raw: data}, nil
 	}
+	return nil, errors.New("data did not match any union variant for DebugCollectLogsDestination")
 }
 
 func (r RawDebugCollectLogsDestinationData) MarshalJSON() ([]byte, error) {
@@ -1342,9 +1347,8 @@ func unmarshalExternalToolTextResultForLlmContent(data []byte) (ExternalToolText
 			return nil, err
 		}
 		return &d, nil
-	default:
-		return &RawExternalToolTextResultForLlmContentData{Discriminator: raw.Type, Raw: data}, nil
 	}
+	return nil, errors.New("data did not match any union variant for ExternalToolTextResultForLlmContent")
 }
 
 func (r RawExternalToolTextResultForLlmContentData) MarshalJSON() ([]byte, error) {
@@ -1606,9 +1610,8 @@ func unmarshalFactoryRunFailure(data []byte) (FactoryRunFailure, error) {
 			return nil, err
 		}
 		return &d, nil
-	default:
-		return &RawFactoryRunFailureData{Discriminator: raw.Type, Raw: data}, nil
 	}
+	return nil, errors.New("data did not match any union variant for FactoryRunFailure")
 }
 
 func (r RawFactoryRunFailureData) MarshalJSON() ([]byte, error) {
@@ -2336,9 +2339,8 @@ func unmarshalMCPPlanTransportChoice(data []byte) (MCPPlanTransportChoice, error
 			return nil, err
 		}
 		return &d, nil
-	default:
-		return &RawMCPPlanTransportChoiceData{Discriminator: raw.Transport, Raw: data}, nil
 	}
+	return nil, errors.New("data did not match any union variant for MCPPlanTransportChoice")
 }
 
 func (r RawMCPPlanTransportChoiceData) MarshalJSON() ([]byte, error) {
@@ -2377,9 +2379,8 @@ func unmarshalMCPPlanRequiredValue(data []byte) (MCPPlanRequiredValue, error) {
 			return nil, err
 		}
 		return &d, nil
-	default:
-		return &RawMCPPlanRequiredValueData{Discriminator: raw.Kind, Raw: data}, nil
 	}
+	return nil, errors.New("data did not match any union variant for MCPPlanRequiredValue")
 }
 
 func (r RawMCPPlanRequiredValueData) MarshalJSON() ([]byte, error) {
@@ -2745,9 +2746,8 @@ func unmarshalMCPPlanInstallSource(data []byte) (MCPPlanInstallSource, error) {
 			return nil, err
 		}
 		return &d, nil
-	default:
-		return &RawMCPPlanInstallSourceData{Discriminator: raw.Kind, Raw: data}, nil
 	}
+	return nil, errors.New("data did not match any union variant for MCPPlanInstallSource")
 }
 
 func (r RawMCPPlanInstallSourceData) MarshalJSON() ([]byte, error) {
@@ -2797,9 +2797,8 @@ func unmarshalMCPServerCardReference(data []byte) (MCPServerCardReference, error
 			return nil, err
 		}
 		return &d, nil
-	default:
-		return &RawMCPServerCardReferenceData{Discriminator: raw.Kind, Raw: data}, nil
 	}
+	return nil, errors.New("data did not match any union variant for MCPServerCardReference")
 }
 
 func (r RawMCPServerCardReferenceData) MarshalJSON() ([]byte, error) {
@@ -2977,9 +2976,8 @@ func unmarshalMCPPlanInstallResult(data []byte) (MCPPlanInstallResult, error) {
 			return nil, err
 		}
 		return &d, nil
-	default:
-		return &RawMCPPlanInstallResultData{Discriminator: raw.Kind, Raw: data}, nil
 	}
+	return nil, errors.New("data did not match any union variant for MCPPlanInstallResult")
 }
 
 func (r RawMCPPlanInstallResultData) MarshalJSON() ([]byte, error) {
@@ -3405,9 +3403,8 @@ func unmarshalPermissionDecision(data []byte) (PermissionDecision, error) {
 			return nil, err
 		}
 		return &d, nil
-	default:
-		return &RawPermissionDecisionData{Discriminator: raw.Kind, Raw: data}, nil
 	}
+	return nil, errors.New("data did not match any union variant for PermissionDecision")
 }
 
 func (r RawPermissionDecisionData) MarshalJSON() ([]byte, error) {
@@ -3505,9 +3502,8 @@ func unmarshalUserToolSessionApproval(data []byte) (UserToolSessionApproval, err
 			return nil, err
 		}
 		return &d, nil
-	default:
-		return &RawUserToolSessionApprovalData{Discriminator: raw.Kind, Raw: data}, nil
 	}
+	return nil, errors.New("data did not match any union variant for UserToolSessionApproval")
 }
 
 func (r RawUserToolSessionApprovalData) MarshalJSON() ([]byte, error) {
@@ -3770,9 +3766,8 @@ func unmarshalPermissionDecisionApproveForLocationApproval(data []byte) (Permiss
 			return nil, err
 		}
 		return &d, nil
-	default:
-		return &RawPermissionDecisionApproveForLocationApprovalData{Discriminator: raw.Kind, Raw: data}, nil
 	}
+	return nil, errors.New("data did not match any union variant for PermissionDecisionApproveForLocationApproval")
 }
 
 func (r RawPermissionDecisionApproveForLocationApprovalData) MarshalJSON() ([]byte, error) {
@@ -4017,9 +4012,8 @@ func unmarshalPermissionDecisionApproveForSessionApproval(data []byte) (Permissi
 			return nil, err
 		}
 		return &d, nil
-	default:
-		return &RawPermissionDecisionApproveForSessionApprovalData{Discriminator: raw.Kind, Raw: data}, nil
 	}
+	return nil, errors.New("data did not match any union variant for PermissionDecisionApproveForSessionApproval")
 }
 
 func (r RawPermissionDecisionApproveForSessionApprovalData) MarshalJSON() ([]byte, error) {
@@ -4396,9 +4390,8 @@ func unmarshalPermissionsLocationsAddToolApprovalDetails(data []byte) (Permissio
 			return nil, err
 		}
 		return &d, nil
-	default:
-		return &RawPermissionsLocationsAddToolApprovalDetailsData{Discriminator: raw.Kind, Raw: data}, nil
 	}
+	return nil, errors.New("data did not match any union variant for PermissionsLocationsAddToolApprovalDetails")
 }
 
 func (r RawPermissionsLocationsAddToolApprovalDetailsData) MarshalJSON() ([]byte, error) {
@@ -4656,9 +4649,8 @@ func unmarshalPushAttachment(data []byte) (PushAttachment, error) {
 			return nil, err
 		}
 		return &d, nil
-	default:
-		return &RawPushAttachmentData{Discriminator: raw.Type, Raw: data}, nil
 	}
+	return nil, errors.New("data did not match any union variant for PushAttachment")
 }
 
 func (r RawPushAttachmentData) MarshalJSON() ([]byte, error) {
@@ -4917,9 +4909,8 @@ func unmarshalRemoteControlStatus(data []byte) (RemoteControlStatus, error) {
 			return nil, err
 		}
 		return &d, nil
-	default:
-		return &RawRemoteControlStatusData{Discriminator: raw.State, Raw: data}, nil
 	}
+	return nil, errors.New("data did not match any union variant for RemoteControlStatus")
 }
 
 func (r RawRemoteControlStatusData) MarshalJSON() ([]byte, error) {
@@ -5249,9 +5240,8 @@ func unmarshalSessionLimitPredictionResult(data []byte) (SessionLimitPredictionR
 			return nil, err
 		}
 		return &d, nil
-	default:
-		return &RawSessionLimitPredictionResultData{Discriminator: raw.Kind, Raw: data}, nil
 	}
+	return nil, errors.New("data did not match any union variant for SessionLimitPredictionResult")
 }
 
 func (r RawSessionLimitPredictionResultData) MarshalJSON() ([]byte, error) {
@@ -5577,9 +5567,8 @@ func unmarshalSessionOpenParams(data []byte) (SessionOpenParams, error) {
 			return nil, err
 		}
 		return &d, nil
-	default:
-		return &RawSessionOpenParamsData{Discriminator: raw.Kind, Raw: data}, nil
 	}
+	return nil, errors.New("data did not match any union variant for SessionOpenParams")
 }
 
 func (r RawSessionOpenParamsData) MarshalJSON() ([]byte, error) {
@@ -5725,9 +5714,8 @@ func unmarshalSettableAuthInfo(data []byte) (SettableAuthInfo, error) {
 			return nil, err
 		}
 		return &d, nil
-	default:
-		return &RawSettableAuthInfoData{Discriminator: raw.Type, Raw: data}, nil
 	}
+	return nil, errors.New("data did not match any union variant for SettableAuthInfo")
 }
 
 func (r RawSettableAuthInfoData) MarshalJSON() ([]byte, error) {
@@ -5831,9 +5819,8 @@ func unmarshalSlashCommandInvocationResult(data []byte) (SlashCommandInvocationR
 			return nil, err
 		}
 		return &d, nil
-	default:
-		return &RawSlashCommandInvocationResultData{Discriminator: raw.Kind, Raw: data}, nil
 	}
+	return nil, errors.New("data did not match any union variant for SlashCommandInvocationResult")
 }
 
 func (r RawSlashCommandInvocationResultData) MarshalJSON() ([]byte, error) {
@@ -5972,9 +5959,8 @@ func unmarshalTaskClientUpdate(data []byte) (TaskClientUpdate, error) {
 			return nil, err
 		}
 		return &d, nil
-	default:
-		return &RawTaskClientUpdateData{Discriminator: raw.Kind, Raw: data}, nil
 	}
+	return nil, errors.New("data did not match any union variant for TaskClientUpdate")
 }
 
 func (r RawTaskClientUpdateData) MarshalJSON() ([]byte, error) {
@@ -6063,9 +6049,8 @@ func unmarshalTaskInfo(data []byte) (TaskInfo, error) {
 			return nil, err
 		}
 		return &d, nil
-	default:
-		return &RawTaskInfoData{Discriminator: raw.Type, Raw: data}, nil
 	}
+	return nil, errors.New("data did not match any union variant for TaskInfo")
 }
 
 func (r RawTaskInfoData) MarshalJSON() ([]byte, error) {

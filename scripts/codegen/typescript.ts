@@ -12,6 +12,10 @@ import { compile } from "json-schema-to-typescript";
 import path from "path";
 import { fileURLToPath } from "url";
 import {
+    analyseDiscriminatedUnion,
+    schemaDiscriminatorValueKey,
+} from "./schema-unions.js";
+import {
     getApiSchemaPath,
     fixNullableRequiredRefsInApiSchema,
     getNullableInner,
@@ -606,6 +610,200 @@ async function generateSessionEvents(schemaPath?: string): Promise<void> {
 // ── RPC Types ───────────────────────────────────────────────────────────────
 
 let rpcDefinitions: DefinitionCollections = { definitions: {}, $defs: {} };
+let rpcResultProjections = new Map<string, RpcResultProjection>();
+let rpcResultProjectionDefinitions = new Map<string, RpcResultProjection>();
+
+export type RpcResultProjection =
+    | { kind: "ref"; name: string }
+    | { kind: "array"; items: RpcResultProjection | null }
+    | {
+        kind: "object";
+        closed: boolean;
+        properties: Record<string, RpcResultProjection | null>;
+    }
+    | {
+        kind: "union";
+        discriminator: string;
+        variants: Record<string, RpcResultProjection>;
+    };
+
+interface RpcResultProjectionBuild {
+    projection: RpcResultProjection | null;
+    containsClosedUnion: boolean;
+}
+
+export interface RpcResultProjectionBundle {
+    root: RpcResultProjection;
+    definitions: Record<string, RpcResultProjection>;
+}
+
+function localDefinitionName(ref: string): string | undefined {
+    return ref.match(/^#\/(?:definitions|\$defs)\/([^/]+)$/)?.[1];
+}
+
+function buildRpcResultProjection(
+    schema: JSONSchema7,
+    definitions: DefinitionCollections,
+    projectionDefinitions: Map<string, RpcResultProjectionBuild>,
+    resolvingReferences = new Set<string>()
+): RpcResultProjectionBuild {
+    if (schema.$ref) {
+        const definitionName = localDefinitionName(schema.$ref);
+        if (!definitionName) {
+            return { projection: null, containsClosedUnion: false };
+        }
+        const cached = projectionDefinitions.get(definitionName);
+        if (cached) {
+            return cached.projection
+                ? {
+                    projection: { kind: "ref", name: definitionName },
+                    containsClosedUnion: cached.containsClosedUnion,
+                }
+                : cached;
+        }
+        if (resolvingReferences.has(definitionName)) {
+            return {
+                projection: { kind: "ref", name: definitionName },
+                containsClosedUnion: false,
+            };
+        }
+        const resolved = resolveSchema(schema, definitions);
+        if (!resolved) return { projection: null, containsClosedUnion: false };
+        const nestedReferences = new Set(resolvingReferences);
+        nestedReferences.add(definitionName);
+        const built = buildRpcResultProjection(
+            resolved,
+            definitions,
+            projectionDefinitions,
+            nestedReferences
+        );
+        projectionDefinitions.set(definitionName, built);
+        return built.projection
+            ? {
+                projection: { kind: "ref", name: definitionName },
+                containsClosedUnion: built.containsClosedUnion,
+            }
+            : built;
+    }
+
+    const discriminatedUnion = analyseDiscriminatedUnion(
+        schema,
+        (variant) =>
+            resolveObjectSchema(variant, definitions) ??
+            resolveSchema(variant, definitions) ??
+            variant
+    );
+    if (
+        discriminatedUnion?.unknownVariantPolicy === "reject" &&
+        discriminatedUnion.mapping.every((entry) => entry.variants.length === 1)
+    ) {
+        const variants: Record<string, RpcResultProjection> = {};
+        for (const entry of discriminatedUnion.mapping) {
+            const variantProjection = buildRpcResultProjection(
+                entry.variants[0].source,
+                definitions,
+                projectionDefinitions,
+                new Set(resolvingReferences)
+            ).projection;
+            if (!variantProjection) {
+                return { projection: null, containsClosedUnion: false };
+            }
+            variants[schemaDiscriminatorValueKey(entry.value)] = variantProjection;
+        }
+        return {
+            projection: {
+                kind: "union",
+                discriminator: discriminatedUnion.property,
+                variants,
+            },
+            containsClosedUnion: true,
+        };
+    }
+
+    const unionMembers = schema.anyOf ?? schema.oneOf;
+    if (Array.isArray(unionMembers)) {
+        const nonNullMembers = (unionMembers as JSONSchema7[]).filter(
+            (member) => member.type !== "null"
+        );
+        if (nonNullMembers.length === 1) {
+            return buildRpcResultProjection(
+                nonNullMembers[0],
+                definitions,
+                projectionDefinitions,
+                resolvingReferences
+            );
+        }
+    }
+
+    if (schema.type === "array" && schema.items && !Array.isArray(schema.items)) {
+        const item = buildRpcResultProjection(
+            schema.items as JSONSchema7,
+            definitions,
+            projectionDefinitions,
+            new Set(resolvingReferences)
+        );
+        return {
+            projection:
+                item.projection || item.containsClosedUnion
+                    ? { kind: "array", items: item.projection }
+                    : null,
+            containsClosedUnion: item.containsClosedUnion,
+        };
+    }
+
+    const objectSchema = resolveObjectSchema(schema, definitions);
+    if (
+        objectSchema &&
+        (objectSchema.type === "object" || objectSchema.properties) &&
+        !objectSchema.anyOf &&
+        !objectSchema.oneOf
+    ) {
+        const properties: Record<string, RpcResultProjection | null> = {};
+        let containsClosedUnion = false;
+        for (const [name, property] of Object.entries(objectSchema.properties ?? {})) {
+            if (!property || typeof property !== "object") {
+                properties[name] = null;
+                continue;
+            }
+            const child = buildRpcResultProjection(
+                property as JSONSchema7,
+                definitions,
+                projectionDefinitions,
+                new Set(resolvingReferences)
+            );
+            properties[name] = child.projection;
+            containsClosedUnion ||= child.containsClosedUnion;
+        }
+        const closed = objectSchema.additionalProperties === false;
+        return {
+            projection:
+                closed || Object.values(properties).some((projection) => projection !== null)
+                    ? { kind: "object", closed, properties }
+                    : null,
+            containsClosedUnion,
+        };
+    }
+
+    return { projection: null, containsClosedUnion: false };
+}
+
+export function createRpcResultProjectionBundle(
+    schema: JSONSchema7 | null | undefined,
+    definitions: DefinitionCollections
+): RpcResultProjectionBundle | undefined {
+    if (!schema) return undefined;
+    const projectionDefinitions = new Map<string, RpcResultProjectionBuild>();
+    const result = buildRpcResultProjection(schema, definitions, projectionDefinitions);
+    if (!result.containsClosedUnion || !result.projection) return undefined;
+    return {
+        root: result.projection,
+        definitions: Object.fromEntries(
+            [...projectionDefinitions]
+                .filter(([, built]) => built.projection)
+                .map(([name, built]) => [name, built.projection!])
+        ),
+    };
+}
 
 function withRootTitle(schema: JSONSchema7, title: string): JSONSchema7 {
     return { ...schema, title };
@@ -741,6 +939,27 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
     // Build a single combined schema with shared definitions and all method types.
     // This ensures $ref-referenced types are generated exactly once.
     rpcDefinitions = collectDefinitionCollections(schema as Record<string, unknown>);
+    rpcResultProjections = new Map();
+    rpcResultProjectionDefinitions = new Map();
+    for (const method of rpcMethods) {
+        const resultSchema = getMethodResultSchema(method);
+        const resultUnion = resultSchema
+            ? analyseDiscriminatedUnion(
+                resultSchema,
+                (variant) =>
+                    resolveObjectSchema(variant, rpcDefinitions) ??
+                    resolveSchema(variant, rpcDefinitions) ??
+                    variant
+            )
+            : undefined;
+        if (resultUnion?.unknownVariantPolicy !== "reject") continue;
+        const projection = createRpcResultProjectionBundle(method.result, rpcDefinitions);
+        if (!projection) continue;
+        rpcResultProjections.set(method.rpcMethod, projection.root);
+        for (const [name, definition] of Object.entries(projection.definitions)) {
+            rpcResultProjectionDefinitions.set(name, definition);
+        }
+    }
     const combinedSchema = withSharedDefinitions(
         {
             $schema: "http://json-schema.org/draft-07/schema#",
@@ -884,21 +1103,81 @@ function hasInternalMethods(node: Record<string, unknown>): boolean {
     return false;
 }
 
+    if (rpcResultProjections.size > 0) {
+        lines.push(`type RpcResultProjection =`);
+        lines.push(`    | { kind: "ref"; name: string }`);
+        lines.push(`    | { kind: "array"; items: RpcResultProjection | null }`);
+        lines.push(
+            `    | { kind: "object"; closed: boolean; properties: Record<string, RpcResultProjection | null> }`
+        );
+        lines.push(
+            `    | { kind: "union"; discriminator: string; variants: Record<string, RpcResultProjection> };`
+        );
+        lines.push("");
+        lines.push(
+            `const RPC_RESULT_PROJECTIONS: Record<string, RpcResultProjection> = ${JSON.stringify(Object.fromEntries(rpcResultProjections), null, 4)};`
+        );
+        lines.push("");
+        lines.push(
+            `const RPC_RESULT_PROJECTION_DEFINITIONS: Record<string, RpcResultProjection> = ${JSON.stringify(Object.fromEntries(rpcResultProjectionDefinitions), null, 4)};`
+        );
+        lines.push("");
+        lines.push(
+            `function projectRpcResult(value: unknown, projection: RpcResultProjection, path = "$"): unknown {`
+        );
+        lines.push(`    if (projection.kind === "ref") {`);
+        lines.push(
+            `        const definition = RPC_RESULT_PROJECTION_DEFINITIONS[projection.name];`
+        );
+        lines.push(
+            `        if (!definition) throw new TypeError(\`Missing RPC result projection for \${projection.name}\`);`
+        );
+        lines.push(`        return projectRpcResult(value, definition, path);`);
+        lines.push(`    }`);
+        lines.push(`    if (projection.kind === "array") {`);
+        lines.push(
+            `        if (!Array.isArray(value)) throw new TypeError(\`Invalid RPC result at \${path}: expected an array\`);`
+        );
+        lines.push(
+            `        return projection.items ? value.map((item, index) => projectRpcResult(item, projection.items!, \`\${path}[\${index}]\`)) : value;`
+        );
+        lines.push(`    }`);
+        lines.push(
+            `    if (value === null || typeof value !== "object" || Array.isArray(value)) {`
+        );
+        lines.push(
+            `        throw new TypeError(\`Invalid RPC result at \${path}: expected an object\`);`
+        );
+        lines.push(`    }`);
+        lines.push(`    const record = value as Record<string, unknown>;`);
+        lines.push(`    if (projection.kind === "union") {`);
+        lines.push(`        const discriminator = record[projection.discriminator];`);
+        lines.push(
+            `        const key = \`\${typeof discriminator}:\${JSON.stringify(discriminator)}\`;`
+        );
+        lines.push(`        const variant = projection.variants[key];`);
+        lines.push(`        if (!variant) {`);
+        lines.push(
+            `            throw new TypeError(\`Invalid RPC result at \${path}: unknown or missing \${projection.discriminator} discriminator\`);`
+        );
+        lines.push(`        }`);
+        lines.push(`        return projectRpcResult(value, variant, path);`);
+        lines.push(`    }`);
+        lines.push(
+            `    const result: Record<string, unknown> = projection.closed ? {} : { ...record };`
+        );
+        lines.push(`    for (const [name, child] of Object.entries(projection.properties)) {`);
+        lines.push(`        if (!Object.hasOwn(record, name)) continue;`);
+        lines.push(
+            `        result[name] = child ? projectRpcResult(record[name], child, \`\${path}.\${name}\`) : record[name];`
+        );
+        lines.push(`    }`);
+        lines.push(`    return result;`);
+        lines.push(`}`);
+        lines.push("");
+    }
+
     if (schema.server) {
-        if (collectRpcMethods(schema.server).some((method) => method.rpcMethod === "catalog.search")) {
-            lines.push(`const FORBIDDEN_CATALOG_RESPONSE_FIELDS = new Set(["card", "cardData", "rawCard"]);`);
-            lines.push("");
-            lines.push(`function sanitizeCatalogSearchResult(value: unknown): unknown {`);
-            lines.push(`    if (Array.isArray(value)) return value.map(sanitizeCatalogSearchResult);`);
-            lines.push(`    if (value === null || typeof value !== "object") return value;`);
-            lines.push(`    return Object.fromEntries(`);
-            lines.push(`        Object.entries(value)`);
-            lines.push(`            .filter(([key]) => !FORBIDDEN_CATALOG_RESPONSE_FIELDS.has(key))`);
-            lines.push(`            .map(([key, child]) => [key, sanitizeCatalogSearchResult(child)]),`);
-            lines.push(`    );`);
-            lines.push(`}`);
-            lines.push("");
-        }
         lines.push(`/** Create typed server-scoped RPC methods (no session required). */`);
         lines.push(`export function createServerRpc(connection: MessageConnection) {`);
         lines.push(`    return {`);
@@ -1030,9 +1309,11 @@ function emitGroup(
                 includeExperimental: (value as RpcMethod).stability === "experimental" && !parentExperimental,
             });
             lines.push(`${indent}${key}: async (${sigParams.join(", ")}): Promise<${resultType}> =>`);
-            if (rpcMethod === "catalog.search") {
-                lines.push(`${indent}    sanitizeCatalogSearchResult(`);
+            const resultProjection = rpcResultProjections.get(rpcMethod);
+            if (resultProjection) {
+                lines.push(`${indent}    projectRpcResult(`);
                 lines.push(`${indent}        await connection.sendRequest("${rpcMethod}", ${bodyArg}),`);
+                lines.push(`${indent}        RPC_RESULT_PROJECTIONS[${JSON.stringify(rpcMethod)}],`);
                 lines.push(`${indent}    ) as ${resultType},`);
             } else {
                 lines.push(`${indent}    connection.sendRequest("${rpcMethod}", ${bodyArg}),`);
