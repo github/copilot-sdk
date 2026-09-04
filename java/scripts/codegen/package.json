@@ -6,7 +6,7 @@
     "fetch:schemas": "node fetch-schemas.mjs",
     "generate": "npm run fetch:schemas && tsx java.ts",
     "generate:java": "npm run generate",
-    "test": "node --test fetch-schemas.test.mjs"
+    "test": "node --test fetch-schemas.test.mjs && tsx --test java.test.ts"
   },
   "dependencies": {
     "json-schema": "^0.4.0",
