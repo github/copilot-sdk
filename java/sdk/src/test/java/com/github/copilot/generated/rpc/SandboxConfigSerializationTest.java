@@ -29,8 +29,5 @@ class SandboxConfigSerializationTest {
                 """, SandboxConfig.class);
         var omittedJson = MAPPER.readTree(MAPPER.writeValueAsString(omitted));
         assertTrue(omittedJson.path("allowBypass").isMissingNode());
-
-        var legacyConstructor = new SandboxConfig(true, null, null, null, null);
-        assertNull(legacyConstructor.allowBypass());
     }
 }

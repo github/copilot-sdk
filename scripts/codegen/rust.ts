@@ -18,7 +18,6 @@ import { promisify } from "util";
 import type { JSONSchema7, JSONSchema7Definition } from "json-schema";
 import {
 	addManagedApprovalRequiredToPermissionRequests,
-	addSandboxAllowBypass,
 	type ApiSchema,
 	type DefinitionCollections,
 	EXCLUDED_EVENT_TYPES,
@@ -2233,9 +2232,7 @@ async function generate(): Promise<void> {
 	);
 	const apiSchema = propagateInternalVisibility(
 		postProcessSchema(
-			stripBooleanLiterals(
-				addSandboxAllowBypass(apiRaw as JSONSchema7),
-			) as JSONSchema7,
+			stripBooleanLiterals(apiRaw) as JSONSchema7,
 		),
 	) as unknown as ApiSchema;
 

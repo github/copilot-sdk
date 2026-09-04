@@ -31,9 +31,6 @@ def test_sandbox_config_round_trips_allow_bypass_and_omits_when_absent():
     assert SandboxConfig.from_dict(configured.to_dict()).allow_bypass is True
     assert SandboxConfig(enabled=True).to_dict() == {"enabled": True}
 
-    legacy_positional = SandboxConfig(True, None, True)
-    assert legacy_positional.to_dict() == {"enabled": True, "allowDevToolAccess": True}
-
 
 @pytest.mark.asyncio
 async def test_commands_invoke_deserializes_slash_command_result():

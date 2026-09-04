@@ -149,7 +149,6 @@ fn permission_event_exposes_managed_approval_required() {
 }
 
 #[test]
-<<<<<<< HEAD
 fn queue_pending_message_id_uses_camel_case_wire_name() {
     let item = QueuePendingItems {
         agent_mode: SendAgentMode::Interactive,
@@ -188,11 +187,9 @@ fn queue_pending_message_id_is_optional_for_older_hosts() {
 
 #[test]
 fn sandbox_allow_bypass_round_trips_as_optional_camel_case() {
-    let enabled = SandboxConfig {
-        enabled: true,
-        allow_bypass: Some(true),
-        ..Default::default()
-    };
+    let mut enabled = SandboxConfig::default();
+    enabled.enabled = true;
+    enabled.allow_bypass = Some(true);
     let value = serde_json::to_value(enabled).unwrap();
     assert_eq!(
         value,
@@ -204,11 +201,8 @@ fn sandbox_allow_bypass_round_trips_as_optional_camel_case() {
     let round_tripped: SandboxConfig = serde_json::from_value(value).unwrap();
     assert_eq!(round_tripped.allow_bypass, Some(true));
 
-    let omitted = SandboxConfig {
-        enabled: true,
-        allow_bypass: None,
-        ..Default::default()
-    };
+    let mut omitted = SandboxConfig::default();
+    omitted.enabled = true;
     assert_eq!(
         serde_json::to_value(omitted).unwrap(),
         serde_json::json!({ "enabled": true })
