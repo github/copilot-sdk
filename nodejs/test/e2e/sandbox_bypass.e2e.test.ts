@@ -13,8 +13,8 @@ const TEST_TIMEOUT_MS = 180_000;
 const TEST_NAME = "approves a blocked search and executes it outside the sandbox";
 
 describe("Sandbox bypass", async () => {
-    if (process.platform === "win32") {
-        // The Windows backend requires BaseContainer, which is unavailable on the SDK's runners.
+    if (process.platform !== "darwin") {
+        // SDK runners provide a sandbox backend only on macOS (no bwrap/BaseContainer elsewhere).
         it.skip(TEST_NAME, () => undefined);
         return;
     }
@@ -54,7 +54,7 @@ describe("Sandbox bypass", async () => {
                     event.type === "tool.execution_complete" &&
                     event.data.toolName === "grep" &&
                     event.data.success &&
-                    event.data.sandboxed === false
+                    event.data.result?.content.includes("OUTSIDE_MATCH_LINE bypass-approved")
                 ) {
                     bypassedSearchCompleted = true;
                 }
