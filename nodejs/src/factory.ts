@@ -14,7 +14,7 @@ import type {
 } from "./generated/rpc.js";
 import type { ContextTier } from "./generated/session-events.js";
 import type { CopilotSession } from "./session.js";
-import type { FactoryLimits, FactoryMeta } from "./types.js";
+import type { FactoryMeta } from "./types.js";
 
 export type { FactoryRunResult };
 export type {
@@ -47,13 +47,15 @@ export type FactoryRunsPage = FactoryListRunsResult;
 /**
  * Run statuses a factory run can no longer move away from.
  *
- * A run is either still in flight (`pending`, `running`) or settled into one of
- * these four. Terminal state is final: once written it is never reopened, so a
- * caller that observes one of these can stop watching the run.
+ * A run is either still in flight (`pending`, `running`) or its current attempt
+ * has settled into one of these states. A paused run can later start a new
+ * attempt under the same run ID, but callers waiting on the current attempt can
+ * stop watching once they observe it.
  */
 const FACTORY_TERMINAL_STATUSES: ReadonlySet<FactoryRunStatus> = new Set([
     "completed",
     "halted",
+    "paused",
     "cancelled",
     "error",
 ]);
@@ -140,6 +142,22 @@ export interface FactoryStepOptions {
 }
 
 /**
+ * Per-invocation factory resource ceiling overrides.
+ *
+ * An omitted field preserves the existing/default ceiling, a number replaces
+ * it, and `null` explicitly makes that dimension unlimited.
+ *
+ * @experimental Part of the experimental Agent Factories surface and may
+ * change or be removed in future SDK or CLI releases.
+ */
+export interface FactoryLimitOverrides {
+    maxConcurrentSubagents?: number | null;
+    maxTotalSubagents?: number | null;
+    maxAiCredits?: number | null;
+    timeoutSeconds?: number | null;
+}
+
+/**
  * One stage in a per-item factory pipeline.
  *
  * @experimental Part of the experimental Agent Factories surface and may
@@ -168,6 +186,13 @@ export interface FactoryContext<TArgs extends JsonValue = JsonValue> {
         producer: () => Promise<JsonValue> | JsonValue,
         options?: FactoryStepOptions
     ): Promise<JsonValue>;
+    /**
+     * Pause this run at a durable, one-shot checkpoint.
+     *
+     * The first attempt to reach a key pauses and aborts cooperatively. A
+     * resumed attempt returns from the same key and continues.
+     */
+    pause(key: string): Promise<void>;
     /**
      * Run thunks concurrently and await all of them.
      *
@@ -259,7 +284,7 @@ export interface RunOptions<TArgs extends JsonValue = JsonValue> {
     /** Input surfaced as `context.args`. */
     args?: TArgs;
     /** Optional per-invocation resource ceiling overrides. */
-    limits?: FactoryLimits;
+    limits?: FactoryLimitOverrides;
     /** Whether to notify the originating session when the factory completes. */
     notifyOnComplete?: boolean;
     /** Whether to emit factory phase names to the session transcript. */
@@ -280,7 +305,7 @@ export interface RunOptions<TArgs extends JsonValue = JsonValue> {
  */
 export interface ResumeOptions {
     /** Optional per-invocation resource ceiling overrides. */
-    limits?: FactoryLimits;
+    limits?: FactoryLimitOverrides;
     /** Whether to notify the originating session when the factory completes. */
     notifyOnComplete?: boolean;
     /** Whether to emit factory phase names to the session transcript. */
@@ -375,6 +400,8 @@ export interface SessionFactoryApi {
         runId: string,
         options?: Omit<FactoryGetRunProgressRequest, "runId">
     ): Promise<FactoryProgressPage>;
+    /** Pause a running factory and return its settled envelope. */
+    pause(runId: string): Promise<FactoryRunResult>;
     /** Cancel a factory run and return its terminal envelope. */
     cancel(runId: string): Promise<FactoryRunResult>;
 }

@@ -10,7 +10,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import type { MessageConnection } from "vscode-jsonrpc/node.js";
 import { ConnectionError, ErrorCodes, ResponseError } from "vscode-jsonrpc/node.js";
-import { createSessionRpc } from "./generated/rpc.js";
+import { createInternalSessionRpc, createSessionRpc } from "./generated/rpc.js";
 import type {
     ClientSessionApiHandlers,
     CanvasActionInvokeResult,
@@ -108,14 +108,27 @@ function copyDefinedFactoryAgentOption<TKey extends keyof FactoryAgentOptions>(
     }
 }
 
-const factoryExecutionStore = new AsyncLocalStorage<{ active: boolean }>();
+type FactoryExecutionContext = {
+    active: boolean;
+    helperScope?: "parallel" | "pipeline";
+};
+
+const factoryExecutionStore = new AsyncLocalStorage<FactoryExecutionContext>();
 
 function throwIfFactoryExecutionIsActive(): void {
     if (factoryExecutionStore.getStore()?.active) {
         throw new Error(
-            "factory.run and factory.resume are not allowed while a factory body is running on this call path."
+            "factory.run and factory.resume, and factory.pause are not allowed while a factory body is running on this call path."
         );
     }
+}
+
+function runInFactoryHelperScope<TResult>(
+    helperScope: "parallel" | "pipeline",
+    callback: () => Promise<TResult> | TResult
+): Promise<TResult> | TResult {
+    const current = factoryExecutionStore.getStore();
+    return factoryExecutionStore.run({ active: current?.active ?? false, helperScope }, callback);
 }
 
 /**
@@ -188,7 +201,7 @@ async function runFactoryParallel<TResult>(
     return Promise.all(
         thunks.map((thunk) =>
             Promise.resolve()
-                .then(() => thunk())
+                .then(() => runInFactoryHelperScope("parallel", thunk))
                 .catch((error) => {
                     // Cancellation and hard runtime failures must propagate out
                     // of the combinator rather than be mapped to a successful
@@ -220,7 +233,9 @@ async function runFactoryPipeline(
             let previous = item;
             for (const stage of stages) {
                 try {
-                    previous = await stage(previous, item, index);
+                    previous = await runInFactoryHelperScope("pipeline", () =>
+                        stage(previous, item, index)
+                    );
                 } catch (error) {
                     // Propagate cancellation and hard runtime failures instead
                     // of mapping them to `null`, so an aborted stage — or one
@@ -437,6 +452,7 @@ export class CopilotSession {
     private hooks?: SessionHooks;
     private transformCallbacks?: Map<string, SectionTransformFn>;
     private _rpc: ReturnType<typeof createSessionRpc> | null = null;
+    private _internalRpc: ReturnType<typeof createInternalSessionRpc> | null = null;
     private traceContextProvider?: TraceContextProvider;
     private readonly managedSettingsEnabled: boolean;
     private _capabilities: SessionCapabilities = {};
@@ -517,6 +533,10 @@ export class CopilotSession {
         getRunDetail: (runId) => this.rpc.factory.getRunDetail({ runId }),
         getRunProgress: (runId, options = {}) =>
             this.rpc.factory.getRunProgress({ runId, ...options }),
+        pause: async (runId) => {
+            throwIfFactoryExecutionIsActive();
+            return this.rpc.factory.pause({ runId });
+        },
         cancel: async (runId) => this.rpc.factory.cancel({ runId }),
     };
 
@@ -652,6 +672,14 @@ export class CopilotSession {
             this._rpc = createSessionRpc(this.connection, this.sessionId);
         }
         return this._rpc;
+    }
+
+    /** @internal */
+    private get internalRpc(): ReturnType<typeof createInternalSessionRpc> {
+        if (!this._internalRpc) {
+            this._internalRpc = createInternalSessionRpc(this.connection, this.sessionId);
+        }
+        return this._internalRpc;
     }
 
     /**
@@ -1560,6 +1588,36 @@ export class CopilotSession {
                             );
                             return result;
                         },
+                        pause: async (key: string): Promise<void> => {
+                            if (typeof key !== "string" || key.length === 0) {
+                                throw new Error("Factory pause checkpoint key must not be empty");
+                            }
+                            const helperScope = factoryExecutionStore.getStore()?.helperScope;
+                            if (helperScope !== undefined) {
+                                throw new Error(
+                                    `Factory pause checkpoints are not allowed inside ${helperScope}() branches`
+                                );
+                            }
+                            await progress.flush();
+                            const response = await awaitFactoryOperation(
+                                () =>
+                                    self.internalRpc.factory.pauseAtCheckpoint({
+                                        runId: params.runId,
+                                        executionToken: params.executionToken,
+                                        key,
+                                    }),
+                                controller.signal
+                            );
+                            switch (response.action) {
+                                case "continue":
+                                    return;
+                                case "pause":
+                                    await awaitFactoryOperation(
+                                        () => new Promise<never>(() => {}),
+                                        controller.signal
+                                    );
+                            }
+                        },
                         parallel: runFactoryParallel,
                         pipeline: runFactoryPipeline,
                         factory: async () => {
@@ -1595,11 +1653,9 @@ export class CopilotSession {
             },
             async abort(params) {
                 const controllersForRun = self.factoryAbortControllers.get(params.runId);
-                if (controllersForRun !== undefined) {
-                    const reason = new DOMException("Factory run was aborted", "AbortError");
-                    for (const controller of controllersForRun.values()) {
-                        controller.abort(reason);
-                    }
+                const controller = controllersForRun?.get(params.executionToken);
+                if (controller !== undefined) {
+                    controller.abort(new DOMException("Factory run was aborted", "AbortError"));
                 }
                 return {};
             },

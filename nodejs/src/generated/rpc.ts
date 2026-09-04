@@ -1162,6 +1162,7 @@ export type FactoryRunStatus =
   | "completed"
   /** The run was interrupted while resource budget remained. */
   | "halted"
+  | "paused"
   /** The run was cancelled before completion. */
   | "cancelled"
   /** The factory body failed or reached a cumulative resource ceiling. */
@@ -1180,6 +1181,7 @@ export type FactoryRunFailure =
        * Approved effective ceiling that was reached.
        */
       value: number;
+      suggestedValue?: number;
       /**
        * Factory run identifier.
        */
@@ -1256,6 +1258,16 @@ export type FactoryRunFailureKind =
   | "timeoutSeconds"
   /** The run's settled subagent model usage exceeded the approved AI-credit ceiling, or no headroom remained for another subagent. */
   | "maxAiCredits";
+
+/** @experimental */
+export type FactoryPauseInfo =
+  | {
+      type: "user";
+    }
+  | {
+      key: string;
+      type: "checkpoint";
+    };
 /**
  * Kind of factory progress line.
  *
@@ -1268,6 +1280,9 @@ export type FactoryLogLineKind =
   | "log"
   /** A named factory phase marker. */
   | "phase";
+
+/** @experimental */
+export type FactoryPauseCheckpointAction = "continue" | "pause";
 /**
  * Derived lifecycle state of a factory phase.
  *
@@ -7818,6 +7833,10 @@ export interface FactoryAbortRequest {
    * Factory run identifier.
    */
   runId: string;
+  /**
+   * Opaque token identifying the execution attempt to abort.
+   */
+  executionToken: string;
 }
 /**
  * Acknowledgement that a factory request was accepted.
@@ -8284,6 +8303,7 @@ export interface FactoryRunSummary {
    * Terminal run outcome, or null while nonterminal.
    */
   terminal: FactoryRunTerminal | null;
+  canResume: boolean;
 }
 /**
  * Durable factory resource consumption.
@@ -8327,6 +8347,7 @@ export interface FactoryRunTerminal {
    * Prompt-safe preview of the completed result.
    */
   resultPreview?: string;
+  pauseInfo: FactoryPauseInfo | null;
 }
 /**
  * One ordered factory progress line.
@@ -8366,6 +8387,33 @@ export interface FactoryLogRequest {
    * Ordered progress lines to append.
    */
   lines: FactoryLogLine[];
+}
+/**
+ * Parameters for an owned durable pause checkpoint.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryPauseCheckpointRequest".
+ */
+/** @experimental */
+export interface FactoryPauseCheckpointRequest {
+  runId: string;
+  executionToken: string;
+  key: string;
+}
+
+/** @experimental */
+export interface FactoryPauseCheckpointResult {
+  action: FactoryPauseCheckpointAction;
+}
+/**
+ * Parameters for pausing a running factory.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryPauseRequest".
+ */
+/** @experimental */
+export interface FactoryPauseRequest {
+  runId: string;
 }
 /**
  * Durable lifecycle and timing for one factory phase.
@@ -8521,19 +8569,19 @@ export interface FactoryRunLimits {
   /**
    * Maximum number of factory subagents that may run concurrently.
    */
-  maxConcurrentSubagents?: number;
+  maxConcurrentSubagents?: number | null;
   /**
    * Maximum total number of factory subagents that may be admitted.
    */
-  maxTotalSubagents?: number;
+  maxTotalSubagents?: number | null;
   /**
    * Maximum accumulated active-execution time in seconds. Active execution includes the entire extension body, subprocess waits, queued-agent waits, and sleeps; time between resumed attempts is not counted.
    */
-  timeoutSeconds?: number;
+  timeoutSeconds?: number | null;
   /**
    * Maximum AI credits consumed by factory subagents and their descendants. The post-paid ceiling is soft: parallel turns can settle beyond it before the run stops.
    */
-  maxAiCredits?: number;
+  maxAiCredits?: number | null;
 }
 /**
  * Resolved persisted factory identity and resumed run envelope.
@@ -8583,6 +8631,7 @@ export interface FactoryRunResult {
    * Partial journal and progress snapshot for a halted, cancelled, or errored run.
    */
   snapshot?: JsonValue;
+  pauseInfo?: FactoryPauseInfo;
 }
 /**
  * Full factory run observability detail.
@@ -8659,6 +8708,7 @@ export interface FactoryRunDetail {
    * Terminal run outcome, or null while nonterminal.
    */
   terminal: FactoryRunTerminal | null;
+  canResume: boolean;
   /**
    * Lifecycle and timing observations for each factory phase.
    */
@@ -23579,6 +23629,11 @@ export interface WorkspacesWriteAutopilotObjectiveResult {
 }
 
 /** @experimental */
+export interface SessionFactoryPauseAtCheckpointResult {
+  action: FactoryPauseCheckpointAction;
+}
+
+/** @experimental */
 export interface SessionModelListRequest {
   /**
    * If true, bypasses the per-session model list cache and re-fetches from CAPI.
@@ -24774,6 +24829,15 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              */
             cancel: async (params: FactoryCancelRequest): Promise<FactoryRunResult> =>
                 connection.sendRequest("session.factory.cancel", { sessionId, ...params }),
+            /**
+             * Pauses a running factory and returns its settled run envelope.
+             *
+             * @param params Parameters for pausing a running factory.
+             *
+             * @returns Complete current or terminal factory run envelope.
+             */
+            pause: async (params: FactoryPauseRequest): Promise<FactoryRunResult> =>
+                connection.sendRequest("session.factory.pause", { sessionId, ...params }),
             /**
              * Records a batch of ordered factory progress lines.
              *
@@ -26647,6 +26711,13 @@ export function createInternalSessionRpc(connection: MessageConnection, sessionI
              */
             resumeFromTool: async (params: FactoryToolResumeRequest): Promise<FactoryResumeResult> =>
                 connection.sendRequest("session.factory.resumeFromTool", { sessionId, ...params }),
+            /**
+             * Atomically pauses an owned factory attempt at a durable checkpoint.
+             *
+             * @param params Parameters for an owned durable pause checkpoint.
+             */
+            pauseAtCheckpoint: async (params: FactoryPauseCheckpointRequest): Promise<SessionFactoryPauseAtCheckpointResult> =>
+                connection.sendRequest("session.factory.pauseAtCheckpoint", { sessionId, ...params }),
         },
         /** @experimental */
         model: {

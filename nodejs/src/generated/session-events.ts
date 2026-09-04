@@ -742,6 +742,14 @@ export type SystemNotificationAgentCompletedStatus =
   | "completed"
   /** The agent failed. */
   | "failed";
+export type SystemNotificationFactoryPauseInfo =
+  | {
+      type: "user";
+    }
+  | {
+      key: string;
+      type: "checkpoint";
+    };
 /**
  * Terminal status reached by a factory execution attempt.
  */
@@ -750,6 +758,7 @@ export type SystemNotificationFactoryCompletedStatus =
   | "completed"
   /** The factory was halted. */
   | "halted"
+  | "paused"
   /** The factory was cancelled. */
   | "cancelled"
   /** The factory failed. */
@@ -1062,6 +1071,7 @@ export type FactoryRunSettledStatus =
   | "completed"
   /** The run was stopped by a limit, an approval refusal or another policy decision. */
   | "halted"
+  | "paused"
   /** The run was cancelled by its caller or by session disposal. */
   | "cancelled"
   /** The run failed, with `failureType` carrying the class when it has one. */
@@ -7839,6 +7849,7 @@ export interface SystemNotificationFactoryCompleted {
    * Machine-readable terminal failure details, when present.
    */
   failure?: JsonValue;
+  pauseInfo?: SystemNotificationFactoryPauseInfo;
   /**
    * Bounded prompt-safe preview of the completed result.
    */
