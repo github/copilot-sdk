@@ -2921,6 +2921,10 @@ public sealed class PluginInstallResult
     /// <summary>Number of skills discovered and installed from the plugin.</summary>
     [JsonPropertyName("skillsInstalled")]
     public long SkillsInstalled { get; set; }
+
+    /// <summary>Where the completed plugin tree was staged before atomic promotion.</summary>
+    [JsonPropertyName("stagingMode")]
+    public PluginInstallStagingMode? StagingMode { get; set; }
 }
 
 /// <summary>Plugin source and optional working directory for relative-path resolution.</summary>
@@ -8561,6 +8565,80 @@ internal sealed class WorkspacesDiffRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
+/// <summary>Current per-window credit limit and consumption for an autopilot objective.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class AutopilotObjectiveCreditLimit
+{
+    /// <summary>Configured AI-credit cap, when one is set.</summary>
+    [JsonPropertyName("credits")]
+    public double? Credits { get; set; }
+
+    /// <summary>Window consumption in fractional AI credits, for display.</summary>
+    [JsonPropertyName("creditsUsed")]
+    public double CreditsUsed { get; set; }
+
+    /// <summary>Exact window consumption in non-negative integer nano-AIU, encoded as a decimal string.</summary>
+    [RegularExpression("^[0-9]+$")]
+    [JsonPropertyName("creditsUsedNanoAiu")]
+    public string CreditsUsedNanoAiu { get; set; } = string.Empty;
+}
+
+/// <summary>Public, persistence-independent projection of an autopilot objective.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class AutopilotObjectiveState
+{
+    /// <summary>Optional summary recorded when the objective completed.</summary>
+    [JsonPropertyName("completionSummary")]
+    public string? CompletionSummary { get; set; }
+
+    /// <summary>Exact lifetime AI-credit consumption in non-negative integer nano-AIU, encoded as a decimal string.</summary>
+    [RegularExpression("^[0-9]+$")]
+    [JsonPropertyName("creditCountNanoAiu")]
+    public string CreditCountNanoAiu { get; set; } = string.Empty;
+
+    /// <summary>Current per-window consumption and optional cap, when a credit-tracking window is present.</summary>
+    [JsonPropertyName("creditLimit")]
+    public AutopilotObjectiveCreditLimit? CreditLimit { get; set; }
+
+    /// <summary>Session-local objective identifier.</summary>
+    [JsonPropertyName("id")]
+    public long Id { get; set; }
+
+    /// <summary>User-provided objective text.</summary>
+    [JsonPropertyName("objective")]
+    public string Objective { get; set; } = string.Empty;
+
+    /// <summary>Optional reason the objective is paused.</summary>
+    [JsonPropertyName("pauseReason")]
+    public string? PauseReason { get; set; }
+
+    /// <summary>Current normalized lifecycle status.</summary>
+    [JsonPropertyName("status")]
+    public AutopilotObjectiveStatus Status { get; set; }
+
+    /// <summary>Number of objective turns started.</summary>
+    [JsonPropertyName("turnCount")]
+    public long TurnCount { get; set; }
+}
+
+/// <summary>Canonical runtime state for the session's current autopilot objective.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class AutopilotObjectiveGetStateResult
+{
+    /// <summary>Current objective state, or `null` when the session has no objective.</summary>
+    [JsonPropertyName("state")]
+    public AutopilotObjectiveState? State { get; set; }
+}
+
+/// <summary>Identifies the target session.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class SessionAutopilotObjectiveGetStateRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
 /// <summary>Characters that, when typed in the composer, should trigger a `completions.request`. Empty when the session has no host-driven completions (e.g. local sessions, or a relay host that does not advertise `completionTriggerCharacters`).</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class CompletionsGetTriggerCharactersResult
@@ -9983,6 +10061,10 @@ public sealed class McpServer
     [MinLength(1)]
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
+
+    /// <summary>Server-advertised metadata for a connected server. Omitted when no live connection metadata is available, including while pending or when failed, disabled, stopped, or not configured.</summary>
+    [JsonPropertyName("serverMetadata")]
+    public McpServerMetadata? ServerMetadata { get; set; }
 
     /// <summary>Configuration source: user, workspace, plugin, or builtin.</summary>
     [JsonPropertyName("source")]
@@ -13894,6 +13976,10 @@ public partial class SlashCommandInvocationResultSelectSubcommand : SlashCommand
 [Experimental(Diagnostics.Experimental)]
 public sealed class SlashCommandTimelineEntry
 {
+    /// <summary>What the user must do to recover, when the entry reports a failure the runtime knows an action for. The `text` never names a client affordance, so a client that offers one renders it from this value.</summary>
+    [JsonPropertyName("remediation")]
+    public RemediationAction? Remediation { get; set; }
+
     /// <summary>Text displayed for the timeline entry.</summary>
     [JsonPropertyName("text")]
     public string Text { get; set; } = string.Empty;
@@ -22078,6 +22164,69 @@ public readonly struct CatalogCandidateKind : IEquatable<CatalogCandidateKind>
 }
 
 
+/// <summary>Where completed plugin content was staged before atomic promotion.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct PluginInstallStagingMode : IEquatable<PluginInstallStagingMode>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="PluginInstallStagingMode"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="PluginInstallStagingMode"/>.</param>
+    [JsonConstructor]
+    public PluginInstallStagingMode(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="PluginInstallStagingMode"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>A sibling of the installed-plugins root, outside the recursively watched tree.</summary>
+    public static PluginInstallStagingMode External { get; } = new("external");
+
+    /// <summary>A sibling of the destination plugin directory, used when external staging is unavailable.</summary>
+    public static PluginInstallStagingMode DestinationSibling { get; } = new("destination_sibling");
+
+    /// <summary>Returns a value indicating whether two <see cref="PluginInstallStagingMode"/> instances are equivalent.</summary>
+    public static bool operator ==(PluginInstallStagingMode left, PluginInstallStagingMode right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="PluginInstallStagingMode"/> instances are not equivalent.</summary>
+    public static bool operator !=(PluginInstallStagingMode left, PluginInstallStagingMode right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is PluginInstallStagingMode other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(PluginInstallStagingMode other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{PluginInstallStagingMode}"/> for serializing <see cref="PluginInstallStagingMode"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<PluginInstallStagingMode>
+    {
+        /// <inheritdoc />
+        public override PluginInstallStagingMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, PluginInstallStagingMode value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PluginInstallStagingMode));
+        }
+    }
+}
+
+
 /// <summary>Which tier this directory belongs to.</summary>
 [Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -25178,6 +25327,72 @@ public readonly struct HistoryRewindUnavailableReason : IEquatable<HistoryRewind
         public override void Write(Utf8JsonWriter writer, HistoryRewindUnavailableReason value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(HistoryRewindUnavailableReason));
+        }
+    }
+}
+
+
+/// <summary>Current normalized autopilot objective lifecycle status.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct AutopilotObjectiveStatus : IEquatable<AutopilotObjectiveStatus>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="AutopilotObjectiveStatus"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="AutopilotObjectiveStatus"/>.</param>
+    [JsonConstructor]
+    public AutopilotObjectiveStatus(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="AutopilotObjectiveStatus"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The objective is actively running.</summary>
+    public static AutopilotObjectiveStatus Active { get; } = new("active");
+
+    /// <summary>The objective is paused and may be resumed.</summary>
+    public static AutopilotObjectiveStatus Paused { get; } = new("paused");
+
+    /// <summary>The objective completed.</summary>
+    public static AutopilotObjectiveStatus Completed { get; } = new("completed");
+
+    /// <summary>Returns a value indicating whether two <see cref="AutopilotObjectiveStatus"/> instances are equivalent.</summary>
+    public static bool operator ==(AutopilotObjectiveStatus left, AutopilotObjectiveStatus right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="AutopilotObjectiveStatus"/> instances are not equivalent.</summary>
+    public static bool operator !=(AutopilotObjectiveStatus left, AutopilotObjectiveStatus right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is AutopilotObjectiveStatus other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(AutopilotObjectiveStatus other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{AutopilotObjectiveStatus}"/> for serializing <see cref="AutopilotObjectiveStatus"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<AutopilotObjectiveStatus>
+    {
+        /// <inheritdoc />
+        public override AutopilotObjectiveStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, AutopilotObjectiveStatus value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AutopilotObjectiveStatus));
         }
     }
 }
@@ -32607,6 +32822,12 @@ public sealed class SessionRpc
         Interlocked.CompareExchange(ref field, new(_session), null) ??
         field;
 
+    /// <summary>AutopilotObjective APIs.</summary>
+    public AutopilotObjectiveApi AutopilotObjective =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_session), null) ??
+        field;
+
     /// <summary>Completions APIs.</summary>
     public CompletionsApi Completions =>
         field ??
@@ -33960,6 +34181,29 @@ public sealed class WorkspacesApi
 
         var request = new WorkspacesDiffRequest { SessionId = _session.SessionId, Mode = mode, IgnoreWhitespace = ignoreWhitespace };
         return await CopilotClient.InvokeRpcAsync<WorkspaceDiffResult>(_session.Rpc, "session.workspaces.diff", [request], cancellationToken);
+    }
+}
+
+/// <summary>Provides session-scoped AutopilotObjective APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class AutopilotObjectiveApi
+{
+    private readonly CopilotSession _session;
+
+    internal AutopilotObjectiveApi(CopilotSession session)
+    {
+        _session = session;
+    }
+
+    /// <summary>Reads the current canonical autopilot objective state for this session.</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Canonical runtime state for the session's current autopilot objective.</returns>
+    public async Task<AutopilotObjectiveGetStateResult> GetStateAsync(CancellationToken cancellationToken = default)
+    {
+        _session.ThrowIfDisposed();
+
+        var request = new SessionAutopilotObjectiveGetStateRequest { SessionId = _session.SessionId };
+        return await CopilotClient.InvokeRpcAsync<AutopilotObjectiveGetStateResult>(_session.Rpc, "session.autopilotObjective.getState", [request], cancellationToken);
     }
 }
 
@@ -37476,6 +37720,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.McpOauthWWWAuthenticateParams), TypeInfoPropertyName = "SessionEventsMcpOauthWWWAuthenticateParams")]
 [JsonSerializable(typeof(GitHub.Copilot.McpPromptsListChangedEvent), TypeInfoPropertyName = "SessionEventsMcpPromptsListChangedEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.McpResourcesListChangedEvent), TypeInfoPropertyName = "SessionEventsMcpResourcesListChangedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.McpServerMetadata), TypeInfoPropertyName = "SessionEventsMcpServerMetadata")]
 [JsonSerializable(typeof(GitHub.Copilot.McpServerSource), TypeInfoPropertyName = "SessionEventsMcpServerSource")]
 [JsonSerializable(typeof(GitHub.Copilot.McpServerStatus), TypeInfoPropertyName = "SessionEventsMcpServerStatus")]
 [JsonSerializable(typeof(GitHub.Copilot.McpServerTransport), TypeInfoPropertyName = "SessionEventsMcpServerTransport")]
@@ -37549,6 +37794,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.PromptCacheBreakData), TypeInfoPropertyName = "SessionEventsPromptCacheBreakData")]
 [JsonSerializable(typeof(GitHub.Copilot.PromptCacheBreakEvent), TypeInfoPropertyName = "SessionEventsPromptCacheBreakEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.ReasoningSummary), TypeInfoPropertyName = "SessionEventsReasoningSummary")]
+[JsonSerializable(typeof(GitHub.Copilot.RemediationAction), TypeInfoPropertyName = "SessionEventsRemediationAction")]
 [JsonSerializable(typeof(GitHub.Copilot.SamplingCompletedData), TypeInfoPropertyName = "SessionEventsSamplingCompletedData")]
 [JsonSerializable(typeof(GitHub.Copilot.SamplingCompletedEvent), TypeInfoPropertyName = "SessionEventsSamplingCompletedEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.SamplingRequestedData), TypeInfoPropertyName = "SessionEventsSamplingRequestedData")]
@@ -37703,6 +37949,9 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(AuthIdentity))]
 [JsonSerializable(typeof(AuthInfo))]
 [JsonSerializable(typeof(AuthValidationError))]
+[JsonSerializable(typeof(AutopilotObjectiveCreditLimit))]
+[JsonSerializable(typeof(AutopilotObjectiveGetStateResult))]
+[JsonSerializable(typeof(AutopilotObjectiveState))]
 [JsonSerializable(typeof(BuiltInModelCatalog))]
 [JsonSerializable(typeof(BuiltInModelCatalogEntry))]
 [JsonSerializable(typeof(BuiltinToolDescriptor))]
@@ -38244,6 +38493,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SessionAuthLogoutUserRequest))]
 [JsonSerializable(typeof(SessionAuthStatus))]
 [JsonSerializable(typeof(SessionAuthSwitchRequest))]
+[JsonSerializable(typeof(SessionAutopilotObjectiveGetStateRequest))]
 [JsonSerializable(typeof(SessionBulkDeleteResult))]
 [JsonSerializable(typeof(SessionCancelAllBackgroundAgentsRequest))]
 [JsonSerializable(typeof(SessionCanvasListOpenRequest))]

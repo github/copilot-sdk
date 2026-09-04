@@ -13,19 +13,15 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Error details when the tool execution failed
+ * Server-advertised metadata learned through modern discovery or legacy initialization.
  *
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record ToolExecutionCompleteError(
-    /** Human-readable error message */
-    @JsonProperty("message") String message,
-    /** Machine-readable error code */
-    @JsonProperty("code") String code,
-    /** What the user must do to recover, when the runtime knows of an action. Set on sandbox policy denials, where `message` names the rule that blocked the call but never the client affordance that relaxes it. */
-    @JsonProperty("remediation") RemediationAction remediation
+public record McpServerMetadata(
+    /** Non-empty natural-language guidance for using the server, or null when the server omitted instructions or advertised an empty string. */
+    @JsonProperty("instructions") String instructions
 ) {
 }

@@ -3,9 +3,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 // AUTO-GENERATED FILE - DO NOT EDIT
-// Generated from: session-events.schema.json
+// Generated from: api.schema.json
 
-package com.github.copilot.generated;
+package com.github.copilot.generated.rpc;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -13,19 +13,19 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Error details when the tool execution failed
+ * Current per-window credit limit and consumption for an autopilot objective.
  *
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record ToolExecutionCompleteError(
-    /** Human-readable error message */
-    @JsonProperty("message") String message,
-    /** Machine-readable error code */
-    @JsonProperty("code") String code,
-    /** What the user must do to recover, when the runtime knows of an action. Set on sandbox policy denials, where `message` names the rule that blocked the call but never the client affordance that relaxes it. */
-    @JsonProperty("remediation") RemediationAction remediation
+public record AutopilotObjectiveCreditLimit(
+    /** Configured AI-credit cap, when one is set. */
+    @JsonProperty("credits") Double credits,
+    /** Window consumption in fractional AI credits, for display. */
+    @JsonProperty("creditsUsed") Double creditsUsed,
+    /** Exact window consumption in non-negative integer nano-AIU, encoded as a decimal string. */
+    @JsonProperty("creditsUsedNanoAiu") String creditsUsedNanoAiu
 ) {
 }

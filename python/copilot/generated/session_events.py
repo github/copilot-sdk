@@ -5357,6 +5357,25 @@ class McpResourcesListChangedData:
 
 
 @dataclass
+class McpServerMetadata:
+    "Server-advertised metadata learned through modern discovery or legacy initialization."
+    instructions: str | None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "McpServerMetadata":
+        assert isinstance(obj, dict)
+        instructions = from_union([from_none, from_str], obj.get("instructions"))
+        return McpServerMetadata(
+            instructions=instructions,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["instructions"] = from_union([from_none, from_str], self.instructions)
+        return result
+
+
+@dataclass
 class McpServersLoadedServer:
     "A single MCP server status summary in `session.mcp_servers_loaded`, including name, status, source, transport, and plugin metadata."
     name: str
@@ -5364,6 +5383,7 @@ class McpServersLoadedServer:
     error: str | None = None
     plugin_name: str | None = None
     plugin_version: str | None = None
+    server_metadata: McpServerMetadata | None = None
     source: McpServerSource | None = None
     transport: McpServerTransport | None = None
 
@@ -5375,6 +5395,7 @@ class McpServersLoadedServer:
         error = from_union([from_none, from_str], obj.get("error"))
         plugin_name = from_union([from_none, from_str], obj.get("pluginName"))
         plugin_version = from_union([from_none, from_str], obj.get("pluginVersion"))
+        server_metadata = from_union([from_none, McpServerMetadata.from_dict], obj.get("serverMetadata"))
         source = from_union([from_none, lambda x: parse_enum(McpServerSource, x)], obj.get("source"))
         transport = from_union([from_none, lambda x: parse_enum(McpServerTransport, x)], obj.get("transport"))
         return McpServersLoadedServer(
@@ -5383,6 +5404,7 @@ class McpServersLoadedServer:
             error=error,
             plugin_name=plugin_name,
             plugin_version=plugin_version,
+            server_metadata=server_metadata,
             source=source,
             transport=transport,
         )
@@ -5397,6 +5419,8 @@ class McpServersLoadedServer:
             result["pluginName"] = from_union([from_none, from_str], self.plugin_name)
         if self.plugin_version is not None:
             result["pluginVersion"] = from_union([from_none, from_str], self.plugin_version)
+        if self.server_metadata is not None:
+            result["serverMetadata"] = from_union([from_none, lambda x: to_class(McpServerMetadata, x)], self.server_metadata)
         if self.source is not None:
             result["source"] = from_union([from_none, lambda x: to_enum(McpServerSource, x)], self.source)
         if self.transport is not None:
@@ -8027,6 +8051,7 @@ class SessionErrorData:
     eligible_for_auto_switch: bool | None = None
     error_code: str | None = None
     provider_call_id: str | None = None
+    remediation: RemediationAction | None = None
     service_request_id: str | None = None
     stack: str | None = None
     status_code: int | None = None
@@ -8040,6 +8065,7 @@ class SessionErrorData:
         eligible_for_auto_switch = from_union([from_none, from_bool], obj.get("eligibleForAutoSwitch"))
         error_code = from_union([from_none, from_str], obj.get("errorCode"))
         provider_call_id = from_union([from_none, from_str], obj.get("providerCallId"))
+        remediation = from_union([from_none, lambda x: parse_enum(RemediationAction, x)], obj.get("remediation"))
         service_request_id = from_union([from_none, from_str], obj.get("serviceRequestId"))
         stack = from_union([from_none, from_str], obj.get("stack"))
         status_code = from_union([from_none, from_int], obj.get("statusCode"))
@@ -8050,6 +8076,7 @@ class SessionErrorData:
             eligible_for_auto_switch=eligible_for_auto_switch,
             error_code=error_code,
             provider_call_id=provider_call_id,
+            remediation=remediation,
             service_request_id=service_request_id,
             stack=stack,
             status_code=status_code,
@@ -8066,6 +8093,8 @@ class SessionErrorData:
             result["errorCode"] = from_union([from_none, from_str], self.error_code)
         if self.provider_call_id is not None:
             result["providerCallId"] = from_union([from_none, from_str], self.provider_call_id)
+        if self.remediation is not None:
+            result["remediation"] = from_union([from_none, lambda x: to_enum(RemediationAction, x)], self.remediation)
         if self.service_request_id is not None:
             result["serviceRequestId"] = from_union([from_none, from_str], self.service_request_id)
         if self.stack is not None:
@@ -9236,6 +9265,7 @@ class SessionWarningData:
     "Warning message for timeline display with categorization"
     message: str
     warning_type: str
+    remediation: RemediationAction | None = None
     url: str | None = None
 
     @staticmethod
@@ -9243,10 +9273,12 @@ class SessionWarningData:
         assert isinstance(obj, dict)
         message = from_str(obj.get("message"))
         warning_type = from_str(obj.get("warningType"))
+        remediation = from_union([from_none, lambda x: parse_enum(RemediationAction, x)], obj.get("remediation"))
         url = from_union([from_none, from_str], obj.get("url"))
         return SessionWarningData(
             message=message,
             warning_type=warning_type,
+            remediation=remediation,
             url=url,
         )
 
@@ -9254,6 +9286,8 @@ class SessionWarningData:
         result: dict = {}
         result["message"] = from_str(self.message)
         result["warningType"] = from_str(self.warning_type)
+        if self.remediation is not None:
+            result["remediation"] = from_union([from_none, lambda x: to_enum(RemediationAction, x)], self.remediation)
         if self.url is not None:
             result["url"] = from_union([from_none, from_str], self.url)
         return result
@@ -10582,15 +10616,18 @@ class ToolExecutionCompleteError:
     "Error details when the tool execution failed"
     message: str
     code: str | None = None
+    remediation: RemediationAction | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "ToolExecutionCompleteError":
         assert isinstance(obj, dict)
         message = from_str(obj.get("message"))
         code = from_union([from_none, from_str], obj.get("code"))
+        remediation = from_union([from_none, lambda x: parse_enum(RemediationAction, x)], obj.get("remediation"))
         return ToolExecutionCompleteError(
             message=message,
             code=code,
+            remediation=remediation,
         )
 
     def to_dict(self) -> dict:
@@ -10598,6 +10635,8 @@ class ToolExecutionCompleteError:
         result["message"] = from_str(self.message)
         if self.code is not None:
             result["code"] = from_union([from_none, from_str], self.code)
+        if self.remediation is not None:
+            result["remediation"] = from_union([from_none, lambda x: to_enum(RemediationAction, x)], self.remediation)
         return result
 
 
@@ -12560,6 +12599,20 @@ class ReasoningSummary(Enum):
     DETAILED = "detailed"
 
 
+class RemediationAction(Enum):
+    "What the user must do to recover from a failure, named as an action rather than as one client's affordance. The runtime cannot know which affordance a client offers — a slash command, a settings pane, a link — so the accompanying message stays host-agnostic and each client renders its own copy from this value. Absent when the runtime knows of no action the user can take."
+    # Authenticate again with the Copilot backend. The current credential is absent, expired, or rejected.
+    SIGN_IN = "sign_in"
+    # Authenticate as a different account. The current account exists but lacks access to the requested resource.
+    SWITCH_ACCOUNT = "switch_account"
+    # Inspect which account is currently authenticated before deciding what to change.
+    SHOW_ACCOUNT = "show_account"
+    # Review or widen the sandbox policy. The blocked path or host is named by the accompanying message or by the tool result the action arrived with.
+    REVIEW_SANDBOX_POLICY = "review_sandbox_policy"
+    # Permit outbound network access in the sandbox policy.
+    ALLOW_SANDBOX_OUTBOUND = "allow_sandbox_outbound"
+
+
 class ScheduleOrigin(Enum):
     "Who created the schedule: `user` (an explicit user action such as `/every` or `/after`) or `model` (the agent via the `manage_schedule` tool). Gates whether a scheduled skill that opted out of model invocation may fire: only user-created schedules may."
     # The schedule was created by an explicit user action, such as `/every` or `/after`.
@@ -13095,6 +13148,7 @@ __all__ = [
     "McpOauthWWWAuthenticateParams",
     "McpPromptsListChangedData",
     "McpResourcesListChangedData",
+    "McpServerMetadata",
     "McpServerSource",
     "McpServerStatus",
     "McpServerTransport",
@@ -13171,6 +13225,7 @@ __all__ = [
     "PromptCacheBreakData",
     "RawSessionEventData",
     "ReasoningSummary",
+    "RemediationAction",
     "SamplingCompletedData",
     "SamplingRequestedData",
     "SandboxDecisionData",

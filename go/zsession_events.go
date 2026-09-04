@@ -169,6 +169,7 @@ type (
 	MCPOauthWwwAuthenticateParams                                  = rpc.MCPOauthWwwAuthenticateParams
 	MCPPromptsListChangedData                                      = rpc.MCPPromptsListChangedData
 	MCPResourcesListChangedData                                    = rpc.MCPResourcesListChangedData
+	MCPServerMetadata                                              = rpc.MCPServerMetadata
 	MCPServersLoadedServer                                         = rpc.MCPServersLoadedServer
 	MCPServerSource                                                = rpc.MCPServerSource
 	MCPServerStatus                                                = rpc.MCPServerStatus
@@ -258,6 +259,7 @@ type (
 	RawSystemNotification                                          = rpc.RawSystemNotification
 	RawToolExecutionCompleteContent                                = rpc.RawToolExecutionCompleteContent
 	ReasoningSummary                                               = rpc.ReasoningSummary
+	RemediationAction                                              = rpc.RemediationAction
 	SamplingCompletedData                                          = rpc.SamplingCompletedData
 	SamplingRequestedData                                          = rpc.SamplingRequestedData
 	SandboxDecisionData                                            = rpc.SandboxDecisionData
@@ -697,6 +699,11 @@ const (
 	ReasoningSummaryConcise                                            = rpc.ReasoningSummaryConcise
 	ReasoningSummaryDetailed                                           = rpc.ReasoningSummaryDetailed
 	ReasoningSummaryNone                                               = rpc.ReasoningSummaryNone
+	RemediationActionAllowSandboxOutbound                              = rpc.RemediationActionAllowSandboxOutbound
+	RemediationActionReviewSandboxPolicy                               = rpc.RemediationActionReviewSandboxPolicy
+	RemediationActionShowAccount                                       = rpc.RemediationActionShowAccount
+	RemediationActionSignIn                                            = rpc.RemediationActionSignIn
+	RemediationActionSwitchAccount                                     = rpc.RemediationActionSwitchAccount
 	ScheduleOriginModel                                                = rpc.ScheduleOriginModel
 	ScheduleOriginUser                                                 = rpc.ScheduleOriginUser
 	SessionEventTypeAbort                                              = rpc.SessionEventTypeAbort
