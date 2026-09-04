@@ -23753,15 +23753,6 @@ const RPC_RESULT_PROJECTION_DEFINITIONS: Record<string, RpcResultProjection> = {
             }
         }
     },
-    "CatalogMcpServerCandidateProvenance": {
-        "kind": "object",
-        "closed": true,
-        "properties": {
-            "authority": null,
-            "observedAt": null,
-            "mediaType": null
-        }
-    },
     "CatalogMcpServerCandidate": {
         "kind": "object",
         "closed": true,
@@ -23778,19 +23769,7 @@ const RPC_RESULT_PROJECTION_DEFINITIONS: Record<string, RpcResultProjection> = {
                 "kind": "ref",
                 "name": "CatalogCandidateSource"
             },
-            "provenance": {
-                "kind": "ref",
-                "name": "CatalogMcpServerCandidateProvenance"
-            }
-        }
-    },
-    "CatalogAiSkillCandidateProvenance": {
-        "kind": "object",
-        "closed": true,
-        "properties": {
-            "authority": null,
-            "observedAt": null,
-            "mediaType": null
+            "provenance": null
         }
     },
     "CatalogAiSkillCandidate": {
@@ -23809,10 +23788,7 @@ const RPC_RESULT_PROJECTION_DEFINITIONS: Record<string, RpcResultProjection> = {
                 "kind": "ref",
                 "name": "CatalogCandidateSource"
             },
-            "provenance": {
-                "kind": "ref",
-                "name": "CatalogAiSkillCandidateProvenance"
-            }
+            "provenance": null
         }
     },
     "CatalogCandidate": {
@@ -23829,14 +23805,6 @@ const RPC_RESULT_PROJECTION_DEFINITIONS: Record<string, RpcResultProjection> = {
             }
         }
     },
-    "CatalogNegotiatedContract": {
-        "kind": "object",
-        "closed": true,
-        "properties": {
-            "runtimeProtocolVersion": null,
-            "grantedCapabilities": null
-        }
-    },
     "CatalogSearchSucceeded": {
         "kind": "object",
         "closed": true,
@@ -23851,10 +23819,7 @@ const RPC_RESULT_PROJECTION_DEFINITIONS: Record<string, RpcResultProjection> = {
                 }
             },
             "truncated": null,
-            "negotiated": {
-                "kind": "ref",
-                "name": "CatalogNegotiatedContract"
-            }
+            "negotiated": null
         }
     },
     "CatalogNegotiationRefusedError": {

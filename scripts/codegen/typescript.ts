@@ -646,7 +646,8 @@ function buildRpcResultProjection(
     schema: JSONSchema7,
     definitions: DefinitionCollections,
     projectionDefinitions: Map<string, RpcResultProjectionBuild>,
-    resolvingReferences = new Set<string>()
+    resolvingReferences = new Set<string>(),
+    projectClosedObject = false
 ): RpcResultProjectionBuild {
     if (schema.$ref) {
         const definitionName = localDefinitionName(schema.$ref);
@@ -676,7 +677,8 @@ function buildRpcResultProjection(
             resolved,
             definitions,
             projectionDefinitions,
-            nestedReferences
+            nestedReferences,
+            projectClosedObject
         );
         projectionDefinitions.set(definitionName, built);
         return built.projection
@@ -704,7 +706,8 @@ function buildRpcResultProjection(
                 entry.variants[0].source,
                 definitions,
                 projectionDefinitions,
-                new Set(resolvingReferences)
+                new Set(resolvingReferences),
+                true
             ).projection;
             if (!variantProjection) {
                 return { projection: null, containsClosedUnion: false };
@@ -775,10 +778,12 @@ function buildRpcResultProjection(
             properties[name] = child.projection;
             containsClosedUnion ||= child.containsClosedUnion;
         }
-        const closed = objectSchema.additionalProperties === false;
+        const closed =
+            projectClosedObject && objectSchema.additionalProperties === false;
         return {
             projection:
-                closed || Object.values(properties).some((projection) => projection !== null)
+                projectClosedObject ||
+                Object.values(properties).some((projection) => projection !== null)
                     ? { kind: "object", closed, properties }
                     : null,
             containsClosedUnion,
