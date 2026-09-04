@@ -19,7 +19,6 @@ async fn should_call_server_mcp_config_rpcs() {
                     .remove(McpConfigRemoveRequest {
                         auth_client_id_metadata_url: None,
                         name: server_name.to_string(),
-                        auth_client_id_metadata_url: None,
                     })
                     .await;
 
@@ -77,7 +76,6 @@ async fn should_call_server_mcp_config_rpcs() {
                     .remove(McpConfigRemoveRequest {
                         auth_client_id_metadata_url: None,
                         name: server_name.to_string(),
-                        auth_client_id_metadata_url: None,
                     })
                     .await
                     .expect("remove");
@@ -107,7 +105,6 @@ async fn should_round_trip_http_mcp_oauth_config_rpc() {
                     .remove(McpConfigRemoveRequest {
                         auth_client_id_metadata_url: None,
                         name: server_name.to_string(),
-                        auth_client_id_metadata_url: None,
                     })
                     .await;
 
@@ -204,7 +201,6 @@ async fn should_round_trip_http_mcp_oauth_config_rpc() {
                     .remove(McpConfigRemoveRequest {
                         auth_client_id_metadata_url: None,
                         name: server_name.to_string(),
-                        auth_client_id_metadata_url: None,
                     })
                     .await
                     .expect("remove");
