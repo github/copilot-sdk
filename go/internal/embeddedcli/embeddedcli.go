@@ -320,10 +320,10 @@ func installAt(installDir string) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		if err := installRuntimeAssets(installDir); err != nil {
-			return "", err
-		}
 		runtimeLibPath = libPath
+	}
+	if err := installRuntimeAssets(installDir); err != nil {
+		return "", err
 	}
 
 	return finalPath, nil

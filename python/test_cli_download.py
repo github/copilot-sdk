@@ -277,8 +277,11 @@ def test_explicit_cli_reuses_library_from_canonical_staged_bundle(tmp_path):
     assert (cache_dir / "prebuilds" / runtime_platform / "runtime.node").read_bytes() == b"runtime"
     assert not (cache_dir / "packages").exists()
     assert wrapper.endswith(
-        f"prebuilds/{runtime_platform}/"
-        f"{'copilot-runtime.exe' if os.name == 'nt' else 'copilot-runtime'}"
+        os.path.join(
+            "prebuilds",
+            runtime_platform,
+            "copilot-runtime.exe" if os.name == "nt" else "copilot-runtime",
+        )
     )
     assert fetch_mock.call_count == 2
 

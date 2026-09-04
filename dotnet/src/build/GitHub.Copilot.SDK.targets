@@ -112,8 +112,8 @@
       <_CopilotCliDownloadTimeoutMs>$([System.Convert]::ToInt32($([MSBuild]::Multiply($(CopilotCliDownloadTimeout), 1000))))</_CopilotCliDownloadTimeoutMs>
     </PropertyGroup>
 
-    <!-- Write the completion marker only after the full archive is extracted and validated. -->
-    <Delete Files="$(_CopilotArchivePath);$(_CopilotChecksumPath);$(_CopilotRuntimeBundleCompleteMarker)" Condition="'$(_CopilotRuntimeBundleMissing)' == 'true'" />
+    <!-- Reacquire incomplete bundles into an empty cache so stale files cannot survive extraction. -->
+    <RemoveDir Directories="$(_CopilotCacheDir)" Condition="'$(_CopilotRuntimeBundleMissing)' == 'true'" />
 
     <!-- Download if not cached -->
     <MakeDir Directories="$(_CopilotCacheDir)" Condition="'$(_CopilotRuntimeBundleMissing)' == 'true'" />

@@ -152,6 +152,7 @@ public class MSBuildTargetsTests
         using var sandbox = MSBuildSandbox.Create();
         sandbox.WriteRuntimeCacheAsset("prebuilds", GetReleasePlatform(), RuntimeWrapperName, "partial-wrapper");
         sandbox.WriteRuntimeCacheAsset("prebuilds", GetReleasePlatform(), "runtime.node", "partial-runtime");
+        sandbox.WriteRuntimeCacheAsset("definitions", "stale.json", "stale");
         var archive = sandbox.CreateReleaseArchive("complete-wrapper");
         var assetName = $"github-copilot-0.0.0-test-{GetReleasePlatform()}.tgz";
         var assetPath = $"/v0.0.0-test/{assetName}";
@@ -173,6 +174,8 @@ public class MSBuildTargetsTests
         Assert.Equal("complete-wrapper", File.ReadAllText(sandbox.ExpectedRuntimeAsset(RuntimeWrapperName)));
         Assert.Equal("runtime", File.ReadAllText(sandbox.ExpectedRuntimeAsset("runtime.node")));
         Assert.True(File.Exists(sandbox.ExpectedCacheAsset(".copilot-runtime-complete")));
+        Assert.False(File.Exists(sandbox.ExpectedCacheAsset("definitions", "stale.json")));
+        Assert.False(File.Exists(sandbox.ExpectedRuntimeAsset("definitions", "stale.json")));
     }
 
     [Fact]
