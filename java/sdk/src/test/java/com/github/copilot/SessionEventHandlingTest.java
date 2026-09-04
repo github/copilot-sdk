@@ -108,6 +108,10 @@ public class SessionEventHandlingTest {
 
     @Test
     void testCloseCancelsBlockedExternalTool() throws Exception {
+        var rpc = mock(JsonRpcClient.class);
+        when(rpc.invoke(eq("session.detach"), any(), eq(CopilotSession.SessionDetachResponse.class)))
+                .thenReturn(CompletableFuture.completedFuture(new CopilotSession.SessionDetachResponse(true, null)));
+        session = createTestSession(rpc);
         var toolFuture = new CompletableFuture<Object>();
         var started = new CountDownLatch(1);
         session.registerTools(List.of(ToolDefinition.create("blocked_tool", "Blocks", Map.of(), invocation -> {
