@@ -928,7 +928,7 @@ Enable `bundled-in-process` to additionally embed the native runtime library
 and use `Transport::InProcess`:
 
 ```toml
-github-copilot-sdk = { version = "0.1", features = ["bundled-in-process"] }
+github-copilot-sdk = { version = "1.0", features = ["bundled-in-process"] }
 ```
 
 `CliProgram::Path` and raw `ClientOptions::extra_args` apply only to
@@ -938,7 +938,7 @@ provisioned compatible runtime package with in-process transport.
 For builds that prefer a smaller artifact, disable the `bundled-cli` feature:
 
 ```toml
-github-copilot-sdk = { version = "0.1", default-features = false }
+github-copilot-sdk = { version = "1.0", default-features = false }
 ```
 
 > **You become responsible for supplying the runtime at deployment.** With
@@ -1076,20 +1076,17 @@ Supported: `darwin-arm64`, `darwin-x64`, `linux-x64`, `linux-arm64`, `win32-x64`
 | `derive` | — | `schema_for::<T>()` for generating JSON Schema from Rust types (adds `schemars`). |
 
 ```toml
-# These examples use registry syntax for illustration; until the crate is
-# published, use a path or git dependency instead.
-
 # Default — bundles the Copilot CLI in your binary.
-github-copilot-sdk = "0.1"
+github-copilot-sdk = "1.0"
 
 # Enable the in-process transport and bundle its native runtime library.
-github-copilot-sdk = { version = "0.1", features = ["bundled-in-process"] }
+github-copilot-sdk = { version = "1.0", features = ["bundled-in-process"] }
 
 # Opt out of bundling — supply the CLI explicitly at runtime.
-github-copilot-sdk = { version = "0.1", default-features = false }
+github-copilot-sdk = { version = "1.0", default-features = false }
 
 # Derive JSON Schema for tool parameters (adds to default bundled-cli).
-github-copilot-sdk = { version = "0.1", features = ["derive"] }
+github-copilot-sdk = { version = "1.0", features = ["derive"] }
 ```
 
 ## Development
