@@ -131,7 +131,7 @@ jobs:
             EARLIER="$(jq --arg title "$RUN_TITLE" --argjson current "$GITHUB_RUN_ID" \
               '[.workflow_runs[] | select(.display_title == $title and .id < $current)] | length' \
               "$RUNNER_TEMP/runs.json")"
-            if [ "$EARLIER" -eq 0 ] && [ "$GITHUB_RUN_ATTEMPT" -eq 1 ]; then
+            if [ "$EARLIER" -eq 0 ]; then
               echo "found=false" >> "$GITHUB_OUTPUT"
               exit 0
             fi
@@ -149,10 +149,6 @@ jobs:
             )] | length' "$RUNNER_TEMP/runs.json")"
           if [ "$ACTIVE" -gt 0 ]; then
             echo "::error::An earlier matching run is still initializing without a visible marker. Retry this run later."
-            exit 1
-          fi
-          if [ "$GITHUB_RUN_ATTEMPT" -gt 1 ]; then
-            echo "::error::This rerun's canonical marker is not visible. Retry after the artifact index is consistent."
             exit 1
           fi
           echo "Earlier matching runs completed before claiming; none could have started release work."

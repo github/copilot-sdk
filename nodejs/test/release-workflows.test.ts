@@ -56,6 +56,8 @@ describe("runtime-driven Node SDK entry contract", () => {
         expect(runtimeSdk).toContain("More than one unexpired");
         expect(runtimeSdk).toContain("for ATTEMPT in 1 2 3 4 5 6");
         expect(runtimeSdk).toContain("actions/workflows/runtime-sdk.yml/runs");
+        expect(runtimeSdk).toContain('if [ "$EARLIER" -eq 0 ]; then');
+        expect(runtimeSdk).not.toContain('GITHUB_RUN_ATTEMPT" -gt 1');
         expect(runtimeSdk).toContain("runtime-dispatch-ledger.ts validate");
         expect(runtimeSdk).toContain('gh run watch "$CANONICAL_RUN_ID" --exit-status');
         expect(runtimeSdk).toContain("retention-days: 90");
@@ -96,6 +98,9 @@ describe("shared runtime-backed Node pipeline", () => {
         expect(shared).not.toContain('"$runtime_path" --version');
         expect(shared).not.toContain('"$RUNTIME" --version');
         expect(shared).not.toContain("resume_run_id");
+        expect(shared).toContain("const parsed = semver.parse(process.argv[1])");
+        expect(shared).toContain("parsed.major}.${parsed.minor}.${parsed.patch");
+        expect(shared).not.toContain('BASE="${PUBLIC_LATEST%%-*}"');
         expect(shared.indexOf("npm run verify:release-packages")).toBeLessThan(
             shared.indexOf("publish-manifest")
         );
