@@ -19,18 +19,41 @@ on:
         description: "Version override (optional, e.g., 1.0.0). If empty, auto-increments."
         type: string
         required: false
+      runtime_version:
+        description: "Exact signed runtime version (required for unstable)"
+        type: string
+        required: false
+      runtime_sha:
+        description: "Full github/copilot-agent-runtime SHA (required for unstable)"
+        type: string
+        required: false
+      runtime_source:
+        description: "Runtime package source (required for unstable)"
+        type: choice
+        required: false
+        options:
+          - github-packages
+      runtime_run_id:
+        description: "Source runtime workflow run ID (required for unstable)"
+        type: string
+        required: false
+      resume_run_id:
+        description: "Exceptional recovery: original SDK workflow run ID"
+        type: string
+        required: false
 
 permissions:
   contents: read
 
 concurrency:
-  group: publish
+  group: publish-${{ inputs.dist-tag == 'unstable' && 'unstable' || 'release' }}
   cancel-in-progress: false
 
 jobs:
   # Shared job to calculate version once for all publish jobs
   version:
     name: Calculate Version
+    if: inputs.dist-tag != 'unstable'
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.VERSION }}
@@ -87,6 +110,7 @@ jobs:
 
   package-nodejs:
     name: Package Node.js SDK
+    if: inputs.dist-tag != 'unstable'
     needs: version
     runs-on: ubuntu-latest
     permissions:
@@ -124,8 +148,8 @@ jobs:
 
   publish-nodejs:
     name: Publish Node.js SDK
-    needs: package-nodejs
-    if: github.ref == 'refs/heads/main' || github.event.inputs.dist-tag == 'unstable'
+    needs: [version, package-nodejs]
+    if: inputs.dist-tag != 'unstable' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       actions: read
@@ -146,6 +170,7 @@ jobs:
       - name: Publish tarball to public npm
         env:
           DIST_TAG: ${{ github.event.inputs.dist-tag }}
+          VERSION: ${{ needs.version.outputs.version }}
         run: |
           set -euo pipefail
           shopt -s nullglob
@@ -161,25 +186,33 @@ jobs:
               MAIN_TARBALL="$TARBALL"
               continue
             fi
+            INTEGRITY="sha512-$(openssl dgst -sha512 -binary "$TARBALL" | openssl base64 -A)"
             node nodejs/scripts/npm-release.js publish \
               "$TARBALL" \
+              "$PACKAGE_NAME" \
+              "$VERSION" \
               "$DIST_TAG" \
               https://registry.npmjs.org \
-              public
+              public \
+              "$INTEGRITY"
           done
           if [ -z "$MAIN_TARBALL" ]; then
             echo "::error::Main @github/copilot-sdk tarball not found."
             exit 1
           fi
+          INTEGRITY="sha512-$(openssl dgst -sha512 -binary "$MAIN_TARBALL" | openssl base64 -A)"
           node nodejs/scripts/npm-release.js publish \
             "$MAIN_TARBALL" \
+            @github/copilot-sdk \
+            "$VERSION" \
             "$DIST_TAG" \
             https://registry.npmjs.org \
-            public
+            public \
+            "$INTEGRITY"
 
   publish-nodejs-internal:
     name: Publish Node.js SDK to internal feed
-    needs: publish-nodejs
+    needs: [version, publish-nodejs]
     environment: cicd
     runs-on: ubuntu-latest
     permissions:
@@ -218,6 +251,7 @@ jobs:
       - name: Publish tarball to internal feed
         env:
           DIST_TAG: ${{ github.event.inputs.dist-tag }}
+          VERSION: ${{ needs.version.outputs.version }}
         run: |
           set -euo pipefail
           if [ "$FEED_URL" != "https://pkgs.dev.azure.com/devdiv/_packaging/copilot-canary/npm/registry/" ]; then
@@ -237,21 +271,461 @@ jobs:
               MAIN_TARBALL="$TARBALL"
               continue
             fi
+            INTEGRITY="sha512-$(openssl dgst -sha512 -binary "$TARBALL" | openssl base64 -A)"
             node nodejs/scripts/npm-release.js publish \
               "$TARBALL" \
+              "$PACKAGE_NAME" \
+              "$VERSION" \
               "$DIST_TAG" \
               "$FEED_URL" \
-              azure
+              azure \
+              "$INTEGRITY"
           done
           if [ -z "$MAIN_TARBALL" ]; then
             echo "::error::Main @github/copilot-sdk tarball not found."
             exit 1
           fi
+          INTEGRITY="sha512-$(openssl dgst -sha512 -binary "$MAIN_TARBALL" | openssl base64 -A)"
           node nodejs/scripts/npm-release.js publish \
             "$MAIN_TARBALL" \
+            @github/copilot-sdk \
+            "$VERSION" \
             "$DIST_TAG" \
             "$FEED_URL" \
-            azure
+            azure \
+            "$INTEGRITY"
+
+  unstable-plan:
+    name: Freeze unstable release identity
+    if: inputs.dist-tag == 'unstable'
+    runs-on: ubuntu-latest
+    environment: cicd
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+    outputs:
+      artifact_name: ${{ steps.recover.outputs.artifact_name || steps.plan.outputs.artifact_name }}
+      runtime_run_id: ${{ steps.recover.outputs.runtime_run_id || steps.plan.outputs.runtime_run_id }}
+      runtime_sha: ${{ steps.recover.outputs.runtime_sha || steps.plan.outputs.runtime_sha }}
+      runtime_version: ${{ steps.recover.outputs.runtime_version || steps.plan.outputs.runtime_version }}
+      sdk_ref: ${{ steps.recover.outputs.sdk_ref || steps.plan.outputs.sdk_ref }}
+      sdk_sha: ${{ steps.recover.outputs.sdk_sha || steps.plan.outputs.sdk_sha }}
+      sdk_version: ${{ steps.recover.outputs.sdk_version || steps.plan.outputs.sdk_version }}
+      workflow_created_at: ${{ steps.recover.outputs.workflow_created_at || steps.plan.outputs.workflow_created_at }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          cache: npm
+          cache-dependency-path: ./nodejs/package-lock.json
+          node-version: 22
+      - run: npm ci --ignore-scripts
+        working-directory: ./nodejs
+      - name: Download original retained release
+        if: inputs.resume_run_id != ''
+        uses: actions/download-artifact@v8.0.0
+        with:
+          github-token: ${{ github.token }}
+          merge-multiple: true
+          path: ./recovery
+          pattern: nodejs-unstable-*
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.resume_run_id }}
+      - name: Validate exceptional recovery identity
+        if: inputs.resume_run_id != ''
+        id: recover
+        env:
+          RESUME_RUN_ID: ${{ inputs.resume_run_id }}
+        run: |
+          set -euo pipefail
+          [[ "$RESUME_RUN_ID" =~ ^[0-9]+$ ]] ||
+            { echo "::error::resume_run_id must be numeric."; exit 1; }
+          MANIFEST="./recovery/release-manifest.json"
+          [ -f "$MANIFEST" ] ||
+            { echo "::error::Original run does not contain one retained unstable release artifact."; exit 1; }
+          node nodejs/node_modules/.bin/tsx nodejs/scripts/release-manifest.ts verify "$MANIFEST" ./recovery
+          [ "$(jq -r .channel "$MANIFEST")" = "unstable" ] ||
+            { echo "::error::Recovery artifact is not an unstable release."; exit 1; }
+          [ "$(jq -r .workflow.runId "$MANIFEST")" = "$RESUME_RUN_ID" ] ||
+            { echo "::error::Manifest workflow run ID does not match resume_run_id."; exit 1; }
+          {
+            echo "artifact_name=nodejs-unstable-$(jq -r .sdk.version "$MANIFEST")"
+            echo "runtime_run_id=$(jq -r .runtime.runId "$MANIFEST")"
+            echo "runtime_sha=$(jq -r .runtime.sha "$MANIFEST")"
+            echo "runtime_version=$(jq -r .runtime.version "$MANIFEST")"
+            echo "sdk_ref=$(jq -r .sdk.ref "$MANIFEST")"
+            echo "sdk_sha=$(jq -r .sdk.sha "$MANIFEST")"
+            echo "sdk_version=$(jq -r .sdk.version "$MANIFEST")"
+            echo "workflow_created_at=$(jq -r .workflow.createdAt "$MANIFEST")"
+          } >> "$GITHUB_OUTPUT"
+      - name: Validate runtime handoff and calculate version
+        if: inputs.resume_run_id == ''
+        id: plan
+        working-directory: ./nodejs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUNTIME_RUN_ID: ${{ inputs.runtime_run_id }}
+          RUNTIME_SHA: ${{ inputs.runtime_sha }}
+          RUNTIME_SOURCE: ${{ inputs.runtime_source }}
+          RUNTIME_VERSION: ${{ inputs.runtime_version }}
+          SDK_SHA: ${{ github.sha }}
+          SDK_VERSION_OVERRIDE: ${{ inputs.version }}
+          WORKFLOW_RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          set -euo pipefail
+          [ "$RUNTIME_SOURCE" = "github-packages" ] ||
+            { echo "::error::Unstable runtime_source must be github-packages."; exit 1; }
+          [[ "$RUNTIME_VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]] ||
+            { echo "::error::runtime_version must be exact SemVer."; exit 1; }
+          [[ "$RUNTIME_SHA" =~ ^[0-9a-f]{40}$ ]] ||
+            { echo "::error::runtime_sha must be a lowercase full SHA."; exit 1; }
+          [[ "$RUNTIME_RUN_ID" =~ ^[0-9]+$ ]] ||
+            { echo "::error::runtime_run_id must be numeric."; exit 1; }
+          WORKFLOW_CREATED_AT="$(gh api "/repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" --jq .created_at)"
+          gh api --paginate "/repos/$GITHUB_REPOSITORY/releases?per_page=100" |
+            jq -s 'add' > "$RUNNER_TEMP/sdk-releases.json"
+          export SDK_RELEASES_FILE="$RUNNER_TEMP/sdk-releases.json"
+          export WORKFLOW_CREATED_AT
+          SDK_VERSION="$(npx tsx scripts/unstable-version.ts)"
+          if [ -n "$SDK_VERSION_OVERRIDE" ]; then
+            for PACKAGE in \
+              @github/copilot-sdk \
+              @github/copilot-sdk-darwin-arm64 \
+              @github/copilot-sdk-darwin-x64 \
+              @github/copilot-sdk-linux-arm64 \
+              @github/copilot-sdk-linux-x64 \
+              @github/copilot-sdk-linuxmusl-arm64 \
+              @github/copilot-sdk-linuxmusl-x64 \
+              @github/copilot-sdk-win32-arm64 \
+              @github/copilot-sdk-win32-x64; do
+              node scripts/npm-release.js preflight "$PACKAGE" "$SDK_VERSION" https://registry.npmjs.org
+            done
+          fi
+          {
+            echo "artifact_name=nodejs-unstable-$SDK_VERSION"
+            echo "runtime_run_id=$RUNTIME_RUN_ID"
+            echo "runtime_sha=$RUNTIME_SHA"
+            echo "runtime_version=$RUNTIME_VERSION"
+            echo "sdk_ref=$GITHUB_REF"
+            echo "sdk_sha=$SDK_SHA"
+            echo "sdk_version=$SDK_VERSION"
+            echo "workflow_created_at=$WORKFLOW_CREATED_AT"
+          } >> "$GITHUB_OUTPUT"
+      - name: Azure login for explicit-version preflight
+        if: inputs.resume_run_id == '' && inputs.version != ''
+        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
+        with:
+          allow-no-subscriptions: true
+          client-id: ${{ vars.CPD_ID_CLIENT_ID }}
+          tenant-id: ${{ vars.CPD_ID_TENANT_ID }}
+      - name: Reject an explicit version already present internally
+        if: inputs.resume_run_id == '' && inputs.version != ''
+        working-directory: ./nodejs
+        env:
+          ADO_RESOURCE: 499b84ac-1321-427f-aa17-267ca6975798
+          FEED_URL: https://pkgs.dev.azure.com/devdiv/_packaging/copilot-canary/npm/registry/
+          SDK_VERSION: ${{ steps.plan.outputs.sdk_version }}
+        run: |
+          set -euo pipefail
+          TOKEN="$(az account get-access-token --resource "$ADO_RESOURCE" --query accessToken -o tsv)"
+          echo "::add-mask::$TOKEN"
+          FEED_AUTH_REGISTRY="${FEED_URL#https:}"
+          FEED_AUTH_BASE="${FEED_AUTH_REGISTRY%registry/}"
+          printf '%s\n' \
+            "${FEED_AUTH_REGISTRY}:_authToken=${TOKEN}" \
+            "${FEED_AUTH_BASE}:_authToken=${TOKEN}" > "$HOME/.npmrc"
+          for PACKAGE in \
+            @github/copilot-sdk \
+            @github/copilot-sdk-darwin-arm64 \
+            @github/copilot-sdk-darwin-x64 \
+            @github/copilot-sdk-linux-arm64 \
+            @github/copilot-sdk-linux-x64 \
+            @github/copilot-sdk-linuxmusl-arm64 \
+            @github/copilot-sdk-linuxmusl-x64 \
+            @github/copilot-sdk-win32-arm64 \
+            @github/copilot-sdk-win32-x64; do
+            node scripts/npm-release.js preflight "$PACKAGE" "$SDK_VERSION" "$FEED_URL"
+          done
+
+  unstable-acquire-runtime:
+    name: Acquire signed unstable runtime packages
+    if: inputs.dist-tag == 'unstable' && inputs.resume_run_id == ''
+    needs: unstable-plan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./nodejs
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: actions/setup-node@v6
+        with:
+          cache: npm
+          cache-dependency-path: ./nodejs/package-lock.json
+          node-version: 22
+      - run: npm ci --ignore-scripts
+      - name: Configure authentication-only GitHub Packages access
+        env:
+          NODE_AUTH_TOKEN: ${{ github.token }}
+        run: |
+          echo "//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}" > "$HOME/.npmrc"
+      - name: Download and validate all runtime platforms
+        env:
+          RUNTIME_SHA: ${{ needs.unstable-plan.outputs.runtime_sha }}
+          RUNTIME_VERSION: ${{ needs.unstable-plan.outputs.runtime_version }}
+        run: |
+          npm run acquire:runtime-packages -- \
+            --version "$RUNTIME_VERSION" \
+            --sha "$RUNTIME_SHA" \
+            --registry https://npm.pkg.github.com \
+            --output "$RUNNER_TEMP/runtime-packages"
+      - uses: actions/upload-artifact@v7.0.0
+        with:
+          name: unstable-runtime-${{ needs.unstable-plan.outputs.runtime_version }}-${{ needs.unstable-plan.outputs.runtime_sha }}
+          path: ${{ runner.temp }}/runtime-packages
+          if-no-files-found: error
+          retention-days: 7
+
+  unstable-test:
+    name: Runtime-backed unstable tests (${{ matrix.os }})
+    if: inputs.dist-tag == 'unstable' && inputs.resume_run_id == ''
+    needs: [unstable-plan, unstable-acquire-runtime]
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    environment: cicd
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./nodejs
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: actions/setup-node@v6
+        with:
+          cache: npm
+          cache-dependency-path: ./nodejs/package-lock.json
+          node-version: 22
+      - run: npm ci --ignore-scripts
+      - name: Install test harness dependencies
+        working-directory: ./test/harness
+        run: npm ci --ignore-scripts
+      - uses: actions/download-artifact@v8.0.0
+        with:
+          name: unstable-runtime-${{ needs.unstable-plan.outputs.runtime_version }}-${{ needs.unstable-plan.outputs.runtime_sha }}
+          path: ${{ runner.temp }}/runtime-packages
+      - name: Select the acquired runtime
+        env:
+          COPILOT_SDK_RUNTIME_PACKAGE_DIR: ${{ runner.temp }}/runtime-packages
+          RUNTIME_VERSION: ${{ needs.unstable-plan.outputs.runtime_version }}
+        run: |
+          set -euo pipefail
+          node scripts/set-cli-version.js "$RUNTIME_VERSION" --local-package
+          runtime_path="$(npm run --silent prepare:runtime -- --print-path)"
+          "$runtime_path" --version | grep -F "$RUNTIME_VERSION"
+          echo "COPILOT_CLI_PATH=$runtime_path" >> "$GITHUB_ENV"
+      - run: npm run build
+      - name: Warm up PowerShell
+        if: runner.os == 'Windows'
+        run: pwsh.exe -Command "Write-Host 'PowerShell ready'"
+      - name: Run Node SDK tests
+        env:
+          COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
+        run: npm test
+
+  unstable-package:
+    name: Build retained unstable release
+    if: inputs.dist-tag == 'unstable' && inputs.resume_run_id == ''
+    needs: [unstable-plan, unstable-acquire-runtime, unstable-test]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./nodejs
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: actions/setup-node@v6
+        with:
+          cache: npm
+          cache-dependency-path: ./nodejs/package-lock.json
+          node-version: 22
+      - run: npm ci --ignore-scripts
+      - uses: actions/download-artifact@v8.0.0
+        with:
+          name: unstable-runtime-${{ needs.unstable-plan.outputs.runtime_version }}-${{ needs.unstable-plan.outputs.runtime_sha }}
+          path: ${{ runner.temp }}/runtime-packages
+      - name: Build and verify exact package set
+        env:
+          COPILOT_SDK_RUNTIME_PACKAGE_DIR: ${{ runner.temp }}/runtime-packages
+          RUNTIME_VERSION: ${{ needs.unstable-plan.outputs.runtime_version }}
+          SDK_VERSION: ${{ needs.unstable-plan.outputs.sdk_version }}
+        run: |
+          set -euo pipefail
+          VERSION="$SDK_VERSION" node scripts/set-version.js
+          node scripts/set-cli-version.js "$RUNTIME_VERSION" --local-package
+          grep -F "COPILOT_CLI_USE_NPM_PACKAGE = false" src/cliVersion.ts
+          npm run build
+          npm run pack:release
+          npm run verify:release-packages
+      - name: Create immutable release manifest
+        env:
+          RELEASE_CHANNEL: unstable
+          RUNTIME_RUN_ID: ${{ needs.unstable-plan.outputs.runtime_run_id }}
+          RUNTIME_SHA: ${{ needs.unstable-plan.outputs.runtime_sha }}
+          RUNTIME_SOURCE: github-packages
+          RUNTIME_VERSION: ${{ needs.unstable-plan.outputs.runtime_version }}
+          SDK_REF: ${{ needs.unstable-plan.outputs.sdk_ref }}
+          SDK_SHA: ${{ needs.unstable-plan.outputs.sdk_sha }}
+          SDK_VERSION: ${{ needs.unstable-plan.outputs.sdk_version }}
+          WORKFLOW_CREATED_AT: ${{ needs.unstable-plan.outputs.workflow_created_at }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+          WORKFLOW_RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          npm run release:manifest -- create release-manifest.json .
+          npm run release:manifest -- verify release-manifest.json .
+      - uses: actions/upload-artifact@v7.0.0
+        with:
+          name: ${{ needs.unstable-plan.outputs.artifact_name }}
+          path: |
+            nodejs/release-manifest.json
+            nodejs/github-copilot-sdk-*.tgz
+          if-no-files-found: error
+          retention-days: 30
+
+  unstable-publish-internal:
+    name: Publish and verify unstable SDK internally
+    if: |
+      always() &&
+      inputs.dist-tag == 'unstable' &&
+      needs.unstable-plan.result == 'success' &&
+      (inputs.resume_run_id != '' || needs.unstable-package.result == 'success')
+    needs: [unstable-plan, unstable-package]
+    runs-on: ubuntu-latest
+    environment: cicd
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+    env:
+      ADO_RESOURCE: 499b84ac-1321-427f-aa17-267ca6975798
+      FEED_URL: https://pkgs.dev.azure.com/devdiv/_packaging/copilot-canary/npm/registry/
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - run: npm ci --ignore-scripts
+        working-directory: ./nodejs
+      - name: Download current retained release
+        if: inputs.resume_run_id == ''
+        uses: actions/download-artifact@v8.0.0
+        with:
+          name: ${{ needs.unstable-plan.outputs.artifact_name }}
+          path: ./dist
+      - name: Download original retained release
+        if: inputs.resume_run_id != ''
+        uses: actions/download-artifact@v8.0.0
+        with:
+          github-token: ${{ github.token }}
+          merge-multiple: true
+          path: ./dist
+          pattern: ${{ needs.unstable-plan.outputs.artifact_name }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.resume_run_id }}
+      - name: Validate retained release
+        env:
+          EXPECTED_RUN_ID: ${{ inputs.resume_run_id || github.run_id }}
+        run: |
+          node nodejs/node_modules/.bin/tsx nodejs/scripts/release-manifest.ts verify dist/release-manifest.json dist
+          [ "$(jq -r .workflow.runId dist/release-manifest.json)" = "$EXPECTED_RUN_ID" ] ||
+            { echo "::error::Retained release belongs to a different workflow run."; exit 1; }
+      - name: Azure login
+        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
+        with:
+          allow-no-subscriptions: true
+          client-id: ${{ vars.CPD_ID_CLIENT_ID }}
+          tenant-id: ${{ vars.CPD_ID_TENANT_ID }}
+      - name: Configure authentication-only Azure npm access
+        run: |
+          TOKEN="$(az account get-access-token --resource "$ADO_RESOURCE" --query accessToken -o tsv)"
+          echo "::add-mask::$TOKEN"
+          FEED_AUTH_REGISTRY="${FEED_URL#https:}"
+          FEED_AUTH_BASE="${FEED_AUTH_REGISTRY%registry/}"
+          printf '%s\n' \
+            "${FEED_AUTH_REGISTRY}:_authToken=${TOKEN}" \
+            "${FEED_AUTH_BASE}:_authToken=${TOKEN}" > "$HOME/.npmrc"
+      - name: Publish exact tarballs internally
+        run: |
+          node nodejs/scripts/npm-release.js publish-manifest \
+            dist/release-manifest.json dist unstable "$FEED_URL" azure
+      - name: Clean install and runtime version check
+        env:
+          RUNTIME_VERSION: ${{ needs.unstable-plan.outputs.runtime_version }}
+          SDK_VERSION: ${{ needs.unstable-plan.outputs.sdk_version }}
+        run: |
+          set -euo pipefail
+          VERIFY_ROOT="$RUNNER_TEMP/sdk-unstable-verification"
+          mkdir -p "$VERIFY_ROOT"
+          cd "$VERIFY_ROOT"
+          npm init -y >/dev/null
+          printf '%s\n' "@github:registry=${FEED_URL}" >> "$HOME/.npmrc"
+          npm install --ignore-scripts "@github/copilot-sdk@${SDK_VERSION}"
+          RUNTIME="./node_modules/@github/copilot-sdk-linux-x64/prebuilds/linux-x64/copilot-runtime"
+          "$RUNTIME" --version | grep -F "$RUNTIME_VERSION"
+
+  unstable-publish-public:
+    name: Publish unstable SDK publicly
+    if: inputs.dist-tag == 'unstable'
+    needs: [unstable-plan, unstable-publish-internal]
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - run: npm ci --ignore-scripts
+        working-directory: ./nodejs
+      - name: Update npm for trusted publishing
+        run: npm install --global npm@11.6.3
+      - name: Download current retained release
+        if: inputs.resume_run_id == ''
+        uses: actions/download-artifact@v8.0.0
+        with:
+          name: ${{ needs.unstable-plan.outputs.artifact_name }}
+          path: ./dist
+      - name: Download original retained release
+        if: inputs.resume_run_id != ''
+        uses: actions/download-artifact@v8.0.0
+        with:
+          github-token: ${{ github.token }}
+          merge-multiple: true
+          path: ./dist
+          pattern: ${{ needs.unstable-plan.outputs.artifact_name }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.resume_run_id }}
+      - name: Validate retained release
+        run: |
+          node nodejs/node_modules/.bin/tsx nodejs/scripts/release-manifest.ts verify dist/release-manifest.json dist
+      - name: Publish the same tarballs to public npm
+        run: |
+          node nodejs/scripts/npm-release.js publish-manifest \
+            dist/release-manifest.json dist unstable https://registry.npmjs.org public
 
   publish-dotnet:
     name: Publish .NET SDK

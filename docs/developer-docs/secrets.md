@@ -58,6 +58,8 @@ These secrets support Java SDK Maven Central publishing, snapshot publishing, an
 ## Secrets not managed in this repository
 
 * **`GITHUB_TOKEN`**: Automatically provided by GitHub Actions. No manual management required.
+  The unstable Node SDK workflow grants it `packages: read` only while acquiring
+  signed runtime packages from GitHub Packages.
 
 ## Further reading
 
