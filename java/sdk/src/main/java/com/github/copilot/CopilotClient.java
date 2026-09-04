@@ -638,6 +638,7 @@ public final class CopilotClient implements AutoCloseable {
             if (effectiveConnectionToken != null) {
                 connectParams.put("token", effectiveConnectionToken);
             }
+            connectParams.put("supportedTaskKinds", List.of("agent", "client", "shell"));
             // Opt into GitHub telemetry forwarding at the connection level when a handler
             // is registered, so the runtime can forward the first session's un-replayable
             // start event. Also sent on session create/resume for backward compatibility

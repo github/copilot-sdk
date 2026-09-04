@@ -410,6 +410,7 @@ jobs:
           mvn -B -pl copilot-native deploy -Prelease -DskipTests \
             -Dcopilot.native.libc=glibc \
             -Dcopilot.native.test.local.publication=true \
+            -DskipPublishing=true \
             "-Dcopilot.native.external.linux.arm64.classifier.path=$LINUX_ARM64_JAR" \
             "-Dcopilot.native.external.win32.classifier.path=$WINDOWS_JAR" \
             "-Dcopilot.native.external.win32.arm64.classifier.path=$WINDOWS_ARM64_JAR" \

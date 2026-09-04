@@ -345,7 +345,16 @@ class TestMultiClientBroadcast:
             client2_completed = wait_for_event(
                 session2, lambda event: event.type.value == "permission.completed"
             )
-            waiters = [client1_requested, client2_requested, client1_completed, client2_completed]
+            session1_idle = wait_for_event(
+                session1, lambda event: event.type.value == "session.idle"
+            )
+            waiters = [
+                client1_requested,
+                client2_requested,
+                client1_completed,
+                client2_completed,
+                session1_idle,
+            ]
 
             # Create a file that the agent will try to edit
             test_file = os.path.join(mctx.work_dir, "protected.txt")
@@ -353,12 +362,6 @@ class TestMultiClientBroadcast:
                 f.write("protected content")
 
             await session1.send("Edit protected.txt and replace 'protected' with 'hacked'.")
-            await get_final_assistant_message(session1)
-
-            # Verify the file was NOT modified (permission was denied)
-            with open(test_file) as f:
-                content = f.read()
-            assert content == "protected content"
 
             # Both clients should have seen permission.requested and permission.completed
             await asyncio.gather(client1_requested, client2_requested)
@@ -367,6 +370,13 @@ class TestMultiClientBroadcast:
             completed_events = await asyncio.gather(client1_completed, client2_completed)
             for event in completed_events:
                 assert event.data.result.kind == "denied-interactively-by-user"
+
+            assert (await session1_idle).type.value == "session.idle"
+
+            # Verify the file was NOT modified (permission was denied)
+            with open(test_file) as f:
+                content = f.read()
+            assert content == "protected content"
         finally:
             for waiter in waiters:
                 if not waiter.done():

@@ -2477,6 +2477,11 @@ impl Client {
                 .on_github_telemetry
                 .is_some()
                 .then_some(true),
+            supported_task_kinds: Some(vec![
+                crate::generated::api_types::TaskKind::Agent,
+                crate::generated::api_types::TaskKind::Client,
+                crate::generated::api_types::TaskKind::Shell,
+            ]),
             // Declare the integrating application's identity so the runtime attributes
             // the telemetry it emits on this connection to a consistent surface
             // instead of its own build. `None` when the app didn't supply it, and

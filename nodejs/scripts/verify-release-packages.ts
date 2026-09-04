@@ -11,6 +11,7 @@ interface PackedPackage {
     manifest: {
         name: string;
         version: string;
+        repository?: string | { type?: string; url?: string };
         optionalDependencies?: Record<string, string>;
     };
     entries: Set<string>;
@@ -20,6 +21,12 @@ const nodeRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const sourceManifest = JSON.parse(
     readFileSync(join(nodeRoot, "package.json"), "utf8")
 ) as PackedPackage["manifest"];
+assert(
+    typeof sourceManifest.repository === "string"
+        ? sourceManifest.repository.trim()
+        : sourceManifest.repository?.url?.trim(),
+    "Main package is missing repository metadata"
+);
 const expectedRuntimePackages = Object.fromEntries(
     RUNTIME_PLATFORMS.map((platform) => [getRuntimePackageName(platform), sourceManifest.version])
 );
@@ -85,6 +92,11 @@ for (const platform of RUNTIME_PLATFORMS) {
     const packageName = getRuntimePackageName(platform);
     const packed = packages.get(packageName);
     assert(packed, `Missing ${packageName} tarball`);
+    assert.deepEqual(
+        packed.manifest.repository,
+        sourceManifest.repository,
+        `${packageName} repository metadata does not match the main package`
+    );
     const runtimeName = platform.startsWith("win32") ? "copilot-runtime.exe" : "copilot-runtime";
     for (const requiredPath of [
         `package/prebuilds/${platform}/${runtimeName}`,

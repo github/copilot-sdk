@@ -3178,6 +3178,7 @@ class TestGitHubTelemetry:
         client._client = _FakeClient()
         await client._verify_protocol_version()
         assert "enableGitHubTelemetryForwarding" not in captured["connect"]
+        assert captured["connect"]["supportedTaskKinds"] == ["agent", "client", "shell"]
 
     @pytest.mark.asyncio
     async def test_connect_forwards_client_info(self):

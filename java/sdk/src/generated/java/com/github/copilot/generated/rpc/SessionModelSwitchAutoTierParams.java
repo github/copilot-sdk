@@ -27,7 +27,6 @@ public record SessionModelSwitchAutoTierParams(
     /** Target session identifier */
     @JsonProperty("sessionId") String sessionId,
     /** Auto preference to activate when a future user turn using the `auto` model safely mints a replacement model and token pair. Pass null to return to provider-default Auto routing. */
-    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("autoTier") AutoTier autoTier,
     /** Origin to record on the effective `session.model_change` event. Defaults to `sdk` when omitted. */
     @JsonProperty("source") ModelChangeSource source
