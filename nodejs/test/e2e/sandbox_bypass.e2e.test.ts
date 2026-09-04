@@ -49,10 +49,13 @@ describe("Sandbox bypass", async () => {
                 },
             });
             expect(update.success).toBe(true);
+            let grepToolCallId: string | undefined;
             session.on((event) => {
-                if (
+                if (event.type === "tool.execution_start" && event.data.toolName === "grep") {
+                    grepToolCallId = event.data.toolCallId;
+                } else if (
                     event.type === "tool.execution_complete" &&
-                    event.data.toolName === "grep" &&
+                    event.data.toolCallId === grepToolCallId &&
                     event.data.success &&
                     event.data.result?.content.includes("OUTSIDE_MATCH_LINE bypass-approved")
                 ) {
