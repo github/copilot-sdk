@@ -10,17 +10,24 @@ import { createSdkTestContext } from "./harness/sdkTestContext.js";
 
 const SEND_TIMEOUT_MS = 120_000;
 const TEST_TIMEOUT_MS = 180_000;
+const TEST_NAME = "approves a blocked search and executes it outside the sandbox";
 
-describe("Sandbox bypass", () => {
-    // The Windows backend requires BaseContainer, which is unavailable on the SDK's Windows runners.
-    it.skipIf(process.platform === "win32")(
-        "approves a blocked search and executes it outside the sandbox",
+describe("Sandbox bypass", async () => {
+    if (process.platform === "win32") {
+        // The Windows backend requires BaseContainer, which is unavailable on the SDK's runners.
+        it.skip(TEST_NAME, () => undefined);
+        return;
+    }
+
+    const { copilotClient: client, workDir } = await createSdkTestContext({
+        copilotClientOptions: {
+            env: { COPILOT_CLI_ENABLED_FEATURE_FLAGS: "SANDBOX" },
+        },
+    });
+
+    it(
+        TEST_NAME,
         async () => {
-            const { copilotClient: client, workDir } = await createSdkTestContext({
-                copilotClientOptions: {
-                    env: { COPILOT_CLI_ENABLED_FEATURE_FLAGS: "SANDBOX" },
-                },
-            });
             const vaultDir = join(workDir, "vault");
             await mkdir(vaultDir, { recursive: true });
             await writeFile(join(vaultDir, "notes.txt"), "OUTSIDE_MATCH_LINE bypass-approved\n");
