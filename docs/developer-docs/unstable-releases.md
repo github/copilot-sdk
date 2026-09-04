@@ -11,32 +11,25 @@ The runtime workflow dispatches an SDK workflow at an explicit SDK ref. Each
 handoff includes the exact runtime version, full source SHA, and source workflow
 run ID.
 
-`sdk-canary.yml` and `publish.yml` remain separate entry points and trust
-boundaries. Both invoke `runtime-backed-node-release.yml`, which owns runtime
-acquisition, cross-platform tests, packaging, manifest retention, recovery, and
-optional internal publication. Only `publish.yml` contains public npm
-publication.
+The runtime workflow dispatches `.github/workflows/runtime-sdk.yml`. This
+runtime-driven Node entry is separate from `publish.yml`, which remains the
+manual stable and prerelease entry for all SDK languages. `runtime-sdk.yml`
+invokes `runtime-backed-node-release.yml` for runtime acquisition,
+cross-platform tests, packaging, manifest retention, recovery, and optional
+internal publication. It alone contains public unstable npm publication.
 
-Canary dispatches `.github/workflows/sdk-canary.yml` with these inputs:
+The runtime dispatch includes these inputs:
 
-* `channel`: `canary`
-* `runtime_version`: Exact Azure runtime package version
+* `channel`: `canary` or `unstable`
+* `runtime_version`: Exact runtime package version
 * `runtime_sha`: Lowercase, 40-character `github/copilot-agent-runtime` SHA
-* `runtime_source`: `azure`
-* `runtime_run_id`: Source runtime workflow run ID
-* `mode`: `tests-only` or `internal`
+* `runtime_source`: `azure` for canary or `github-packages` for unstable
+* `runtime_run_id`: Source runtime workflow run ID and receiver idempotency key
+* `mode`: `tests-only` or `internal` for canary; `internal` for unstable
 
-Unstable dispatches `.github/workflows/publish.yml` with these inputs:
-
-* `dist-tag`: `unstable`
-* `runtime_version`: Exact signed GitHub Packages runtime version
-* `runtime_sha`: Lowercase, 40-character `github/copilot-agent-runtime` SHA
-* `runtime_source`: `github-packages`
-* `runtime_run_id`: Source runtime workflow run ID
-
-Maintainers can dispatch `publish.yml` directly with the same unstable inputs.
-The optional `version` input must be an unstable SemVer. Do not reuse an
-explicit version after an artifact has been built.
+Maintainers can dispatch `runtime-sdk.yml` directly with the same inputs. The
+optional `version` input is available only for unstable and must be an unstable
+SemVer. Do not reuse an explicit version after an artifact has been built.
 
 ## Release gates
 
@@ -69,7 +62,7 @@ No canary job has a public npm publication path.
 Every unstable run publishes the retained platform tarballs and umbrella
 tarball to Azure first. A clean internal install must start the exact selected
 runtime before public publication begins. The public job uses npm trusted
-publishing from `publish.yml` and publishes the same tarballs under the
+publishing from `runtime-sdk.yml` and publishes the same tarballs under the
 `unstable` dist-tag, with the umbrella package last.
 
 Before either publication, the workflow checks all nine package coordinates.
@@ -88,11 +81,19 @@ Use **Re-run failed jobs** on the original workflow run for normal recovery.
 The run number, frozen version, and retained artifact remain unchanged. Do not
 rerun a successful packaging job merely to recover a publication job.
 
-Use `resume_run_id` only when the original run cannot be resumed. Start a new
-manual `publish.yml` run with `dist-tag=unstable` and the original SDK workflow
-run ID. The recovery path downloads the original retained artifact, verifies
-its manifest and all nine SHA-512 integrity values, and uses the recorded SDK
-and runtime identities. It never rebuilds or substitutes packages.
+Each `runtime_run_id` is serialized and claimed by a 90-day marker artifact.
+The marker records the canonical SDK run and complete runtime/input
+provenance, but the runtime run ID is not part of the immutable release
+identity. Exact duplicate dispatches wait for and mirror the canonical run.
+If that run fails or is canceled, rerun the original run rather than
+dispatching another release.
+
+Use `resume_run_id` only when the canonical run cannot be rerun. Start a new
+manual `runtime-sdk.yml` unstable run with the same dispatch tuple and the
+canonical SDK workflow run ID. The workflow validates the marker and GitHub API
+provenance, downloads the canonical retained artifact, verifies its manifest
+and all nine SHA-512 integrity values, and uses the recorded identities. It
+never rebuilds or substitutes packages.
 
 ## Registry setup
 
@@ -106,6 +107,8 @@ that this repository can read all eight with its workflow token. Public
 visibility does not remove GitHub Packages npm authentication.
 
 Confirm npm trusted publisher configuration authorizes
-`.github/workflows/publish.yml` for `@github/copilot-sdk` and all eight
-`@github/copilot-sdk-<platform>` package names. Do not add a separate protected
-SDK publication environment.
+both `.github/workflows/publish.yml` and `.github/workflows/runtime-sdk.yml` for
+`@github/copilot-sdk` and all eight `@github/copilot-sdk-<platform>` package
+names. The first identity publishes stable and prerelease versions; the second
+publishes unstable versions. Do not add an npm token, workflow indirection, or
+a separate protected SDK publication environment.
