@@ -28,16 +28,21 @@ public class RpcShellEdgeCaseE2ETests(E2ETestFixture fixture, ITestOutputHelper 
         var markerPath = Path.Join(Ctx.WorkDir, $"shell-timeout-{Guid.NewGuid():N}.txt");
         var startedPath = Path.Join(Ctx.WorkDir, $"shell-timeout-started-{Guid.NewGuid():N}.txt");
 
-        // Sleep 30s but timeout at 200ms — runtime should SIGTERM the child before the
+        // Sleep 30s but use a much shorter timeout — runtime should SIGTERM the child before the
         // sleep completes, which means the marker file must NEVER appear within a wait
         // window comfortably greater than the timeout but well under the sleep duration.
+        // Process startup on Windows can exceed 200ms on loaded runners, so match the
+        // platform-specific allowance used by the Rust coverage for this RPC.
+        var timeout = OperatingSystem.IsWindows()
+            ? TimeSpan.FromSeconds(2)
+            : TimeSpan.FromMilliseconds(200);
         var command = OperatingSystem.IsWindows()
-            ? $"echo started>\"{startedPath}\" & for /L %i in (1,1,2147483647) do @rem & echo should-not-exist>\"{markerPath}\""
+            ? $"powershell -NoLogo -NoProfile -Command \"Set-Content -LiteralPath '{startedPath}' -Value started; Start-Sleep -Seconds 30; Set-Content -LiteralPath '{markerPath}' -Value should-not-exist\""
             : $"printf 'started' > '{startedPath}'; sleep 30; printf 'should-not-exist' > '{markerPath}'";
 
         // On Windows, terminating the shell wrapper can briefly leave children alive.
         // Keep this long-running command outside the fixture workspace so cleanup is not blocked by cwd handles.
-        var result = await session.Rpc.Shell.ExecAsync(command, cwd: Path.GetTempPath(), timeout: TimeSpan.FromMilliseconds(200));
+        var result = await session.Rpc.Shell.ExecAsync(command, cwd: Path.GetTempPath(), timeout: timeout);
         Assert.False(string.IsNullOrWhiteSpace(result.ProcessId));
 
         await TestHelper.WaitForConditionAsync(
