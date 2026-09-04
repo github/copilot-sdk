@@ -453,242 +453,34 @@ jobs:
             node scripts/npm-release.js preflight "$PACKAGE" "$SDK_VERSION" "$FEED_URL"
           done
 
-  unstable-acquire-runtime:
-    name: Acquire signed unstable runtime packages
-    if: inputs.dist-tag == 'unstable' && inputs.resume_run_id == ''
+  unstable-runtime-backed-release:
+    name: Run unstable SDK pipeline
+    if: inputs.dist-tag == 'unstable'
     needs: unstable-plan
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: read
-    defaults:
-      run:
-        shell: bash
-        working-directory: ./nodejs
-    steps:
-      - uses: actions/checkout@v6.0.2
-      - uses: actions/setup-node@v6
-        with:
-          cache: npm
-          cache-dependency-path: ./nodejs/package-lock.json
-          node-version: 22
-      - run: npm ci --ignore-scripts
-      - name: Configure authentication-only GitHub Packages access
-        env:
-          NODE_AUTH_TOKEN: ${{ github.token }}
-        run: |
-          echo "//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}" > "$HOME/.npmrc"
-      - name: Download and validate all runtime platforms
-        env:
-          RUNTIME_SHA: ${{ needs.unstable-plan.outputs.runtime_sha }}
-          RUNTIME_VERSION: ${{ needs.unstable-plan.outputs.runtime_version }}
-        run: |
-          npm run acquire:runtime-packages -- \
-            --version "$RUNTIME_VERSION" \
-            --sha "$RUNTIME_SHA" \
-            --registry https://npm.pkg.github.com \
-            --output "$RUNNER_TEMP/runtime-packages"
-      - uses: actions/upload-artifact@v7.0.0
-        with:
-          name: unstable-runtime-${{ needs.unstable-plan.outputs.runtime_version }}-${{ needs.unstable-plan.outputs.runtime_sha }}
-          path: ${{ runner.temp }}/runtime-packages
-          if-no-files-found: error
-          retention-days: 7
-
-  unstable-test:
-    name: Runtime-backed unstable tests (${{ matrix.os }})
-    if: inputs.dist-tag == 'unstable' && inputs.resume_run_id == ''
-    needs: [unstable-plan, unstable-acquire-runtime]
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
-    environment: cicd
-    defaults:
-      run:
-        shell: bash
-        working-directory: ./nodejs
-    steps:
-      - uses: actions/checkout@v6.0.2
-      - uses: actions/setup-node@v6
-        with:
-          cache: npm
-          cache-dependency-path: ./nodejs/package-lock.json
-          node-version: 22
-      - run: npm ci --ignore-scripts
-      - name: Install test harness dependencies
-        working-directory: ./test/harness
-        run: npm ci --ignore-scripts
-      - uses: actions/download-artifact@v8.0.0
-        with:
-          name: unstable-runtime-${{ needs.unstable-plan.outputs.runtime_version }}-${{ needs.unstable-plan.outputs.runtime_sha }}
-          path: ${{ runner.temp }}/runtime-packages
-      - name: Select the acquired runtime
-        env:
-          COPILOT_SDK_RUNTIME_PACKAGE_DIR: ${{ runner.temp }}/runtime-packages
-          RUNTIME_VERSION: ${{ needs.unstable-plan.outputs.runtime_version }}
-        run: |
-          set -euo pipefail
-          node scripts/set-cli-version.js "$RUNTIME_VERSION" --local-package
-          runtime_path="$(npm run --silent prepare:runtime -- --print-path)"
-          "$runtime_path" --version | grep -F "$RUNTIME_VERSION"
-          echo "COPILOT_CLI_PATH=$runtime_path" >> "$GITHUB_ENV"
-      - run: npm run build
-      - name: Warm up PowerShell
-        if: runner.os == 'Windows'
-        run: pwsh.exe -Command "Write-Host 'PowerShell ready'"
-      - name: Run Node SDK tests
-        env:
-          COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
-        run: npm test
-
-  unstable-package:
-    name: Build retained unstable release
-    if: inputs.dist-tag == 'unstable' && inputs.resume_run_id == ''
-    needs: [unstable-plan, unstable-acquire-runtime, unstable-test]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    defaults:
-      run:
-        shell: bash
-        working-directory: ./nodejs
-    steps:
-      - uses: actions/checkout@v6.0.2
-      - uses: actions/setup-node@v6
-        with:
-          cache: npm
-          cache-dependency-path: ./nodejs/package-lock.json
-          node-version: 22
-      - run: npm ci --ignore-scripts
-      - uses: actions/download-artifact@v8.0.0
-        with:
-          name: unstable-runtime-${{ needs.unstable-plan.outputs.runtime_version }}-${{ needs.unstable-plan.outputs.runtime_sha }}
-          path: ${{ runner.temp }}/runtime-packages
-      - name: Build and verify exact package set
-        env:
-          COPILOT_SDK_RUNTIME_PACKAGE_DIR: ${{ runner.temp }}/runtime-packages
-          RUNTIME_VERSION: ${{ needs.unstable-plan.outputs.runtime_version }}
-          SDK_VERSION: ${{ needs.unstable-plan.outputs.sdk_version }}
-        run: |
-          set -euo pipefail
-          VERSION="$SDK_VERSION" node scripts/set-version.js
-          node scripts/set-cli-version.js "$RUNTIME_VERSION" --local-package
-          grep -F "COPILOT_CLI_USE_NPM_PACKAGE = false" src/cliVersion.ts
-          npm run build
-          npm run pack:release
-          npm run verify:release-packages
-      - name: Create immutable release manifest
-        env:
-          RELEASE_CHANNEL: unstable
-          RUNTIME_RUN_ID: ${{ needs.unstable-plan.outputs.runtime_run_id }}
-          RUNTIME_SHA: ${{ needs.unstable-plan.outputs.runtime_sha }}
-          RUNTIME_SOURCE: github-packages
-          RUNTIME_VERSION: ${{ needs.unstable-plan.outputs.runtime_version }}
-          SDK_REF: ${{ needs.unstable-plan.outputs.sdk_ref }}
-          SDK_SHA: ${{ needs.unstable-plan.outputs.sdk_sha }}
-          SDK_VERSION: ${{ needs.unstable-plan.outputs.sdk_version }}
-          WORKFLOW_CREATED_AT: ${{ needs.unstable-plan.outputs.workflow_created_at }}
-          WORKFLOW_RUN_ID: ${{ github.run_id }}
-          WORKFLOW_RUN_NUMBER: ${{ github.run_number }}
-        run: |
-          npm run release:manifest -- create release-manifest.json .
-          npm run release:manifest -- verify release-manifest.json .
-      - uses: actions/upload-artifact@v7.0.0
-        with:
-          name: ${{ needs.unstable-plan.outputs.artifact_name }}
-          path: |
-            nodejs/release-manifest.json
-            nodejs/github-copilot-sdk-*.tgz
-          if-no-files-found: error
-          retention-days: 30
-
-  unstable-publish-internal:
-    name: Publish and verify unstable SDK internally
-    if: |
-      always() &&
-      inputs.dist-tag == 'unstable' &&
-      needs.unstable-plan.result == 'success' &&
-      (inputs.resume_run_id != '' || needs.unstable-package.result == 'success')
-    needs: [unstable-plan, unstable-package]
-    runs-on: ubuntu-latest
-    environment: cicd
+    uses: ./.github/workflows/runtime-backed-node-release.yml
     permissions:
       actions: read
       contents: read
       id-token: write
-    env:
-      ADO_RESOURCE: 499b84ac-1321-427f-aa17-267ca6975798
-      FEED_URL: https://pkgs.dev.azure.com/devdiv/_packaging/copilot-canary/npm/registry/
-    steps:
-      - uses: actions/checkout@v6.0.2
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 22
-      - run: npm ci --ignore-scripts
-        working-directory: ./nodejs
-      - name: Download current retained release
-        if: inputs.resume_run_id == ''
-        uses: actions/download-artifact@v8.0.0
-        with:
-          name: ${{ needs.unstable-plan.outputs.artifact_name }}
-          path: ./dist
-      - name: Download original retained release
-        if: inputs.resume_run_id != ''
-        uses: actions/download-artifact@v8.0.0
-        with:
-          github-token: ${{ github.token }}
-          merge-multiple: true
-          path: ./dist
-          pattern: ${{ needs.unstable-plan.outputs.artifact_name }}
-          repository: ${{ github.repository }}
-          run-id: ${{ inputs.resume_run_id }}
-      - name: Validate retained release
-        env:
-          EXPECTED_RUN_ID: ${{ inputs.resume_run_id || github.run_id }}
-        run: |
-          node nodejs/node_modules/.bin/tsx nodejs/scripts/release-manifest.ts verify dist/release-manifest.json dist
-          [ "$(jq -r .workflow.runId dist/release-manifest.json)" = "$EXPECTED_RUN_ID" ] ||
-            { echo "::error::Retained release belongs to a different workflow run."; exit 1; }
-      - name: Azure login
-        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
-        with:
-          allow-no-subscriptions: true
-          client-id: ${{ vars.CPD_ID_CLIENT_ID }}
-          tenant-id: ${{ vars.CPD_ID_TENANT_ID }}
-      - name: Configure authentication-only Azure npm access
-        run: |
-          TOKEN="$(az account get-access-token --resource "$ADO_RESOURCE" --query accessToken -o tsv)"
-          echo "::add-mask::$TOKEN"
-          FEED_AUTH_REGISTRY="${FEED_URL#https:}"
-          FEED_AUTH_BASE="${FEED_AUTH_REGISTRY%registry/}"
-          printf '%s\n' \
-            "${FEED_AUTH_REGISTRY}:_authToken=${TOKEN}" \
-            "${FEED_AUTH_BASE}:_authToken=${TOKEN}" > "$HOME/.npmrc"
-      - name: Publish exact tarballs internally
-        run: |
-          node nodejs/scripts/npm-release.js publish-manifest \
-            dist/release-manifest.json dist unstable "$FEED_URL" azure
-      - name: Clean install and runtime version check
-        env:
-          RUNTIME_VERSION: ${{ needs.unstable-plan.outputs.runtime_version }}
-          SDK_VERSION: ${{ needs.unstable-plan.outputs.sdk_version }}
-        run: |
-          set -euo pipefail
-          VERIFY_ROOT="$RUNNER_TEMP/sdk-unstable-verification"
-          mkdir -p "$VERIFY_ROOT"
-          cd "$VERIFY_ROOT"
-          npm init -y >/dev/null
-          printf '%s\n' "@github:registry=${FEED_URL}" >> "$HOME/.npmrc"
-          npm install --ignore-scripts "@github/copilot-sdk@${SDK_VERSION}"
-          RUNTIME="./node_modules/@github/copilot-sdk-linux-x64/prebuilds/linux-x64/copilot-runtime"
-          "$RUNTIME" --version | grep -F "$RUNTIME_VERSION"
+      packages: read
+    with:
+      artifact_name: ${{ needs.unstable-plan.outputs.artifact_name }}
+      channel: unstable
+      mode: internal
+      resume_run_id: ${{ inputs.resume_run_id }}
+      runtime_run_id: ${{ needs.unstable-plan.outputs.runtime_run_id }}
+      runtime_sha: ${{ needs.unstable-plan.outputs.runtime_sha }}
+      runtime_source: github-packages
+      runtime_version: ${{ needs.unstable-plan.outputs.runtime_version }}
+      sdk_ref: ${{ needs.unstable-plan.outputs.sdk_ref }}
+      sdk_sha: ${{ needs.unstable-plan.outputs.sdk_sha }}
+      sdk_version: ${{ needs.unstable-plan.outputs.sdk_version }}
+    secrets: inherit
 
   unstable-publish-public:
     name: Publish unstable SDK publicly
     if: inputs.dist-tag == 'unstable'
-    needs: [unstable-plan, unstable-publish-internal]
+    needs: [unstable-plan, unstable-runtime-backed-release]
     runs-on: ubuntu-latest
     permissions:
       actions: read
