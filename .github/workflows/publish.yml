@@ -14,7 +14,6 @@ on:
         options:
           - latest
           - prerelease
-          - unstable
       version:
         description: "Version override (optional, e.g., 1.0.0). If empty, auto-increments."
         type: string
@@ -40,6 +39,15 @@ jobs:
       run:
         working-directory: ./nodejs
     steps:
+      - name: Validate release channel
+        working-directory: .
+        env:
+          DIST_TAG: ${{ inputs.dist-tag }}
+        run: |
+          case "$DIST_TAG" in
+            latest|prerelease) ;;
+            *) echo "::error::publish.yml only accepts latest or prerelease."; exit 1 ;;
+          esac
       - uses: actions/checkout@v6.0.2
       - uses: actions/setup-node@v6
         with:
@@ -66,9 +74,22 @@ jobs:
             else
               if [[ "$VERSION" != *-* ]]; then
                 echo "❌ Error: Version '$VERSION' has no prerelease suffix but dist-tag is '${{ github.event.inputs.dist-tag }}'" >> $GITHUB_STEP_SUMMARY
-                echo "Use a version with suffix (e.g., '1.0.0-preview.0') for prerelease/unstable"
+                echo "Use a version with suffix (e.g., '1.0.0-preview.0') for prerelease"
                 exit 1
               fi
+              PRERELEASE_NAMESPACE="$(node -e '
+                const semver = require("semver");
+                const parsed = semver.parse(process.argv[1]);
+                if (!parsed) process.exit(2);
+                process.stdout.write(String(parsed.prerelease[0] ?? ""));
+              ' "$VERSION")" ||
+                { echo "::error::Version '$VERSION' is not valid SemVer."; exit 1; }
+              case "$PRERELEASE_NAMESPACE" in
+                canary|unstable)
+                  echo "::error::The '$PRERELEASE_NAMESPACE' prerelease namespace is reserved for runtime-driven SDK releases."
+                  exit 1
+                  ;;
+              esac
             fi
             echo "Using manual version override: $VERSION" >> $GITHUB_STEP_SUMMARY
           else
@@ -124,8 +145,8 @@ jobs:
 
   publish-nodejs:
     name: Publish Node.js SDK
-    needs: package-nodejs
-    if: github.ref == 'refs/heads/main' || github.event.inputs.dist-tag == 'unstable'
+    needs: [version, package-nodejs]
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       actions: read
@@ -146,6 +167,7 @@ jobs:
       - name: Publish tarball to public npm
         env:
           DIST_TAG: ${{ github.event.inputs.dist-tag }}
+          VERSION: ${{ needs.version.outputs.version }}
         run: |
           set -euo pipefail
           shopt -s nullglob
@@ -161,25 +183,33 @@ jobs:
               MAIN_TARBALL="$TARBALL"
               continue
             fi
+            INTEGRITY="sha512-$(openssl dgst -sha512 -binary "$TARBALL" | openssl base64 -A)"
             node nodejs/scripts/npm-release.js publish \
               "$TARBALL" \
+              "$PACKAGE_NAME" \
+              "$VERSION" \
               "$DIST_TAG" \
               https://registry.npmjs.org \
-              public
+              public \
+              "$INTEGRITY"
           done
           if [ -z "$MAIN_TARBALL" ]; then
             echo "::error::Main @github/copilot-sdk tarball not found."
             exit 1
           fi
+          INTEGRITY="sha512-$(openssl dgst -sha512 -binary "$MAIN_TARBALL" | openssl base64 -A)"
           node nodejs/scripts/npm-release.js publish \
             "$MAIN_TARBALL" \
+            @github/copilot-sdk \
+            "$VERSION" \
             "$DIST_TAG" \
             https://registry.npmjs.org \
-            public
+            public \
+            "$INTEGRITY"
 
   publish-nodejs-internal:
     name: Publish Node.js SDK to internal feed
-    needs: publish-nodejs
+    needs: [version, publish-nodejs]
     environment: cicd
     runs-on: ubuntu-latest
     permissions:
@@ -218,6 +248,7 @@ jobs:
       - name: Publish tarball to internal feed
         env:
           DIST_TAG: ${{ github.event.inputs.dist-tag }}
+          VERSION: ${{ needs.version.outputs.version }}
         run: |
           set -euo pipefail
           if [ "$FEED_URL" != "https://pkgs.dev.azure.com/devdiv/_packaging/copilot-canary/npm/registry/" ]; then
@@ -237,25 +268,32 @@ jobs:
               MAIN_TARBALL="$TARBALL"
               continue
             fi
+            INTEGRITY="sha512-$(openssl dgst -sha512 -binary "$TARBALL" | openssl base64 -A)"
             node nodejs/scripts/npm-release.js publish \
               "$TARBALL" \
+              "$PACKAGE_NAME" \
+              "$VERSION" \
               "$DIST_TAG" \
               "$FEED_URL" \
-              azure
+              azure \
+              "$INTEGRITY"
           done
           if [ -z "$MAIN_TARBALL" ]; then
             echo "::error::Main @github/copilot-sdk tarball not found."
             exit 1
           fi
+          INTEGRITY="sha512-$(openssl dgst -sha512 -binary "$MAIN_TARBALL" | openssl base64 -A)"
           node nodejs/scripts/npm-release.js publish \
             "$MAIN_TARBALL" \
+            @github/copilot-sdk \
+            "$VERSION" \
             "$DIST_TAG" \
             "$FEED_URL" \
-            azure
+            azure \
+            "$INTEGRITY"
 
   publish-dotnet:
     name: Publish .NET SDK
-    if: github.event.inputs.dist-tag != 'unstable'
     needs: version
     runs-on: ubuntu-latest
     permissions:
@@ -298,7 +336,6 @@ jobs:
 
   publish-rust:
     name: Publish Rust SDK
-    if: github.event.inputs.dist-tag != 'unstable'
     needs: version
     runs-on: ubuntu-latest
     defaults:
@@ -342,7 +379,6 @@ jobs:
 
   publish-python:
     name: Publish Python SDK
-    if: github.event.inputs.dist-tag != 'unstable'
     needs: version
     runs-on: ubuntu-latest
     permissions:
@@ -380,7 +416,7 @@ jobs:
 
   publish-java:
     name: Publish Java SDK
-    if: github.event.inputs.dist-tag != 'unstable' && github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main'
     needs: version
     permissions:
       contents: write
@@ -405,7 +441,6 @@ jobs:
     if: |
       always() &&
       github.ref == 'refs/heads/main' &&
-      github.event.inputs.dist-tag != 'unstable' &&
       needs.version.result == 'success' &&
       needs.publish-nodejs.result == 'success' &&
       needs.publish-dotnet.result == 'success' &&
