@@ -1,0 +1,61 @@
+name: "Run Alpine SDK Tests"
+description: "Run an SDK test command in an x64 Alpine container."
+inputs:
+  image:
+    description: "Container image used to run the tests."
+    required: true
+  workdir:
+    description: "Working directory inside the container."
+    required: true
+  transport:
+    description: "SDK transport to test: default or inprocess."
+    required: true
+  command:
+    description: "Language-specific setup and test command."
+    required: true
+runs:
+  using: "composite"
+  steps:
+    - name: Run ${{ inputs.transport }} tests in Alpine
+      shell: bash
+      env:
+        ALPINE_TEST_COMMAND: ${{ inputs.command }}
+        ALPINE_TEST_IMAGE: ${{ inputs.image }}
+        ALPINE_TEST_TRANSPORT: ${{ inputs.transport }}
+        ALPINE_TEST_WORKDIR: ${{ inputs.workdir }}
+      run: |
+        script_path=$(mktemp "$RUNNER_TEMP/copilot-sdk-alpine-test.XXXXXX")
+        trap 'rm -f "$script_path"' EXIT
+        cat > "$script_path" <<'SCRIPT'
+        #!/bin/sh
+        set -eux
+
+        test "$(uname -m)" = "x86_64"
+        ldd --version 2>&1 | grep -qi musl
+
+        case "$COPILOT_SDK_TEST_TRANSPORT" in
+          inprocess) export COPILOT_SDK_DEFAULT_CONNECTION=inprocess ;;
+          default) unset COPILOT_SDK_DEFAULT_CONNECTION ;;
+          *) echo "Unknown transport: $COPILOT_SDK_TEST_TRANSPORT" >&2; exit 1 ;;
+        esac
+        SCRIPT
+        printf '%s\n' "$ALPINE_TEST_COMMAND" >> "$script_path"
+        chmod +x "$script_path"
+
+        docker run --rm \
+          --platform linux/amd64 \
+          --volume "$GITHUB_WORKSPACE:/workspace" \
+          --volume "$script_path:/tmp/copilot-sdk-alpine-test.sh:ro" \
+          --workdir "$ALPINE_TEST_WORKDIR" \
+          --env CI=true \
+          --env GITHUB_ACTIONS=true \
+          --env GITHUB_WORKSPACE=/workspace \
+          --env COPILOT_HMAC_KEY \
+          --env COPILOT_SDK_E2E_BACKEND \
+          --env BUNDLED_CLI_CACHE_DIR \
+          --env CARGO_TERM_COLOR \
+          --env RUST_BACKTRACE \
+          --env RUSTFLAGS \
+          --env COPILOT_SDK_TEST_TRANSPORT="$ALPINE_TEST_TRANSPORT" \
+          "$ALPINE_TEST_IMAGE" \
+          /bin/sh /tmp/copilot-sdk-alpine-test.sh

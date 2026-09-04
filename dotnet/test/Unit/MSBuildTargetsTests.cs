@@ -194,7 +194,12 @@ public class MSBuildTargetsTests
                 : "x64";
         if (OperatingSystem.IsWindows()) return $"win32-{arch}";
         if (OperatingSystem.IsMacOS()) return $"darwin-{arch}";
-        return $"linux-{arch}";
+        var platform = System.Runtime.InteropServices.RuntimeInformation.RuntimeIdentifier.StartsWith(
+            "linux-musl-",
+            StringComparison.Ordinal)
+            ? "linuxmusl"
+            : "linux";
+        return $"{platform}-{arch}";
     }
 
     /// <summary>
@@ -364,11 +369,17 @@ public class MSBuildTargetsTests
                     _ => "osx-x64",
                 };
             }
-            return System.Runtime.InteropServices.RuntimeInformation.OSArchitecture switch
+            var os = System.Runtime.InteropServices.RuntimeInformation.RuntimeIdentifier.StartsWith(
+                "linux-musl-",
+                StringComparison.Ordinal)
+                ? "linux-musl"
+                : "linux";
+            var architecture = System.Runtime.InteropServices.RuntimeInformation.OSArchitecture switch
             {
-                System.Runtime.InteropServices.Architecture.Arm64 => "linux-arm64",
-                _ => "linux-x64",
+                System.Runtime.InteropServices.Architecture.Arm64 => "arm64",
+                _ => "x64",
             };
+            return $"{os}-{architecture}";
         }
     }
 

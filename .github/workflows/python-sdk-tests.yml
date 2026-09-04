@@ -11,6 +11,33 @@ permissions:
   contents: read
 
 jobs:
+  validate:
+    name: "Python SDK Format and Typecheck"
+    if: github.event.repository.fork == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./python
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - name: Install Python dev dependencies
+        run: uv sync --all-extras --dev
+      - name: Run ruff format check
+        run: uv run ruff format --check .
+      - name: Run ruff lint
+        run: uv run ruff check
+      - name: Run ty type checking
+        run: uv run ty check copilot
+
   test:
     name: "Python SDK Tests (${{ matrix.os }}, ${{ matrix.transport }})"
     if: github.event.repository.fork == false
@@ -52,15 +79,6 @@ jobs:
         working-directory: ./nodejs
         run: npm ci --ignore-scripts --fetch-retries=4 --fetch-retry-mintimeout=10000 --fetch-retry-maxtimeout=60000
 
-      - name: Run ruff format check
-        run: uv run ruff format --check .
-
-      - name: Run ruff lint
-        run: uv run ruff check
-
-      - name: Run ty type checking
-        run: uv run ty check copilot
-
       - name: Install test harness dependencies
         working-directory: ./test/harness
         run: npm ci --ignore-scripts --fetch-retries=4 --fetch-retry-mintimeout=10000 --fetch-retry-maxtimeout=60000
@@ -80,3 +98,41 @@ jobs:
         # Keep each module's shared E2E client and proxy on one process while
         # running independent modules concurrently in isolated workers.
         run: uv run pytest -v -s -n 2 --dist=loadfile
+
+  # JavaScript actions use a glibc-linked Node runtime, so Alpine runs through Docker.
+  test-musl-x64:
+    name: "Python SDK Tests (Alpine x64, ${{ matrix.transport }})"
+    if: github.event.repository.fork == false
+    strategy:
+      fail-fast: false
+      matrix:
+        transport: ["default", "inprocess"]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6.0.2
+
+      - name: Run Python SDK tests on musl
+        uses: ./.github/actions/run-alpine-tests
+        env:
+          COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
+        with:
+          image: python:3.11-alpine
+          workdir: /workspace
+          transport: ${{ matrix.transport }}
+          command: |
+            apk add --no-cache bash git nodejs npm
+            python -m pip install --no-cache-dir uv
+
+            (
+              cd nodejs
+              npm ci --ignore-scripts --fetch-retries=4 --fetch-retry-mintimeout=10000 --fetch-retry-maxtimeout=60000
+            )
+            (
+              cd test/harness
+              npm ci --ignore-scripts --fetch-retries=4 --fetch-retry-mintimeout=10000 --fetch-retry-maxtimeout=60000
+            )
+
+            cd python
+            uv sync --all-extras --dev
+            uv run pytest -v -s -n 2 --dist=loadfile

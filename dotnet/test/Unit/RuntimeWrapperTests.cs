@@ -122,7 +122,11 @@ public sealed class RuntimeWrapperTests
     {
         var os = OperatingSystem.IsWindows() ? "win"
             : OperatingSystem.IsMacOS() ? "osx"
-            : "linux";
+            : System.Runtime.InteropServices.RuntimeInformation.RuntimeIdentifier.StartsWith(
+                "linux-musl-",
+                StringComparison.Ordinal)
+                ? "linux-musl"
+                : "linux";
         var architecture = System.Runtime.InteropServices.RuntimeInformation.OSArchitecture switch
         {
             System.Runtime.InteropServices.Architecture.X64 => "x64",
