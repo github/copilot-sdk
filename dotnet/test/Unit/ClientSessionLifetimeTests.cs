@@ -513,6 +513,111 @@ public sealed class ClientSessionLifetimeTests
     }
 
     [Theory]
+    [InlineData("efficiency")]
+    [InlineData("balance")]
+    [InlineData("intelligence")]
+    public async Task SetModelAsync_Serializes_AutoTier(string expectedTier)
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        await session.SetModelAsync("auto", new SetModelOptions { AutoTier = new AutoTier(expectedTier) });
+
+        var request = Assert.Single(server.Requests, request => request.Method == "session.model.switchTo");
+        Assert.Equal("auto", request.Params.GetProperty("modelId").GetString());
+        Assert.Equal(expectedTier, request.Params.GetProperty("autoTier").GetString());
+    }
+
+    [Fact]
+    public async Task SetModelAsync_Omits_AutoTier_WhenUnset()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        await session.SetModelAsync("gpt-5.4");
+
+        var request = Assert.Single(server.Requests, request => request.Method == "session.model.switchTo");
+        Assert.False(request.Params.TryGetProperty("autoTier", out _));
+    }
+
+    [Fact]
+    public async Task SetModelAsync_Writes_Null_AutoTier_WhenCleared()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        await session.SetModelAsync("auto", new SetModelOptions { ResetAutoTier = true });
+
+        // An explicit null must survive to the wire. Omitting it would mean "leave the
+        // preference alone" rather than "use provider-default routing".
+        var request = Assert.Single(server.Requests, request => request.Method == "session.model.switchTo");
+        Assert.True(request.Params.TryGetProperty("autoTier", out var autoTier));
+        Assert.Equal(JsonValueKind.Null, autoTier.ValueKind);
+    }
+
+    [Fact]
+    public async Task SetModelAsync_Rejects_Conflicting_AutoTier_Options()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        await Assert.ThrowsAsync<ArgumentException>(() => session.SetModelAsync(
+            "auto",
+            new SetModelOptions { AutoTier = AutoTier.Balance, ResetAutoTier = true }));
+    }
+
+    [Fact]
+    public async Task SetAutoTierAsync_Serializes_Tier_And_Returns_Snapshot()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        var result = await session.SetAutoTierAsync(AutoTier.Intelligence);
+
+        var request = Assert.Single(server.Requests, request => request.Method == "session.model.switchAutoTier");
+        Assert.Equal("intelligence", request.Params.GetProperty("autoTier").GetString());
+        Assert.Equal(ModelSwitchAutoTierStatus.Pending, result.Status);
+        Assert.Equal(AutoTier.Balance, result.EffectiveAutoTier);
+    }
+
+    [Fact]
+    public async Task SetAutoTierAsync_Writes_Null_Tier_ForDefaultRouting()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        await session.SetAutoTierAsync(null);
+
+        var request = Assert.Single(server.Requests, request => request.Method == "session.model.switchAutoTier");
+        Assert.True(request.Params.TryGetProperty("autoTier", out var autoTier));
+        Assert.Equal(JsonValueKind.Null, autoTier.ValueKind);
+    }
+
+    [Theory]
     [InlineData(false, null)]
     [InlineData(true, null)]
     [InlineData(true, false)]
@@ -2082,6 +2187,15 @@ public sealed class ClientSessionLifetimeTests
                 "session.tools.handlePendingToolCall" => new Dictionary<string, object?>
                 {
                     ["success"] = true
+                },
+                "session.model.switchTo" => new Dictionary<string, object?>
+                {
+                    ["modelId"] = "auto"
+                },
+                "session.model.switchAutoTier" => new Dictionary<string, object?>
+                {
+                    ["status"] = "pending",
+                    ["effectiveAutoTier"] = "balance"
                 },
                 "session.delete" => new Dictionary<string, object?>
                 {

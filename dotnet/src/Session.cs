@@ -12,6 +12,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 using System.Threading.Channels;
 
 namespace GitHub.Copilot;
@@ -2030,8 +2031,35 @@ public sealed partial class CopilotSession : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(model);
         ThrowIfDisposed();
 
+        if (options.AutoTier is not null && options.ResetAutoTier)
+        {
+            throw new ArgumentException(
+                $"{nameof(SetModelOptions.AutoTier)} and {nameof(SetModelOptions.ResetAutoTier)} are mutually exclusive.",
+                nameof(options));
+        }
+
+        if (options.ResetAutoTier)
+        {
+            var request = new ModelSwitchToRequest
+            {
+                SessionId = SessionId,
+                ModelId = model,
+                ReasoningEffort = options.ReasoningEffort,
+                ReasoningSummary = options.ReasoningSummary,
+                ModelCapabilities = options.ModelCapabilities,
+                ContextTier = options.ContextTier,
+            };
+            await CopilotClient.InvokeRpcAsync(
+                Rpc,
+                "session.model.switchTo",
+                [WithExplicitNullAutoTier(request, RpcJsonContext.Default.ModelSwitchToRequest)],
+                cancellationToken);
+            return;
+        }
+
         await Rpc.Model.SwitchToAsync(
             modelId: model,
+            autoTier: options.AutoTier,
             reasoningEffort: options.ReasoningEffort,
             reasoningSummary: options.ReasoningSummary,
             verbosity: null,
@@ -2039,6 +2067,69 @@ public sealed partial class CopilotSession : IAsyncDisposable
             contextTier: options.ContextTier,
             source: null,
             cancellationToken: cancellationToken);
+    }
+
+    /// <summary>
+    /// Changes the Auto routing preference without changing the selected model.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The runtime does not apply the preference immediately. It records the request and
+    /// commits it only when a later user turn using the <c>auto</c> model successfully
+    /// obtains a usable model from the provider. A <c>pending</c> status therefore confirms
+    /// that the request was accepted, not that it took effect.
+    /// </para>
+    /// <para>
+    /// Watch for the outcome through the <c>session.model_change</c> event on success, or the
+    /// ephemeral <c>session.auto_tier_switch_failed</c> event on failure. You can also read
+    /// the current committed and in-flight state at any time with
+    /// <c>session.Rpc.Model.GetCurrentAsync</c>.
+    /// </para>
+    /// <para>
+    /// Only the most recent request survives: issuing a new request replaces any earlier one
+    /// that has not yet been claimed by a turn.
+    /// </para>
+    /// </remarks>
+    /// <param name="autoTier">Routing preference to activate, or <see langword="null"/> to return to the provider's default Auto routing.</param>
+    /// <param name="cancellationToken">Optional cancellation token.</param>
+    /// <returns>The runtime's immediate acknowledgement and Auto preference snapshot.</returns>
+    /// <example>
+    /// <code>
+    /// var result = await session.SetAutoTierAsync(AutoTier.Intelligence);
+    /// </code>
+    /// </example>
+    [Experimental(Diagnostics.Experimental)]
+    public async Task<ModelSwitchAutoTierResult> SetAutoTierAsync(AutoTier? autoTier, CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+
+        if (autoTier is not null)
+        {
+            return await Rpc.Model.SwitchAutoTierAsync(autoTier, cancellationToken: cancellationToken);
+        }
+
+        var request = new ModelSwitchAutoTierRequest { SessionId = SessionId };
+        return await CopilotClient.InvokeRpcAsync<ModelSwitchAutoTierResult>(
+            Rpc,
+            "session.model.switchAutoTier",
+            [WithExplicitNullAutoTier(request, RpcJsonContext.Default.ModelSwitchAutoTierRequest)],
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Serializes a generated request and restores the <c>autoTier</c> property as an explicit null.
+    /// </summary>
+    /// <remarks>
+    /// The generated request types omit <c>autoTier</c> when it is null. The runtime reads an
+    /// omitted tier as "leave the current preference alone" and an explicit null as "return to
+    /// provider-default Auto routing", so the null has to survive serialization. Serializing the
+    /// generated type keeps every other field on the request in sync with the schema.
+    /// </remarks>
+    private static JsonObject WithExplicitNullAutoTier<T>(T request, JsonTypeInfo<T> typeInfo)
+    {
+        var payload = JsonSerializer.SerializeToNode(request, typeInfo)!.AsObject();
+        payload["autoTier"] = null;
+        return payload;
     }
 
     /// <summary>

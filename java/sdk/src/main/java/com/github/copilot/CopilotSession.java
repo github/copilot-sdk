@@ -30,6 +30,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.github.copilot.generated.AssistantMessageEvent;
 import com.github.copilot.generated.ExternalToolCompletedEvent;
 import com.github.copilot.generated.rpc.SessionCommandsHandlePendingCommandParams;
@@ -39,6 +40,8 @@ import com.github.copilot.generated.rpc.SessionMcpOauthHandlePendingRequestParam
 import com.github.copilot.generated.rpc.ModelCapabilitiesOverride;
 import com.github.copilot.generated.rpc.ModelCapabilitiesOverrideLimits;
 import com.github.copilot.generated.rpc.ModelCapabilitiesOverrideSupports;
+import com.github.copilot.generated.rpc.SessionModelSwitchAutoTierParams;
+import com.github.copilot.generated.rpc.SessionModelSwitchAutoTierResult;
 import com.github.copilot.generated.rpc.SessionModelSwitchToParams;
 import com.github.copilot.generated.rpc.SessionPermissionsHandlePendingPermissionRequestParams;
 import com.github.copilot.generated.rpc.SessionRpc;
@@ -2107,8 +2110,8 @@ public final class CopilotSession implements AutoCloseable {
      */
     public CompletableFuture<Void> setModel(String model, String reasoningEffort) {
         ensureNotTerminated();
-        return getRpc().model.switchTo(new SessionModelSwitchToParams(sessionId, model, reasoningEffort, null, null,
-                null, null, null, null, null, null, null, null, null, null)).thenApply(r -> null);
+        return getRpc().model.switchTo(new SessionModelSwitchToParams(sessionId, model, null, reasoningEffort, null,
+                null, null, null, null, null, null, null, null, null, null, null)).thenApply(r -> null);
     }
 
     /**
@@ -2170,28 +2173,139 @@ public final class CopilotSession implements AutoCloseable {
     public CompletableFuture<Void> setModel(String model, String reasoningEffort, String reasoningSummary,
             com.github.copilot.rpc.ModelCapabilitiesOverride modelCapabilities) {
         ensureNotTerminated();
-        ModelCapabilitiesOverride generatedCapabilities = null;
-        if (modelCapabilities != null) {
-            ModelCapabilitiesOverrideSupports supports = null;
-            if (modelCapabilities.getSupports() != null) {
-                var s = modelCapabilities.getSupports();
-                supports = new ModelCapabilitiesOverrideSupports(s.getVision().orElse(null),
-                        s.getReasoningEffort().orElse(null), null);
-            }
-            ModelCapabilitiesOverrideLimits limits = null;
-            if (modelCapabilities.getLimits() != null) {
-                limits = new ObjectMapper().convertValue(modelCapabilities.getLimits(),
-                        ModelCapabilitiesOverrideLimits.class);
-            }
-            generatedCapabilities = new ModelCapabilitiesOverride(supports, limits);
-        }
+        ModelCapabilitiesOverride generatedCapabilities = toGeneratedCapabilities(modelCapabilities);
         var generatedReasoningSummary = reasoningSummary == null
                 ? null
                 : com.github.copilot.generated.rpc.ReasoningSummary.fromValue(reasoningSummary);
-        return getRpc().model
-                .switchTo(new SessionModelSwitchToParams(sessionId, model, reasoningEffort, generatedReasoningSummary,
-                        null, generatedCapabilities, null, null, null, null, null, null, null, null, null))
+        return getRpc().model.switchTo(
+                new SessionModelSwitchToParams(sessionId, model, null, reasoningEffort, generatedReasoningSummary, null,
+                        generatedCapabilities, null, null, null, null, null, null, null, null, null))
                 .thenApply(r -> null);
+    }
+
+    private static ModelCapabilitiesOverride toGeneratedCapabilities(
+            com.github.copilot.rpc.ModelCapabilitiesOverride modelCapabilities) {
+        if (modelCapabilities == null) {
+            return null;
+        }
+        ModelCapabilitiesOverrideSupports supports = null;
+        if (modelCapabilities.getSupports() != null) {
+            var s = modelCapabilities.getSupports();
+            supports = new ModelCapabilitiesOverrideSupports(s.getVision().orElse(null),
+                    s.getReasoningEffort().orElse(null), null);
+        }
+        ModelCapabilitiesOverrideLimits limits = null;
+        if (modelCapabilities.getLimits() != null) {
+            limits = MAPPER.convertValue(modelCapabilities.getLimits(), ModelCapabilitiesOverrideLimits.class);
+        }
+        return new ModelCapabilitiesOverride(supports, limits);
+    }
+
+    private static com.github.copilot.generated.rpc.AutoTier toGeneratedAutoTier(
+            com.github.copilot.rpc.AutoTier autoTier) {
+        return autoTier == null ? null : com.github.copilot.generated.rpc.AutoTier.fromValue(autoTier.getValue());
+    }
+
+    /**
+     * Changes the model for this session using an options object.
+     * <p>
+     * The new model takes effect for the next message. Conversation history is
+     * preserved. Use {@link com.github.copilot.rpc.SetModelOptions#setAutoTier} to
+     * request an Auto routing preference at the same time, which the runtime
+     * accepts only when the model is {@code "auto"}.
+     *
+     * <pre>{@code
+     * session.setModel(new SetModelOptions().setModel("auto").setAutoTier(AutoTier.INTELLIGENCE)).get();
+     * session.setModel(new SetModelOptions().setModel("auto").setResetAutoTier(true)).get();
+     * }</pre>
+     *
+     * @param options
+     *            the switch settings; the model ID is required
+     * @return a future that completes when the model switch is acknowledged
+     * @throws IllegalArgumentException
+     *             if {@code options} is {@code null}, if it carries no model ID, or
+     *             if it requests both an explicit Auto tier and a return to
+     *             provider-default Auto routing
+     * @throws IllegalStateException
+     *             if this session has been terminated
+     * @since 1.6.0
+     */
+    public CompletableFuture<Void> setModel(com.github.copilot.rpc.SetModelOptions options) {
+        ensureNotTerminated();
+        if (options == null) {
+            throw new IllegalArgumentException("options must not be null");
+        }
+        if (options.getModel() == null) {
+            throw new IllegalArgumentException("options must specify a model");
+        }
+        if (options.getAutoTier() != null && options.isResetAutoTier()) {
+            throw new IllegalArgumentException(
+                    "setModel cannot combine an explicit autoTier with resetAutoTier; choose one");
+        }
+        var generatedReasoningSummary = options.getReasoningSummary() == null
+                ? null
+                : com.github.copilot.generated.rpc.ReasoningSummary.fromValue(options.getReasoningSummary());
+        var params = new SessionModelSwitchToParams(sessionId, options.getModel(),
+                toGeneratedAutoTier(options.getAutoTier()), options.getReasoningEffort(), generatedReasoningSummary,
+                null, toGeneratedCapabilities(options.getModelCapabilities()), null, null, null, null, null, null, null,
+                null, null);
+        if (!options.isResetAutoTier()) {
+            return getRpc().model.switchTo(params).thenApply(r -> null);
+        }
+        // The generated params record omits null properties, but returning to
+        // provider-default Auto routing requires sending an explicit null tier, so
+        // build the payload directly and reinstate the null.
+        ObjectNode payload = MAPPER.valueToTree(params);
+        payload.putNull("autoTier");
+        return rpc.invoke("session.model.switchTo", payload, Void.class);
+    }
+
+    /**
+     * Changes the Auto routing preference without changing the selected model.
+     * <p>
+     * The runtime does not apply the preference immediately. It records the request
+     * and commits it only when a later user turn using the {@code auto} model
+     * successfully obtains a usable model from the provider. A {@code pending}
+     * status therefore confirms that the request was accepted, not that it took
+     * effect.
+     * <p>
+     * Watch for the outcome through the {@code session.model_change} event on
+     * success, or the ephemeral {@code session.auto_tier_switch_failed} event on
+     * failure. You can also read the committed and in-flight state at any time with
+     * {@code session.getRpc().model.getCurrent()}.
+     * <p>
+     * Only the most recent request survives: a new request replaces any earlier one
+     * that no turn has claimed yet.
+     *
+     * <pre>{@code
+     * var result = session.setAutoTier(AutoTier.INTELLIGENCE).get();
+     * if (result.status() == ModelSwitchAutoTierStatus.PENDING) {
+     * 	// Takes effect on a later turn that uses the `auto` model.
+     * }
+     * }</pre>
+     *
+     * @param autoTier
+     *            the routing preference to activate, or {@code null} to return to
+     *            the provider's default Auto routing
+     * @return a future completing with the runtime's immediate acknowledgement and
+     *         Auto preference snapshot
+     * @throws IllegalStateException
+     *             if this session has been terminated
+     * @since 1.6.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionModelSwitchAutoTierResult> setAutoTier(com.github.copilot.rpc.AutoTier autoTier) {
+        ensureNotTerminated();
+        var params = new SessionModelSwitchAutoTierParams(sessionId, toGeneratedAutoTier(autoTier), null);
+        if (autoTier != null) {
+            return getRpc().model.switchAutoTier(params);
+        }
+        // The generated params record omits null properties, but the runtime
+        // distinguishes an explicit null tier (return to provider-default routing)
+        // from an absent one, so build the payload directly and reinstate the null.
+        ObjectNode payload = MAPPER.valueToTree(params);
+        payload.putNull("autoTier");
+        return rpc.invoke("session.model.switchAutoTier", payload, SessionModelSwitchAutoTierResult.class);
     }
 
     /**

@@ -5,6 +5,8 @@
 mod abort;
 #[path = "e2e/ask_user.rs"]
 mod ask_user;
+#[path = "e2e/auto_tier.rs"]
+mod auto_tier;
 #[path = "e2e/builtin_tools.rs"]
 mod builtin_tools;
 #[path = "e2e/byok_bearer_token_provider.rs"]

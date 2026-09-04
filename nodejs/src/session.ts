@@ -18,6 +18,7 @@ import type {
     McpOauthPendingRequestResponse,
     FactoryLogLine,
     FactoryRunResult as WireFactoryRunResult,
+    ModelSwitchAutoTierResult,
 } from "./generated/rpc.js";
 import { type Canvas, CanvasError } from "./canvas.js";
 import type { OpenCanvasInstance } from "./generated/rpc.js";
@@ -46,6 +47,7 @@ import type {
     ContextTier,
     ReasoningEffort,
     ReasoningSummary,
+    AutoTier,
     ModelCapabilitiesOverride,
     SectionTransformFn,
     SessionCapabilities,
@@ -2120,6 +2122,9 @@ export class CopilotSession {
      * ```typescript
      * await session.setModel("gpt-5.4");
      * await session.setModel("claude-sonnet-4.6", { reasoningEffort: "high" });
+     *
+     * // Select the Auto model and its routing preference in one call.
+     * await session.setModel("auto", { autoTier: "intelligence" });
      * ```
      */
     async setModel(
@@ -2129,9 +2134,56 @@ export class CopilotSession {
             reasoningSummary?: ReasoningSummary;
             contextTier?: ContextTier;
             modelCapabilities?: ModelCapabilitiesOverride;
+            /**
+             * Routing preference to apply when `model` is `auto`.
+             *
+             * Pass `null` to return to the provider's default Auto routing. The
+             * runtime rejects this option when `model` is anything other than
+             * `auto`; use {@link setAutoTier} to change the preference without
+             * changing the selected model.
+             *
+             * @experimental Part of an experimental Auto routing surface and may
+             * change or be removed in a future release.
+             */
+            autoTier?: AutoTier | null;
         }
     ): Promise<void> {
         await this.rpc.model.switchTo({ modelId: model, ...options });
+    }
+
+    /**
+     * Change the Auto routing preference without changing the selected model.
+     *
+     * The runtime does not apply the preference immediately. It records the
+     * request and commits it only when a later user turn using the `auto` model
+     * successfully obtains a usable model from the provider. A `pending` status
+     * therefore confirms that the request was accepted, not that it took effect.
+     *
+     * Watch for the outcome through the `session.model_change` event on success,
+     * or the ephemeral `session.auto_tier_switch_failed` event on failure. You
+     * can also read the current committed and in-flight state at any time with
+     * `session.rpc.model.getCurrent()`.
+     *
+     * Only the most recent request survives: issuing a new request replaces any
+     * earlier one that has not yet been claimed by a turn.
+     *
+     * @param autoTier - Routing preference to activate, or `null` to return to
+     *   the provider's default Auto routing
+     * @returns The runtime's immediate acknowledgement and Auto preference snapshot
+     *
+     * @experimental Part of an experimental Auto routing surface and may change
+     * or be removed in a future release.
+     *
+     * @example
+     * ```typescript
+     * const result = await session.setAutoTier("intelligence");
+     * if (result.status === "pending") {
+     *     // Takes effect on a later turn that uses the `auto` model.
+     * }
+     * ```
+     */
+    async setAutoTier(autoTier: AutoTier | null): Promise<ModelSwitchAutoTierResult> {
+        return await this.rpc.model.switchAutoTier({ autoTier });
     }
 
     /**

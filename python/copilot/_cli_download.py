@@ -27,6 +27,7 @@ import tarfile
 import tempfile
 import time
 import zipfile
+from http.client import IncompleteRead
 from pathlib import Path, PurePosixPath
 from urllib.error import HTTPError, URLError
 from urllib.request import urlopen
@@ -43,6 +44,7 @@ from ._cli_version import (
 
 _CACHE_DIR_NAME = "github-copilot-sdk"
 _MAX_RETRIES = 3
+_RETRIABLE_DOWNLOAD_ERRORS = (HTTPError, URLError, IncompleteRead)
 
 
 def _sanitize_version(version: str) -> str:
@@ -128,7 +130,7 @@ def _fetch_checksums(version: str) -> dict[str, str]:
             with urlopen(url, timeout=30) as response:
                 text = response.read().decode("utf-8")
             break
-        except (HTTPError, URLError) as exc:
+        except _RETRIABLE_DOWNLOAD_ERRORS as exc:
             last_exc = exc
             if attempt < _MAX_RETRIES - 1:
                 time.sleep(2**attempt)
@@ -255,7 +257,7 @@ def download_cli(version: str | None = None, *, force: bool = False) -> str:
             with urlopen(url, timeout=120) as response:
                 data = response.read()
             break
-        except (HTTPError, URLError) as exc:
+        except _RETRIABLE_DOWNLOAD_ERRORS as exc:
             last_exc = exc
             if attempt < _MAX_RETRIES - 1:
                 time.sleep(2**attempt)
@@ -315,7 +317,7 @@ def _fetch_url_bytes(url: str, *, timeout: int) -> bytes:
         try:
             with urlopen(url, timeout=timeout) as response:
                 return response.read()
-        except (HTTPError, URLError) as exc:
+        except _RETRIABLE_DOWNLOAD_ERRORS as exc:
             last_exc = exc
             if attempt < _MAX_RETRIES - 1:
                 time.sleep(2**attempt)

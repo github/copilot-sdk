@@ -7,7 +7,8 @@ import hashlib
 import io
 import os
 import tarfile
-from unittest.mock import patch
+from http.client import IncompleteRead
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -39,6 +40,26 @@ def _runtime_package(npm_platform: str) -> bytes:
             info.size = len(content)
             archive.addfile(info, io.BytesIO(content))
     return buffer.getvalue()
+
+
+def test_fetch_url_bytes_retries_truncated_response():
+    truncated_response = MagicMock()
+    truncated_response.__enter__.return_value.read.side_effect = IncompleteRead(b"partial", 4)
+    complete_response = MagicMock()
+    complete_response.__enter__.return_value.read.return_value = b"complete"
+
+    with (
+        patch.object(
+            _cli_download,
+            "urlopen",
+            side_effect=[truncated_response, complete_response],
+        ) as urlopen,
+        patch.object(_cli_download.time, "sleep") as sleep,
+    ):
+        assert _cli_download._fetch_url_bytes("https://example/runtime", timeout=30) == b"complete"
+
+    assert urlopen.call_count == 2
+    sleep.assert_called_once_with(1)
 
 
 class TestVerifyIntegrity:

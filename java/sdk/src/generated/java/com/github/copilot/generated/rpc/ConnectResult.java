@@ -11,6 +11,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.github.copilot.CopilotExperimental;
+import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
@@ -29,6 +30,8 @@ public record ConnectResult(
     /** Server protocol version number */
     @JsonProperty("protocolVersion") Long protocolVersion,
     /** Server package version */
-    @JsonProperty("version") String version
+    @JsonProperty("version") String version,
+    /** Task kinds the server may return to this connection. */
+    @JsonProperty("taskKinds") List<TaskKind> taskKinds
 ) {
 }

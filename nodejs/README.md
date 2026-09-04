@@ -319,6 +319,32 @@ const unsubscribe = session.on((event) => {
 unsubscribe();
 ```
 
+##### `setModel(model: string, options?): Promise<void>`
+
+Change the model for this session. The new model takes effect for the next message; conversation history is preserved.
+
+**Options:**
+
+- `reasoningEffort?: string` - Reasoning effort level
+- `autoTier?: AutoTier | null` - Auto routing preference to stage together with selecting `auto`. Pass `null` to return to the provider's default Auto routing; omit it to leave the current preference unchanged.
+
+##### `setAutoTier(autoTier: AutoTier | null): Promise<ModelSwitchAutoTierResult>`
+
+Change the Auto routing preference without changing the selected model. Pass `null` to return to the provider's default Auto routing.
+
+The runtime does not apply the preference immediately. It records the request and commits it only when a later user turn using the `auto` model successfully obtains a usable model from the provider, so a `pending` status confirms acceptance rather than effect. Only the most recent request survives.
+
+Watch for the outcome through the `session.model_change` event on success or the ephemeral `session.auto_tier_switch_failed` event on failure, and read the authoritative state at any time with `session.rpc.model.getCurrent()`.
+
+```typescript
+const result = await session.setAutoTier("intelligence");
+if (result.status === "pending") {
+    // Accepted, but not yet in effect.
+}
+```
+
+See [Auto tier persistence](../docs/features/session-persistence.md#auto-tier-persistence) for the full lifecycle rules.
+
 ##### `abort(): Promise<void>`
 
 Abort the currently processing message in this session.

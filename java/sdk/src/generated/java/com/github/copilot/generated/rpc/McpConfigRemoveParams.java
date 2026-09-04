@@ -25,6 +25,8 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record McpConfigRemoveParams(
     /** Name of the MCP server to remove */
-    @JsonProperty("name") String name
+    @JsonProperty("name") String name,
+    /** OAuth Client ID Metadata Document URL whose persisted credentials should also be removed. */
+    @JsonProperty("authClientIdMetadataUrl") String authClientIdMetadataUrl
 ) {
 }

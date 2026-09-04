@@ -114,6 +114,7 @@ jobs:
             echo "::error::Expected nine Node.js package tarballs, found $TARBALL_COUNT."
             exit 1
           fi
+          npm run verify:release-packages
       - name: Upload artifact
         uses: actions/upload-artifact@v7.0.0
         with:

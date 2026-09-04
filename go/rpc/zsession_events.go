@@ -128,6 +128,7 @@ const (
 	// that may change or be removed.
 	SessionEventTypeSessionAutoModeResolved          SessionEventType = "session.auto_mode_resolved"
 	SessionEventTypeSessionAutopilotObjectiveChanged SessionEventType = "session.autopilot_objective_changed"
+	SessionEventTypeSessionAutoTierSwitchFailed      SessionEventType = "session.auto_tier_switch_failed"
 	SessionEventTypeSessionBackgroundTasksChanged    SessionEventType = "session.background_tasks_changed"
 	// Experimental: SessionEventTypeSessionBinaryAsset identifies an experimental event that
 	// may change or be removed.
@@ -185,6 +186,8 @@ const (
 	// Experimental: SessionEventTypeSessionManagedSettingsResolved identifies an experimental
 	// event that may change or be removed.
 	SessionEventTypeSessionManagedSettingsResolved SessionEventType = "session.managed_settings_resolved"
+	SessionEventTypeSessionMCPServerNeedsReconnect SessionEventType = "session.mcp_server_needs_reconnect"
+	SessionEventTypeSessionMCPServerRemoved        SessionEventType = "session.mcp_server_removed"
 	SessionEventTypeSessionMCPServersLoaded        SessionEventType = "session.mcp_servers_loaded"
 	SessionEventTypeSessionMCPServerStatusChanged  SessionEventType = "session.mcp_server_status_changed"
 	SessionEventTypeSessionModeChanged             SessionEventType = "session.mode_changed"
@@ -305,6 +308,21 @@ type PromptCacheBreakData struct {
 
 func (*PromptCacheBreakData) sessionEventData()      {}
 func (*PromptCacheBreakData) Type() SessionEventType { return SessionEventTypePromptCacheBreak }
+
+// A transient Auto preference failure emitted when the runtime cannot mint or accept a usable model and token pair. The previously effective preference remains active, so SDK clients can surface a non-blocking failure without changing their committed-tier state. This event is ephemeral and is not persisted or replayed on resume.
+type SessionAutoTierSwitchFailedData struct {
+	// Auto preference that remains effective after the failed request.
+	EffectiveAutoTier *AutoTier `json:"effectiveAutoTier,omitempty"`
+	// Low-cardinality failure outcome reported by Auto resolution.
+	Reason AutoTierSwitchFailureReason `json:"reason"`
+	// Auto preference that failed to activate, or null when returning to provider-default routing failed.
+	RequestedAutoTier *AutoTier `json:"requestedAutoTier"`
+}
+
+func (*SessionAutoTierSwitchFailedData) sessionEventData() {}
+func (*SessionAutoTierSwitchFailedData) Type() SessionEventType {
+	return SessionEventTypeSessionAutoTierSwitchFailed
+}
 
 // Agent intent description for current activity or plan
 type AssistantIntentData struct {
@@ -902,6 +920,8 @@ type SessionErrorData struct {
 	Message string `json:"message"`
 	// GitHub request tracing ID (x-github-request-id header) for correlating with server-side logs
 	ProviderCallID *string `json:"providerCallId,omitempty"`
+	// What the user must do to recover, when the runtime knows of an action. The `message` never names a client affordance, so a client that offers one — a slash command, a settings pane, a link — renders it from this value.
+	Remediation *RemediationAction `json:"remediation,omitempty"`
 	// Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation
 	ServiceRequestID *string `json:"serviceRequestId,omitempty"`
 	// Error stack trace, when available
@@ -1577,12 +1597,16 @@ func (*ModelCallStartData) Type() SessionEventType { return SessionEventTypeMode
 
 // Model change details including previous and new model identifiers
 type SessionModelChangeData struct {
+	// Committed Auto preference after the model configuration change, when applicable.
+	AutoTier *AutoTier `json:"autoTier,omitempty"`
 	// Reason the change happened, when not user-initiated. `"rate_limit_auto_switch"` for changes triggered by the auto-mode-switch rate-limit recovery path, or `"refusal_fallback"` when the active model declined a request (content refusal) and the runtime switched to the configured refusal-fallback model. UI clients can use this to render contextual copy.
 	Cause *string `json:"cause,omitempty"`
 	// Context tier after the model change; null explicitly clears a previously selected tier
 	ContextTier *ContextTier `json:"contextTier,omitempty"`
 	// Newly selected model identifier
 	NewModel string `json:"newModel"`
+	// Previously committed Auto preference, when one was explicitly selected.
+	PreviousAutoTier *AutoTier `json:"previousAutoTier,omitempty"`
 	// Model that was previously selected, if any
 	PreviousModel *string `json:"previousModel,omitempty"`
 	// Reasoning effort level before the model change, if applicable
@@ -1820,6 +1844,28 @@ type SessionExtensionsLoadedData struct {
 func (*SessionExtensionsLoadedData) sessionEventData() {}
 func (*SessionExtensionsLoadedData) Type() SessionEventType {
 	return SessionEventTypeSessionExtensionsLoaded
+}
+
+// Payload of `session.mcp_server_needs_reconnect` identifying an MCP server whose connection must be re-established.
+type SessionMCPServerNeedsReconnectData struct {
+	// Name of the MCP server that needs to reconnect
+	ServerName string `json:"serverName"`
+}
+
+func (*SessionMCPServerNeedsReconnectData) sessionEventData() {}
+func (*SessionMCPServerNeedsReconnectData) Type() SessionEventType {
+	return SessionEventTypeSessionMCPServerNeedsReconnect
+}
+
+// Payload of `session.mcp_server_removed` identifying an MCP server the graph no longer runs.
+type SessionMCPServerRemovedData struct {
+	// Name of the MCP server that was removed from the graph
+	ServerName string `json:"serverName"`
+}
+
+func (*SessionMCPServerRemovedData) sessionEventData() {}
+func (*SessionMCPServerRemovedData) Type() SessionEventType {
+	return SessionEventTypeSessionMCPServerRemoved
 }
 
 // Payload of `session.mcp_server_status_changed` for one MCP server's status and optional failure error.
@@ -2824,6 +2870,8 @@ func (*ToolUserRequestedData) Type() SessionEventType { return SessionEventTypeT
 type SessionWarningData struct {
 	// Human-readable warning message for display in the timeline
 	Message string `json:"message"`
+	// What the user must do to recover, when the runtime knows of an action. The `message` never names a client affordance, so a client that offers one — a slash command, a settings pane, a link — renders it from this value.
+	Remediation *RemediationAction `json:"remediation,omitempty"`
 	// Optional URL associated with this warning that the user can open in a browser
 	URL *string `json:"url,omitempty"`
 	// Category of warning (e.g., "subscription", "policy", "mcp")
@@ -3462,6 +3510,8 @@ type MCPServersLoadedServer struct {
 	PluginName *string `json:"pluginName,omitempty"`
 	// Version of the plugin that supplied the effective MCP server config, only when source is plugin
 	PluginVersion *string `json:"pluginVersion,omitempty"`
+	// Server-advertised metadata for a connected server. Omitted when no live connection metadata is available, including while pending or when failed, disabled, stopped, or not configured.
+	ServerMetadata *MCPServerMetadata `json:"serverMetadata,omitempty"`
 	// Configuration source: user, workspace, plugin, or builtin
 	Source *MCPServerSource `json:"source,omitempty"`
 	// Connection status: connected, failed, needs-auth, pending, disabled, stopped, or not_configured
@@ -3783,9 +3833,9 @@ type PermissionPromptRequestURL struct {
 	ManagedApprovalRequired *bool `json:"managedApprovalRequired,omitempty"`
 	// Immediately preceding URL when this prompt is for a redirect target
 	RedirectedFrom *string `json:"redirectedFrom,omitempty"`
-	// True when this URL fetch is requesting to bypass the sandbox network policy: either the model set requestSandboxBypass: true, or the tool re-issued the request as an interactive bypass after the network policy denied the approved URL (host opted in via sandbox.allowBypass). This is a request, not a grant: the fetch runs only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
+	// True when the tool is asking to run this URL fetch outside the sandbox, after the network policy denied the approved URL or the sandbox proxy could not reach it (host opted in via sandbox.allowBypass). The model cannot ask for this; only the tool raises it. This is a request, not a grant: the fetch runs only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
 	RequestSandboxBypass *bool `json:"requestSandboxBypass,omitempty"`
-	// Model-provided justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.
+	// What the tool tells the user about the bypass on offer: which policy rule blocked the call, or why it cannot be sandboxed. Only meaningful when requestSandboxBypass is true.
 	RequestSandboxBypassReason *string `json:"requestSandboxBypassReason,omitempty"`
 	// Tool call ID that triggered this permission request
 	ToolCallID *string `json:"toolCallId,omitempty"`
@@ -4039,9 +4089,9 @@ type PermissionRequestRead struct {
 	ManagedApprovalRequired *bool `json:"managedApprovalRequired,omitempty"`
 	// Path of the file or directory being read
 	Path string `json:"path"`
-	// True when the model has requested to run this search outside the sandbox (it set requestSandboxBypass: true and the host opted in via sandbox.allowBypass). This is a request, not a grant: the search runs unsandboxed only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
+	// True when the tool is asking to re-run this search outside the sandbox, after a sandboxed run looked blocked (host opted in via sandbox.allowBypass). The model cannot ask for this; only the tool raises it. This is a request, not a grant: the search runs unsandboxed only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
 	RequestSandboxBypass *bool `json:"requestSandboxBypass,omitempty"`
-	// Model-provided justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.
+	// What the tool tells the user about the bypass on offer: which policy rule blocked the call, or why it cannot be sandboxed. Only meaningful when requestSandboxBypass is true.
 	RequestSandboxBypassReason *string `json:"requestSandboxBypassReason,omitempty"`
 	// Tool call ID that triggered this permission request
 	ToolCallID *string `json:"toolCallId,omitempty"`
@@ -4072,9 +4122,9 @@ type PermissionRequestShell struct {
 	PossiblePaths []string `json:"possiblePaths"`
 	// URLs that may be accessed by the command
 	PossibleURLs []PermissionRequestShellPossibleURL `json:"possibleUrls"`
-	// True when the model has requested to run this command outside the sandbox (it set requestSandboxBypass: true and the host opted in via sandbox.allowBypass). This is a request, not a grant: the command runs unsandboxed only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
+	// True when the tool is asking to run this command outside the sandbox, either because the command detaches and cannot be sandboxed at all, or because a sandboxed run looked blocked (host opted in via sandbox.allowBypass). The model cannot ask for this; only the tool raises it. This is a request, not a grant: the command runs unsandboxed only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
 	RequestSandboxBypass *bool `json:"requestSandboxBypass,omitempty"`
-	// Model-provided justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.
+	// What the tool tells the user about the bypass on offer: which policy rule blocked the call, or why it cannot be sandboxed. Only meaningful when requestSandboxBypass is true.
 	RequestSandboxBypassReason *string `json:"requestSandboxBypassReason,omitempty"`
 	// Tool call ID that triggered this permission request
 	ToolCallID *string `json:"toolCallId,omitempty"`
@@ -4095,9 +4145,9 @@ type PermissionRequestURL struct {
 	ManagedApprovalRequired *bool `json:"managedApprovalRequired,omitempty"`
 	// Immediately preceding URL when this request is for a redirect target
 	RedirectedFrom *string `json:"redirectedFrom,omitempty"`
-	// True when this URL fetch is requesting to bypass the sandbox network policy: either the model set requestSandboxBypass: true, or the tool re-issued the request as an interactive bypass after the network policy denied the approved URL (host opted in via sandbox.allowBypass). This is a request, not a grant: the fetch runs only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
+	// True when the tool is asking to run this URL fetch outside the sandbox, after the network policy denied the approved URL or the sandbox proxy could not reach it (host opted in via sandbox.allowBypass). The model cannot ask for this; only the tool raises it. This is a request, not a grant: the fetch runs only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
 	RequestSandboxBypass *bool `json:"requestSandboxBypass,omitempty"`
-	// Model-provided justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.
+	// What the tool tells the user about the bypass on offer: which policy rule blocked the call, or why it cannot be sandboxed. Only meaningful when requestSandboxBypass is true.
 	RequestSandboxBypassReason *string `json:"requestSandboxBypassReason,omitempty"`
 	// Tool call ID that triggered this permission request
 	ToolCallID *string `json:"toolCallId,omitempty"`
@@ -4782,6 +4832,8 @@ type ToolExecutionCompleteError struct {
 	Code *string `json:"code,omitempty"`
 	// Human-readable error message
 	Message string `json:"message"`
+	// What the user must do to recover, when the runtime knows of an action. Set on sandbox policy denials, where `message` names the rule that blocked the call but never the client affordance that relaxes it.
+	Remediation *RemediationAction `json:"remediation,omitempty"`
 }
 
 // Tool execution result on success
@@ -5117,6 +5169,20 @@ const (
 	AutopilotObjectiveChangedStatusCompleted AutopilotObjectiveChangedStatus = "completed"
 	// Objective is paused and will not drive autopilot continuations.
 	AutopilotObjectiveChangedStatusPaused AutopilotObjectiveChangedStatus = "paused"
+)
+
+// Terminal reason an Auto preference activation failed.
+type AutoTierSwitchFailureReason string
+
+const (
+	// The candidate model was rejected by model policy.
+	AutoTierSwitchFailureReasonPolicyRejected AutoTierSwitchFailureReason = "policy_rejected"
+	// The Auto routing request failed or returned an unusable response.
+	AutoTierSwitchFailureReasonRequestFailed AutoTierSwitchFailureReason = "request_failed"
+	// The runtime could not prepare the Auto routing request.
+	AutoTierSwitchFailureReasonSetupFailed AutoTierSwitchFailureReason = "setup_failed"
+	// The provider does not support Auto routing.
+	AutoTierSwitchFailureReasonUnsupported AutoTierSwitchFailureReason = "unsupported"
 )
 
 // Binary result type discriminator. Use "image" for images and "resource" for other binary data.

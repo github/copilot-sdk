@@ -21,6 +21,8 @@ pub use crate::copilot_request_handler::{
     CopilotWebSocketResponse, WebSocketTransform, forward_http,
 };
 use crate::generated::api_types::{CurrentToolMetadata, OpenCanvasInstance};
+/// Acknowledgement and Auto preference snapshot returned by an Auto tier switch.
+pub use crate::generated::api_types::{ModelSwitchAutoTierResult, ModelSwitchAutoTierStatus};
 /// Routing tier for the `auto` model with Auto mode V2.
 pub use crate::generated::session_events::AutoTier;
 use crate::generated::session_events::ReasoningSummary;
@@ -1422,10 +1424,13 @@ pub struct CapiSessionOptions {
     /// Routing tier, meaningful only with model `auto` (Auto mode V2).
     /// Requires a runtime version that supports `capi.autoTier`.
     ///
-    /// When omitted, the runtime chooses its default on create and preserves
-    /// the persisted or current tier on resume. An explicit tier overrides the
-    /// persisted tier on cold resume; the runtime rejects a conflicting tier
-    /// when resuming a session already resident in memory.
+    /// When omitted, the runtime chooses its default on create and restores
+    /// the last committed tier on cold resume. On resident resume, a different
+    /// tier requests a safe switch that takes effect after resume succeeds and
+    /// never disturbs a turn that is already running.
+    ///
+    /// To change the preference on a live session, use
+    /// [`Session::set_auto_tier`](crate::session::Session::set_auto_tier).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auto_tier: Option<AutoTier>,
 
@@ -2266,6 +2271,23 @@ pub struct SessionConfig {
     /// `session.options.update` after create/resume. Defaults to `false` in
     /// [`crate::ClientMode::Empty`] when unset.
     pub manage_schedule_enabled: Option<bool>,
+    /// Capacity of the per-session broadcast buffer backing
+    /// [`Session::subscribe`](crate::session::Session::subscribe) and
+    /// [`PreparedSession::subscribe`](crate::session::PreparedSession::subscribe).
+    ///
+    /// Runtime-only — never sent on the wire. Defaults to
+    /// [`DEFAULT_EVENT_BUFFER_CAPACITY`](crate::session::DEFAULT_EVENT_BUFFER_CAPACITY)
+    /// when unset. Must be non-zero;
+    /// `Some(0)` is rejected with
+    /// [`ErrorKind::InvalidConfig`](crate::ErrorKind::InvalidConfig) by
+    /// [`Client::prepare_session`](crate::Client::prepare_session).
+    ///
+    /// The buffer is finite: subscribers that fall behind observe
+    /// [`Lagged`](crate::subscription::Lagged) rather than applying
+    /// backpressure to the event loop. Raise this when a consumer needs a
+    /// lossless view of a large startup burst without draining
+    /// concurrently.
+    pub event_buffer_capacity: Option<usize>,
 }
 
 impl std::fmt::Debug for SessionConfig {
@@ -2401,6 +2423,7 @@ impl std::fmt::Debug for SessionConfig {
                 "system_message_transform",
                 &self.system_message_transform.as_ref().map(|_| "<set>"),
             )
+            .field("event_buffer_capacity", &self.event_buffer_capacity)
             .finish()
     }
 }
@@ -2497,6 +2520,7 @@ impl Default for SessionConfig {
             enable_experimental_mode: None,
             coauthor_enabled: None,
             manage_schedule_enabled: None,
+            event_buffer_capacity: None,
         }
     }
 }
@@ -3300,6 +3324,18 @@ impl SessionConfig {
         self
     }
 
+    /// Set [`Self::event_buffer_capacity`].
+    ///
+    /// A capacity of `0` is rejected with
+    /// [`ErrorKind::InvalidConfig`](crate::ErrorKind::InvalidConfig) by
+    /// [`Client::prepare_session`](crate::Client::prepare_session) and
+    /// [`Client::create_session`](crate::Client::create_session); the value
+    /// is never clamped.
+    pub fn with_event_buffer_capacity(mut self, capacity: usize) -> Self {
+        self.event_buffer_capacity = Some(capacity);
+        self
+    }
+
     /// Inject ExP assignment ("flight") data for this session, in the same
     /// JSON shape the Copilot CLI fetches from the experimentation service
     /// (`CopilotExpAssignmentResponse`). The runtime feeds it into the same
@@ -3602,6 +3638,8 @@ pub struct ResumeSessionConfig {
     pub coauthor_enabled: Option<bool>,
     /// See [`SessionConfig::manage_schedule_enabled`].
     pub manage_schedule_enabled: Option<bool>,
+    /// See [`SessionConfig::event_buffer_capacity`].
+    pub event_buffer_capacity: Option<usize>,
 }
 
 impl std::fmt::Debug for ResumeSessionConfig {
@@ -3735,6 +3773,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
             )
             .field("suppress_resume_event", &self.suppress_resume_event)
             .field("continue_pending_work", &self.continue_pending_work)
+            .field("event_buffer_capacity", &self.event_buffer_capacity)
             .finish()
     }
 }
@@ -3986,6 +4025,7 @@ impl ResumeSessionConfig {
             enable_experimental_mode: None,
             coauthor_enabled: None,
             manage_schedule_enabled: None,
+            event_buffer_capacity: None,
         }
     }
 
@@ -4597,6 +4637,18 @@ impl ResumeSessionConfig {
         self
     }
 
+    /// Set [`Self::event_buffer_capacity`].
+    ///
+    /// A capacity of `0` is rejected with
+    /// [`ErrorKind::InvalidConfig`](crate::ErrorKind::InvalidConfig) by
+    /// [`Client::prepare_resume_session`](crate::Client::prepare_resume_session)
+    /// and [`Client::resume_session`](crate::Client::resume_session); the
+    /// value is never clamped.
+    pub fn with_event_buffer_capacity(mut self, capacity: usize) -> Self {
+        self.event_buffer_capacity = Some(capacity);
+        self
+    }
+
     /// Inject ExP assignment ("flight") data on resume. See
     /// [`SessionConfig::with_exp_assignments`]. Re-supply the assignments on
     /// resume so the runtime re-applies them after a CLI process restart.
@@ -4791,6 +4843,30 @@ pub struct SetModelOptions {
     /// fields set on the override are applied; the rest fall back to the
     /// runtime-resolved values for the model.
     pub model_capabilities: Option<crate::generated::api_types::ModelCapabilitiesOverride>,
+    /// Auto routing preference to stage atomically with selecting the `auto`
+    /// model.
+    ///
+    /// Leave as `None` to leave the current preference alone. The runtime
+    /// rejects this option when the model is anything other than `auto`; use
+    /// [`Session::set_auto_tier`](crate::session::Session::set_auto_tier) to
+    /// change the preference without changing the selected model.
+    pub auto_tier: Option<AutoTierPreference>,
+}
+
+/// Auto routing preference requested alongside a model switch.
+///
+/// **Experimental.** Part of an experimental Auto routing surface and may change
+/// or be removed in a future release.
+///
+/// This is a three-state choice. Leaving [`SetModelOptions::auto_tier`] as
+/// `None` leaves the current preference alone, which is different from
+/// [`AutoTierPreference::Reset`], which actively resets it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AutoTierPreference {
+    /// Route using a specific tier.
+    Tier(AutoTier),
+    /// Return to the provider's default Auto routing.
+    Reset,
 }
 
 impl SetModelOptions {
@@ -4818,6 +4894,19 @@ impl SetModelOptions {
         caps: crate::generated::api_types::ModelCapabilitiesOverride,
     ) -> Self {
         self.model_capabilities = Some(caps);
+        self
+    }
+
+    /// Set [`auto_tier`](Self::auto_tier) to a specific routing tier.
+    pub fn with_auto_tier(mut self, tier: AutoTier) -> Self {
+        self.auto_tier = Some(AutoTierPreference::Tier(tier));
+        self
+    }
+
+    /// Set [`auto_tier`](Self::auto_tier) to return to the provider's default
+    /// Auto routing.
+    pub fn with_reset_auto_tier(mut self) -> Self {
+        self.auto_tier = Some(AutoTierPreference::Reset);
         self
     }
 }

@@ -19,6 +19,7 @@ import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from enum import Enum
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, Literal, NotRequired, Required, TypedDict, cast
 
@@ -26,6 +27,9 @@ from ._diagnostics import log_timing
 from ._jsonrpc import JsonRpcError, ProcessExitedError
 from ._telemetry import get_trace_context, trace_context
 from .canvas import CanvasError, CanvasHandler, OpenCanvasInstance
+from .generated.rpc import (
+    AutoTier as _RpcAutoTier,
+)
 from .generated.rpc import (
     BuiltinToolInputSchemaType,
     CanvasProviderCloseRequest,
@@ -39,6 +43,7 @@ from .generated.rpc import (
     LogRequest,
     MCPOauthHandlePendingRequest,
     MCPOauthPendingRequestResponse,
+    ModelSwitchAutoTierResult,
     ModelSwitchToRequest,
     PermissionDecision,
     PermissionDecisionApproveOnce,
@@ -175,7 +180,35 @@ def _capabilities_to_dict(caps: ModelCapabilitiesOverride) -> dict:
 ReasoningEffort = Literal["low", "medium", "high", "xhigh", "max"]
 ReasoningSummary = Literal["none", "concise", "detailed"]
 ContextTier = Literal["default", "long_context"]
+AutoTier = Literal["efficiency", "balance", "intelligence"]
 SessionFsConventions = Literal["posix", "windows"]
+
+
+class _Unset:
+    """Sentinel distinguishing an omitted argument from an explicit ``None``.
+
+    Auto routing treats ``None`` as a meaningful value: it means "return to the
+    provider's default routing". Omitting the argument instead means "leave the
+    current preference alone", so the two cases cannot share a default.
+    """
+
+    def __repr__(self) -> str:
+        return "UNSET"
+
+
+_UNSET = _Unset()
+
+
+def _auto_tier_to_wire(auto_tier: AutoTier | _RpcAutoTier | None) -> str | None:
+    """Normalize an Auto tier to its wire value.
+
+    Callers may pass either the ``AutoTier`` string literal or the generated
+    ``AutoTier`` enum, which is the type the SDK hands back on results and
+    events. The JSON-RPC encoder only understands plain strings.
+    """
+    if isinstance(auto_tier, Enum):
+        return str(auto_tier.value)
+    return auto_tier
 
 
 class SessionFsCapabilities(TypedDict, total=False):
@@ -3099,6 +3132,7 @@ class CopilotSession:
         reasoning_summary: ReasoningSummary | None = None,
         context_tier: ContextTier | None = None,
         model_capabilities: ModelCapabilitiesOverride | None = None,
+        auto_tier: AutoTier | _RpcAutoTier | None | _Unset = _UNSET,
     ) -> None:
         """
         Change the model for this session.
@@ -3116,6 +3150,14 @@ class CopilotSession:
             context_tier: Optional context window tier for supported models.
                 Omit to use normal model behavior with no explicit tier.
             model_capabilities: Override individual model capabilities resolved by the runtime.
+            auto_tier: **Experimental.** Part of an experimental Auto routing
+                surface and may change or be removed in a future release.
+                Routing preference to apply when ``model`` is ``"auto"``.
+                Pass ``None`` to return to the provider's default Auto routing.
+                Omit the argument to leave the current preference alone. The
+                runtime rejects this option when ``model`` is anything other than
+                ``"auto"``; use :meth:`set_auto_tier` to change the preference
+                without changing the selected model.
 
         Raises:
             Exception: If the session has been destroyed or the connection fails.
@@ -3123,23 +3165,79 @@ class CopilotSession:
         Example:
             >>> await session.set_model("gpt-5.4")
             >>> await session.set_model("claude-sonnet-4.6", reasoning_effort="high")
+            >>> await session.set_model("auto", auto_tier="intelligence")
         """
         rpc_caps = None
         if model_capabilities is not None:
             rpc_caps = _RpcModelCapabilitiesOverride.from_dict(
                 _capabilities_to_dict(model_capabilities)
             )
-        await self.rpc.model.switch_to(
-            ModelSwitchToRequest(
-                model_id=model,
-                reasoning_effort=reasoning_effort,
-                reasoning_summary=(
-                    _RpcReasoningSummary(reasoning_summary)
-                    if reasoning_summary is not None
-                    else None
-                ),
-                context_tier=(_RpcContextTier(context_tier) if context_tier is not None else None),
-                model_capabilities=rpc_caps,
+        request = ModelSwitchToRequest(
+            model_id=model,
+            reasoning_effort=reasoning_effort,
+            reasoning_summary=(
+                _RpcReasoningSummary(reasoning_summary) if reasoning_summary is not None else None
+            ),
+            context_tier=(_RpcContextTier(context_tier) if context_tier is not None else None),
+            model_capabilities=rpc_caps,
+        )
+        if isinstance(auto_tier, _Unset):
+            await self.rpc.model.switch_to(request)
+            return
+
+        # The generated wrapper drops null fields, which would silently turn a
+        # request for default Auto routing into "leave the preference alone", so
+        # send the payload directly to preserve an explicit null.
+        params = {k: v for k, v in request.to_dict().items() if v is not None}
+        params["autoTier"] = _auto_tier_to_wire(auto_tier)
+        params["sessionId"] = self.session_id
+        await self._client.request("session.model.switchTo", params)
+
+    async def set_auto_tier(
+        self, auto_tier: AutoTier | _RpcAutoTier | None
+    ) -> ModelSwitchAutoTierResult:
+        """
+        Change the Auto routing preference without changing the selected model.
+
+        **Experimental.** Part of an experimental Auto routing surface and may
+        change or be removed in a future release.
+
+        The runtime does not apply the preference immediately. It records the
+        request and commits it only when a later user turn using the ``auto``
+        model successfully obtains a usable model from the provider. A
+        ``"pending"`` status therefore confirms that the request was accepted,
+        not that it took effect.
+
+        Watch for the outcome through the ``session.model_change`` event on
+        success, or the ephemeral ``session.auto_tier_switch_failed`` event on
+        failure. You can also read the current committed and in-flight state at
+        any time with ``session.rpc.model.get_current()``.
+
+        Only the most recent request survives: issuing a new request replaces any
+        earlier one that has not yet been claimed by a turn.
+
+        Args:
+            auto_tier: Routing preference to activate, or ``None`` to return to
+                the provider's default Auto routing.
+
+        Returns:
+            The runtime's immediate acknowledgement and Auto preference snapshot.
+
+        Raises:
+            Exception: If the session has been destroyed or the connection fails.
+
+        Example:
+            >>> result = await session.set_auto_tier("intelligence")
+            >>> if result.status == ModelSwitchAutoTierStatus.PENDING:
+            ...     pass  # Takes effect on a later turn that uses the `auto` model.
+        """
+        # `autoTier` is a required field whose null value means "use provider
+        # default routing", so this cannot go through the generated wrapper,
+        # which omits null fields.
+        return ModelSwitchAutoTierResult.from_dict(
+            await self._client.request(
+                "session.model.switchAutoTier",
+                {"sessionId": self.session_id, "autoTier": _auto_tier_to_wire(auto_tier)},
             )
         )
 

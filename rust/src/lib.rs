@@ -2324,15 +2324,18 @@ impl Client {
 
     /// Register a session to receive filtered events and requests.
     ///
-    /// Returns per-session channels for notifications and requests, routed
-    /// by `sessionId`. Starts the internal router on first call.
+    /// Returns the per-session channels plus a
+    /// [`RegistrationToken`](crate::router::RegistrationToken) identifying
+    /// *this* registration. Registering an ID that is already registered
+    /// replaces the previous registration.
     ///
-    /// When done, call [`unregister_session`](Self::unregister_session) to
-    /// clean up (typically on session destroy).
+    /// When done, call
+    /// [`unregister_session_owned`](Self::unregister_session_owned) with
+    /// that token to clean up (typically on session destroy).
     pub(crate) fn register_session(
         &self,
         session_id: &SessionId,
-    ) -> crate::router::SessionChannels {
+    ) -> crate::router::SessionRegistration {
         self.inner.router.ensure_started(
             &self.inner.notification_tx,
             &self.inner.request_rx,
@@ -2344,9 +2347,30 @@ impl Client {
         self.inner.router.register(session_id)
     }
 
-    /// Unregister a session, dropping its per-session channels.
-    pub(crate) fn unregister_session(&self, session_id: &SessionId) {
-        self.inner.router.unregister(session_id);
+    /// Unregister a session only if `token` still identifies the live
+    /// registration.
+    ///
+    /// Session IDs can be reused: a caller may retry a cancelled startup
+    /// with the same pinned ID while the previous owner is still being torn
+    /// down. Compare-and-remove keeps a stale owner from unregistering the
+    /// live session that replaced it.
+    pub(crate) fn unregister_session_owned(
+        &self,
+        session_id: &SessionId,
+        token: crate::router::RegistrationToken,
+    ) {
+        self.inner.router.unregister_owned(session_id, token);
+    }
+
+    /// Snapshot the session IDs currently registered on the router.
+    ///
+    /// Crate-internal so in-crate unit tests can assert registration
+    /// lifecycle without depending on the `test-support` feature, which
+    /// only gates the equivalent *public* test helper. Compiled only for
+    /// those two configurations — a default-feature build has no caller.
+    #[cfg(any(test, feature = "test-support"))]
+    pub(crate) fn registered_session_ids(&self) -> Vec<SessionId> {
+        self.inner.router.session_ids()
     }
 
     pub(crate) fn register_github_token_provider(
@@ -2477,6 +2501,11 @@ impl Client {
                 .on_github_telemetry
                 .is_some()
                 .then_some(true),
+            supported_task_kinds: Some(vec![
+                crate::generated::api_types::TaskKind::Agent,
+                crate::generated::api_types::TaskKind::Client,
+                crate::generated::api_types::TaskKind::Shell,
+            ]),
             // Declare the integrating application's identity so the runtime attributes
             // the telemetry it emits on this connection to a consistent surface
             // instead of its own build. `None` when the app didn't supply it, and
@@ -2589,6 +2618,24 @@ impl Client {
             self.inner.on_github_telemetry.clone(),
             self.inner.github_token_registry.clone(),
         );
+    }
+
+    #[cfg(feature = "test-support")]
+    #[doc(hidden)]
+    /// Snapshot the session IDs currently registered on this client's
+    /// notification router. This is test-harness plumbing, not part of the
+    /// supported SDK API.
+    pub fn registered_session_ids_for_test(&self) -> Vec<SessionId> {
+        self.registered_session_ids()
+    }
+
+    #[cfg(feature = "test-support")]
+    #[doc(hidden)]
+    /// Count the sessions currently registered on this client's notification
+    /// router. Deliberately never materialises the session IDs themselves so
+    /// they cannot leak into test diagnostics.
+    pub fn registered_session_count_for_test(&self) -> usize {
+        self.inner.router.session_count()
     }
 
     #[cfg(feature = "test-support")]

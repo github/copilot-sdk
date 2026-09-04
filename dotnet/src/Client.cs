@@ -766,7 +766,13 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                         s_stderrPumpShutdownTimeout);
                 }
 
-                AddCleanupError(errors, ex, logger);
+                // Once the owned process has exited, stderr is diagnostic-only. A descendant
+                // can briefly retain the inherited pipe on Windows, but that must not turn a
+                // successful process shutdown into a client cleanup failure.
+                if (!processExited)
+                {
+                    AddCleanupError(errors, ex, logger);
+                }
             }
             catch (Exception ex)
             {
@@ -2190,7 +2196,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                     // Declare the integrating application's identity so the runtime attributes the
                     // telemetry it emits on this connection to a consistent surface instead
                     // of its own build. Null when the app didn't supply it.
-                    ConnectHandshakeClientInfo.From(_options.ClientInfo))],
+                    ConnectHandshakeClientInfo.From(_options.ClientInfo),
+                    SupportedTaskKinds: [TaskKind.Agent, TaskKind.Client, TaskKind.Shell])],
                 connection.StderrBuffer,
                 cancellationToken);
             serverVersion = (int)connectResponse.ProtocolVersion;
@@ -3236,7 +3243,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     internal record ConnectHandshakeRequest(
         string? Token,
         [property: JsonPropertyName("enableGitHubTelemetryForwarding")] bool? EnableGitHubTelemetryForwarding = null,
-        [property: JsonPropertyName("clientInfo")] ConnectHandshakeClientInfo? ClientInfo = null);
+        [property: JsonPropertyName("clientInfo")] ConnectHandshakeClientInfo? ClientInfo = null,
+        [property: JsonPropertyName("supportedTaskKinds")] IList<TaskKind>? SupportedTaskKinds = null);
 
     internal record ConnectHandshakeClientInfo(
         [property: JsonPropertyName("editorName")] string? EditorName = null,

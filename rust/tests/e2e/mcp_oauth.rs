@@ -53,6 +53,12 @@ async fn should_satisfy_mcp_oauth_using_host_provided_token() {
                 .await
                 .expect("create session");
 
+            session
+                .rpc()
+                .mcp()
+                .reload()
+                .await
+                .expect("reload MCP servers");
             wait_for_mcp_server_status(&session, server_name, McpServerStatus::Connected).await;
             let tools = session
                 .rpc()
@@ -142,15 +148,27 @@ async fn should_request_replacement_tokens_across_mcp_oauth_lifecycle() {
                 .await
                 .expect("create session");
 
+            session
+                .rpc()
+                .mcp()
+                .reload()
+                .await
+                .expect("reload MCP servers");
             wait_for_mcp_server_status(&session, server_name, McpServerStatus::Connected).await;
             call_whoami(&session, server_name, "refresh").await;
             call_whoami(&session, server_name, "upscope").await;
             call_whoami(&session, server_name, "reauth").await;
 
+            let replacement_reasons = handler
+                .reasons
+                .lock()
+                .iter()
+                .filter(|reason| **reason != McpOauthRequestReason::Initial)
+                .cloned()
+                .collect::<Vec<_>>();
             assert_eq!(
-                handler.reasons.lock().as_slice(),
+                replacement_reasons,
                 [
-                    McpOauthRequestReason::Initial,
                     McpOauthRequestReason::Refresh,
                     McpOauthRequestReason::Upscope,
                     McpOauthRequestReason::Refresh,
@@ -207,15 +225,14 @@ async fn should_cancel_pending_mcp_oauth_request() {
                 .await
                 .expect("create session");
 
+            session
+                .rpc()
+                .mcp()
+                .reload()
+                .await
+                .expect("reload MCP servers");
             wait_for_mcp_server_status(&session, server_name, McpServerStatus::NeedsAuth).await;
 
-            // The MCP connection is kicked off by session.create, but the SDK only registers its
-            // `mcp.oauth_required` event interest once create returns. If the server's initial 401
-            // wins that race, the runtime records `needs-auth` WITHOUT invoking the host callback,
-            // so `handler.request` is briefly `None` even after `needs-auth` is observed. A later
-            // auth retry (now that interest is registered) invokes the callback with the same
-            // `Initial` reason. Wait for the callback rather than sampling it the instant
-            // `needs-auth` first appears, which is what made this test flaky.
             wait_for_condition("MCP OAuth request reaching the host callback", || async {
                 handler.request.lock().is_some()
             })

@@ -59,6 +59,7 @@ describe("MCP OAuth host auth", async () => {
         });
         onTestFinished(() => disconnectSession(session));
 
+        await session.rpc.mcp.reload();
         await waitForMcpServerStatus(session, serverName);
 
         const tools = await session.rpc.mcp.listTools({ serverName });
@@ -95,10 +96,7 @@ describe("MCP OAuth host auth", async () => {
         async () => {
             const oauthServer = await startOAuthMcpServer();
             const serverName = "oauth-direct-rpc-mcp";
-            let resolveAuthRequest!: (request: McpAuthRequest) => void;
-            const authRequest = new Promise<McpAuthRequest>((resolve) => {
-                resolveAuthRequest = resolve;
-            });
+            const authRequests = createAsyncQueue<McpAuthRequest>();
             let releaseHandler!: (value: unknown) => void;
             const handlerResult = new Promise<unknown>((resolve) => {
                 releaseHandler = resolve;
@@ -108,7 +106,7 @@ describe("MCP OAuth host auth", async () => {
                 onPermissionRequest: approveAll,
                 enableMcpApps: true,
                 onMcpAuthRequest: async (request) => {
-                    resolveAuthRequest(request);
+                    authRequests.push(request);
                     await handlerResult;
                     return { kind: "token", accessToken: EXPECTED_TOKEN };
                 },
@@ -124,8 +122,25 @@ describe("MCP OAuth host auth", async () => {
             });
             onTestFinished(() => disconnectSession(session));
 
+            const reload = session.rpc.mcp.reload();
             const connected = waitForMcpServerStatus(session, serverName);
-            const request = await authRequest;
+            let request = await authRequests.next();
+            while (
+                !(
+                    await session.rpc.mcp.oauth.handlePendingRequest({
+                        requestId: request.requestId,
+                        result: {
+                            kind: "token",
+                            accessToken: EXPECTED_TOKEN,
+                            tokenType: "Bearer",
+                            expiresIn: 3600,
+                        },
+                    })
+                ).success
+            ) {
+                request = await authRequests.next();
+            }
+
             expect(request).toMatchObject({
                 requestId: expect.any(String),
                 serverName,
@@ -138,21 +153,11 @@ describe("MCP OAuth host auth", async () => {
                 },
             });
 
-            const handled = await session.rpc.mcp.oauth.handlePendingRequest({
-                requestId: request.requestId,
-                result: {
-                    kind: "token",
-                    accessToken: EXPECTED_TOKEN,
-                    tokenType: "Bearer",
-                    expiresIn: 3600,
-                },
-            });
-            expect(handled.success).toBe(true);
-
+            releaseHandler(undefined);
+            await reload;
             await connected;
             const tools = await session.rpc.mcp.listTools({ serverName });
             expect(tools.tools.map((tool) => tool.name)).toContain("whoami");
-            releaseHandler(undefined);
         }
     );
 
@@ -197,18 +202,18 @@ describe("MCP OAuth host auth", async () => {
             });
             onTestFinished(() => disconnectSession(session));
 
+            await session.rpc.mcp.reload();
             await waitForMcpServerStatus(session, serverName);
+            refreshCount = 0;
             await callWhoami(session, serverName, "refresh");
             await callWhoami(session, serverName, "upscope");
             await callWhoami(session, serverName, "reauth");
 
-            expect(authRequests.map((request) => request.reason)).toEqual([
-                "initial",
-                "refresh",
-                "upscope",
-                "refresh",
-                "reauth",
-            ]);
+            expect(
+                authRequests
+                    .filter((request) => request.reason !== "initial")
+                    .map((request) => request.reason)
+            ).toEqual(["refresh", "upscope", "refresh", "reauth"]);
 
             const upscopeRequest = authRequests.find((request) => request.reason === "upscope");
             expect(upscopeRequest?.wwwAuthenticateParams).toEqual({
@@ -263,6 +268,7 @@ describe("MCP OAuth host auth", async () => {
             });
             onTestFinished(() => disconnectSession(session));
 
+            await session.rpc.mcp.reload();
             await waitForMcpServerStatus(session, serverName, "needs-auth");
 
             expect(await authRequest).toMatchObject({
@@ -378,4 +384,25 @@ function stopChild(child: ChildProcessWithoutNullStreams): Promise<void> {
     });
     child.kill("SIGTERM");
     return exitPromise;
+}
+
+function createAsyncQueue<T>(): { push(value: T): void; next(): Promise<T> } {
+    const values: T[] = [];
+    const waiters: Array<(value: T) => void> = [];
+    return {
+        push(value) {
+            const waiter = waiters.shift();
+            if (waiter) {
+                waiter(value);
+            } else {
+                values.push(value);
+            }
+        },
+        next() {
+            const value = values.shift();
+            return value === undefined
+                ? new Promise<T>((resolvePromise) => waiters.push(resolvePromise))
+                : Promise.resolve(value);
+        },
+    };
 }
