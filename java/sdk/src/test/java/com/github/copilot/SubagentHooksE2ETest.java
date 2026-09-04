@@ -25,6 +25,7 @@ import com.github.copilot.rpc.MessageOptions;
 import com.github.copilot.rpc.PermissionHandler;
 import com.github.copilot.rpc.PostToolUseHookOutput;
 import com.github.copilot.rpc.PreToolUseHookOutput;
+import com.github.copilot.rpc.RuntimeConnection;
 import com.github.copilot.rpc.SessionConfig;
 import com.github.copilot.rpc.SessionHooks;
 
@@ -42,8 +43,9 @@ public class SubagentHooksE2ETest {
             HashMap<String, String> env = new HashMap<>(ctx.getEnvironment());
             env.put("COPILOT_EXP_COPILOT_CLI_SESSION_BASED_SUBAGENTS", "true");
 
-            try (CopilotClient client = ctx
-                    .createClient(new CopilotClientOptions().setEnvironment(env).setRequestHandler(requestHandler))) {
+            try (CopilotClient client = ctx.createClient(
+                    new CopilotClientOptions().setConnection(RuntimeConnection.forStdio().setEnvironment(env))
+                            .setRequestHandler(requestHandler))) {
                 CopilotSession session = client
                         .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
                                 .setHooks(new SessionHooks().setOnPreToolUse((input, invocation) -> {

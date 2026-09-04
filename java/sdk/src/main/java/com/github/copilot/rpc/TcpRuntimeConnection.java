@@ -5,13 +5,19 @@
 package com.github.copilot.rpc;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import com.github.copilot.CopilotExperimental;
 
 /**
  * Spawns a runtime child process listening on a TCP socket and connects to it.
  * Construct with {@link RuntimeConnection#forTcp()}.
+ * <p>
+ * Process-scoped settings are configured on this out-of-process connection, not
+ * on {@link CopilotClientOptions}, because they do not apply to in-process
+ * (FFI) hosting.
  *
  * @since 1.0.0
  */
@@ -19,9 +25,11 @@ import com.github.copilot.CopilotExperimental;
 public final class TcpRuntimeConnection extends RuntimeConnection {
 
     private String path;
+    private String workingDirectory;
     private int port;
     private String connectionToken;
     private List<String> args;
+    private Map<String, String> environment;
 
     TcpRuntimeConnection() {
     }
@@ -46,6 +54,29 @@ public final class TcpRuntimeConnection extends RuntimeConnection {
      */
     public TcpRuntimeConnection setPath(String path) {
         this.path = path;
+        return this;
+    }
+
+    /**
+     * Returns the working directory for the spawned runtime process.
+     *
+     * @return the working directory path, or {@code null} to inherit the current
+     *         process working directory
+     */
+    public String getWorkingDirectory() {
+        return workingDirectory;
+    }
+
+    /**
+     * Sets the working directory for the spawned runtime process.
+     *
+     * @param workingDirectory
+     *            the working directory path, or {@code null} to inherit the current
+     *            process working directory
+     * @return this instance for method chaining
+     */
+    public TcpRuntimeConnection setWorkingDirectory(String workingDirectory) {
+        this.workingDirectory = workingDirectory;
         return this;
     }
 
@@ -111,6 +142,40 @@ public final class TcpRuntimeConnection extends RuntimeConnection {
      */
     public TcpRuntimeConnection setArgs(List<String> args) {
         this.args = args == null ? null : new ArrayList<>(args);
+        return this;
+    }
+
+    /**
+     * Returns the environment variables for the spawned runtime process.
+     * <p>
+     * Returns a shallow copy of the internal map, or {@code null} if no environment
+     * has been set.
+     *
+     * @return a copy of the environment variables map, or {@code null}
+     */
+    public Map<String, String> getEnvironment() {
+        return environment != null ? new HashMap<>(environment) : null;
+    }
+
+    /**
+     * Sets environment variables to pass to the spawned runtime process.
+     * <p>
+     * When set, these environment variables replace the inherited environment. A
+     * shallow copy of the provided map is stored. If {@code null} or empty, the
+     * existing environment is cleared.
+     *
+     * @param environment
+     *            the environment variables map, or {@code null}/empty to clear
+     * @return this instance for method chaining
+     */
+    public TcpRuntimeConnection setEnvironment(Map<String, String> environment) {
+        if (environment == null || environment.isEmpty()) {
+            if (this.environment != null) {
+                this.environment.clear();
+            }
+        } else {
+            this.environment = new HashMap<>(environment);
+        }
         return this;
     }
 }

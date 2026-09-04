@@ -20,6 +20,7 @@ import com.github.copilot.generated.rpc.AccountLogoutParams;
 import com.github.copilot.generated.rpc.UserSettingMetadata;
 import com.github.copilot.generated.rpc.UserSettingsSetParams;
 import com.github.copilot.rpc.CopilotClientOptions;
+import com.github.copilot.rpc.RuntimeConnection;
 
 class RpcServerMiscE2ETest {
 
@@ -82,9 +83,10 @@ class RpcServerMiscE2ETest {
         env.put("GITHUB_TOKEN", "");
         env.put("COPILOT_SDK_AUTH_TOKEN", "");
 
-        try (var client = new CopilotClient(
-                new CopilotClientOptions().setCliPath(ctx.getCliPath()).setCwd(ctx.getWorkDir().toString())
-                        .setEnvironment(env).setGitHubToken("").setUseLoggedInUser(false))) {
+        try (var client = new CopilotClient(new CopilotClientOptions()
+                .setConnection(RuntimeConnection.forStdio(ctx.getCliPath())
+                        .setWorkingDirectory(ctx.getWorkDir().toString()).setEnvironment(env))
+                .setGitHubToken("").setUseLoggedInUser(false))) {
             client.start().get(30, TimeUnit.SECONDS);
 
             var initial = client.getRpc().account.getCurrentAuth().get(30, TimeUnit.SECONDS);

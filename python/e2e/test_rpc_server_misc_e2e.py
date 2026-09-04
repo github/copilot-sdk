@@ -33,9 +33,11 @@ pytestmark = pytest.mark.asyncio(loop_scope="module")
 
 def _create_dedicated_client(ctx: E2ETestContext) -> CopilotClient:
     return CopilotClient(
-        connection=RuntimeConnection.for_stdio(path=ctx.cli_path),
-        working_directory=ctx.work_dir,
-        env=ctx.get_env(),
+        connection=RuntimeConnection.for_stdio(
+            path=ctx.cli_path,
+            working_directory=ctx.work_dir,
+            env=ctx.get_env(),
+        ),
         github_token=DEFAULT_GITHUB_TOKEN,
     )
 
@@ -53,9 +55,11 @@ async def _create_isolated_client(
         env["GH_TOKEN"] = ""
         env["GITHUB_TOKEN"] = ""
     client = CopilotClient(
-        connection=RuntimeConnection.for_stdio(path=ctx.cli_path),
-        working_directory=ctx.work_dir,
-        env=env,
+        connection=RuntimeConnection.for_stdio(
+            path=ctx.cli_path,
+            working_directory=ctx.work_dir,
+            env=env,
+        ),
         github_token=github_token,
         use_logged_in_user=False if github_token is None else None,
     )

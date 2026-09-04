@@ -572,7 +572,9 @@ func assertSkillState(t *testing.T, list *rpc.SkillList, name string, enabled bo
 
 func createMCPAppsClient(ctx *testharness.TestContext) *copilot.Client {
 	return ctx.NewClient(func(opts *copilot.ClientOptions) {
-		opts.Env = append(opts.Env, "COPILOT_MCP_APPS=true", "MCP_APPS=true")
+		conn := opts.Connection.(copilot.StdioConnection)
+		conn.Env = append(conn.Env, "COPILOT_MCP_APPS=true", "MCP_APPS=true")
+		opts.Connection = conn
 	})
 }
 

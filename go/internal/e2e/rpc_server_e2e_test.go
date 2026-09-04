@@ -179,7 +179,9 @@ func TestRPCServerE2E(t *testing.T) {
 	t.Run("should add secret filter values", func(t *testing.T) {
 		ctx := testharness.NewTestContext(t)
 		client := ctx.NewClient(func(opts *copilot.ClientOptions) {
-			opts.Env = append(opts.Env, "COPILOT_ENABLE_SECRET_FILTERING=true")
+			conn := opts.Connection.(copilot.StdioConnection)
+			conn.Env = append(conn.Env, "COPILOT_ENABLE_SECRET_FILTERING=true")
+			opts.Connection = conn
 		})
 		t.Cleanup(func() { client.ForceStop() })
 
@@ -702,7 +704,9 @@ func TestRPCServerE2E(t *testing.T) {
 // newAuthenticatedClient builds a client that resolves auth through the test proxy.
 func newAuthenticatedClient(ctx *testharness.TestContext, token string) *copilot.Client {
 	return ctx.NewClient(func(opts *copilot.ClientOptions) {
-		opts.Env = append(opts.Env, "COPILOT_DEBUG_GITHUB_API_URL="+ctx.ProxyURL)
+		conn := opts.Connection.(copilot.StdioConnection)
+		conn.Env = append(conn.Env, "COPILOT_DEBUG_GITHUB_API_URL="+ctx.ProxyURL)
+		opts.Connection = conn
 		opts.GitHubToken = token
 	})
 }

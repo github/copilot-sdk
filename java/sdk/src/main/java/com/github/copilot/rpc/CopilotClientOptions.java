@@ -7,9 +7,7 @@ package com.github.copilot.rpc;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalInt;
@@ -35,8 +33,8 @@ import com.github.copilot.generated.rpc.GitHubTelemetryNotification;
  * <h2>Example Usage</h2>
  *
  * <pre>{@code
- * var options = new CopilotClientOptions().setCliPath("/usr/local/bin/copilot").setLogLevel("debug")
- * 		.setAutoStart(true);
+ * var options = new CopilotClientOptions().setConnection(RuntimeConnection.forStdio("/usr/local/bin/copilot"))
+ * 		.setLogLevel("debug").setAutoStart(true);
  *
  * var client = new CopilotClient(options);
  * }</pre>
@@ -57,8 +55,6 @@ public class CopilotClientOptions {
     private RuntimeConnection connection;
     private ClientInfo clientInfo;
     private String copilotHome;
-    private String cwd;
-    private Map<String, String> environment;
     private Executor executor;
     private String gitHubToken;
     private String logLevel = "info";
@@ -267,6 +263,12 @@ public class CopilotClientOptions {
      * throw {@link IllegalArgumentException}. Values that match what the connection
      * implies are accepted, so the same options instance can be reused across
      * multiple client constructions.
+     * <p>
+     * Process-scoped settings such as {@code workingDirectory} and
+     * {@code environment} are configured on the out-of-process connection
+     * ({@link StdioRuntimeConnection}/{@link TcpRuntimeConnection}), not on
+     * {@code CopilotClientOptions}, because they do not apply to in-process (FFI)
+     * hosting.
      *
      * @param connection
      *            the connection, or {@code null} to infer the transport from the
@@ -307,61 +309,6 @@ public class CopilotClientOptions {
      */
     public CopilotClientOptions setCopilotHome(String copilotHome) {
         this.copilotHome = copilotHome;
-        return this;
-    }
-
-    /**
-     * Gets the working directory for the CLI process.
-     *
-     * @return the working directory path
-     */
-    public String getCwd() {
-        return cwd;
-    }
-
-    /**
-     * Sets the working directory for the CLI process.
-     *
-     * @param cwd
-     *            the working directory path, or {@code null} to clear
-     * @return this options instance for method chaining
-     */
-    public CopilotClientOptions setCwd(String cwd) {
-        this.cwd = cwd;
-        return this;
-    }
-
-    /**
-     * Gets the environment variables for the CLI process.
-     * <p>
-     * Returns a shallow copy of the internal map, or {@code null} if no environment
-     * has been set.
-     *
-     * @return a copy of the environment variables map, or {@code null}
-     */
-    public Map<String, String> getEnvironment() {
-        return environment != null ? new HashMap<>(environment) : null;
-    }
-
-    /**
-     * Sets environment variables to pass to the CLI process.
-     * <p>
-     * When set, these environment variables replace the inherited environment. A
-     * shallow copy of the provided map is stored. If {@code null} or empty, the
-     * existing environment is cleared.
-     *
-     * @param environment
-     *            the environment variables map, or {@code null}/empty to clear
-     * @return this options instance for method chaining
-     */
-    public CopilotClientOptions setEnvironment(Map<String, String> environment) {
-        if (environment == null || environment.isEmpty()) {
-            if (this.environment != null) {
-                this.environment.clear();
-            }
-        } else {
-            this.environment = new HashMap<>(environment);
-        }
         return this;
     }
 
@@ -843,9 +790,8 @@ public class CopilotClientOptions {
      * Creates a shallow clone of this {@code CopilotClientOptions} instance.
      * <p>
      * Array properties (like {@code cliArgs}) are copied into new arrays so that
-     * modifications to the clone do not affect the original. The
-     * {@code environment} map is also copied to a new map instance. Other
-     * reference-type properties are shared between the original and clone.
+     * modifications to the clone do not affect the original. Other reference-type
+     * properties are shared between the original and clone.
      *
      * @return a clone of this options instance
      */
@@ -863,8 +809,6 @@ public class CopilotClientOptions {
         copy.connection = this.connection;
         copy.clientInfo = this.clientInfo;
         copy.copilotHome = this.copilotHome;
-        copy.cwd = this.cwd;
-        copy.environment = this.environment != null ? new java.util.HashMap<>(this.environment) : null;
         copy.executor = this.executor;
         copy.gitHubToken = this.gitHubToken;
         copy.logLevel = this.logLevel;

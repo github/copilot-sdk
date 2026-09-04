@@ -568,8 +568,10 @@ class RuntimeConnection:
         *,
         path: str | None = None,
         args: Sequence[str] = (),
+        working_directory: str | None = None,
+        env: dict[str, str] | None = None,
     ) -> StdioRuntimeConnection:
-        """Spawn a runtime child process and communicate over its stdin/stdout.
+        """Spawn an out-of-process runtime and communicate over its stdin/stdout.
 
         This is the default when no :attr:`CopilotClientOptions.connection`
         is supplied.
@@ -578,8 +580,18 @@ class RuntimeConnection:
             path: Path to the runtime executable. When ``None``, uses the
                 bundled binary.
             args: Extra command-line arguments passed to the runtime process.
+            working_directory: Working directory for the spawned runtime
+                process. When ``None``, inherits the current process working
+                directory.
+            env: Environment variables for the spawned runtime process. When
+                ``None``, inherits the current process environment.
         """
-        return StdioRuntimeConnection(path=path, args=tuple(args))
+        return StdioRuntimeConnection(
+            path=path,
+            args=tuple(args),
+            working_directory=working_directory,
+            env=env,
+        )
 
     @staticmethod
     def for_tcp(
@@ -588,8 +600,10 @@ class RuntimeConnection:
         connection_token: str | None = None,
         path: str | None = None,
         args: Sequence[str] = (),
+        working_directory: str | None = None,
+        env: dict[str, str] | None = None,
     ) -> TcpRuntimeConnection:
-        """Spawn a runtime child process listening on a TCP socket.
+        """Spawn an out-of-process runtime listening on a TCP socket.
 
         Args:
             port: TCP port to listen on. ``0`` (the default) auto-allocates
@@ -602,10 +616,17 @@ class RuntimeConnection:
             path: Path to the runtime executable. When ``None``, uses the
                 bundled binary.
             args: Extra command-line arguments passed to the runtime process.
+            working_directory: Working directory for the spawned runtime
+                process. When ``None``, inherits the current process working
+                directory.
+            env: Environment variables for the spawned runtime process. When
+                ``None``, inherits the current process environment.
         """
         return TcpRuntimeConnection(
             path=path,
             args=tuple(args),
+            working_directory=working_directory,
+            env=env,
             port=port,
             connection_token=connection_token,
         )
@@ -630,18 +651,18 @@ class RuntimeConnection:
         **Experimental.** The in-process (FFI) transport is experimental and its
         behavior may change or be removed in a future release.
 
-        Instead of spawning the runtime as a child process, the SDK loads the
+        Instead of spawning the runtime out-of-process, the SDK loads the
         runtime's native shared library into this process and drives JSON-RPC
         over its C ABI.
 
-        Because the runtime loads into this single shared process, per-client
-        options that lower to environment variables or a working directory
-        cannot be honored: :attr:`CopilotClientOptions.env`,
-        :attr:`CopilotClientOptions.telemetry`, and
-        :attr:`CopilotClientOptions.working_directory` are rejected with this
-        transport. Set those on the host process before creating the client.
-        Set ``COPILOT_CLI_PATH`` only when using an externally provisioned
-        compatible runtime package.
+        Because the runtime loads into this single shared process, client-wide
+        telemetry configuration cannot be honored here: it lowers to
+        environment variables read by native runtime code running in the shared
+        host process, so :attr:`CopilotClientOptions.telemetry` is rejected.
+        Other process-scoped launch settings live on
+        :class:`OutOfProcessRuntimeConnection`, which this transport does not
+        use. Set ``COPILOT_CLI_PATH`` only when using an externally
+        provisioned compatible runtime package.
 
         Note:
             Pre-provision the native runtime with
@@ -652,10 +673,11 @@ class RuntimeConnection:
 
 
 @dataclass
-class ChildProcessRuntimeConnection(RuntimeConnection):
-    """Base for :class:`RuntimeConnection` variants that spawn a runtime child process.
+class OutOfProcessRuntimeConnection(RuntimeConnection):
+    """Base for :class:`RuntimeConnection` variants that spawn a runtime process.
 
-    Construct via :meth:`RuntimeConnection.stdio` or :meth:`RuntimeConnection.tcp`.
+    Construct via :meth:`RuntimeConnection.for_stdio` or
+    :meth:`RuntimeConnection.for_tcp`.
     """
 
     path: str | None = None
@@ -664,27 +686,30 @@ class ChildProcessRuntimeConnection(RuntimeConnection):
     args: Sequence[str] = ()
     """Extra command-line arguments passed to the runtime process."""
 
-    env: dict[str, str] | None = None
-    """Per-connection environment variables for the spawned child process.
+    working_directory: str | None = None
+    """Working directory for the spawned runtime process.
 
-    When set, do not also set :attr:`CopilotClientOptions.env` — the client
-    rejects setting environment in both places. ``None`` inherits the
-    client-level env (or the current process env)."""
+    ``None`` inherits the current process working directory."""
+
+    env: dict[str, str] | None = None
+    """Environment variables for the spawned runtime process.
+
+    ``None`` inherits the current process environment."""
 
 
 @dataclass
-class StdioRuntimeConnection(ChildProcessRuntimeConnection):
-    """Spawns a runtime child process and communicates over its stdin/stdout.
+class StdioRuntimeConnection(OutOfProcessRuntimeConnection):
+    """Spawns an out-of-process runtime and communicates over its stdin/stdout.
 
-    Construct via :meth:`RuntimeConnection.stdio`.
+    Construct via :meth:`RuntimeConnection.for_stdio`.
     """
 
 
 @dataclass
-class TcpRuntimeConnection(ChildProcessRuntimeConnection):
-    """Spawns a runtime child process listening on a TCP socket.
+class TcpRuntimeConnection(OutOfProcessRuntimeConnection):
+    """Spawns an out-of-process runtime listening on a TCP socket.
 
-    Construct via :meth:`RuntimeConnection.tcp`.
+    Construct via :meth:`RuntimeConnection.for_tcp`.
     """
 
     port: int = 0
@@ -806,9 +831,7 @@ class _CopilotClientOptions:
     """
 
     connection: RuntimeConnection | None = None
-    working_directory: str | None = None
     log_level: LogLevel = "info"
-    env: dict[str, str] | None = None
     github_token: str | None = None
     base_directory: str | None = None
     builtin_plugin_directories: tuple[str, ...] = ()
@@ -1477,50 +1500,23 @@ def _resolve_default_connection(env: Mapping[str, str]) -> RuntimeConnection:
 def _validate_environment_options(
     options: _CopilotClientOptions, connection: RuntimeConnection
 ) -> None:
-    """Validate env/telemetry/working-directory options against the transport.
+    """Validate client options that depend on the selected transport.
 
-    Per-client environment is only representable for child-process transports
-    (each client owns its own OS process). The in-process (FFI) transport loads
-    the native runtime into the shared host process, whose single environment
-    block and process-global working directory cannot carry per-client values,
-    so options that lower to them are rejected there (fail loud, not silent).
+    The in-process (FFI) transport loads the native runtime into the shared
+    host process, so client-wide telemetry cannot be honored there: it lowers
+    to environment variables read by native code in that shared process. Fail
+    loudly instead of silently ignoring the setting.
     """
     if isinstance(connection, InProcessRuntimeConnection):
-        if options.env is not None:
-            raise ValueError(
-                "env is not supported with RuntimeConnection.for_inprocess(): the "
-                "in-process transport loads the native runtime into the shared host "
-                "process, whose single environment block cannot carry per-client "
-                "values. Set the variables on the host process environment instead."
-            )
         if options.telemetry is not None:
             raise ValueError(
                 "telemetry is not supported with RuntimeConnection.for_inprocess(): "
                 "telemetry configuration is lowered to environment variables read by "
                 "native runtime code running in the shared host process, so per-client "
                 "telemetry cannot be honored in-process. Configure telemetry via the "
-                "host process environment, or use a child-process transport."
-            )
-        if options.working_directory is not None:
-            raise ValueError(
-                "working_directory is not supported with RuntimeConnection.for_inprocess(): "
-                "the native runtime shares the host process working directory, so a "
-                "per-client working directory cannot be honored in-process. Use a "
-                "child-process "
-                "transport, or set the process working directory before creating the client."
+                "host process environment, or use an out-of-process transport."
             )
         return
-
-    if (
-        isinstance(connection, ChildProcessRuntimeConnection)
-        and connection.env is not None
-        and options.env is not None
-    ):
-        raise ValueError(
-            "Set environment variables via either the client-level env argument or "
-            "ChildProcessRuntimeConnection.env, not both. Prefer the connection-level "
-            "env for child-process transports."
-        )
 
 
 class CopilotClient:
@@ -1561,9 +1557,7 @@ class CopilotClient:
         self,
         *,
         connection: RuntimeConnection | None = None,
-        working_directory: str | None = None,
         log_level: LogLevel = "info",
-        env: dict[str, str] | None = None,
         github_token: str | None = None,
         base_directory: str | None = None,
         builtin_plugin_directories: Sequence[str] | None = None,
@@ -1582,21 +1576,18 @@ class CopilotClient:
         """
         Initialize a new CopilotClient.
 
-        Runtime options apply to locally hosted connections. The in-process
-        transport supports typed runtime options such as ``log_level``,
-        ``github_token``, and ``base_directory``, but rejects per-client
-        ``working_directory``, ``env``, and ``telemetry``. Options are ignored
-        when connecting to an existing runtime via
-        :meth:`RuntimeConnection.for_uri`.
+        Runtime options apply to locally hosted connections. Process-scoped
+        launch settings such as working directory and environment live on
+        :class:`OutOfProcessRuntimeConnection` for stdio/TCP transports. The
+        in-process transport supports typed runtime options such as
+        ``log_level``, ``github_token``, and ``base_directory``, but rejects
+        client-wide ``telemetry``. Options are ignored when connecting to an
+        existing runtime via :meth:`RuntimeConnection.for_uri`.
 
         Args:
             connection: How to reach the runtime. Defaults to
                 :meth:`RuntimeConnection.for_stdio` with the bundled binary.
-            working_directory: Working directory for the runtime process.
-                ``None`` uses the current directory.
             log_level: Log level for the runtime process. Defaults to ``"info"``.
-            env: Environment variables for the runtime process. ``None`` inherits
-                the current env.
             github_token: GitHub token for authentication. Takes priority over
                 other auth methods.
             base_directory: Base directory for Copilot data (session state,
@@ -1647,15 +1638,17 @@ class CopilotClient:
             >>>
             >>> # Custom runtime path with specific log level
             >>> client = CopilotClient(
-            ...     connection=RuntimeConnection.for_stdio(path="/usr/local/bin/copilot"),
+            ...     connection=RuntimeConnection.for_stdio(
+            ...         path="/usr/local/bin/copilot",
+            ...         working_directory="/srv/app",
+            ...         env={"MY_VAR": "value"},
+            ...     ),
             ...     log_level="debug",
             ... )
         """
         options = _CopilotClientOptions(
             connection=connection,
-            working_directory=working_directory,
             log_level=log_level,
-            env=env,
             github_token=github_token,
             base_directory=base_directory,
             builtin_plugin_directories=tuple(builtin_plugin_directories or ()),
@@ -1708,14 +1701,14 @@ class CopilotClient:
             self._runtime_port: int | None = actual_port
             self._effective_connection_token: str | None = connection.connection_token
         elif isinstance(connection, InProcessRuntimeConnection):
-            # In-process (FFI): no child process and no per-connection token.
+            # In-process (FFI): no out-of-process runtime and no per-connection token.
             self._runtime_port = None
             self._effective_connection_token = None
             self._inprocess_runtime_path = self._resolve_inprocess_runtime()
             if options.use_logged_in_user is None:
                 options.use_logged_in_user = not bool(options.github_token)
         else:
-            assert isinstance(connection, ChildProcessRuntimeConnection)
+            assert isinstance(connection, OutOfProcessRuntimeConnection)
             self._runtime_port = None
 
             if isinstance(connection, TcpRuntimeConnection):
@@ -1739,8 +1732,6 @@ class CopilotClient:
             # unexpectedly honoring a host COPILOT_CLI_PATH.
             if connection.env is not None:
                 effective_env: Mapping[str, str] = connection.env
-            elif options.env is not None:
-                effective_env = options.env
             else:
                 effective_env = os.environ
             connection.path = self._resolve_runtime_entrypoint(connection.path, env=effective_env)
@@ -4323,7 +4314,7 @@ class CopilotClient:
             await self._start_inprocess_ffi()
             return
 
-        assert isinstance(self._connection, ChildProcessRuntimeConnection)
+        assert isinstance(self._connection, OutOfProcessRuntimeConnection)
         conn = self._connection
         opts = self._options
         use_stdio = isinstance(conn, StdioRuntimeConnection)
@@ -4375,16 +4366,13 @@ class CopilotClient:
             },
         )
 
-        # Get environment variables. Per-connection env (ChildProcessRuntimeConnection.env)
-        # takes precedence over the client-level env; the constructor already rejects
-        # setting both. When neither is set, inherit the current process environment.
-        conn_env = conn.env if isinstance(conn, ChildProcessRuntimeConnection) else None
+        # Get environment variables from the out-of-process connection, or inherit the
+        # current process environment when none are supplied.
+        conn_env = conn.env if isinstance(conn, OutOfProcessRuntimeConnection) else None
         if conn_env is not None:
             env = dict(conn_env)
-        elif opts.env is None:
-            env = dict(os.environ)
         else:
-            env = dict(opts.env)
+            env = dict(os.environ)
         # Set auth token in environment if provided
         if opts.github_token:
             env["COPILOT_SDK_AUTH_TOKEN"] = opts.github_token
@@ -4421,7 +4409,7 @@ class CopilotClient:
         # On Windows, hide the console window to avoid distracting users in GUI apps
         creationflags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
 
-        cwd = opts.working_directory or os.getcwd()
+        cwd = conn.working_directory or os.getcwd()
 
         # Choose transport mode
         spawn_start = time.perf_counter()

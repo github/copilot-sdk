@@ -31,10 +31,12 @@ describe("Server-scoped RPC", async () => {
             ...extraEnv,
         };
         const extraClient = new CopilotClient({
-            workingDirectory: workDir,
-            env: childEnv,
             logLevel: "error",
-            connection: RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH }),
+            connection: RuntimeConnection.forStdio({
+                path: process.env.COPILOT_CLI_PATH,
+                workingDirectory: workDir,
+                env: childEnv,
+            }),
             gitHubToken: token,
         });
         onTestFinished(async () => {

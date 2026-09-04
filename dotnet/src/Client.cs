@@ -139,7 +139,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     public CopilotClient(CopilotClientOptions? options = null)
     {
         _options = options ?? new();
-        _connection = _options.Connection ?? ResolveDefaultConnection(_options);
+        _connection = _options.Connection ?? ResolveDefaultConnection();
         _builtinPluginDirectories = _options.BuiltinPluginDirectories?.ToArray() ?? [];
         foreach (var path in _builtinPluginDirectories.Where(path => !IsFullyQualifiedPath(path)))
         {
@@ -185,7 +185,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 throw new ArgumentException($"Unsupported RuntimeConnection type: {_connection.GetType().Name}", nameof(options));
         }
 
-        ValidateEnvironmentOptions(_options, _connection);
+        ValidateTransportOptions(_options, _connection);
 
         _logger = _options.Logger ?? NullLogger.Instance;
         _onListModels = _options.OnListModels;
@@ -216,27 +216,16 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     }
 
     /// <summary>
-    /// Validates environment-variable options against the resolved transport.
-    /// Per-client environment is only representable for child-process transports
-    /// (each client owns its own OS process). The in-process (FFI) transport
-    /// loads the native runtime into the shared host process, whose single
-    /// environment block cannot carry per-client values, so environment and
-    /// telemetry options that lower to environment variables are rejected there.
+    /// Validates options against the resolved transport.
+    /// Process-scoped settings live on <see cref="OutOfProcessRuntimeConnection"/>,
+    /// so the remaining transport-specific client validation is that in-process
+    /// hosting rejects telemetry configuration, which lowers to environment
+    /// variables on the shared host process.
     /// </summary>
-    private static void ValidateEnvironmentOptions(CopilotClientOptions options, RuntimeConnection connection)
+    private static void ValidateTransportOptions(CopilotClientOptions options, RuntimeConnection connection)
     {
         if (connection is InProcessRuntimeConnection)
         {
-            if (options.Environment is not null)
-            {
-                throw new ArgumentException(
-                    $"{nameof(CopilotClientOptions)}.{nameof(CopilotClientOptions.Environment)} is not supported with " +
-                    $"{nameof(RuntimeConnection)}.{nameof(RuntimeConnection.ForInProcess)}(): the in-process transport " +
-                    "loads the native runtime into the shared host process, whose single environment block cannot carry " +
-                    "per-client values. Set the variables on the host process environment instead.",
-                    nameof(options));
-            }
-
             if (options.Telemetry is not null)
             {
                 throw new ArgumentException(
@@ -244,32 +233,9 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                     $"{nameof(RuntimeConnection)}.{nameof(RuntimeConnection.ForInProcess)}(): telemetry configuration is " +
                     "lowered to environment variables read by native runtime code running in the shared host process, so " +
                     "per-client telemetry cannot be honored in-process. Configure telemetry via the host process " +
-                    "environment, or use a child-process transport.",
+                    "environment, or use an out-of-process transport.",
                     nameof(options));
             }
-
-            if (options.WorkingDirectory is not null)
-            {
-                throw new ArgumentException(
-                    $"{nameof(CopilotClientOptions)}.{nameof(CopilotClientOptions.WorkingDirectory)} is not supported with " +
-                    $"{nameof(RuntimeConnection)}.{nameof(RuntimeConnection.ForInProcess)}(): the in-process transport hosts " +
-                    "the native runtime in the shared host process and spawns the worker without a working-directory " +
-                    "parameter, so a per-client working directory cannot be honored in-process. Use a child-process " +
-                    "transport, or set the process working directory before creating the client.",
-                    nameof(options));
-            }
-
-            return;
-        }
-
-        if (connection is ChildProcessRuntimeConnection { Environment: not null } && options.Environment is not null)
-        {
-            throw new ArgumentException(
-                $"Set environment variables via either {nameof(CopilotClientOptions)}.{nameof(CopilotClientOptions.Environment)} " +
-                $"or {nameof(ChildProcessRuntimeConnection)}.{nameof(ChildProcessRuntimeConnection.Environment)}, not both. " +
-                $"Prefer {nameof(ChildProcessRuntimeConnection)}.{nameof(ChildProcessRuntimeConnection.Environment)} for " +
-                "child-process transports.",
-                nameof(options));
         }
     }
 
@@ -286,12 +252,9 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// Resolves the default <see cref="RuntimeConnection"/> for the no-Connection case,
     /// honoring <see cref="DefaultConnectionEnvVar"/>.
     /// </summary>
-    private static RuntimeConnection ResolveDefaultConnection(CopilotClientOptions options)
+    private static RuntimeConnection ResolveDefaultConnection()
     {
-        var value = options.Environment is not null
-            && options.Environment.TryGetValue(DefaultConnectionEnvVar, out var fromOptions)
-                ? fromOptions
-                : Environment.GetEnvironmentVariable(DefaultConnectionEnvVar);
+        var value = Environment.GetEnvironmentVariable(DefaultConnectionEnvVar);
 
         if (string.IsNullOrEmpty(value) || string.Equals(value, "stdio", StringComparison.OrdinalIgnoreCase))
         {
@@ -2265,18 +2228,18 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     {
         var options = _options;
         var logger = _logger;
-        var childProcessConnection = (ChildProcessRuntimeConnection)_connection;
+        var outOfProcessConnection = (OutOfProcessRuntimeConnection)_connection;
         var tcpConnection = _connection as TcpRuntimeConnection;
         var useStdio = _connection is StdioRuntimeConnection;
 
         // Explicit CLI paths preserve the legacy launch contract. Otherwise use
         // the bundled native runtime pair.
-        var configuredEnvironment = childProcessConnection.Environment ?? options.Environment;
+        var configuredEnvironment = outOfProcessConnection.Environment;
         var envCliPath = configuredEnvironment is not null
             ? configuredEnvironment.TryGetValue("COPILOT_CLI_PATH", out var configuredCliPath) ? configuredCliPath : null
             : System.Environment.GetEnvironmentVariable("COPILOT_CLI_PATH");
-        var launch = childProcessConnection.Path is not null
-            ? new RuntimeLaunch(childProcessConnection.Path, "Options")
+        var launch = outOfProcessConnection.Path is not null
+            ? new RuntimeLaunch(outOfProcessConnection.Path, "Options")
             : envCliPath is not null
                 ? new RuntimeLaunch(envCliPath, "Environment")
                 : GetBundledRuntimeLaunch();
@@ -2284,9 +2247,9 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         var cliPathSource = launch.Source;
         var args = new List<string>();
 
-        if (childProcessConnection.Args != null)
+        if (outOfProcessConnection.Args != null)
         {
-            args.AddRange(childProcessConnection.Args);
+            args.AddRange(outOfProcessConnection.Args);
         }
 
         args.AddRange(["--headless", "--no-auto-update"]);
@@ -2339,11 +2302,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             RedirectStandardInput = useStdio,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
-            WorkingDirectory = options.WorkingDirectory,
+            WorkingDirectory = outOfProcessConnection.WorkingDirectory,
             CreateNoWindow = true
         };
 
-        var childEnvironment = options.Environment ?? childProcessConnection.Environment;
+        var childEnvironment = outOfProcessConnection.Environment;
         if (childEnvironment != null)
         {
             startInfo.Environment.Clear();

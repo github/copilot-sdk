@@ -9,11 +9,10 @@
 use std::path::PathBuf;
 
 use github_copilot_sdk::{
-    CliProgram, Client, ClientOptions, ErrorKind, HAS_BUNDLED_CLI, install_bundled_cli,
-    install_bundled_runtime,
+    Client, ClientOptions, ErrorKind, HAS_BUNDLED_CLI, install_bundled_cli, install_bundled_runtime,
 };
 #[cfg(all(feature = "bundled-cli", has_bundled_cli))]
-use github_copilot_sdk::{SessionConfig, Transport};
+use github_copilot_sdk::{OutOfProcessOptions, SessionConfig, Transport};
 use serial_test::serial;
 
 fn unset_env(key: &str) {
@@ -50,7 +49,7 @@ async fn env_override_resolves_to_pointed_file() {
         "COPILOT_CLI_PATH",
         path.to_str().expect("utf-8 tempfile path"),
     );
-    let opts = ClientOptions::default().with_program(CliProgram::Resolve);
+    let opts = ClientOptions::default();
 
     // `Client::start` reads the env var via resolve.rs. We don't want to
     // actually launch a subprocess against our empty temp file, so go
@@ -83,7 +82,7 @@ async fn env_override_resolves_to_pointed_file() {
 #[serial(copilot_cli_path)]
 async fn stale_env_override_falls_through() {
     set_env("COPILOT_CLI_PATH", "/definitely/does/not/exist/copilot");
-    let opts = ClientOptions::default().with_program(CliProgram::Resolve);
+    let opts = ClientOptions::default();
     let result = Client::start(opts).await;
     unset_env("COPILOT_CLI_PATH");
 
@@ -148,7 +147,7 @@ async fn unbundled_resolver_finds_extracted_binary() {
     unset_env("COPILOT_CLI_PATH");
     unset_env("COPILOT_CLI_EXTRACT_DIR");
 
-    let opts = ClientOptions::default().with_program(CliProgram::Resolve);
+    let opts = ClientOptions::default();
     let result = Client::start(opts).await;
     if let Err(e) = result {
         assert!(
@@ -181,7 +180,7 @@ async fn extract_dir_runtime_override_is_honored() {
         tmp.path().to_str().expect("utf-8 tempdir path"),
     );
 
-    let opts = ClientOptions::default().with_program(CliProgram::Resolve);
+    let opts = ClientOptions::default();
     let result = Client::start(opts).await;
 
     unset_env("COPILOT_CLI_EXTRACT_DIR");
@@ -348,14 +347,16 @@ async fn bundled_runtime_clean_extract_starts_without_cli_host() {
 
     let options = ClientOptions::new()
         .with_bundled_cli_extract_dir(&extract_dir)
-        .with_cwd(&working_dir)
-        .with_env([("PATH", empty_path.as_os_str())])
-        .with_env_remove([
-            "COPILOT_RUNTIME_HOST_COMMAND",
-            "COPILOT_CLI_PATH",
-            "COPILOT_RUNTIME_PROVIDER_LIB",
-        ])
-        .with_transport(Transport::Stdio)
+        .with_transport(Transport::Stdio(
+            OutOfProcessOptions::new()
+                .with_working_directory(&working_dir)
+                .with_env([("PATH", empty_path.as_os_str())])
+                .with_env_remove([
+                    "COPILOT_RUNTIME_HOST_COMMAND",
+                    "COPILOT_CLI_PATH",
+                    "COPILOT_RUNTIME_PROVIDER_LIB",
+                ]),
+        ))
         .with_use_logged_in_user(false);
     let client = Client::start(options)
         .await

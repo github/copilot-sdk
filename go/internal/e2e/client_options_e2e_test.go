@@ -23,7 +23,14 @@ func TestClientOptionsE2E(t *testing.T) {
 		port := getAvailableTCPPort(t)
 
 		client := ctx.NewClient(func(opts *copilot.ClientOptions) {
-			opts.Connection = copilot.TCPConnection{Path: ctx.CLIPath, Port: port}
+			stdio := opts.Connection.(copilot.StdioConnection)
+			opts.Connection = copilot.TCPConnection{
+				Path:             stdio.Path,
+				Args:             append([]string{}, stdio.Args...),
+				WorkingDirectory: stdio.WorkingDirectory,
+				Env:              append([]string{}, stdio.Env...),
+				Port:             port,
+			}
 		})
 		t.Cleanup(func() { client.ForceStop() })
 
@@ -57,7 +64,9 @@ func TestClientOptionsE2E(t *testing.T) {
 		}
 
 		client := ctx.NewClient(func(opts *copilot.ClientOptions) {
-			opts.WorkingDirectory = clientCwd
+			conn := opts.Connection.(copilot.StdioConnection)
+			conn.WorkingDirectory = clientCwd
+			opts.Connection = conn
 		})
 		t.Cleanup(func() { client.ForceStop() })
 
@@ -99,13 +108,13 @@ func TestClientOptionsE2E(t *testing.T) {
 		}
 
 		client := ctx.NewClient(func(opts *copilot.ClientOptions) {
-			opts.Connection = copilot.StdioConnection{
-				Path: cliPath,
-				Args: []string{"--capture-file", capturePath},
-			}
+			conn := opts.Connection.(copilot.StdioConnection)
+			conn.Path = cliPath
+			conn.Args = []string{"--capture-file", capturePath}
+			conn.Env = append([]string{}, conn.Env...)
+			conn.Env = append(conn.Env, "COPILOT_HOME="+filepath.Join(ctx.WorkDir, "copilot-home-from-env"))
+			opts.Connection = conn
 			opts.BaseDirectory = filepath.Join(ctx.WorkDir, "copilot-home-from-option")
-			opts.Env = append([]string{}, opts.Env...)
-			opts.Env = append(opts.Env, "COPILOT_HOME="+filepath.Join(ctx.WorkDir, "copilot-home-from-env"))
 			opts.GitHubToken = "process-option-token"
 			opts.LogLevel = "debug"
 			opts.SessionIdleTimeoutSeconds = 17

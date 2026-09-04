@@ -18,7 +18,14 @@ func TestMultiClientE2E(t *testing.T) {
 	// Use TCP mode so a second client can connect to the same CLI process
 	ctx := testharness.NewTestContext(t)
 	client1 := ctx.NewClient(func(opts *copilot.ClientOptions) {
-		opts.Connection = copilot.TCPConnection{Path: opts.Connection.(copilot.StdioConnection).Path, ConnectionToken: sharedTCPToken}
+		stdio := opts.Connection.(copilot.StdioConnection)
+		opts.Connection = copilot.TCPConnection{
+			Path:             stdio.Path,
+			Args:             append([]string{}, stdio.Args...),
+			WorkingDirectory: stdio.WorkingDirectory,
+			Env:              append([]string{}, stdio.Env...),
+			ConnectionToken:  sharedTCPToken,
+		}
 	})
 	t.Cleanup(func() { client1.ForceStop() })
 

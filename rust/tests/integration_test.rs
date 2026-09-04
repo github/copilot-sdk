@@ -2,12 +2,14 @@
 
 use std::time::Instant;
 
-use github_copilot_sdk::{Client, ClientOptions, SDK_PROTOCOL_VERSION};
+use github_copilot_sdk::{
+    Client, ClientOptions, OutOfProcessOptions, SDK_PROTOCOL_VERSION, Transport,
+};
 
 fn default_options() -> ClientOptions {
-    let mut opts = ClientOptions::default();
-    opts.working_directory = std::env::current_dir().expect("cwd");
-    opts
+    ClientOptions::default().with_transport(Transport::Stdio(
+        OutOfProcessOptions::new().with_working_directory(std::env::current_dir().expect("cwd")),
+    ))
 }
 
 #[tokio::test]

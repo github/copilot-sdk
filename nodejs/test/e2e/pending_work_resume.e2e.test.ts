@@ -141,12 +141,12 @@ describe("Pending work resume", async () => {
 
     function createTcpServer(): CopilotClient {
         const server = new CopilotClient({
-            workingDirectory: workDir,
-            env,
             gitHubToken: DEFAULT_GITHUB_TOKEN,
             connection: RuntimeConnection.forTcp({
                 path: process.env.COPILOT_CLI_PATH,
                 connectionToken: SHARED_TOKEN,
+                workingDirectory: workDir,
+                env,
             }),
         });
         onTestFinished(async () => {
@@ -518,11 +518,11 @@ describe("Pending work resume", async () => {
 
                     if (scenario.disconnectOriginalClient) {
                         const lockObserver = new CopilotClient({
-                            workingDirectory: workDir,
-                            env,
                             gitHubToken: DEFAULT_GITHUB_TOKEN,
                             connection: RuntimeConnection.forStdio({
                                 path: process.env.COPILOT_CLI_PATH,
+                                workingDirectory: workDir,
+                                env,
                             }),
                         });
                         try {

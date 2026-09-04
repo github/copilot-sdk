@@ -207,9 +207,7 @@ All options are kw-only parameters:
   `RuntimeConnection.for_stdio(...)`, `RuntimeConnection.for_tcp(...)`,
   `RuntimeConnection.for_uri(...)`, or `RuntimeConnection.for_inprocess(...)`.
   Defaults to a stdio connection with the bundled binary.
-- `working_directory` (str | None): Working directory for the CLI process (default: current dir).
 - `log_level` (str): Log level (default: "info").
-- `env` (dict | None): Environment variables for the CLI process.
 - `github_token` (str | None): GitHub token for authentication. When provided, takes priority over other auth methods.
 - `base_directory` (str | None): Base directory for Copilot data (session state, config, etc.). Sets `COPILOT_HOME` on the spawned CLI process. When `None`, the CLI defaults to `~/.copilot`. Useful in restricted environments where only specific directories are writable. Ignored when using a `UriRuntimeConnection`.
 - `use_logged_in_user` (bool | None): Whether to use logged-in user for authentication (default: True, but False when `github_token` is provided).
@@ -222,8 +220,8 @@ All options are kw-only parameters:
 
 **RuntimeConnection variants:**
 
-- `RuntimeConnection.for_stdio(path=None, args=None)` — spawn a local CLI process and talk over stdio.
-- `RuntimeConnection.for_tcp(port=0, connection_token=None, path=None, args=None)` — spawn a local CLI in TCP mode.
+- `RuntimeConnection.for_stdio(path=None, args=None, working_directory=None, env=None)` — spawn a local CLI process and talk over stdio.
+- `RuntimeConnection.for_tcp(port=0, connection_token=None, path=None, args=None, working_directory=None, env=None)` — spawn a local CLI in TCP mode.
 - `RuntimeConnection.for_uri(url, connection_token=None)` — connect to an existing CLI server (e.g. `"localhost:8080"`).
 - `RuntimeConnection.for_inprocess()` — host the runtime in-process via its native C ABI (FFI). See [In-process (FFI) transport](#in-process-ffi-transport).
 
@@ -231,14 +229,15 @@ Managed stdio and TCP connections use the downloaded `copilot-runtime`
 executable with adjacent `runtime.node` by default. An explicit connection
 path or `COPILOT_CLI_PATH` overrides the downloaded runtime.
 
-Child-process connections (`for_stdio`/`for_tcp`) also expose a per-connection
-`env` field for the spawned process. Set it on the returned connection instead of
-the client-level `env` — setting both raises:
+The shared `OutOfProcessRuntimeConnection` base for `for_stdio`/`for_tcp`
+connections carries the spawned process's `working_directory` and `env`:
 
 ```python
-conn = RuntimeConnection.for_stdio()
-conn.env = {"MY_VAR": "value"}
-client = CopilotClient(connection=conn)  # do NOT also pass env=... here
+conn = RuntimeConnection.for_stdio(
+    working_directory="/srv/app",
+    env={"MY_VAR": "value"},
+)
+client = CopilotClient(connection=conn)
 ```
 
 ### In-process (FFI) transport
@@ -267,11 +266,10 @@ finally:
 - Set `COPILOT_CLI_PATH` only when using an externally provisioned compatible
   runtime package. In-process connections do not accept per-connection paths
   or raw process arguments.
-- Because the runtime shares this single host process, per-client options that
-  lower to environment variables or a working directory **cannot** be honored and
-  are rejected: `env`, `telemetry`, and `working_directory` all raise `ValueError`
-  with `for_inprocess()`. Set the corresponding values on the host process
-  environment / working directory before creating the client instead.
+- Because the runtime shares this single host process, client-wide `telemetry`
+  **cannot** be honored and is rejected with `for_inprocess()`. Process-scoped
+  launch settings such as working directory and environment live on
+  `OutOfProcessRuntimeConnection`, which the in-process transport does not use.
 - Set `COPILOT_SDK_DEFAULT_CONNECTION=inprocess` to select the in-process
   transport by default when no explicit `connection` is supplied.
 

@@ -24,7 +24,9 @@ use github_copilot_sdk::rpc::{
     ExtensionSource, ExtensionStatus, ExtensionsDisableRequest, ExtensionsEnableRequest,
     ToolResult, ToolResultType, ToolsExecuteRequest,
 };
-use github_copilot_sdk::{CliProgram, Client, ClientOptions, SessionConfig, Transport};
+use github_copilot_sdk::{
+    CliProgram, Client, ClientOptions, OutOfProcessOptions, SessionConfig, Transport,
+};
 use serde_json::{Value, json};
 use tokio::sync::mpsc;
 use tokio::time::{sleep, timeout};
@@ -100,12 +102,14 @@ async fn real_wrapper_installs_and_runs_hostless_extensions() {
     let (request_tx, mut request_rx) = mpsc::unbounded_channel();
 
     let options = ClientOptions::new()
-        .with_program(CliProgram::Path(runtime_path))
-        .with_transport(Transport::Stdio)
-        .with_cwd(workspace.path())
+        .with_transport(Transport::Stdio(
+            OutOfProcessOptions::new()
+                .with_program(CliProgram::Path(runtime_path))
+                .with_working_directory(workspace.path())
+                .with_env_remove(["COPILOT_CLI_DIST_DIR"]),
+        ))
         .with_base_directory(home.path())
         .with_use_logged_in_user(false)
-        .with_env_remove(["COPILOT_CLI_DIST_DIR"])
         .with_extension_launch_provider(RecordingProvider {
             executable: PathBuf::from(env!("CARGO_BIN_EXE_copilot-extension-test-fixture")),
             state_path: state_path.clone(),

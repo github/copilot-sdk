@@ -98,9 +98,11 @@ class TestSubagentHooks:
             "fake-token-for-e2e-tests" if os.environ.get("GITHUB_ACTIONS") == "true" else None
         )
         client = CopilotClient(
-            connection=RuntimeConnection.for_stdio(path=ctx.cli_path),
-            working_directory=ctx.work_dir,
-            env=env,
+            connection=RuntimeConnection.for_stdio(
+                path=ctx.cli_path,
+                working_directory=ctx.work_dir,
+                env=env,
+            ),
             github_token=github_token,
             request_handler=request_handler,
         )

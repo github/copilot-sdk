@@ -23,9 +23,12 @@ class TestGitHubTelemetryE2E:
             received.append(notification)
 
         client = CopilotClient(
-            connection=RuntimeConnection.for_stdio(path=get_cli_path_for_tests(), args=()),
-            working_directory=ctx.work_dir,
-            env=ctx.get_env(),
+            connection=RuntimeConnection.for_stdio(
+                path=get_cli_path_for_tests(),
+                args=(),
+                working_directory=ctx.work_dir,
+                env=ctx.get_env(),
+            ),
             github_token=DEFAULT_GITHUB_TOKEN,
             on_github_telemetry=on_github_telemetry,
         )

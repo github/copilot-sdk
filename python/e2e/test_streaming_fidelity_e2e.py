@@ -78,9 +78,11 @@ class TestStreamingFidelity:
             "fake-token-for-e2e-tests" if os.environ.get("GITHUB_ACTIONS") == "true" else None
         )
         new_client = CopilotClient(
-            connection=RuntimeConnection.for_stdio(path=ctx.cli_path),
-            working_directory=ctx.work_dir,
-            env=ctx.get_env(),
+            connection=RuntimeConnection.for_stdio(
+                path=ctx.cli_path,
+                working_directory=ctx.work_dir,
+                env=ctx.get_env(),
+            ),
             github_token=github_token,
         )
 
@@ -128,9 +130,11 @@ class TestStreamingFidelity:
 
         # Resume with streaming disabled
         new_client = CopilotClient(
-            connection=RuntimeConnection.for_stdio(path=ctx.cli_path),
-            working_directory=ctx.work_dir,
-            env=ctx.get_env(),
+            connection=RuntimeConnection.for_stdio(
+                path=ctx.cli_path,
+                working_directory=ctx.work_dir,
+                env=ctx.get_env(),
+            ),
             github_token=github_token,
         )
         try:

@@ -20,7 +20,6 @@ import java.nio.channels.Pipe;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -208,9 +207,7 @@ class CopilotClientTransportTest {
 
     @Test
     void inProcessRejectsPerProcessOptions() {
-        assertInProcessRejected(new CopilotClientOptions().setEnvironment(Map.of("FOO", "bar")), "Environment");
         assertInProcessRejected(new CopilotClientOptions().setTelemetry(new TelemetryConfig()), "Telemetry");
-        assertInProcessRejected(new CopilotClientOptions().setCwd("/tmp"), "Cwd");
         assertInProcessRejected(new CopilotClientOptions().setCliArgs(new String[]{"--extra"}), "CliArgs");
     }
 
@@ -218,13 +215,10 @@ class CopilotClientTransportTest {
     void e2eContextClearsInProcessIncompatibleOptions() throws Exception {
         try (var context = E2ETestContext.create()) {
             var options = new CopilotClientOptions().setConnection(RuntimeConnection.forInProcess())
-                    .setEnvironment(Map.of("TEST_KEY", "test-value")).setCwd(context.getWorkDir().toString())
                     .setCliArgs(new String[]{"--subprocess-only"});
 
             try (var client = context.createClient(options)) {
                 assertInstanceOf(InProcessRuntimeConnection.class, client.getRuntimeConnection());
-                assertTrue(options.getEnvironment() == null || options.getEnvironment().isEmpty());
-                assertEquals(null, options.getCwd());
                 assertTrue(options.getCliArgs() == null || options.getCliArgs().length == 0);
             }
         }

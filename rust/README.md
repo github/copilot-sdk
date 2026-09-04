@@ -816,7 +816,7 @@ opts.telemetry = Some(telem);
 let client = Client::start(opts).await?;
 ```
 
-The SDK injects the appropriate environment variables (`COPILOT_OTEL_EXPORTER_TYPE`, `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_PROTOCOL`, ...) into the spawned CLI process. The SDK takes no OpenTelemetry dependency; the CLI itself owns the exporter pipeline. Caller-supplied `ClientOptions::env` entries override telemetry-injected values.
+The SDK injects the appropriate environment variables (`COPILOT_OTEL_EXPORTER_TYPE`, `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_PROTOCOL`, ...) into the spawned CLI process. The SDK takes no OpenTelemetry dependency; the CLI itself owns the exporter pipeline. Caller-supplied `OutOfProcessOptions::env` entries (set on `Transport::Stdio`/`Transport::Tcp`) override telemetry-injected values.
 
 ### Progress Reporting (`send_and_wait`)
 
@@ -988,8 +988,8 @@ and use `Transport::InProcess`:
 github-copilot-sdk = { version = "1", features = ["bundled-in-process"] }
 ```
 
-`CliProgram::Path` and raw `ClientOptions::extra_args` apply only to
-child-process transports. Set `COPILOT_CLI_PATH` only when using an externally
+`CliProgram::Path` and `OutOfProcessOptions::extra_args` apply only to
+out-of-process transports. Set `COPILOT_CLI_PATH` only when using an externally
 provisioned compatible runtime package with in-process transport.
 
 For builds that prefer a smaller artifact, disable the `bundled-cli` feature:
@@ -1000,7 +1000,7 @@ github-copilot-sdk = { version = "1", default-features = false }
 
 > **You become responsible for supplying the runtime at deployment.** With
 > `bundled-cli` disabled, the produced binary does not contain these artifacts
-> and will not search the system for them. For managed child-process transports,
+> and will not search the system for them. For managed out-of-process transports,
 > supply a compatible wrapper pair via an explicit [`CliProgram::Path`].
 > `COPILOT_CLI_PATH` remains a direct program override.
 >
@@ -1064,13 +1064,13 @@ COPILOT_CLI_EXTRACT_DIR = { value = "vendor/copilot", relative = true, force = t
 
 ### Skipping the bundle entirely
 
-Set `COPILOT_SKIP_CLI_DOWNLOAD=1` at build time to disable the entire download / bundle / cache mechanism — `build.rs` returns immediately without touching the network. Use this when you always supply the managed runtime via `ClientOptions::program = CliProgram::Path(...)`. Works regardless of the `bundled-cli` feature state; runtime resolution falls through to `Error::BinaryNotFound` unless an applicable explicit source resolves.
+Set `COPILOT_SKIP_CLI_DOWNLOAD=1` at build time to disable the entire download / bundle / cache mechanism — `build.rs` returns immediately without touching the network. Use this when you always supply the managed runtime via `OutOfProcessOptions::program = CliProgram::Path(...)` (on `Transport::Stdio`/`Transport::Tcp`). Works regardless of the `bundled-cli` feature state; runtime resolution falls through to `Error::BinaryNotFound` unless an applicable explicit source resolves.
 
 ### Resolution priority
 
-For managed child-process transports, `Client::start` resolves the program in this order:
+For managed out-of-process transports, `Client::start` resolves the program in this order:
 
-1. Explicit `CliProgram::Path(path)` on `ClientOptions::program`.
+1. Explicit `CliProgram::Path(path)` on `OutOfProcessOptions::program` (`Transport::Stdio`/`Transport::Tcp`).
 2. `COPILOT_CLI_PATH` environment variable, if it points at a real file.
 3. **`bundled-cli` on:** the embedded wrapper pair, lazily extracted on first call.
 4. **`bundled-cli` off:** the build-time-extracted wrapper pair in the per-user cache.
@@ -1098,7 +1098,7 @@ if HAS_BUNDLED_CLI {
 ```
 
 This returns the bundled CLI artifact, preserving the public API's original
-meaning. Managed child-process transports resolve `copilot-runtime` instead.
+meaning. Managed out-of-process transports resolve `copilot-runtime` instead.
 The function returns `None` when `bundled-cli` is off or the target is
 unsupported and does not fall back to the build-time extraction cache.
 

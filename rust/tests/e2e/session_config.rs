@@ -8,8 +8,8 @@ use bytes::Bytes;
 use github_copilot_sdk::handler::ApproveAllHandler;
 use github_copilot_sdk::{
     Attachment, Client, CopilotHttpRequest, CopilotHttpResponse, CopilotRequestContext,
-    CopilotRequestError, CopilotRequestHandler, MessageOptions, ProviderConfig,
-    ResumeSessionConfig, SessionConfig, SessionLimitsConfig, Transport,
+    CopilotRequestError, CopilotRequestHandler, MessageOptions, OutOfProcessOptions,
+    ProviderConfig, ResumeSessionConfig, SessionConfig, SessionLimitsConfig, Transport,
 };
 use http::{HeaderMap, HeaderValue};
 use parking_lot::Mutex;
@@ -571,6 +571,7 @@ async fn should_enable_citations_for_anthropic_file_attachments_on_resume() {
                 ctx.client_options_with_transport(Transport::Tcp {
                     port,
                     connection_token: Some(token.clone()),
+                    process: OutOfProcessOptions::default(),
                 })
                 .with_request_handler(handler.clone()),
             )

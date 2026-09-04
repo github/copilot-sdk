@@ -188,14 +188,16 @@ const cliObservations = mkdtempSync(join(tmpdir(), "copilot-env-access-cli-"));
 const cliResultFile = join(cliObservations, "result");
 const cliContext = await createSdkTestContext({
     copilotClientOptions: {
-        connection: RuntimeConnection.forStdio({ path: await getLegacyCliPathForTests() }),
-        env: {
-            COPILOT_CLI_ENABLED_FEATURE_FLAGS: "EXTENSIONS",
-            EXTENSION_ENV_REQUEST: "E2E_SDK_TOKEN",
-            EXTENSION_RESULT_FILE: cliResultFile,
-            EXTENSION_PREJOIN_FILE: join(cliObservations, "prejoin"),
-            EXTENSION_POSTJOIN_FILE: join(cliObservations, "postjoin"),
-        },
+        connection: RuntimeConnection.forStdio({
+            path: await getLegacyCliPathForTests(),
+            env: {
+                COPILOT_CLI_ENABLED_FEATURE_FLAGS: "EXTENSIONS",
+                EXTENSION_ENV_REQUEST: "E2E_SDK_TOKEN",
+                EXTENSION_RESULT_FILE: cliResultFile,
+                EXTENSION_PREJOIN_FILE: join(cliObservations, "prejoin"),
+                EXTENSION_POSTJOIN_FILE: join(cliObservations, "postjoin"),
+            },
+        }),
     },
 });
 

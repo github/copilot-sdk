@@ -21,7 +21,9 @@ func TestModeHandlersE2E(t *testing.T) {
 	ctx := testharness.NewTestContext(t)
 
 	client := ctx.NewClient(func(opts *copilot.ClientOptions) {
-		opts.Env = append(opts.Env, "COPILOT_DEBUG_GITHUB_API_URL="+ctx.ProxyURL)
+		conn := opts.Connection.(copilot.StdioConnection)
+		conn.Env = append(conn.Env, "COPILOT_DEBUG_GITHUB_API_URL="+ctx.ProxyURL)
+		opts.Connection = conn
 	})
 	t.Cleanup(func() { client.ForceStop() })
 

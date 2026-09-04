@@ -152,13 +152,25 @@ export async function createSdkTestContext({
         connection = RuntimeConnection.forStdio({ path: cliPath });
     }
 
-    const {
-        connection: _ignoredConnection,
-        env: userEnv,
-        ...remainingClientOptions
-    } = copilotClientOptions ?? {};
+    if (connection.kind === "stdio") {
+        connection = RuntimeConnection.forStdio({
+            ...connection,
+            workingDirectory: connection.workingDirectory ?? workDir,
+            env: { ...env, ...connection.env },
+        });
+    } else if (connection.kind === "tcp") {
+        connection = RuntimeConnection.forTcp({
+            ...connection,
+            workingDirectory: connection.workingDirectory ?? workDir,
+            env: { ...env, ...connection.env },
+        });
+    }
 
-    const mergedEnv = { ...env, ...userEnv };
+    const { connection: _ignoredConnection, ...remainingClientOptions } =
+        copilotClientOptions ?? {};
+
+    const mergedEnv =
+        connection.kind === "stdio" || connection.kind === "tcp" ? connection.env : env;
 
     // The in-process (FFI) transport loads the runtime into this test host process,
     // and its worker inherits this process's ambient environment rather than a
@@ -184,16 +196,11 @@ export async function createSdkTestContext({
     // secondary client (e.g. resuming a session from a fresh client) don't have to
     // reimplement the in-process env/cwd handling. Callers may override the connection
     // (e.g. pin stdio for telemetry, which the in-process transport cannot carry
-    // per-client); env is attached to child-process transports and mirrored onto the
-    // process for in-process (see beforeEach below), never passed per-client for the
-    // in-process transport where it would be rejected.
+    // per-client). Out-of-process env/cwd live on the connection object, while
+    // in-process hosting mirrors the environment onto the real process (see beforeEach
+    // below) and uses a temporary chdir so the worker inherits the right cwd.
     function createClient(overrides: Partial<CopilotClientOptions> = {}): CopilotClient {
-        const {
-            connection: overrideConnection,
-            env: _ignoredEnv,
-            workingDirectory: overrideWorkingDirectory,
-            ...rest
-        } = overrides;
+        const { connection: overrideConnection, ...rest } = overrides;
 
         let effectiveConnection = overrideConnection ?? connection;
         // Fill in the bundled CLI path for child-process connections that omit it
@@ -209,20 +216,21 @@ export async function createSdkTestContext({
                 path: cliPath,
             });
         }
-        const effectiveInProcess = effectiveConnection.kind === "inprocess";
+        if (effectiveConnection.kind === "stdio") {
+            effectiveConnection = RuntimeConnection.forStdio({
+                ...effectiveConnection,
+                workingDirectory: effectiveConnection.workingDirectory ?? workDir,
+                env: { ...env, ...effectiveConnection.env },
+            });
+        } else if (effectiveConnection.kind === "tcp") {
+            effectiveConnection = RuntimeConnection.forTcp({
+                ...effectiveConnection,
+                workingDirectory: effectiveConnection.workingDirectory ?? workDir,
+                env: { ...env, ...effectiveConnection.env },
+            });
+        }
 
         return new CopilotClient({
-            // The in-process transport rejects a per-client workingDirectory (it would have to
-            // mutate the shared host process cwd). Instead the harness changes this process's
-            // cwd to workDir around the in-process worker's startup (see beforeEach below), so
-            // the worker still spawns with workDir as its cwd. Out-of-process clients get it
-            // as a normal per-client option.
-            workingDirectory:
-                overrideWorkingDirectory ?? (effectiveInProcess ? undefined : workDir),
-            // In-process hosting mirrors the environment onto the real process (per test, in
-            // beforeEach below), so the worker inherits it; passing a per-client env here
-            // would have no effect (and is rejected by the in-process transport).
-            env: effectiveInProcess ? undefined : mergedEnv,
             logLevel: logLevel || "error",
             connection: effectiveConnection,
             gitHubToken: authTokenToUse,

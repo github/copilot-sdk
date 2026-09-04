@@ -17,6 +17,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 import com.github.copilot.ffi.NativeRuntimeLoader;
 import com.github.copilot.rpc.CopilotClientOptions;
+import com.github.copilot.rpc.RuntimeConnection;
 import com.github.copilot.rpc.TelemetryConfig;
 
 /**
@@ -49,8 +50,8 @@ class CliServerManagerTest {
     void configuredEnvironmentCliPathOverridesInheritedEnvironment() throws Exception {
         Path inherited = tempDir.resolve("inherited-copilot-runtime");
         Path configured = tempDir.resolve("configured-copilot-runtime");
-        var options = new CopilotClientOptions()
-                .setEnvironment(Map.of(NativeRuntimeLoader.COPILOT_CLI_PATH_ENV, configured.toString()));
+        var options = new CopilotClientOptions().setConnection(RuntimeConnection.forStdio()
+                .setEnvironment(Map.of(NativeRuntimeLoader.COPILOT_CLI_PATH_ENV, configured.toString())));
         var manager = new CliServerManager(options);
 
         assertEquals(configured.toString(), manager.resolveCliLaunch(inherited.toString()).executable());
@@ -60,8 +61,8 @@ class CliServerManagerTest {
     void explicitCliPathOverridesEnvironment() throws Exception {
         Path explicit = tempDir.resolve("explicit-copilot-runtime");
         Path configured = tempDir.resolve("configured-copilot-runtime");
-        var options = new CopilotClientOptions().setCliPath(explicit.toString())
-                .setEnvironment(Map.of(NativeRuntimeLoader.COPILOT_CLI_PATH_ENV, configured.toString()));
+        var options = new CopilotClientOptions().setCliPath(explicit.toString()).setConnection(RuntimeConnection
+                .forStdio().setEnvironment(Map.of(NativeRuntimeLoader.COPILOT_CLI_PATH_ENV, configured.toString())));
         var manager = new CliServerManager(options);
 
         assertEquals(explicit.toString(), manager.resolveCliLaunch("inherited-copilot-runtime").executable());

@@ -12,7 +12,7 @@ import type {
     PostToolUseHookInput,
     PostToolUseHookOutput,
 } from "../../src/index.js";
-import { approveAll, CopilotRequestHandler } from "../../src/index.js";
+import { approveAll, CopilotRequestHandler, RuntimeConnection } from "../../src/index.js";
 import { createSdkTestContext, isCI } from "./harness/sdkTestContext.js";
 
 interface RequestRecord {
@@ -79,7 +79,9 @@ describe("Subagent hooks", async () => {
         copilotClientOptions: {
             ...(recordToken ? { gitHubToken: recordToken } : {}),
             requestHandler,
-            env: { COPILOT_EXP_COPILOT_CLI_SESSION_BASED_SUBAGENTS: "true" },
+            connection: RuntimeConnection.forStdio({
+                env: { COPILOT_EXP_COPILOT_CLI_SESSION_BASED_SUBAGENTS: "true" },
+            }),
         },
     });
 
