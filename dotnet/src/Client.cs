@@ -2703,16 +2703,28 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         catch
         {
             try { rpc?.Dispose(); }
-            catch (Exception ex) { _logger.LogDebug(ex, "Failed to dispose JSON-RPC connection after startup failure"); }
+            catch (Exception ex) when (IsRecoverableConnectionCleanupFailure(ex))
+            {
+                _logger.LogDebug(ex, "Failed to dispose JSON-RPC connection after startup failure");
+            }
 
             if (networkStream is not null)
             {
                 try { await networkStream.DisposeAsync(); }
-                catch (Exception ex) { _logger.LogDebug(ex, "Failed to dispose TCP stream after startup failure"); }
+                catch (Exception ex) when (IsRecoverableConnectionCleanupFailure(ex))
+                {
+                    _logger.LogDebug(ex, "Failed to dispose TCP stream after startup failure");
+                }
             }
             throw;
         }
     }
+
+    private static bool IsRecoverableConnectionCleanupFailure(Exception exception)
+        => exception is not OutOfMemoryException
+            and not StackOverflowException
+            and not AccessViolationException
+            and not AppDomainUnloadedException;
 
     private async Task CancelExternalToolsWhenConnectionClosesAsync(JsonRpc rpc)
     {
