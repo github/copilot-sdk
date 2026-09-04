@@ -452,7 +452,14 @@ func TestSessionConfigNewOptionsCopilotRequestE2E(t *testing.T) {
 		handler := &copilot.CopilotRequestHandler{Transport: transport}
 		const connectionToken = "go-citation-resume-token"
 		server := ctx.NewClient(func(o *copilot.ClientOptions) {
-			o.Connection = copilot.TCPConnection{Path: ctx.CLIPath, ConnectionToken: connectionToken}
+			stdio := o.Connection.(copilot.StdioConnection)
+			o.Connection = copilot.TCPConnection{
+				Path:             stdio.Path,
+				Args:             append([]string{}, stdio.Args...),
+				WorkingDirectory: stdio.WorkingDirectory,
+				Env:              append([]string{}, stdio.Env...),
+				ConnectionToken:  connectionToken,
+			}
 			o.RequestHandler = handler
 		})
 		t.Cleanup(func() { server.ForceStop() })

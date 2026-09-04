@@ -34,15 +34,20 @@ PENDING_WORK_TIMEOUT = 60.0
 
 def _make_subprocess_client(ctx: E2ETestContext, *, use_stdio: bool = True) -> CopilotClient:
     if use_stdio:
-        connection = RuntimeConnection.for_stdio(path=ctx.cli_path)
+        connection = RuntimeConnection.for_stdio(
+            path=ctx.cli_path,
+            working_directory=ctx.work_dir,
+            env=ctx.get_env(),
+        )
     else:
         connection = RuntimeConnection.for_tcp(
-            path=ctx.cli_path, connection_token="py-tcp-shared-test-token"
+            path=ctx.cli_path,
+            connection_token="py-tcp-shared-test-token",
+            working_directory=ctx.work_dir,
+            env=ctx.get_env(),
         )
     return CopilotClient(
         connection=connection,
-        working_directory=ctx.work_dir,
-        env=ctx.get_env(),
         github_token=DEFAULT_GITHUB_TOKEN,
     )
 

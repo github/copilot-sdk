@@ -16,7 +16,7 @@
 
 use std::path::PathBuf;
 
-use github_copilot_sdk::{CliProgram, Client, ClientOptions, Transport};
+use github_copilot_sdk::{CliProgram, Client, ClientOptions, OutOfProcessOptions, Transport};
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
@@ -36,12 +36,14 @@ async fn main() {
     );
 
     let options = ClientOptions::new()
-        .with_program(CliProgram::Path(PathBuf::from(program)))
-        .with_prefix_args(prefix_args)
-        .with_cwd(PathBuf::from(cwd))
-        .with_env(env_pairs)
-        .with_use_logged_in_user(false)
-        .with_transport(Transport::Stdio);
+        .with_transport(Transport::Stdio(
+            OutOfProcessOptions::new()
+                .with_program(CliProgram::Path(PathBuf::from(program)))
+                .with_prefix_args(prefix_args)
+                .with_working_directory(PathBuf::from(cwd))
+                .with_env(env_pairs),
+        ))
+        .with_use_logged_in_user(false);
 
     let client = Client::start(options).await.expect("start CLI client");
     let pid = client.pid().expect("client reports spawned CLI pid");

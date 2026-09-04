@@ -29,10 +29,11 @@ public sealed class RuntimeWrapperTests
         try
         {
             AppContext.SetData("APP_CONTEXT_BASE_DIRECTORY", emptyBaseDirectory);
+            var connection = RuntimeConnection.ForStdio();
+            connection.Environment = new Dictionary<string, string>();
             await using var client = new CopilotClient(new CopilotClientOptions
             {
-                Connection = RuntimeConnection.ForStdio(),
-                Environment = new Dictionary<string, string>(),
+                Connection = connection,
             });
 
             var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => client.StartAsync());
@@ -53,10 +54,11 @@ public sealed class RuntimeWrapperTests
         var explicitPath = Path.Combine(
             Path.GetTempPath(),
             $"missing-explicit-copilot-{Guid.NewGuid():N}");
+        var connection = RuntimeConnection.ForStdio(path: explicitPath);
+        connection.Environment = new Dictionary<string, string>();
         await using var client = new CopilotClient(new CopilotClientOptions
         {
-            Connection = RuntimeConnection.ForStdio(path: explicitPath),
-            Environment = new Dictionary<string, string>(),
+            Connection = connection,
         });
 
         var exception = await Assert.ThrowsAnyAsync<Exception>(() => client.StartAsync());
@@ -70,10 +72,11 @@ public sealed class RuntimeWrapperTests
         var explicitPath = Path.Combine(
             Path.GetTempPath(),
             $"missing-environment-copilot-{Guid.NewGuid():N}");
+        var connection = RuntimeConnection.ForStdio();
+        connection.Environment = new Dictionary<string, string> { ["COPILOT_CLI_PATH"] = explicitPath };
         await using var client = new CopilotClient(new CopilotClientOptions
         {
-            Connection = RuntimeConnection.ForStdio(),
-            Environment = new Dictionary<string, string> { ["COPILOT_CLI_PATH"] = explicitPath },
+            Connection = connection,
         });
 
         var exception = await Assert.ThrowsAnyAsync<Exception>(() => client.StartAsync());
@@ -99,10 +102,11 @@ public sealed class RuntimeWrapperTests
         try
         {
             AppContext.SetData("APP_CONTEXT_BASE_DIRECTORY", baseDirectory);
+            var connection = RuntimeConnection.ForStdio();
+            connection.Environment = new Dictionary<string, string>();
             await using var client = new CopilotClient(new CopilotClientOptions
             {
-                Connection = RuntimeConnection.ForStdio(),
-                Environment = new Dictionary<string, string>(),
+                Connection = connection,
             });
 
             var exception = await Assert.ThrowsAnyAsync<Exception>(() => client.StartAsync());

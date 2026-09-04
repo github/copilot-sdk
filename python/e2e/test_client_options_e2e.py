@@ -49,22 +49,26 @@ def _make_options(
     **overrides,
 ) -> dict[str, object]:
     """Build CopilotClient kwargs pre-populated for the test harness."""
+    connection_working_directory = overrides.pop("working_directory", ctx.work_dir)
+    connection_env = overrides.pop("env", ctx.get_env())
     if use_tcp:
         connection: RuntimeConnection = RuntimeConnection.for_tcp(
             port=port,
             connection_token=connection_token,
             path=cli_path if cli_path is not None else ctx.cli_path,
             args=tuple(cli_args or []),
+            working_directory=connection_working_directory,
+            env=connection_env,
         )
     else:
         connection = RuntimeConnection.for_stdio(
             path=cli_path if cli_path is not None else ctx.cli_path,
             args=tuple(cli_args or []),
+            working_directory=connection_working_directory,
+            env=connection_env,
         )
     base: dict[str, object] = {
         "connection": connection,
-        "working_directory": ctx.work_dir,
-        "env": ctx.get_env(),
         "github_token": DEFAULT_GITHUB_TOKEN,
     }
     base.update(overrides)

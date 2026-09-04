@@ -93,9 +93,11 @@ async def _create_isolated_client(ctx: E2ETestContext) -> tuple[CopilotClient, P
     for key in ("COPILOT_HOME", "GH_CONFIG_DIR", "XDG_CONFIG_HOME", "XDG_STATE_HOME"):
         env[key] = str(home)
     client = CopilotClient(
-        connection=RuntimeConnection.for_stdio(path=ctx.cli_path),
-        working_directory=ctx.work_dir,
-        env=env,
+        connection=RuntimeConnection.for_stdio(
+            path=ctx.cli_path,
+            working_directory=ctx.work_dir,
+            env=env,
+        ),
         github_token=DEFAULT_GITHUB_TOKEN,
     )
     await client.start()

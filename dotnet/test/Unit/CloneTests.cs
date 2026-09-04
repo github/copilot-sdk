@@ -11,12 +11,14 @@ public class CloneTests
     [Fact]
     public void CopilotClientOptions_Clone_CopiesAllProperties()
     {
+        var connection = RuntimeConnection.ForTcp(port: 8080, connectionToken: "tok", path: "/usr/bin/copilot", args: ["--verbose", "--debug"]);
+        connection.WorkingDirectory = "/home/user";
+        connection.Environment = new Dictionary<string, string> { ["KEY"] = "value" };
+
         var original = new CopilotClientOptions
         {
-            Connection = RuntimeConnection.ForTcp(port: 8080, connectionToken: "tok", path: "/usr/bin/copilot", args: ["--verbose", "--debug"]),
-            WorkingDirectory = "/home/user",
+            Connection = connection,
             LogLevel = CopilotLogLevel.Debug,
-            Environment = new Dictionary<string, string> { ["KEY"] = "value" },
             GitHubToken = "ghp_test",
             UseLoggedInUser = false,
             BaseDirectory = "/custom/copilot/home",
@@ -33,11 +35,13 @@ public class CloneTests
         };
 
         var clone = original.Clone();
+        var originalConnection = Assert.IsType<TcpRuntimeConnection>(original.Connection);
+        var cloneConnection = Assert.IsType<TcpRuntimeConnection>(clone.Connection);
 
         Assert.Same(original.Connection, clone.Connection);
-        Assert.Equal(original.WorkingDirectory, clone.WorkingDirectory);
+        Assert.Equal(originalConnection.WorkingDirectory, cloneConnection.WorkingDirectory);
         Assert.Equal(original.LogLevel, clone.LogLevel);
-        Assert.Equal(original.Environment, clone.Environment);
+        Assert.Equal(originalConnection.Environment, cloneConnection.Environment);
         Assert.Equal(original.GitHubToken, clone.GitHubToken);
         Assert.Equal(original.UseLoggedInUser, clone.UseLoggedInUser);
         Assert.Equal(original.BaseDirectory, clone.BaseDirectory);
@@ -60,14 +64,21 @@ public class CloneTests
     }
 
     [Fact]
-    public void CopilotClientOptions_Clone_EnvironmentIsShared()
+    public void OutOfProcessConnection_EnvironmentReference_IsShared_By_ClientOptionsClone()
     {
         var env = new Dictionary<string, string> { ["key"] = "value" };
-        var original = new CopilotClientOptions { Environment = env };
+        var connection = RuntimeConnection.ForStdio();
+        connection.Environment = env;
+        var original = new CopilotClientOptions
+        {
+            Connection = connection,
+        };
 
         var clone = original.Clone();
+        var originalConnection = Assert.IsType<StdioRuntimeConnection>(original.Connection);
+        var cloneConnection = Assert.IsType<StdioRuntimeConnection>(clone.Connection);
 
-        Assert.Same(original.Environment, clone.Environment);
+        Assert.Same(originalConnection.Environment, cloneConnection.Environment);
     }
 
     [Fact]

@@ -20,9 +20,11 @@ pytestmark = pytest.mark.asyncio(loop_scope="module")
 async def provider_ctx(ctx: E2ETestContext):
     env = {**ctx.get_env(), "COPILOT_ALLOW_GET_PROVIDER_ENDPOINT": "true"}
     client = CopilotClient(
-        connection=RuntimeConnection.for_stdio(path=ctx.cli_path),
-        working_directory=ctx.work_dir,
-        env=env,
+        connection=RuntimeConnection.for_stdio(
+            path=ctx.cli_path,
+            working_directory=ctx.work_dir,
+            env=env,
+        ),
         github_token=env["GITHUB_TOKEN"],
     )
     try:

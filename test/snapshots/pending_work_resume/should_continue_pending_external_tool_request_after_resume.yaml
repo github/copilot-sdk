@@ -16,8 +16,3 @@ conversations:
       - role: tool
         tool_call_id: toolcall_0
         content: EXTERNAL_RESUMED_BETA
-      - role: assistant
-        content: |-
-          I called `resume_external_tool` with the value 'beta' and received the result:
-
-          **EXTERNAL_RESUMED_BETA**

@@ -15,6 +15,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
@@ -22,6 +23,9 @@ import java.util.regex.Pattern;
 
 import com.github.copilot.ffi.NativeRuntimeLoader;
 import com.github.copilot.rpc.CopilotClientOptions;
+import com.github.copilot.rpc.RuntimeConnection;
+import com.github.copilot.rpc.StdioRuntimeConnection;
+import com.github.copilot.rpc.TcpRuntimeConnection;
 
 /**
  * Manages the lifecycle of the Copilot CLI server process.
@@ -35,12 +39,18 @@ final class CliServerManager {
     private static final int STDERR_READER_JOIN_TIMEOUT_MS = 5000;
 
     private final CopilotClientOptions options;
+    private final RuntimeConnection runtimeConnection;
     private final StringBuilder stderrBuffer = new StringBuilder();
     private volatile Thread stderrThread;
     private String connectionToken;
 
     CliServerManager(CopilotClientOptions options) {
+        this(options, options.getConnection());
+    }
+
+    CliServerManager(CopilotClientOptions options, RuntimeConnection runtimeConnection) {
         this.options = options;
+        this.runtimeConnection = runtimeConnection;
     }
 
     /**
@@ -120,8 +130,9 @@ final class CliServerManager {
         // doesn't provide explicit CREATE_NO_WINDOW flags like native Windows APIs,
         // but the default behavior is appropriate for most use cases.
 
-        if (options.getCwd() != null) {
-            pb.directory(new File(options.getCwd()));
+        String workingDirectory = getWorkingDirectory();
+        if (workingDirectory != null) {
+            pb.directory(new File(workingDirectory));
         }
 
         configureProcessEnvironment(pb);
@@ -269,9 +280,10 @@ final class CliServerManager {
     }
 
     void configureProcessEnvironment(ProcessBuilder pb) {
-        if (options.getEnvironment() != null) {
+        Map<String, String> environment = getProcessEnvironment();
+        if (environment != null) {
             pb.environment().clear();
-            pb.environment().putAll(options.getEnvironment());
+            pb.environment().putAll(environment);
         }
         pb.environment().remove("NODE_DEBUG");
 
@@ -325,7 +337,7 @@ final class CliServerManager {
             return new RuntimeLaunch(options.getCliPath());
         }
 
-        var environment = options.getEnvironment();
+        var environment = getProcessEnvironment();
         String envCliPath = environment != null
                 ? environment.get(NativeRuntimeLoader.COPILOT_CLI_PATH_ENV)
                 : inheritedCliPath;
@@ -335,6 +347,26 @@ final class CliServerManager {
 
         Path wrapper = NativeRuntimeLoader.resolveRuntimeWrapper();
         return new RuntimeLaunch(wrapper.toString());
+    }
+
+    private Map<String, String> getProcessEnvironment() {
+        if (runtimeConnection instanceof StdioRuntimeConnection stdio) {
+            return stdio.getEnvironment();
+        }
+        if (runtimeConnection instanceof TcpRuntimeConnection tcp) {
+            return tcp.getEnvironment();
+        }
+        return null;
+    }
+
+    private String getWorkingDirectory() {
+        if (runtimeConnection instanceof StdioRuntimeConnection stdio) {
+            return stdio.getWorkingDirectory();
+        }
+        if (runtimeConnection instanceof TcpRuntimeConnection tcp) {
+            return tcp.getWorkingDirectory();
+        }
+        return null;
     }
 
     static URI parseCliUrl(String url) {

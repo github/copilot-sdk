@@ -28,14 +28,28 @@ describe("Sessions", () => {
     }
 
     it.each([
-        ["stdio", () => RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH })],
-        ["tcp", () => RuntimeConnection.forTcp({ path: process.env.COPILOT_CLI_PATH })],
+        [
+            "stdio",
+            () =>
+                RuntimeConnection.forStdio({
+                    path: process.env.COPILOT_CLI_PATH,
+                    workingDirectory: workDir,
+                    env,
+                }),
+        ],
+        [
+            "tcp",
+            () =>
+                RuntimeConnection.forTcp({
+                    path: process.env.COPILOT_CLI_PATH,
+                    workingDirectory: workDir,
+                    env,
+                }),
+        ],
     ] as const)(
         "createSession works without onPermissionRequest (%s)",
         async (_name, makeConnection) => {
             const standaloneClient = new CopilotClient({
-                workingDirectory: workDir,
-                env,
                 connection: makeConnection(),
             });
             onTestFinished(async () => {
@@ -55,11 +69,11 @@ describe("Sessions", () => {
         const connectionToken = "client-e2e-resume-token";
 
         const tcpClient = new CopilotClient({
-            workingDirectory: workDir,
-            env,
             connection: RuntimeConnection.forTcp({
                 path: process.env.COPILOT_CLI_PATH,
                 connectionToken,
+                workingDirectory: workDir,
+                env,
             }),
         });
         onTestFinished(async () => {
@@ -78,8 +92,6 @@ describe("Sessions", () => {
         }
 
         const resumeClient = new CopilotClient({
-            workingDirectory: workDir,
-            env,
             connection: RuntimeConnection.forUri(`localhost:${port}`, { connectionToken }),
         });
         onTestFinished(async () => {

@@ -268,9 +268,11 @@ func newNoTokenClient(t *testing.T, ctx *testharness.TestContext) *copilot.Clien
 	)
 	useLoggedInUser := false
 	return copilot.NewClient(&copilot.ClientOptions{
-		Connection:       copilot.StdioConnection{Path: ctx.CLIPath},
-		WorkingDirectory: ctx.WorkDir,
-		Env:              env,
-		UseLoggedInUser:  &useLoggedInUser,
+		Connection: copilot.StdioConnection{
+			Path:             ctx.CLIPath,
+			WorkingDirectory: ctx.WorkDir,
+			Env:              env,
+		},
+		UseLoggedInUser: &useLoggedInUser,
 	})
 }

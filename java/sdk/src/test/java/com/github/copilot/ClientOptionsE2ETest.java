@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -22,6 +23,7 @@ import com.github.copilot.rpc.CopilotClientOptions;
 import com.github.copilot.rpc.PermissionHandler;
 import com.github.copilot.rpc.ProviderConfig;
 import com.github.copilot.rpc.ResumeSessionConfig;
+import com.github.copilot.rpc.RuntimeConnection;
 import com.github.copilot.rpc.SessionConfig;
 
 class ClientOptionsE2ETest {
@@ -196,8 +198,8 @@ class ClientOptionsE2ETest {
         }
 
         CopilotClient createClient() {
-            var options = new CopilotClientOptions().setCliPath(script.toString())
-                    .setCliArgs(new String[]{"--capture-file", capture.toString()}).setCwd(workDir.toString())
+            var options = new CopilotClientOptions().setConnection(RuntimeConnection.forStdio(script.toString())
+                    .setWorkingDirectory(workDir.toString()).setArgs(List.of("--capture-file", capture.toString())))
                     .setUseLoggedInUser(false);
             return new CopilotClient(options);
         }

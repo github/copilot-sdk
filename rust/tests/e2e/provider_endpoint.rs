@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use github_copilot_sdk::handler::ApproveAllHandler;
 use github_copilot_sdk::rpc::{ProviderEndpointType, ProviderEndpointWireApi};
-use github_copilot_sdk::{ProviderConfig, SessionConfig};
+use github_copilot_sdk::{ClientOptions, ProviderConfig, SessionConfig, Transport};
 
 use super::support::{DEFAULT_TEST_TOKEN, with_e2e_context};
 
@@ -12,6 +12,16 @@ use super::support::{DEFAULT_TEST_TOKEN, with_e2e_context};
 // the harness env passed to the CLI subprocess opts in for these tests.
 fn opt_in_env() -> (OsString, OsString) {
     ("COPILOT_ALLOW_GET_PROVIDER_ENDPOINT".into(), "true".into())
+}
+
+/// Pushes an extra environment variable onto the out-of-process transport's
+/// env list. No-op for transports without an [`OutOfProcessOptions`] (e.g.
+/// [`Transport::InProcess`]/[`Transport::External`]) since they don't spawn
+/// a CLI subprocess to configure.
+fn push_env(options: &mut ClientOptions, pair: (OsString, OsString)) {
+    if let Transport::Stdio(process) | Transport::Tcp { process, .. } = &mut options.transport {
+        process.env.push(pair);
+    }
 }
 
 #[tokio::test]
@@ -24,7 +34,7 @@ async fn byok_provider_endpoint_returns_configured_endpoint() {
             Box::pin(async move {
                 let mut options = ctx.client_options();
                 if !super::support::is_inprocess_default() {
-                    options.env.push(opt_in_env());
+                    push_env(&mut options, opt_in_env());
                 }
                 let client = github_copilot_sdk::Client::start(options)
                     .await
@@ -104,7 +114,7 @@ async fn capi_provider_endpoint_returns_resolved_credentials() {
                 ctx.set_default_copilot_user();
                 let mut options = ctx.client_options_with_github_token(DEFAULT_TEST_TOKEN);
                 if !super::support::is_inprocess_default() {
-                    options.env.push(opt_in_env());
+                    push_env(&mut options, opt_in_env());
                 }
                 let client = github_copilot_sdk::Client::start(options)
                     .await

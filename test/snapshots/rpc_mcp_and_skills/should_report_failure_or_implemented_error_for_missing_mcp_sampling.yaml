@@ -1,0 +1,8 @@
+models:
+  - claude-sonnet-5
+conversations:
+  - messages:
+      - role: user
+        content: hello
+      - role: assistant
+        content: Hello! How can I help you today?

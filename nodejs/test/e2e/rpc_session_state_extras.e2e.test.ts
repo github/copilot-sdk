@@ -15,13 +15,15 @@ describe("Session-scoped state extras RPC", async () => {
         token = DEFAULT_GITHUB_TOKEN
     ): CopilotClient {
         return new CopilotClient({
-            workingDirectory: workDir,
-            env: {
-                ...env,
-                ...extraEnv,
-            },
             logLevel: "error",
-            connection: RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH }),
+            connection: RuntimeConnection.forStdio({
+                path: process.env.COPILOT_CLI_PATH,
+                workingDirectory: workDir,
+                env: {
+                    ...env,
+                    ...extraEnv,
+                },
+            }),
             gitHubToken: token,
         });
     }

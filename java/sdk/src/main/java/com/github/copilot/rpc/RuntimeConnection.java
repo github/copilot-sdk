@@ -15,7 +15,8 @@ import com.github.copilot.CopilotExperimental;
  *
  * <pre>{@code
  * // Spawn a runtime child process and talk over stdin/stdout (the default).
- * new CopilotClientOptions().setConnection(RuntimeConnection.forStdio());
+ * new CopilotClientOptions().setConnection(RuntimeConnection.forStdio().setWorkingDirectory("/srv/app")
+ * 		.setEnvironment(java.util.Map.of("KEY", "value")));
  *
  * // Spawn a runtime child process listening on a TCP socket.
  * new CopilotClientOptions().setConnection(RuntimeConnection.forTcp().setPath("/usr/local/bin/copilot"));

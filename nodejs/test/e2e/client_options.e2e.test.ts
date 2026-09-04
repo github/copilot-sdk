@@ -180,9 +180,11 @@ describe("Client options", async () => {
 
     it("createSession starts the client lazily", async () => {
         const client = new CopilotClient({
-            workingDirectory: workDir,
-            env,
-            connection: RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH }),
+            connection: RuntimeConnection.forStdio({
+                path: process.env.COPILOT_CLI_PATH,
+                workingDirectory: workDir,
+                env,
+            }),
             gitHubToken: DEFAULT_GITHUB_TOKEN,
         });
         onTestFinished(async () => {
@@ -202,11 +204,11 @@ describe("Client options", async () => {
     it("should listen on configured tcp port", async () => {
         const port = await getAvailableTcpPort();
         const client = new CopilotClient({
-            workingDirectory: workDir,
-            env,
             connection: RuntimeConnection.forTcp({
                 path: process.env.COPILOT_CLI_PATH,
                 port,
+                workingDirectory: workDir,
+                env,
             }),
         });
         onTestFinished(async () => {
@@ -235,9 +237,11 @@ describe("Client options", async () => {
         // a custom cwd to assert that the custom cwd is honored.
         void defaultClient;
         const client = new CopilotClient({
-            workingDirectory: clientCwd,
-            env,
-            connection: RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH }),
+            connection: RuntimeConnection.forStdio({
+                path: process.env.COPILOT_CLI_PATH,
+                workingDirectory: clientCwd,
+                env,
+            }),
             gitHubToken: DEFAULT_GITHUB_TOKEN,
         });
         onTestFinished(async () => {
@@ -274,11 +278,11 @@ describe("Client options", async () => {
         fs.writeFileSync(cliPath, FAKE_STDIO_CLI_SCRIPT);
 
         const client = new CopilotClient({
-            workingDirectory: workDir,
-            env: { ...env, COPILOT_HOME: copilotHomeFromEnv },
             connection: RuntimeConnection.forStdio({
                 path: cliPath,
                 args: ["--capture-file", capturePath],
+                workingDirectory: workDir,
+                env: { ...env, COPILOT_HOME: copilotHomeFromEnv },
             }),
             baseDirectory: copilotHomeFromOption,
             gitHubToken: "process-option-token",
@@ -389,11 +393,11 @@ describe("Client options", async () => {
         const client = new CopilotClient({
             mode: "empty",
             baseDirectory: workDir,
-            workingDirectory: workDir,
-            env,
             connection: RuntimeConnection.forStdio({
                 path: cliPath,
                 args: ["--capture-file", capturePath],
+                workingDirectory: workDir,
+                env,
             }),
             useLoggedInUser: false,
         });
@@ -446,11 +450,11 @@ describe("Client options", async () => {
         fs.writeFileSync(cliPath, FAKE_STDIO_CLI_SCRIPT);
 
         const client = new CopilotClient({
-            workingDirectory: workDir,
-            env,
             connection: RuntimeConnection.forStdio({
                 path: cliPath,
                 args: ["--capture-file", capturePath],
+                workingDirectory: workDir,
+                env,
             }),
             useLoggedInUser: false,
         });
@@ -595,11 +599,11 @@ describe("Client options", async () => {
         fs.writeFileSync(cliPath, FAKE_STDIO_CLI_SCRIPT);
 
         const client = new CopilotClient({
-            workingDirectory: workDir,
-            env,
             connection: RuntimeConnection.forStdio({
                 path: cliPath,
                 args: ["--capture-file", capturePath],
+                workingDirectory: workDir,
+                env,
             }),
             useLoggedInUser: false,
         });
@@ -662,11 +666,11 @@ describe("Client options", async () => {
         fs.writeFileSync(cliPath, FAKE_STDIO_CLI_SCRIPT);
 
         const client = new CopilotClient({
-            workingDirectory: workDir,
-            env,
             connection: RuntimeConnection.forStdio({
                 path: cliPath,
                 args: ["--capture-file", capturePath],
+                workingDirectory: workDir,
+                env,
             }),
             useLoggedInUser: false,
         });

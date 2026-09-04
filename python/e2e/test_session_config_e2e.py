@@ -465,9 +465,11 @@ class TestSessionConfig:
     ):
         handler = _RecordingRequestHandler()
         client = CopilotClient(
-            connection=RuntimeConnection.for_stdio(path=ctx.cli_path),
-            working_directory=ctx.work_dir,
-            env=ctx.get_env(),
+            connection=RuntimeConnection.for_stdio(
+                path=ctx.cli_path,
+                working_directory=ctx.work_dir,
+                env=ctx.get_env(),
+            ),
             github_token=DEFAULT_GITHUB_TOKEN,
             request_handler=handler,
         )
@@ -501,9 +503,9 @@ class TestSessionConfig:
             connection=RuntimeConnection.for_tcp(
                 path=ctx.cli_path,
                 connection_token=connection_token,
+                working_directory=ctx.work_dir,
+                env=ctx.get_env(),
             ),
-            working_directory=ctx.work_dir,
-            env=ctx.get_env(),
             github_token=DEFAULT_GITHUB_TOKEN,
             request_handler=handler,
         )

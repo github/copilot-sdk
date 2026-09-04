@@ -63,10 +63,11 @@ class ElicitationMultiClientContext:
         # Client 1 uses TCP mode so additional clients can connect
         self._client1 = CopilotClient(
             connection=RuntimeConnection.for_tcp(
-                path=self.cli_path, connection_token="py-tcp-shared-test-token"
+                path=self.cli_path,
+                connection_token="py-tcp-shared-test-token",
+                working_directory=self.work_dir,
+                env=self._get_env(),
             ),
-            working_directory=self.work_dir,
-            env=self._get_env(),
             github_token=github_token,
         )
 

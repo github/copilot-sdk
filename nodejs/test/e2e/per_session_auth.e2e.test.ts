@@ -77,13 +77,15 @@ describe("Per-session GitHub auth", async () => {
 
     it("should return unauthenticated when no token is provided", async () => {
         const noTokenClient = new CopilotClient({
-            workingDirectory: workDir,
-            env: withoutAuthEnv({
-                ...env,
-                COPILOT_DEBUG_GITHUB_API_URL: env.COPILOT_API_URL,
-            }),
             logLevel: "error",
-            connection: RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH }),
+            connection: RuntimeConnection.forStdio({
+                path: process.env.COPILOT_CLI_PATH,
+                workingDirectory: workDir,
+                env: withoutAuthEnv({
+                    ...env,
+                    COPILOT_DEBUG_GITHUB_API_URL: env.COPILOT_API_URL,
+                }),
+            }),
             useLoggedInUser: false,
         });
 

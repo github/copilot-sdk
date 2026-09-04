@@ -14,7 +14,9 @@ func TestPerSessionAuthE2E(t *testing.T) {
 	// Create client with COPILOT_DEBUG_GITHUB_API_URL redirected to the proxy
 	// so per-session auth token resolution (fetchCopilotUser) is intercepted.
 	client := ctx.NewClient(func(opts *copilot.ClientOptions) {
-		opts.Env = append(opts.Env, "COPILOT_DEBUG_GITHUB_API_URL="+ctx.ProxyURL)
+		conn := opts.Connection.(copilot.StdioConnection)
+		conn.Env = append(conn.Env, "COPILOT_DEBUG_GITHUB_API_URL="+ctx.ProxyURL)
+		opts.Connection = conn
 	})
 	t.Cleanup(func() { client.ForceStop() })
 	// Register per-token user configs on the proxy
@@ -101,10 +103,12 @@ func TestPerSessionAuthE2E(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
 		noTokenClient := copilot.NewClient(&copilot.ClientOptions{
-			Connection:       copilot.StdioConnection{Path: ctx.CLIPath},
-			WorkingDirectory: ctx.WorkDir,
-			Env:              withoutAuthEnv(append(ctx.Env(), "COPILOT_DEBUG_GITHUB_API_URL="+ctx.ProxyURL)),
-			UseLoggedInUser:  copilot.Bool(false),
+			Connection: copilot.StdioConnection{
+				Path:             ctx.CLIPath,
+				WorkingDirectory: ctx.WorkDir,
+				Env:              withoutAuthEnv(append(ctx.Env(), "COPILOT_DEBUG_GITHUB_API_URL="+ctx.ProxyURL)),
+			},
+			UseLoggedInUser: copilot.Bool(false),
 		})
 		t.Cleanup(func() { noTokenClient.ForceStop() })
 

@@ -58,131 +58,6 @@ conversations:
           The king, wisely, never sent more.
       - role: user
         content: Continue the story with more details about the dragon's castle.
-      - role: assistant
-        content: >-
-          # The Sanctuary of Scales
-
-
-          What had begun as a simple cave transformed over the years into something far more magnificent. Kaedrith's
-          lair sprawled through the mountain's heart like a labyrinth of wonders, carved not by tools but by dragon fire
-          and patient claws over centuries.
-
-
-          The **Grand Entrance** was a natural cathedral of stone, its ceiling lost in shadow sixty feet above.
-          Stalactites glittered with embedded crystals that caught the light of ever-burning braziers—gifts from
-          Kaedrith's own flame, designed never to extinguish. The children had painted murals across the walls: dragons
-          soaring through skies, flowers blooming in impossible colors, and portraits of themselves as heroes in their
-          own stories.
-
-
-          Beyond lay the **Chamber of Wings**, where Kaedrith slept coiled around a natural hot spring. Mineral-rich
-          water bubbled up from volcanic depths, filling the air with steam that smelled of minerals and magic. The
-          children had built sleeping lofts into the chamber walls using salvaged timber and rope, each one
-          customized—some with hanging gardens of cave moss, others with collections of interesting rocks, and one
-          ambitious structure that resembled a ship's crow's nest.
-
-
-          The **Garden of Eternal Flame** was Kaedrith's pride. This vast cavern had openings in its ceiling that
-          created perfect conditions for her fire lilies. The flowers grew in spiral patterns, their petals shifting
-          between crimson, gold, and blue depending on the temperature of dragon breath used to nurture them. The
-          children learned to harvest them carefully, drying the petals to create medicines they traded with the one
-          village brave enough to maintain contact with the dragon's domain.
-
-
-          Down twisting corridors carved smooth by ancient lava flows, there was the **Library of Scales**. Here,
-          Kaedrith had scratched histories into the walls themselves—accounts of the old world in draconic script that
-          glowed faintly in darkness. The children couldn't read it yet, but she was teaching them, letter by letter.
-          They'd also added their own contribution: books salvaged from abandoned places, stacked on stone shelves,
-          covering everything from fairy tales to blacksmithing manuals.
-
-
-          The **Treasury**, ironically, held little gold. Kaedrith had long ago traded most of her hoard for things more
-          useful—seeds, tools, warm blankets. What remained was eclectic: a crown she'd taken from a tyrant king three
-          centuries ago, now used as a planter for herbs; scattered gems that caught firelight; ancient armor pieces
-          repurposed as wall decorations; and most precious of all, a collection of small objects the children had given
-          her—crude clay figures, woven bracelets, a wooden carving of a dragon that looked more like a lizard with
-          wings.
-
-
-          The mountain fortress also contained practical spaces: the **Forge Room**, where heat from volcanic vents
-          allowed them to work metal; the **Larder**, naturally cold passages that preserved food; and the **Rain
-          Catcher**, an ingenious system of channels carved into the mountain's exterior that funneled fresh water into
-          underground cisterns.
-
-
-          But the heart of the sanctuary was the **Gathering Hall**, a wide chamber where stalactites and stalagmites
-          had been carefully preserved to create natural pillars. Here they shared meals around a great stone table that
-          Kaedrith had smoothed to perfect flatness. Here stories were told. Here plans were made. Here, on quiet
-          evenings, the dragon would curl at one end of the hall while children used her tail as a climbing structure
-          and read aloud from books, their voices echoing off ancient stone.
-
-
-          Travelers who glimpsed the mountain from afar spoke of strange lights dancing in its peaks at night—the glow
-          of dragon fire and human laughter, weaving together something the world hadn't seen in an age: a true
-          alliance, a family forged not by blood but by choice, protected by scale and claw and the fierce love of an
-          ancient creature who had finally found her purpose.
-
-
-          And in the valley below, the cruel king's power waned, while whispered stories of the Dragon's Sanctuary
-          spread—a place where the lost could be found, where the small could become mighty, where an ember of the old
-          world still burned bright against the darkness.
-  - messages:
-      - role: system
-        content: ${system}
-      - role: user
-        content: Tell me a story about a dragon. Be detailed.
-      - role: assistant
-        content: >-
-          # The Last Ember of Thornkeep
-
-
-          In the craggy peaks of the Ashfall Mountains, where volcanic vents still breathed smoke into perpetual
-          twilight, there lived a dragon named Kaedrith. Her scales shimmered like molten copper, each one edged in
-          obsidian black, and her eyes held the amber glow of dying stars.
-
-
-          Kaedrith was ancient—so old that she had witnessed the rise and fall of three kingdoms in the valley below.
-          She had once been fearsome, a terror that sent knights fleeing and villages scrambling to offer tribute. But
-          those days had faded like morning mist. Now she spent her centuries in solitude, tending to her greatest
-          treasure: not gold or jewels, but a garden of fire lilies that grew only in dragon flame.
-
-
-          One winter evening, as ash-snow drifted through the mountain passes, a child appeared at the mouth of her
-          cave. A girl, no more than ten, with eyes too weary for her age and hands wrapped in frost-bitten cloth. She
-          didn't scream. She didn't run. She simply stood there, shivering, and said: "They told me you eat people. I
-          need to not be a person anymore."
-
-
-          Kaedrith, who had lived long enough to understand the weight of such words, curled her massive form around the
-          child like a shield of scales and warmth. "What are you running from?" she rumbled, her voice like distant
-          thunder.
-
-
-          "A king who thinks children are coin," the girl whispered. "He sells us to factories in the dark cities."
-
-
-          The dragon's eyes blazed brighter. Deep in her chest, something that had been dormant for centuries
-          stirred—the ancient rage that had once made mountains tremble. But she had learned patience through time's
-          long lessons.
-
-
-          Instead of descending upon the valley in fury, Kaedrith taught the girl. She showed her how to tend the fire
-          lilies, whose petals held healing properties. She shared stories of the old world, when dragons and humans had
-          been allies, not enemies. And slowly, other children found their way up the mountain—runaways, orphans, the
-          forgotten.
-
-
-          Kaedrith's cave became a sanctuary, warmed by dragon fire and filled with laughter that echoed off stone
-          walls. And when the king finally sent his soldiers to drag the children back, they found not helpless
-          refugees, but a dragon fully awakened—with a family worth protecting.
-
-
-          The battle lasted seven minutes. The soldiers never returned.
-
-
-          The king, wisely, never sent more.
-      - role: user
-        content: Continue the story with more details about the dragon's castle.
       - role: user
         content: ${compaction_prompt}
       - role: assistant
@@ -255,6 +130,131 @@ conversations:
 
 
           <checkpoint_title>Dragon storytelling creative writing</checkpoint_title>
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Tell me a story about a dragon. Be detailed.
+      - role: assistant
+        content: >-
+          # The Last Ember of Thornkeep
+
+
+          In the craggy peaks of the Ashfall Mountains, where volcanic vents still breathed smoke into perpetual
+          twilight, there lived a dragon named Kaedrith. Her scales shimmered like molten copper, each one edged in
+          obsidian black, and her eyes held the amber glow of dying stars.
+
+
+          Kaedrith was ancient—so old that she had witnessed the rise and fall of three kingdoms in the valley below.
+          She had once been fearsome, a terror that sent knights fleeing and villages scrambling to offer tribute. But
+          those days had faded like morning mist. Now she spent her centuries in solitude, tending to her greatest
+          treasure: not gold or jewels, but a garden of fire lilies that grew only in dragon flame.
+
+
+          One winter evening, as ash-snow drifted through the mountain passes, a child appeared at the mouth of her
+          cave. A girl, no more than ten, with eyes too weary for her age and hands wrapped in frost-bitten cloth. She
+          didn't scream. She didn't run. She simply stood there, shivering, and said: "They told me you eat people. I
+          need to not be a person anymore."
+
+
+          Kaedrith, who had lived long enough to understand the weight of such words, curled her massive form around the
+          child like a shield of scales and warmth. "What are you running from?" she rumbled, her voice like distant
+          thunder.
+
+
+          "A king who thinks children are coin," the girl whispered. "He sells us to factories in the dark cities."
+
+
+          The dragon's eyes blazed brighter. Deep in her chest, something that had been dormant for centuries
+          stirred—the ancient rage that had once made mountains tremble. But she had learned patience through time's
+          long lessons.
+
+
+          Instead of descending upon the valley in fury, Kaedrith taught the girl. She showed her how to tend the fire
+          lilies, whose petals held healing properties. She shared stories of the old world, when dragons and humans had
+          been allies, not enemies. And slowly, other children found their way up the mountain—runaways, orphans, the
+          forgotten.
+
+
+          Kaedrith's cave became a sanctuary, warmed by dragon fire and filled with laughter that echoed off stone
+          walls. And when the king finally sent his soldiers to drag the children back, they found not helpless
+          refugees, but a dragon fully awakened—with a family worth protecting.
+
+
+          The battle lasted seven minutes. The soldiers never returned.
+
+
+          The king, wisely, never sent more.
+      - role: user
+        content: Continue the story with more details about the dragon's castle.
+      - role: assistant
+        content: >-
+          # The Sanctuary of Scales
+
+
+          What had begun as a simple cave transformed over the years into something far more magnificent. Kaedrith's
+          lair sprawled through the mountain's heart like a labyrinth of wonders, carved not by tools but by dragon fire
+          and patient claws over centuries.
+
+
+          The **Grand Entrance** was a natural cathedral of stone, its ceiling lost in shadow sixty feet above.
+          Stalactites glittered with embedded crystals that caught the light of ever-burning braziers—gifts from
+          Kaedrith's own flame, designed never to extinguish. The children had painted murals across the walls: dragons
+          soaring through skies, flowers blooming in impossible colors, and portraits of themselves as heroes in their
+          own stories.
+
+
+          Beyond lay the **Chamber of Wings**, where Kaedrith slept coiled around a natural hot spring. Mineral-rich
+          water bubbled up from volcanic depths, filling the air with steam that smelled of minerals and magic. The
+          children had built sleeping lofts into the chamber walls using salvaged timber and rope, each one
+          customized—some with hanging gardens of cave moss, others with collections of interesting rocks, and one
+          ambitious structure that resembled a ship's crow's nest.
+
+
+          The **Garden of Eternal Flame** was Kaedrith's pride. This vast cavern had openings in its ceiling that
+          created perfect conditions for her fire lilies. The flowers grew in spiral patterns, their petals shifting
+          between crimson, gold, and blue depending on the temperature of dragon breath used to nurture them. The
+          children learned to harvest them carefully, drying the petals to create medicines they traded with the one
+          village brave enough to maintain contact with the dragon's domain.
+
+
+          Down twisting corridors carved smooth by ancient lava flows, there was the **Library of Scales**. Here,
+          Kaedrith had scratched histories into the walls themselves—accounts of the old world in draconic script that
+          glowed faintly in darkness. The children couldn't read it yet, but she was teaching them, letter by letter.
+          They'd also added their own contribution: books salvaged from abandoned places, stacked on stone shelves,
+          covering everything from fairy tales to blacksmithing manuals.
+
+
+          The **Treasury**, ironically, held little gold. Kaedrith had long ago traded most of her hoard for things more
+          useful—seeds, tools, warm blankets. What remained was eclectic: a crown she'd taken from a tyrant king three
+          centuries ago, now used as a planter for herbs; scattered gems that caught firelight; ancient armor pieces
+          repurposed as wall decorations; and most precious of all, a collection of small objects the children had given
+          her—crude clay figures, woven bracelets, a wooden carving of a dragon that looked more like a lizard with
+          wings.
+
+
+          The mountain fortress also contained practical spaces: the **Forge Room**, where heat from volcanic vents
+          allowed them to work metal; the **Larder**, naturally cold passages that preserved food; and the **Rain
+          Catcher**, an ingenious system of channels carved into the mountain's exterior that funneled fresh water into
+          underground cisterns.
+
+
+          But the heart of the sanctuary was the **Gathering Hall**, a wide chamber where stalactites and stalagmites
+          had been carefully preserved to create natural pillars. Here they shared meals around a great stone table that
+          Kaedrith had smoothed to perfect flatness. Here stories were told. Here plans were made. Here, on quiet
+          evenings, the dragon would curl at one end of the hall while children used her tail as a climbing structure
+          and read aloud from books, their voices echoing off ancient stone.
+
+
+          Travelers who glimpsed the mountain from afar spoke of strange lights dancing in its peaks at night—the glow
+          of dragon fire and human laughter, weaving together something the world hadn't seen in an age: a true
+          alliance, a family forged not by blood but by choice, protected by scale and claw and the fierce love of an
+          ancient creature who had finally found her purpose.
+
+
+          And in the valley below, the cruel king's power waned, while whispered stories of the Dragon's Sanctuary
+          spread—a place where the lost could be found, where the small could become mighty, where an ember of the old
+          world still burned bright against the darkness.
   - messages:
       - role: system
         content: ${system}
