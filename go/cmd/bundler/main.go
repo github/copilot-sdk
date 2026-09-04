@@ -1089,6 +1089,9 @@ func getReleaseURL(url string) (*http.Response, error) {
 				return nil, fmt.Errorf("failed to download %s: %w", url, lastErr)
 			}
 		} else {
+			if resp != nil {
+				_ = resp.Body.Close()
+			}
 			lastErr = err
 		}
 
