@@ -37,3 +37,20 @@ class TestGetCliPathForTests:
         with pytest.raises(RuntimeError) as excinfo:
             context._prepare_pinned_cli(tmp_path)
         assert "download failed" in str(excinfo.value)
+
+
+def test_inprocess_environment_reuses_prepared_runtime(tmp_path, monkeypatch):
+    cli = tmp_path / "copilot-runtime"
+    cli.write_text("runtime\n")
+
+    test_context = context.E2ETestContext()
+    test_context.cli_path = str(cli)
+    test_context.work_dir = str(tmp_path)
+    monkeypatch.setattr(test_context, "get_env", lambda: {"HTTPS_PROXY": "https://proxy"})
+    monkeypatch.delenv("COPILOT_CLI_PATH", raising=False)
+
+    try:
+        test_context._apply_inprocess_environment()
+        assert context.os.environ["COPILOT_CLI_PATH"] == str(cli)
+    finally:
+        test_context._restore_inprocess_environment()
