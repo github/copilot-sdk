@@ -33,6 +33,18 @@ We are generally **not** looking for:
 - Additional documentation
 - **SDKs for other languages** — if you want to create a Copilot SDK for another language, we'd love to hear from you and may offer to link to your SDK from our repo. However we do not plan to add further language-specific SDKs to this repo in the short term, since we need to retain our maintenance capacity for moving forwards quickly with the existing language set. For other languages, please consider running your own external project.
 
+## Microsoft Contributor Setup
+
+Microsoft contributors who need recent builds of `@github`-scoped packages from the internal Azure Artifacts feed should run this command from `nodejs`:
+
+```bash
+npm run auth:refresh
+```
+
+The command generates scoped registry configurations at `nodejs/.npmrc`, `test/harness/.npmrc`, and `java/scripts/codegen/.npmrc`. Each configuration routes only the `@github` scope through the `copilot-canary` feed's `@Local` view, so you can then use the normal dependency installation commands. Credentials remain in your user-level npm configuration rather than in project files. On Windows, the command uses `vsts-npm-auth`; on Linux and macOS, it uses the Microsoft Azure Artifacts npm credential provider.
+
+Run `npm run auth:refresh` again after an Azure Artifacts 401 or 403 response. To return to public registry behavior, delete the three generated `.npmrc` files. Public contributors do not need this setup and are unaffected.
+
 ## Developing an SDK
 
 Setup, build, and test instructions are maintained with each SDK:
