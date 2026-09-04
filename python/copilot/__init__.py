@@ -30,8 +30,10 @@ from .canvas import (
 )
 from .client import (
     AskUserVariant,
+    AutoTier,
     CapiSessionOptions,
     ChildProcessRuntimeConnection,
+    ClientInfo,
     CloudSessionOptions,
     CloudSessionRepository,
     CopilotClient,
@@ -231,6 +233,7 @@ __all__ = [
     "AutoModeSwitchRequest",
     "AutoModeSwitchResponse",
     "AskUserVariant",
+    "AutoTier",
     "BUILTIN_TOOLS_ISOLATED",
     "CanvasAction",
     "CanvasDeclaration",
@@ -242,6 +245,7 @@ __all__ = [
     "CanvasProviderIdentity",
     "CapiSessionOptions",
     "ChildProcessRuntimeConnection",
+    "ClientInfo",
     "CloudSessionOptions",
     "CloudSessionRepository",
     "CommandContext",

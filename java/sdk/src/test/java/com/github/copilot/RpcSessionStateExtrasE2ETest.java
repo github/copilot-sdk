@@ -65,7 +65,7 @@ class RpcSessionStateExtrasE2ETest {
 
                 var selectionId = "java-e2e-provider/small";
                 session.getRpc().model.switchTo(new SessionModelSwitchToParams(null, selectionId, null, null, null,
-                        null, null, null, null, null, null, null, null, null, null)).get(30, TimeUnit.SECONDS);
+                        null, null, null, null, null, null, null, null, null, null, null)).get(30, TimeUnit.SECONDS);
                 var current = session.getRpc().model.getCurrent().get(30, TimeUnit.SECONDS);
                 assertEquals(selectionId, current.modelId());
             }
@@ -142,7 +142,7 @@ class RpcSessionStateExtrasE2ETest {
                 session.getRpc().tools.updateSubagentSettings(new SessionToolsUpdateSubagentSettingsParams(null,
                         new SessionToolsUpdateSubagentSettingsParams.SessionToolsUpdateSubagentSettingsParamsSubagents(
                                 Map.of("general-purpose",
-                                        new SubagentSettingsEntry("gpt-5-mini", "low",
+                                        new SubagentSettingsEntry("gpt-5-mini", null, "low",
                                                 SubagentSettingsEntryContextTier.LONG_CONTEXT)),
                                 List.of("legacy-agent"), null, null)))
                         .get(30, TimeUnit.SECONDS);

@@ -37,4 +37,15 @@ public final class ServerManagedSettingsApi {
         return caller.invoke("managedSettings.read", java.util.Map.of(), ManagedSettingsReadResult.class);
     }
 
+    /**
+     * Invokes {@code managedSettings.clearCache}.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<Void> clearCache() {
+        return caller.invoke("managedSettings.clearCache", java.util.Map.of(), Void.class);
+    }
+
 }

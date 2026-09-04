@@ -1093,6 +1093,26 @@ public class SessionRequestBuilderTest {
     }
 
     @Test
+    void testBuildRequestsPropagateAndSerializeFeatureFlags() throws Exception {
+        var mapper = JsonRpcClient.getObjectMapper();
+        var flags = Map.of("ENABLED_TEST_FLAG", true, "DISABLED_TEST_FLAG", false);
+
+        var createConfig = new SessionConfig().setFeatureFlags(flags);
+        CreateSessionRequest createRequest = SessionRequestBuilder.buildCreateRequest(createConfig, "session-1");
+        assertEquals(flags, createRequest.getFeatureFlags());
+        var createJson = mapper.readTree(mapper.writeValueAsString(createRequest));
+        assertTrue(createJson.path("featureFlags").path("ENABLED_TEST_FLAG").asBoolean());
+        assertFalse(createJson.path("featureFlags").path("DISABLED_TEST_FLAG").asBoolean());
+
+        var resumeConfig = new ResumeSessionConfig().setFeatureFlags(flags);
+        ResumeSessionRequest resumeRequest = SessionRequestBuilder.buildResumeRequest("session-1", resumeConfig);
+        assertEquals(flags, resumeRequest.getFeatureFlags());
+        var resumeJson = mapper.readTree(mapper.writeValueAsString(resumeRequest));
+        assertTrue(resumeJson.path("featureFlags").path("ENABLED_TEST_FLAG").asBoolean());
+        assertFalse(resumeJson.path("featureFlags").path("DISABLED_TEST_FLAG").asBoolean());
+    }
+
+    @Test
     void testClonePreservesAndForwardsExpAssignments() throws Exception {
         var mapper = JsonRpcClient.getObjectMapper();
         var createAssignments = new CopilotExpAssignmentResponse()

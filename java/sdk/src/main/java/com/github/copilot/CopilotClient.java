@@ -221,7 +221,10 @@ public final class CopilotClient implements AutoCloseable {
         // Parse CliUrl if provided
         if (this.options.getCliUrl() != null && !this.options.getCliUrl().isEmpty()) {
             URI uri = CliServerManager.parseCliUrl(this.options.getCliUrl());
-            this.optionsHost = uri.getHost();
+            String host = uri.getHost();
+            this.optionsHost = host != null && host.startsWith("[") && host.endsWith("]")
+                    ? host.substring(1, host.length() - 1)
+                    : host;
             this.optionsPort = uri.getPort();
         } else {
             this.optionsHost = null;
@@ -635,12 +638,20 @@ public final class CopilotClient implements AutoCloseable {
             if (effectiveConnectionToken != null) {
                 connectParams.put("token", effectiveConnectionToken);
             }
+            connectParams.put("supportedTaskKinds", List.of("agent", "client", "shell"));
             // Opt into GitHub telemetry forwarding at the connection level when a handler
             // is registered, so the runtime can forward the first session's un-replayable
             // start event. Also sent on session create/resume for backward compatibility
             // with servers that read the flag there instead.
             if (this.options.getOnGitHubTelemetry() != null) {
                 connectParams.put("enableGitHubTelemetryForwarding", true);
+            }
+            // Declare the integrating application's identity so the runtime attributes the
+            // telemetry it emits on this connection to a consistent surface instead of
+            // its own build. Omitted when the app didn't supply it (or supplied no fields).
+            var clientInfo = this.options.getClientInfo();
+            if (clientInfo != null && !clientInfo.isEmpty()) {
+                connectParams.put("clientInfo", clientInfo);
             }
             var connectResponse = connection.rpc.invoke("connect", connectParams, ConnectResult.class).get(30,
                     TimeUnit.SECONDS);

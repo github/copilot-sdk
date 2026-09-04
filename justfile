@@ -9,7 +9,7 @@ format: format-go format-python format-nodejs format-dotnet format-rust
 lint: lint-go lint-python lint-nodejs lint-dotnet lint-rust
 
 # Run tests for all languages
-test: test-go test-python test-nodejs test-dotnet test-rust test-corrections
+test: test-go test-python test-nodejs test-dotnet test-rust test-harness test-corrections
 
 # Format Go code
 format-go:
@@ -65,6 +65,11 @@ test-python:
 test-nodejs:
     @echo "=== Testing Node.js code ==="
     @cd nodejs && npm test
+
+# Run test harness tests
+test-harness:
+    @echo "=== Testing test harness ==="
+    @cd test/harness && npm test
 
 # Test .NET code
 test-dotnet:
@@ -168,4 +173,3 @@ validate-docs-go:
 validate-docs-cs:
     @echo "=== Validating C# documentation ==="
     @cd scripts/docs-validation && npm run validate:cs
-

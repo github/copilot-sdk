@@ -37,6 +37,8 @@ public record SessionOpenOptions(
     @JsonProperty("verbosity") Verbosity verbosity,
     /** Identifier of the client driving the session. */
     @JsonProperty("clientName") String clientName,
+    /** OAuth Client ID Metadata Document URL used by this host for MCP authorization. */
+    @JsonProperty("authClientIdMetadataUrl") String authClientIdMetadataUrl,
     /** Structured client kind used for runtime behavior gates. */
     @JsonProperty("clientKind") String clientKind,
     /** Identifier sent to LSP-style integrations. */
@@ -111,6 +113,10 @@ public record SessionOpenOptions(
     @JsonProperty("allowAllMcpServerInstructions") Boolean allowAllMcpServerInstructions,
     /** Additional directories to search for skills. */
     @JsonProperty("skillDirectories") List<String> skillDirectories,
+    /** Whether skill loading is enabled. When omitted, an SDK skill provider enables skills by default. */
+    @JsonProperty("enableSkills") Boolean enableSkills,
+    /** Whether the requesting SDK session has a skill provider. The provider remains ephemeral and is never persisted in session options or history. When enableSkills is false, it remains bound but dormant and receives no callbacks. Cloud, relay, handoff, and raw sessions.open flows reject it because they cannot safely pre-register the callback handler. */
+    @JsonProperty("hasSkillProvider") Boolean hasSkillProvider,
     /** Built-in skill names to include in this session. When specified, only these runtime-bundled skills are available. Skills from other sources with the same name remain available. */
     @JsonProperty("includedBuiltinSkills") List<String> includedBuiltinSkills,
     /** Skill IDs disabled for this session. */

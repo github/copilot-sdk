@@ -3,9 +3,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 using Microsoft.Extensions.Logging;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 
 namespace GitHub.Copilot.Test.Harness;
@@ -14,6 +14,7 @@ public sealed class E2ETestContext : IAsyncDisposable
 {
     private const string DefaultGitHubToken = "fake-token-for-e2e-tests";
     private static readonly TimeSpan s_gracefulClientStopTimeout = TimeSpan.FromSeconds(30);
+    private static readonly ConcurrentDictionary<string, Lazy<string>> s_preparedCliPaths = new(StringComparer.Ordinal);
 
     public string HomeDir { get; }
     public string WorkDir { get; }
@@ -25,6 +26,8 @@ public sealed class E2ETestContext : IAsyncDisposable
 
     private readonly ReplayProxy _proxy;
     private readonly string _repoRoot;
+    private readonly Lazy<string> _cliPath;
+    private readonly Lazy<string> _legacyCliPath;
     private readonly object _clientsLock = new();
     private readonly List<CopilotClient> _persistentClients = [];
     private readonly List<CopilotClient> _transientClients = [];
@@ -36,6 +39,8 @@ public sealed class E2ETestContext : IAsyncDisposable
         ProxyUrl = proxyUrl;
         _proxy = proxy;
         _repoRoot = repoRoot;
+        _cliPath = GetCachedCliPath(repoRoot, "--print-path");
+        _legacyCliPath = GetCachedCliPath(repoRoot, "--print-legacy-path");
     }
 
     public static async Task<E2ETestContext> CreateAsync()
@@ -144,46 +149,54 @@ public sealed class E2ETestContext : IAsyncDisposable
         throw new InvalidOperationException("Could not find repository root");
     }
 
-    private static string GetCliPath(string repoRoot)
+    private string GetCliPath()
+        => _cliPath.Value;
+
+    public string GetLegacyCliPath()
+        => _legacyCliPath.Value;
+
+    private static Lazy<string> GetCachedCliPath(string repoRoot, string option)
+    {
+        var envPath = Environment.GetEnvironmentVariable("COPILOT_CLI_PATH");
+        var cacheKey = $"{repoRoot}\0{option}\0{envPath}";
+        return s_preparedCliPaths.GetOrAdd(
+            cacheKey,
+            _ => new Lazy<string>(
+                () => PrepareCliPath(repoRoot, option),
+                LazyThreadSafetyMode.ExecutionAndPublication));
+    }
+
+    private static string PrepareCliPath(string repoRoot, string option)
     {
         var envPath = Environment.GetEnvironmentVariable("COPILOT_CLI_PATH");
         if (!string.IsNullOrEmpty(envPath)) return envPath;
 
-        // As of CLI 1.0.64-1 the @github/copilot package is a thin loader; the
-        // runnable index.js ships in the installed platform package.
-        var githubModules = Path.Join(repoRoot, "nodejs", "node_modules", "@github");
-        var packagePrefix = GetCliPackagePrefix();
-        var candidates = Directory.Exists(githubModules)
-            ? Directory.EnumerateDirectories(githubModules, $"{packagePrefix}-*", SearchOption.TopDirectoryOnly)
-                .Select(directory => Path.Join(directory, "index.js"))
-                .Where(File.Exists)
-                .ToArray()
-            : [];
-
-        return candidates.Length switch
+        var startInfo = new ProcessStartInfo
         {
-            1 => candidates[0],
-            0 => throw new InvalidOperationException(
-                $"CLI package matching '{packagePrefix}-*' not found under {githubModules}. " +
-                "Run 'npm install' in the nodejs directory first."),
-            _ => throw new InvalidOperationException(
-                $"Multiple CLI packages matching '{packagePrefix}-*' found under {githubModules}: " +
-                string.Join(", ", candidates.Select(Path.GetDirectoryName))),
+            FileName = "node",
+            WorkingDirectory = Path.Join(repoRoot, "nodejs"),
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            Arguments = $"node_modules/tsx/dist/cli.mjs scripts/prepare-runtime.ts {option}",
         };
-    }
 
-    private static string GetCliPackagePrefix()
-    {
-        var platform = OperatingSystem.IsWindows()
-            ? "win32"
-            : OperatingSystem.IsMacOS()
-                ? "darwin"
-                : OperatingSystem.IsLinux()
-                    ? RuntimeInformation.RuntimeIdentifier.StartsWith("linux-musl-", StringComparison.Ordinal)
-                        ? "linuxmusl"
-                        : "linux"
-                    : throw new PlatformNotSupportedException("Unsupported operating system for Copilot CLI E2E tests.");
-        return $"copilot-{platform}";
+        using var process = Process.Start(startInfo)
+            ?? throw new InvalidOperationException("Failed to start Node.js runtime preparation.");
+        var stdout = process.StandardOutput.ReadToEndAsync();
+        var stderr = process.StandardError.ReadToEndAsync();
+        process.WaitForExit();
+        var output = stdout.GetAwaiter().GetResult();
+        var lines = output.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries);
+        var cliPath = lines.Length == 0 ? string.Empty : lines[^1].Trim();
+        var error = stderr.GetAwaiter().GetResult().Trim();
+        if (process.ExitCode != 0 || string.IsNullOrEmpty(cliPath))
+            throw new InvalidOperationException(
+                $"Failed to prepare the pinned Copilot CLI: {error}");
+        if (!File.Exists(cliPath))
+            throw new InvalidOperationException(
+                $"Pinned Copilot CLI was not created at {cliPath}.");
+        return cliPath;
     }
 
     public async Task ConfigureForTestAsync(string testFile, [CallerMemberName] string? testName = null)
@@ -310,21 +323,20 @@ public sealed class E2ETestContext : IAsyncDisposable
         // CopilotClient honors COPILOT_SDK_DEFAULT_CONNECTION (stdio by default,
         // or in-process); the CI matrix uses this to run the suite under both.
         // Tests that need a specific transport set options.Connection directly.
-        var cliPath = GetCliPath(_repoRoot);
         switch (options.Connection)
         {
             case null when !IsInProcess(null):
                 // No explicit connection and not the in-process default: the
                 // default resolves to stdio, so materialize it here so the
                 // environment can be attached to the connection below.
-                options.Connection = RuntimeConnection.ForStdio(path: cliPath);
+                options.Connection = RuntimeConnection.ForStdio(path: GetCliPath());
                 break;
             case null:
                 // In-process default: leave Connection unset so CopilotClient's
                 // ResolveDefaultConnection honors COPILOT_SDK_DEFAULT_CONNECTION.
                 break;
             case ChildProcessRuntimeConnection child when child.Path is null:
-                child.Path = cliPath;
+                child.Path = GetCliPath();
                 break;
         }
 

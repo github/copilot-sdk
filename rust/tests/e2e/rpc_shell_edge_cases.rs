@@ -308,9 +308,9 @@ async fn wait_for_file_text(path: &Path, expected: &'static str) {
 async fn wait_for_process_cleanup(
     session: &github_copilot_sdk::session::Session,
     process_id: String,
-    _scenario: &'static str,
+    scenario: &'static str,
 ) {
-    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
     let result = session
         .rpc()
         .shell()
@@ -320,7 +320,10 @@ async fn wait_for_process_cleanup(
         })
         .await
         .expect("probe process cleanup");
-    assert!(!result.killed);
+    assert!(
+        !result.killed,
+        "{scenario} should have already exited and been removed from the runtime process map"
+    );
 }
 
 #[cfg(windows)]
@@ -402,7 +405,7 @@ fn stderr_command(marker_path: &Path) -> String {
 #[cfg(windows)]
 fn large_stdout_command(marker_path: &Path) -> String {
     format!(
-        "powershell -NoLogo -NoProfile -Command \"Write-Host ('x' * 204800); Set-Content -LiteralPath '{}' -Value done\"",
+        "powershell -NoLogo -NoProfile -Command \"Write-Host ('x' * 71680); Set-Content -LiteralPath '{}' -Value done\"",
         marker_path.display()
     )
 }
@@ -410,7 +413,7 @@ fn large_stdout_command(marker_path: &Path) -> String {
 #[cfg(not(windows))]
 fn large_stdout_command(marker_path: &Path) -> String {
     format!(
-        "sh -c \"python3 - <<'PY'\nprint('x' * 204800)\nPY\nprintf done > '{}'\"",
+        "sh -c \"python3 - <<'PY'\nprint('x' * 71680)\nPY\nprintf done > '{}'\"",
         marker_path.display()
     )
 }

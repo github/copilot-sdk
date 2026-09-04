@@ -1,9 +1,6 @@
 name: ".NET SDK Tests"
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
   workflow_call:
 
@@ -11,6 +8,40 @@ permissions:
   contents: read
 
 jobs:
+  validate:
+    name: ".NET SDK Build and Format"
+    if: github.event.repository.fork == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./dotnet
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "10.0.x"
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      - name: Restore .NET dependencies
+        run: dotnet restore
+
+      - name: Run dotnet format check
+        run: |
+          if ! dotnet format --no-restore --verify-no-changes; then
+            echo "❌ dotnet format produced changes. Please run 'dotnet format' in dotnet"
+            exit 1
+          fi
+          echo "✅ dotnet format produced no changes"
+
+      # Build the whole solution once to validate every SDK target framework.
+      # Matrix cells below only need to build frameworks consumed by the tests.
+      - name: Build SDK
+        run: dotnet build --no-restore
+
   test:
     name: ".NET SDK Tests (${{ matrix.os }}, ${{ matrix.transport }}, ${{ matrix.backend }}, ${{ matrix.shard }})"
     if: github.event.repository.fork == false
@@ -73,7 +104,65 @@ jobs:
           - os: macos-latest
             transport: default
             backend: capi
-            shard: "2b"
+            shard: "2b-pending"
+          - os: macos-latest
+            transport: default
+            backend: capi
+            shard: "2b-permission"
+          - os: macos-latest
+            transport: default
+            backend: capi
+            shard: "2b-auth"
+          - os: macos-latest
+            transport: default
+            backend: capi
+            shard: "2b-hooks"
+          - os: macos-latest
+            transport: default
+            backend: capi
+            shard: "2b-unit-p"
+          - os: macos-latest
+            transport: default
+            backend: capi
+            shard: "2b-provider"
+          - os: macos-latest
+            transport: default
+            backend: capi
+            shard: "2b-rpc-additional"
+          - os: macos-latest
+            transport: default
+            backend: capi
+            shard: "2b-rpc-agent"
+          - os: macos-latest
+            transport: default
+            backend: capi
+            shard: "2b-rpc-event-log"
+          - os: macos-latest
+            transport: default
+            backend: capi
+            shard: "2b-rpc-event-effects"
+          - os: macos-latest
+            transport: default
+            backend: capi
+            shard: "2b-rpc-mcp-skills"
+          - os: macos-latest
+            transport: default
+            backend: capi
+            shard: "2b-rpc-mcp-config"
+          - os: macos-latest
+            transport: default
+            backend: capi
+            shard: "2b-rpc-mcp-lifecycle"
+          - os: macos-latest
+            transport: default
+            backend: capi
+            shard: "2b-rpc-q-z"
+          # Standalone extension tests require the legacy JavaScript entrypoint.
+          # Keep its subprocess tree isolated from the rest of the O/P/R shard.
+          - os: macos-latest
+            transport: default
+            backend: capi
+            shard: extensions
           - os: macos-latest
             transport: default
             backend: capi
@@ -97,7 +186,7 @@ jobs:
     # A hung test used to run until the runner died (~50 min) and the dying
     # runner never uploaded its logs, so the failures were undiagnosable.
     # Every healthy cell finishes well under 15 min.
-    timeout-minutes: 30
+    timeout-minutes: 20
     defaults:
       run:
         shell: bash
@@ -111,27 +200,16 @@ jobs:
         with:
           node-version: "22"
           cache: "npm"
-          cache-dependency-path: "./nodejs/package-lock.json"
+          cache-dependency-path: |
+            ./nodejs/package-lock.json
+            ./test/harness/package-lock.json
 
-      - name: Install Node.js dependencies (for CLI version extraction)
+      - name: Install Node.js dependencies
         working-directory: ./nodejs
         run: npm ci --ignore-scripts
 
       - name: Restore .NET dependencies
-        run: dotnet restore
-
-      - name: Run dotnet format check
-        if: runner.os == 'Linux'
-        run: |
-          dotnet format --verify-no-changes
-          if [ $? -ne 0 ]; then
-            echo "❌ dotnet format produced changes. Please run 'dotnet format' in dotnet"
-            exit 1
-          fi
-          echo "✅ dotnet format produced no changes"
-
-      - name: Build SDK
-        run: dotnet build --no-restore
+        run: dotnet restore test/GitHub.Copilot.SDK.Test.csproj
 
       - name: Install test harness dependencies
         working-directory: ./test/harness
@@ -153,26 +231,95 @@ jobs:
           # --blame-hang names the offending test instead of letting it wedge
           # the runner. No single test legitimately runs for 10 minutes; the
           # whole suite normally finishes in about five.
-          args=(--no-build -v n --blame-hang --blame-hang-timeout 10m --blame-hang-dump-type none)
+          # The validation job performs the full analyzer-enabled SDK build.
+          # Build only test-consumed frameworks here and do not repeat analyzers.
+          args=(
+            --no-restore
+            -v n
+            --blame-hang
+            --blame-hang-timeout 10m
+            --blame-hang-dump-type none
+            --logger "trx;LogFilePrefix=test-results"
+            --results-directory "$GITHUB_WORKSPACE/dotnet/TestResults"
+            -p:RunAnalyzers=false
+          )
 
           filter="$DOTNET_TEST_FILTER"
           if [[ "$DOTNET_TEST_SHARD" != "full" ]]; then
             case "$DOTNET_TEST_SHARD" in
               1)
-                initials=(A C D H I J K L N Q S U W Y)
+                # M moved here after recent runs showed shard 2 was about two
+                # minutes slower; this keeps Windows and macOS balanced.
+                initials=(A C D H I J K L M N Q S U W Y)
                 shard_filter="FullyQualifiedName~GitHub.Copilot.Test.ConnectionToken"
                 ;;
               2)
-                initials=(B E F G M O P R T V X Z)
+                initials=(B E F G O P R T V X Z)
                 shard_filter=""
                 ;;
               2a)
                 initials=(B E F G)
                 shard_filter=""
                 ;;
-              2b)
-                initials=(M O P R)
-                shard_filter=""
+              2b-pending)
+                initials=()
+                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.PendingWorkResumeE2ETests"
+                ;;
+              2b-permission)
+                initials=()
+                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.PermissionE2ETests"
+                ;;
+              2b-auth)
+                initials=()
+                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.PerSessionAuthE2ETests"
+                ;;
+              2b-hooks)
+                initials=()
+                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.PreMcpToolCallHookE2ETests"
+                ;;
+              2b-unit-p)
+                initials=()
+                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.Unit.P"
+                ;;
+              2b-provider)
+                initials=(O)
+                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.ProviderEndpointE2ETests|FullyQualifiedName~GitHub.Copilot.Test.E2E.RewindE2ETests|FullyQualifiedName~GitHub.Copilot.Test.Unit.R"
+                ;;
+              2b-rpc-additional)
+                initials=()
+                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcAdditionalEdgeCasesE2ETests"
+                ;;
+              2b-rpc-agent)
+                initials=()
+                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcAgentE2ETests"
+                ;;
+              2b-rpc-event-log)
+                initials=()
+                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcEventLogE2ETests"
+                ;;
+              2b-rpc-event-effects)
+                initials=()
+                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcEventSideEffectsE2ETests"
+                ;;
+              2b-rpc-mcp-skills)
+                initials=()
+                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcMcpAndSkillsE2ETests"
+                ;;
+              2b-rpc-mcp-config)
+                initials=()
+                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcMcpConfigE2ETests"
+                ;;
+              2b-rpc-mcp-lifecycle)
+                initials=()
+                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcMcpLifecycleE2ETests"
+                ;;
+              2b-rpc-q-z)
+                initials=()
+                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcQueueE2ETests|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcRemoteE2ETests|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcScheduleE2ETests|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcServerE2ETests|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcServerMiscE2ETests|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcServerPluginsE2ETests|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcServerRemoteControlE2ETests|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcSessionStateE2ETests|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcSessionStateExtrasE2ETests|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcShellAndFleetE2ETests|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcShellEdgeCaseE2ETests|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcShellUserRequestedE2ETests|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcTasksAndHandlersE2ETests|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcUiEphemeralQueryE2ETests|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcWorkspaceCheckpointsE2ETests"
+                ;;
+              extensions)
+                initials=()
+                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcExtensionsLoadedE2ETests"
                 ;;
               2c)
                 initials=(T V X Z)
@@ -192,4 +339,13 @@ jobs:
           if [[ -n "$filter" ]]; then
             args+=(--filter "$filter")
           fi
-          dotnet test "${args[@]}"
+          dotnet test test/GitHub.Copilot.SDK.Test.csproj "${args[@]}"
+
+      - name: Upload .NET test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: dotnet-test-diagnostics-${{ matrix.os }}-${{ matrix.transport }}-${{ matrix.backend }}-${{ matrix.shard }}-${{ github.run_attempt }}
+          path: dotnet/TestResults/
+          if-no-files-found: warn
+          retention-days: 7

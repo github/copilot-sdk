@@ -8,7 +8,7 @@
     <parent>
         <groupId>com.github</groupId>
         <artifactId>copilot-sdk-java-parent</artifactId>
-        <version>1.0.14-preview.4-SNAPSHOT</version>
+        <version>1.0.14-preview.5-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -31,14 +31,13 @@
         <!--
             Root of the monorepo. This module lives at java/copilot-native/, so
             two levels up reaches the monorepo root. Used to locate
-            nodejs/package-lock.json, which pins both the runtime version and
-            its SHA-512 integrity hash.
+            nodejs/package.json, which pins the Copilot CLI release version.
         -->
         <copilot.sdk.root>${project.basedir}/../..</copilot.sdk.root>
         <copilot.native.staging>${project.build.directory}/native-staging</copilot.native.staging>
         <!--
-            The native runtime is downloaded from npm; this module is published
-            to Maven Central alongside the sdk module.
+            The native runtime is downloaded from the matching github/copilot-cli
+            release; this module is published to Maven Central alongside the sdk module.
         -->
         <maven.deploy.skip>false</maven.deploy.skip>
     </properties>
@@ -60,11 +59,10 @@
             <!--
                 On a supported build host, download and verify the matching native
                 runtime binary. The helper script reads the pinned version and
-                SHA-512 integrity hash for @github/copilot-<classifier> from
-                nodejs/package-lock.json, runs `npm pack`, verifies the tarball
-                against that hash, and extracts runtime.node into the staging
-                directory. Requires Node.js and npm — already required for the
-                Java E2E tests.
+                release SHA256SUMS.txt, downloads the platform npm tarball from
+                github/copilot-cli, verifies it, and extracts runtime.node into
+                the staging directory. Requires Node.js, which is already required
+                for the Java E2E tests.
             -->
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>

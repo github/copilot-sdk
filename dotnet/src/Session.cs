@@ -204,6 +204,31 @@ public sealed partial class CopilotSession : IAsyncDisposable
         ((ICollection<KeyValuePair<string, CopilotSession>>)_parentClient._sessions).Remove(new(SessionId, this));
     }
 
+    /// <summary>
+    /// Stops the session's event consumer (<see cref="ProcessEventsAsync"/>) without
+    /// making an RPC. <see cref="CopilotClient.CreateSessionAsync"/> and
+    /// <see cref="CopilotClient.ResumeSessionAsync"/> use this on error paths where a
+    /// locally registered session fails before it can be returned to the caller:
+    /// <see cref="StartProcessingEvents"/> starts the consumer eagerly, and no caller
+    /// ever receives the failed session to dispose it. Safe to call more than once —
+    /// <see cref="ChannelWriter{T}.TryComplete"/> is idempotent.
+    /// </summary>
+    internal void CloseEventChannel()
+    {
+        _eventChannel.Writer.TryComplete();
+    }
+
+    /// <summary>
+    /// Removes the session from its parent client and stops its event consumer.
+    /// Used on session-creation/resume error paths where the session was registered
+    /// (and its event loop started) but never returned to the caller.
+    /// </summary>
+    internal void Unregister()
+    {
+        CloseEventChannel();
+        RemoveFromClient();
+    }
+
     internal void SetGitHubTokenProviderRegistration(string registrationId)
     {
         _gitHubTokenProviderRegistrationId = registrationId;
@@ -898,9 +923,16 @@ public sealed partial class CopilotSession : IAsyncDisposable
 
             if (arguments is JsonElement incomingJsonArgs)
             {
-                foreach (var prop in incomingJsonArgs.EnumerateObject())
+                if (incomingJsonArgs.ValueKind == JsonValueKind.Object)
                 {
-                    aiFunctionArgs[prop.Name] = prop.Value;
+                    foreach (var prop in incomingJsonArgs.EnumerateObject())
+                    {
+                        aiFunctionArgs[prop.Name] = prop.Value;
+                    }
+                }
+                else
+                {
+                    aiFunctionArgs[GetSingleParameterName(tool)] = incomingJsonArgs;
                 }
             }
 
@@ -940,6 +972,55 @@ public sealed partial class CopilotSession : IAsyncDisposable
             {
                 // Connection already disposed — nothing we can do
             }
+        }
+
+        static string GetSingleParameterName(AIFunction tool)
+        {
+            if (tool.JsonSchema.TryGetProperty("properties", out var properties) &&
+                properties.ValueKind == JsonValueKind.Object)
+            {
+                string? parameterName = null;
+                foreach (var property in properties.EnumerateObject())
+                {
+                    if (parameterName is not null)
+                    {
+                        parameterName = null;
+                        break;
+                    }
+
+                    parameterName = property.Name;
+                }
+
+                if (parameterName is not null)
+                {
+                    return parameterName;
+                }
+
+                if (tool.JsonSchema.TryGetProperty("required", out var required) &&
+                    required.ValueKind == JsonValueKind.Array)
+                {
+                    string? requiredParameterName = null;
+                    foreach (var requiredParameter in required.EnumerateArray())
+                    {
+                        if (requiredParameterName is not null)
+                        {
+                            requiredParameterName = null;
+                            break;
+                        }
+
+                        requiredParameterName = requiredParameter.GetString();
+                    }
+
+                    if (requiredParameterName is not null &&
+                        properties.TryGetProperty(requiredParameterName, out _))
+                    {
+                        return requiredParameterName;
+                    }
+                }
+            }
+
+            throw new ArgumentException(
+                $"Tool '{tool.Name}' received non-object arguments, but its schema does not define exactly one parameter or one required parameter.");
         }
     }
 
@@ -1933,7 +2014,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
             return;
         }
 
-        _eventChannel.Writer.TryComplete();
+        CloseEventChannel();
 
         try
         {

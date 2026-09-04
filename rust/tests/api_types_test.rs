@@ -3,12 +3,55 @@
 
 #![allow(clippy::unwrap_used)]
 
+use github_copilot_sdk::AutoTier;
 use github_copilot_sdk::rpc::{
     Extension, ExtensionList, ExtensionSource, ExtensionStatus, ExtensionsDisableRequest,
     ExtensionsEnableRequest, FleetStartRequest, FleetStartResult, ModelSetAllowedModelsRequest,
-    ModelSetAllowedModelsResult, TasksStartAgentRequest,
+    ModelSetAllowedModelsResult, QueuePendingItems, QueuePendingItemsKind, SendAgentMode,
+    TasksStartAgentRequest,
 };
-use github_copilot_sdk::session_events::{PermissionRequest, PermissionRequestedData};
+use github_copilot_sdk::session_events::{
+    PermissionRequest, PermissionRequestedData, SessionEventData, TypedSessionEvent,
+};
+
+#[test]
+fn session_events_deserialize_auto_tier() {
+    for event_type in ["session.start", "session.resume"] {
+        for (tier, wire_tier) in [
+            (Some(AutoTier::Efficiency), Some("efficiency")),
+            (Some(AutoTier::Balance), Some("balance")),
+            (Some(AutoTier::Intelligence), Some("intelligence")),
+            (None, None),
+        ] {
+            let mut wire = serde_json::json!({
+                "id": "11111111-1111-1111-1111-111111111111",
+                "timestamp": "2026-08-28T00:00:00Z",
+                "parentId": null,
+                "type": event_type,
+                "data": {
+                    "sessionId": "test-session", "version": 1,
+                    "producer": "copilot", "copilotVersion": "1.0.82-1",
+                    "startTime": "2026-08-28T00:00:00Z",
+                    "resumeTime": "2026-08-28T00:00:00Z", "eventCount": 1
+                }
+            });
+            if let Some(wire_tier) = wire_tier {
+                wire["data"]["autoTier"] = serde_json::json!(wire_tier);
+            }
+            let event: TypedSessionEvent = serde_json::from_value(wire).unwrap();
+            let actual: Option<AutoTier> = match event.payload {
+                SessionEventData::SessionStart(data) if event_type == "session.start" => {
+                    data.auto_tier
+                }
+                SessionEventData::SessionResume(data) if event_type == "session.resume" => {
+                    data.auto_tier
+                }
+                _ => panic!("expected {event_type}"),
+            };
+            assert_eq!(actual, tier);
+        }
+    }
+}
 
 #[test]
 fn extension_running_has_expected_status_and_source() {
@@ -139,6 +182,43 @@ fn permission_event_exposes_managed_approval_required() {
         panic!("expected read permission request");
     };
     assert_eq!(request.managed_approval_required, Some(true));
+}
+
+#[test]
+fn queue_pending_message_id_uses_camel_case_wire_name() {
+    let item = QueuePendingItems {
+        agent_mode: SendAgentMode::Interactive,
+        display_text: "second message".to_string(),
+        id: "batch-1".to_string(),
+        kind: QueuePendingItemsKind::Message,
+        message_id: Some("message-2".to_string()),
+    };
+
+    let serialized = serde_json::to_value(&item).unwrap();
+    assert_eq!(serialized["id"], "batch-1");
+    assert_eq!(serialized["messageId"], "message-2");
+
+    let deserialized: QueuePendingItems = serde_json::from_value(serialized).unwrap();
+    assert_eq!(deserialized.message_id.as_deref(), Some("message-2"));
+}
+
+#[test]
+fn queue_pending_message_id_is_optional_for_older_hosts() {
+    let item: QueuePendingItems = serde_json::from_value(serde_json::json!({
+        "agentMode": "interactive",
+        "displayText": "/model gpt-5",
+        "id": "command-1",
+        "kind": "command"
+    }))
+    .unwrap();
+
+    assert_eq!(item.message_id, None);
+    assert!(
+        serde_json::to_value(item)
+            .unwrap()
+            .get("messageId")
+            .is_none()
+    );
 }
 
 fn running_extension(id: &str, name: &str) -> Extension {

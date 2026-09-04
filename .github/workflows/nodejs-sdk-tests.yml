@@ -4,9 +4,6 @@ env:
   HUSKY: 0
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
   workflow_call:
 
@@ -52,9 +49,25 @@ jobs:
       - name: Build SDK
         run: npm run build
 
+      - name: Build and verify release packages
+        if: runner.os == 'Linux' && matrix.transport == 'default'
+        run: |
+          npm run pack:release
+          npm run verify:release-packages
+
       - name: Install test harness dependencies
         working-directory: ./test/harness
         run: npm ci --ignore-scripts
+
+      - name: Run test harness tests
+        if: runner.os == 'Linux' && matrix.transport == 'default'
+        working-directory: ./test/harness
+        run: npm test
+
+      - name: Prepare Copilot CLI runtime
+        run: |
+          runtime_path=$(npm run --silent prepare:runtime -- --print-path)
+          echo "COPILOT_CLI_PATH=$runtime_path" >> "$GITHUB_ENV"
 
       - name: Warm up PowerShell
         if: runner.os == 'Windows'

@@ -6,10 +6,9 @@
  * Downloads the native runtime artifacts for one platform classifier.
  *
  * Steps:
- *   1. Read the pinned version and the SHA-512 `integrity` value for
- *      `@github/copilot-<classifier>` from `nodejs/package-lock.json`.
- *   2. `npm pack` that exact version into the staging directory.
- *   3. Verify the downloaded tarball against the `integrity` value.
+ *   1. Read the pinned version from `nodejs/package.json`.
+ *   2. Download the platform npm tarball and `SHA256SUMS.txt` from the matching release.
+ *   3. Verify the downloaded tarball against the release checksum.
  *   4. Stage the hostless runtime tree, flattening the selected prebuild directory
  *      beside the package's retained top-level runtime assets.
  *   5. Write an inventory consumed by the SDK's generic classpath extractor.
@@ -29,18 +28,15 @@ const excludedTopLevel = new Set([
   'changelog.json',
   'copilot',
   'copilot.exe',
-  'copilot-sdk',
   'foundry-local-sdk',
   'index.js',
   'LICENSE.md',
   'napi-oop-runtime',
   'npm-loader.js',
   'package.json',
-  'preloads',
   'pvrecorder',
   'queries',
   'README.md',
-  'sdk',
   'sea-loader.js',
   'webview',
 ]);
@@ -52,19 +48,12 @@ if (!repoRoot || !stagingDir || !classifier) {
   process.exit(1);
 }
 
-const lockPath = path.join(repoRoot, 'nodejs', 'package-lock.json');
+const packagePath = path.join(repoRoot, 'nodejs', 'package.json');
 const packageName = `@github/copilot-${classifier}`;
-const lock = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
-const entry = lock.packages?.[`node_modules/${packageName}`];
-
-if (!entry?.version || !entry?.integrity) {
-  console.error(`Could not find version/integrity for ${packageName} in ${lockPath}`);
-  process.exit(1);
-}
-
-const { version, integrity } = entry;
-if (!integrity.startsWith('sha512-')) {
-  console.error(`Unsupported integrity algorithm for ${packageName}: ${integrity}`);
+const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
+const version = packageJson.copilotCliVersion;
+if (!version) {
+  console.error(`Could not find copilotCliVersion in ${packagePath}`);
   process.exit(1);
 }
 
@@ -77,7 +66,7 @@ const wrapperPath = path.join(resourceDir, wrapperFilename);
 const inventoryPath = path.join(resourceDir, 'runtime-assets.list');
 const platformPropertiesPath = path.join(resourceDir, 'platform.properties');
 const expectedPlatformProperties = `classifier=${classifier}\nversion=${version}\n`;
-const stagingSchema = 'hostless-runtime-v2';
+const stagingSchema = 'hostless-runtime-v3';
 const stampPath = path.join(outDir, '.version');
 
 // Idempotence: skip the download only when every required staged artifact
@@ -92,14 +81,12 @@ if (
   const stampLines = fs.readFileSync(stampPath, 'utf8').trim().split('\n');
   const stampSchema = stampLines[0] || '';
   const stampVersion = stampLines[1] || '';
-  const stampIntegrity = stampLines[2] || '';
   const stampTreeDigest = stampLines[3] || '';
   const currentTreeDigest = digestTree(resourceDir);
   const currentPlatformProperties = fs.readFileSync(platformPropertiesPath, 'utf8');
   if (
     stampSchema === stagingSchema &&
     stampVersion === version &&
-    stampIntegrity === integrity &&
     stampTreeDigest === currentTreeDigest &&
     currentPlatformProperties === expectedPlatformProperties
   ) {
@@ -112,24 +99,36 @@ fs.rmSync(outDir, { recursive: true, force: true });
 fs.mkdirSync(resourceDir, { recursive: true });
 
 console.log(`Downloading ${packageName}@${version} ...`);
-const packOutput = execFileSync('npm', ['pack', `${packageName}@${version}`, '--pack-destination', outDir], {
-  encoding: 'utf8',
-  shell: process.platform === 'win32',
-});
-const tarballName = packOutput.trim().split('\n').pop().trim();
-const tarballPath = path.join(outDir, tarballName);
-
-const actual = `sha512-${createHash('sha512').update(fs.readFileSync(tarballPath)).digest('base64')}`;
-if (actual !== integrity) {
-  console.error(`Integrity verification failed for ${tarballPath}`);
-  console.error(`  expected: ${integrity}`);
+const assetName = `github-copilot-${version}-${classifier}.tgz`;
+const releaseBase = (
+  process.env.COPILOT_CLI_DOWNLOAD_BASE_URL ??
+  'https://github.com/github/copilot-cli/releases/download'
+).replace(/\/+$/, '');
+let archive;
+let expectedHash;
+if (process.env.COPILOT_CLI_RELEASE_TARBALL) {
+  archive = fs.readFileSync(process.env.COPILOT_CLI_RELEASE_TARBALL);
+  expectedHash = process.env.COPILOT_CLI_RELEASE_SHA256;
+} else {
+  const releaseUrl = `${releaseBase}/v${version}`;
+  const checksums = (await download(`${releaseUrl}/SHA256SUMS.txt`)).toString('utf8');
+  expectedHash = findChecksum(checksums, assetName);
+  archive = await download(`${releaseUrl}/${assetName}`);
+}
+if (!expectedHash || !/^[a-fA-F0-9]{64}$/.test(expectedHash)) {
+  throw new Error(`Missing or invalid SHA-256 for ${assetName}`);
+}
+const actual = createHash('sha256').update(archive).digest('hex');
+if (actual !== expectedHash.toLowerCase()) {
+  console.error(`Integrity verification failed for ${assetName}`);
+  console.error(`  expected: ${expectedHash}`);
   console.error(`  actual:   ${actual}`);
   process.exit(1);
 }
-console.log(`Integrity verified (${integrity.slice(0, 20)}...).`);
+console.log(`Integrity verified (${expectedHash.slice(0, 20)}...).`);
 
 const inventory = [];
-const members = execFileSync('tar', ['-tzf', tarballPath], { encoding: 'utf8' })
+const members = execFileSync('tar', ['-tzf', '-'], { encoding: 'utf8', input: archive })
   .split(/\r?\n/)
   .filter(Boolean);
 for (const member of members) {
@@ -137,15 +136,19 @@ for (const member of members) {
   if (destinationRelative === null) {
     continue;
   }
-  const listing = execFileSync('tar', ['-tvzf', tarballPath, member], { encoding: 'utf8' }).trim();
+  const listing = execFileSync('tar', ['-tvzf', '-', member], {
+    encoding: 'utf8',
+    input: archive,
+  }).trim();
   if (listing.startsWith('d')) {
     continue;
   }
   if (!listing.startsWith('-')) {
     throw new Error(`Unsupported runtime package entry: ${member}`);
   }
-  const content = execFileSync('tar', ['-xOzf', tarballPath, member], {
+  const content = execFileSync('tar', ['-xOzf', '-', member], {
     encoding: null,
+    input: archive,
     maxBuffer: 512 * 1024 * 1024,
   });
   const destination = path.resolve(resourceDir, destinationRelative);
@@ -162,14 +165,12 @@ for (const member of members) {
 inventory.sort();
 fs.writeFileSync(inventoryPath, `${inventory.join('\n')}\n`);
 
-fs.rmSync(tarballPath, { force: true });
-
 if (!fs.existsSync(runtimePath) || !fs.existsSync(wrapperPath)) {
   throw new Error(`Package ${packageName}@${version} is missing the runtime wrapper pair`);
 }
 fs.writeFileSync(platformPropertiesPath, expectedPlatformProperties);
 const treeDigest = digestTree(resourceDir);
-fs.writeFileSync(stampPath, `${stagingSchema}\n${version}\n${integrity}\n${treeDigest}\n`);
+fs.writeFileSync(stampPath, `${stagingSchema}\n${version}\n${expectedHash}\n${treeDigest}\n`);
 
 console.log(`Staged ${runtimePath}`);
 
@@ -223,4 +224,38 @@ function digestTree(directory) {
     hash.update(relative).update('\0').update(fs.readFileSync(file)).update('\0');
   }
   return `sha512-${hash.digest('base64')}`;
+}
+
+async function download(url) {
+  let lastError;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      // lgtm[js/file-access-to-http] The repository-pinned CLI version intentionally selects the release asset.
+      const response = await fetch(url);
+      if (response.ok) {
+        return Buffer.from(await response.arrayBuffer());
+      }
+      await response.body?.cancel();
+      lastError = new Error(`${response.status} ${response.statusText}`);
+      if (response.status >= 400 && response.status < 500 && response.status !== 408 && response.status !== 429) {
+        break;
+      }
+    } catch (error) {
+      lastError = error;
+    }
+    if (attempt < 2) {
+      await new Promise((resolve) => setTimeout(resolve, 2 ** attempt * 1000));
+    }
+  }
+  throw new Error(`Failed to download ${url}: ${lastError}`);
+}
+
+function findChecksum(checksums, assetName) {
+  for (const line of checksums.split(/\r?\n/)) {
+    const [hash, name] = line.trim().split(/\s+/, 2);
+    if (name?.replace(/^\*/, '') === assetName && /^[a-fA-F0-9]{64}$/.test(hash)) {
+      return hash.toLowerCase();
+    }
+  }
+  throw new Error(`SHA256SUMS.txt does not contain ${assetName}`);
 }

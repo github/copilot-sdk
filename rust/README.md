@@ -362,6 +362,30 @@ provider errors, and invalid token responses reject that operation instead of
 falling back to ambient authentication. Idle sessions refresh only before their
 next credential-consuming operation; there is no background refresh timer.
 
+### Auto routing tiers
+
+Use `CapiSessionOptions::with_auto_tier` to select `AutoTier::Efficiency`,
+`AutoTier::Balance`, or `AutoTier::Intelligence`. This option is meaningful only
+with model `auto` (Auto mode V2).
+It requires a runtime version that supports `capi.autoTier`.
+
+```rust
+use github_copilot_sdk::{AutoTier, CapiSessionOptions, SessionConfig};
+
+let config = SessionConfig::default()
+    .with_model("auto")
+    .with_capi(CapiSessionOptions::new().with_auto_tier(AutoTier::Balance));
+```
+
+The same options work with `ResumeSessionConfig::with_capi` and can be combined
+with `with_enable_web_socket_responses(false)`. The SDK omits an unset tier:
+the runtime chooses its default on create and preserves the persisted/current
+tier on resume. An explicit tier overrides the persisted tier on cold resume;
+the runtime rejects a conflicting tier when the session is already resident
+in memory. The SDK does not choose a default or manage tier persistence.
+See [Auto tier persistence](../docs/features/session-persistence.md#auto-tier-persistence)
+for the lifecycle rules.
+
 ### Session Hooks
 
 Hooks intercept CLI behavior at lifecycle points — tool use, prompt submission, session start/end, and errors. Install a `SessionHooks` impl with [`SessionConfig::with_hooks`] — the SDK auto-enables `hooks` in `SessionConfig` when one is set.
@@ -937,12 +961,12 @@ github-copilot-sdk = { version = "0.1", default-features = false }
 
 1. **Version pin.** `build.rs` reads the CLI version from one of two sources:
    - `cli-version.txt` at the crate root (present in published crate tarballs and vendored slots).
-   - Otherwise, `../nodejs/package-lock.json` (contributor build inside the github/copilot-sdk repo — matches the .NET and Go SDK conventions here).
+   - Otherwise, `../nodejs/package.json` (contributor build inside the github/copilot-sdk repo).
 
    The resolved version is baked into the crate via `cargo:rustc-env=COPILOT_SDK_CLI_VERSION` regardless of mode. The runtime resolver consumes it to recompute the on-disk path by convention, so no absolute paths leak into the rlib.
 
-2. **Build time:** `build.rs` downloads the platform-specific npm package and
-   verifies its `sha512` integrity against the lockfile or publish snapshot.
+2. **Build time:** `build.rs` downloads the platform-specific release archive and
+   verifies its SHA-256 against the release's `SHA256SUMS.txt` or the publish snapshot.
    Then:
    - **`bundled-cli` on (default):** creates and embeds a minimal archive containing the CLI executable, `copilot-runtime[.exe]`, and `runtime.node`.
    - **`bundled-in-process` on:** the archive additionally contains the platform-native runtime library (`.dll`, `.so`, or `.dylib`).

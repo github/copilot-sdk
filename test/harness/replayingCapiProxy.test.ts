@@ -24,13 +24,21 @@ import { ShellConfig } from "./util";
 describe("ReplayingCapiProxy", () => {
   let tempDir: string;
   let workDir: string;
+  let githubActions: string | undefined;
 
   beforeEach(async () => {
+    githubActions = process.env.GITHUB_ACTIONS;
+    delete process.env.GITHUB_ACTIONS;
     tempDir = await mkdtemp(path.join(os.tmpdir(), "capi-proxy-test-"));
     workDir = path.join(tempDir, "work");
   });
 
   afterEach(async () => {
+    if (githubActions === undefined) {
+      delete process.env.GITHUB_ACTIONS;
+    } else {
+      process.env.GITHUB_ACTIONS = githubActions;
+    }
     await rm(tempDir, { recursive: true, force: true });
   });
 
@@ -569,6 +577,14 @@ Always include PINEAPPLE_COCONUT_42.
                 arguments: '{"command":"sleep 100"}',
               },
             },
+            {
+              id: "tc3",
+              type: "function",
+              function: {
+                name: "bash",
+                arguments: '{"command":"sleep 100"}',
+              },
+            },
           ],
         },
         {
@@ -581,6 +597,11 @@ Always include PINEAPPLE_COCONUT_42.
           role: "tool",
           tool_call_id: "tc2",
           content: "<shell context is being reconfigured; retry the command>",
+        },
+        {
+          role: "tool",
+          tool_call_id: "tc3",
+          content: "unknown attachedShellSession handle 9",
         },
       ],
     });
@@ -597,6 +618,7 @@ Always include PINEAPPLE_COCONUT_42.
       (m) => m.role === "tool",
     );
     expect(toolMessages.map((message) => message.content)).toEqual([
+      "The execution of this tool, or a previous tool was interrupted.",
       "The execution of this tool, or a previous tool was interrupted.",
       "The execution of this tool, or a previous tool was interrupted.",
     ]);
@@ -1047,6 +1069,25 @@ Always include PINEAPPLE_COCONUT_42.
           (JSON.parse(interruptedResponse.body) as ChatCompletion).choices[0]
             .message.content,
         ).toBe("Ready for another request.");
+
+        const unknownHandleResponse = await makeRequest(
+          proxyUrl,
+          "/chat/completions",
+          {
+            body: {
+              model: "test-model",
+              messages: [
+                ...messages,
+                {
+                  role: "tool",
+                  tool_call_id: "runtime-call-id",
+                  content: "unknown attachedShellSession handle 9",
+                },
+              ],
+            },
+          },
+        );
+        expect(unknownHandleResponse.status).toBe(200);
 
         const meaningfulErrorResponse = await makeRequest(
           proxyUrl,
@@ -1590,6 +1631,42 @@ Always include PINEAPPLE_COCONUT_42.
         await proxy.stop();
       }
     });
+
+    test.each([false, true])(
+      "defaults to Sonnet 5 without stored models (capture exists: %s)",
+      async (captureExists) => {
+        const cachePath = path.join(tempDir, "cache.yaml");
+        if (captureExists) {
+          await writeFile(
+            cachePath,
+            yaml.stringify({
+              models: [],
+              conversations: [],
+            } satisfies NormalizedData),
+          );
+        }
+
+        const proxy = new ReplayingCapiProxy(
+          "http://localhost:9999",
+          cachePath,
+          workDir,
+        );
+        const proxyUrl = await proxy.start();
+
+        try {
+          const response = await makeRequest(proxyUrl, "/models", {
+            method: "GET",
+          });
+          expect(response.status).toBe(200);
+          const parsed = JSON.parse(response.body) as {
+            data: Array<{ id: string }>;
+          };
+          expect(parsed.data.map((model) => model.id)).toEqual(["claude-sonnet-5"]);
+        } finally {
+          await proxy.stop();
+        }
+      },
+    );
 
     test("returns cached models for /models endpoint", async () => {
       const cachePath = path.join(tempDir, "cache.yaml");

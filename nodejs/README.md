@@ -8,6 +8,20 @@ To use the SDK, you'll need:
 
 - Node.js ^20.19.0 or >=22.12.0
 
+The SDK uses an optional `@github/copilot-sdk-<platform>` package containing the
+Copilot CLI runtime for the host platform. These packages are built from
+verified `github/copilot-cli` release assets when the SDK is published, so
+starting the SDK performs no runtime download. Set `COPILOT_CLI_PATH` to use an
+existing installation instead.
+
+The checked-in release pin is `copilotCliVersion` in `package.json`. Run
+`npm run set:cli-version -- <version>` to update it and regenerate the compiled
+metadata in `src/cliVersion.ts`. Packaging verifies release assets against the
+release's `SHA256SUMS.txt`.
+
+`npm run pack:release` builds the main package and all platform packages. Set
+`COPILOT_CLI_DOWNLOAD_BASE_URL` to use a release mirror while packaging.
+
 ## Installation
 
 ```bash
@@ -22,6 +36,7 @@ Try the interactive chat sample (from the repo root):
 cd nodejs
 npm ci
 npm run build
+export COPILOT_CLI_PATH="$(npm run --silent prepare:runtime -- --print-path)"
 cd samples
 npm install
 npm start
@@ -132,6 +147,7 @@ Create a new conversation session.
 
 - `sessionId?: string` - Custom session ID.
 - `model?: string` - Model to use ("gpt-5", "claude-sonnet-4.5", etc.). **Required when using custom provider.**
+- `capi?: CapiSessionOptions` - Copilot API options. With `model: "auto"`, set `autoTier` to `"efficiency"`, `"balance"`, or `"intelligence"` to choose a routing preference. Requires a runtime with Auto tier support and V2 Auto routing. Omission preserves default behavior. See [Auto tier persistence](../docs/features/session-persistence.md#auto-tier-persistence) for resume semantics.
 - `reasoningEffort?: "low" | "medium" | "high" | "xhigh" | "max"` - Reasoning effort level for models that support it. Use `listModels()` to check which models support this option.
 - `tools?: Tool[]` - Custom tools exposed to the CLI. Tools without `handler` are declaration-only and must be resolved via pending tool-call RPCs.
 - `systemMessage?: SystemMessageConfig` - System message customization (see below)
@@ -935,15 +951,15 @@ const session = await client.createSession({
 
 The handler must return one of the `PermissionDecision` shapes (or `{ kind: "no-result" }`). Approval scopes are present-tense — they describe the decision to apply, not the outcome reported back on session events:
 
-| Kind                     | Meaning                                                                                      | Extra fields                                                            |
-| ------------------------ | -------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| `"approve-once"`         | Allow this single request                                                                    | —                                                                       |
-| `"approve-for-session"`  | Allow this request and remember the approval for the rest of the session                     | `approval?` (rule to remember), `domain?` (for URL approvals)           |
-| `"approve-for-location"` | Allow this request and persist the approval for this project location (git root or cwd)      | `approval` (rule to persist), `locationKey` (location to persist under) |
-| `"approve-permanently"`  | Allow this request and persist the approval across sessions (currently used for URL domains) | `domain` (URL domain to approve)                                        |
-| `"reject"`               | Deny the request                                                                             | `feedback?` (optional string surfaced to the agent)                     |
-| `"user-not-available"`   | Deny the request because no user is available to confirm it                                  | —                                                                       |
-| `"no-result"`            | Suppress this SDK client's response so another connected client can answer the pending request | —                                                                     |
+| Kind                     | Meaning                                                                                        | Extra fields                                                            |
+| ------------------------ | ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `"approve-once"`         | Allow this single request                                                                      | —                                                                       |
+| `"approve-for-session"`  | Allow this request and remember the approval for the rest of the session                       | `approval?` (rule to remember), `domain?` (for URL approvals)           |
+| `"approve-for-location"` | Allow this request and persist the approval for this project location (git root or cwd)        | `approval` (rule to persist), `locationKey` (location to persist under) |
+| `"approve-permanently"`  | Allow this request and persist the approval across sessions (currently used for URL domains)   | `domain` (URL domain to approve)                                        |
+| `"reject"`               | Deny the request                                                                               | `feedback?` (optional string surfaced to the agent)                     |
+| `"user-not-available"`   | Deny the request because no user is available to confirm it                                    | —                                                                       |
+| `"no-result"`            | Suppress this SDK client's response so another connected client can answer the pending request | —                                                                       |
 
 ### Resuming Sessions
 

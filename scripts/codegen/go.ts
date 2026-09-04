@@ -84,6 +84,11 @@ const goIdentifierCasingOverrides = new Map<string, string>([
 ]);
 const goCommentTextWrapLength = 90;
 const wrapGoCommentText = wordwrap(goCommentTextWrapLength);
+const optionalNullableGoProperties = new Set([
+    "ModelSwitchToRequest.autoTier",
+    "TaskClientUpdateProgress.percentage",
+    "TaskClientUpdateProgress.phase",
+]);
 
 function goIdentifierWord(word: string, normalizeRest = false): string {
     const lower = word.toLowerCase();
@@ -394,6 +399,10 @@ function goJSONOmitSuffix(required: boolean, goType: string): string {
 
 function goJSONTag(jsonName: string, required: boolean, goType: string): string {
     return `json:"${jsonName}${goJSONOmitSuffix(required, goType)}"`;
+}
+
+function preserveOptionalNullableGoProperty(typeName: string, propName: string, goType: string): string {
+    return optionalNullableGoProperties.has(`${typeName}.${propName}`) ? `*${goType}` : goType;
 }
 
 async function formatGoFile(filePath: string): Promise<void> {
@@ -1221,7 +1230,11 @@ function emitGoStruct(
         const prop = propSchema as JSONSchema7;
         const isReq = required.has(propName);
         const goName = toGoFieldName(propName);
-        const goType = resolveGoPropertyType(prop, typeName, propName, isReq, ctx);
+        const goType = preserveOptionalNullableGoProperty(
+            typeName,
+            propName,
+            resolveGoPropertyType(prop, typeName, propName, isReq, ctx)
+        );
 
         if (prop.description) {
             pushGoCommentForContext(lines, prop.description, ctx, "\t");
@@ -1947,7 +1960,11 @@ function emitGoFlatDiscriminatedUnion(
                     continue;
                 }
                 const goName = toGoFieldName(propName);
-                const goType = resolveGoPropertyType(prop, variantTypeName, propName, required.has(propName), ctx);
+                const goType = preserveOptionalNullableGoProperty(
+                    variantTypeName,
+                    propName,
+                    resolveGoPropertyType(prop, variantTypeName, propName, required.has(propName), ctx)
+                );
                 if (prop.description) {
                     pushGoCommentForContext(lines, prop.description, ctx, "\t");
                 }
@@ -3967,7 +3984,10 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     if (generatedTypeCode.includes("time.Time")) {
         imports.push(`"time"`);
     }
-    if (schema.clientSession || schema.clientGlobal) {
+    const publicClientSession = schema.clientSession
+        ? filterNodeByVisibility(schema.clientSession, "public")
+        : null;
+    if (publicClientSession || schema.clientGlobal) {
         imports.push(`"errors"`, `"fmt"`);
     }
     imports.push(`"github.com/github/copilot-sdk/go/internal/jsonrpc2"`);
@@ -4268,8 +4288,9 @@ function clientHandlerMethodName(rpcMethod: string): string {
     return toPascalCase(rpcMethod.split(".").at(-1)!);
 }
 
-function emitClientSessionApiRegistration(lines: string[], clientSchema: Record<string, unknown>, resolveType: (name: string) => string, unionInfos: Map<string, GoDiscriminatedUnionInfo>): void {
-    const groups = collectClientGroups(clientSchema);
+export function emitClientSessionApiRegistration(lines: string[], clientSchema: Record<string, unknown>, resolveType: (name: string) => string, unionInfos: Map<string, GoDiscriminatedUnionInfo>): void {
+    const publicClientSchema = filterNodeByVisibility(clientSchema, "public") ?? {};
+    const groups = collectClientGroups(publicClientSchema);
 
     for (const { groupName, groupNode, methods } of groups) {
         const interfaceName = clientHandlerInterfaceName(groupName);
@@ -4324,17 +4345,19 @@ function emitClientSessionApiRegistration(lines: string[], clientSchema: Record<
     lines.push(`}`);
     lines.push(``);
 
-    lines.push(`func clientSessionHandlerError(err error) *jsonrpc2.Error {`);
-    lines.push(`\tif err == nil {`);
-    lines.push(`\t\treturn nil`);
-    lines.push(`\t}`);
-    lines.push(`\tvar rpcErr *jsonrpc2.Error`);
-    lines.push(`\tif errors.As(err, &rpcErr) {`);
-    lines.push(`\t\treturn rpcErr`);
-    lines.push(`\t}`);
-    lines.push(`\treturn &jsonrpc2.Error{Code: -32603, Message: err.Error()}`);
-    lines.push(`}`);
-    lines.push(``);
+    if (groups.length > 0) {
+        lines.push(`func clientSessionHandlerError(err error) *jsonrpc2.Error {`);
+        lines.push(`\tif err == nil {`);
+        lines.push(`\t\treturn nil`);
+        lines.push(`\t}`);
+        lines.push(`\tvar rpcErr *jsonrpc2.Error`);
+        lines.push(`\tif errors.As(err, &rpcErr) {`);
+        lines.push(`\t\treturn rpcErr`);
+        lines.push(`\t}`);
+        lines.push(`\treturn &jsonrpc2.Error{Code: -32603, Message: err.Error()}`);
+        lines.push(`}`);
+        lines.push(``);
+    }
 
     lines.push(`// RegisterClientSessionAPIHandlers registers handlers for server-to-client session API calls.`);
     lines.push(`func RegisterClientSessionAPIHandlers(client *jsonrpc2.Client, getHandlers func(sessionID string) *ClientSessionAPIHandlers) {`);

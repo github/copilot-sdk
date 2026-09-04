@@ -27,7 +27,7 @@ public record SkillsLoadedSkill(
     @JsonProperty("commandName") String commandName,
     /** Description of what the skill does */
     @JsonProperty("description") String description,
-    /** Source location type (e.g., project, personal-copilot, plugin, builtin) */
+    /** Source location type (e.g., project, personal-copilot, plugin, builtin, remote, sdk) */
     @JsonProperty("source") SkillSource source,
     /** Whether the skill can be invoked by the user as a slash command */
     @JsonProperty("userInvocable") Boolean userInvocable,

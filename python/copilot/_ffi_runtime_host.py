@@ -121,7 +121,8 @@ def resolve_library_path(runtime_entrypoint: str) -> str | None:
 
     1. The natural platform library name next to the CLI (bundled/flat layout,
        what the Python download-at-first-use path writes).
-    2. ``prebuilds/<platform>/runtime.node`` next to the CLI (dev/package layout).
+    2. ``runtime.node`` next to the CLI (prepared npm runtime layout).
+    3. ``prebuilds/<platform>/runtime.node`` next to the CLI (package-root layout).
 
     Returns the absolute path, or ``None`` when neither exists.
     """
@@ -130,6 +131,10 @@ def resolve_library_path(runtime_entrypoint: str) -> str | None:
     flat = directory / _natural_library_name()
     if flat.is_file():
         return str(flat)
+
+    adjacent_prebuilt = directory / "runtime.node"
+    if adjacent_prebuilt.is_file():
+        return str(adjacent_prebuilt)
 
     folder = get_prebuilds_folder()
     if folder is not None:

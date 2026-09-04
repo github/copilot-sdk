@@ -9,6 +9,79 @@ namespace GitHub.Copilot.Test.Unit;
 
 public class SessionEventSerializationTests
 {
+    public static TheoryData<AutoTier?, string?> AutoTiers => new()
+    {
+        { AutoTier.Efficiency, "efficiency" },
+        { AutoTier.Balance, "balance" },
+        { AutoTier.Intelligence, "intelligence" },
+        { null, null },
+    };
+
+    [Theory]
+    [MemberData(nameof(AutoTiers))]
+    public void SessionEvent_Deserializes_AutoTier(AutoTier? expectedTier, string? wireTier)
+    {
+        foreach (var eventType in new[] { "session.start", "session.resume" })
+        {
+            var autoTierProperty = wireTier is null ? "" : $""", "autoTier": "{wireTier}" """;
+            var json = $$"""
+                {
+                    "id": "11111111-1111-1111-1111-111111111111",
+                    "timestamp": "2026-08-28T00:00:00Z",
+                    "parentId": null,
+                    "type": "{{eventType}}",
+                    "data": {
+                        "sessionId": "test-session", "version": 1,
+                        "producer": "copilot", "copilotVersion": "1.0.82-1",
+                        "startTime": "2026-08-28T00:00:00Z",
+                        "resumeTime": "2026-08-28T00:00:00Z", "eventCount": 1
+                        {{autoTierProperty}}
+                    }
+                }
+                """;
+
+            var sessionEvent = SessionEvent.FromJson(json);
+            var actualTier = eventType == "session.start"
+                ? Assert.IsType<SessionStartEvent>(sessionEvent).Data.AutoTier
+                : Assert.IsType<SessionResumeEvent>(sessionEvent).Data.AutoTier;
+            Assert.Equal(expectedTier, actualTier);
+        }
+    }
+
+    [Theory]
+    [InlineData("message-1")]
+    [InlineData(null)]
+    public void UserMessageEvent_MessageId_UsesCamelCaseAndIsOptional(string? messageId)
+    {
+        var messageIdProperty = messageId is null ? "" : $""", "messageId": "{messageId}" """;
+        var json = $$"""
+            {
+                "id": "11111111-1111-1111-1111-111111111111",
+                "timestamp": "2026-08-28T00:00:00Z",
+                "parentId": null,
+                "type": "user.message",
+                "data": {
+                    "content": "hello"
+                    {{messageIdProperty}}
+                }
+            }
+            """;
+
+        var sessionEvent = Assert.IsType<UserMessageEvent>(SessionEvent.FromJson(json));
+        Assert.Equal(messageId, sessionEvent.Data.MessageId);
+
+        using var document = JsonDocument.Parse(sessionEvent.ToJson());
+        var data = document.RootElement.GetProperty("data");
+        if (messageId is null)
+        {
+            Assert.False(data.TryGetProperty("messageId", out _));
+        }
+        else
+        {
+            Assert.Equal(messageId, data.GetProperty("messageId").GetString());
+        }
+    }
+
     public static TheoryData<SessionEvent, string> JsonElementBackedEvents => new()
     {
         {

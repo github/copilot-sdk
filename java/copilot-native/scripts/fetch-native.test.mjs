@@ -12,10 +12,10 @@ import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 
 const version = '1.0.79';
-const integrity = 'sha512-test-integrity';
+const checksum = '0'.repeat(64);
 const runtimeContent = 'runtime content';
 const wrapperContent = 'wrapper content';
-const stagingSchema = 'hostless-runtime-v2';
+const stagingSchema = 'hostless-runtime-v3';
 const scriptPath = fileURLToPath(new URL('./fetch-native.mjs', import.meta.url));
 
 for (const classifier of ['linux-x64', 'linux-arm64', 'win32-x64', 'win32-arm64', 'darwin-arm64']) {
@@ -26,7 +26,6 @@ for (const classifier of ['linux-x64', 'linux-arm64', 'win32-x64', 'win32-arm64'
 
     assert.equal(result.status, 0, result.stderr);
     assert.match(result.stdout, /already staged/);
-    assert.equal(fs.existsSync(fixture.npmMarkerPath), false);
   });
 
   test(`${classifier}: missing runtime wrapper does not use incremental fast path`, (t) => {
@@ -38,10 +37,10 @@ for (const classifier of ['linux-x64', 'linux-arm64', 'win32-x64', 'win32-arm64'
     assertRestagingAttempted(fixture, result);
   });
 
-  test(`${classifier}: legacy staging schema does not use incremental fast path`, (t) => {
+  test(`${classifier}: v2 staging schema does not use incremental fast path`, (t) => {
     const fixture = createFixture(t, classifier);
     const stampPath = path.join(fixture.stagingDir, classifier, '.version');
-    fs.writeFileSync(stampPath, fs.readFileSync(stampPath, 'utf8').replace(stagingSchema, 'hostless-runtime-v1'));
+    fs.writeFileSync(stampPath, fs.readFileSync(stampPath, 'utf8').replace(stagingSchema, 'hostless-runtime-v2'));
 
     const result = runScript(fixture);
 
@@ -73,7 +72,6 @@ for (const classifier of ['linux-x64', 'linux-arm64', 'win32-x64', 'win32-arm64'
 
     assert.equal(result.status, 0, result.stderr);
     assert.match(result.stdout, /already staged/);
-    assert.equal(fs.existsSync(fixture.npmMarkerPath), false);
   });
 }
 
@@ -95,25 +93,17 @@ test('stages retained package assets and excludes CLI-only content', (t) => {
   fs.writeFileSync(path.join(packageRoot, 'README.md'), 'excluded');
   const tarball = path.join(fixture.repoRoot, 'fixture.tgz');
   execFileSync('tar', ['-czf', tarball, '-C', path.dirname(packageRoot), 'package']);
-  const packageIntegrity = digest(fs.readFileSync(tarball));
+  const packageChecksum = createHash('sha256').update(fs.readFileSync(tarball)).digest('hex');
   fs.writeFileSync(
-    path.join(fixture.repoRoot, 'nodejs', 'package-lock.json'),
-    JSON.stringify({
-      packages: {
-        [`node_modules/@github/copilot-${classifier}`]: { version, integrity: packageIntegrity },
-      },
-    }),
+    path.join(fixture.repoRoot, 'nodejs', 'package.json'),
+    JSON.stringify({ copilotCliVersion: version }),
   );
-  const fakeNpmPath = path.join(fixture.fakeBinDir, process.platform === 'win32' ? 'npm.cmd' : 'npm');
-  const fakeNpm =
-    process.platform === 'win32'
-      ? '@copy "%FETCH_NATIVE_TARBALL%" "%4\\fixture.tgz" >nul\r\n@echo fixture.tgz\r\n'
-      : '#!/bin/sh\ncp "$FETCH_NATIVE_TARBALL" "$4/fixture.tgz"\nprintf "fixture.tgz\\n"\n';
-  fs.writeFileSync(fakeNpmPath, fakeNpm);
-  fs.chmodSync(fakeNpmPath, 0o755);
   fs.rmSync(path.join(fixture.stagingDir, classifier), { recursive: true, force: true });
 
-  const result = runScript(fixture, { FETCH_NATIVE_TARBALL: tarball });
+  const result = runScript(fixture, {
+    COPILOT_CLI_RELEASE_TARBALL: tarball,
+    COPILOT_CLI_RELEASE_SHA256: packageChecksum,
+  });
 
   assert.equal(result.status, 0, result.stderr);
   const resourceDir = path.join(fixture.stagingDir, classifier, 'native', classifier);
@@ -133,19 +123,12 @@ function createFixture(t, classifier) {
   const repoRoot = path.join(root, 'repo');
   const stagingDir = path.join(root, 'staging');
   const resourceDir = path.join(stagingDir, classifier, 'native', classifier);
-  const fakeBinDir = path.join(root, 'bin');
-  const npmMarkerPath = path.join(root, 'npm-invoked');
   fs.mkdirSync(path.join(repoRoot, 'nodejs'), { recursive: true });
   fs.mkdirSync(resourceDir, { recursive: true });
-  fs.mkdirSync(fakeBinDir);
 
   fs.writeFileSync(
-    path.join(repoRoot, 'nodejs', 'package-lock.json'),
-    JSON.stringify({
-      packages: {
-        [`node_modules/@github/copilot-${classifier}`]: { version, integrity },
-      },
-    }),
+    path.join(repoRoot, 'nodejs', 'package.json'),
+    JSON.stringify({ copilotCliVersion: version }),
   );
 
   const runtimePath = path.join(resourceDir, 'runtime.node');
@@ -167,23 +150,14 @@ function createFixture(t, classifier) {
   fs.writeFileSync(platformPropertiesPath, `classifier=${classifier}\nversion=${version}\n`);
   fs.writeFileSync(
     path.join(stagingDir, classifier, '.version'),
-    `${stagingSchema}\n${version}\n${integrity}\n${digestTree(resourceDir)}\n`,
+    `${stagingSchema}\n${version}\n${checksum}\n${digestTree(resourceDir)}\n`,
   );
 
-  const fakeNpmPath = path.join(fakeBinDir, process.platform === 'win32' ? 'npm.cmd' : 'npm');
-  if (process.platform === 'win32') {
-    fs.writeFileSync(fakeNpmPath, '@echo off\r\n> "%FETCH_NATIVE_NPM_MARKER%" echo invoked\r\nexit /b 42\r\n');
-  } else {
-    fs.writeFileSync(fakeNpmPath, '#!/bin/sh\nprintf invoked > "$FETCH_NATIVE_NPM_MARKER"\nexit 42\n');
-    fs.chmodSync(fakeNpmPath, 0o755);
-  }
-
   return {
+    root,
     classifier,
     repoRoot,
     stagingDir,
-    fakeBinDir,
-    npmMarkerPath,
     runtimePath,
     wrapperPath,
     ripgrepPath,
@@ -196,16 +170,15 @@ function runScript(fixture, extraEnv = {}) {
     encoding: 'utf8',
     env: {
       ...process.env,
-      PATH: `${fixture.fakeBinDir}${path.delimiter}${process.env.PATH}`,
-      FETCH_NATIVE_NPM_MARKER: fixture.npmMarkerPath,
+      COPILOT_CLI_RELEASE_TARBALL: path.join(fixture.root, 'missing.tgz'),
+      COPILOT_CLI_RELEASE_SHA256: checksum,
       ...extraEnv,
     },
   });
 }
 
 function assertRestagingAttempted(fixture, result) {
-  assert.notEqual(result.status, 0, 'The fake npm command should make restaging fail');
-  assert.equal(fs.readFileSync(fixture.npmMarkerPath, 'utf8').trim(), 'invoked');
+  assert.notEqual(result.status, 0, 'The unavailable release should make restaging fail');
 }
 
 function digestTree(directory) {

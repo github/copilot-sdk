@@ -138,6 +138,92 @@ public sealed class GitHubTelemetryTests
         Assert.True(
             !present || flag.ValueKind == JsonValueKind.Null,
             "connect request should omit enableGitHubTelemetryForwarding (or send null) when no handler is registered");
+        Assert.Equal(
+            ["agent", "client", "shell"],
+            connectParams.GetProperty("supportedTaskKinds").EnumerateArray().Select(kind => kind.GetString()));
+    }
+
+    [Fact]
+    public async Task Connect_Forwards_Declared_ClientInfo()
+    {
+        await using var server = await FakeTelemetryServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions
+        {
+            Connection = RuntimeConnection.ForUri(server.Url),
+            ClientInfo = new CopilotClientInfo
+            {
+                ApplicationName = "acme-developer-portal",
+                ApplicationVersion = "2.4.0",
+                IntegrationName = "copilot-assistant",
+                IntegrationVersion = "1.5.0",
+            },
+        });
+        await client.StartAsync();
+
+        var connectParams = server.LastConnectParams ?? throw new InvalidOperationException("connect was not captured.");
+        Assert.True(connectParams.TryGetProperty("clientInfo", out var clientInfo));
+        Assert.Equal("acme-developer-portal", clientInfo.GetProperty("editorName").GetString());
+        Assert.Equal("2.4.0", clientInfo.GetProperty("editorVersion").GetString());
+        Assert.Equal("copilot-assistant", clientInfo.GetProperty("extensionName").GetString());
+        Assert.Equal("1.5.0", clientInfo.GetProperty("extensionVersion").GetString());
+    }
+
+    [Fact]
+    public async Task Connect_Omits_ClientInfo_When_Unset()
+    {
+        await using var server = await FakeTelemetryServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions
+        {
+            Connection = RuntimeConnection.ForUri(server.Url),
+        });
+        await client.StartAsync();
+
+        var connectParams = server.LastConnectParams ?? throw new InvalidOperationException("connect was not captured.");
+        Assert.False(
+            connectParams.TryGetProperty("clientInfo", out _),
+            "connect request should omit clientInfo when none was declared");
+    }
+
+    [Fact]
+    public async Task Connect_Omits_Empty_ClientInfo_Fields()
+    {
+        await using var server = await FakeTelemetryServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions
+        {
+            Connection = RuntimeConnection.ForUri(server.Url),
+            ClientInfo = new CopilotClientInfo { ApplicationName = "example-app", ApplicationVersion = "" },
+        });
+        await client.StartAsync();
+
+        var connectParams = server.LastConnectParams ?? throw new InvalidOperationException("connect was not captured.");
+        Assert.True(connectParams.TryGetProperty("clientInfo", out var clientInfo));
+        Assert.Equal("example-app", clientInfo.GetProperty("editorName").GetString());
+        Assert.False(clientInfo.TryGetProperty("editorVersion", out _));
+        Assert.False(clientInfo.TryGetProperty("extensionName", out _));
+        Assert.False(clientInfo.TryGetProperty("extensionVersion", out _));
+    }
+
+    [Fact]
+    public async Task Connect_Omits_All_Empty_ClientInfo()
+    {
+        await using var server = await FakeTelemetryServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions
+        {
+            Connection = RuntimeConnection.ForUri(server.Url),
+            ClientInfo = new CopilotClientInfo
+            {
+                ApplicationName = "",
+                ApplicationVersion = "",
+                IntegrationName = "",
+                IntegrationVersion = "",
+            },
+        });
+        await client.StartAsync();
+
+        var connectParams = server.LastConnectParams ?? throw new InvalidOperationException("connect was not captured.");
+        Assert.False(
+            connectParams.TryGetProperty("clientInfo", out _),
+            "connect request should omit an all-empty clientInfo");
     }
 
     [Fact]

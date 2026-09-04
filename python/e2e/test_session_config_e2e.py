@@ -167,8 +167,8 @@ def _create_anthropic_provider() -> dict:
         "type": "anthropic",
         "base_url": "https://anthropic-citations.invalid/v1",
         "api_key": "test-provider-key",
-        "model_id": "claude-sonnet-4.5",
-        "wire_model": "claude-sonnet-4.5",
+        "model_id": "claude-sonnet-5",
+        "wire_model": "claude-sonnet-5",
     }
 
 
@@ -201,6 +201,7 @@ class TestSessionConfig:
 
         session = await ctx.client.create_session(
             on_permission_request=PermissionHandler.approve_all,
+            model="claude-sonnet-5",
             model_capabilities=ModelCapabilitiesOverride(
                 supports=ModelSupportsOverride(vision=False)
             ),
@@ -213,7 +214,7 @@ class TestSessionConfig:
 
         # Switch vision on
         await session.set_model(
-            "claude-sonnet-4.5",
+            "claude-sonnet-5",
             model_capabilities=ModelCapabilitiesOverride(
                 supports=ModelSupportsOverride(vision=True)
             ),
@@ -234,6 +235,7 @@ class TestSessionConfig:
 
         session = await ctx.client.create_session(
             on_permission_request=PermissionHandler.approve_all,
+            model="claude-sonnet-5",
             model_capabilities=ModelCapabilitiesOverride(
                 supports=ModelSupportsOverride(vision=True)
             ),
@@ -246,7 +248,7 @@ class TestSessionConfig:
 
         # Switch vision off
         await session.set_model(
-            "claude-sonnet-4.5",
+            "claude-sonnet-5",
             model_capabilities=ModelCapabilitiesOverride(
                 supports=ModelSupportsOverride(vision=False)
             ),
@@ -295,7 +297,7 @@ class TestSessionConfig:
     async def test_should_forward_custom_provider_headers_on_create(self, ctx: E2ETestContext):
         session = await ctx.client.create_session(
             on_permission_request=PermissionHandler.approve_all,
-            model="claude-sonnet-4.5",
+            model="claude-sonnet-5",
             provider=_make_proxy_provider(ctx.proxy_url, "create-provider-header"),
         )
 
@@ -319,7 +321,7 @@ class TestSessionConfig:
         session2 = await ctx.client.resume_session(
             session_id,
             on_permission_request=PermissionHandler.approve_all,
-            model="claude-sonnet-4.5",
+            model="claude-sonnet-5",
             provider=_make_proxy_provider(ctx.proxy_url, "resume-provider-header"),
         )
 
@@ -345,7 +347,7 @@ class TestSessionConfig:
         # it directly (see unit tests for serialization coverage).
         session = await ctx.client.create_session(
             on_permission_request=PermissionHandler.approve_all,
-            model="claude-sonnet-4.5",
+            model="claude-sonnet-5",
             provider={
                 "type": "openai",
                 "base_url": ctx.proxy_url,
@@ -374,7 +376,7 @@ class TestSessionConfig:
                 "type": "openai",
                 "base_url": ctx.proxy_url,
                 "api_key": "test-provider-key",
-                "model_id": "claude-sonnet-4.5",
+                "model_id": "claude-sonnet-5",
             },
         )
 
@@ -382,7 +384,7 @@ class TestSessionConfig:
 
         exchanges = await ctx.get_exchanges()
         assert len(exchanges) == 1
-        assert exchanges[0]["request"]["model"] == "claude-sonnet-4.5"
+        assert exchanges[0]["request"]["model"] == "claude-sonnet-5"
 
         await session.disconnect()
 
@@ -473,7 +475,7 @@ class TestSessionConfig:
         try:
             session = await client.create_session(
                 on_permission_request=PermissionHandler.approve_all,
-                model="claude-sonnet-4.5",
+                model="claude-sonnet-5",
                 enable_citations=True,
                 provider=_create_anthropic_provider(),
             )
@@ -521,7 +523,7 @@ class TestSessionConfig:
                 session2 = await resume_client.resume_session(
                     session1.session_id,
                     on_permission_request=PermissionHandler.approve_all,
-                    model="claude-sonnet-4.5",
+                    model="claude-sonnet-5",
                     enable_citations=True,
                     provider=_create_anthropic_provider(),
                 )

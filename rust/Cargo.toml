@@ -70,6 +70,12 @@ tokio-tungstenite = { version = "0.24", default-features = false, features = ["c
 
 [target.'cfg(windows)'.dependencies]
 zip = { version = "2", default-features = false, features = ["deflate"], optional = true }
+windows-sys = { version = "0.61", default-features = false, features = [
+    "Win32_Foundation",
+    "Win32_System_Diagnostics_ToolHelp",
+    "Win32_System_JobObjects",
+    "Win32_System_Threading",
+] }
 
 [dev-dependencies]
 rusqlite = { version = "0.35", features = ["bundled"] }
@@ -105,8 +111,14 @@ required-features = ["test-support"]
 test = false
 bench = false
 
+[[bin]]
+name = "copilot-host-crash-fixture"
+path = "tests/fixtures/host_crash_fixture.rs"
+required-features = ["test-support"]
+test = false
+bench = false
+
 [build-dependencies]
-base64 = "0.22"
 dirs = "5"
 flate2 = "1"
 serde_json = "1"

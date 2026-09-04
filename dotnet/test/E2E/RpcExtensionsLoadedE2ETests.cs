@@ -57,8 +57,20 @@ public class RpcExtensionsLoadedE2ETests(E2ETestFixture fixture, ITestOutputHelp
     {
         return Ctx.CreateClient(options: new CopilotClientOptions
         {
-            Connection = RuntimeConnection.ForStdio(args: ["--yolo"]),
+            Connection = RuntimeConnection.ForStdio(
+                path: Ctx.GetLegacyCliPath(),
+                args: ["--yolo"]),
         }, environment: ExtensionsEnabledEnvironment());
+    }
+
+    private static SessionConfig CreateExtensionsSessionConfig(string? workingDirectory = null)
+    {
+        return new SessionConfig
+        {
+            EnableConfigDiscovery = true,
+            WorkingDirectory = workingDirectory,
+            OnPermissionRequest = PermissionHandler.ApproveAll,
+        };
     }
 
     /// <summary>
@@ -189,12 +201,9 @@ public class RpcExtensionsLoadedE2ETests(E2ETestFixture fixture, ITestOutputHelp
 
         await using var client = CreateExtensionsClient();
 
-        await using var session = await Ctx.CreateSessionAsync(client, new SessionConfig
-        {
-            EnableConfigDiscovery = true,
-            WorkingDirectory = workingDirectory,
-            OnPermissionRequest = PermissionHandler.ApproveAll,
-        });
+        await using var session = await Ctx.CreateSessionAsync(
+            client,
+            CreateExtensionsSessionConfig(workingDirectory));
 
         var ext = await WaitForExtensionAsync(session, extId, ExtensionStatus.Running);
 
@@ -214,11 +223,9 @@ public class RpcExtensionsLoadedE2ETests(E2ETestFixture fixture, ITestOutputHelp
 
         await using var client = CreateExtensionsClient();
 
-        await using var session = await Ctx.CreateSessionAsync(client, new SessionConfig
-        {
-            EnableConfigDiscovery = true,
-            OnPermissionRequest = PermissionHandler.ApproveAll,
-        });
+        await using var session = await Ctx.CreateSessionAsync(
+            client,
+            CreateExtensionsSessionConfig());
 
         // Wait until the initial running state is observed before mutating.
         await WaitForExtensionAsync(session, extId, ExtensionStatus.Running);
@@ -240,11 +247,9 @@ public class RpcExtensionsLoadedE2ETests(E2ETestFixture fixture, ITestOutputHelp
         // Start the session BEFORE writing the extension so the initial discovery sees nothing.
         await using var client = CreateExtensionsClient();
 
-        await using var session = await Ctx.CreateSessionAsync(client, new SessionConfig
-        {
-            EnableConfigDiscovery = true,
-            OnPermissionRequest = PermissionHandler.ApproveAll,
-        });
+        await using var session = await Ctx.CreateSessionAsync(
+            client,
+            CreateExtensionsSessionConfig());
 
         // setupExtensionsForSession runs asynchronously; until it completes the
         // controller isn't installed and ReloadAsync throws "Extensions not
@@ -285,11 +290,9 @@ public class RpcExtensionsLoadedE2ETests(E2ETestFixture fixture, ITestOutputHelp
 
         await using var client = CreateExtensionsClient();
 
-        await using var session = await Ctx.CreateSessionAsync(client, new SessionConfig
-        {
-            EnableConfigDiscovery = true,
-            OnPermissionRequest = PermissionHandler.ApproveAll,
-        });
+        await using var session = await Ctx.CreateSessionAsync(
+            client,
+            CreateExtensionsSessionConfig());
 
         var ext = await WaitForExtensionAsync(session, extId, ExtensionStatus.Failed);
         Assert.Equal(extId, ext.Id);
@@ -306,11 +309,9 @@ public class RpcExtensionsLoadedE2ETests(E2ETestFixture fixture, ITestOutputHelp
 
         await using var client = CreateExtensionsClient();
 
-        await using var session = await Ctx.CreateSessionAsync(client, new SessionConfig
-        {
-            EnableConfigDiscovery = true,
-            OnPermissionRequest = PermissionHandler.ApproveAll,
-        });
+        await using var session = await Ctx.CreateSessionAsync(
+            client,
+            CreateExtensionsSessionConfig());
 
         await WaitForExtensionAsync(session, ext1Id, ExtensionStatus.Running);
         await WaitForExtensionAsync(session, ext2Id, ExtensionStatus.Running);
@@ -328,11 +329,9 @@ public class RpcExtensionsLoadedE2ETests(E2ETestFixture fixture, ITestOutputHelp
 
         await using var client = CreateExtensionsClient();
 
-        await using var session = await Ctx.CreateSessionAsync(client, new SessionConfig
-        {
-            EnableConfigDiscovery = true,
-            OnPermissionRequest = PermissionHandler.ApproveAll,
-        });
+        await using var session = await Ctx.CreateSessionAsync(
+            client,
+            CreateExtensionsSessionConfig());
 
         await WaitForExtensionAsync(session, extId, ExtensionStatus.Running);
 

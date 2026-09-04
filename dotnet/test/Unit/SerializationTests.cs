@@ -631,6 +631,46 @@ public class SerializationTests
     }
 
     [Fact]
+    public void SessionRequests_CanSerializeFeatureFlags_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+        var flags = new Dictionary<string, bool>
+        {
+            ["ENABLED_TEST_FLAG"] = true,
+            ["DISABLED_TEST_FLAG"] = false,
+        };
+
+        foreach (var requestName in new[] { "CreateSessionRequest", "ResumeSessionRequest" })
+        {
+            var requestType = GetNestedType(typeof(CopilotClient), requestName);
+            var request = CreateInternalRequest(
+                requestType,
+                ("SessionId", "session-id"),
+                ("FeatureFlags", flags));
+            using var document = JsonDocument.Parse(
+                JsonSerializer.Serialize(request, requestType, options));
+            var serializedFlags = document.RootElement.GetProperty("featureFlags");
+            Assert.True(serializedFlags.GetProperty("ENABLED_TEST_FLAG").GetBoolean());
+            Assert.False(serializedFlags.GetProperty("DISABLED_TEST_FLAG").GetBoolean());
+        }
+    }
+
+    [Fact]
+    public void SessionConfigClone_CopiesFeatureFlags()
+    {
+        var config = new SessionConfig
+        {
+            FeatureFlags = new Dictionary<string, bool> { ["TEST_FLAG"] = true },
+        };
+
+        var clone = config.Clone();
+        clone.FeatureFlags!["TEST_FLAG"] = false;
+
+        Assert.True(config.FeatureFlags["TEST_FLAG"]);
+        Assert.False(clone.FeatureFlags["TEST_FLAG"]);
+    }
+
+    [Fact]
     public void CreateSessionRequest_CanSerializeEnableSessionTelemetry_WithSdkOptions()
     {
         var options = GetSerializerOptions();
@@ -1081,6 +1121,40 @@ public class SerializationTests
         using var document = JsonDocument.Parse(json);
         Assert.False(document.RootElement.TryGetProperty("toolReferences", out _));
     }
+
+#pragma warning disable GHCP001 // The queue management surface is intentionally experimental.
+    [Theory]
+    [InlineData("message-1")]
+    [InlineData(null)]
+    public void QueuePendingItems_MessageId_UsesCamelCaseAndIsOptional(string? messageId)
+    {
+        var options = GetSerializerOptions();
+        var messageIdProperty = messageId is null ? "" : $""","messageId":"{messageId}" """;
+        var json = $$"""
+            {
+                "id": "queue-1",
+                "kind": "message",
+                "displayText": "hello",
+                "agentMode": "interactive"
+                {{messageIdProperty}}
+            }
+            """;
+
+        var item = JsonSerializer.Deserialize<QueuePendingItems>(json, options);
+        Assert.NotNull(item);
+        Assert.Equal(messageId, item.MessageId);
+
+        using var document = JsonDocument.Parse(JsonSerializer.Serialize(item, options));
+        if (messageId is null)
+        {
+            Assert.False(document.RootElement.TryGetProperty("messageId", out _));
+        }
+        else
+        {
+            Assert.Equal(messageId, document.RootElement.GetProperty("messageId").GetString());
+        }
+    }
+#pragma warning restore GHCP001
 
     private static JsonSerializerOptions GetSerializerOptions()
     {

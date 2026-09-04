@@ -55,6 +55,9 @@ type SessionEventType string
 const (
 	SessionEventTypeAbort            SessionEventType = "abort"
 	SessionEventTypeAgentInterrupted SessionEventType = "agent.interrupted"
+	// Experimental: SessionEventTypeAssistantFusionPhaseActivity identifies an experimental
+	// event that may change or be removed.
+	SessionEventTypeAssistantFusionPhaseActivity SessionEventType = "assistant.fusion_phase_activity"
 	// Experimental: SessionEventTypeAssistantFusionPhaseCompleted identifies an experimental
 	// event that may change or be removed.
 	SessionEventTypeAssistantFusionPhaseCompleted SessionEventType = "assistant.fusion_phase_completed"
@@ -125,6 +128,7 @@ const (
 	// that may change or be removed.
 	SessionEventTypeSessionAutoModeResolved          SessionEventType = "session.auto_mode_resolved"
 	SessionEventTypeSessionAutopilotObjectiveChanged SessionEventType = "session.autopilot_objective_changed"
+	SessionEventTypeSessionAutoTierSwitchFailed      SessionEventType = "session.auto_tier_switch_failed"
 	SessionEventTypeSessionBackgroundTasksChanged    SessionEventType = "session.background_tasks_changed"
 	// Experimental: SessionEventTypeSessionBinaryAsset identifies an experimental event that
 	// may change or be removed.
@@ -146,9 +150,12 @@ const (
 	SessionEventTypeSessionCanvasRemoved SessionEventType = "session.canvas.removed"
 	// Experimental: SessionEventTypeSessionCanvasUnavailable identifies an experimental event
 	// that may change or be removed.
-	SessionEventTypeSessionCanvasUnavailable           SessionEventType = "session.canvas.unavailable"
-	SessionEventTypeSessionCompactionComplete          SessionEventType = "session.compaction_complete"
-	SessionEventTypeSessionCompactionStart             SessionEventType = "session.compaction_start"
+	SessionEventTypeSessionCanvasUnavailable  SessionEventType = "session.canvas.unavailable"
+	SessionEventTypeSessionCompactionComplete SessionEventType = "session.compaction_complete"
+	SessionEventTypeSessionCompactionStart    SessionEventType = "session.compaction_start"
+	// Experimental: SessionEventTypeSessionCompletionReceipt identifies an experimental event
+	// that may change or be removed.
+	SessionEventTypeSessionCompletionReceipt           SessionEventType = "session.completion_receipt"
 	SessionEventTypeSessionContextChanged              SessionEventType = "session.context_changed"
 	SessionEventTypeSessionContextCleared              SessionEventType = "session.context_cleared"
 	SessionEventTypeSessionCustomAgentsUpdated         SessionEventType = "session.custom_agents_updated"
@@ -179,10 +186,13 @@ const (
 	// Experimental: SessionEventTypeSessionManagedSettingsResolved identifies an experimental
 	// event that may change or be removed.
 	SessionEventTypeSessionManagedSettingsResolved SessionEventType = "session.managed_settings_resolved"
+	SessionEventTypeSessionMCPServerNeedsReconnect SessionEventType = "session.mcp_server_needs_reconnect"
+	SessionEventTypeSessionMCPServerRemoved        SessionEventType = "session.mcp_server_removed"
 	SessionEventTypeSessionMCPServersLoaded        SessionEventType = "session.mcp_servers_loaded"
 	SessionEventTypeSessionMCPServerStatusChanged  SessionEventType = "session.mcp_server_status_changed"
 	SessionEventTypeSessionModeChanged             SessionEventType = "session.mode_changed"
 	SessionEventTypeSessionModelChange             SessionEventType = "session.model_change"
+	SessionEventTypeSessionModeNoticeDelivered     SessionEventType = "session.mode_notice_delivered"
 	// Experimental: SessionEventTypeSessionPermissionsChanged identifies an experimental event
 	// that may change or be removed.
 	SessionEventTypeSessionPermissionsChanged     SessionEventType = "session.permissions_changed"
@@ -298,6 +308,21 @@ type PromptCacheBreakData struct {
 
 func (*PromptCacheBreakData) sessionEventData()      {}
 func (*PromptCacheBreakData) Type() SessionEventType { return SessionEventTypePromptCacheBreak }
+
+// A transient Auto preference failure emitted when the runtime cannot mint or accept a usable model and token pair. The previously effective preference remains active, so SDK clients can surface a non-blocking failure without changing their committed-tier state. This event is ephemeral and is not persisted or replayed on resume.
+type SessionAutoTierSwitchFailedData struct {
+	// Auto preference that remains effective after the failed request.
+	EffectiveAutoTier *AutoTier `json:"effectiveAutoTier,omitempty"`
+	// Low-cardinality failure outcome reported by Auto resolution.
+	Reason AutoTierSwitchFailureReason `json:"reason"`
+	// Auto preference that failed to activate, or null when returning to provider-default routing failed.
+	RequestedAutoTier *AutoTier `json:"requestedAutoTier"`
+}
+
+func (*SessionAutoTierSwitchFailedData) sessionEventData() {}
+func (*SessionAutoTierSwitchFailedData) Type() SessionEventType {
+	return SessionEventTypeSessionAutoTierSwitchFailed
+}
 
 // Agent intent description for current activity or plan
 type AssistantIntentData struct {
@@ -471,6 +496,32 @@ type SessionAutopilotObjectiveChangedData struct {
 func (*SessionAutopilotObjectiveChangedData) sessionEventData() {}
 func (*SessionAutopilotObjectiveChangedData) Type() SessionEventType {
 	return SessionEventTypeSessionAutopilotObjectiveChanged
+}
+
+// Behavior-neutral record of structured runtime facts present when an agent completion decision is accepted.
+// Experimental: SessionCompletionReceiptData is part of an experimental API and may change or be removed.
+type SessionCompletionReceiptData struct {
+	// One-based accepted completion receipt ordinal in the durable session history.
+	Attempt int64 `json:"attempt"`
+	// Inclusive durable event range summarized by this receipt.
+	EventRange CompletionReceiptEventRange `json:"eventRange"`
+	// Number of failed structured tool completions in the covered range.
+	FailedToolCount int64 `json:"failedToolCount"`
+	// Final structured tool completion in the covered range, when one exists.
+	FinalTool *CompletionReceiptFinalTool `json:"finalTool,omitempty"`
+	// Version of the completion receipt payload.
+	SchemaVersion int64 `json:"schemaVersion"`
+	// Identifier of the assistant turn-end event that supplied the accepted completion boundary. This is the receipt's idempotency key, and always equals eventRange.endEventId.
+	SourceEventID string `json:"sourceEventId"`
+	// Runtime reason the completion decision was accepted.
+	StopReason CompletionReceiptStopReason `json:"stopReason"`
+	// Number of successful structured tool completions in the covered range.
+	SuccessfulToolCount int64 `json:"successfulToolCount"`
+}
+
+func (*SessionCompletionReceiptData) sessionEventData() {}
+func (*SessionCompletionReceiptData) Type() SessionEventType {
+	return SessionEventTypeSessionCompletionReceipt
 }
 
 // Canonical bytes for a content-addressed binary asset shared by reference across events
@@ -768,7 +819,7 @@ func (*PendingMessagesModifiedData) Type() SessionEventType {
 	return SessionEventTypePendingMessagesModified
 }
 
-// Enterprise managed-settings resolution: the effective managed settings the session applied and which channels contributed, so SDK clients can show users what is enterprise-managed. Fires whenever managed policy is (re)applied — at session start, on resume, and on account switch. This is an ephemeral live snapshot (delivered to subscribers but not persisted to the session event log), because at session start it resolves before `session.start` is emitted. Device values take precedence over server values per ordinary key, while permissions compose restrictively across device, server, and SDK-client layers. The account-scoped `getManagedSettings()` API does not include session-local client injection. Marked experimental while the managed-settings surface stabilizes.
+// Enterprise managed-settings resolution: the effective managed settings the session applied and which channels contributed, so SDK clients can show users what is enterprise-managed. Fires whenever managed policy is (re)applied — at session start, on resume, and on account switch. This is an ephemeral live snapshot (delivered to subscribers but not persisted to the session event log), because at session start it resolves before `session.start` is emitted. Device values take precedence over server values, then the policy helper, per ordinary key, while permissions compose restrictively across device, server, policy-helper, and SDK-client layers. The account-scoped `getManagedSettings()` API does not include session-local client injection. Marked experimental while the managed-settings surface stabilizes.
 // Experimental: SessionManagedSettingsResolvedData is part of an experimental API and may change or be removed.
 type SessionManagedSettingsResolvedData struct {
 	// Whether enterprise policy disables bypass-permissions ("yolo") mode for this session. Deny-wins across layers, and forced on when `failClosed` is true.
@@ -783,13 +834,15 @@ type SessionManagedSettingsResolvedData struct {
 	ManagedKeys []string `json:"managedKeys"`
 	// Whether at least two managed sources supplied permission allowlists, so enforcement intersects them and the flattened settings payload omits `permissions.allow`.
 	PermissionsAllowIntersected *bool `json:"permissionsAllowIntersected,omitempty"`
+	// Whether the policy-helper managed-settings layer was present. The policy helper is the weakest channel: it fills keys no enterprise source set and can never replace one.
+	PolicyHelperManaged *bool `json:"policyHelperManaged,omitempty"`
 	// Whether the effective sandbox policy forces the sandbox on *only* because managed policy could not be determined, rather than because the policy requires it. Lets clients tell a user whose `--no-sandbox` was overridden that the sandbox stayed on as a fail-closed fallback, instead of attributing it to an administrator who set no such policy.
 	SandboxEnabledByUndeterminedPolicy *bool `json:"sandboxEnabledByUndeterminedPolicy,omitempty"`
 	// Whether the server (account/org) managed-settings layer was present
 	ServerManaged bool `json:"serverManaged"`
 	// The effective (resolved) managed settings values, so clients can render exactly what is enforced. Absent when no managed policy is in force.
 	Settings any `json:"settings,omitempty"`
-	// Channel summary: `server`, `device`, or `client` when exactly one channel contributed; `mixed` when multiple channels contributed; otherwise `none`. Consult the per-channel booleans for exact provenance.
+	// Channel summary: `server`, `device`, `client`, or `policyHelper` when exactly one channel contributed; `mixed` when multiple channels contributed; otherwise `none`. Consult the per-channel booleans for exact provenance.
 	Source ManagedSettingsResolvedSource `json:"source"`
 }
 
@@ -879,6 +932,34 @@ type SessionErrorData struct {
 
 func (*SessionErrorData) sessionEventData()      {}
 func (*SessionErrorData) Type() SessionEventType { return SessionEventTypeSessionError }
+
+// Experimental content-safe activity signal for a running HydraFusion phase.
+// Experimental: AssistantFusionPhaseActivityData is part of an experimental API and may change or be removed.
+type AssistantFusionPhaseActivityData struct {
+	// Kind of real activity observed.
+	Activity FusionPhaseActivityKind `json:"activity"`
+	// Conversation scope in which the phase executes.
+	ConversationScope FusionConversationScope `json:"conversationScope"`
+	// Identifier of the HydraFusion turn containing the phase.
+	FusionID string `json:"fusionId"`
+	// HydraFusion orchestration pattern containing the phase.
+	Pattern FusionPattern `json:"pattern"`
+	// Stable identifier for the concrete phase.
+	PhaseID string `json:"phaseId"`
+	// Kind of phase currently executing.
+	PhaseKind FusionPhaseKind `json:"phaseKind"`
+	// Semantic role assigned to the phase.
+	Role string `json:"role"`
+	// Opaque hashed correlation token for matching tool-started and tool-completed activity within this Fusion activity stream. It is not the tool call identifier exposed by tool lifecycle events.
+	ToolCallID *string `json:"toolCallId,omitempty"`
+	// Cumulative private response bytes observed for this model call. The event never includes response text.
+	TotalResponseSizeBytes *int64 `json:"totalResponseSizeBytes,omitempty"`
+}
+
+func (*AssistantFusionPhaseActivityData) sessionEventData() {}
+func (*AssistantFusionPhaseActivityData) Type() SessionEventType {
+	return SessionEventTypeAssistantFusionPhaseActivity
+}
 
 // Experimental durable HydraFusion phase output and lossless replay checkpoint.
 // Experimental: AssistantFusionPhaseCompletedData is part of an experimental API and may change or be removed.
@@ -1042,6 +1123,9 @@ type SessionFusionResolvedData struct {
 	ModelUniverseVersion *string `json:"modelUniverseVersion,omitempty"`
 	// Validated orchestration pattern selected for the turn.
 	Pattern FusionPattern `json:"pattern"`
+	// Presentation-neutral phase plan for clients that render workflow progress.
+	// Experimental: PhasePlan is part of an experimental API and may change or be removed.
+	PhasePlan []FusionPhasePlanStep `json:"phasePlan,omitzero"`
 	// Version of the validated execution-plan format.
 	PlanVersion *string `json:"planVersion,omitempty"`
 	// HydraFusion routing policy used to resolve the plan.
@@ -1511,12 +1595,16 @@ func (*ModelCallStartData) Type() SessionEventType { return SessionEventTypeMode
 
 // Model change details including previous and new model identifiers
 type SessionModelChangeData struct {
+	// Committed Auto preference after the model configuration change, when applicable.
+	AutoTier *AutoTier `json:"autoTier,omitempty"`
 	// Reason the change happened, when not user-initiated. `"rate_limit_auto_switch"` for changes triggered by the auto-mode-switch rate-limit recovery path, or `"refusal_fallback"` when the active model declined a request (content refusal) and the runtime switched to the configured refusal-fallback model. UI clients can use this to render contextual copy.
 	Cause *string `json:"cause,omitempty"`
 	// Context tier after the model change; null explicitly clears a previously selected tier
 	ContextTier *ContextTier `json:"contextTier,omitempty"`
 	// Newly selected model identifier
 	NewModel string `json:"newModel"`
+	// Previously committed Auto preference, when one was explicitly selected.
+	PreviousAutoTier *AutoTier `json:"previousAutoTier,omitempty"`
 	// Model that was previously selected, if any
 	PreviousModel *string `json:"previousModel,omitempty"`
 	// Reasoning effort level before the model change, if applicable
@@ -1756,6 +1844,28 @@ func (*SessionExtensionsLoadedData) Type() SessionEventType {
 	return SessionEventTypeSessionExtensionsLoaded
 }
 
+// Payload of `session.mcp_server_needs_reconnect` identifying an MCP server whose connection must be re-established.
+type SessionMCPServerNeedsReconnectData struct {
+	// Name of the MCP server that needs to reconnect
+	ServerName string `json:"serverName"`
+}
+
+func (*SessionMCPServerNeedsReconnectData) sessionEventData() {}
+func (*SessionMCPServerNeedsReconnectData) Type() SessionEventType {
+	return SessionEventTypeSessionMCPServerNeedsReconnect
+}
+
+// Payload of `session.mcp_server_removed` identifying an MCP server the graph no longer runs.
+type SessionMCPServerRemovedData struct {
+	// Name of the MCP server that was removed from the graph
+	ServerName string `json:"serverName"`
+}
+
+func (*SessionMCPServerRemovedData) sessionEventData() {}
+func (*SessionMCPServerRemovedData) Type() SessionEventType {
+	return SessionEventTypeSessionMCPServerRemoved
+}
+
 // Payload of `session.mcp_server_status_changed` for one MCP server's status and optional failure error.
 type SessionMCPServerStatusChangedData struct {
 	// Error message if the server entered a failed state
@@ -1814,6 +1924,8 @@ type UserMessageData struct {
 	InteractionID *string `json:"interactionId,omitempty"`
 	// True when this user message was auto-injected by autopilot's continuation loop rather than typed by the user; used to distinguish autopilot-driven turns in telemetry.
 	IsAutopilotContinuation *bool `json:"isAutopilotContinuation,omitempty"`
+	// Stable identity of the logical user message, matching the ID returned by send and retained by pending queue snapshots
+	MessageID *string `json:"messageId,omitempty"`
 	// Path-backed native document attachments that stayed on the tagged_files path flow because native upload could not read them or would exceed the request size limit
 	NativeDocumentPathFallbackPaths []string `json:"nativeDocumentPathFallbackPaths,omitzero"`
 	// Parent agent task ID for background telemetry correlated to this user turn
@@ -1846,6 +1958,8 @@ func (*PermissionCompletedData) Type() SessionEventType { return SessionEventTyp
 
 // Permission request notification requiring client approval with request details
 type PermissionRequestedData struct {
+	// Agent mode captured from the owning turn when permission evaluation began.
+	AgentMode *SessionMode `json:"agentMode,omitempty"`
 	// Details of the permission being requested
 	PermissionRequest PermissionRequest `json:"permissionRequest"`
 	// Derived user-facing permission prompt details for UI consumers
@@ -1959,6 +2073,19 @@ type CommandQueuedData struct {
 
 func (*CommandQueuedData) sessionEventData()      {}
 func (*CommandQueuedData) Type() SessionEventType { return SessionEventTypeCommandQueued }
+
+// Records that a mode transition notice reached the model so cache-stable mode tools can remain offered across resume.
+type SessionModeNoticeDeliveredData struct {
+	// Model-visible transition notice persisted for a mid-turn delivery
+	Content *string `json:"content,omitempty"`
+	// Mode established by the delivered transition notice
+	Mode SessionMode `json:"mode"`
+}
+
+func (*SessionModeNoticeDeliveredData) sessionEventData() {}
+func (*SessionModeNoticeDeliveredData) Type() SessionEventType {
+	return SessionEventTypeSessionModeNoticeDelivered
+}
 
 // Registered command dispatch request routed to the owning client
 type CommandExecuteData struct {
@@ -2319,17 +2446,19 @@ type SkillInvokedData struct {
 	Content string `json:"content"`
 	// Description of the skill from its SKILL.md frontmatter
 	Description *string `json:"description,omitempty"`
+	// Whether model invocation is disabled for this skill
+	DisableModelInvocation *bool `json:"disableModelInvocation,omitempty"`
 	// Model identifier active when the skill was invoked, when known
 	Model *string `json:"model,omitempty"`
 	// Name of the invoked skill
 	Name string `json:"name"`
-	// File path to the SKILL.md definition
+	// File path to the SKILL.md definition, or an empty string for an SDK-provided skill without a filesystem identity
 	Path string `json:"path"`
 	// Name of the plugin this skill originated from, when applicable
 	PluginName *string `json:"pluginName,omitempty"`
 	// Version of the plugin this skill originated from, when applicable
 	PluginVersion *string `json:"pluginVersion,omitempty"`
-	// Source identifier for where the skill was discovered. Known values include: project (workspace skill), inherited (parent-directory skill), personal-copilot (~/.copilot/skills), personal-agents (~/.agents/skills), custom (configured directory), plugin (installed plugin), builtin (bundled runtime skill), and remote (org/enterprise skill)
+	// Source identifier for where the skill was discovered. Known values include: project (workspace skill), inherited (parent-directory skill), personal-copilot (~/.copilot/skills), personal-agents (~/.agents/skills), custom (configured directory), plugin (installed plugin), builtin (bundled runtime skill), remote (org/enterprise skill), and sdk (SDK-provided skill)
 	Source *string `json:"source,omitempty"`
 	// What triggered the skill invocation: `user-invoked` (explicit user action, such as via a slash command or UI affordance), `agent-invoked` (agent requested the skill), or `context-load` (loaded as part of another context, such as preloading skills configured on a custom agent or subagent)
 	Trigger *SkillInvokedTrigger `json:"trigger,omitempty"`
@@ -2443,6 +2572,8 @@ type SubagentCompletedData struct {
 	FirstDispatchedModel *string `json:"firstDispatchedModel,omitempty"`
 	// Model used by the sub-agent
 	Model *string `json:"model,omitempty"`
+	// Why an explicit task-call model did not become the effective model
+	ModelOverrideReason *string `json:"modelOverrideReason,omitempty"`
 	// Tool call ID of the parent tool invocation that spawned this sub-agent
 	ToolCallID string `json:"toolCallId"`
 	// Total tokens (input + output) consumed by the sub-agent
@@ -2476,6 +2607,8 @@ type SubagentFailedData struct {
 	FirstDispatchedModel *string `json:"firstDispatchedModel,omitempty"`
 	// Model selected for the sub-agent, when known
 	Model *string `json:"model,omitempty"`
+	// Why an explicit task-call model did not become the effective model
+	ModelOverrideReason *string `json:"modelOverrideReason,omitempty"`
 	// Tool call ID of the parent tool invocation that spawned this sub-agent
 	ToolCallID string `json:"toolCallId"`
 	// Total tokens (input + output) consumed before the sub-agent failed
@@ -2787,7 +2920,7 @@ func (*SessionWorkspaceFileChangedData) Type() SessionEventType {
 // Neutral provider-tagged reasoning content blocks preserved verbatim for round-tripping
 // Experimental: AssistantMessageReasoningBlocks is part of an experimental API and may change or be removed.
 type AssistantMessageReasoningBlocks struct {
-	// Provider-native reasoning content blocks (e.g. Anthropic `thinking` / `redacted_thinking`) preserved verbatim, in order. A single response can carry several, each signed over the content preceding it, so dropping or reordering any of them invalidates the rest.
+	// Provider-native reasoning items or content blocks preserved verbatim, in order. A single response can carry several, and provider signatures or identifiers may depend on their exact content and ordering.
 	Blocks []any `json:"blocks,omitzero"`
 	// Model provider that produced these reasoning blocks.
 	Provider string `json:"provider"`
@@ -3107,7 +3240,27 @@ type CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail struct {
 	TokenType string `json:"tokenType"`
 }
 
-// A single loaded custom agent in `session.custom_agents_updated`, with identity, source, tools, invocability, and model override.
+// Inclusive durable event range summarized by a completion receipt.
+type CompletionReceiptEventRange struct {
+	// Identifier of the assistant turn-end event that ends the covered exchange. Always equals the receipt's sourceEventId, so either field is a valid join key.
+	EndEventID string `json:"endEventId"`
+	// Identifier of the user message that starts the covered exchange.
+	StartEventID string `json:"startEventId"`
+}
+
+// Final structured tool completion in the covered event range.
+type CompletionReceiptFinalTool struct {
+	// Process exit code from a structured shell result, when available.
+	ExitCode *int64 `json:"exitCode,omitempty"`
+	// Structured success or failure status from the tool completion event.
+	Status CompletionReceiptToolStatus `json:"status"`
+	// Unique identifier of the completed tool call.
+	ToolCallID string `json:"toolCallId"`
+	// Tool name from the matching tool execution start event, when available.
+	ToolName *string `json:"toolName,omitempty"`
+}
+
+// A single loaded custom agent in `session.custom_agents_updated`, with identity, source, tools, invocability, and authored model configuration.
 type CustomAgentsUpdatedAgent struct {
 	// Description of what the agent does
 	Description string `json:"description"`
@@ -3117,6 +3270,10 @@ type CustomAgentsUpdatedAgent struct {
 	ID string `json:"id"`
 	// Model override for this agent, if set
 	Model *string `json:"model,omitempty"`
+	// Whether authored models are preferences or required constraints
+	ModelPolicy *AgentModelPolicy `json:"modelPolicy,omitempty"`
+	// Authored model ids in priority order, if configured
+	Models []string `json:"models,omitzero"`
 	// Internal name of the agent
 	Name string `json:"name"`
 	// Source location: user, project, inherited, remote, or plugin
@@ -3191,6 +3348,19 @@ type FusionFollowUpRecommendation struct {
 	CompactionTurn FusionFollowUpAction `json:"compactionTurn"`
 	// Recommended routing action for the next user-message turn.
 	UserTurn FusionFollowUpAction `json:"userTurn"`
+}
+
+// Presentation-neutral phase planned for a HydraFusion turn.
+// Experimental: FusionPhasePlanStep is part of an experimental API and may change or be removed.
+type FusionPhasePlanStep struct {
+	// Whether the phase executes only when an earlier phase requests it.
+	Conditional bool `json:"conditional"`
+	// Kind of phase that may execute.
+	Kind FusionPhaseKind `json:"kind"`
+	// Semantic role assigned to the phase.
+	Role string `json:"role"`
+	// Conversation scope in which the phase executes.
+	Scope FusionConversationScope `json:"scope"`
 }
 
 // Aggregate concrete-model usage for one HydraFusion phase.
@@ -4339,7 +4509,7 @@ type SkillsLoadedSkill struct {
 	Name string `json:"name"`
 	// Absolute path to the skill file, if available
 	Path *string `json:"path,omitempty"`
-	// Source location type (e.g., project, personal-copilot, plugin, builtin)
+	// Source location type (e.g., project, personal-copilot, plugin, builtin, remote, sdk)
 	Source SkillSource `json:"source"`
 	// Whether the skill can be invoked by the user as a slash command
 	UserInvocable bool `json:"userInvocable"`
@@ -4993,6 +5163,20 @@ const (
 	AutopilotObjectiveChangedStatusPaused AutopilotObjectiveChangedStatus = "paused"
 )
 
+// Terminal reason an Auto preference activation failed.
+type AutoTierSwitchFailureReason string
+
+const (
+	// The candidate model was rejected by model policy.
+	AutoTierSwitchFailureReasonPolicyRejected AutoTierSwitchFailureReason = "policy_rejected"
+	// The Auto routing request failed or returned an unusable response.
+	AutoTierSwitchFailureReasonRequestFailed AutoTierSwitchFailureReason = "request_failed"
+	// The runtime could not prepare the Auto routing request.
+	AutoTierSwitchFailureReasonSetupFailed AutoTierSwitchFailureReason = "setup_failed"
+	// The provider does not support Auto routing.
+	AutoTierSwitchFailureReasonUnsupported AutoTierSwitchFailureReason = "unsupported"
+)
+
 // Binary result type discriminator. Use "image" for images and "resource" for other binary data.
 type BinaryAssetReferenceType string
 
@@ -5050,6 +5234,34 @@ const (
 	CompactionTriggerModelSwitch CompactionTrigger = "model_switch"
 	// Background compaction started automatically because context utilization crossed the background threshold.
 	CompactionTriggerThreshold CompactionTrigger = "threshold"
+)
+
+// Runtime reason the completion decision was accepted.
+type CompletionReceiptStopReason string
+
+const (
+	// The configured agentStop continuation limit was reached.
+	CompletionReceiptStopReasonAgentStopBlockLimit CompletionReceiptStopReason = "agent_stop_block_limit"
+	// The model reached a natural terminal response.
+	CompletionReceiptStopReasonNatural CompletionReceiptStopReason = "natural"
+	// A terminal tool ended the interaction.
+	CompletionReceiptStopReasonTerminalTool CompletionReceiptStopReason = "terminal_tool"
+)
+
+// Structured terminal status from a tool completion event.
+type CompletionReceiptToolStatus string
+
+const (
+	// The permissions service denied the tool call.
+	CompletionReceiptToolStatusDenied CompletionReceiptToolStatus = "denied"
+	// The tool failed without a more specific structured status.
+	CompletionReceiptToolStatusFailure CompletionReceiptToolStatus = "failure"
+	// The user rejected the tool call.
+	CompletionReceiptToolStatusRejected CompletionReceiptToolStatus = "rejected"
+	// The tool completed successfully.
+	CompletionReceiptToolStatusSuccess CompletionReceiptToolStatus = "success"
+	// The tool exceeded its time budget.
+	CompletionReceiptToolStatusTimeout CompletionReceiptToolStatus = "timeout"
 )
 
 // The user action: "accept" (submitted form), "decline" (explicitly refused), or "cancel" (dismissed)
@@ -5182,6 +5394,19 @@ const (
 	FusionPatternSingle FusionPattern = "single"
 )
 
+// Content-safe activity observed while a HydraFusion phase is running.
+// Experimental: FusionPhaseActivityKind is part of an experimental API and may change or be removed.
+type FusionPhaseActivityKind string
+
+const (
+	// The provider produced additional private output bytes.
+	FusionPhaseActivityKindModelOutput FusionPhaseActivityKind = "model_output"
+	// A tool finished executing inside the phase.
+	FusionPhaseActivityKindToolCompleted FusionPhaseActivityKind = "tool_completed"
+	// A tool began executing inside the phase.
+	FusionPhaseActivityKindToolStarted FusionPhaseActivityKind = "tool_started"
+)
+
 // HydraFusion phase kind.
 // Experimental: FusionPhaseKind is part of an experimental API and may change or be removed.
 type FusionPhaseKind string
@@ -5284,10 +5509,12 @@ const (
 	ManagedSettingsResolvedSourceClient ManagedSettingsResolvedSource = "client"
 	// Only the device MDM/plist/registry/file channel contributed.
 	ManagedSettingsResolvedSourceDevice ManagedSettingsResolvedSource = "device"
-	// More than one channel contributed. Ordinary keys resolve device over server per key, while permissions compose restrictively across all present layers.
+	// More than one channel contributed. Ordinary keys resolve device over server over policy helper per key, while permissions compose restrictively across all present layers.
 	ManagedSettingsResolvedSourceMixed ManagedSettingsResolvedSource = "mixed"
 	// No managed policy is in force (no channel contributed).
 	ManagedSettingsResolvedSourceNone ManagedSettingsResolvedSource = "none"
+	// A policy helper registered by device or server policy contributed. Device registration takes priority when present.
+	ManagedSettingsResolvedSourcePolicyHelper ManagedSettingsResolvedSource = "policyHelper"
 	// Only the server/account channel contributed.
 	ManagedSettingsResolvedSourceServer ManagedSettingsResolvedSource = "server"
 )

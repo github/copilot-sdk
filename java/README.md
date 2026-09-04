@@ -36,14 +36,14 @@ Replace `${copilot.sdk.version}` with the latest release from Maven Central.
 <dependency>
     <groupId>com.github</groupId>
     <artifactId>copilot-sdk-java</artifactId>
-    <version>1.0.13-preview.4</version>
+    <version>1.0.13-preview.5</version>
 </dependency>
 ```
 
 ### Gradle
 
 ```groovy
-implementation 'com.github:copilot-sdk-java:1.0.13-preview.4'
+implementation 'com.github:copilot-sdk-java:1.0.13-preview.5'
 ```
 
 #### Snapshot Builds
@@ -62,7 +62,7 @@ Snapshot builds of the next development version are published to Maven Central S
 <dependency>
     <groupId>com.github</groupId>
     <artifactId>copilot-sdk-java</artifactId>
-    <version>1.0.14-preview.4-SNAPSHOT</version>
+    <version>1.0.14-preview.5-SNAPSHOT</version>
 </dependency>
 ```
 
@@ -71,7 +71,7 @@ Snapshot builds of the next development version are published to Maven Central S
 Replace `${copilot.sdk.version}` with the latest release from Maven Central.
 
 ```groovy
-implementation 'com.github:copilot-sdk-java:1.0.14-preview.4-SNAPSHOT'
+implementation 'com.github:copilot-sdk-java:1.0.14-preview.5-SNAPSHOT'
 ```
 
 ## In-process mode (experimental)
@@ -341,6 +341,34 @@ Chain fluent modifiers to set tool options:
 
 For design context and decision rationale, see [ADR-006](docs/adr/adr-006-tool-definition-inline.md).
 
+## Auto routing tiers
+
+Use `CapiSessionOptions.setAutoTier(...)` to select `AutoTier.EFFICIENCY`,
+`AutoTier.BALANCE`, or `AutoTier.INTELLIGENCE`. This option is meaningful only
+with model `auto` (Auto mode V2).
+It requires a runtime version that supports `capi.autoTier`.
+
+```java
+import com.github.copilot.rpc.AutoTier;
+import com.github.copilot.rpc.CapiSessionOptions;
+import com.github.copilot.rpc.PermissionHandler;
+import com.github.copilot.rpc.SessionConfig;
+
+var config = new SessionConfig()
+    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+    .setModel("auto")
+    .setCapi(new CapiSessionOptions().setAutoTier(AutoTier.BALANCE));
+```
+
+The same options work with `ResumeSessionConfig.setCapi(...)` and can be combined
+with `setEnableWebSocketResponses(false)`. The SDK omits an unset (`null`) tier:
+the runtime chooses its default on create and preserves the persisted/current
+tier on resume. An explicit tier overrides the persisted tier on cold resume;
+the runtime rejects a conflicting tier when the session is already resident
+in memory. The SDK does not choose a default or manage tier persistence.
+See [Auto tier persistence](../docs/features/session-persistence.md#auto-tier-persistence)
+for the lifecycle rules.
+
 ## Session Store
 
 `enableSessionStore` on `SessionConfig` enables the cross-session store for search and retrieval across sessions. When unset in the default `CopilotClientMode.COPILOT_CLI` mode, the runtime default applies (enabled). In `CopilotClientMode.EMPTY` mode, defaults to disabled.
@@ -520,9 +548,9 @@ mvn jacoco:prepare-agent@wire-up-coverage-instrumentation antrun:run@print-test-
 
 #### Development Setup for native embedding
 
-Run native-runtime Maven commands from the `java` directory. Native packaging requires Node.js and npm in addition to JDK 25 and Maven because `copilot-native/scripts/fetch-native.mjs` retrieves the pinned npm runtime package.
+Run native-runtime Maven commands from the `java` directory. Native packaging requires Node.js in addition to JDK 25 and Maven because `copilot-native/scripts/fetch-native.mjs` retrieves the pinned runtime package from the corresponding GitHub release.
 
-On a native Linux glibc host, Maven activates `native-linux-x64` or `native-linux-arm64` for the matching architecture when `copilot.native.libc=glibc` is set. On Windows x64, Windows ARM64, and Apple Silicon macOS, Maven activates `native-win32-x64`, `native-win32-arm64`, or `native-darwin-arm64` automatically. The matching profile validates the host, runs the native script tests, fetches the pinned `@github/copilot-<classifier>` package during `generate-resources`, packages the classifier JAR during `package`, and verifies its native contents. Ensure npm can authenticate to the package registry before running the build.
+On a native Linux glibc host, Maven activates `native-linux-x64` or `native-linux-arm64` for the matching architecture when `copilot.native.libc=glibc` is set. On Windows x64, Windows ARM64, and Apple Silicon macOS, Maven activates `native-win32-x64`, `native-win32-arm64`, or `native-darwin-arm64` automatically. The matching profile validates the host, runs the native script tests, fetches the pinned platform package from the corresponding `github/copilot-cli` release during `generate-resources`, packages the classifier JAR during `package`, and verifies its native contents.
 
 Before opting in, validate that Node.js reports glibc for the build host:
 

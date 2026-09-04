@@ -12,7 +12,7 @@ use github_copilot_sdk::session_events::PermissionMode;
 
 use super::support::{assistant_message_content, with_e2e_context};
 
-const MODEL_ID: &str = "claude-sonnet-4.5";
+const MODEL_ID: &str = "claude-sonnet-5";
 
 #[tokio::test]
 async fn should_list_models_for_session() {
@@ -495,6 +495,7 @@ async fn should_update_and_clear_live_subagent_settings() {
                                     ),
                                     effort_level: Some("low".to_string()),
                                     model: Some("gpt-5-mini".to_string()),
+                                    model_policy: None,
                                 },
                             )])),
                             disabled_subagents: Some(vec!["legacy-agent".to_string()]),

@@ -177,7 +177,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                     throw new ArgumentException("GitHubToken and UseLoggedInUser cannot be combined with RuntimeConnection.ForUri (the existing runtime manages its own auth).", nameof(options));
                 }
                 var parsed = ParseRuntimeUrl(uri.Url);
-                _optionsHost = parsed.Host;
+                _optionsHost = parsed.Host.Trim('[', ']');
                 _optionsPort = parsed.Port;
                 break;
 
@@ -308,7 +308,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// <summary>
     /// Parses a runtime URL into a URI with host and port.
     /// </summary>
-    /// <param name="url">The URL to parse. Supports formats: "port", "host:port", "http://host:port".</param>
+    /// <param name="url">The URL to parse. Supports formats: "port", "host:port", "[ipv6]:port", "http://host:port".</param>
     private static Uri ParseRuntimeUrl(string url)
     {
         // If it's just a port number, treat as localhost
@@ -1285,6 +1285,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 Providers: config.Providers,
                 Models: config.Models,
                 ToolFilterPrecedence: toolFilter.ToolFilterPrecedence,
+                FeatureFlags: config.FeatureFlags,
                 ExpAssignments: config.ExpAssignments,
                 EnableManagedSettings: config.EnableManagedSettings,
                 GitHubMcpToolConfig: config.GitHubMcpToolConfig,
@@ -1355,7 +1356,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         }
         catch (Exception ex)
         {
-            session?.RemoveFromClient();
+            session?.Unregister();
 
             if (ex is not OperationCanceledException)
             {
@@ -1526,6 +1527,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 Providers: config.Providers,
                 Models: config.Models,
                 ToolFilterPrecedence: toolFilter.ToolFilterPrecedence,
+                FeatureFlags: config.FeatureFlags,
                 ExpAssignments: config.ExpAssignments,
                 EnableManagedSettings: config.EnableManagedSettings,
                 GitHubMcpToolConfig: config.GitHubMcpToolConfig,
@@ -1559,7 +1561,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         }
         catch (Exception ex)
         {
-            session?.RemoveFromClient();
+            session?.Unregister();
             if (ex is not OperationCanceledException)
             {
                 LoggingHelpers.LogTiming(_logger, LogLevel.Warning, ex,
@@ -2180,7 +2182,12 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                     // handler is registered (mirrors the runtime, which reads this flag on the
                     // `connect` handshake so the first session's un-replayable `session.start`
                     // event is forwarded). Also sent on session.create/resume for older CLIs.
-                    _options.OnGitHubTelemetry != null ? true : null)],
+                    _options.OnGitHubTelemetry != null ? true : null,
+                    // Declare the integrating application's identity so the runtime attributes the
+                    // telemetry it emits on this connection to a consistent surface instead
+                    // of its own build. Null when the app didn't supply it.
+                    ConnectHandshakeClientInfo.From(_options.ClientInfo),
+                    SupportedTaskKinds: [TaskKind.Agent, TaskKind.Client, TaskKind.Shell])],
                 connection.StderrBuffer,
                 cancellationToken);
             serverVersion = (int)connectResponse.ProtocolVersion;
@@ -2538,17 +2545,23 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         var fullEntrypoint = Path.GetFullPath(cliPath);
         var directory = Path.GetDirectoryName(fullEntrypoint)
             ?? throw new InvalidOperationException($"Could not determine directory for '{cliPath}'.");
-        var flatLibraryPath = Path.Combine(directory, FfiRuntimeHost.GetRuntimeLibraryFileName());
+        var flatLibraryPath = Path.GetFullPath(
+            $"{directory}{Path.DirectorySeparatorChar}{FfiRuntimeHost.GetRuntimeLibraryFileName()}");
         if (File.Exists(flatLibraryPath))
         {
             return flatLibraryPath;
+        }
+        var adjacentPrebuildPath = Path.Combine(directory, "runtime.node");
+        if (File.Exists(adjacentPrebuildPath))
+        {
+            return adjacentPrebuildPath;
         }
         var prebuildsLibraryPath = Path.Combine(
             directory, "prebuilds", GetNapiPrebuildsFolderOrThrow(), "runtime.node");
         return File.Exists(prebuildsLibraryPath)
             ? prebuildsLibraryPath
             : throw new InvalidOperationException(
-                $"FFI runtime library not found. Looked for '{flatLibraryPath}' and '{prebuildsLibraryPath}'.");
+                $"FFI runtime library not found. Looked for '{flatLibraryPath}', '{adjacentPrebuildPath}', and '{prebuildsLibraryPath}'.");
     }
 
     /// <summary>
@@ -3021,6 +3034,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         IList<NamedProviderConfig>? Providers = null,
         IList<ProviderModelConfig>? Models = null,
         OptionsUpdateToolFilterPrecedence? ToolFilterPrecedence = null,
+        [property: JsonPropertyName("featureFlags")] IDictionary<string, bool>? FeatureFlags = null,
         [property: JsonPropertyName("expAssignments")] CopilotExpAssignmentResponse? ExpAssignments = null,
         [property: JsonPropertyName("enableManagedSettings")] bool? EnableManagedSettings = null,
         [property: JsonPropertyName("managedSettings")] ManagedSettings? ManagedSettings = null,
@@ -3139,6 +3153,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         IList<NamedProviderConfig>? Providers = null,
         IList<ProviderModelConfig>? Models = null,
         OptionsUpdateToolFilterPrecedence? ToolFilterPrecedence = null,
+        [property: JsonPropertyName("featureFlags")] IDictionary<string, bool>? FeatureFlags = null,
         [property: JsonPropertyName("expAssignments")] CopilotExpAssignmentResponse? ExpAssignments = null,
         [property: JsonPropertyName("enableManagedSettings")] bool? EnableManagedSettings = null,
         [property: JsonPropertyName("managedSettings")] ManagedSettings? ManagedSettings = null,
@@ -3183,7 +3198,43 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
     internal record ConnectHandshakeRequest(
         string? Token,
-        [property: JsonPropertyName("enableGitHubTelemetryForwarding")] bool? EnableGitHubTelemetryForwarding = null);
+        [property: JsonPropertyName("enableGitHubTelemetryForwarding")] bool? EnableGitHubTelemetryForwarding = null,
+        [property: JsonPropertyName("clientInfo")] ConnectHandshakeClientInfo? ClientInfo = null,
+        [property: JsonPropertyName("supportedTaskKinds")] IList<TaskKind>? SupportedTaskKinds = null);
+
+    internal record ConnectHandshakeClientInfo(
+        [property: JsonPropertyName("editorName")] string? EditorName = null,
+        [property: JsonPropertyName("editorVersion")] string? EditorVersion = null,
+        [property: JsonPropertyName("extensionName")] string? ExtensionName = null,
+        [property: JsonPropertyName("extensionVersion")] string? ExtensionVersion = null)
+    {
+        /// <summary>
+        /// Maps the public <see cref="CopilotClientInfo"/> onto the connect wire
+        /// shape, dropping empty fields. Returns <see langword="null"/> when no
+        /// identity was supplied so the handshake omits <c>clientInfo</c> and the
+        /// runtime keeps its default attribution.
+        /// </summary>
+        public static ConnectHandshakeClientInfo? From(CopilotClientInfo? info)
+        {
+            if (info is null)
+            {
+                return null;
+            }
+
+            var editorName = NullIfEmpty(info.ApplicationName);
+            var editorVersion = NullIfEmpty(info.ApplicationVersion);
+            var extensionName = NullIfEmpty(info.IntegrationName);
+            var extensionVersion = NullIfEmpty(info.IntegrationVersion);
+            if (editorName is null && editorVersion is null && extensionName is null && extensionVersion is null)
+            {
+                return null;
+            }
+
+            return new ConnectHandshakeClientInfo(editorName, editorVersion, extensionName, extensionVersion);
+        }
+
+        private static string? NullIfEmpty(string? value) => string.IsNullOrEmpty(value) ? null : value;
+    }
 
     internal record BuiltinPluginDirectoriesRequest(
         string[] Paths);
@@ -3223,6 +3274,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     [JsonSerializable(typeof(GetSessionMetadataRequest))]
     [JsonSerializable(typeof(GetSessionMetadataResponse))]
     [JsonSerializable(typeof(ConnectHandshakeRequest))]
+    [JsonSerializable(typeof(ConnectHandshakeClientInfo))]
     [JsonSerializable(typeof(BuiltinPluginDirectoriesRequest))]
     [JsonSerializable(typeof(McpOAuthTokenStorageMode))]
     [JsonSerializable(typeof(EmbeddingCacheStorageMode))]

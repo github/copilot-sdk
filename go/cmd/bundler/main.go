@@ -8,7 +8,7 @@
 //	--platform: Target platform using Go conventions (linux/amd64, linux/arm64, darwin/amd64, darwin/arm64, windows/amd64, windows/arm64). Defaults to current platform.
 //	--output: Output directory for embedded artifacts. Defaults to the current directory.
 //	--cli-version: CLI version to download. If not specified, automatically detects from the copilot-sdk version in go.mod.
-//	--check-only: Check that embedded CLI version matches the detected version from package-lock.json without downloading. Exits with error if versions don't match.
+//	--check-only: Check that embedded CLI version matches the detected version from package.json without downloading. Exits with error if versions don't match.
 package main
 
 import (
@@ -37,6 +37,7 @@ import (
 const (
 	// Keep these URLs centralized so reviewers can verify all outbound calls in one place.
 	sdkModule          = "github.com/github/copilot-sdk/go"
+	packageJSONURLFmt  = "https://raw.githubusercontent.com/github/copilot-sdk/%s/nodejs/package.json"
 	packageLockURLFmt  = "https://raw.githubusercontent.com/github/copilot-sdk/%s/nodejs/package-lock.json"
 	tarballURLFmt      = "https://registry.npmjs.org/@github/copilot-%s/-/copilot-%s-%s.tgz"
 	licenseTarballFmt  = "https://registry.npmjs.org/@github/copilot/-/copilot-%s.tgz"
@@ -123,6 +124,10 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
+	}
+	if err := downloadCLILicense(version, outputPath); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: failed to download CLI license: %v\n", err)
+		os.Exit(1)
 	}
 
 	// Generate the Go file with embed directive
@@ -258,8 +263,8 @@ func detectPackageName(dir, goos, goarch string) (string, error) {
 
 // detectCLIVersion detects the CLI version by:
 // 1. Running "go list -m" to get the copilot-sdk version from the user's go.mod
-// 2. Fetching the package-lock.json from the SDK repo at that version
-// 3. Extracting the @github/copilot CLI version from it
+// 2. Fetching package.json from the SDK repo at that version
+// 3. Extracting the pinned Copilot CLI version from it
 func detectCLIVersion() (string, error) {
 	// Get the SDK version from the user's go.mod
 	sdkVersion, err := getSDKVersion()
@@ -269,7 +274,7 @@ func detectCLIVersion() (string, error) {
 
 	fmt.Printf("Found copilot-sdk %s in go.mod\n", sdkVersion)
 
-	// Fetch package-lock.json from the SDK repo at that version
+	// Fetch package.json from the SDK repo at that version
 	cliVersion, err := fetchCLIVersionFromRepo(sdkVersion)
 	if err != nil {
 		return "", fmt.Errorf("failed to fetch CLI version: %w", err)
@@ -297,7 +302,7 @@ func getSDKVersion() (string, error) {
 	return version, nil
 }
 
-// fetchCLIVersionFromRepo fetches package-lock.json from GitHub and extracts the CLI version.
+// fetchCLIVersionFromRepo fetches package.json from GitHub and extracts the CLI version.
 func fetchCLIVersionFromRepo(sdkVersion string) (string, error) {
 	// Convert Go module version to Git ref
 	// v0.1.0 -> v0.1.0
@@ -315,7 +320,7 @@ func fetchCLIVersionFromRepo(sdkVersion string) (string, error) {
 		}
 	}
 
-	url := fmt.Sprintf(packageLockURLFmt, gitRef)
+	url := fmt.Sprintf(packageJSONURLFmt, gitRef)
 	fmt.Printf("Fetching %s...\n", url)
 
 	resp, err := http.Get(url)
@@ -325,7 +330,35 @@ func fetchCLIVersionFromRepo(sdkVersion string) (string, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("failed to fetch package-lock.json: %s", resp.Status)
+		return "", fmt.Errorf("failed to fetch package.json: %s", resp.Status)
+	}
+
+	var packageJSON struct {
+		CopilotCLIVersion string `json:"copilotCliVersion"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&packageJSON); err != nil {
+		return "", fmt.Errorf("failed to parse package.json: %w", err)
+	}
+
+	if packageJSON.CopilotCLIVersion == "" {
+		return fetchLegacyCLIVersionFromRepo(gitRef)
+	}
+
+	return packageJSON.CopilotCLIVersion, nil
+}
+
+func fetchLegacyCLIVersionFromRepo(gitRef string) (string, error) {
+	url := fmt.Sprintf(packageLockURLFmt, gitRef)
+	fmt.Printf("Falling back to %s...\n", url)
+
+	resp, err := http.Get(url)
+	if err != nil {
+		return "", fmt.Errorf("failed to fetch legacy package-lock.json: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("failed to fetch legacy package-lock.json: %s", resp.Status)
 	}
 
 	var packageLock struct {
@@ -333,16 +366,13 @@ func fetchCLIVersionFromRepo(sdkVersion string) (string, error) {
 			Version string `json:"version"`
 		} `json:"packages"`
 	}
-
 	if err := json.NewDecoder(resp.Body).Decode(&packageLock); err != nil {
-		return "", fmt.Errorf("failed to parse package-lock.json: %w", err)
+		return "", fmt.Errorf("failed to parse legacy package-lock.json: %w", err)
 	}
-
 	pkg, ok := packageLock.Packages["node_modules/@github/copilot"]
 	if !ok || pkg.Version == "" {
-		return "", fmt.Errorf("could not find @github/copilot version in package-lock.json")
+		return "", fmt.Errorf("could not find copilotCliVersion in package.json or @github/copilot in package-lock.json")
 	}
-
 	return pkg.Version, nil
 }
 
@@ -384,9 +414,6 @@ func buildBundle(info platformInfo, cliVersion, outputPath, goos string) (bundle
 		if err != nil {
 			return bundleArtifacts{}, fmt.Errorf("failed to hash existing output: %w", err)
 		}
-		if err := downloadCLILicense(cliVersion, outputPath); err != nil {
-			return bundleArtifacts{}, fmt.Errorf("failed to download CLI license: %w", err)
-		}
 		runtimeHash, err := sha256FileFromCompressed(runtimeArtifactPath)
 		if err != nil {
 			return bundleArtifacts{}, fmt.Errorf("failed to hash existing runtime.node: %w", err)
@@ -426,9 +453,6 @@ func buildBundle(info platformInfo, cliVersion, outputPath, goos string) (bundle
 	}
 	if err := compressZstdFile(binaryPath, outputPath); err != nil {
 		return bundleArtifacts{}, fmt.Errorf("failed to write output binary: %w", err)
-	}
-	if err := downloadCLILicense(cliVersion, outputPath); err != nil {
-		return bundleArtifacts{}, fmt.Errorf("failed to download CLI license: %w", err)
 	}
 
 	rawLibPath := filepath.Join(tempDir, "runtime.node")
@@ -511,9 +535,9 @@ func runtimeWrapperName(binaryName string) string {
 
 var hostlessExcludedTopLevel = map[string]bool{
 	"app.js": true, "assets": true, "changelog.json": true, "copilot": true, "copilot.exe": true,
-	"copilot-sdk": true, "foundry-local-sdk": true, "index.js": true, "napi-oop-runtime": true,
-	"LICENSE.md": true, "npm-loader.js": true, "package.json": true, "preloads": true, "pvrecorder": true,
-	"queries": true, "README.md": true, "sdk": true, "sea-loader.js": true, "webview": true,
+	"foundry-local-sdk": true, "index.js": true, "napi-oop-runtime": true, "LICENSE.md": true,
+	"npm-loader.js": true, "package.json": true, "pvrecorder": true, "queries": true, "README.md": true,
+	"sea-loader.js": true, "webview": true,
 }
 
 func hostlessRuntimePath(name, npmPlatform, wrapperName string) (string, bool) {

@@ -140,10 +140,12 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
         }
 
         [Description("Looks up a value after resumption")]
-        async Task<string> BlockingExternalTool([Description("Value to look up")] string value)
+        async Task<string> BlockingExternalTool(
+            [Description("Value to look up")] string value,
+            CancellationToken cancellationToken)
         {
             originalToolStarted.TrySetResult(value);
-            return await releaseOriginalTool.Task;
+            return await releaseOriginalTool.Task.WaitAsync(Timeout.InfiniteTimeSpan, cancellationToken);
         }
     }
 
@@ -274,11 +276,13 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
         }
 
         [Description("Looks up a value after resumption")]
-        async Task<string> BlockingExternalTool([Description("Value to look up")] string value)
+        async Task<string> BlockingExternalTool(
+            [Description("Value to look up")] string value,
+            CancellationToken cancellationToken)
         {
             Interlocked.Increment(ref invocationCount);
             originalToolStarted.TrySetResult(value);
-            return await releaseOriginalTool.Task;
+            return await releaseOriginalTool.Task.WaitAsync(Timeout.InfiniteTimeSpan, cancellationToken);
         }
 
         [Description("Looks up a value after resumption")]
@@ -327,6 +331,8 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
             Assert.Equal("beta", await originalToolBStarted.Task);
 
             await suspendedClient.ForceStopAsync();
+            releaseOriginalToolA.TrySetResult("ORIGINAL_A_SHOULD_NOT_WIN");
+            releaseOriginalToolB.TrySetResult("ORIGINAL_B_SHOULD_NOT_WIN");
 
             await using var resumedClient = Ctx.CreateClient(options: new CopilotClientOptions { Connection = RuntimeConnection.ForUri(cliUrl, connectionToken: SharedToken) });
             var session2 = await Ctx.ResumeSessionAsync(resumedClient, sessionId, new ResumeSessionConfig
@@ -356,17 +362,21 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
         }
 
         [Description("Looks up the first value after resumption")]
-        async Task<string> BlockingToolA([Description("Value to look up")] string value)
+        async Task<string> BlockingToolA(
+            [Description("Value to look up")] string value,
+            CancellationToken cancellationToken)
         {
             originalToolAStarted.TrySetResult(value);
-            return await releaseOriginalToolA.Task;
+            return await releaseOriginalToolA.Task.WaitAsync(Timeout.InfiniteTimeSpan, cancellationToken);
         }
 
         [Description("Looks up the second value after resumption")]
-        async Task<string> BlockingToolB([Description("Value to look up")] string value)
+        async Task<string> BlockingToolB(
+            [Description("Value to look up")] string value,
+            CancellationToken cancellationToken)
         {
             originalToolBStarted.TrySetResult(value);
-            return await releaseOriginalToolB.Task;
+            return await releaseOriginalToolB.Task.WaitAsync(Timeout.InfiniteTimeSpan, cancellationToken);
         }
     }
 

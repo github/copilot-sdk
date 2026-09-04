@@ -1,20 +1,16 @@
 name: "Java SDK Tests"
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - "java/**"
-      - "test/**"
-      - ".github/workflows/java-sdk-tests.yml"
-      - ".github/actions/setup-copilot/**"
-      - ".github/actions/java-test-report/**"
   workflow_dispatch:
   workflow_call:
 
 permissions:
   contents: read
+
+env:
+  MAVEN_OPTS: >-
+    -Daether.connector.http.retryHandler.count=3
+    -Daether.connector.http.retryHandler.serviceUnavailable=429,502,503
 
 jobs:
   java-sdk-inprocess:
@@ -63,7 +59,7 @@ jobs:
         run: mvn clean verify -Pinprocess ${{ matrix.maven-args }}
 
       - name: Generate Test Report Summary
-        if: always()
+        if: failure()
         uses: ./.github/actions/java-test-report
         with:
           title: "Copilot Java SDK :: Test Results InProcess"
@@ -130,11 +126,12 @@ jobs:
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: java-native-publication-linux-arm64-${{ github.run_id }}-${{ github.run_attempt }}
+          name: java-native-publication-linux-arm64-${{ github.run_id }}
           path: |
             java/copilot-native/target/copilot-sdk-java-runtime-${{ steps.build.outputs.version }}-linux-arm64.jar
             java/copilot-native/target/linux-arm64-${{ steps.build.outputs.version }}.sha256
           if-no-files-found: error
+          overwrite: true
           retention-days: 1
 
   java-native-publication-windows:
@@ -187,11 +184,12 @@ jobs:
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: java-native-publication-win32-x64-${{ github.run_id }}-${{ github.run_attempt }}
+          name: java-native-publication-win32-x64-${{ github.run_id }}
           path: |
             java/copilot-native/target/copilot-sdk-java-runtime-${{ steps.build.outputs.version }}-win32-x64.jar
             java/copilot-native/target/win32-x64-${{ steps.build.outputs.version }}.sha256
           if-no-files-found: error
+          overwrite: true
           retention-days: 1
 
   java-native-publication-windows-arm64:
@@ -244,11 +242,12 @@ jobs:
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: java-native-publication-win32-arm64-${{ github.run_id }}-${{ github.run_attempt }}
+          name: java-native-publication-win32-arm64-${{ github.run_id }}
           path: |
             java/copilot-native/target/copilot-sdk-java-runtime-${{ steps.build.outputs.version }}-win32-arm64.jar
             java/copilot-native/target/win32-arm64-${{ steps.build.outputs.version }}.sha256
           if-no-files-found: error
+          overwrite: true
           retention-days: 1
 
   java-native-publication-darwin:
@@ -302,11 +301,12 @@ jobs:
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: java-native-publication-darwin-arm64-${{ github.run_id }}-${{ github.run_attempt }}
+          name: java-native-publication-darwin-arm64-${{ github.run_id }}
           path: |
             java/copilot-native/target/copilot-sdk-java-runtime-${{ steps.build.outputs.version }}-darwin-arm64.jar
             java/copilot-native/target/darwin-arm64-${{ steps.build.outputs.version }}.sha256
           if-no-files-found: error
+          overwrite: true
           retention-days: 1
 
   java-native-publication-assembly:
@@ -342,22 +342,22 @@ jobs:
 
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: java-native-publication-linux-arm64-${{ github.run_id }}-${{ github.run_attempt }}
+          name: java-native-publication-linux-arm64-${{ github.run_id }}
           path: ${{ github.workspace }}/java/native-publication-input/linux-arm64
 
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: java-native-publication-win32-x64-${{ github.run_id }}-${{ github.run_attempt }}
+          name: java-native-publication-win32-x64-${{ github.run_id }}
           path: ${{ github.workspace }}/java/native-publication-input/windows
 
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: java-native-publication-win32-arm64-${{ github.run_id }}-${{ github.run_attempt }}
+          name: java-native-publication-win32-arm64-${{ github.run_id }}
           path: ${{ github.workspace }}/java/native-publication-input/windows-arm64
 
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: java-native-publication-darwin-arm64-${{ github.run_id }}-${{ github.run_attempt }}
+          name: java-native-publication-darwin-arm64-${{ github.run_id }}
           path: ${{ github.workspace }}/java/native-publication-input/darwin
 
       - name: Verify native inputs and deploy the complete local release
@@ -458,7 +458,12 @@ jobs:
         run: mvn javadoc:javadoc -q
 
       - name: Verify CLI works
-        run: node ../nodejs/node_modules/@github/copilot/npm-loader.js --version
+        run: |
+          npm --prefix ../nodejs ci --ignore-scripts
+          cli_path=$(npm --prefix ../nodejs run --silent prepare:runtime -- --print-path)
+          test -x "$cli_path"
+          legacy_cli=$(npm --prefix ../nodejs run --silent prepare:runtime -- --print-legacy-path)
+          node "$legacy_cli" --version
 
       - name: Run spotless check
         if: matrix.test-jdk == '25'
@@ -481,9 +486,8 @@ jobs:
         if: matrix.test-jdk == '25'
         env:
           CI: "true"
-        run: |
-          node copilot-native/scripts/validate-native-host.mjs linux-x64
-          mvn verify -Dskip.test.harness=true -Dcopilot.native.libc=glibc -Dcopilot.native.skip.download=false
+        # Native artifacts are built and exercised by every classifier job.
+        run: mvn -pl sdk verify -Dskip.test.harness=true
 
       - name: Switch to JDK 17
         if: matrix.test-jdk == '17'
@@ -502,7 +506,7 @@ jobs:
           mvn -pl sdk jacoco:prepare-agent@wire-up-coverage-instrumentation antrun:run@print-test-jdk-banner surefire:test failsafe:integration-test failsafe:verify jacoco:report@build-coverage-report-from-tests -Denforcer.skip=true
 
       - name: Upload test results for site generation
-        if: success() && github.ref == 'refs/heads/main' && matrix.test-jdk == '25'
+        if: success() && github.event_name == 'merge_group' && matrix.test-jdk == '25'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: test-results-for-site
