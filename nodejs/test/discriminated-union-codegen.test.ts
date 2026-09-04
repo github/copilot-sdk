@@ -142,13 +142,9 @@ describe("schema-driven discriminated union codegen", () => {
 
     it("promotes every nested synthetic union for Java generation", () => {
         expect(
-            analyseNestedClosedUnionResult(
-                { $ref: "#/definitions/SyntheticResult" },
-                definitions
-            )?.unionDefinitionNames
-        ).toEqual(
-            new Set(["SyntheticResult", "SyntheticChoice", "SyntheticSource"])
-        );
+            analyseNestedClosedUnionResult({ $ref: "#/definitions/SyntheticResult" }, definitions)
+                ?.unionDefinitionNames
+        ).toEqual(new Set(["SyntheticResult", "SyntheticChoice", "SyntheticSource"]));
         expect(
             collectNestedDiscriminatedUnionTypeNames(
                 { $ref: "#/definitions/SyntheticResult" },
