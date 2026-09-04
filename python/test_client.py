@@ -3281,7 +3281,7 @@ class TestGitHubTelemetry:
 
     @pytest.mark.asyncio
     async def test_event_routes_to_handler(self):
-        from copilot.generated.rpc import GitHubTelemetryNotification
+        from copilot.rpc import GitHubTelemetryNotification
 
         received: list = []
 
@@ -3340,7 +3340,7 @@ class TestGitHubTelemetry:
 
     @pytest.mark.asyncio
     async def test_event_routes_to_async_handler(self):
-        from copilot.generated.rpc import GitHubTelemetryNotification
+        from copilot.rpc import GitHubTelemetryNotification
 
         received: list = []
         delivered = asyncio.Event()

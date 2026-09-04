@@ -23,10 +23,7 @@ from types import TracebackType
 from typing import TYPE_CHECKING, Any, Literal, NotRequired, Required, TypedDict, cast
 
 from ._diagnostics import log_timing
-from ._jsonrpc import JsonRpcError, ProcessExitedError
-from ._telemetry import get_trace_context, trace_context
-from .canvas import CanvasError, CanvasHandler, OpenCanvasInstance
-from .generated.rpc import (
+from ._generated.rpc import (
     BuiltinToolInputSchemaType,
     CanvasProviderCloseRequest,
     CanvasProviderInvokeActionRequest,
@@ -57,14 +54,14 @@ from .generated.rpc import (
     UIElicitationSchemaPropertyType,
     UIHandlePendingElicitationRequest,
 )
-from .generated.rpc import (
+from ._generated.rpc import (
     CanvasHandler as RpcCanvasHandler,
 )
-from .generated.rpc import (
+from ._generated.rpc import (
     ContextTier as _RpcContextTier,
 )
-from .generated.rpc import ModelCapabilitiesOverride as _RpcModelCapabilitiesOverride
-from .generated.session_events import (
+from ._generated.rpc import ModelCapabilitiesOverride as _RpcModelCapabilitiesOverride
+from ._generated.session_events import (
     AssistantMessageData,
     CapabilitiesChangedData,
     CommandExecuteData,
@@ -81,9 +78,12 @@ from .generated.session_events import (
     SessionMode,
     session_event_from_dict,
 )
-from .generated.session_events import (
+from ._generated.session_events import (
     ReasoningSummary as _RpcReasoningSummary,
 )
+from ._jsonrpc import JsonRpcError, ProcessExitedError
+from ._telemetry import get_trace_context, trace_context
+from .canvas import CanvasError, CanvasHandler, OpenCanvasInstance
 from .tools import (
     Tool,
     ToolHandler,
