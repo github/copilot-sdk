@@ -50,6 +50,31 @@ use crate::{
 /// `overrides_built_in_tool` set to `true`.
 const TOOL_SEARCH_TOOL_NAME: &str = "tool_search_tool";
 
+/// Default capacity of the per-session event broadcast buffer backing
+/// [`Session::subscribe`] and [`PreparedSession::subscribe`].
+///
+/// Override per session with
+/// [`SessionConfig::event_buffer_capacity`](crate::types::SessionConfig::event_buffer_capacity)
+/// or
+/// [`ResumeSessionConfig::event_buffer_capacity`](crate::types::ResumeSessionConfig::event_buffer_capacity).
+pub const DEFAULT_EVENT_BUFFER_CAPACITY: usize = 512;
+
+/// Validate a caller-supplied event buffer capacity and resolve the default.
+///
+/// Zero is rejected rather than clamped: a zero-capacity broadcast channel
+/// cannot exist, and silently substituting a different capacity would hide a
+/// caller bug.
+fn resolve_event_buffer_capacity(capacity: Option<usize>) -> Result<usize, Error> {
+    match capacity {
+        Some(0) => Err(Error::with_message(
+            ErrorKind::InvalidConfig,
+            "event_buffer_capacity must be greater than zero",
+        )),
+        Some(capacity) => Ok(capacity),
+        None => Ok(DEFAULT_EVENT_BUFFER_CAPACITY),
+    }
+}
+
 /// Bundle of the per-session callbacks the SDK dispatches to. Built from a
 /// [`SessionConfig`] / [`ResumeSessionConfig`] at
 /// [`Client::create_session`] / [`Client::resume_session`] time. Each
@@ -107,25 +132,82 @@ impl Drop for WaiterGuard {
 
 struct PendingSessionRegistration {
     client: Client,
-    session_id: SessionId,
+    session_id: PendingSessionId,
     shutdown: CancellationToken,
     disarmed: bool,
 }
 
+/// Which session ID a [`PendingSessionRegistration`] should unregister on
+/// cleanup.
+///
+/// `session.create` for cloud sessions without a caller-pinned ID does not
+/// know the ID until the response arrives, at which point the inline
+/// response callback registers it and stashes it. The guard therefore reads
+/// the stash at cleanup time instead of capturing an ID up front.
+enum PendingSessionId {
+    /// The ID was known before the RPC was issued (resume, and create with a
+    /// client- or caller-supplied ID).
+    Known(SessionId, crate::router::RegistrationToken),
+    /// Server-assigned ID, populated by the `session.create` inline response
+    /// callback. `None` in the stash means nothing was ever registered.
+    Deferred(Arc<ParkingLotMutex<Option<(SessionId, crate::router::SessionRegistration)>>>),
+}
+
 impl PendingSessionRegistration {
-    fn new(client: Client, session_id: SessionId, shutdown: CancellationToken) -> Self {
+    fn new(
+        client: Client,
+        session_id: SessionId,
+        token: crate::router::RegistrationToken,
+        shutdown: CancellationToken,
+    ) -> Self {
         Self {
             client,
-            session_id,
+            session_id: PendingSessionId::Known(session_id, token),
             shutdown,
             disarmed: false,
         }
     }
 
+    /// Guard for a registration whose session ID is assigned by the server.
+    fn deferred(
+        client: Client,
+        stash: Arc<ParkingLotMutex<Option<(SessionId, crate::router::SessionRegistration)>>>,
+        shutdown: CancellationToken,
+    ) -> Self {
+        Self {
+            client,
+            session_id: PendingSessionId::Deferred(stash),
+            shutdown,
+            disarmed: false,
+        }
+    }
+
+    fn registered_id(&self) -> Option<SessionId> {
+        match &self.session_id {
+            PendingSessionId::Known(id, _) => Some(id.clone()),
+            PendingSessionId::Deferred(stash) => stash.lock().as_ref().map(|(id, _)| id.clone()),
+        }
+    }
+
+    /// Re-target the guard at a now-known session ID. Used by
+    /// `session.create` once the response has been parsed and the stash has
+    /// been drained into the event loop.
+    fn resolve_to(&mut self, session_id: SessionId, token: crate::router::RegistrationToken) {
+        self.session_id = PendingSessionId::Known(session_id, token);
+    }
+
     async fn cleanup(mut self, event_loop: JoinHandle<()>) {
         self.shutdown.cancel();
         let _ = event_loop.await;
-        self.client.unregister_session(&self.session_id);
+        if let Some(id) = self.registered_id() {
+            if let PendingSessionId::Known(_, token) = self.session_id {
+                self.client.unregister_session_owned(&id, token);
+            } else if let PendingSessionId::Deferred(stash) = &self.session_id
+                && let Some((id, registration)) = stash.lock().as_ref()
+            {
+                self.client.unregister_session_owned(id, registration.token);
+            }
+        }
         self.disarmed = true;
     }
 
@@ -138,7 +220,15 @@ impl Drop for PendingSessionRegistration {
     fn drop(&mut self) {
         if !self.disarmed {
             self.shutdown.cancel();
-            self.client.unregister_session(&self.session_id);
+            if let Some(id) = self.registered_id() {
+                if let PendingSessionId::Known(_, token) = self.session_id {
+                    self.client.unregister_session_owned(&id, token);
+                } else if let PendingSessionId::Deferred(stash) = &self.session_id
+                    && let Some((id, registration)) = stash.lock().as_ref()
+                {
+                    self.client.unregister_session_owned(id, registration.token);
+                }
+            }
         }
     }
 }
@@ -195,6 +285,8 @@ pub struct Session {
     event_tx: tokio::sync::broadcast::Sender<SessionEvent>,
     github_token_registration:
         ParkingLotMutex<Option<crate::github_token::GitHubTokenRegistration>>,
+    /// Identity of this session's router registration.
+    registration_token: crate::router::RegistrationToken,
 }
 
 impl Session {
@@ -653,8 +745,9 @@ impl Session {
             )
             .await?;
         self.stop_event_loop().await;
-        self.client.unregister_session(&self.id);
         self.github_token_registration.lock().take();
+        self.client
+            .unregister_session_owned(&self.id, self.registration_token);
         Ok(())
     }
 
@@ -731,8 +824,9 @@ impl Drop for Session {
         // tokio runtime when it next polls; we intentionally don't await
         // it here because Drop is sync.
         self.shutdown.cancel();
-        self.client.unregister_session(&self.id);
         self.github_token_registration.lock().take();
+        self.client
+            .unregister_session_owned(&self.id, self.registration_token);
     }
 }
 
@@ -874,6 +968,102 @@ impl<'a> SessionUi<'a> {
 }
 
 impl Client {
+    /// Prepare a new session without touching the transport.
+    ///
+    /// Returns a [`PreparedSession`] that owns the session's event broadcast
+    /// channel, so callers can install an
+    /// [`EventSubscription`](crate::subscription::EventSubscription) via
+    /// [`PreparedSession::subscribe`] *before* any protocol activity starts.
+    /// Call [`PreparedSession::start`] to actually create the session.
+    ///
+    /// This is the loss-free entry point for consumers that must observe
+    /// every *routed* event a session emits, including events the CLI emits
+    /// while `session.create` is still in flight and ephemeral events (such
+    /// as `session.idle`) that cannot be recovered from
+    /// [`Session::get_messages`]. [`create_session`](Self::create_session)
+    /// is a thin wrapper over `prepare_session(...)?.start()` and cannot
+    /// offer the same guarantee, because the subscription can only be
+    /// installed after the returned `Session` exists.
+    ///
+    /// Routing requires a known session ID. When the server assigns the ID,
+    /// the SDK cannot register the session on its notification router until
+    /// the `session.create` response arrives, so notifications emitted
+    /// before that point are not routable and stay unobservable. Pin
+    /// [`SessionConfig::session_id`](crate::types::SessionConfig::session_id)
+    /// for complete pre-response coverage — see the "Server-assigned session
+    /// IDs" section on [`PreparedSession`].
+    ///
+    /// # Inertness
+    ///
+    /// `prepare_session` performs no router registration, spawns no task,
+    /// and writes nothing to the wire. It only validates
+    /// [`event_buffer_capacity`](SessionConfig::event_buffer_capacity),
+    /// allocates a local broadcast channel and cancellation token, and
+    /// stores the config. Dropping the returned handle without starting it
+    /// leaves no client-side or server-side state behind and closes every
+    /// subscription taken from it.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ErrorKind::InvalidConfig`] if
+    /// [`event_buffer_capacity`](SessionConfig::event_buffer_capacity) is
+    /// `Some(0)`. All other configuration and protocol errors surface from
+    /// [`PreparedSession::start`], with the same
+    /// [`ErrorKind`]s [`create_session`](Self::create_session) has always
+    /// returned.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use github_copilot_sdk::{Client, SessionConfig};
+    /// # async fn example(client: Client) -> Result<(), github_copilot_sdk::Error> {
+    /// let prepared = client.prepare_session(SessionConfig::default())?;
+    /// let mut events = prepared.subscribe();
+    /// let drain = tokio::spawn(async move {
+    ///     while let Ok(event) = events.recv().await {
+    ///         println!("{}", event.event_type);
+    ///     }
+    /// });
+    /// let session = prepared.start().await?;
+    /// # let _ = (session, drain);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn prepare_session(&self, config: SessionConfig) -> Result<PreparedSession, Error> {
+        let capacity = resolve_event_buffer_capacity(config.event_buffer_capacity)?;
+        Ok(PreparedSession::new(
+            self.clone(),
+            PreparedKind::Create(Box::new(config)),
+            capacity,
+        ))
+    }
+
+    /// Prepare a session resume without touching the transport.
+    ///
+    /// The resume counterpart of [`prepare_session`](Self::prepare_session);
+    /// see that method for the inertness guarantee, error semantics, and
+    /// rationale. Particularly relevant on resume with
+    /// [`continue_pending_work`](ResumeSessionConfig::continue_pending_work),
+    /// where the runtime can start emitting events (and reach
+    /// `session.idle`) while `session.resume` is still in flight.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ErrorKind::InvalidConfig`] if
+    /// [`event_buffer_capacity`](ResumeSessionConfig::event_buffer_capacity)
+    /// is `Some(0)`.
+    pub fn prepare_resume_session(
+        &self,
+        config: ResumeSessionConfig,
+    ) -> Result<PreparedSession, Error> {
+        let capacity = resolve_event_buffer_capacity(config.event_buffer_capacity)?;
+        Ok(PreparedSession::new(
+            self.clone(),
+            PreparedKind::Resume(Box::new(config)),
+            capacity,
+        ))
+    }
+
     /// Create a new session on the CLI.
     ///
     /// Sends `session.create`, registers the session on the router,
@@ -895,7 +1085,48 @@ impl Client {
     /// Each per-event handler is independently optional. If a handler is
     /// not installed, the SDK signals the runtime not to emit the matching
     /// broadcast (and silently skips dispatch if one arrives anyway).
-    pub async fn create_session(&self, mut config: SessionConfig) -> Result<Session, Error> {
+    ///
+    /// # Event delivery
+    ///
+    /// Equivalent to `prepare_session(config)?.start().await`. Because the
+    /// first subscription can only be taken from the returned [`Session`],
+    /// events the runtime emits before this call returns are broadcast with
+    /// no receiver installed and are therefore not delivered to
+    /// [`Session::subscribe`]. Use
+    /// [`prepare_session`](Self::prepare_session) when startup events
+    /// matter.
+    pub async fn create_session(&self, config: SessionConfig) -> Result<Session, Error> {
+        self.prepare_session(config)?.start().await
+    }
+
+    /// Resume an existing session on the CLI.
+    ///
+    /// Sends `session.resume` and `session.skills.reload`, registers the
+    /// session on the router, and spawns the event loop.
+    ///
+    /// All callbacks (event handler, hooks, transform) are configured
+    /// via [`ResumeSessionConfig`] using its `with_*` builder methods.
+    ///
+    /// See [`Self::create_session`] for the defaults applied when callback
+    /// fields are unset.
+    ///
+    /// # Event delivery
+    ///
+    /// Equivalent to `prepare_resume_session(config)?.start().await`, and
+    /// carries the same startup-event caveat documented on
+    /// [`create_session`](Self::create_session). Use
+    /// [`prepare_resume_session`](Self::prepare_resume_session) when
+    /// startup events matter.
+    pub async fn resume_session(&self, config: ResumeSessionConfig) -> Result<Session, Error> {
+        self.prepare_resume_session(config)?.start().await
+    }
+
+    async fn start_prepared_create(
+        &self,
+        mut config: SessionConfig,
+        event_tx: tokio::sync::broadcast::Sender<SessionEvent>,
+        shutdown: CancellationToken,
+    ) -> Result<Session, Error> {
         let total_start = Instant::now();
         // For cloud sessions, let the CLI/server assign the session id and
         // register the session lazily once the response arrives. For non-cloud
@@ -1036,8 +1267,6 @@ impl Client {
         let capabilities = Arc::new(parking_lot::RwLock::new(SessionCapabilities::default()));
         let idle_waiter = Arc::new(ParkingLotMutex::new(None));
         let open_canvases = Arc::new(parking_lot::RwLock::new(Vec::new()));
-        let shutdown = CancellationToken::new();
-        let (event_tx, _) = tokio::sync::broadcast::channel(512);
 
         // For cloud sessions (use_server_generated_id), defer session
         // registration to the inline callback so the read task registers
@@ -1045,7 +1274,7 @@ impl Client {
         // For non-cloud sessions, register up-front so the CLI can issue
         // session-scoped requests during session.create processing.
         let inline_stash: Arc<
-            ParkingLotMutex<Option<(SessionId, crate::router::SessionChannels)>>,
+            ParkingLotMutex<Option<(SessionId, crate::router::SessionRegistration)>>,
         > = Arc::new(ParkingLotMutex::new(None));
 
         let inline_callback: Option<crate::jsonrpc::InlineResponseCallback> = if let Some(ref sid) =
@@ -1073,45 +1302,55 @@ impl Client {
                     })
                     .into());
                 }
-                let channels = client.register_session(&parsed.session_id);
-                *stash.lock() = Some((parsed.session_id, channels));
+                // Register and stash under a single stash-lock hold. The
+                // cancellation guard identifies the session to unregister by
+                // peeking this stash, so registering outside the lock would
+                // leave a window where a concurrent guard drop (caller
+                // cancellation) sees `None` and leaks the registration.
+                // `register_session` takes the router lock, never the stash
+                // lock, so there is no lock-order inversion here.
+                let mut stashed = stash.lock();
+                let registration = client.register_session(&parsed.session_id);
+                *stashed = Some((parsed.session_id, registration));
                 Ok(())
             }))
         };
 
-        let rpc_start = Instant::now();
-        let result = match self
-            .call_with_inline_callback("session.create", Some(params), inline_callback)
-            .await
-        {
-            Ok(result) => result,
-            Err(error) => {
-                if let Some((id, _channels)) = inline_stash.lock().take() {
-                    self.unregister_session(&id);
-                }
-                return Err(error);
+        // Armed for the whole startup sequence: any early return, and any
+        // drop of this future (caller cancellation), cancels the session
+        // token and unregisters whatever was registered on the router. For
+        // the cloud path the ID is only known once the inline callback has
+        // run, so the guard reads the stash at cleanup time.
+        let mut pending_registration = match local_session_id {
+            Some(ref sid) => {
+                let token = inline_stash
+                    .lock()
+                    .as_ref()
+                    .expect("session registration must exist")
+                    .1
+                    .token;
+                PendingSessionRegistration::new(self.clone(), sid.clone(), token, shutdown.clone())
             }
+            None => PendingSessionRegistration::deferred(
+                self.clone(),
+                inline_stash.clone(),
+                shutdown.clone(),
+            ),
         };
+
+        let rpc_start = Instant::now();
+        let result = self
+            .call_with_inline_callback("session.create", Some(params), inline_callback)
+            .await?;
         tracing::debug!(
             elapsed_ms = rpc_start.elapsed().as_millis(),
             "Client::create_session session creation request completed successfully"
         );
-        let create_result: CreateSessionResult = match serde_json::from_value(result) {
-            Ok(result) => result,
-            Err(error) => {
-                if let Some((id, _channels)) = inline_stash.lock().take() {
-                    self.unregister_session(&id);
-                }
-                return Err(error.into());
-            }
-        };
+        let create_result: CreateSessionResult = serde_json::from_value(result)?;
 
         if let Some(ref requested) = local_session_id
             && create_result.session_id != *requested
         {
-            if let Some((id, _channels)) = inline_stash.lock().take() {
-                self.unregister_session(&id);
-            }
             return Err(ErrorKind::Session(SessionErrorKind::SessionIdMismatch {
                 requested: requested.clone(),
                 returned: create_result.session_id.clone(),
@@ -1119,10 +1358,13 @@ impl Client {
             .into());
         }
 
-        let (session_id, channels) = inline_stash
+        let (session_id, registration) = inline_stash
             .lock()
             .take()
             .expect("session registration must have populated stash on success");
+        let channels = registration.channels;
+        let registration_token = registration.token;
+        pending_registration.resolve_to(session_id.clone(), registration_token);
         let event_loop = spawn_event_loop(
             session_id.clone(),
             self.clone(),
@@ -1149,8 +1391,11 @@ impl Client {
             "Client::create_session local setup complete"
         );
         *capabilities.write() = create_result.capabilities.unwrap_or_default();
-        if has_mcp_auth_handler {
-            register_mcp_auth_interest(self, &session_id).await?;
+        if has_mcp_auth_handler
+            && let Err(error) = register_mcp_auth_interest(self, &session_id).await
+        {
+            pending_registration.cleanup(event_loop).await;
+            return Err(error);
         }
 
         tracing::debug!(
@@ -1158,6 +1403,7 @@ impl Client {
             session_id = %session_id,
             "Client::create_session complete"
         );
+        pending_registration.disarm();
         let session = Session {
             id: session_id,
             cwd: self.cwd().clone(),
@@ -1171,6 +1417,7 @@ impl Client {
             open_canvases,
             event_tx,
             github_token_registration: ParkingLotMutex::new(github_token_registration),
+            registration_token,
         };
         apply_mode_post_create_patch(
             &session,
@@ -1200,7 +1447,12 @@ impl Client {
     ///
     /// See [`Self::create_session`] for the defaults applied when callback
     /// fields are unset.
-    pub async fn resume_session(&self, mut config: ResumeSessionConfig) -> Result<Session, Error> {
+    async fn start_prepared_resume(
+        &self,
+        mut config: ResumeSessionConfig,
+        event_tx: tokio::sync::broadcast::Sender<SessionEvent>,
+        shutdown: CancellationToken,
+    ) -> Result<Session, Error> {
         let total_start = Instant::now();
         let session_id = config.session_id.clone();
         if config.hooks_handler.is_some() && config.hooks.is_none() {
@@ -1322,11 +1574,11 @@ impl Client {
 
         let capabilities = Arc::new(parking_lot::RwLock::new(SessionCapabilities::default()));
         let setup_start = Instant::now();
-        let channels = self.register_session(&session_id);
+        let registration = self.register_session(&session_id);
+        let registration_token = registration.token;
+        let channels = registration.channels;
         let idle_waiter = Arc::new(ParkingLotMutex::new(None));
         let open_canvases = Arc::new(parking_lot::RwLock::new(Vec::new()));
-        let shutdown = CancellationToken::new();
-        let (event_tx, _) = tokio::sync::broadcast::channel(512);
         let event_loop = spawn_event_loop(
             session_id.clone(),
             self.clone(),
@@ -1344,8 +1596,12 @@ impl Client {
             event_tx.clone(),
             shutdown.clone(),
         );
-        let mut registration =
-            PendingSessionRegistration::new(self.clone(), session_id.clone(), shutdown.clone());
+        let mut registration = PendingSessionRegistration::new(
+            self.clone(),
+            session_id.clone(),
+            registration_token,
+            shutdown.clone(),
+        );
         tracing::debug!(
             elapsed_ms = setup_start.elapsed().as_millis(),
             session_id = %session_id,
@@ -1388,10 +1644,12 @@ impl Client {
             })
             .into());
         }
-        if has_mcp_auth_handler {
-            register_mcp_auth_interest(self, &session_id).await?;
+        if has_mcp_auth_handler
+            && let Err(error) = register_mcp_auth_interest(self, &session_id).await
+        {
+            registration.cleanup(event_loop).await;
+            return Err(error);
         }
-
         // Reload skills after resume (best-effort).
         let skills_reload_start = Instant::now();
         if let Err(e) = self
@@ -1446,6 +1704,7 @@ impl Client {
             open_canvases,
             event_tx,
             github_token_registration: ParkingLotMutex::new(github_token_registration),
+            registration_token,
         };
         apply_mode_post_create_patch(
             &session,
@@ -1463,6 +1722,149 @@ impl Client {
             self.retire_github_token_provider(&session.id);
         }
         Ok(session)
+    }
+}
+
+/// A session that has been configured but not yet created on the CLI.
+///
+/// Returned by [`Client::prepare_session`] and
+/// [`Client::prepare_resume_session`]. Its purpose is to make the session's
+/// event stream observable *before* any protocol activity starts:
+/// [`subscribe`](Self::subscribe) installs a receiver on the same broadcast
+/// channel the eventual [`Session`] uses, so events the runtime emits while
+/// `session.create` / `session.resume` is still in flight are delivered
+/// rather than dropped for lack of a receiver.
+///
+/// # Lifecycle
+///
+/// A prepared handle is inert. It holds only a broadcast sender, a
+/// cancellation token, the client handle, and the config — it performs no
+/// router registration, spawns no task, and writes nothing to the wire
+/// until [`start`](Self::start) is first polled.
+///
+/// * Dropping it without starting leaves no client-side or server-side
+///   state, and closes every subscription taken from it.
+/// * Dropping the [`start`](Self::start) future mid-flight cancels the
+///   session token, unregisters the session from the router if it was
+///   registered, and closes early subscriptions. A retry with the same
+///   session ID succeeds. Cleanup of already-spawned tasks is signalled,
+///   not awaited: `Drop` is synchronous and cannot await, so the event loop
+///   terminates promptly but not synchronously.
+/// * A startup error from [`start`](Self::start) performs the same cleanup
+///   and preserves the [`ErrorKind`] the equivalent
+///   [`Client::create_session`] / [`Client::resume_session`] call has always
+///   returned.
+///
+/// [`start`](Self::start) consumes `self` and the type is deliberately not
+/// [`Clone`], so a prepared session can be started at most once and can
+/// never produce two event loops.
+///
+/// # Buffering
+///
+/// The broadcast buffer is finite —
+/// [`DEFAULT_EVENT_BUFFER_CAPACITY`] unless
+/// [`SessionConfig::event_buffer_capacity`] /
+/// [`ResumeSessionConfig::event_buffer_capacity`] overrides it. Subscribers
+/// that fall behind observe
+/// [`Lagged`](crate::subscription::Lagged) instead of applying backpressure
+/// to the event loop. Consumers that need a lossless view of a large
+/// startup burst must either configure a capacity that covers it or drain
+/// the subscription concurrently with [`start`](Self::start).
+///
+/// # Server-assigned session IDs
+///
+/// For cloud sessions without a caller-supplied session ID, the CLI assigns
+/// the ID and the SDK can only register the session on its notification
+/// router once the `session.create` response arrives. Notifications the
+/// server emits before that point are not routable to any session and are
+/// therefore not observable. The guarantee this type provides is narrower
+/// and precise: **routed** events are never dropped for lack of an
+/// installed receiver. Pin
+/// [`SessionConfig::session_id`](crate::types::SessionConfig::session_id)
+/// to get registration before the RPC and full pre-response coverage.
+#[must_use = "a PreparedSession does nothing until started"]
+pub struct PreparedSession {
+    client: Client,
+    kind: PreparedKind,
+    event_tx: tokio::sync::broadcast::Sender<SessionEvent>,
+    shutdown: CancellationToken,
+}
+
+/// Which startup path a [`PreparedSession`] runs when started. Boxed
+/// because the two config types are large and differently sized.
+enum PreparedKind {
+    Create(Box<SessionConfig>),
+    Resume(Box<ResumeSessionConfig>),
+}
+
+impl PreparedSession {
+    fn new(client: Client, kind: PreparedKind, event_buffer_capacity: usize) -> Self {
+        let (event_tx, _) = tokio::sync::broadcast::channel(event_buffer_capacity);
+        Self {
+            client,
+            kind,
+            event_tx,
+            shutdown: CancellationToken::new(),
+        }
+    }
+
+    /// Subscribe to this session's events before it starts.
+    ///
+    /// The returned [`EventSubscription`](crate::subscription::EventSubscription)
+    /// is backed by the same broadcast channel
+    /// [`Session::subscribe`] returns after [`start`](Self::start)
+    /// succeeds, so a subscription taken here observes the full event
+    /// stream from the session's first routed event onward — including
+    /// ephemeral events such as `session.idle` that
+    /// [`Session::get_messages`] cannot recover.
+    ///
+    /// May be called any number of times, and each subscriber receives its
+    /// own copy of the stream — subject to the buffering contract above. A
+    /// subscriber that falls further behind than the configured capacity
+    /// observes [`Lagged`](crate::subscription::Lagged) and skips the
+    /// events it missed, rather than stalling the session's event loop.
+    /// Subscriptions taken here close if the prepared session is dropped
+    /// without starting, or if startup fails.
+    pub fn subscribe(&self) -> crate::subscription::EventSubscription {
+        crate::subscription::EventSubscription::new(self.event_tx.subscribe())
+    }
+
+    /// Create or resume the session on the CLI.
+    ///
+    /// This is where all protocol activity happens: config validation,
+    /// router registration, the `session.create` / `session.resume` RPC,
+    /// and the event loop spawn. Nothing observable occurs until this
+    /// future is first polled.
+    ///
+    /// # Errors
+    ///
+    /// Returns the same errors as [`Client::create_session`] /
+    /// [`Client::resume_session`] — including
+    /// [`ErrorKind::InvalidConfig`] for invalid configs, transport and RPC
+    /// failures, and
+    /// [`SessionIdMismatch`](crate::SessionErrorKind::SessionIdMismatch)
+    /// when the CLI returns a different session ID than the one requested.
+    /// Every error path unregisters the session and closes subscriptions
+    /// taken from this handle.
+    pub async fn start(self) -> Result<Session, Error> {
+        let Self {
+            client,
+            kind,
+            event_tx,
+            shutdown,
+        } = self;
+        match kind {
+            PreparedKind::Create(config) => {
+                client
+                    .start_prepared_create(*config, event_tx, shutdown)
+                    .await
+            }
+            PreparedKind::Resume(config) => {
+                client
+                    .start_prepared_resume(*config, event_tx, shutdown)
+                    .await
+            }
+        }
     }
 }
 
