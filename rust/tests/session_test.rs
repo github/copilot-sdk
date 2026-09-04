@@ -19,7 +19,7 @@ use github_copilot_sdk::handler::{
 };
 use github_copilot_sdk::rpc::{
     CanvasProviderInvokeActionRequest, CanvasProviderOpenRequest, CanvasProviderOpenResult,
-    OpenCanvasInstance,
+    ModelSetAllowedModelsRequest, OpenCanvasInstance,
 };
 use github_copilot_sdk::session_events::{
     ManagedSettingsResolvedSource, McpOauthRequiredData, ReasoningSummary, SessionLimitsConfig,
@@ -1917,6 +1917,83 @@ async fn session_rpc_methods_send_correct_method_names() {
         server.respond(&request, response).await;
         timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
     }
+}
+
+#[tokio::test]
+async fn session_model_set_allowed_models_replaces_and_clears_the_allowlist() {
+    let (session, mut server) = create_session_pair().await;
+    let session = Arc::new(session);
+
+    let replace_handle = tokio::spawn({
+        let session = session.clone();
+        async move {
+            session
+                .rpc()
+                .model()
+                .set_allowed_models(ModelSetAllowedModelsRequest {
+                    allowed_models: Some(vec!["gpt-5.4".to_string(), "gpt-5-mini".to_string()]),
+                })
+                .await
+        }
+    });
+    let replace_request = server.read_request().await;
+    assert_eq!(replace_request["method"], "session.model.setAllowedModels");
+    assert_eq!(replace_request["params"]["sessionId"], server.session_id);
+    assert_eq!(
+        replace_request["params"]["allowedModels"],
+        serde_json::json!(["gpt-5.4", "gpt-5-mini"])
+    );
+    server
+        .respond(
+            &replace_request,
+            serde_json::json!({
+                "allowedModels": ["gpt-5.4", "gpt-5-mini"],
+                "effectiveAllowedModels": ["gpt-5.4"],
+                "fallbackModel": "gpt-5.4",
+                "modelId": "gpt-5.4"
+            }),
+        )
+        .await;
+    let replace_result = timeout(TIMEOUT, replace_handle)
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        replace_result.allowed_models.as_deref(),
+        Some(&["gpt-5.4".to_string(), "gpt-5-mini".to_string()][..])
+    );
+    assert_eq!(
+        replace_result.effective_allowed_models.as_deref(),
+        Some(&["gpt-5.4".to_string()][..])
+    );
+    assert_eq!(replace_result.fallback_model.as_deref(), Some("gpt-5.4"));
+    assert_eq!(replace_result.model_id.as_deref(), Some("gpt-5.4"));
+
+    let clear_handle = tokio::spawn({
+        let session = session.clone();
+        async move {
+            session
+                .rpc()
+                .model()
+                .set_allowed_models(ModelSetAllowedModelsRequest::default())
+                .await
+        }
+    });
+    let clear_request = server.read_request().await;
+    assert_eq!(clear_request["method"], "session.model.setAllowedModels");
+    assert_eq!(clear_request["params"]["sessionId"], server.session_id);
+    assert!(clear_request["params"].get("allowedModels").is_none());
+    server.respond(&clear_request, serde_json::json!({})).await;
+    let clear_result = timeout(TIMEOUT, clear_handle)
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap();
+    assert_eq!(clear_result.allowed_models, None);
+    assert_eq!(clear_result.effective_allowed_models, None);
+    assert_eq!(clear_result.fallback_model, None);
+    assert_eq!(clear_result.model_id, None);
 }
 
 #[tokio::test]
