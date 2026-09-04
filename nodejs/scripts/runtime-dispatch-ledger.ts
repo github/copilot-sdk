@@ -44,7 +44,6 @@ export interface ExpectedDispatch {
     channel: RuntimeDispatchMarker["channel"];
     currentRunId: string;
     mode: RuntimeDispatchMarker["mode"];
-    resumeRunId: string;
     runtimeRunId: string;
     runtimeSha: string;
     runtimeSource: RuntimeDispatchMarker["runtime"]["source"];
@@ -54,7 +53,7 @@ export interface ExpectedDispatch {
     versionOverride: string;
 }
 
-export type DispatchRole = "duplicate" | "owner" | "recovery";
+export type DispatchRole = "duplicate" | "owner";
 
 const workflowPath = ".github/workflows/runtime-sdk.yml";
 const workflowName = "Runtime-driven Node SDK";
@@ -68,14 +67,10 @@ function validateInputs(expected: ExpectedDispatch): void {
     assert(
         expected.channel === "canary"
             ? expected.runtimeSource === "azure" &&
-                  (expected.mode === "tests-only" || expected.mode === "internal") &&
-                  expected.resumeRunId === ""
+                  (expected.mode === "tests-only" || expected.mode === "internal")
             : expected.runtimeSource === "github-packages" && expected.mode === "internal",
-        "Invalid channel, runtime source, mode, or recovery combination"
+        "Invalid channel, runtime source, or mode combination"
     );
-    if (expected.resumeRunId) {
-        assert.match(expected.resumeRunId, /^[0-9]+$/, "Resume workflow run ID must be numeric");
-    }
 }
 
 export function createRuntimeDispatchMarker(expected: ExpectedDispatch): RuntimeDispatchMarker {
@@ -157,14 +152,6 @@ export function validateRuntimeDispatchMarker(
     if (marker.canonicalRunId === expected.currentRunId) {
         return "owner";
     }
-    if (expected.resumeRunId) {
-        assert.equal(
-            expected.resumeRunId,
-            marker.canonicalRunId,
-            "resume_run_id must identify the canonical workflow run"
-        );
-        return "recovery";
-    }
     return "duplicate";
 }
 
@@ -181,7 +168,6 @@ function expectedFromEnvironment(): ExpectedDispatch {
         channel: requiredEnvironment("CHANNEL") as ExpectedDispatch["channel"],
         currentRunId: requiredEnvironment("CURRENT_RUN_ID"),
         mode: requiredEnvironment("MODE") as ExpectedDispatch["mode"],
-        resumeRunId: process.env.RESUME_RUN_ID?.trim() ?? "",
         runtimeRunId: requiredEnvironment("RUNTIME_RUN_ID"),
         runtimeSha: requiredEnvironment("RUNTIME_SHA"),
         runtimeSource: requiredEnvironment("RUNTIME_SOURCE") as ExpectedDispatch["runtimeSource"],

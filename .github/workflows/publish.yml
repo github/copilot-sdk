@@ -76,6 +76,19 @@ jobs:
                 echo "Use a version with suffix (e.g., '1.0.0-preview.0') for prerelease"
                 exit 1
               fi
+              PRERELEASE_NAMESPACE="$(node -e '
+                const semver = require("semver");
+                const parsed = semver.parse(process.argv[1]);
+                if (!parsed) process.exit(2);
+                process.stdout.write(String(parsed.prerelease[0] ?? ""));
+              ' "$VERSION")" ||
+                { echo "::error::Version '$VERSION' is not valid SemVer."; exit 1; }
+              case "$PRERELEASE_NAMESPACE" in
+                canary|unstable)
+                  echo "::error::The '$PRERELEASE_NAMESPACE' prerelease namespace is reserved for runtime-driven SDK releases."
+                  exit 1
+                  ;;
+              esac
             fi
             echo "Using manual version override: $VERSION" >> $GITHUB_STEP_SUMMARY
           else
