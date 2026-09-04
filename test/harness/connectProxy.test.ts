@@ -60,6 +60,32 @@ describe("ConnectProxy", () => {
     await proxy.stop();
   });
 
+  test("stops with an active forward-proxy response", async () => {
+    let requestStarted!: () => void;
+    const started = new Promise<void>((resolve) => {
+      requestStarted = resolve;
+    });
+    const proxy = new ConnectProxy((_req, res) => {
+      res.writeHead(200);
+      res.write("partial");
+      requestStarted();
+      return true;
+    });
+    await proxy.start();
+
+    const proxyUrl = new URL(proxy.proxyUrl);
+    const request = http.request({
+      host: proxyUrl.hostname,
+      port: Number(proxyUrl.port),
+      path: "http://example.com/stream",
+    });
+    request.on("error", () => {});
+    request.end();
+    await started;
+
+    await proxy.stop();
+  });
+
   test("intercepts HTTPS requests to configured domains", async () => {
     const requests: Array<{ host: string; url: string }> = [];
     const handler: RequestHandler = (req, res, targetHost) => {

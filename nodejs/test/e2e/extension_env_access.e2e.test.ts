@@ -120,9 +120,12 @@ async function runExtensionAgainstStubHost(options: {
         };
     } finally {
         connection.dispose();
-        await stopChildProcess(child);
-        // Windows keeps the directory locked until the child is gone.
-        await rm(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
+        try {
+            await stopChildProcess(child);
+        } finally {
+            // Windows keeps the directory locked until the child is gone.
+            await rm(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
+        }
     }
 }
 

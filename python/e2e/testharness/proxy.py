@@ -11,6 +11,7 @@ import os
 import platform
 import re
 import subprocess
+import warnings
 from typing import Any
 
 import httpx
@@ -102,18 +103,23 @@ class CapiProxy:
             except Exception:
                 pass  # Best effort
 
-        process = self._process
         try:
-            await asyncio.to_thread(process.wait, timeout=PROCESS_SHUTDOWN_TIMEOUT_SECONDS)
-        except subprocess.TimeoutExpired:
-            if process.poll() is None:
+            process = self._process
+            try:
+                await asyncio.to_thread(process.wait, timeout=PROCESS_SHUTDOWN_TIMEOUT_SECONDS)
+            except subprocess.TimeoutExpired:
+                _kill_process_tree(process)
                 try:
-                    process.kill()
-                except ProcessLookupError:
-                    pass
-            await asyncio.to_thread(process.wait, timeout=PROCESS_SHUTDOWN_TIMEOUT_SECONDS)
-        self._process = None
-        self._proxy_url = None
+                    await asyncio.to_thread(process.wait, timeout=PROCESS_SHUTDOWN_TIMEOUT_SECONDS)
+                except subprocess.TimeoutExpired:
+                    warnings.warn(
+                        f"Proxy process {process.pid} did not exit after being killed",
+                        RuntimeWarning,
+                        stacklevel=2,
+                    )
+        finally:
+            self._process = None
+            self._proxy_url = None
 
     async def configure(self, file_path: str, work_dir: str):
         """Send configuration to the proxy."""
@@ -177,3 +183,26 @@ class CapiProxy:
             "GH_ENTERPRISE_TOKEN": "",
             "GITHUB_ENTERPRISE_TOKEN": "",
         }
+
+
+def _kill_process_tree(process: subprocess.Popen) -> None:
+    if process.poll() is not None:
+        return
+
+    if platform.system() == "Windows":
+        try:
+            subprocess.run(
+                ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                check=False,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=PROCESS_SHUTDOWN_TIMEOUT_SECONDS,
+            )
+        except subprocess.TimeoutExpired:
+            pass
+
+    if process.poll() is None:
+        try:
+            process.kill()
+        except ProcessLookupError:
+            pass

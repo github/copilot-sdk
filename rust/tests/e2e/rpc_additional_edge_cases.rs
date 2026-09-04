@@ -1,6 +1,6 @@
 use github_copilot_sdk::rpc::{
     ModeSetRequest, NameSetRequest, PermissionsResetSessionApprovalsRequest,
-    PermissionsSetApproveAllRequest, PlanUpdateRequest, ShellExecRequest,
+    PermissionsSetApproveAllRequest, PlanUpdateRequest, ShellExecRequest, ShellKillRequest,
     WorkspacesCreateFileRequest, WorkspacesReadFileRequest,
 };
 use github_copilot_sdk::session_events::SessionMode;
@@ -39,6 +39,16 @@ async fn shell_exec_with_zero_timeout_does_not_kill_long_running_command() {
                     marker_path.exists()
                 })
                 .await;
+                let killed = session
+                    .rpc()
+                    .shell()
+                    .kill(ShellKillRequest {
+                        process_id: result.process_id,
+                        signal: None,
+                    })
+                    .await
+                    .expect("kill zero-timeout shell process");
+                assert!(killed.killed);
 
                 session.disconnect().await.expect("disconnect session");
                 client.stop().await.expect("stop client");
@@ -547,7 +557,7 @@ async fn workspaces_getworkspace_returns_stable_result_across_calls() {
 #[cfg(windows)]
 fn delayed_marker_command(marker_path: &std::path::Path) -> String {
     format!(
-        "ping 127.0.0.1 -n 2 >nul & echo done>\"{}\"",
+        "ping 127.0.0.1 -n 3 >nul & echo done>\"{}\" & ping 127.0.0.1 -n 61 >nul",
         marker_path.display()
     )
 }
@@ -555,7 +565,7 @@ fn delayed_marker_command(marker_path: &std::path::Path) -> String {
 #[cfg(not(windows))]
 fn delayed_marker_command(marker_path: &std::path::Path) -> String {
     format!(
-        "sh -c \"sleep 2; printf done > '{}'\"",
+        "sh -c \"sleep 2; printf done > '{}'; sleep 60\"",
         marker_path.display()
     )
 }

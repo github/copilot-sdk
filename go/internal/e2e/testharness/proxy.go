@@ -11,6 +11,8 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -122,6 +124,11 @@ func (p *CapiProxy) StopWithOptions(skipWritingCache bool) error {
 	if p.cmd == nil || p.cmd.Process == nil {
 		return nil
 	}
+	cmd := p.cmd
+	defer func() {
+		p.cmd = nil
+		p.proxyURL = ""
+	}()
 
 	// Send stop request to the server
 	if p.proxyURL != "" {
@@ -137,23 +144,39 @@ func (p *CapiProxy) StopWithOptions(skipWritingCache bool) error {
 		}
 	}
 
-	cmd := p.cmd
 	exited := make(chan struct{}, 1)
 	go func() {
 		_ = cmd.Wait()
 		exited <- struct{}{}
 	}()
 	if !waitForProcessExit(exited, proxyShutdownTimeout) {
-		if err := cmd.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
+		if err := killProcessTree(cmd); err != nil {
 			return fmt.Errorf("failed to kill proxy process: %w", err)
 		}
 		if !waitForProcessExit(exited, proxyShutdownTimeout) {
 			return fmt.Errorf("proxy process did not exit after being killed")
 		}
 	}
-	p.cmd = nil
-	p.proxyURL = ""
+	return nil
+}
 
+func killProcessTree(cmd *exec.Cmd) error {
+	if runtime.GOOS == "windows" {
+		taskkill := exec.Command(
+			"taskkill",
+			"/PID",
+			strconv.Itoa(cmd.Process.Pid),
+			"/T",
+			"/F",
+		)
+		if err := taskkill.Run(); err == nil {
+			return nil
+		}
+	}
+
+	if err := cmd.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
+		return err
+	}
 	return nil
 }
 
