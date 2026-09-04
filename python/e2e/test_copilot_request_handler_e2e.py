@@ -237,9 +237,11 @@ async def handler_fixture(ctx: E2ETestContext):
     )
     env = {**ctx.get_env(), "COPILOT_EXP_COPILOT_CLI_WEBSOCKET_RESPONSES": "true"}
     client = CopilotClient(
-        connection=RuntimeConnection.for_stdio(path=ctx.cli_path),
-        working_directory=ctx.work_dir,
-        env=env,
+        connection=RuntimeConnection.for_stdio(
+            path=ctx.cli_path,
+            working_directory=ctx.work_dir,
+            env=env,
+        ),
         github_token=github_token,
         request_handler=handler,
     )

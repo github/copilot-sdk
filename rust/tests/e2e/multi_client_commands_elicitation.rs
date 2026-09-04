@@ -10,7 +10,7 @@ use github_copilot_sdk::session_events::{
 };
 use github_copilot_sdk::{
     Client, CommandContext, CommandDefinition, CommandHandler, ElicitationRequest,
-    ElicitationResult, RequestId, ResumeSessionConfig, SessionId, Transport,
+    ElicitationResult, OutOfProcessOptions, RequestId, ResumeSessionConfig, SessionId, Transport,
 };
 
 use super::support::{DEFAULT_TEST_TOKEN, E2eContext, wait_for_event, with_e2e_context};
@@ -205,6 +205,7 @@ async fn start_tcp_server(ctx: &E2eContext, port: u16) -> Client {
     Client::start(ctx.client_options_with_transport(Transport::Tcp {
         port,
         connection_token: Some(SHARED_TOKEN.to_string()),
+        process: OutOfProcessOptions::default(),
     }))
     .await
     .expect("start TCP server client")

@@ -14,7 +14,14 @@ import (
 func TestCommandsE2E(t *testing.T) {
 	ctx := testharness.NewTestContext(t)
 	client1 := ctx.NewClient(func(opts *copilot.ClientOptions) {
-		opts.Connection = copilot.TCPConnection{Path: opts.Connection.(copilot.StdioConnection).Path, ConnectionToken: sharedTCPToken}
+		stdio := opts.Connection.(copilot.StdioConnection)
+		opts.Connection = copilot.TCPConnection{
+			Path:             stdio.Path,
+			Args:             append([]string{}, stdio.Args...),
+			WorkingDirectory: stdio.WorkingDirectory,
+			Env:              append([]string{}, stdio.Env...),
+			ConnectionToken:  sharedTCPToken,
+		}
 	})
 	t.Cleanup(func() { client1.ForceStop() })
 
@@ -706,7 +713,14 @@ func schemaHasProperty(schema *copilot.ElicitationSchema, name string) bool {
 func TestUIElicitationMultiClientE2E(t *testing.T) {
 	ctx := testharness.NewTestContext(t)
 	client1 := ctx.NewClient(func(opts *copilot.ClientOptions) {
-		opts.Connection = copilot.TCPConnection{Path: opts.Connection.(copilot.StdioConnection).Path, ConnectionToken: sharedTCPToken}
+		stdio := opts.Connection.(copilot.StdioConnection)
+		opts.Connection = copilot.TCPConnection{
+			Path:             stdio.Path,
+			Args:             append([]string{}, stdio.Args...),
+			WorkingDirectory: stdio.WorkingDirectory,
+			Env:              append([]string{}, stdio.Env...),
+			ConnectionToken:  sharedTCPToken,
+		}
 	})
 	t.Cleanup(func() { client1.ForceStop() })
 

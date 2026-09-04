@@ -95,33 +95,20 @@ func validateSessionFSConfig(config *SessionFSConfig) error {
 	return nil
 }
 
-// validateEnvironmentOptions enforces the transport-specific rules for
-// per-client environment, working directory, and telemetry. It panics (fails
-// loud) on a misconfiguration, matching the other SDKs.
+// validateTransportOptions enforces transport-specific rules for client-wide
+// options. It panics (fails loud) on a misconfiguration, matching the other
+// SDKs.
 //
-// The in-process transport loads the native runtime into this process, whose
-// single environment block and process-global working directory cannot carry
-// per-client values, and whose telemetry lowers to shared process-global env
-// vars — so options that depend on them are rejected there. Child-process
-// transports each own their OS process, so per-connection env is allowed, but
-// setting it in both the client-level option and the connection is rejected.
-func validateEnvironmentOptions(connection RuntimeConnection, opts *ClientOptions) {
+// The in-process transport loads the native runtime into this process, so
+// client-wide telemetry cannot be represented because it lowers to shared
+// process-global environment variables. Process-scoped settings such as
+// environment and working directory are configured on out-of-process
+// connections instead of [ClientOptions], so they are structurally excluded
+// from [InProcessConnection].
+func validateTransportOptions(connection RuntimeConnection, opts *ClientOptions) {
 	if _, ok := connection.(InProcessConnection); ok {
-		if opts.Env != nil {
-			panic("Env is not supported with InProcessConnection: the in-process transport loads the native runtime into the shared host process, whose single environment block cannot carry per-client values. Set the variables on the host process environment instead.")
-		}
-		if opts.WorkingDirectory != "" {
-			panic("WorkingDirectory is not supported with InProcessConnection: the native runtime shares the host process working directory. Use a child-process transport, or set the process working directory before creating the client.")
-		}
 		if opts.Telemetry != nil {
-			panic("Telemetry is not supported with InProcessConnection: telemetry configuration is lowered to environment variables read by native runtime code running in the shared host process, so per-client telemetry cannot be honored in-process. Configure telemetry via the host process environment, or use a child-process transport.")
-		}
-		return
-	}
-
-	if cp, ok := connection.(childProcessConnection); ok {
-		if cp.connEnv() != nil && opts.Env != nil {
-			panic("Set environment variables via either the client-level Env option or the connection's Env, not both. Prefer the connection-level Env for child-process transports.")
+			panic("Telemetry is not supported with InProcessConnection: telemetry configuration is lowered to environment variables read by native runtime code running in the shared host process, so per-client telemetry cannot be honored in-process. Configure telemetry via the host process environment, or use an out-of-process connection.")
 		}
 	}
 }
@@ -164,10 +151,12 @@ type Client struct {
 	useInProcess            bool     // true for InProcessConnection (FFI transport)
 	ffiHost                 inProcessHost
 	// resolved process options for the spawned runtime (zero values for URIConnection)
-	cliPath            string
-	cliArgs            []string
-	port               int
-	tcpConnectionToken string
+	cliPath                 string
+	cliArgs                 []string
+	processWorkingDirectory string
+	processEnv              []string
+	port                    int
+	tcpConnectionToken      string
 
 	modelsCache               []ModelInfo
 	modelsCacheMux            sync.Mutex
@@ -248,11 +237,7 @@ func NewClient(options *ClientOptions) *Client {
 	// honor the same process/environment override as the other SDKs.
 	connection := opts.Connection
 	if connection == nil {
-		env := opts.Env
-		if env == nil {
-			env = os.Environ()
-		}
-		connection = resolveDefaultConnection(env)
+		connection = resolveDefaultConnection(os.Environ())
 	}
 	switch conn := connection.(type) {
 	case StdioConnection:
@@ -261,11 +246,19 @@ func NewClient(options *ClientOptions) *Client {
 		if len(conn.Args) > 0 {
 			client.cliArgs = append([]string{}, conn.Args...)
 		}
+		client.processWorkingDirectory = conn.WorkingDirectory
+		if conn.Env != nil {
+			client.processEnv = append([]string{}, conn.Env...)
+		}
 	case TCPConnection:
 		client.useStdio = false
 		client.cliPath = conn.Path
 		if len(conn.Args) > 0 {
 			client.cliArgs = append([]string{}, conn.Args...)
+		}
+		client.processWorkingDirectory = conn.WorkingDirectory
+		if conn.Env != nil {
+			client.processEnv = append([]string{}, conn.Env...)
 		}
 		client.port = conn.Port
 		client.tcpConnectionToken = conn.ConnectionToken
@@ -286,35 +279,23 @@ func NewClient(options *ClientOptions) *Client {
 		panic(fmt.Sprintf("unknown RuntimeConnection type: %T", connection))
 	}
 
-	// Validate transport-specific option constraints (fail loud). The in-process
-	// transport loads the runtime into this process, whose single environment
-	// block, process-global working directory, and shared telemetry state cannot
-	// carry per-client values. Child-process transports may set env via either
-	// the client-level option or the connection, but not both.
-	validateEnvironmentOptions(connection, &opts)
+	// Validate transport-specific option constraints (fail loud).
+	validateTransportOptions(connection, &opts)
 
 	// Validate auth options when connecting to an external runtime.
 	if client.isExternalServer && (opts.GitHubToken != "" || opts.UseLoggedInUser != nil) {
 		panic("GitHubToken and UseLoggedInUser cannot be used with URIConnection (external runtime manages its own auth)")
 	}
 
-	// For child-process transports, a connection-level env takes precedence over
-	// the client-level env (setting both was rejected above). Resolve it before
-	// defaulting so an explicit empty connection env stays authoritative.
-	if cp, ok := connection.(childProcessConnection); ok {
-		if env := cp.connEnv(); env != nil {
-			opts.Env = env
-		}
+	// Default the out-of-process environment to the current process if not set.
+	// An explicit empty slice stays authoritative and yields a cleared child env.
+	if _, ok := connection.(outOfProcessConnection); ok && client.processEnv == nil {
+		client.processEnv = os.Environ()
 	}
 
-	// Default Env to current environment if not set
-	if opts.Env == nil {
-		opts.Env = os.Environ()
-	}
-
-	// Check the effective environment for a child-process runtime override.
-	if client.cliPath == "" && !client.useInProcess {
-		if cliPath := getEnvValue(opts.Env, "COPILOT_CLI_PATH"); cliPath != "" {
+	// Check the effective environment for an out-of-process runtime override.
+	if client.cliPath == "" && !client.useInProcess && !client.isExternalServer {
+		if cliPath := getEnvValue(client.processEnv, "COPILOT_CLI_PATH"); cliPath != "" {
 			client.cliPath = cliPath
 		}
 	}
@@ -628,7 +609,7 @@ func (c *Client) Stop() error {
 	c.process = nil
 
 	// Tear down the in-process FFI host (closes the connection and shuts down the
-	// native runtime). No child process to reap in this mode.
+	// native runtime). No out-of-process runtime to reap in this mode.
 	if c.ffiHost != nil {
 		c.ffiHost.Dispose()
 		c.ffiHost = nil
@@ -2116,11 +2097,11 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 	configureProcAttr(c.process)
 
 	// Set working directory if specified
-	if c.options.WorkingDirectory != "" {
-		c.process.Dir = c.options.WorkingDirectory
+	if c.processWorkingDirectory != "" {
+		c.process.Dir = c.processWorkingDirectory
 	}
 
-	c.process.Env = append([]string{}, c.options.Env...)
+	c.process.Env = append([]string{}, c.processEnv...)
 	if c.options.GitHubToken != "" {
 		c.process.Env = setEnvValue(c.process.Env, "COPILOT_SDK_AUTH_TOKEN", c.options.GitHubToken)
 	}
@@ -2263,7 +2244,7 @@ func (c *Client) startInProcess(ctx context.Context) error {
 
 	cliEntrypoint := c.cliPath
 	if cliEntrypoint == "" {
-		cliEntrypoint = getEnvValue(c.options.Env, "COPILOT_CLI_PATH")
+		cliEntrypoint = os.Getenv("COPILOT_CLI_PATH")
 	}
 	runtimePath := cliEntrypoint
 	if runtimePath == "" {

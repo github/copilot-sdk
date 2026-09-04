@@ -11,6 +11,121 @@ See [GitHub Releases](https://github.com/github/copilot-sdk/releases) for the fu
 
 Host-owned external tool callbacks are now cancelled when their runtime request completes or their SDK session terminates. The cancellation primitive is idiomatic per SDK: .NET passes a request token to `AIFunction`, Node.js exposes `ToolInvocation.signal`, Go cancels `ToolInvocation.TraceContext`, Java cancels the returned `CompletableFuture`, Python cancels the handler task, and Rust drops the handler future. Go handlers that retain `TraceContext` for background work must derive a separate lifetime because the invocation context is cancelled when the request ends.
 
+### Breaking: Java process settings moved onto out-of-process connections (#2523)
+
+Java `CopilotClientOptions` no longer carries client-wide `cwd` or `environment`. Those process-scoped settings now live directly on `StdioRuntimeConnection` and `TcpRuntimeConnection` as `workingDirectory` and `environment`, because they only apply when the SDK spawns and manages a runtime process. Unlike the equivalent change in .NET, Go, Python, Node.js, and the broader cross-SDK plan, Java had no shared child-process base class to rename, so this is a smaller-scoped move onto the two concrete out-of-process connection types.
+
+Migration:
+
+```java
+// Before
+var client = new CopilotClient(new CopilotClientOptions()
+    .setCwd("/srv/app")
+    .setEnvironment(Map.of("KEY", "value"))
+    .setConnection(RuntimeConnection.forStdio("/usr/local/bin/copilot")));
+
+// After
+var client = new CopilotClient(new CopilotClientOptions()
+    .setConnection(RuntimeConnection.forStdio("/usr/local/bin/copilot")
+        .setWorkingDirectory("/srv/app")
+        .setEnvironment(Map.of("KEY", "value"))));
+```
+
+### Breaking: Rust process-scoped options moved onto out-of-process transports (#2523)
+
+`ClientOptions` no longer carries `program`, `prefix_args`, `working_directory`, `env`, `env_remove`, or `extra_args`. These settings never applied to `Transport::InProcess` or `Transport::External` (there's no SDK-managed CLI subprocess to configure in either case), so keeping them on the shared options struct made it possible to set values that were silently ignored. They now live on a new `OutOfProcessOptions` struct carried directly by the transport variants that spawn a CLI process: `Transport::Stdio(OutOfProcessOptions)` and `Transport::Tcp { process: OutOfProcessOptions, .. }`. `Transport::External` intentionally has no such field, since the SDK connects to a server it doesn't own.
+
+This also fixes a long-standing inconsistency: Rust's `env` previously merged into the inherited process environment (`Command::env(k, v)` without clearing first), while every other SDK replaced the environment when the caller supplied one. A non-empty `OutOfProcessOptions::env` now calls `env_clear()` before applying it, matching the other SDKs' replace semantics. SDK-managed variables (auth token, telemetry, `COPILOT_HOME`, keytar-disable, TCP connection token) are still injected before user `env`/`env_remove`, so callers can continue to override or strip them — this ordering is unchanged from before.
+
+Migration:
+
+```rust
+// Before
+let options = ClientOptions::new()
+    .with_program(CliProgram::Path("/usr/local/bin/copilot".into()))
+    .with_cwd("/srv/app")
+    .with_env([("KEY", "value")])
+    .with_transport(Transport::Stdio);
+
+// After
+let options = ClientOptions::new().with_transport(Transport::Stdio(
+    OutOfProcessOptions::new()
+        .with_program(CliProgram::Path("/usr/local/bin/copilot".into()))
+        .with_working_directory("/srv/app")
+        .with_env([("KEY", "value")]),
+));
+```
+
+`Transport::stdio()` is a new convenience constructor for `Transport::Stdio(OutOfProcessOptions::default())`. `OutOfProcessOptions::with_cwd` was renamed `with_working_directory` for clarity and consistency with the field name.
+
+### Breaking: .NET out-of-process launch settings moved (#2523)
+
+`.NET` `CopilotClientOptions` no longer carries `WorkingDirectory` or `Environment`. Those process-scoped settings now live on `StdioRuntimeConnection` and `TcpRuntimeConnection` through the renamed `OutOfProcessRuntimeConnection` base class, because they only apply when the SDK spawns and manages a runtime process. `ChildProcessRuntimeConnection` was renamed to `OutOfProcessRuntimeConnection`.
+
+Migration:
+
+```csharp
+// Before
+var client = new CopilotClient(new CopilotClientOptions
+{
+    WorkingDirectory = "/srv/app",
+    Environment = new Dictionary<string, string> { ["KEY"] = "value" },
+    Connection = RuntimeConnection.ForStdio(path: "/usr/local/bin/copilot"),
+});
+
+// After
+var client = new CopilotClient(new CopilotClientOptions
+{
+    Connection = RuntimeConnection.ForStdio(path: "/usr/local/bin/copilot")
+    {
+        WorkingDirectory = "/srv/app",
+        Environment = new Dictionary<string, string> { ["KEY"] = "value" },
+    },
+});
+```
+
+### Breaking: Python and Node.js out-of-process launch settings moved (#2523)
+
+Python `CopilotClient` and Node.js `CopilotClientOptions` no longer carry client-wide `working_directory` / `workingDirectory` or `env` launch settings. Those process-scoped settings now live on the renamed `OutOfProcessRuntimeConnection` base for stdio/TCP connections, because they only apply when the SDK spawns and manages a runtime process. `ChildProcessRuntimeConnection` was renamed to `OutOfProcessRuntimeConnection` in both packages.
+
+Migration:
+
+```python
+# Before
+client = CopilotClient(
+    working_directory="/srv/app",
+    env={"KEY": "value"},
+    connection=RuntimeConnection.for_stdio(path="/usr/local/bin/copilot"),
+)
+
+# After
+client = CopilotClient(
+    connection=RuntimeConnection.for_stdio(
+        path="/usr/local/bin/copilot",
+        working_directory="/srv/app",
+        env={"KEY": "value"},
+    ),
+)
+```
+
+```ts
+// Before
+const client = new CopilotClient({
+    workingDirectory: "/srv/app",
+    env: { KEY: "value" },
+    connection: RuntimeConnection.forStdio({ path: "/usr/local/bin/copilot" }),
+});
+
+// After
+const client = new CopilotClient({
+    connection: RuntimeConnection.forStdio({
+        path: "/usr/local/bin/copilot",
+        workingDirectory: "/srv/app",
+        env: { KEY: "value" },
+    }),
+});
+```
+
 ### Feature: declare application identity with client info
 
 Client options now accept optional client info (application name and version, integration name and version) across all six SDKs, exposed idiomatically per language (`clientInfo` in Node.js, `client_info` in Python and Rust, `ClientInfo` in Go and .NET, `setClientInfo` in Java). When set, the SDK forwards it on the `server.connect` handshake so the telemetry the runtime emits on the connection is attributed to the application and its Copilot integration instead of the runtime's own build. All fields are optional, and leaving client info unset keeps the runtime's default attribution. See [Client info](./docs/features/client-info.md).
@@ -103,6 +218,30 @@ var session = await client.CreateSessionAsync(new SessionConfig
         },
     },
 });
+```
+
+### Breaking: Go out-of-process launch settings moved (#2523)
+
+Go `ClientOptions` no longer carries `WorkingDirectory` or `Env`. Those process-scoped settings now live on `StdioConnection` and `TCPConnection`, because they only apply when the SDK spawns and manages an out-of-process runtime. The internal unexported `childProcessConnection` helper was renamed to `outOfProcessConnection`; this does not change the public Go API surface.
+
+Migration:
+
+```go
+// Before
+client := copilot.NewClient(&copilot.ClientOptions{
+    Connection:       copilot.StdioConnection{Path: "/usr/local/bin/copilot"},
+    WorkingDirectory: "/srv/app",
+    Env:              []string{"KEY=value"},
+})
+
+// After
+client := copilot.NewClient(&copilot.ClientOptions{
+    Connection: copilot.StdioConnection{
+        Path:             "/usr/local/bin/copilot",
+        WorkingDirectory: "/srv/app",
+        Env:              []string{"KEY=value"},
+    },
+})
 ```
 
 ## [v1.0.7](https://github.com/github/copilot-sdk/releases/tag/v1.0.7) (2026-07-16)

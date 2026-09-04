@@ -27,6 +27,7 @@ import com.github.copilot.rpc.ExitPlanModeRequest;
 import com.github.copilot.rpc.ExitPlanModeResult;
 import com.github.copilot.rpc.MessageOptions;
 import com.github.copilot.rpc.PermissionHandler;
+import com.github.copilot.rpc.RuntimeConnection;
 import com.github.copilot.rpc.SessionConfig;
 
 /**
@@ -59,7 +60,8 @@ public class ModeHandlersTest {
         Map<String, String> env = new HashMap<>(ctx.getEnvironment());
         env.put("COPILOT_DEBUG_GITHUB_API_URL", ctx.getProxyUrl());
 
-        return ctx.createClient(new CopilotClientOptions().setEnvironment(env));
+        return ctx.createClient(
+                new CopilotClientOptions().setConnection(RuntimeConnection.forStdio().setEnvironment(env)));
     }
 
     private void configureAuthenticatedUser(String testName) throws Exception {

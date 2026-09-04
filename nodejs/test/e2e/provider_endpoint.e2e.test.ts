@@ -3,14 +3,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { describe, expect, it } from "vitest";
-import { approveAll } from "../../src/index.js";
+import { approveAll, RuntimeConnection } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
 
 describe("session.provider.getEndpoint RPC", async () => {
     const { copilotClient: client } = await createSdkTestContext({
         copilotClientOptions: {
             // The provider endpoint API is gated behind an opt-in env var.
-            env: { COPILOT_ALLOW_GET_PROVIDER_ENDPOINT: "true" },
+            connection: RuntimeConnection.forStdio({
+                env: { COPILOT_ALLOW_GET_PROVIDER_ENDPOINT: "true" },
+            }),
         },
     });
 

@@ -33,6 +33,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.copilot.generated.AssistantMessageEvent;
 import com.github.copilot.rpc.CopilotClientOptions;
+import com.github.copilot.rpc.RuntimeConnection;
 
 /**
  * Shared synthetic-upstream helpers for the {@link CopilotRequestHandler} e2e
@@ -72,8 +73,9 @@ final class CopilotRequestTestSupport {
                 env.put(entry.substring(0, eq), entry.substring(eq + 1));
             }
         }
-        return ctx.createClient(
-                new CopilotClientOptions().setCliPath(ctx.getCliPath()).setEnvironment(env).setRequestHandler(handler));
+        return ctx.createClient(new CopilotClientOptions()
+                .setConnection(RuntimeConnection.forStdio(ctx.getCliPath()).setEnvironment(env))
+                .setRequestHandler(handler));
     }
 
     /**

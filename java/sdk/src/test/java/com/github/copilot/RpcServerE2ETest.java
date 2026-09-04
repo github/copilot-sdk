@@ -59,6 +59,7 @@ import com.github.copilot.generated.rpc.ToolsListParams;
 import com.github.copilot.rpc.CopilotClientOptions;
 import com.github.copilot.rpc.InfiniteSessionConfig;
 import com.github.copilot.rpc.PermissionHandler;
+import com.github.copilot.rpc.RuntimeConnection;
 import com.github.copilot.rpc.SessionConfig;
 
 class RpcServerE2ETest {
@@ -200,7 +201,8 @@ class RpcServerE2ETest {
         var env = new HashMap<>(ctx.getEnvironment());
         env.put("COPILOT_ENABLE_SECRET_FILTERING", "true");
 
-        try (var client = ctx.createClient(new CopilotClientOptions().setEnvironment(env))) {
+        try (var client = ctx.createClient(
+                new CopilotClientOptions().setConnection(RuntimeConnection.forStdio().setEnvironment(env)))) {
             client.start().get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
             var secret = "rpc-secret-" + UUID.randomUUID().toString().replace("-", "");
 

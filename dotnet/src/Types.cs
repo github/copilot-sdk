@@ -162,11 +162,12 @@ public abstract class RuntimeConnection
 }
 
 /// <summary>
-/// Base for <see cref="RuntimeConnection"/> kinds that spawn a runtime child process.
+/// Base for <see cref="RuntimeConnection"/> kinds that the SDK hosts out of process
+/// by spawning a runtime process.
 /// </summary>
-public abstract class ChildProcessRuntimeConnection : RuntimeConnection
+public abstract class OutOfProcessRuntimeConnection : RuntimeConnection
 {
-    internal ChildProcessRuntimeConnection() { }
+    internal OutOfProcessRuntimeConnection() { }
 
     /// <summary>Path to the runtime executable. When <c>null</c>, the bundled runtime is used.</summary>
     public string? Path { get; set; }
@@ -175,13 +176,15 @@ public abstract class ChildProcessRuntimeConnection : RuntimeConnection
     public IList<string>? Args { get; set; }
 
     /// <summary>
+    /// Working directory for the spawned runtime process. When <c>null</c>, the
+    /// spawned runtime inherits the calling process's current working directory.
+    /// </summary>
+    public string? WorkingDirectory { get; set; }
+
+    /// <summary>
     /// Gets or sets the environment variables passed to the spawned runtime process,
     /// replacing the inherited environment.
     /// </summary>
-    /// <remarks>
-    /// Cannot be combined with <see cref="CopilotClientOptions.Environment"/>; setting both throws
-    /// an <see cref="ArgumentException"/> when the client is constructed.
-    /// </remarks>
     public IReadOnlyDictionary<string, string>? Environment { get; set; }
 }
 
@@ -189,7 +192,7 @@ public abstract class ChildProcessRuntimeConnection : RuntimeConnection
 /// Spawns a runtime child process and communicates over stdin/stdout. Construct via
 /// <see cref="RuntimeConnection.ForStdio(string?, IList{string}?)"/>.
 /// </summary>
-public sealed class StdioRuntimeConnection : ChildProcessRuntimeConnection
+public sealed class StdioRuntimeConnection : OutOfProcessRuntimeConnection
 {
     internal StdioRuntimeConnection() { }
 }
@@ -211,7 +214,7 @@ public sealed class InProcessRuntimeConnection : RuntimeConnection
 /// Spawns a runtime child process listening on a TCP socket. Construct via
 /// <see cref="RuntimeConnection.ForTcp(int, string?, string?, IList{string}?)"/>.
 /// </summary>
-public sealed class TcpRuntimeConnection : ChildProcessRuntimeConnection
+public sealed class TcpRuntimeConnection : OutOfProcessRuntimeConnection
 {
     internal TcpRuntimeConnection() { }
 
@@ -291,6 +294,14 @@ public enum CopilotClientMode
 /// <summary>
 /// Configuration options for creating a <see cref="CopilotClient"/> instance.
 /// </summary>
+/// <remarks>
+/// Process-scoped settings are configured on
+/// <see cref="OutOfProcessRuntimeConnection"/> (for example
+/// <see cref="OutOfProcessRuntimeConnection.WorkingDirectory"/> and
+/// <see cref="OutOfProcessRuntimeConnection.Environment"/>), not on
+/// <see cref="CopilotClientOptions"/>, because they do not apply to
+/// <see cref="RuntimeConnection.ForInProcess()"/>.
+/// </remarks>
 public sealed class CopilotClientOptions
 {
     /// <summary>
@@ -307,10 +318,8 @@ public sealed class CopilotClientOptions
         if (other is null) return;
 
         Connection = other.Connection;
-        WorkingDirectory = other.WorkingDirectory;
         BaseDirectory = other.BaseDirectory;
         BuiltinPluginDirectories = other.BuiltinPluginDirectories is null ? null : [.. other.BuiltinPluginDirectories];
-        Environment = other.Environment;
         GitHubToken = other.GitHubToken;
         Logger = other.Logger;
         LogLevel = other.LogLevel;
@@ -347,11 +356,6 @@ public sealed class CopilotClientOptions
     public RuntimeConnection? Connection { get; set; }
 
     /// <summary>
-    /// Working directory for the runtime process.
-    /// </summary>
-    public string? WorkingDirectory { get; set; }
-
-    /// <summary>
     /// Base directory for Copilot data (session state, config, etc.).
     /// Sets the <c>COPILOT_HOME</c> environment variable on the spawned runtime.
     /// When <see langword="null"/>, the runtime defaults to <c>~/.copilot</c>.
@@ -376,17 +380,6 @@ public sealed class CopilotClientOptions
     /// log level is used.
     /// </summary>
     public CopilotLogLevel? LogLevel { get; set; }
-
-    /// <summary>
-    /// Gets or sets environment variables passed to the runtime process.
-    /// </summary>
-    /// <remarks>
-    /// Not supported with the in-process transport (<see cref="RuntimeConnection.ForInProcess"/>),
-    /// which runs the runtime in the host process; setting this option there throws an
-    /// <see cref="ArgumentException"/>. For child-process transports, prefer
-    /// <see cref="ChildProcessRuntimeConnection.Environment"/>; setting both throws.
-    /// </remarks>
-    public IReadOnlyDictionary<string, string>? Environment { get; set; }
 
     /// <summary>Logger instance for SDK diagnostic output.</summary>
     public ILogger? Logger { get; set; }

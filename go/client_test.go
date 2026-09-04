@@ -1375,48 +1375,70 @@ func TestClient_BaseDirectory(t *testing.T) {
 }
 
 func TestClient_EnvOptions(t *testing.T) {
-	t.Run("should store custom environment variables", func(t *testing.T) {
+	t.Run("should store custom stdio connection environment variables", func(t *testing.T) {
 		client := NewClient(&ClientOptions{
-			Env: []string{"FOO=bar", "BAZ=qux"},
+			Connection: StdioConnection{Env: []string{"FOO=bar", "BAZ=qux"}},
 		})
 
-		if len(client.options.Env) != 2 {
-			t.Errorf("Expected 2 environment variables, got %d", len(client.options.Env))
+		if len(client.processEnv) != 2 {
+			t.Errorf("Expected 2 environment variables, got %d", len(client.processEnv))
 		}
-		if client.options.Env[0] != "FOO=bar" {
-			t.Errorf("Expected first env var to be 'FOO=bar', got %q", client.options.Env[0])
+		if client.processEnv[0] != "FOO=bar" {
+			t.Errorf("Expected first env var to be 'FOO=bar', got %q", client.processEnv[0])
 		}
-		if client.options.Env[1] != "BAZ=qux" {
-			t.Errorf("Expected second env var to be 'BAZ=qux', got %q", client.options.Env[1])
+		if client.processEnv[1] != "BAZ=qux" {
+			t.Errorf("Expected second env var to be 'BAZ=qux', got %q", client.processEnv[1])
 		}
 	})
 
 	t.Run("should default to inherit from current process", func(t *testing.T) {
 		client := NewClient(&ClientOptions{})
 
-		if want := os.Environ(); !reflect.DeepEqual(client.options.Env, want) {
-			t.Errorf("Expected Env to be %v, got %v", want, client.options.Env)
+		if want := os.Environ(); !reflect.DeepEqual(client.processEnv, want) {
+			t.Errorf("Expected Env to be %v, got %v", want, client.processEnv)
 		}
 	})
 
 	t.Run("should default to inherit from current process with nil options", func(t *testing.T) {
 		client := NewClient(nil)
 
-		if want := os.Environ(); !reflect.DeepEqual(client.options.Env, want) {
-			t.Errorf("Expected Env to be %v, got %v", want, client.options.Env)
+		if want := os.Environ(); !reflect.DeepEqual(client.processEnv, want) {
+			t.Errorf("Expected Env to be %v, got %v", want, client.processEnv)
 		}
 	})
 
 	t.Run("should allow empty environment", func(t *testing.T) {
 		client := NewClient(&ClientOptions{
-			Env: []string{},
+			Connection: StdioConnection{Env: []string{}},
 		})
 
-		if client.options.Env == nil {
+		if client.processEnv == nil {
 			t.Error("Expected Env to be non-nil empty slice")
 		}
-		if len(client.options.Env) != 0 {
-			t.Errorf("Expected 0 environment variables, got %d", len(client.options.Env))
+		if len(client.processEnv) != 0 {
+			t.Errorf("Expected 0 environment variables, got %d", len(client.processEnv))
+		}
+	})
+}
+
+func TestClient_WorkingDirectoryOptions(t *testing.T) {
+	t.Run("should store stdio connection working directory", func(t *testing.T) {
+		client := NewClient(&ClientOptions{
+			Connection: StdioConnection{WorkingDirectory: "/tmp/stdio"},
+		})
+
+		if client.processWorkingDirectory != "/tmp/stdio" {
+			t.Errorf("Expected process working directory to be %q, got %q", "/tmp/stdio", client.processWorkingDirectory)
+		}
+	})
+
+	t.Run("should store tcp connection working directory", func(t *testing.T) {
+		client := NewClient(&ClientOptions{
+			Connection: TCPConnection{Port: 1234, WorkingDirectory: "/tmp/tcp"},
+		})
+
+		if client.processWorkingDirectory != "/tmp/tcp" {
+			t.Errorf("Expected process working directory to be %q, got %q", "/tmp/tcp", client.processWorkingDirectory)
 		}
 	})
 }
@@ -1456,30 +1478,6 @@ func TestClient_InProcessConnection(t *testing.T) {
 		if client.cliPath != "" {
 			t.Errorf("Expected in-process cliPath to stay empty at construction, got %q", client.cliPath)
 		}
-	})
-
-	t.Run("panics when Env is set", func(t *testing.T) {
-		defer func() {
-			if r := recover(); r == nil {
-				t.Error("Expected panic when Env is set with InProcessConnection")
-			}
-		}()
-		NewClient(&ClientOptions{
-			Connection: InProcessConnection{},
-			Env:        []string{"FOO=bar"},
-		})
-	})
-
-	t.Run("panics when WorkingDirectory is set", func(t *testing.T) {
-		defer func() {
-			if r := recover(); r == nil {
-				t.Error("Expected panic when WorkingDirectory is set with InProcessConnection")
-			}
-		}()
-		NewClient(&ClientOptions{
-			Connection:       InProcessConnection{},
-			WorkingDirectory: "/tmp/work",
-		})
 	})
 
 	t.Run("panics when Telemetry is set", func(t *testing.T) {
@@ -1582,24 +1580,12 @@ func TestClient_DefaultConnection(t *testing.T) {
 }
 
 func TestClient_ConnectionLevelEnv(t *testing.T) {
-	t.Run("rejects env set on both client and connection", func(t *testing.T) {
-		defer func() {
-			if r := recover(); r == nil {
-				t.Error("Expected panic when env is set on both client and connection")
-			}
-		}()
-		NewClient(&ClientOptions{
-			Connection: StdioConnection{Env: []string{"A=1"}},
-			Env:        []string{"B=2"},
-		})
-	})
-
 	t.Run("stdio connection env is used when client env is unset", func(t *testing.T) {
 		client := NewClient(&ClientOptions{
 			Connection: StdioConnection{Env: []string{"ONLY=conn"}},
 		})
-		if len(client.options.Env) != 1 || client.options.Env[0] != "ONLY=conn" {
-			t.Errorf("Expected connection-level Env to be used, got %v", client.options.Env)
+		if len(client.processEnv) != 1 || client.processEnv[0] != "ONLY=conn" {
+			t.Errorf("Expected connection-level Env to be used, got %v", client.processEnv)
 		}
 	})
 
@@ -1607,8 +1593,8 @@ func TestClient_ConnectionLevelEnv(t *testing.T) {
 		client := NewClient(&ClientOptions{
 			Connection: TCPConnection{Port: 9000, Env: []string{"ONLY=conn"}},
 		})
-		if len(client.options.Env) != 1 || client.options.Env[0] != "ONLY=conn" {
-			t.Errorf("Expected connection-level Env to be used, got %v", client.options.Env)
+		if len(client.processEnv) != 1 || client.processEnv[0] != "ONLY=conn" {
+			t.Errorf("Expected connection-level Env to be used, got %v", client.processEnv)
 		}
 	})
 }

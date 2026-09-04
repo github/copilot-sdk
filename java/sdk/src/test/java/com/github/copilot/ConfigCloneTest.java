@@ -28,9 +28,12 @@ import com.github.copilot.rpc.MemoryConfiguration;
 import com.github.copilot.rpc.MessageOptions;
 import com.github.copilot.rpc.ModelInfo;
 import com.github.copilot.rpc.ResumeSessionConfig;
+import com.github.copilot.rpc.RuntimeConnection;
 import com.github.copilot.rpc.SessionConfig;
+import com.github.copilot.rpc.StdioRuntimeConnection;
 import com.github.copilot.rpc.SystemMessageConfig;
 import com.github.copilot.rpc.TelemetryConfig;
+import com.github.copilot.rpc.TcpRuntimeConnection;
 
 class ConfigCloneTest {
 
@@ -81,19 +84,16 @@ class ConfigCloneTest {
     }
 
     @Test
-    void copilotClientOptionsEnvironmentIndependence() {
-        CopilotClientOptions original = new CopilotClientOptions();
+    void stdioRuntimeConnectionEnvironmentIndependence() {
+        StdioRuntimeConnection original = RuntimeConnection.forStdio();
         Map<String, String> env = new HashMap<>();
         env.put("KEY1", "value1");
         original.setEnvironment(env);
 
-        CopilotClientOptions cloned = original.clone();
-
-        // Mutate the source map after set — should not affect original or clone
+        // Mutate the source map after set — should not affect the connection
         env.put("KEY2", "value2");
 
         assertEquals(1, original.getEnvironment().size());
-        assertEquals(1, cloned.getEnvironment().size());
 
         // getEnvironment() returns a copy, so mutating it should not affect internals
         original.getEnvironment().put("KEY3", "value3");
@@ -378,25 +378,25 @@ class ConfigCloneTest {
     }
 
     @Test
-    void copilotClientOptionsSetEnvironmentNullClearsExisting() {
-        CopilotClientOptions opts = new CopilotClientOptions();
-        opts.setEnvironment(Map.of("KEY", "VALUE"));
-        assertNotNull(opts.getEnvironment());
+    void tcpRuntimeConnectionSetEnvironmentNullClearsExisting() {
+        TcpRuntimeConnection connection = RuntimeConnection.forTcp();
+        connection.setEnvironment(Map.of("KEY", "VALUE"));
+        assertNotNull(connection.getEnvironment());
 
         // Setting null should clear the existing map (clears in-place → returns empty
         // map)
-        opts.setEnvironment(null);
-        var env = opts.getEnvironment();
+        connection.setEnvironment(null);
+        var env = connection.getEnvironment();
         assertTrue(env == null || env.isEmpty());
     }
 
     @Test
-    void copilotClientOptionsSetCwdNullClearsExisting() {
-        CopilotClientOptions opts = new CopilotClientOptions().setCwd("/tmp");
+    void stdioRuntimeConnectionSetWorkingDirectoryNullClearsExisting() {
+        StdioRuntimeConnection connection = RuntimeConnection.forStdio().setWorkingDirectory("/tmp");
 
-        opts.setCwd(null);
+        connection.setWorkingDirectory(null);
 
-        assertNull(opts.getCwd());
+        assertNull(connection.getWorkingDirectory());
     }
 
     @Test

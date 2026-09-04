@@ -52,9 +52,11 @@ SESSION_FS_CONFIG: SessionFsConfig = {
 @pytest_asyncio.fixture(scope="module", loop_scope="module")
 async def session_fs_client(ctx: E2ETestContext):
     client = CopilotClient(
-        connection=RuntimeConnection.for_stdio(path=ctx.cli_path),
-        working_directory=ctx.work_dir,
-        env=ctx.get_env(),
+        connection=RuntimeConnection.for_stdio(
+            path=ctx.cli_path,
+            working_directory=ctx.work_dir,
+            env=ctx.get_env(),
+        ),
         github_token=DEFAULT_GITHUB_TOKEN,
         session_fs=SESSION_FS_CONFIG,
     )
@@ -122,9 +124,11 @@ class TestSessionFs:
 
     async def test_should_reject_setprovider_when_sessions_already_exist(self, ctx: E2ETestContext):
         client1 = CopilotClient(
-            connection=RuntimeConnection.for_tcp(path=ctx.cli_path),
-            working_directory=ctx.work_dir,
-            env=ctx.get_env(),
+            connection=RuntimeConnection.for_tcp(
+                path=ctx.cli_path,
+                working_directory=ctx.work_dir,
+                env=ctx.get_env(),
+            ),
             github_token=DEFAULT_GITHUB_TOKEN,
         )
         session = None

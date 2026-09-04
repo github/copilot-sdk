@@ -333,9 +333,11 @@ def build_isolated_client(
     if extra_env:
         env = {**env, **extra_env}
     return CopilotClient(
-        connection=RuntimeConnection.for_stdio(path=ctx.cli_path),
-        working_directory=ctx.work_dir,
-        env=env,
+        connection=RuntimeConnection.for_stdio(
+            path=ctx.cli_path,
+            working_directory=ctx.work_dir,
+            env=env,
+        ),
         github_token=github_token,
         request_handler=handler,
     )

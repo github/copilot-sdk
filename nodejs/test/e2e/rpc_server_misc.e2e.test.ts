@@ -24,13 +24,15 @@ describe("Miscellaneous server-scoped RPC", async () => {
         gitHubToken: string | undefined
     ): CopilotClient {
         return new CopilotClient({
-            workingDirectory: workDir,
-            env: {
-                ...env,
-                ...extraEnv,
-            },
             logLevel: "error",
-            connection: RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH }),
+            connection: RuntimeConnection.forStdio({
+                path: process.env.COPILOT_CLI_PATH,
+                workingDirectory: workDir,
+                env: {
+                    ...env,
+                    ...extraEnv,
+                },
+            }),
             gitHubToken,
             useLoggedInUser: gitHubToken === undefined ? false : undefined,
         });

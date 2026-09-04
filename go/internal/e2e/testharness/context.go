@@ -399,9 +399,11 @@ func (c *TestContext) Env() []string {
 // Optional overrides can be applied to the default ClientOptions via the opts function.
 func (c *TestContext) NewClient(opts ...func(*copilot.ClientOptions)) *copilot.Client {
 	options := &copilot.ClientOptions{
-		Connection:       copilot.StdioConnection{Path: c.CLIPath},
-		WorkingDirectory: c.WorkDir,
-		Env:              c.Env(),
+		Connection: copilot.StdioConnection{
+			Path:             c.CLIPath,
+			WorkingDirectory: c.WorkDir,
+			Env:              c.Env(),
+		},
 	}
 
 	for _, opt := range opts {
@@ -414,16 +416,15 @@ func (c *TestContext) NewClient(opts ...func(*copilot.ClientOptions)) *copilot.C
 	}
 
 	// Under the inprocess matrix cell, host the default stdio connection in-process.
-	// The worker inherits this process's ambient env/cwd (per-client env and working
-	// directory are rejected in-process), so mirror the effective (merged) env and
-	// cwd onto the real process and drop those options. Tests that pin a specific
-	// transport (TCP/URI/custom stdio) or configure per-client telemetry are left on
-	// their transport, mirroring the Node/.NET harnesses.
+	// The worker inherits this process's ambient env/cwd, so mirror the
+	// out-of-process connection's effective env and cwd onto the real process
+	// before swapping transports. Tests that pin a specific transport (TCP/URI or
+	// custom stdio path/args) or configure per-client telemetry are left on their
+	// transport, mirroring the Node/.NET harnesses.
 	if c.inProcess && c.shouldUseInProcess(options) {
-		c.applyInProcessEnvironment(options.Env, options.WorkingDirectory)
+		conn := options.Connection.(copilot.StdioConnection)
+		c.applyInProcessEnvironment(conn.Env, conn.WorkingDirectory)
 		options.Connection = copilot.InProcessConnection{}
-		options.Env = nil
-		options.WorkingDirectory = ""
 	}
 
 	return copilot.NewClient(options)
@@ -431,8 +432,8 @@ func (c *TestContext) NewClient(opts ...func(*copilot.ClientOptions)) *copilot.C
 
 // shouldUseInProcess reports whether a client built from options should be hosted
 // in-process for the inprocess matrix cell. Only the harness default stdio
-// connection is swapped; a test that pins a custom stdio path/args/env or a
-// TCP/URI connection is exercising behavior that must stay on its own transport.
+// connection is swapped; a test that pins a custom stdio path/args or a TCP/URI
+// connection is exercising behavior that must stay on its own transport.
 //
 // Options the in-process runtime cannot support (per-client telemetry, an LLM
 // inference provider) are NOT silently downgraded here — the affected tests skip
@@ -443,7 +444,7 @@ func (c *TestContext) shouldUseInProcess(options *copilot.ClientOptions) bool {
 	if !ok {
 		return false
 	}
-	return s.Path == c.CLIPath && len(s.Args) == 0 && s.Env == nil
+	return s.Path == c.CLIPath && len(s.Args) == 0
 }
 
 func fileExists(path string) bool {

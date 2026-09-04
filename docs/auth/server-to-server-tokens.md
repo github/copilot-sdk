@@ -61,15 +61,15 @@ const token = process.env.INSTALLATION_TOKEN;
 if (!token) throw new Error("INSTALLATION_TOKEN is required");
 
 const client = new CopilotClient({
-    connection: RuntimeConnection.forStdio(),
-    env: {
-        ...process.env,
-        COPILOT_GITHUB_TOKEN: token,
-    },
+    connection: RuntimeConnection.forStdio({
+        env: {
+            ...process.env,
+            COPILOT_GITHUB_TOKEN: token,
+        },
+    }),
     useLoggedInUser: false,
 });
 ```
-
 </details>
 <details>
 <summary><strong>Python</strong></summary>
@@ -80,8 +80,9 @@ import os
 from copilot import CopilotClient, RuntimeConnection
 
 client = CopilotClient(
-    connection=RuntimeConnection.for_stdio(),
-    env={**os.environ, "COPILOT_GITHUB_TOKEN": os.environ["INSTALLATION_TOKEN"]},
+    connection=RuntimeConnection.for_stdio(
+        env={**os.environ, "COPILOT_GITHUB_TOKEN": os.environ["INSTALLATION_TOKEN"]},
+    ),
     use_logged_in_user=False,
 )
 ```
@@ -106,8 +107,9 @@ func main() {
 		log.Fatal("INSTALLATION_TOKEN is required")
 	}
 	client := copilot.NewClient(&copilot.ClientOptions{
-		Connection:      copilot.StdioConnection{},
-		Env:             append(os.Environ(), "COPILOT_GITHUB_TOKEN="+token),
+		Connection: copilot.StdioConnection{
+			Env: append(os.Environ(), "COPILOT_GITHUB_TOKEN="+token),
+		},
 		UseLoggedInUser: copilot.Bool(false),
 	})
 	_ = client
@@ -119,13 +121,14 @@ func main() {
 <summary><strong>Rust</strong></summary>
 
 ```rust
-use github_copilot_sdk::{ClientOptions, Transport};
+use github_copilot_sdk::{ClientOptions, OutOfProcessOptions, Transport};
 
 fn main() {
     let token = std::env::var("INSTALLATION_TOKEN").expect("INSTALLATION_TOKEN is required");
     let options = ClientOptions::new()
-        .with_transport(Transport::Stdio)
-        .with_env([("COPILOT_GITHUB_TOKEN", token)])
+        .with_transport(Transport::Stdio(
+            OutOfProcessOptions::new().with_env([("COPILOT_GITHUB_TOKEN", token)]),
+        ))
         .with_use_logged_in_user(false);
     drop(options);
 }
@@ -146,10 +149,12 @@ var environment = Environment.GetEnvironmentVariables()
     .ToDictionary(entry => (string)entry.Key, entry => entry.Value?.ToString() ?? "");
 environment["COPILOT_GITHUB_TOKEN"] = token;
 
+var connection = RuntimeConnection.ForStdio();
+connection.Environment = environment;
+
 await using var client = new CopilotClient(new CopilotClientOptions
 {
-    Connection = RuntimeConnection.ForStdio(),
-    Environment = environment,
+    Connection = connection,
     UseLoggedInUser = false,
 });
 ```
@@ -161,6 +166,7 @@ await using var client = new CopilotClient(new CopilotClientOptions
 ```java
 import com.github.copilot.CopilotClient;
 import com.github.copilot.rpc.CopilotClientOptions;
+import com.github.copilot.rpc.RuntimeConnection;
 import java.util.HashMap;
 import java.util.Objects;
 
@@ -170,7 +176,7 @@ var token = Objects.requireNonNull(
 environment.put("COPILOT_GITHUB_TOKEN", token);
 
 try (var client = new CopilotClient(new CopilotClientOptions()
-        .setEnvironment(environment)
+        .setConnection(RuntimeConnection.forStdio().setEnvironment(environment))
         .setUseLoggedInUser(false))) {
     // Use the client.
 }

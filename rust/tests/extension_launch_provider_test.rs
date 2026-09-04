@@ -11,7 +11,7 @@ use github_copilot_sdk::extension_launch_provider::{
     ExtensionLaunchProviderResolveResult,
 };
 use github_copilot_sdk::rpc::ExtensionSource;
-use github_copilot_sdk::{CliProgram, Client, ClientOptions, Error, ErrorKind, Transport};
+use github_copilot_sdk::{Client, ClientOptions, Error, ErrorKind, Transport};
 use serde_json::{Value, json};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, duplex};
 use tokio::net::{TcpListener, TcpStream};
@@ -318,7 +318,6 @@ async fn read_registration(reader: &mut (impl AsyncRead + Unpin)) -> Value {
 
 fn external_options(port: u16, provider: AppProvider) -> ClientOptions {
     ClientOptions::new()
-        .with_program(CliProgram::Path("unused-for-external-transport".into()))
         .with_transport(Transport::External {
             host: "127.0.0.1".to_string(),
             port,

@@ -72,9 +72,11 @@ class TestTelemetryExport:
             "fake-token-for-e2e-tests" if os.environ.get("GITHUB_ACTIONS") == "true" else None
         )
         client = CopilotClient(
-            connection=RuntimeConnection.for_stdio(path=ctx.cli_path),
-            working_directory=ctx.work_dir,
-            env=ctx.get_env(),
+            connection=RuntimeConnection.for_stdio(
+                path=ctx.cli_path,
+                working_directory=ctx.work_dir,
+                env=ctx.get_env(),
+            ),
             github_token=github_token,
             telemetry=TelemetryConfig(
                 file_path=str(telemetry_path),

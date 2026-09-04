@@ -554,9 +554,11 @@ describe("Session Configuration", async () => {
     it("should enable citations for Anthropic file attachments on create", async () => {
         const handler = new RecordingRequestHandler();
         const citationClient = new CopilotClient({
-            connection: RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH }),
-            workingDirectory: workDir,
-            env,
+            connection: RuntimeConnection.forStdio({
+                path: process.env.COPILOT_CLI_PATH,
+                workingDirectory: workDir,
+                env,
+            }),
             gitHubToken: DEFAULT_GITHUB_TOKEN,
             requestHandler: handler,
         });
@@ -591,9 +593,9 @@ describe("Session Configuration", async () => {
             connection: RuntimeConnection.forTcp({
                 path: process.env.COPILOT_CLI_PATH,
                 connectionToken,
+                workingDirectory: workDir,
+                env,
             }),
-            workingDirectory: workDir,
-            env,
             gitHubToken: DEFAULT_GITHUB_TOKEN,
             requestHandler: handler,
         });

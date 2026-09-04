@@ -5,8 +5,8 @@ use github_copilot_sdk::canvas::CanvasDeclaration;
 use github_copilot_sdk::rpc::{OpenCanvasInstance, RemoteSessionMode};
 use github_copilot_sdk::session_events::{ReasoningSummary, SessionLimitsConfig};
 use github_copilot_sdk::{
-    CliProgram, Client, ClientOptions, CopilotExpAssignmentResponse, ExtensionInfo, ProviderConfig,
-    ResumeSessionConfig, SessionConfig, SessionId, Transport,
+    CliProgram, Client, ClientOptions, CopilotExpAssignmentResponse, ExtensionInfo,
+    OutOfProcessOptions, ProviderConfig, ResumeSessionConfig, SessionConfig, SessionId, Transport,
 };
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -353,16 +353,18 @@ impl FakeCli {
 
     fn client_options(&self, token: &str) -> ClientOptions {
         ClientOptions::new()
-            .with_program(CliProgram::Path(PathBuf::from("node")))
-            .with_prefix_args([self.script_path.as_os_str().to_owned()])
-            .with_cwd(&self.work_dir)
-            .with_extra_args([
-                "--capture-file".to_string(),
-                self.capture_path.to_string_lossy().into_owned(),
-            ])
+            .with_transport(Transport::Stdio(
+                OutOfProcessOptions::new()
+                    .with_program(CliProgram::Path(PathBuf::from("node")))
+                    .with_prefix_args([self.script_path.as_os_str().to_owned()])
+                    .with_working_directory(&self.work_dir)
+                    .with_extra_args([
+                        "--capture-file".to_string(),
+                        self.capture_path.to_string_lossy().into_owned(),
+                    ]),
+            ))
             .with_github_token(token)
             .with_use_logged_in_user(false)
-            .with_transport(Transport::Stdio)
     }
 
     fn path(&self, name: &str) -> PathBuf {

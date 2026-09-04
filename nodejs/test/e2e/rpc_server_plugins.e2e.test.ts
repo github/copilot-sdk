@@ -24,16 +24,18 @@ describe("Server-scoped plugin RPC", async () => {
 
     function createClient(home: string): CopilotClient {
         return new CopilotClient({
-            workingDirectory: workDir,
-            env: {
-                ...env,
-                COPILOT_HOME: home,
-                GH_CONFIG_DIR: home,
-                XDG_CONFIG_HOME: home,
-                XDG_STATE_HOME: home,
-            },
             logLevel: "error",
-            connection: RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH }),
+            connection: RuntimeConnection.forStdio({
+                path: process.env.COPILOT_CLI_PATH,
+                workingDirectory: workDir,
+                env: {
+                    ...env,
+                    COPILOT_HOME: home,
+                    GH_CONFIG_DIR: home,
+                    XDG_CONFIG_HOME: home,
+                    XDG_STATE_HOME: home,
+                },
+            }),
             gitHubToken: DEFAULT_GITHUB_TOKEN,
         });
     }

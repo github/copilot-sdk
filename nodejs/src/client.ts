@@ -452,12 +452,11 @@ export class CopilotClient {
     private stderrBuffer: string = ""; // Captures CLI stderr for error messages
     /** Resolved connection mode chosen in the constructor. */
     private connectionConfig: InternalRuntimeConnection;
-    /** Resolved path to the runtime executable (only used for child-process kinds). */
+    /** Resolved path to the runtime executable (only used for out-of-process kinds). */
     private resolvedCliPath: string | undefined;
-    /** Resolved environment passed to the spawned runtime. */
+    /** Resolved environment inherited or replaced by the out-of-process runtime. */
     private resolvedEnv: Record<string, string | undefined>;
     private options: {
-        workingDirectory: string;
         logLevel?: string;
         gitHubToken?: string;
         useLoggedInUser: boolean;
@@ -587,7 +586,11 @@ export class CopilotClient {
      *
      * // Use a custom runtime binary
      * const client = new CopilotClient({
-     *   connection: RuntimeConnection.forStdio({ path: "/usr/local/bin/copilot" }),
+     *   connection: RuntimeConnection.forStdio({
+     *     path: "/usr/local/bin/copilot",
+     *     workingDirectory: "/srv/app",
+     *     env: { MY_VAR: "value" },
+     *   }),
      *   logLevel: "debug",
      * });
      * ```
@@ -609,38 +612,12 @@ export class CopilotClient {
                 "gitHubToken and useLoggedInUser cannot be used with RuntimeConnection.forUri (external server manages its own auth)"
             );
         }
-        if (conn.kind === "inprocess" && options.workingDirectory !== undefined) {
-            throw new Error(
-                "workingDirectory is not supported with RuntimeConnection.forInProcess(): the in-process " +
-                    "transport hosts the runtime in this process, so honoring it would require mutating the " +
-                    "shared process-global cwd. Change the host process's working directory before " +
-                    "constructing the client instead."
-            );
-        }
-        if (conn.kind === "inprocess" && options.env !== undefined) {
-            throw new Error(
-                "env is not supported with RuntimeConnection.forInProcess(): the in-process transport loads " +
-                    "the native runtime into the shared host process, whose single environment block cannot " +
-                    "carry per-client values. Set the variables on the host process environment instead."
-            );
-        }
         if (conn.kind === "inprocess" && options.telemetry !== undefined) {
             throw new Error(
                 "telemetry is not supported with RuntimeConnection.forInProcess(): telemetry configuration " +
                     "is lowered to environment variables read by native runtime code running in the shared " +
                     "host process, so per-client telemetry cannot be honored in-process. Configure telemetry " +
-                    "via the host process environment, or use a child-process transport."
-            );
-        }
-        if (
-            (conn.kind === "stdio" || conn.kind === "tcp") &&
-            conn.env !== undefined &&
-            options.env !== undefined
-        ) {
-            throw new Error(
-                "Set environment variables via either the client-level env option or the connection's env " +
-                    "(RuntimeConnection.forStdio/forTcp), not both. Prefer the connection-level env for " +
-                    "child-process transports."
+                    "via the host process environment, or use an out-of-process transport."
             );
         }
         if (conn.kind === "tcp" && conn.connectionToken !== undefined) {
@@ -690,13 +667,11 @@ export class CopilotClient {
         this.onGitHubTelemetry = options.onGitHubTelemetry;
         this.setupClientGlobalHandlers();
 
-        // Connection-level env (child-process transports only) takes precedence
-        // over the client-level env, which falls back to the ambient process env.
-        // The constructor guard above rejects setting both, so at most one of the
-        // first two is defined. Mirrors .NET/Python precedence.
+        // Out-of-process transports can replace the inherited environment. When
+        // omitted, they inherit the ambient process environment. Mirrors Python/.NET.
         const connEnv: Record<string, string> | undefined =
             conn.kind === "stdio" || conn.kind === "tcp" ? conn.env : undefined;
-        const effectiveEnv = connEnv ?? options.env ?? process.env;
+        const effectiveEnv = connEnv ?? process.env;
         this.resolvedEnv = effectiveEnv;
         if (conn.kind === "stdio" || conn.kind === "tcp") {
             const explicitCliPath = conn.path ?? effectiveEnv.COPILOT_CLI_PATH;
@@ -711,7 +686,6 @@ export class CopilotClient {
         this.connectionExtraArgs = [...connArgs];
 
         this.options = {
-            workingDirectory: options.workingDirectory ?? process.cwd(),
             logLevel: options.logLevel,
             gitHubToken: options.gitHubToken,
             // Default useLoggedInUser to false when gitHubToken is provided, otherwise true.
@@ -2547,7 +2521,7 @@ export class CopilotClient {
     }
 
     /**
-     * Builds the environment for the spawned runtime child process (stdio/TCP): applies
+     * Builds the environment for the spawned out-of-process runtime (stdio/TCP): applies
      * the auth token, connection token, `COPILOT_HOME`, keychain setting, and telemetry
      * variables on top of the effective env. Not used by the in-process (FFI) transport,
      * whose worker inherits the host process's ambient environment
@@ -2662,17 +2636,21 @@ export class CopilotClient {
 
             // For .js files, spawn node explicitly; for executables, spawn directly
             const isJsFile = this.resolvedCliPath.endsWith(".js");
+            const runtimeWorkingDirectory =
+                ("workingDirectory" in this.connectionConfig
+                    ? this.connectionConfig.workingDirectory
+                    : undefined) ?? process.cwd();
             if (isJsFile) {
                 this.cliProcess = spawn(getNodeExecPath(), [this.resolvedCliPath, ...args], {
                     stdio: stdioConfig,
-                    cwd: this.options.workingDirectory,
+                    cwd: runtimeWorkingDirectory,
                     env: envWithoutNodeDebug,
                     windowsHide: true,
                 });
             } else {
                 this.cliProcess = spawn(this.resolvedCliPath, args, {
                     stdio: stdioConfig,
-                    cwd: this.options.workingDirectory,
+                    cwd: runtimeWorkingDirectory,
                     env: envWithoutNodeDebug,
                     windowsHide: true,
                 });

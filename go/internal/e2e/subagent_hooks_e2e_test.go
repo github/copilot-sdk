@@ -81,7 +81,9 @@ func TestSubagentHooksE2E(t *testing.T) {
 	ctx := testharness.NewTestContext(t)
 	transport := newRecordingForwardingTransport()
 	client := ctx.NewClient(func(o *copilot.ClientOptions) {
-		o.Env = append(o.Env, "COPILOT_EXP_COPILOT_CLI_SESSION_BASED_SUBAGENTS=true")
+		conn := o.Connection.(copilot.StdioConnection)
+		conn.Env = append(conn.Env, "COPILOT_EXP_COPILOT_CLI_SESSION_BASED_SUBAGENTS=true")
+		o.Connection = conn
 		o.RequestHandler = &copilot.CopilotRequestHandler{Transport: transport}
 	})
 	t.Cleanup(func() { client.ForceStop() })

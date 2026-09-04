@@ -291,26 +291,16 @@ public sealed class E2ETestContext : IAsyncDisposable
 
         options.Logger ??= Logger;
 
-        // Resolve the working directory the worker should run in. Child-process and
-        // URI transports take it as a per-client option; the in-process transport
-        // rejects a per-client WorkingDirectory (the native host spawns the worker
-        // without a cwd parameter), so — mirroring the Node/Rust harnesses — we point
-        // THIS process's cwd at the desired directory before the worker spawns and
-        // clear the per-client option. InProcessEnvIsolationAttribute.After restores
-        // the cwd after the test.
-        var desiredWorkingDirectory = options.WorkingDirectory ?? WorkDir;
+        // Resolve the working directory the worker should run in. Out-of-process
+        // transports carry it on the connection itself; in-process still inherits
+        // this process's cwd, so the harness points THIS process at WorkDir before
+        // the worker spawns. InProcessEnvIsolationAttribute.After restores the cwd
+        // after the test.
+        var desiredWorkingDirectory = (options.Connection as OutOfProcessRuntimeConnection)?.WorkingDirectory ?? WorkDir;
 
         // Tests must supply environment via the 'environment' parameter, which the
         // harness routes to the right place per transport (the connection for
-        // child-process transports, the host process for in-process). Setting
-        // options.Environment directly bypasses that routing and is unsupported
-        // in-process, so reject it here.
-        if (options.Environment is not null)
-        {
-            throw new ArgumentException(
-                "Do not set options.Environment in E2E tests; pass the 'environment' parameter to CreateClient instead.",
-                nameof(options));
-        }
+        // out-of-process transports, the host process for in-process).
 
         // The full environment the client runs with: harness defaults (proxy
         // redirect, isolated home, cleared HMAC/tokens, etc.) unless the test
@@ -335,27 +325,21 @@ public sealed class E2ETestContext : IAsyncDisposable
                 // In-process default: leave Connection unset so CopilotClient's
                 // ResolveDefaultConnection honors COPILOT_SDK_DEFAULT_CONNECTION.
                 break;
-            case ChildProcessRuntimeConnection child when child.Path is null:
+            case OutOfProcessRuntimeConnection child when child.Path is null:
                 child.Path = GetCliPath();
                 break;
         }
 
         if (IsInProcess(options.Connection))
         {
-            options.WorkingDirectory = null;
             ApplyInProcessEnvironment(env, desiredWorkingDirectory);
         }
-        else if (options.Connection is ChildProcessRuntimeConnection child)
+        else if (options.Connection is OutOfProcessRuntimeConnection child)
         {
-            // Child-process transport: hand the environment to the spawned child
+            // Out-of-process transport: hand the environment to the spawned child
             // via the connection, where per-client environment is coherent.
             child.Environment = env;
-            options.WorkingDirectory = desiredWorkingDirectory;
-        }
-        else
-        {
-            // URI / existing-runtime transport: per-client WorkingDirectory applies normally.
-            options.WorkingDirectory = desiredWorkingDirectory;
+            child.WorkingDirectory ??= desiredWorkingDirectory;
         }
 
         // Auto-inject auth token unless connecting to an existing runtime via URI.

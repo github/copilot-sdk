@@ -15,10 +15,12 @@ import { retry } from "./harness/sdkTestHelper.js";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const factoryTestContext = await createSdkTestContext({
     copilotClientOptions: {
-        connection: RuntimeConnection.forStdio({ path: await getLegacyCliPathForTests() }),
-        env: {
-            COPILOT_CLI_ENABLED_FEATURE_FLAGS: "EXTENSIONS,AGENT_FACTORIES",
-        },
+        connection: RuntimeConnection.forStdio({
+            path: await getLegacyCliPathForTests(),
+            env: {
+                COPILOT_CLI_ENABLED_FEATURE_FLAGS: "EXTENSIONS,AGENT_FACTORIES",
+            },
+        }),
     },
 });
 
