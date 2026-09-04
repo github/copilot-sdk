@@ -707,6 +707,18 @@ export type SkillInvokedTrigger =
   /** Skill content loaded as part of another context, such as a configured custom agent or subagent. */
   | "context-load";
 /**
+ * Where the model input for a task-tool sub-agent came from.
+ */
+export type SubagentTaskModelSource =
+  /** The spawning agent supplied the task tool's model argument. */
+  | "task_argument"
+  /** The task omitted a model and the per-sub-agent settings entry supplied a concrete one. */
+  | "subagent_configuration"
+  /** The task omitted a model and the user-defined custom agent's definition supplied one. */
+  | "custom_agent_definition"
+  /** Neither the task call nor structured sub-agent configuration supplied a model. */
+  | "unset";
+/**
  * Binary asset type discriminator. Use "image" for images and "resource" otherwise.
  */
 export type BinaryAssetType =
@@ -7015,6 +7027,10 @@ export interface SubagentStartedData {
    * Whether this sub-agent can be resumed. Currently always false.
    */
   resumable?: boolean;
+  /**
+   * Where the model input for this task-tool sub-agent came from. Absent for sub-agents created through other runtime paths.
+   */
+  taskModelSource?: SubagentTaskModelSource;
   /**
    * Tool call ID of the parent tool invocation that spawned this sub-agent
    */
