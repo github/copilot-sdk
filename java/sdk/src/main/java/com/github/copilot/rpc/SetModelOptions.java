@@ -4,11 +4,14 @@
 
 package com.github.copilot.rpc;
 
+import com.github.copilot.CopilotExperimental;
+
 /**
  * Optional settings for a model switch.
  * <p>
- * All setter methods return {@code this} for method chaining. Every option is
- * optional; an unset option leaves the corresponding session state unchanged.
+ * All setter methods return {@code this} for method chaining. {@code model} is
+ * required. Every other option is optional; an unset option leaves the
+ * corresponding session state unchanged.
  *
  * <pre>{@code
  * session.setModel(new SetModelOptions().setModel("auto").setAutoTier(AutoTier.INTELLIGENCE)).get();
@@ -122,6 +125,7 @@ public class SetModelOptions {
      *
      * @return the requested tier, or {@code null} when no tier was requested
      */
+    @CopilotExperimental
     public AutoTier getAutoTier() {
         return autoTier;
     }
@@ -139,6 +143,7 @@ public class SetModelOptions {
      *            current preference unchanged
      * @return this options object for method chaining
      */
+    @CopilotExperimental
     public SetModelOptions setAutoTier(AutoTier autoTier) {
         this.autoTier = autoTier;
         return this;
@@ -149,6 +154,7 @@ public class SetModelOptions {
      *
      * @return {@code true} when the request clears the Auto routing preference
      */
+    @CopilotExperimental
     public boolean isResetAutoTier() {
         return resetAutoTier;
     }
@@ -163,6 +169,7 @@ public class SetModelOptions {
      *            {@code true} to return to provider-default Auto routing
      * @return this options object for method chaining
      */
+    @CopilotExperimental
     public SetModelOptions setResetAutoTier(boolean resetAutoTier) {
         this.resetAutoTier = resetAutoTier;
         return this;

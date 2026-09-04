@@ -3030,12 +3030,14 @@ public struct SetModelOptions
     /// <c>auto</c>; use <see cref="CopilotSession.SetAutoTierAsync"/> to change the
     /// preference without changing the selected model.
     /// </remarks>
+    [Experimental(Diagnostics.Experimental)]
     public AutoTier? AutoTier { get; set; }
 
     /// <summary>
     /// Returns to the provider's default Auto routing as part of this switch.
     /// Mutually exclusive with <see cref="AutoTier"/>.
     /// </summary>
+    [Experimental(Diagnostics.Experimental)]
     public bool ResetAutoTier { get; set; }
 }
 

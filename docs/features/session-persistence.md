@@ -271,7 +271,7 @@ The `session.start` and `session.resume` events expose the selected tier in thei
 
 ### Changing the Auto tier during a session
 
-Call `setAutoTier` to change the routing preference on a live session without changing the selected model. Pass `null` (Python `None`, Go `nil`) to return to the provider's default Auto routing.
+Call `setAutoTier` to change the routing preference on a live session without changing the selected model. Pass `null` (Python `None`, Go `nil`) to return to the provider's default Auto routing. This requires Copilot CLI `1.0.83-4` or later, which is newer than the `1.0.82-1` needed to select a tier when creating or resuming a session.
 
 ```typescript
 const result = await session.setAutoTier("intelligence");
@@ -309,7 +309,7 @@ To select the `auto` model and its routing preference in a single call, stage th
 | Rust | `SetModelOptions::default().with_auto_tier(AutoTier::Balance)` | `SetModelOptions::default().with_reset_auto_tier()` |
 | Java | `new SetModelOptions().setModel("auto").setAutoTier(AutoTier.BALANCE)` | `new SetModelOptions().setModel("auto").setResetAutoTier(true)` |
 
-Node.js and Python express all three states natively, because `null`/`None` is distinguishable from an omitted argument. The other four SDKs cannot make that distinction in a single value, so they carry a separate reset option. Omitting both always means "leave the current preference alone."
+Node.js, Python, and Rust express all three states in a single value: Node.js and Python because `null`/`None` is distinguishable from an omitted argument, and Rust because `AutoTierPreference::Reset` is a distinct variant of the same option. Go, .NET, and Java have no way to distinguish "reset" from "unset" in one value, so they carry a separate reset flag. Omitting both always means "leave the current preference alone."
 
 ### Example: changing model on resume
 

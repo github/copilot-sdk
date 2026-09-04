@@ -7,7 +7,8 @@ use super::support::with_dedicated_e2e_context;
 
 const MODEL_ID: &str = "auto";
 
-/// Mirrors nodejs/test/e2e/auto_tier.e2e.test.ts (snapshot category "auto_tier").
+/// End-to-end coverage for staging and resetting an Auto routing preference
+/// (snapshot category "auto_tier").
 ///
 /// The runtime stages an Auto routing preference instead of applying it immediately: a
 /// request stays unclaimed until a later turn using the `auto` model mints a usable model

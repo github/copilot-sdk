@@ -3101,7 +3101,9 @@ class CopilotSession:
             context_tier: Optional context window tier for supported models.
                 Omit to use normal model behavior with no explicit tier.
             model_capabilities: Override individual model capabilities resolved by the runtime.
-            auto_tier: Routing preference to apply when ``model`` is ``"auto"``.
+            auto_tier: **Experimental.** Part of an experimental Auto routing
+                surface and may change or be removed in a future release.
+                Routing preference to apply when ``model`` is ``"auto"``.
                 Pass ``None`` to return to the provider's default Auto routing.
                 Omit the argument to leave the current preference alone. The
                 runtime rejects this option when ``model`` is anything other than
