@@ -16,6 +16,7 @@ export interface EnsureCopilotPackageOptions {
     environment?: NodeJS.ProcessEnv;
     fetch?: typeof globalThis.fetch;
     fetchTimeoutMs?: number;
+    packageDirectory?: string;
     platform?: string;
 }
 
@@ -107,6 +108,18 @@ export async function ensureCopilotPackage(
     options: EnsureCopilotPackageOptions = {}
 ): Promise<string> {
     const platform = options.platform ?? getRuntimePlatform();
+    const environment = options.environment ?? process.env;
+    const packageDirectory =
+        options.packageDirectory ?? environment.COPILOT_SDK_RUNTIME_PACKAGE_DIR;
+    if (packageDirectory) {
+        const packageRoot = join(packageDirectory, platform);
+        validateFile(join(packageRoot, "package.json"), `${platform} runtime package manifest`);
+        validateFile(
+            join(packageRoot, "prebuilds", platform, "runtime.node"),
+            "Copilot runtime.node"
+        );
+        return packageRoot;
+    }
     // lgtm[js/trivial-conditional] This generated constant is true for internal canary builds.
     if (version === COPILOT_CLI_VERSION && COPILOT_CLI_USE_NPM_PACKAGE) {
         const packageName = `@github/copilot-${platform}`;
@@ -130,7 +143,7 @@ export async function ensureCopilotPackage(
     }
 
     const baseUrl = (
-        (options.environment ?? process.env).COPILOT_CLI_DOWNLOAD_BASE_URL ??
+        environment.COPILOT_CLI_DOWNLOAD_BASE_URL ??
         "https://github.com/github/copilot-cli/releases/download"
     ).replace(/\/+$/, "");
     const fetchTimeoutMs = options.fetchTimeoutMs ?? DEFAULT_FETCH_TIMEOUT_MS;

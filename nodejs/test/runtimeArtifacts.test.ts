@@ -76,9 +76,31 @@ describe("release runtime selection", () => {
         expect(JSON.parse(readFileSync(join(root, "package.json"), "utf8"))).toMatchObject({
             copilotCliVersion: "9.9.9-canary.test",
         });
+
         expect(existsSync(join(root, "copilot-cli.json"))).toBe(false);
         expect(readFileSync(join(root, "src", "cliVersion.ts"), "utf8")).toContain(
             "COPILOT_CLI_USE_NPM_PACKAGE = true"
+        );
+    });
+
+    it("can pin a pre-acquired package while preserving embedded runtime packaging", () => {
+        const root = mkdtempSync(join(tmpdir(), "copilot-local-package-version-"));
+        mkdirSync(join(root, "scripts"), { recursive: true });
+        mkdirSync(join(root, "src"), { recursive: true });
+        writeFileSync(join(root, "package.json"), "{}\n");
+        writeFileSync(
+            join(root, "scripts", "set-cli-version.js"),
+            readFileSync(join(import.meta.dirname, "../scripts/set-cli-version.js"))
+        );
+
+        const result = spawnSync(
+            process.execPath,
+            [join(root, "scripts", "set-cli-version.js"), "9.9.9-unstable.test", "--local-package"],
+            { encoding: "utf8" }
+        );
+        expect(result.status, result.stderr).toBe(0);
+        expect(readFileSync(join(root, "src", "cliVersion.ts"), "utf8")).toContain(
+            "COPILOT_CLI_USE_NPM_PACKAGE = false"
         );
     });
 
@@ -241,6 +263,28 @@ describe("ensureRuntimeBundle", () => {
 });
 
 describe("release package acquisition", () => {
+    it("uses a pre-acquired runtime package directory without network access", async () => {
+        const root = mkdtempSync(join(tmpdir(), "copilot-runtime-packages-"));
+        const platform = "linux-x64";
+        const packageRoot = join(root, platform);
+        const prebuilds = join(packageRoot, "prebuilds", platform);
+        mkdirSync(prebuilds, { recursive: true });
+        writeFileSync(join(packageRoot, "package.json"), "{}");
+        writeFileSync(join(prebuilds, "runtime.node"), "runtime");
+        const fetcher = vi.fn(() => {
+            throw new Error("local runtime package resolution must not fetch");
+        });
+
+        await expect(
+            ensureCopilotPackage("1.2.3-unstable.1", {
+                fetch: fetcher,
+                packageDirectory: root,
+                platform,
+            })
+        ).resolves.toBe(packageRoot);
+        expect(fetcher).not.toHaveBeenCalled();
+    });
+
     it("downloads, verifies, and caches a release package for packaging", async () => {
         const sourceRoot = mkdtempSync(join(tmpdir(), "copilot-release-source-"));
         const packageRoot = join(sourceRoot, "package");
