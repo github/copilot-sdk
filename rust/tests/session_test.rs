@@ -19,7 +19,7 @@ use github_copilot_sdk::handler::{
 };
 use github_copilot_sdk::rpc::{
     CanvasProviderInvokeActionRequest, CanvasProviderOpenRequest, CanvasProviderOpenResult,
-    OpenCanvasInstance,
+    ModelSetAllowedModelsRequest, ModelSetAllowedModelsResult, OpenCanvasInstance,
 };
 use github_copilot_sdk::session_events::{
     ManagedSettingsResolvedSource, McpOauthRequiredData, ReasoningSummary, SessionLimitsConfig,
@@ -2790,6 +2790,52 @@ async fn set_model_sends_switch_to_request() {
     timeout(TIMEOUT, handle).await.unwrap().unwrap();
 }
 
+#[test]
+fn model_set_allowed_models_types_serialize_replacement_and_clear() {
+    let replacement = ModelSetAllowedModelsRequest {
+        allowed_models: Some(vec!["gpt-5".to_string(), "claude-sonnet-5".to_string()]),
+    };
+    assert_eq!(
+        serde_json::to_value(replacement).unwrap(),
+        serde_json::json!({
+            "allowedModels": ["gpt-5", "claude-sonnet-5"]
+        })
+    );
+
+    assert_eq!(
+        serde_json::to_value(ModelSetAllowedModelsRequest {
+            allowed_models: None,
+        })
+        .unwrap(),
+        serde_json::json!({})
+    );
+
+    let result: ModelSetAllowedModelsResult = serde_json::from_value(serde_json::json!({
+        "allowedModels": ["gpt-5"],
+        "effectiveAllowedModels": ["gpt-5", "claude-*"],
+        "fallbackModel": "gpt-5",
+        "modelId": "gpt-5"
+    }))
+    .unwrap();
+    assert_eq!(
+        result.allowed_models.as_deref(),
+        Some(&["gpt-5".to_string()][..])
+    );
+    assert_eq!(
+        result.effective_allowed_models.as_deref(),
+        Some(&["gpt-5".to_string(), "claude-*".to_string()][..])
+    );
+    assert_eq!(result.fallback_model.as_deref(), Some("gpt-5"));
+    assert_eq!(result.model_id.as_deref(), Some("gpt-5"));
+
+    let cleared: ModelSetAllowedModelsResult =
+        serde_json::from_value(serde_json::json!({})).unwrap();
+    assert_eq!(cleared.allowed_models, None);
+    assert_eq!(cleared.effective_allowed_models, None);
+    assert_eq!(cleared.fallback_model, None);
+    assert_eq!(cleared.model_id, None);
+}
+
 #[tokio::test]
 async fn elicitation_returns_typed_result() {
     let (session, mut server) =
@@ -5144,6 +5190,53 @@ async fn rpc_namespace_session_tasks_list_dispatches_correctly() {
 
     let result = timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
     assert!(result.tasks.is_empty());
+}
+
+#[tokio::test]
+async fn rpc_namespace_session_model_set_allowed_models_dispatches_correctly() {
+    let (session, mut server) = create_session_pair().await;
+    let session = Arc::new(session);
+
+    let s = session.clone();
+    let handle = tokio::spawn(async move {
+        s.rpc()
+            .model()
+            .set_allowed_models(ModelSetAllowedModelsRequest {
+                allowed_models: Some(vec!["gpt-5".to_string(), "claude-sonnet-5".to_string()]),
+            })
+            .await
+    });
+
+    let request = server.read_request().await;
+    assert_eq!(request["method"], "session.model.setAllowedModels");
+    assert_eq!(request["params"]["sessionId"], server.session_id);
+    assert_eq!(
+        request["params"]["allowedModels"],
+        serde_json::json!(["gpt-5", "claude-sonnet-5"])
+    );
+    server
+        .respond(
+            &request,
+            serde_json::json!({
+                "allowedModels": ["gpt-5", "claude-sonnet-5"],
+                "effectiveAllowedModels": ["gpt-5"],
+                "fallbackModel": "gpt-5",
+                "modelId": "gpt-5"
+            }),
+        )
+        .await;
+
+    let result = timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
+    assert_eq!(
+        result.allowed_models.as_deref(),
+        Some(&["gpt-5".to_string(), "claude-sonnet-5".to_string()][..])
+    );
+    assert_eq!(
+        result.effective_allowed_models.as_deref(),
+        Some(&["gpt-5".to_string()][..])
+    );
+    assert_eq!(result.fallback_model.as_deref(), Some("gpt-5"));
+    assert_eq!(result.model_id.as_deref(), Some("gpt-5"));
 }
 
 #[tokio::test]
