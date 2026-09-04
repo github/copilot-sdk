@@ -42,24 +42,20 @@ public class ExternalToolCancellationE2ETest {
         ctx.configureForTest("external_tool_cancellation", "should_cancel_tool_handler_when_session_disconnects");
 
         var pendingTool = new AtomicReference<CompletableFuture<Object>>();
-        ToolDefinition slowTool = ToolDefinition.create(
-                "slow_analysis",
-                "A slow analysis tool that blocks until released",
-                slowAnalysisSchema(),
-                invocation -> {
+        ToolDefinition slowTool = ToolDefinition.create("slow_analysis",
+                "A slow analysis tool that blocks until released", slowAnalysisSchema(), invocation -> {
                     CompletableFuture<Object> pending = new CompletableFuture<>();
                     pendingTool.set(pending);
                     return pending;
                 });
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client
-                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
-                            .setTools(List.of(slowTool)))
+            CopilotSession session = client.createSession(new SessionConfig()
+                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setTools(List.of(slowTool)))
                     .get(60, TimeUnit.SECONDS);
             try {
-                session.send(
-                        new MessageOptions().setPrompt("Use slow_analysis with value 'test_abort'. Wait for the result."))
+                session.send(new MessageOptions()
+                        .setPrompt("Use slow_analysis with value 'test_abort'. Wait for the result."))
                         .get(60, TimeUnit.SECONDS);
 
                 waitFor(() -> pendingTool.get() != null, 60_000);
