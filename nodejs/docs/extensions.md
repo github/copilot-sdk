@@ -74,6 +74,27 @@ An approval is remembered against the exact set of names the user saw, so an ext
 
 An approved extension can pass a granted value to anything it starts, so ask only for what the extension genuinely needs.
 
+## Contributing app session badges
+
+App hosts can retain a hidden, non-conversational session for executable extensions that contribute branch or pull request badges. Use `joinAppSessionBadges()` to opt in explicitly:
+
+```js
+import { joinAppSessionBadges } from "@github/copilot-sdk/extension";
+
+const badges = await joinAppSessionBadges();
+
+badges.onSnapshot(async (snapshot) => {
+    for (const target of snapshot.sessions) {
+        await badges.setBadge(target, {
+            state: "open",
+            label: target.branch,
+        });
+    }
+});
+```
+
+Each snapshot is a full replacement of the sessions that the app considers eligible. The app owns hidden-session lifecycle, visibility filtering, and repository inspection. Native GitHub pull request badges remain authoritative, and the app can reject an update when a native badge appears after the snapshot. Extensions can publish only `draft`, `open`, `merged`, or `closed` states with an optional label; arbitrary markup, icons, colors, and URLs are not supported.
+
 ## Further Reading
 
 - `examples.md` — Practical code examples for tools, hooks, events, and complete extensions

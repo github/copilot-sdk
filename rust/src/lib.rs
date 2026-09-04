@@ -3,6 +3,8 @@
 #![deny(rustdoc::broken_intra_doc_links)]
 #![cfg_attr(test, allow(clippy::unwrap_used))]
 
+/// Typed app-level executable-extension badge protocol.
+pub mod app_session_badges;
 /// Canvas declarations, provider callbacks, and host-side canvas RPC types.
 pub mod canvas;
 mod canvas_dispatch;

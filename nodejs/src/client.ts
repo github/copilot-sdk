@@ -93,6 +93,7 @@ import type {
 } from "./types.js";
 import { defaultJoinSessionPermissionHandler } from "./types.js";
 import type { FactoryHandle } from "./factory.js";
+import { AppSessionBadgesExtension } from "./appSessionBadges.js";
 
 /**
  * Minimum protocol version this SDK can communicate with.
@@ -1859,6 +1860,14 @@ export class CopilotClient {
         extensionOptions?: ExtensionJoinOptions
     ): Promise<CopilotSession> {
         return this.resumeSessionInternal(sessionId, config, factories, extensionOptions);
+    }
+
+    /** @internal */
+    async registerAppSessionBadges(session: CopilotSession): Promise<AppSessionBadgesExtension> {
+        if (!this.connection) {
+            throw new Error("Client not connected");
+        }
+        return AppSessionBadgesExtension.register(session, this.connection);
     }
 
     private async resumeSessionInternal(

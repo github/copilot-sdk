@@ -10,6 +10,17 @@ import {
     type ResumeSessionConfig,
 } from "./types.js";
 import type { FactoryHandle } from "./factory.js";
+import type { AppSessionBadgesExtension } from "./appSessionBadges.js";
+
+export {
+    AppSessionBadgesExtension,
+    type AppSessionBadge,
+    type AppSessionBadgeState,
+    type AppSessionBadgeTarget,
+    type AppSessionBadgeTargetIdentity,
+    type AppSessionBadgesSnapshot,
+    type AppSessionBadgesSnapshotHandler,
+} from "./appSessionBadges.js";
 
 export {
     Canvas,
@@ -109,6 +120,38 @@ export {
  * ```
  */
 export async function joinSession(config: JoinSessionConfig = {}): Promise<CopilotSession> {
+    const { session } = await joinExtensionSession(config);
+    return session;
+}
+
+/**
+ * Joins the retained app session and explicitly registers a session-badge contribution.
+ *
+ * The app owns the hidden session lifecycle and supplies full replacement
+ * snapshots containing only sessions eligible for extension-provided badges.
+ */
+export async function joinAppSessionBadges(
+    config: JoinSessionConfig = {}
+): Promise<AppSessionBadgesExtension> {
+    const { client, session } = await joinExtensionSession(config);
+    try {
+        return await client.registerAppSessionBadges(session);
+    } catch (error) {
+        try {
+            await session.disconnect();
+        } catch (cleanupError) {
+            throw new AggregateError(
+                [error, cleanupError],
+                "Failed to register app session badges and disconnect the extension session"
+            );
+        }
+        throw error;
+    }
+}
+
+async function joinExtensionSession(
+    config: JoinSessionConfig
+): Promise<{ client: CopilotClient; session: CopilotSession }> {
     const sessionId = process.env.SESSION_ID;
     if (!sessionId) {
         throw new Error(
@@ -132,7 +175,7 @@ export async function joinSession(config: JoinSessionConfig = {}): Promise<Copil
     };
     void _stripped;
 
-    return client.resumeSessionForExtension(
+    const session = await client.resumeSessionForExtension(
         sessionId,
         {
             ...rest,
@@ -142,4 +185,5 @@ export async function joinSession(config: JoinSessionConfig = {}): Promise<Copil
         factories,
         requestedEnvironmentVariables?.length ? { requestedEnvironmentVariables } : undefined
     );
+    return { client, session };
 }
