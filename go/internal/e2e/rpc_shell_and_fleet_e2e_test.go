@@ -30,12 +30,16 @@ func TestRPCShellAndFleetE2E(t *testing.T) {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
-		markerPath := filepath.Join(ctx.WorkDir, "shell-rpc-"+randomHex(t)+".txt")
+		commandDir := filepath.Join(ctx.WorkDir, "shell-rpc-"+randomHex(t))
+		if err := os.Mkdir(commandDir, 0755); err != nil {
+			t.Fatalf("Failed to create shell command directory: %v", err)
+		}
+		markerPath := filepath.Join(commandDir, "marker.txt")
 		const marker = "copilot-sdk-shell-rpc"
 
-		cwd := ctx.WorkDir
+		cwd := commandDir
 		result, err := session.RPC.Shell.Exec(t.Context(), &rpc.ShellExecRequest{
-			Command: writeFileCommand(markerPath, marker),
+			Command: writeFileCommand(filepath.Base(markerPath), marker),
 			Cwd:     &cwd,
 		})
 		if err != nil {
@@ -174,11 +178,11 @@ func randomHex(t *testing.T) string {
 	return hex.EncodeToString(buf[:])
 }
 
-func writeFileCommand(markerPath, marker string) string {
+func writeFileCommand(markerName, marker string) string {
 	if runtime.GOOS == "windows" {
-		return fmt.Sprintf("powershell -NoLogo -NoProfile -Command \"Set-Content -LiteralPath '%s' -Value '%s'\"", markerPath, marker)
+		return fmt.Sprintf("echo %s>\"%s\"", marker, markerName)
 	}
-	return fmt.Sprintf("sh -c \"printf '%%s' '%s' > '%s'\"", marker, markerPath)
+	return fmt.Sprintf("sh -c \"printf '%%s' '%s' > '%s'\"", marker, markerName)
 }
 
 func waitForFileText(t *testing.T, path, expected string) {

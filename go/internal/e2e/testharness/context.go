@@ -163,6 +163,15 @@ func NewTestContext(t *testing.T) *TestContext {
 		os.RemoveAll(workDir)
 		t.Fatalf("Failed to start proxy: %v", err)
 	}
+	// Initialize the proxy before any client can start runtime requests. Tests that
+	// use a snapshot replace this empty configuration before model traffic begins.
+	dummySnapshotPath := filepath.Join(workDir, "__no_snapshot__.yaml")
+	if err := proxy.Configure(dummySnapshotPath, workDir); err != nil {
+		proxy.StopWithOptions(true)
+		os.RemoveAll(homeDir)
+		os.RemoveAll(workDir)
+		t.Fatalf("Failed to initialize proxy: %v", err)
+	}
 	if err := proxy.SetCopilotUserByToken(defaultGitHubToken, map[string]interface{}{
 		"login":        "e2e-test-user",
 		"copilot_plan": "individual_pro",
