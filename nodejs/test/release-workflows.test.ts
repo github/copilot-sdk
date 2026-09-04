@@ -19,6 +19,7 @@ describe("normal publishing workflow contract", () => {
         expect(publish).not.toContain("resume_run_id:");
         expect(publish).not.toContain("runtime-backed-node-release.yml");
         expect(publish).toContain("publish.yml only accepts latest or prerelease");
+        expect(publish).toMatch(/- name: Validate release channel\s+working-directory: \.\s+env:/);
         expect(publish).toContain(
             "prerelease namespace is reserved for runtime-driven SDK releases"
         );
