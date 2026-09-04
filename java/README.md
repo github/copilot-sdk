@@ -30,8 +30,6 @@ runtime.
 
 ### Maven
 
-Replace `${copilot.sdk.version}` with the latest release from Maven Central.
-
 ```xml
 <dependency>
     <groupId>com.github</groupId>
@@ -46,9 +44,11 @@ Replace `${copilot.sdk.version}` with the latest release from Maven Central.
 implementation 'com.github:copilot-sdk-java:1.0.13-preview.5'
 ```
 
-#### Snapshot Builds
+### Snapshot builds
 
-Snapshot builds of the next development version are published to Maven Central Snapshots. To use them, add the repository and update the dependency version in your `pom.xml`:
+Snapshot builds of the next development version are published to Maven Central Snapshots. To use them, add the snapshot repository and depend on the development version:
+
+#### Maven
 
 ```xml
 <repositories>
@@ -66,9 +66,7 @@ Snapshot builds of the next development version are published to Maven Central S
 </dependency>
 ```
 
-### Gradle
-
-Replace `${copilot.sdk.version}` with the latest release from Maven Central.
+#### Gradle
 
 ```groovy
 implementation 'com.github:copilot-sdk-java:1.0.14-preview.5-SNAPSHOT'
