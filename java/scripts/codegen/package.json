@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "generate": "tsx java.ts",
-    "generate:java": "tsx java.ts"
+    "generate:java": "tsx java.ts",
+    "test": "tsx --test java.test.ts"
   },
   "dependencies": {
     "@github/copilot": "^1.0.83-5",
