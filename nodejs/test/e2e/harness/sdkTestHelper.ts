@@ -2,7 +2,56 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+import type { ChildProcess } from "node:child_process";
 import { AssistantMessageEvent, CopilotSession, SessionEvent } from "../../../src";
+
+const CHILD_SHUTDOWN_TIMEOUT_MS = 1_000;
+
+export async function stopChildProcess(child: ChildProcess): Promise<void> {
+    if (hasChildExited(child)) {
+        return;
+    }
+
+    child.kill("SIGTERM");
+    if (await waitForChildExit(child, CHILD_SHUTDOWN_TIMEOUT_MS)) {
+        return;
+    }
+
+    child.kill("SIGKILL");
+    if (!(await waitForChildExit(child, CHILD_SHUTDOWN_TIMEOUT_MS))) {
+        throw new Error("Child process did not exit after SIGKILL");
+    }
+}
+
+function hasChildExited(child: ChildProcess): boolean {
+    return child.exitCode !== null || child.signalCode !== null;
+}
+
+function waitForChildExit(child: ChildProcess, timeoutMs: number): Promise<boolean> {
+    if (hasChildExited(child)) {
+        return Promise.resolve(true);
+    }
+
+    return new Promise<boolean>((resolvePromise) => {
+        let settled = false;
+        const finish = (exited: boolean) => {
+            if (settled) {
+                return;
+            }
+            settled = true;
+            clearTimeout(timeout);
+            child.off("exit", onExit);
+            resolvePromise(exited);
+        };
+        const onExit = () => finish(true);
+        const timeout = setTimeout(() => finish(false), timeoutMs);
+
+        child.once("exit", onExit);
+        if (hasChildExited(child)) {
+            onExit();
+        }
+    });
+}
 
 export async function getFinalAssistantMessage(
     session: CopilotSession,

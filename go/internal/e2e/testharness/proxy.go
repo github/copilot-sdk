@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,7 +13,10 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"time"
 )
+
+const proxyShutdownTimeout = 5 * time.Second
 
 // CapiProxy manages a child process that acts as a replaying proxy to AI endpoints.
 // It spawns the shared test harness server from test/harness/server.ts.
@@ -126,18 +130,43 @@ func (p *CapiProxy) StopWithOptions(skipWritingCache bool) error {
 			stopURL += "?skipWritingCache=true"
 		}
 		// Best effort - ignore errors
-		resp, err := http.Post(stopURL, "application/json", nil)
+		client := http.Client{Timeout: proxyShutdownTimeout}
+		resp, err := client.Post(stopURL, "application/json", nil)
 		if err == nil {
 			resp.Body.Close()
 		}
 	}
 
-	// Wait for process to exit
-	p.cmd.Wait()
+	cmd := p.cmd
+	exited := make(chan struct{}, 1)
+	go func() {
+		_ = cmd.Wait()
+		exited <- struct{}{}
+	}()
+	if !waitForProcessExit(exited, proxyShutdownTimeout) {
+		if err := cmd.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
+			return fmt.Errorf("failed to kill proxy process: %w", err)
+		}
+		if !waitForProcessExit(exited, proxyShutdownTimeout) {
+			return fmt.Errorf("proxy process did not exit after being killed")
+		}
+	}
 	p.cmd = nil
 	p.proxyURL = ""
 
 	return nil
+}
+
+func waitForProcessExit(exited <-chan struct{}, timeout time.Duration) bool {
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+
+	select {
+	case <-exited:
+		return true
+	case <-timer.C:
+		return false
+	}
 }
 
 // Configure sends configuration to the proxy.

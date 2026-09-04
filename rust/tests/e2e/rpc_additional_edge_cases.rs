@@ -547,7 +547,7 @@ async fn workspaces_getworkspace_returns_stable_result_across_calls() {
 #[cfg(windows)]
 fn delayed_marker_command(marker_path: &std::path::Path) -> String {
     format!(
-        "powershell -NoLogo -NoProfile -Command \"Start-Sleep -Seconds 2; Set-Content -LiteralPath '{}' -Value done\"",
+        "ping 127.0.0.1 -n 2 >nul & echo done>\"{}\"",
         marker_path.display()
     )
 }

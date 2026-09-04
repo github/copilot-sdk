@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { spawn } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
@@ -10,7 +10,7 @@ import { describe, expect, it, onTestFinished } from "vitest";
 import type { CopilotSession, MCPServerConfig, McpAuthRequest } from "../../src/index.js";
 import { approveAll } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
-import { waitForCondition } from "./harness/sdkTestHelper.js";
+import { stopChildProcess, waitForCondition } from "./harness/sdkTestHelper.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -19,7 +19,6 @@ const EXPECTED_TOKEN = "sdk-host-token";
 const REFRESH_TOKEN = `${EXPECTED_TOKEN}-refresh`;
 const UPSCOPE_TOKEN = `${EXPECTED_TOKEN}-upscope`;
 const REAUTH_TOKEN = `${EXPECTED_TOKEN}-reauth`;
-const CHILD_SHUTDOWN_TIMEOUT_MS = 1_000;
 
 describe("MCP OAuth host auth", async () => {
     const { copilotClient: client } = await createSdkTestContext({
@@ -323,7 +322,7 @@ async function startOAuthMcpServer(): Promise<{
         env: { ...process.env, EXPECTED_TOKEN },
         stdio: ["ignore", "pipe", "pipe"],
     });
-    onTestFinished(() => stopChild(child));
+    onTestFinished(() => stopChildProcess(child));
 
     const stderr: string[] = [];
     child.stderr.on("data", (chunk) => stderr.push(String(chunk)));
@@ -374,55 +373,6 @@ async function disconnectSession(session: CopilotSession): Promise<void> {
     } catch {
         // Best-effort cleanup.
     }
-}
-
-async function stopChild(child: ChildProcessWithoutNullStreams): Promise<void> {
-    if (hasChildExited(child)) {
-        return;
-    }
-
-    child.kill("SIGTERM");
-    if (await waitForChildExit(child, CHILD_SHUTDOWN_TIMEOUT_MS)) {
-        return;
-    }
-
-    child.kill("SIGKILL");
-    if (!(await waitForChildExit(child, CHILD_SHUTDOWN_TIMEOUT_MS))) {
-        throw new Error("OAuth MCP server did not exit after SIGKILL");
-    }
-}
-
-function hasChildExited(child: ChildProcessWithoutNullStreams): boolean {
-    return child.exitCode !== null || child.signalCode !== null;
-}
-
-function waitForChildExit(
-    child: ChildProcessWithoutNullStreams,
-    timeoutMs: number
-): Promise<boolean> {
-    if (hasChildExited(child)) {
-        return Promise.resolve(true);
-    }
-
-    return new Promise<boolean>((resolvePromise) => {
-        let settled = false;
-        const finish = (exited: boolean) => {
-            if (settled) {
-                return;
-            }
-            settled = true;
-            clearTimeout(timeout);
-            child.off("exit", onExit);
-            resolvePromise(exited);
-        };
-        const onExit = () => finish(true);
-        const timeout = setTimeout(() => finish(false), timeoutMs);
-
-        child.once("exit", onExit);
-        if (hasChildExited(child)) {
-            onExit();
-        }
-    });
 }
 
 function createAsyncQueue<T>(): { push(value: T): void; next(): Promise<T> } {
