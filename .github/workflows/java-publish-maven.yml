@@ -90,12 +90,13 @@ jobs:
       development_version: ${{ steps.versions.outputs.development_version }}
       release_tag: ${{ steps.release-identity.outputs.release_tag }}
       tag_commit: ${{ steps.release-identity.outputs.tag_commit }}
-      pre_prepare_commit: ${{ steps.pre-prepare.outputs.pre_prepare_commit }}
+      pre_prepare_commit: ${{ steps.update-docs.outputs.pre_prepare_commit }}
       post_prepare_commit: ${{ steps.release-identity.outputs.post_prepare_commit }}
       docs_commit: ${{ steps.update-docs.outputs.docs_commit_sha }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
+          ref: main
           fetch-depth: 0
           token: ${{ secrets.JAVA_RELEASE_TOKEN }}
 
@@ -150,16 +151,27 @@ jobs:
         run: |
           VERSION="${{ steps.versions.outputs.release_version }}"
           DEV_VERSION="${{ steps.versions.outputs.development_version }}"
-          ./scripts/test-update-documentation-versions.sh
-          ./scripts/update-documentation-versions.sh "$VERSION" "$DEV_VERSION" README.md sdk/jbang-example.java
-          git add README.md sdk/jbang-example.java
-          git commit -m "docs: update version references to ${VERSION}"
-          echo "docs_commit_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-          git push origin main
 
-      - name: Record rollback base
-        id: pre-prepare
-        run: echo "pre_prepare_commit=$(git rev-parse HEAD^)" >> "$GITHUB_OUTPUT"
+          for attempt in 1 2 3; do
+            git fetch origin main
+            git reset --hard origin/main
+            ./scripts/test-update-documentation-versions.sh
+            ./scripts/update-documentation-versions.sh "$VERSION" "$DEV_VERSION" README.md sdk/jbang-example.java
+            git add README.md sdk/jbang-example.java
+            git commit -m "docs: update version references to ${VERSION}"
+
+            if git push origin HEAD:main; then
+              echo "pre_prepare_commit=$(git rev-parse HEAD^)" >> "$GITHUB_OUTPUT"
+              echo "docs_commit_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+              break
+            fi
+
+            if [ "$attempt" -eq 3 ]; then
+              echo "::error::main continued to advance while preparing the Java release."
+              exit 1
+            fi
+            echo "main advanced during release preparation; retrying from the latest commit."
+          done
 
       - name: Prepare Release
         run: |
