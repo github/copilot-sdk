@@ -389,7 +389,7 @@ fn nonexistent_command() -> String {
 #[cfg(windows)]
 fn stderr_command(marker_path: &Path) -> String {
     format!(
-        "powershell -NoLogo -NoProfile -Command \"[Console]::Error.WriteLine('boom'); Set-Content -LiteralPath '{}' -Value done; exit 2\"",
+        "powershell -NoLogo -NoProfile -Command \"[Console]::Error.WriteLine('boom'); exit 2\" & echo done > \"{}\" & exit /b 2",
         marker_path.display()
     )
 }
