@@ -86,9 +86,27 @@ pub(crate) struct FfiShared {
 unsafe impl Send for FfiShared {}
 unsafe impl Sync for FfiShared {}
 
+/// Upper bound on how long [`FfiShared::close`] waits for the native
+/// `host_shutdown` export before giving up.
+///
+/// `host_shutdown` runs the runtime's own teardown (including closing its
+/// SQLite session store) synchronously. Previously `close()` called it
+/// in-line with no bound, so a slow or stuck native shutdown (observed on
+/// Windows in-process — see github/copilot-sdk#2525) would hang whichever
+/// thread called `close()`, including [`Client::force_stop`], which is
+/// documented as a synchronous, infallible recovery path for exactly this
+/// kind of hang. Running the native call on a dedicated thread and bounding
+/// the wait keeps `close()` (and thus `force_stop`) from hanging even if the
+/// native call itself never returns; the spawned thread still runs the call
+/// to completion and frees the callback state once it does, whether or not
+/// this bound elapsed first.
+const HOST_SHUTDOWN_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+
 impl FfiShared {
     /// Close the connection, shut the host down, and free the callback state.
-    /// Idempotent; called from [`Client::stop`], drop, and on startup failure.
+    /// Idempotent; called from [`Client::stop`], [`Client::force_stop`], drop,
+    /// and on startup failure. Synchronous but bounded: see
+    /// [`HOST_SHUTDOWN_TIMEOUT`].
     pub(crate) fn close(&self) {
         let _operation = self.operation_lock.lock();
         if self.closed.swap(true, Ordering::SeqCst) {
@@ -102,22 +120,65 @@ impl FfiShared {
         if conn != 0 {
             unsafe { (self.connection_close)(conn) };
         }
+
         let server = self.server_id.swap(0, Ordering::SeqCst);
-        if server != 0 {
-            unsafe { (self.host_shutdown)(server) };
-        }
-        // Free the callback state only after the connection is closed and the
-        // host is shut down, so native can no longer invoke the callback.
-        let state = self
+        let callback_state = self
             .callback_state
             .swap(std::ptr::null_mut(), Ordering::SeqCst);
+        let library_path = self.library_path.clone();
+
+        if server == 0 {
+            // Nothing native to shut down; free the callback state (if any) inline.
+            Self::finish_close(callback_state, &library_path);
+            return;
+        }
+
+        let host_shutdown = self.host_shutdown;
+        // Raw pointers aren't `Send`, but this one is only ever dereferenced by
+        // native code (which doesn't care which thread calls it) or freed once,
+        // after `host_shutdown` returns, so moving it into the spawned thread is
+        // sound.
+        let callback_state_addr = callback_state as usize;
+        let shutdown_library_path = library_path.clone();
+        let (done_tx, done_rx) = std::sync::mpsc::channel::<()>();
+        std::thread::spawn(move || {
+            unsafe { (host_shutdown)(server) };
+            // Free the callback state only after the host is shut down, so
+            // native can no longer invoke the callback.
+            Self::finish_close(
+                callback_state_addr as *mut CallbackState,
+                &shutdown_library_path,
+            );
+            let _ = done_tx.send(());
+        });
+
+        if done_rx.recv_timeout(HOST_SHUTDOWN_TIMEOUT).is_err() {
+            // The native call (and the callback-state cleanup that follows it)
+            // keeps running on the spawned thread; we just stop waiting here so
+            // the caller isn't blocked forever. This should be rare and
+            // indicates a runtime-side shutdown defect worth reporting
+            // upstream, not something for the SDK to retry.
+            tracing::warn!(
+                library = %library_path.display(),
+                timeout_ms = HOST_SHUTDOWN_TIMEOUT.as_millis(),
+                "FFI host_shutdown did not complete within timeout; abandoning wait \
+                 (shutdown continues on a background thread)",
+            );
+        }
+    }
+
+    /// Waits out any in-flight outbound callbacks and frees the callback
+    /// state. Must only be called after the native host has been (or is
+    /// guaranteed never to be) shut down, so native can no longer invoke the
+    /// callback.
+    fn finish_close(state: *mut CallbackState, library_path: &Path) {
         if !state.is_null() {
             while unsafe { &*state }.active_callbacks.load(Ordering::SeqCst) != 0 {
                 std::thread::yield_now();
             }
             drop(unsafe { Box::from_raw(state) });
         }
-        debug!(library = %self.library_path.display(), "FFI runtime connection closed");
+        debug!(library = %library_path.display(), "FFI runtime connection closed");
     }
 
     fn write_frame(&self, frame: &[u8]) -> bool {

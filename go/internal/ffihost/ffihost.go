@@ -38,16 +38,23 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 	"unsafe"
 
 	"github.com/ebitengine/purego"
 )
 
 const symbolPrefix = "copilot_runtime_"
+
+// hostShutdownTimeout bounds how long Dispose waits for the native
+// host_shutdown export; see (*Host).shutdownHost for why this exists. A var,
+// not a const, so tests can shrink it temporarily.
+var hostShutdownTimeout = 10 * time.Second
 
 // ffiLibrary binds the copilot_runtime_* C ABI exports of a loaded cdylib.
 type ffiLibrary struct {
@@ -223,10 +230,7 @@ func (h *Host) Start() error {
 	if h.connectionID == 0 {
 		outboundTargets.Delete(callbackToken)
 		h.callbackToken = 0
-		h.lib.hostShutdown(h.serverID)
-		if h.cliEntrypoint != "" {
-			rearmForeignSignalHandlers(h.lib.handle)
-		}
+		h.shutdownHost(h.serverID)
 		h.serverID = 0
 		return fmt.Errorf("copilot_runtime_connection_open failed")
 	}
@@ -358,14 +362,49 @@ func (h *Host) Dispose() {
 	if connID != 0 {
 		h.lib.connectionClose(connID)
 	}
+	h.recv.Close()
+
 	if serverID != 0 {
+		h.shutdownHost(serverID)
+	}
+}
+
+// shutdownHost calls the native host_shutdown export on a dedicated goroutine
+// and bounds how long callers wait for it.
+//
+// host_shutdown runs the runtime's own teardown (including closing its SQLite
+// session store) synchronously. Calling it in-line with no bound previously
+// meant a slow or stuck native shutdown (observed on Windows in-process — see
+// github/copilot-sdk#2525) could hang whichever goroutine called Dispose,
+// including [Client.ForceStop], which exists specifically as the recovery
+// path for a hung/slow Stop. Running the call on its own goroutine and
+// bounding the wait keeps Dispose (and thus ForceStop) from hanging even if
+// the native call itself never returns; the goroutine still runs the call to
+// completion in the background if the bound elapses first.
+func (h *Host) shutdownHost(serverID uint32) {
+	done := make(chan struct{})
+	go func() {
 		h.lib.hostShutdown(serverID)
 		if h.cliEntrypoint != "" {
 			// A legacy host may restore its saved SIGCHLD action during shutdown.
 			rearmForeignSignalHandlers(h.lib.handle)
 		}
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(hostShutdownTimeout):
+		// The native call (and the signal-handler rearm that follows it) keeps
+		// running on the background goroutine; we just stop waiting here so
+		// the caller is not blocked forever. This should be rare and
+		// indicates a runtime-side shutdown defect worth reporting upstream,
+		// not something for the SDK to retry.
+		log.Printf(
+			"in-process FFI host_shutdown did not complete within %s; abandoning wait (shutdown continues in background)",
+			hostShutdownTimeout,
+		)
 	}
-	h.recv.Close()
 }
 
 // hostWriter adapts Host into the io.WriteCloser jsonrpc2 writes request frames to.

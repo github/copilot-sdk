@@ -49,6 +49,10 @@ logger = logging.getLogger("copilot.ffi")
 
 _SYMBOL_PREFIX = "copilot_runtime_"
 
+# Upper bound on how long dispose() waits for the native host_shutdown call to
+# complete; see FfiRuntimeHost._shutdown_host for why this exists.
+_HOST_SHUTDOWN_TIMEOUT_SECONDS = 10.0
+
 # The C ABI outbound callback: void(void *user_data, uint8 *bytes, size_t len).
 _OutboundCallback = ctypes.CFUNCTYPE(
     None, ctypes.c_void_p, ctypes.POINTER(ctypes.c_uint8), ctypes.c_size_t
@@ -438,7 +442,7 @@ class FfiRuntimeHost:
         )
         if not self._connection_id:
             self._outbound_callback = None
-            self._lib.host_shutdown(self._server_id)
+            self._shutdown_host(self._server_id)
             self._server_id = 0
             raise RuntimeError("copilot_runtime_connection_open failed.")
 
@@ -502,14 +506,53 @@ class FfiRuntimeHost:
         except Exception:  # noqa: BLE001
             logger.debug("Error closing in-process FFI connection", exc_info=True)
 
-        try:
-            if self._server_id:
-                self._lib.host_shutdown(self._server_id)
-                self._server_id = 0
-        except Exception:  # noqa: BLE001
-            logger.debug("Error shutting down in-process FFI host", exc_info=True)
+        server_id = self._server_id
+        self._server_id = 0
+        if server_id:
+            self._shutdown_host(server_id)
+        else:
+            self._outbound_callback = None
 
         self._receive_buffer.close()
-        # Safe to drop now: no native code can invoke the callback after
-        # connection_close, and all in-flight callbacks have drained.
-        self._outbound_callback = None
+
+    def _shutdown_host(self, server_id: int) -> None:
+        """Calls the native ``host_shutdown`` export and bounds how long callers
+        wait for it.
+
+        ``host_shutdown`` runs the runtime's own teardown (including closing its
+        SQLite session store) synchronously. Calling it in-line with no bound
+        previously meant a slow or stuck native shutdown (observed on Windows
+        in-process — see github/copilot-sdk#2525) could hang whichever thread
+        called ``dispose()``, including the synchronous ``terminate``/``kill``/
+        ``wait`` methods of the process-like adapter used by
+        :meth:`CopilotClient.force_stop`. Running the call on a dedicated
+        thread and bounding the wait keeps callers from hanging even if the
+        native call itself never returns; the callback reference is only
+        dropped once the native call actually completes, whether or not this
+        bound elapsed first (freeing it earlier risks a use-after-free if
+        native code were to invoke it from an abandoned call).
+        """
+        done = threading.Event()
+
+        def run() -> None:
+            try:
+                self._lib.host_shutdown(server_id)
+            except Exception:  # noqa: BLE001
+                logger.debug("Error shutting down in-process FFI host", exc_info=True)
+            finally:
+                self._outbound_callback = None
+                done.set()
+
+        threading.Thread(target=run, name="copilot-ffi-host-shutdown", daemon=True).start()
+
+        if not done.wait(timeout=_HOST_SHUTDOWN_TIMEOUT_SECONDS):
+            # The native call (and the callback drop that follows it) keeps
+            # running on the background thread; we just stop waiting here so
+            # the caller is not blocked forever. This should be rare and
+            # indicates a runtime-side shutdown defect worth reporting
+            # upstream, not something for the SDK to retry.
+            logger.warning(
+                "In-process FFI host_shutdown did not complete within %.0fs; "
+                "abandoning wait (shutdown continues on a background thread).",
+                _HOST_SHUTDOWN_TIMEOUT_SECONDS,
+            )

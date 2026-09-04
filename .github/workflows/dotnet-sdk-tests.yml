@@ -56,19 +56,23 @@ jobs:
         transport: ["default", "inprocess"]
         backend: [capi]
         shard: [full]
-        # TODO: Re-enable after fixing in-process sqlite file locking on shutdown on Windows.
         exclude:
-          - os: windows-latest
-            transport: "inprocess"
           - os: windows-latest
             transport: default
             shard: full
           # TODO(cli-1.0.81-2): CLI 1.0.81-5 still stops completing in-process
           # CAPI model turns, causing repeated per-test timeouts until the
           # 30-minute job limit. Stdio CAPI and in-process BYOK remain enabled.
+          # This affects every OS equally (it is a CLI/CAPI regression, not a
+          # platform-specific one), so Windows is excluded from the `capi`
+          # in-process cell for the same reason as Linux/macOS below; see the
+          # windows-latest/inprocess include cells further down for its
+          # in-process coverage via the alternate backends.
           - os: ubuntu-latest
             transport: inprocess
           - os: macos-latest
+            transport: inprocess
+          - os: windows-latest
             transport: inprocess
           # The macOS default/capi host runs the whole suite on the smallest
           # runner in the matrix (3 vCPU / 7 GB vs ubuntu's 4 / 16). Since the
@@ -178,6 +182,28 @@ jobs:
             shard: full
             test-filter: "FullyQualifiedName~GitHub.Copilot.Test.E2E&E2EBackend!=SelfConfiguredBackend&E2EBackend!=CapiOnly"
           - os: ubuntu-latest
+            transport: inprocess
+            backend: openai-completions
+            shard: full
+            test-filter: "FullyQualifiedName~GitHub.Copilot.Test.E2E&E2EBackend!=SelfConfiguredBackend&E2EBackend!=CapiOnly"
+          # Windows in-process coverage (github/copilot-sdk#2525). Previously excluded
+          # entirely because of a napi-oop cleanup race and a suspected in-process SQLite
+          # file-locking issue on shutdown; napi-oop is no longer used by the runtime, and
+          # FfiRuntimeHost.Dispose() now bounds its wait on native shutdown so a slow or
+          # stuck runtime teardown cannot hang the job. Uses the same non-capi backends as
+          # the Linux cell above to avoid the unrelated CLI 1.0.81-2 in-process CAPI
+          # regression tracked separately.
+          - os: windows-latest
+            transport: inprocess
+            backend: anthropic-messages
+            shard: full
+            test-filter: "FullyQualifiedName~GitHub.Copilot.Test.E2E&E2EBackend!=SelfConfiguredBackend&E2EBackend!=CapiOnly"
+          - os: windows-latest
+            transport: inprocess
+            backend: openai-responses
+            shard: full
+            test-filter: "FullyQualifiedName~GitHub.Copilot.Test.E2E&E2EBackend!=SelfConfiguredBackend&E2EBackend!=CapiOnly"
+          - os: windows-latest
             transport: inprocess
             backend: openai-completions
             shard: full

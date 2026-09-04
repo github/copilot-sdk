@@ -206,8 +206,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # TODO: Re-enable Windows after fixing the napi-oop peer shutdown crash.
-        os: [ubuntu-latest, macos-latest]
+        # Windows was previously excluded here because of a napi-oop peer
+        # shutdown crash. The runtime no longer depends on a Node
+        # child/parent process (napi-oop is gone), so that failure mode no
+        # longer applies; see github/copilot-sdk#2525 and #1934. Re-enabled
+        # so Windows gets the same in-process E2E coverage as Linux/macOS.
+        os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     defaults:

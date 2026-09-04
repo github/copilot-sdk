@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 using Microsoft.Extensions.Logging;
+using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -37,6 +38,24 @@ internal sealed partial class FfiRuntimeHost : IDisposable
 {
     /// <summary>Logical name the native interop layer binds the cdylib to.</summary>
     private const string LibraryName = "copilot_runtime";
+
+    /// <summary>
+    /// Upper bound on how long <see cref="Dispose"/> waits for the native
+    /// <c>copilot_runtime_host_shutdown</c> call to return.
+    /// </summary>
+    /// <remarks>
+    /// This call runs the loaded runtime's own teardown (including closing its SQLite
+    /// session store) synchronously in this process, with no cancellation hook exposed
+    /// across the FFI boundary. A caller may already have asked the runtime to shut down
+    /// gracefully over JSON-RPC (<c>Runtime.ShutdownAsync</c>) before reaching here, so
+    /// this call is expected to be fast; it exists mainly to release the loaded
+    /// library's resources. But because in-process hosting shares this process (there is
+    /// no child process to kill if it does not return), a stuck or slow native shutdown
+    /// would otherwise hang <see cref="Dispose"/> forever, defeating <c>ForceStopAsync</c>'s
+    /// contract of an immediate hard stop. Bounding the wait keeps teardown deterministic
+    /// even if the runtime's shutdown path never returns; see github/copilot-sdk#2525.
+    /// </remarks>
+    private static readonly TimeSpan s_hostShutdownTimeout = TimeSpan.FromSeconds(10);
 
     private readonly ILogger _logger;
     private readonly string? _cliEntrypoint;
@@ -225,21 +244,58 @@ internal sealed partial class FfiRuntimeHost : IDisposable
             _logger.LogDebug(ex, "FfiRuntimeHost: connection_close failed");
         }
 
-        try
+        _receiveStream.Complete();
+
+        var serverId = _serverId;
+        _serverId = 0;
+        if (serverId == 0)
         {
-            if (_serverId != 0)
-            {
-                NativeHostShutdown(_serverId);
-                _serverId = 0;
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(ex, "FfiRuntimeHost: host_shutdown failed");
+            DisposeNativeCallback();
+            return;
         }
 
-        _receiveStream.Complete();
-        DisposeNativeCallback();
+        var shutdownTimestamp = Stopwatch.GetTimestamp();
+
+        // Run the blocking native call on a pooled thread so this Dispose() call can
+        // enforce a bound on it instead of hanging indefinitely if the runtime's own
+        // shutdown never returns. The callback GCHandle is freed only once the native
+        // call actually returns (inside the task, not here), so a slow-but-eventually-
+        // completing shutdown cannot race a native callback against a freed handle even
+        // when this method stops waiting early.
+        var shutdownTask = Task.Run(() =>
+        {
+            try
+            {
+                NativeHostShutdown(serverId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "FfiRuntimeHost: host_shutdown failed");
+            }
+            finally
+            {
+                DisposeNativeCallback();
+            }
+        });
+
+        if (shutdownTask.Wait(s_hostShutdownTimeout))
+        {
+            LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
+                "FfiRuntimeHost: host_shutdown complete. Elapsed={Elapsed}",
+                shutdownTimestamp);
+        }
+        else
+        {
+            // The native call (and the callback cleanup that follows it) keeps running
+            // on the abandoned background thread; we just stop waiting on it here so the
+            // caller (e.g. ForceStopAsync) is not blocked forever. This should be rare
+            // and indicates a runtime-side shutdown defect worth reporting upstream, not
+            // something for the SDK to retry.
+            LoggingHelpers.LogTiming(_logger, LogLevel.Warning, null,
+                "FfiRuntimeHost: host_shutdown did not complete within Elapsed={Elapsed}, Timeout={Timeout}; abandoning wait.",
+                shutdownTimestamp,
+                s_hostShutdownTimeout);
+        }
     }
 
     /// <summary>Length as the native pointer-sized unsigned integer the ABI expects.</summary>
