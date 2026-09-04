@@ -255,6 +255,7 @@ async fn should_cancel_pending_mcp_oauth_request() {
 }
 
 #[tokio::test]
+#[ignore = "blocked on github/copilot-agent-runtime#18961 MCP OAuth connection stall"]
 async fn should_resolve_pending_mcp_oauth_request_through_rpc() {
     with_e2e_context_no_snapshot(|ctx| {
         Box::pin(async move {
