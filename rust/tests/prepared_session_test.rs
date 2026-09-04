@@ -350,6 +350,32 @@ async fn prepared_resume_delivers_pre_response_burst() {
 
     let session = timeout(TIMEOUT, start).await.unwrap().unwrap().unwrap();
     expect_startup_burst(&mut events).await;
+    let mut late = session.subscribe();
+    assert!(
+        timeout(QUIET, late.recv()).await.is_err(),
+        "an active prepared subscriber must prevent implicit bootstrap replay"
+    );
+    server
+        .send_event(session_id.as_str(), "evt-live", "assistant.message", false)
+        .await;
+    assert_eq!(
+        timeout(TIMEOUT, events.recv())
+            .await
+            .unwrap()
+            .unwrap()
+            .id
+            .as_str(),
+        "evt-live"
+    );
+    assert_eq!(
+        timeout(TIMEOUT, late.recv())
+            .await
+            .unwrap()
+            .unwrap()
+            .id
+            .as_str(),
+        "evt-live"
+    );
     drop(session);
 }
 
@@ -564,6 +590,65 @@ async fn cancelled_prepared_resume_cleans_up_and_allows_retry() {
     server.answer_skills_reload().await;
     let session = timeout(TIMEOUT, retry).await.unwrap().unwrap().unwrap();
     assert_eq!(session.id(), &session_id);
+    drop(session);
+}
+
+#[tokio::test]
+async fn cancelled_resume_wrapper_cleans_implicit_bootstrap_and_allows_retry() {
+    let (client, mut server) = make_client();
+    let session_id = SessionId::new("resume-wrapper-cancel");
+
+    let start = tokio::spawn({
+        let client = client.clone();
+        let session_id = session_id.clone();
+        async move {
+            client
+                .resume_session(ResumeSessionConfig::new(session_id))
+                .await
+        }
+    });
+
+    let resume_req = server.read_request().await;
+    assert_eq!(resume_req["method"], "session.resume");
+    start.abort();
+    let _ = start.await;
+    await_no_registrations(&client).await;
+
+    let retry = tokio::spawn({
+        let client = client.clone();
+        let session_id = session_id.clone();
+        async move {
+            client
+                .resume_session(ResumeSessionConfig::new(session_id))
+                .await
+        }
+    });
+    let retry_req = server.read_request().await;
+    assert_eq!(retry_req["method"], "session.resume");
+    server
+        .respond(&retry_req, json!({ "sessionId": session_id.as_str() }))
+        .await;
+    server.answer_skills_reload().await;
+    let session = timeout(TIMEOUT, retry).await.unwrap().unwrap().unwrap();
+    let mut events = session.subscribe();
+
+    server
+        .send_event(
+            session_id.as_str(),
+            "evt-after-retry",
+            "assistant.message",
+            false,
+        )
+        .await;
+    assert_eq!(
+        timeout(TIMEOUT, events.recv())
+            .await
+            .unwrap()
+            .unwrap()
+            .id
+            .as_str(),
+        "evt-after-retry"
+    );
     drop(session);
 }
 
@@ -884,6 +969,7 @@ async fn resume_session_wrapper_keeps_rpc_sequence() {
     let resume_req = server.read_request().await;
     assert_eq!(resume_req["method"], "session.resume");
     assert_eq!(resume_req["params"]["sessionId"], session_id.as_str());
+    server.send_startup_burst(session_id.as_str()).await;
     server
         .respond(&resume_req, json!({ "sessionId": session_id.as_str() }))
         .await;
@@ -891,7 +977,47 @@ async fn resume_session_wrapper_keeps_rpc_sequence() {
 
     let session = timeout(TIMEOUT, start).await.unwrap().unwrap().unwrap();
     assert_eq!(session.id(), &session_id);
-    server.expect_quiet().await;
+    let mut first = session.subscribe();
+    let mut second = session.subscribe();
+
+    expect_startup_burst(&mut first).await;
+    assert!(
+        timeout(QUIET, second.recv()).await.is_err(),
+        "only the first post-resume subscriber may claim the bootstrap"
+    );
+
+    // Polling past the retained prefix atomically activates the existing
+    // bounded broadcast stream.
+    assert!(timeout(QUIET, first.recv()).await.is_err());
+    server
+        .send_event(session_id.as_str(), "evt-live", "assistant.message", false)
+        .await;
+    assert_eq!(
+        timeout(TIMEOUT, first.recv())
+            .await
+            .unwrap()
+            .unwrap()
+            .id
+            .as_str(),
+        "evt-live"
+    );
+    assert_eq!(
+        timeout(TIMEOUT, second.recv())
+            .await
+            .unwrap()
+            .unwrap()
+            .id
+            .as_str(),
+        "evt-live"
+    );
+    assert!(
+        timeout(QUIET, first.recv()).await.is_err(),
+        "first subscriber received a duplicate event"
+    );
+    assert!(
+        timeout(QUIET, second.recv()).await.is_err(),
+        "second subscriber received a duplicate event"
+    );
     drop(session);
 }
 
