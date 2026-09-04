@@ -74,10 +74,13 @@ class CatalogCandidateJacksonTest {
         var skill = assertInstanceOf(CatalogAiSkillCandidate.class, succeeded.getCandidates().get(1));
         assertInstanceOf(CatalogCandidateSourceEmbedded.class, skill.getSource());
 
-        var serialized = MAPPER.valueToTree(result);
-        assertEquals("mcp-server", serialized.at("/candidates/0/kind").asText());
-        assertEquals("url", serialized.at("/candidates/0/source/kind").asText());
-        assertEquals("ai-skill", serialized.at("/candidates/1/kind").asText());
-        assertEquals("embedded", serialized.at("/candidates/1/source/kind").asText());
+        var serializedJson = MAPPER.writeValueAsString(result);
+        assertEquals(6, serializedJson.split("\"kind\"", -1).length - 1);
+
+        var serializedTree = MAPPER.readTree(serializedJson);
+        assertEquals("mcp-server", serializedTree.at("/candidates/0/kind").asText());
+        assertEquals("url", serializedTree.at("/candidates/0/source/kind").asText());
+        assertEquals("ai-skill", serializedTree.at("/candidates/1/kind").asText());
+        assertEquals("embedded", serializedTree.at("/candidates/1/source/kind").asText());
     }
 }

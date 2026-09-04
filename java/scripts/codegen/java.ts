@@ -513,7 +513,10 @@ async function generatePolymorphicResultClass(
         baseLines.push(` * @since 1.0.0`);
         baseLines.push(` */`);
     }
-    baseLines.push(`@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "${discriminator.property}", visible = true)`);
+    const typeInfoInclude = promotedNestedUnionTypes.has(className)
+        ? `, include = JsonTypeInfo.As.EXISTING_PROPERTY`
+        : "";
+    baseLines.push(`@JsonTypeInfo(use = JsonTypeInfo.Id.NAME${typeInfoInclude}, property = "${discriminator.property}", visible = true)`);
     baseLines.push(`@JsonSubTypes({`);
     for (let i = 0; i < variantInfos.length; i++) {
         const v = variantInfos[i];
