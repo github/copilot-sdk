@@ -27,6 +27,7 @@ from copilot import (
     StdioRuntimeConnection,
     define_tool,
 )
+from copilot._generated.rpc import AutoTier as AutoTierEnum
 from copilot.client import (
     CloudSessionOptions,
     CloudSessionRepository,
@@ -40,7 +41,6 @@ from copilot.client import (
     ModelLimits,
     ModelSupports,
 )
-from copilot.generated.rpc import AutoTier as AutoTierEnum
 from copilot.session import CopilotSession, PermissionHandler
 from copilot.session_events import (
     McpOauthRequestReason,
@@ -3474,7 +3474,7 @@ class TestGitHubTelemetry:
 
     @pytest.mark.asyncio
     async def test_event_routes_to_handler(self):
-        from copilot.generated.rpc import GitHubTelemetryNotification
+        from copilot.rpc import GitHubTelemetryNotification
 
         received: list = []
 
@@ -3533,7 +3533,7 @@ class TestGitHubTelemetry:
 
     @pytest.mark.asyncio
     async def test_event_routes_to_async_handler(self):
-        from copilot.generated.rpc import GitHubTelemetryNotification
+        from copilot.rpc import GitHubTelemetryNotification
 
         received: list = []
         delivered = asyncio.Event()
