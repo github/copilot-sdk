@@ -30,6 +30,7 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/klauspost/compress/zstd"
 )
@@ -923,7 +924,10 @@ func mustDecodeBase64(s string) []byte {
 `, buildConstraint, pkgName, binaryName, licenseName, runtimeEmbed, muslEmbed, cliVersion, hashBase64, runtimeConfig, muslConfig, runtimeReader, muslReaders)
 }
 
-var releaseChecksumCache = map[string]map[string]string{}
+var (
+	releaseChecksumCache = map[string]map[string]string{}
+	releaseHTTPClient    = &http.Client{Timeout: 10 * time.Minute}
+)
 
 func cliDownloadBaseURL() string {
 	if override := strings.TrimRight(os.Getenv(cliDownloadBaseURLEnvironment), "/"); override != "" {
@@ -960,7 +964,7 @@ func getReleaseChecksum(version, assetName string) (string, error) {
 	if !ok {
 		checksumsURL := fmt.Sprintf("%s/v%s/SHA256SUMS.txt", baseURL, version)
 		fmt.Printf("Downloading checksums from %s...\n", checksumsURL)
-		resp, err := http.Get(checksumsURL)
+		resp, err := releaseHTTPClient.Get(checksumsURL)
 		if err != nil {
 			return "", fmt.Errorf("failed to download checksums: %w", err)
 		}
@@ -995,7 +999,7 @@ func downloadCLIBinary(runtimePlatform, binaryName, cliVersion, destDir string) 
 
 	fmt.Printf("Downloading from %s...\n", tarballURL)
 
-	resp, err := http.Get(tarballURL)
+	resp, err := releaseHTTPClient.Get(tarballURL)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to download: %w", err)
 	}

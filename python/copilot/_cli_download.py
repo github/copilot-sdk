@@ -272,6 +272,8 @@ _HOSTLESS_EXCLUDED_TOP_LEVEL = {
 
 
 def _hostless_runtime_path(member_name: str, runtime_platform: str) -> Path | None:
+    if "\\" in member_name:
+        raise RuntimeError(f"Unsafe runtime package path: {member_name}")
     parts = PurePosixPath(member_name).parts
     if not parts or parts[0] != "package" or len(parts) < 2:
         return None

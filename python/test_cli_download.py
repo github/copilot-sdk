@@ -82,6 +82,15 @@ def test_release_asset_uses_platform_package_name(monkeypatch):
     )
 
 
+@pytest.mark.parametrize(
+    "member_name",
+    ["package/../outside", r"package\..\outside"],
+)
+def test_hostless_runtime_path_rejects_traversal(member_name):
+    with pytest.raises(RuntimeError, match="Unsafe runtime package path"):
+        _cli_download._hostless_runtime_path(member_name, "linux-x64")
+
+
 def test_rejects_release_package_checksum_mismatch(tmp_path):
     runtime_platform = "linux-x64"
     data = _release_package(runtime_platform)
