@@ -107,9 +107,11 @@ Follow these steps to embed the CLI:
 1. Run `go get -tool github.com/github/copilot-sdk/go/cmd/bundler`. This is a one-time setup step per project.
 2. Run `go tool bundler` in your build environment just before building your application.
 
+The bundler downloads the pinned `github/copilot-cli` release archive and verifies it against that release's `SHA256SUMS.txt` before extracting any files. Set `COPILOT_CLI_DOWNLOAD_BASE_URL` to use a release mirror while packaging.
+
 That's it! When your application calls `copilot.NewClient` without a `Connection` field (or with an empty `StdioConnection{}`), the SDK automatically installs the embedded `copilot-runtime` executable and adjacent `runtime.node` to a cache directory for managed child-process connections.
 
-The bundler prepares the native runtime library required by the [in-process transport](#in-process-transport-experimental). It is included in the application only when building with the `copilot_inprocess` build tag.
+The bundled runtime also provides the native library required by the [in-process transport](#in-process-transport-experimental). The `copilot_inprocess` build tag enables the transport implementation; both connection modes use the same embedded runtime artifacts.
 
 ## In-process transport (Experimental)
 

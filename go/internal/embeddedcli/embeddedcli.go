@@ -26,7 +26,7 @@ import (
 // when provided, is written next to the installed binary.
 //
 // RuntimeExecutable and RuntimeNode form the adjacent out-of-process runtime
-// pair. RuntimeAssets is a filtered npm package archive containing auxiliary
+// pair. RuntimeAssets is a filtered CLI release archive containing auxiliary
 // binaries and resources. RuntimeLib is the same cdylib bytes installed under
 // the natural platform name for the optional in-process transport.
 type Config struct {
@@ -234,21 +234,11 @@ func isMusl() bool {
 }
 
 func installAt(installDir string) (string, error) {
-	version := sanitizeVersion(config.Version)
-	if version != "" {
-		installDir = filepath.Join(installDir, version)
+	installDir, release, err := prepareInstallDir(installDir)
+	if err != nil {
+		return "", err
 	}
-	if linuxMuslBundle {
-		installDir = filepath.Join(installDir, "linuxmusl")
-	}
-	if err := os.MkdirAll(installDir, 0755); err != nil {
-		return "", fmt.Errorf("creating install directory: %w", err)
-	}
-
-	// Best effort to prevent concurrent installs.
-	if release, _ := flock.Acquire(filepath.Join(installDir, ".copilot-cli.lock")); release != nil {
-		defer release()
-	}
+	defer release()
 
 	binaryName := "copilot"
 	if runtime.GOOS == "windows" {
@@ -256,40 +246,8 @@ func installAt(installDir string) (string, error) {
 	}
 	finalPath := filepath.Join(installDir, binaryName)
 
-	if _, err := os.Stat(finalPath); err == nil {
-		existingHash, err := hashFile(finalPath)
-		if err != nil {
-			return "", fmt.Errorf("hashing existing binary: %w", err)
-		}
-		if !bytes.Equal(existingHash, config.CliHash) {
-			return "", fmt.Errorf("existing binary hash mismatch")
-		}
-		if config.RuntimeLib != nil {
-			libPath, err := installRuntimeLib(installDir)
-			if err != nil {
-				return "", err
-			}
-			runtimeLibPath = libPath
-		}
-		if err := installRuntimeAssets(installDir); err != nil {
-			return "", err
-		}
-		return finalPath, nil
-	}
-
-	f, err := os.OpenFile(finalPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0755)
-	if err != nil {
-		return "", fmt.Errorf("creating binary file: %w", err)
-	}
-	_, err = io.Copy(f, config.Cli)
-	if err1 := f.Close(); err1 != nil && err == nil {
-		err = err1
-	}
-	if closer, ok := config.Cli.(io.Closer); ok {
-		closer.Close()
-	}
-	if err != nil {
-		return "", fmt.Errorf("writing binary file: %w", err)
+	if err := installVerifiedFile(finalPath, config.Cli, config.CliHash, 0755, "binary"); err != nil {
+		return "", err
 	}
 	if len(config.License) > 0 {
 		licensePath := finalPath + ".license"
@@ -305,30 +263,22 @@ func installAt(installDir string) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		if err := installRuntimeAssets(installDir); err != nil {
-			return "", err
-		}
 		runtimeLibPath = libPath
+	}
+	if err := installRuntimeAssets(installDir); err != nil {
+		return "", err
 	}
 
 	return finalPath, nil
 }
 
 func installRuntimeAt(installDir string) (string, error) {
-	version := sanitizeVersion(config.Version)
-	if version != "" {
-		installDir = filepath.Join(installDir, version)
+	installDir, release, err := prepareInstallDir(installDir)
+	if err != nil {
+		return "", err
 	}
-	if linuxMuslBundle {
-		installDir = filepath.Join(installDir, "linuxmusl")
-	}
-	if err := os.MkdirAll(installDir, 0755); err != nil {
-		return "", fmt.Errorf("creating install directory: %w", err)
-	}
+	defer release()
 
-	if release, _ := flock.Acquire(filepath.Join(installDir, ".copilot-cli.lock")); release != nil {
-		defer release()
-	}
 	path, err := installRuntimePair(installDir)
 	if err != nil {
 		return "", err
@@ -337,6 +287,26 @@ func installRuntimeAt(installDir string) (string, error) {
 		return "", err
 	}
 	return path, nil
+}
+
+func prepareInstallDir(installDir string) (string, func() error, error) {
+	version := sanitizeVersion(config.Version)
+	if version != "" {
+		installDir = filepath.Join(installDir, version)
+	}
+	if linuxMuslBundle {
+		installDir = filepath.Join(installDir, "linuxmusl")
+	}
+	if err := os.MkdirAll(installDir, 0755); err != nil {
+		return "", nil, fmt.Errorf("creating install directory: %w", err)
+	}
+
+	// Best effort to prevent concurrent installs across processes.
+	release, _ := flock.Acquire(filepath.Join(installDir, ".copilot-cli.lock"))
+	if release == nil {
+		release = func() error { return nil }
+	}
+	return installDir, release, nil
 }
 
 func validateOptionalHash(reader io.Reader, hash []byte, name string) {
@@ -449,7 +419,7 @@ func installVerifiedFile(path string, reader io.Reader, expectedHash []byte, mod
 		return nil
 	}
 
-	tmp, err := os.CreateTemp(filepath.Dir(path), ".copilot-runtime-pair-*.tmp")
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".copilot-artifact-*.tmp")
 	if err != nil {
 		return fmt.Errorf("creating temporary %s: %w", label, err)
 	}
@@ -495,43 +465,8 @@ func installRuntimeLib(installDir string) (string, error) {
 		return "", fmt.Errorf("RuntimeLibHash must be a SHA-256 hash (%d bytes), got %d bytes", sha256.Size, len(config.RuntimeLibHash))
 	}
 	libPath := filepath.Join(installDir, naturalRuntimeLibName())
-
-	if _, err := os.Stat(libPath); err == nil {
-		existingHash, err := hashFile(libPath)
-		if err != nil {
-			return "", fmt.Errorf("hashing existing runtime library: %w", err)
-		}
-		if !bytes.Equal(existingHash, config.RuntimeLibHash) {
-			return "", fmt.Errorf("existing runtime library hash mismatch")
-		}
-		return libPath, nil
-	}
-
-	// Write to a temp file in the same directory, verify, then atomically rename.
-	tmp, err := os.CreateTemp(installDir, ".copilot-runtime-*.tmp")
-	if err != nil {
-		return "", fmt.Errorf("creating temp runtime library: %w", err)
-	}
-	tmpPath := tmp.Name()
-	h := sha256.New()
-	_, err = io.Copy(io.MultiWriter(tmp, h), config.RuntimeLib)
-	if err1 := tmp.Close(); err1 != nil && err == nil {
-		err = err1
-	}
-	if closer, ok := config.RuntimeLib.(io.Closer); ok {
-		closer.Close()
-	}
-	if err != nil {
-		os.Remove(tmpPath)
-		return "", fmt.Errorf("writing runtime library: %w", err)
-	}
-	if !bytes.Equal(h.Sum(nil), config.RuntimeLibHash) {
-		os.Remove(tmpPath)
-		return "", fmt.Errorf("runtime library hash mismatch")
-	}
-	if err := os.Rename(tmpPath, libPath); err != nil {
-		os.Remove(tmpPath)
-		return "", fmt.Errorf("installing runtime library: %w", err)
+	if err := installVerifiedFile(libPath, config.RuntimeLib, config.RuntimeLibHash, 0644, "runtime library"); err != nil {
+		return "", err
 	}
 	return libPath, nil
 }
