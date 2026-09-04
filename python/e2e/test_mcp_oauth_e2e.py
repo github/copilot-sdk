@@ -7,7 +7,7 @@ from typing import Any
 import httpx
 import pytest
 
-from copilot.generated.rpc import (
+from copilot.rpc import (
     GitHubTokenAcquireResultKind,
     MCPAppsCallToolRequest,
     MCPListToolsRequest,

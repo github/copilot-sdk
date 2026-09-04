@@ -8,7 +8,7 @@ import re
 import pytest
 
 from copilot.client import CopilotClient, RuntimeConnection
-from copilot.generated.rpc import ProviderEndpointType, ProviderEndpointWireApi
+from copilot.rpc import ProviderEndpointType, ProviderEndpointWireApi
 from copilot.session import PermissionHandler
 
 from .testharness import E2ETestContext

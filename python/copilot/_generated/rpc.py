@@ -5168,7 +5168,7 @@ class MCPConfigRemoveRequest:
 # Experimental: this type is part of an experimental API and may change or be removed.
 # Internal: this type is an internal SDK API and is not part of the public surface.
 @dataclass
-class MCPConfigureGitHubRequest:
+class _MCPConfigureGitHubRequest:
     """Credential-free authentication identity used to configure GitHub MCP."""
 
     auth_info: Any = None
@@ -5177,10 +5177,10 @@ class MCPConfigureGitHubRequest:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'MCPConfigureGitHubRequest':
+    def from_dict(obj: Any) -> '_MCPConfigureGitHubRequest':
         assert isinstance(obj, dict)
         auth_info = obj.get("authInfo")
-        return MCPConfigureGitHubRequest(auth_info)
+        return _MCPConfigureGitHubRequest(auth_info)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -5973,7 +5973,7 @@ class MCPServerConfigType(Enum):
 # Experimental: this type is part of an experimental API and may change or be removed.
 # Internal: this type is an internal SDK API and is not part of the public surface.
 @dataclass
-class MCPReloadWithConfigRequest:
+class _MCPReloadWithConfigRequest:
     """Opaque MCP reload configuration."""
 
     config: Any = None
@@ -5982,10 +5982,10 @@ class MCPReloadWithConfigRequest:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'MCPReloadWithConfigRequest':
+    def from_dict(obj: Any) -> '_MCPReloadWithConfigRequest':
         assert isinstance(obj, dict)
         config = obj.get("config")
-        return MCPReloadWithConfigRequest(config)
+        return _MCPReloadWithConfigRequest(config)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -6152,7 +6152,7 @@ class MCPServerConfigHTTPType(Enum):
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 # Internal: this type is an internal SDK API and is not part of the public surface.
-class MCPServerConfigMemoryType(Enum):
+class _MCPServerConfigMemoryType(Enum):
     """In-process MCP transport type."""
 
     MEMORY = "memory"
@@ -6228,17 +6228,17 @@ class MCPTaskMetadata:
 # Experimental: this type is part of an experimental API and may change or be removed.
 # Internal: this type is an internal SDK API and is not part of the public surface.
 @dataclass
-class MCPUnregisterExternalClientRequest:
+class _MCPUnregisterExternalClientRequest:
     """Server name identifying the external client to remove."""
 
     server_name: str
     """Server name of the external client to unregister"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'MCPUnregisterExternalClientRequest':
+    def from_dict(obj: Any) -> '_MCPUnregisterExternalClientRequest':
         assert isinstance(obj, dict)
         server_name = from_str(obj.get("serverName"))
-        return MCPUnregisterExternalClientRequest(server_name)
+        return _MCPUnregisterExternalClientRequest(server_name)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -34457,7 +34457,7 @@ class MCPOauthProbeResult:
 # Experimental: this type is part of an experimental API and may change or be removed.
 # Internal: this type is an internal SDK API and is not part of the public surface.
 @dataclass
-class MCPRegisterExternalClientRequest:
+class _MCPRegisterExternalClientRequest:
     """Registration parameters for an external MCP client."""
 
     server_name: str
@@ -34477,13 +34477,13 @@ class MCPRegisterExternalClientRequest:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'MCPRegisterExternalClientRequest':
+    def from_dict(obj: Any) -> '_MCPRegisterExternalClientRequest':
         assert isinstance(obj, dict)
         client = obj.get("client")
         config = obj.get("config")
         server_name = from_str(obj.get("serverName"))
         transport = obj.get("transport")
-        return MCPRegisterExternalClientRequest(client, config, server_name, transport)
+        return _MCPRegisterExternalClientRequest(client, config, server_name, transport)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -34725,7 +34725,7 @@ class MCPServerConfig:
 # Experimental: this type is part of an experimental API and may change or be removed.
 # Internal: this type is an internal SDK API and is not part of the public surface.
 @dataclass
-class MCPReloadConfig:
+class _MCPReloadConfig:
     """In-process MCP reload configuration."""
 
     mcp_servers: dict[str, MCPServerConfig]
@@ -34745,7 +34745,7 @@ class MCPReloadConfig:
     use_cached_tool_snapshots: bool | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> 'MCPReloadConfig':
+    def from_dict(obj: Any) -> '_MCPReloadConfig':
         assert isinstance(obj, dict)
         mcp_servers = from_dict(MCPServerConfig.from_dict, obj.get("mcpServers"))
         active_git_hub_token = from_union([from_str, from_none], obj.get("activeGitHubToken"))
@@ -34760,7 +34760,7 @@ class MCPReloadConfig:
         mcp3_p_enabled = from_union([from_bool, from_none], obj.get("mcp3pEnabled"))
         secret_store = obj.get("secretStore")
         use_cached_tool_snapshots = from_union([from_bool, from_none], obj.get("useCachedToolSnapshots"))
-        return MCPReloadConfig(mcp_servers, active_git_hub_token, cli_enabled_servers, config_filter, disabled_servers, enabled_servers, force_restart, github_mcp_tool_options, github_mcp_user_override, include_workspace_sources, mcp3_p_enabled, secret_store, use_cached_tool_snapshots)
+        return _MCPReloadConfig(mcp_servers, active_git_hub_token, cli_enabled_servers, config_filter, disabled_servers, enabled_servers, force_restart, github_mcp_tool_options, github_mcp_user_override, include_workspace_sources, mcp3_p_enabled, secret_store, use_cached_tool_snapshots)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -35029,10 +35029,10 @@ class MCPResourcesListTemplatesResult:
 # Experimental: this type is part of an experimental API and may change or be removed.
 # Internal: this type is an internal SDK API and is not part of the public surface.
 @dataclass
-class MCPServerConfigMemory:
+class _MCPServerConfigMemory:
     """In-process MCP server configuration used by embedded SDK clients."""
 
-    type: MCPServerConfigMemoryType
+    type: _MCPServerConfigMemoryType
     server_instance: Any = None
     """In-process MCP server instance. This value cannot cross a JSON-RPC boundary."""
 
@@ -35094,10 +35094,10 @@ class MCPServerConfigMemory:
     """Tools to include. Defaults to all tools if not specified."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'MCPServerConfigMemory':
+    def from_dict(obj: Any) -> '_MCPServerConfigMemory':
         assert isinstance(obj, dict)
         server_instance = obj.get("serverInstance")
-        type = MCPServerConfigMemoryType(obj.get("type"))
+        type = _MCPServerConfigMemoryType(obj.get("type"))
         config_warnings = from_union([lambda x: from_list(from_str, x), from_none], obj.get("configWarnings"))
         defer_tools = from_union([MCPServerConfigDeferTools, from_none], obj.get("deferTools"))
         disable_secret_masking = from_union([from_bool, from_none], obj.get("disableSecretMasking"))
@@ -35117,12 +35117,12 @@ class MCPServerConfigMemory:
         source_plugin_version = from_union([from_str, from_none], obj.get("sourcePluginVersion"))
         timeout = from_union([from_int, from_none], obj.get("timeout"))
         tools = from_union([lambda x: from_list(from_str, x), from_none], obj.get("tools"))
-        return MCPServerConfigMemory(server_instance, type, config_warnings, defer_tools, disable_secret_masking, disable_tool_cache, display_name, events, exclude_tools, filter_mapping, is_default_server, notifications, oidc, safe_for_telemetry, source, source_path, source_plugin, source_plugin_spec, source_plugin_version, timeout, tools)
+        return _MCPServerConfigMemory(server_instance, type, config_warnings, defer_tools, disable_secret_masking, disable_tool_cache, display_name, events, exclude_tools, filter_mapping, is_default_server, notifications, oidc, safe_for_telemetry, source, source_path, source_plugin, source_plugin_spec, source_plugin_version, timeout, tools)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["serverInstance"] = self.server_instance
-        result["type"] = to_enum(MCPServerConfigMemoryType, self.type)
+        result["type"] = to_enum(_MCPServerConfigMemoryType, self.type)
         if self.config_warnings is not None:
             result["configWarnings"] = from_union([lambda x: from_list(from_str, x), from_none], self.config_warnings)
         if self.defer_tools is not None:
@@ -36874,7 +36874,7 @@ class RPC:
     mcp_config_list: MCPConfigList
     mcp_config_remove_request: MCPConfigRemoveRequest
     mcp_config_update_request: MCPConfigUpdateRequest
-    mcp_configure_git_hub_request: MCPConfigureGitHubRequest
+    mcp_configure_git_hub_request: _MCPConfigureGitHubRequest
     mcp_configure_git_hub_result: MCPConfigureGitHubResult
     mcp_disable_request: MCPDisableRequest
     mcp_discover_request: MCPDiscoverRequest
@@ -36941,9 +36941,9 @@ class RPC:
     mcp_plan_transport_choice_package: MCPPlanTransportChoicePackage
     mcp_plan_transport_choice_remote: MCPPlanTransportChoiceRemote
     mcp_plan_value_category: MCPPlanValueCategory
-    mcp_register_external_client_request: MCPRegisterExternalClientRequest
-    mcp_reload_config: MCPReloadConfig
-    mcp_reload_with_config_request: MCPReloadWithConfigRequest
+    mcp_register_external_client_request: _MCPRegisterExternalClientRequest
+    mcp_reload_config: _MCPReloadConfig
+    mcp_reload_with_config_request: _MCPReloadWithConfigRequest
     mcp_remove_git_hub_result: MCPRemoveGitHubResult
     mcp_resource: MCPResource
     mcp_resource_annotations: MCPResourceAnnotations
@@ -36976,8 +36976,8 @@ class RPC:
     mcp_server_config_http: MCPServerConfigHTTP
     mcp_server_config_http_oauth_grant_type: MCPGrantType
     mcp_server_config_http_type: MCPServerConfigHTTPType
-    mcp_server_config_memory: MCPServerConfigMemory
-    mcp_server_config_memory_type: MCPServerConfigMemoryType
+    mcp_server_config_memory: _MCPServerConfigMemory
+    mcp_server_config_memory_type: _MCPServerConfigMemoryType
     mcp_server_config_stdio: MCPServerConfigStdio
     mcp_server_config_stdio_type: MCPServerConfigStdioType
     mcp_server_failure_info: MCPServerFailureInfo
@@ -36993,7 +36993,7 @@ class RPC:
     mcp_tools: MCPTools
     mcp_tool_ui: MCPToolUI
     mcp_tool_ui_visibility: MCPToolUIVisibility
-    mcp_unregister_external_client_request: MCPUnregisterExternalClientRequest
+    mcp_unregister_external_client_request: _MCPUnregisterExternalClientRequest
     memory_configuration: MemoryConfiguration
     metadata_context_attribution_result: MetadataContextAttributionResult
     metadata_context_heaviest_messages_request: MetadataContextHeaviestMessagesRequest
@@ -38094,7 +38094,7 @@ class RPC:
         mcp_config_list = MCPConfigList.from_dict(obj.get("McpConfigList"))
         mcp_config_remove_request = MCPConfigRemoveRequest.from_dict(obj.get("McpConfigRemoveRequest"))
         mcp_config_update_request = MCPConfigUpdateRequest.from_dict(obj.get("McpConfigUpdateRequest"))
-        mcp_configure_git_hub_request = MCPConfigureGitHubRequest.from_dict(obj.get("McpConfigureGitHubRequest"))
+        mcp_configure_git_hub_request = _MCPConfigureGitHubRequest.from_dict(obj.get("McpConfigureGitHubRequest"))
         mcp_configure_git_hub_result = MCPConfigureGitHubResult.from_dict(obj.get("McpConfigureGitHubResult"))
         mcp_disable_request = MCPDisableRequest.from_dict(obj.get("McpDisableRequest"))
         mcp_discover_request = MCPDiscoverRequest.from_dict(obj.get("McpDiscoverRequest"))
@@ -38161,9 +38161,9 @@ class RPC:
         mcp_plan_transport_choice_package = MCPPlanTransportChoicePackage.from_dict(obj.get("McpPlanTransportChoicePackage"))
         mcp_plan_transport_choice_remote = MCPPlanTransportChoiceRemote.from_dict(obj.get("McpPlanTransportChoiceRemote"))
         mcp_plan_value_category = MCPPlanValueCategory(obj.get("McpPlanValueCategory"))
-        mcp_register_external_client_request = MCPRegisterExternalClientRequest.from_dict(obj.get("McpRegisterExternalClientRequest"))
-        mcp_reload_config = MCPReloadConfig.from_dict(obj.get("McpReloadConfig"))
-        mcp_reload_with_config_request = MCPReloadWithConfigRequest.from_dict(obj.get("McpReloadWithConfigRequest"))
+        mcp_register_external_client_request = _MCPRegisterExternalClientRequest.from_dict(obj.get("McpRegisterExternalClientRequest"))
+        mcp_reload_config = _MCPReloadConfig.from_dict(obj.get("McpReloadConfig"))
+        mcp_reload_with_config_request = _MCPReloadWithConfigRequest.from_dict(obj.get("McpReloadWithConfigRequest"))
         mcp_remove_git_hub_result = MCPRemoveGitHubResult.from_dict(obj.get("McpRemoveGitHubResult"))
         mcp_resource = MCPResource.from_dict(obj.get("McpResource"))
         mcp_resource_annotations = MCPResourceAnnotations.from_dict(obj.get("McpResourceAnnotations"))
@@ -38196,8 +38196,8 @@ class RPC:
         mcp_server_config_http = MCPServerConfigHTTP.from_dict(obj.get("McpServerConfigHttp"))
         mcp_server_config_http_oauth_grant_type = MCPGrantType(obj.get("McpServerConfigHttpOauthGrantType"))
         mcp_server_config_http_type = MCPServerConfigHTTPType(obj.get("McpServerConfigHttpType"))
-        mcp_server_config_memory = MCPServerConfigMemory.from_dict(obj.get("McpServerConfigMemory"))
-        mcp_server_config_memory_type = MCPServerConfigMemoryType(obj.get("McpServerConfigMemoryType"))
+        mcp_server_config_memory = _MCPServerConfigMemory.from_dict(obj.get("McpServerConfigMemory"))
+        mcp_server_config_memory_type = _MCPServerConfigMemoryType(obj.get("McpServerConfigMemoryType"))
         mcp_server_config_stdio = MCPServerConfigStdio.from_dict(obj.get("McpServerConfigStdio"))
         mcp_server_config_stdio_type = MCPServerConfigStdioType(obj.get("McpServerConfigStdioType"))
         mcp_server_failure_info = MCPServerFailureInfo.from_dict(obj.get("McpServerFailureInfo"))
@@ -38213,7 +38213,7 @@ class RPC:
         mcp_tools = MCPTools.from_dict(obj.get("McpTools"))
         mcp_tool_ui = MCPToolUI.from_dict(obj.get("McpToolUi"))
         mcp_tool_ui_visibility = MCPToolUIVisibility(obj.get("McpToolUiVisibility"))
-        mcp_unregister_external_client_request = MCPUnregisterExternalClientRequest.from_dict(obj.get("McpUnregisterExternalClientRequest"))
+        mcp_unregister_external_client_request = _MCPUnregisterExternalClientRequest.from_dict(obj.get("McpUnregisterExternalClientRequest"))
         memory_configuration = MemoryConfiguration.from_dict(obj.get("MemoryConfiguration"))
         metadata_context_attribution_result = MetadataContextAttributionResult.from_dict(obj.get("MetadataContextAttributionResult"))
         metadata_context_heaviest_messages_request = MetadataContextHeaviestMessagesRequest.from_dict(obj.get("MetadataContextHeaviestMessagesRequest"))
@@ -39314,7 +39314,7 @@ class RPC:
         result["McpConfigList"] = to_class(MCPConfigList, self.mcp_config_list)
         result["McpConfigRemoveRequest"] = to_class(MCPConfigRemoveRequest, self.mcp_config_remove_request)
         result["McpConfigUpdateRequest"] = to_class(MCPConfigUpdateRequest, self.mcp_config_update_request)
-        result["McpConfigureGitHubRequest"] = to_class(MCPConfigureGitHubRequest, self.mcp_configure_git_hub_request)
+        result["McpConfigureGitHubRequest"] = to_class(_MCPConfigureGitHubRequest, self.mcp_configure_git_hub_request)
         result["McpConfigureGitHubResult"] = to_class(MCPConfigureGitHubResult, self.mcp_configure_git_hub_result)
         result["McpDisableRequest"] = to_class(MCPDisableRequest, self.mcp_disable_request)
         result["McpDiscoverRequest"] = to_class(MCPDiscoverRequest, self.mcp_discover_request)
@@ -39381,9 +39381,9 @@ class RPC:
         result["McpPlanTransportChoicePackage"] = to_class(MCPPlanTransportChoicePackage, self.mcp_plan_transport_choice_package)
         result["McpPlanTransportChoiceRemote"] = to_class(MCPPlanTransportChoiceRemote, self.mcp_plan_transport_choice_remote)
         result["McpPlanValueCategory"] = to_enum(MCPPlanValueCategory, self.mcp_plan_value_category)
-        result["McpRegisterExternalClientRequest"] = to_class(MCPRegisterExternalClientRequest, self.mcp_register_external_client_request)
-        result["McpReloadConfig"] = to_class(MCPReloadConfig, self.mcp_reload_config)
-        result["McpReloadWithConfigRequest"] = to_class(MCPReloadWithConfigRequest, self.mcp_reload_with_config_request)
+        result["McpRegisterExternalClientRequest"] = to_class(_MCPRegisterExternalClientRequest, self.mcp_register_external_client_request)
+        result["McpReloadConfig"] = to_class(_MCPReloadConfig, self.mcp_reload_config)
+        result["McpReloadWithConfigRequest"] = to_class(_MCPReloadWithConfigRequest, self.mcp_reload_with_config_request)
         result["McpRemoveGitHubResult"] = to_class(MCPRemoveGitHubResult, self.mcp_remove_git_hub_result)
         result["McpResource"] = to_class(MCPResource, self.mcp_resource)
         result["McpResourceAnnotations"] = to_class(MCPResourceAnnotations, self.mcp_resource_annotations)
@@ -39416,8 +39416,8 @@ class RPC:
         result["McpServerConfigHttp"] = to_class(MCPServerConfigHTTP, self.mcp_server_config_http)
         result["McpServerConfigHttpOauthGrantType"] = to_enum(MCPGrantType, self.mcp_server_config_http_oauth_grant_type)
         result["McpServerConfigHttpType"] = to_enum(MCPServerConfigHTTPType, self.mcp_server_config_http_type)
-        result["McpServerConfigMemory"] = to_class(MCPServerConfigMemory, self.mcp_server_config_memory)
-        result["McpServerConfigMemoryType"] = to_enum(MCPServerConfigMemoryType, self.mcp_server_config_memory_type)
+        result["McpServerConfigMemory"] = to_class(_MCPServerConfigMemory, self.mcp_server_config_memory)
+        result["McpServerConfigMemoryType"] = to_enum(_MCPServerConfigMemoryType, self.mcp_server_config_memory_type)
         result["McpServerConfigStdio"] = to_class(MCPServerConfigStdio, self.mcp_server_config_stdio)
         result["McpServerConfigStdioType"] = to_enum(MCPServerConfigStdioType, self.mcp_server_config_stdio_type)
         result["McpServerFailureInfo"] = to_class(MCPServerFailureInfo, self.mcp_server_failure_info)
@@ -39433,7 +39433,7 @@ class RPC:
         result["McpTools"] = to_class(MCPTools, self.mcp_tools)
         result["McpToolUi"] = to_class(MCPToolUI, self.mcp_tool_ui)
         result["McpToolUiVisibility"] = to_enum(MCPToolUIVisibility, self.mcp_tool_ui_visibility)
-        result["McpUnregisterExternalClientRequest"] = to_class(MCPUnregisterExternalClientRequest, self.mcp_unregister_external_client_request)
+        result["McpUnregisterExternalClientRequest"] = to_class(_MCPUnregisterExternalClientRequest, self.mcp_unregister_external_client_request)
         result["MemoryConfiguration"] = to_class(MemoryConfiguration, self.memory_configuration)
         result["MetadataContextAttributionResult"] = to_class(MetadataContextAttributionResult, self.metadata_context_attribution_result)
         result["MetadataContextHeaviestMessagesRequest"] = to_class(MetadataContextHeaviestMessagesRequest, self.metadata_context_heaviest_messages_request)
@@ -42949,25 +42949,25 @@ class _InternalMcpApi:
         self._client = client
         self._session_id = session_id
 
-    async def _reload_with_config(self, params: MCPReloadWithConfigRequest, *, timeout: float | None = None) -> MCPStartServersResult:
+    async def _reload_with_config(self, params: _MCPReloadWithConfigRequest, *, timeout: float | None = None) -> MCPStartServersResult:
         "Reloads MCP server connections for the session with an explicit host-provided configuration.\n\nArgs:\n    params: Opaque MCP reload configuration.\n\nReturns:\n    MCP server startup filtering result.\n\n:meta private:\n\nInternal SDK API; not part of the public surface."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return MCPStartServersResult.from_dict(await self._client.request("session.mcp.reloadWithConfig", params_dict, **_timeout_kwargs(timeout)))
 
-    async def _configure_git_hub(self, params: MCPConfigureGitHubRequest, *, timeout: float | None = None) -> MCPConfigureGitHubResult:
+    async def _configure_git_hub(self, params: _MCPConfigureGitHubRequest, *, timeout: float | None = None) -> MCPConfigureGitHubResult:
         "Configures the built-in GitHub MCP server for the session's current auth context.\n\nArgs:\n    params: Credential-free authentication identity used to configure GitHub MCP.\n\nReturns:\n    Result of configuring GitHub MCP.\n\n:meta private:\n\nInternal SDK API; not part of the public surface."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return MCPConfigureGitHubResult.from_dict(await self._client.request("session.mcp.configureGitHub", params_dict, **_timeout_kwargs(timeout)))
 
-    async def _register_external_client(self, params: MCPRegisterExternalClientRequest, *, timeout: float | None = None) -> None:
+    async def _register_external_client(self, params: _MCPRegisterExternalClientRequest, *, timeout: float | None = None) -> None:
         "Registers a pre-connected external MCP client (e.g. IDE) on the session's host. The caller retains lifecycle ownership of the client and transport. Marked internal because the `client` and `transport` arguments are in-process MCP SDK instances that cannot be serialized across the JSON-RPC boundary; once the CLI moves on top of the SDK, external clients will be expressed as transport configs the runtime can construct itself.\n\nArgs:\n    params: Registration parameters for an external MCP client.\n\n:meta private:\n\nInternal SDK API; not part of the public surface."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         await self._client.request("session.mcp.registerExternalClient", params_dict, **_timeout_kwargs(timeout))
 
-    async def _unregister_external_client(self, params: MCPUnregisterExternalClientRequest, *, timeout: float | None = None) -> None:
+    async def _unregister_external_client(self, params: _MCPUnregisterExternalClientRequest, *, timeout: float | None = None) -> None:
         "Unregisters a previously registered external MCP client by server name. Marked internal as the paired companion of `registerExternalClient`: only in-process callers that registered a client this way can meaningfully unregister it. Disappears alongside `registerExternalClient`: once external clients are described to the runtime as config rather than handed in as instances, lifecycle (including deregistration) is owned entirely by the runtime.\n\nArgs:\n    params: Server name identifying the external client to remove.\n\n:meta private:\n\nInternal SDK API; not part of the public surface."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
@@ -43886,7 +43886,6 @@ __all__ = [
     "MCPConfigList",
     "MCPConfigRemoveRequest",
     "MCPConfigUpdateRequest",
-    "MCPConfigureGitHubRequest",
     "MCPConfigureGitHubResult",
     "MCPDisableRequest",
     "MCPDiscoverRequest",
@@ -43957,9 +43956,6 @@ __all__ = [
     "MCPPlanTransportChoicePackage",
     "MCPPlanTransportChoiceRemote",
     "MCPPlanValueCategory",
-    "MCPRegisterExternalClientRequest",
-    "MCPReloadConfig",
-    "MCPReloadWithConfigRequest",
     "MCPRemoveGitHubResult",
     "MCPResource",
     "MCPResourceAnnotations",
@@ -43990,8 +43986,6 @@ __all__ = [
     "MCPServerConfigDeferTools",
     "MCPServerConfigHTTP",
     "MCPServerConfigHTTPType",
-    "MCPServerConfigMemory",
-    "MCPServerConfigMemoryType",
     "MCPServerConfigStdio",
     "MCPServerConfigStdioType",
     "MCPServerConfigType",
@@ -44008,7 +44002,6 @@ __all__ = [
     "MCPToolUI",
     "MCPToolUIVisibility",
     "MCPTools",
-    "MCPUnregisterExternalClientRequest",
     "ManagedSettingsReadResult",
     "MarketplaceAddResult",
     "MarketplaceBrowseResult",

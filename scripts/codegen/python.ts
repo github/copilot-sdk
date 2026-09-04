@@ -2977,7 +2977,7 @@ async function generateSessionEvents(schemaPath?: string): Promise<void> {
     code = renameInternalPythonSymbols(code, typeNames);
     code = appendPythonSessionEventsAllList(code, processed, typeNames);
 
-    const outPath = await writeGeneratedFile("python/copilot/generated/session_events.py", code);
+    const outPath = await writeGeneratedFile("python/copilot/_generated/session_events.py", code);
     console.log(`  ✓ ${outPath}`);
 }
 
@@ -3284,6 +3284,12 @@ async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSONSchema
     annotatePythonTypes(deprecatedTypeNames, "# Deprecated: this type is part of a deprecated API and will be removed in a future version.");
     annotatePythonTypes(internalTypeNames, "# Internal: this type is an internal SDK API and is not part of the public surface.");
 
+    // Resolve internal type names to the class identifiers quicktype actually
+    // emits (e.g. schema definition `McpConfigureGitHubRequest` is emitted as
+    // `MCPConfigureGitHubRequest`), so the `__all__` curation below matches on
+    // the same identifiers that appear in the generated source.
+    const resolvedInternalTypeNames = new Set([...internalTypeNames].map(resolveType));
+
     const lines: string[] = [];
     lines.push(`"""
 AUTO-GENERATED FILE - DO NOT EDIT
@@ -3405,21 +3411,13 @@ def _patch_model_capabilities(data: dict) -> dict:
 
     // Apply `_`-prefix to type names of internal RPC types so the leading-underscore
     // Python convention signals "internal, no stability guarantees" to consumers.
-    {
-        const internalDefs = new Set<string>();
-        for (const [name, def] of Object.entries(rpcDefinitions.definitions)) {
-            if (def && typeof def === "object" && (def as Record<string, unknown>).visibility === "internal") {
-                internalDefs.add(name);
-            }
-        }
-        for (const [name, def] of Object.entries(rpcDefinitions.$defs)) {
-            if (def && typeof def === "object" && (def as Record<string, unknown>).visibility === "internal") {
-                internalDefs.add(name);
-            }
-        }
-        if (internalDefs.size > 0) {
-            finalCode = renameInternalPythonSymbols(finalCode, internalDefs);
-        }
+    // Uses the same `resolvedInternalTypeNames` set as the `__all__` curation
+    // below (derived from `allDefinitions`, which — unlike the raw schema-level
+    // `rpcDefinitions` — also covers internal-marked synthesized method
+    // params/result types such as `MCPConfigureGitHubRequest`) so both the
+    // rename and export-list signals stay consistent for every internal type.
+    if (resolvedInternalTypeNames.size > 0) {
+        finalCode = renameInternalPythonSymbols(finalCode, resolvedInternalTypeNames);
     }
 
     // Annotate internal fields on otherwise-public RPC types with a `# Internal:`
@@ -3441,15 +3439,15 @@ def _patch_model_capabilities(data: dict) -> dict:
         }
     }
 
-    finalCode = appendPythonRpcAllList(finalCode, rpcDefinitions);
+    finalCode = appendPythonRpcAllList(finalCode, rpcDefinitions, resolvedInternalTypeNames);
 
-    const outPath = await writeGeneratedFile("python/copilot/generated/rpc.py", finalCode);
+    const outPath = await writeGeneratedFile("python/copilot/_generated/rpc.py", finalCode);
     console.log(`  ✓ ${outPath}`);
 }
 
 /**
  * Appends an `__all__` list to the generated session-events module so that
- * the public ``copilot.session_events`` shim can ``from .generated.session_events
+ * the public ``copilot.session_events`` shim can ``from ._generated.session_events
  * import *`` without leaking helper functions (``from_str``, ``from_int``, …)
  * or TypeVars (``T``, ``EnumT``). Internal-marked types are omitted so they
  * remain hidden from the SDK's public surface even though their renamed
@@ -3499,9 +3497,14 @@ function appendPythonSessionEventsAllList(code: string, _schema: JSONSchema7, in
 
 /**
  * Appends an `__all__` list to the generated RPC module so that the public
- * ``copilot.rpc`` shim can ``from .generated.rpc import *`` without leaking
+ * ``copilot.rpc`` shim can ``from ._generated.rpc import *`` without leaking
  * helper functions (``from_str``, ``from_int``, …) or TypeVars
- * (``T``, ``EnumT``).
+ * (``T``, ``EnumT``). Internal-marked types are omitted so they remain
+ * hidden from the SDK's public surface, mirroring the session-events
+ * curation below — even when a type wasn't itself renamed with a `_`
+ * prefix (e.g. a `visibility: "internal"` RPC method's synthesized
+ * params/result type, which is only known once method schemas are merged
+ * into the combined definition set, after the rename pass has already run).
  *
  * Shared types pulled in from session-events (via ``from .session_events
  * import …``) are intentionally excluded so each protocol type has a single
@@ -3510,7 +3513,11 @@ function appendPythonSessionEventsAllList(code: string, _schema: JSONSchema7, in
  * types only in ``GitHub.Copilot`` and references them from
  * ``GitHub.Copilot.Rpc`` by fully-qualified name.
  */
-function appendPythonRpcAllList(code: string, _definitions: { definitions: Record<string, unknown>; $defs: Record<string, unknown> }): string {
+function appendPythonRpcAllList(
+    code: string,
+    _definitions: { definitions: Record<string, unknown>; $defs: Record<string, unknown> },
+    internalTypeNames: Set<string>
+): string {
     const exported = new Set<string>();
 
     const classPattern = /^class\s+([A-Za-z_]\w*)\b/gm;
@@ -3518,6 +3525,7 @@ function appendPythonRpcAllList(code: string, _definitions: { definitions: Recor
     while ((m = classPattern.exec(code)) !== null) {
         const name = m[1];
         if (name.startsWith("_")) continue;
+        if (internalTypeNames.has(name)) continue;
         exported.add(name);
     }
 
@@ -3525,6 +3533,7 @@ function appendPythonRpcAllList(code: string, _definitions: { definitions: Recor
     while ((m = assignPattern.exec(code)) !== null) {
         const name = m[1];
         if (name === "T" || name === "EnumT") continue;
+        if (internalTypeNames.has(name)) continue;
         exported.add(name);
     }
 

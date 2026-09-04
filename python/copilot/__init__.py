@@ -11,6 +11,27 @@ from . import rpc as rpc  # noqa: F401  -- register the public ``copilot.rpc`` n
 
 # Register the public ``copilot.session_events`` namespace.
 from . import session_events as session_events  # noqa: F401
+from ._generated.rpc import (
+    CurrentToolMetadata,
+    GitHubTelemetryClientInfo,
+    GitHubTelemetryEvent,
+    GitHubTelemetryNotification,
+    GitHubTokenAcquireReason,
+    GitHubTokenAcquireResult,
+    GitHubTokenAcquireResultKind,
+    ModelBillingTokenPrices,
+    ModelBillingTokenPricesLongContext,
+    PermissionDecisionContext,
+    PermissionDecisionOutcome,
+    PermissionDecisionSource,
+    PermissionDecisionSurface,
+    PermissionResponseCapability,
+)
+from ._generated.session_events import (
+    PermissionRequest,
+    SessionEvent,
+    SessionEventType,
+)
 from ._mode import (
     BUILTIN_TOOLS_ISOLATED,
     CopilotClientMode,
@@ -88,27 +109,6 @@ from .copilot_request_handler import (
     CopilotWebSocketForwarder,
     CopilotWebSocketHandler,
     LlmInferenceHeaders,
-)
-from .generated.rpc import (
-    CurrentToolMetadata,
-    GitHubTelemetryClientInfo,
-    GitHubTelemetryEvent,
-    GitHubTelemetryNotification,
-    GitHubTokenAcquireReason,
-    GitHubTokenAcquireResult,
-    GitHubTokenAcquireResultKind,
-    ModelBillingTokenPrices,
-    ModelBillingTokenPricesLongContext,
-    PermissionDecisionContext,
-    PermissionDecisionOutcome,
-    PermissionDecisionSource,
-    PermissionDecisionSurface,
-    PermissionResponseCapability,
-)
-from .generated.session_events import (
-    PermissionRequest,
-    SessionEvent,
-    SessionEventType,
 )
 from .session import (
     AgentStopHandler,
