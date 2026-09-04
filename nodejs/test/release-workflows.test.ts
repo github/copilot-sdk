@@ -8,10 +8,6 @@ const workflow = (name: string) =>
 const publish = workflow("publish.yml");
 const runtimeSdk = workflow("runtime-sdk.yml");
 const shared = workflow("runtime-backed-node-release.yml");
-const ledger = readFileSync(
-    join(repositoryRoot, "nodejs", "scripts", "runtime-dispatch-ledger.ts"),
-    "utf8"
-);
 
 describe("normal publishing workflow contract", () => {
     it("remains the stable and prerelease entry without runtime handoff inputs", () => {
@@ -23,6 +19,10 @@ describe("normal publishing workflow contract", () => {
         expect(publish).not.toContain("resume_run_id:");
         expect(publish).not.toContain("runtime-backed-node-release.yml");
         expect(publish).toContain("publish.yml only accepts latest or prerelease");
+        expect(publish).toContain(
+            "prerelease namespace is reserved for runtime-driven SDK releases"
+        );
+        expect(publish).toContain("canary|unstable");
     });
 
     it("retains all normal SDK publication paths", () => {
@@ -59,6 +59,7 @@ describe("runtime-driven Node SDK entry contract", () => {
         expect(runtimeSdk).toContain("runtime-dispatch-ledger.ts validate");
         expect(runtimeSdk).toContain('gh run watch "$CANONICAL_RUN_ID" --exit-status');
         expect(runtimeSdk).toContain("retention-days: 90");
+        expect(runtimeSdk).not.toContain("resume_run_id");
     });
 
     it("delegates preparation before its separately serialized public publication", () => {
@@ -71,14 +72,10 @@ describe("runtime-driven Node SDK entry contract", () => {
         expect(runtimeSdk).toContain("dist/release-manifest.json dist unstable");
     });
 
-    it("only recovers the canonical retained release", () => {
-        expect(ledger).toContain("resume_run_id must identify the canonical workflow run");
-        expect(runtimeSdk).toContain(
-            "run-id: ${{ needs.claim-runtime-dispatch.outputs.canonical_run_id }}"
-        );
-        expect(runtimeSdk).toContain(
-            "Canonical release manifest does not match the claimed runtime dispatch"
-        );
+    it("requires duplicates and failures to use the canonical workflow run", () => {
+        expect(runtimeSdk).toContain('gh run watch "$CANONICAL_RUN_ID" --exit-status');
+        expect(runtimeSdk).toContain("Re-run that original run");
+        expect(runtimeSdk).not.toContain("run-id:");
     });
 });
 
@@ -95,7 +92,10 @@ describe("shared runtime-backed Node pipeline", () => {
         expect(shared).toContain("npm run acquire:runtime-packages");
         expect(shared).toContain("npm run verify:release-packages");
         expect(shared).toContain("publish-manifest");
-        expect(shared).toContain("group: sdk-runtime-internal-");
+        expect(shared).toContain("group: sdk-runtime-internal-${{ inputs.channel }}");
+        expect(shared).not.toContain('"$runtime_path" --version');
+        expect(shared).not.toContain('"$RUNTIME" --version');
+        expect(shared).not.toContain("resume_run_id");
         expect(shared.indexOf("npm run verify:release-packages")).toBeLessThan(
             shared.indexOf("publish-manifest")
         );

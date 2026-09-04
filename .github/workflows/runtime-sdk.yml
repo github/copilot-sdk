@@ -42,10 +42,6 @@ on:
         description: "Unstable SDK version override for a direct manual run"
         required: false
         type: string
-      resume_run_id:
-        description: "Exceptional recovery from the canonical SDK workflow run"
-        required: false
-        type: string
 
 permissions:
   contents: read
@@ -79,7 +75,6 @@ jobs:
         env:
           CHANNEL: ${{ inputs.channel }}
           MODE: ${{ inputs.mode }}
-          RESUME_RUN_ID: ${{ inputs.resume_run_id }}
           RUNTIME_RUN_ID: ${{ inputs.runtime_run_id }}
           RUNTIME_SHA: ${{ inputs.runtime_sha }}
           RUNTIME_SOURCE: ${{ inputs.runtime_source }}
@@ -97,13 +92,9 @@ jobs:
             { echo "::error::runtime_sha must be a lowercase full SHA."; exit 1; }
           [[ "$RUNTIME_RUN_ID" =~ ^[0-9]+$ ]] ||
             { echo "::error::runtime_run_id must be numeric."; exit 1; }
-          if [ "$CHANNEL" = "canary" ] && { [ -n "$VERSION" ] || [ -n "$RESUME_RUN_ID" ]; }; then
-            echo "::error::Canary runs do not accept version or resume_run_id."
+          if [ "$CHANNEL" = "canary" ] && [ -n "$VERSION" ]; then
+            echo "::error::Canary runs do not accept a version override."
             exit 1
-          fi
-          if [ -n "$RESUME_RUN_ID" ]; then
-            [[ "$RESUME_RUN_ID" =~ ^[0-9]+$ ]] ||
-              { echo "::error::resume_run_id must be numeric."; exit 1; }
           fi
       - name: Find the canonical dispatch marker
         id: lookup
@@ -185,7 +176,6 @@ jobs:
           CHANNEL: ${{ inputs.channel }}
           CURRENT_RUN_ID: ${{ github.run_id }}
           MODE: ${{ inputs.mode }}
-          RESUME_RUN_ID: ${{ inputs.resume_run_id }}
           RUNTIME_RUN_ID: ${{ inputs.runtime_run_id }}
           RUNTIME_SHA: ${{ inputs.runtime_sha }}
           RUNTIME_SOURCE: ${{ inputs.runtime_source }}
@@ -218,7 +208,6 @@ jobs:
           CHANNEL: ${{ inputs.channel }}
           CURRENT_RUN_ID: ${{ github.run_id }}
           MODE: ${{ inputs.mode }}
-          RESUME_RUN_ID: ${{ inputs.resume_run_id }}
           RUNTIME_RUN_ID: ${{ inputs.runtime_run_id }}
           RUNTIME_SHA: ${{ inputs.runtime_sha }}
           RUNTIME_SOURCE: ${{ inputs.runtime_source }}
@@ -227,10 +216,6 @@ jobs:
           SDK_SHA: ${{ github.sha }}
           VERSION_OVERRIDE: ${{ inputs.version }}
         run: |
-          if [ -n "$RESUME_RUN_ID" ]; then
-            echo "::error::resume_run_id requires the canonical dispatch marker."
-            exit 1
-          fi
           mkdir -p "$RUNNER_TEMP/new-marker"
           node nodejs/node_modules/.bin/tsx nodejs/scripts/runtime-dispatch-ledger.ts create \
             "$RUNNER_TEMP/new-marker/marker.json"
@@ -248,7 +233,7 @@ jobs:
 
   plan:
     name: Freeze runtime-backed release identity
-    if: needs.claim-runtime-dispatch.outputs.role == 'owner' || needs.claim-runtime-dispatch.outputs.role == 'recovery'
+    if: needs.claim-runtime-dispatch.outputs.role == 'owner'
     needs: claim-runtime-dispatch
     runs-on: ubuntu-latest
     environment: cicd
@@ -257,10 +242,9 @@ jobs:
       contents: read
       id-token: write
     outputs:
-      artifact_name: ${{ steps.recover.outputs.artifact_name || steps.plan.outputs.artifact_name }}
-      resume_run_id: ${{ steps.recover.outputs.resume_run_id }}
-      sdk_version: ${{ steps.recover.outputs.sdk_version || steps.plan.outputs.sdk_version }}
-      workflow_created_at: ${{ steps.recover.outputs.workflow_created_at || steps.plan.outputs.workflow_created_at }}
+      artifact_name: ${{ steps.plan.outputs.artifact_name }}
+      sdk_version: ${{ steps.plan.outputs.sdk_version }}
+      workflow_created_at: ${{ steps.plan.outputs.workflow_created_at }}
     defaults:
       run:
         shell: bash
@@ -275,59 +259,7 @@ jobs:
           node-version: 22
       - run: npm ci --ignore-scripts
         working-directory: ./nodejs
-      - name: Download the canonical retained release
-        if: needs.claim-runtime-dispatch.outputs.role == 'recovery'
-        uses: actions/download-artifact@v8.0.0
-        with:
-          github-token: ${{ github.token }}
-          merge-multiple: true
-          path: ./recovery
-          pattern: nodejs-unstable-*
-          repository: ${{ github.repository }}
-          run-id: ${{ needs.claim-runtime-dispatch.outputs.canonical_run_id }}
-      - name: Validate exceptional recovery identity
-        if: needs.claim-runtime-dispatch.outputs.role == 'recovery'
-        id: recover
-        env:
-          CANONICAL_RUN_ID: ${{ needs.claim-runtime-dispatch.outputs.canonical_run_id }}
-          RUNTIME_RUN_ID: ${{ inputs.runtime_run_id }}
-          RUNTIME_SHA: ${{ inputs.runtime_sha }}
-          RUNTIME_SOURCE: ${{ inputs.runtime_source }}
-          RUNTIME_VERSION: ${{ inputs.runtime_version }}
-          SDK_REF: ${{ github.ref }}
-          SDK_SHA: ${{ github.sha }}
-          VERSION_OVERRIDE: ${{ inputs.version }}
-        run: |
-          set -euo pipefail
-          MANIFEST="./recovery/release-manifest.json"
-          [ -f "$MANIFEST" ] ||
-            { echo "::error::Canonical run does not contain one retained unstable release artifact."; exit 1; }
-          node nodejs/node_modules/.bin/tsx nodejs/scripts/release-manifest.ts verify "$MANIFEST" ./recovery
-          jq -e \
-            --arg run "$CANONICAL_RUN_ID" \
-            --arg runtimeRun "$RUNTIME_RUN_ID" \
-            --arg runtimeSha "$RUNTIME_SHA" \
-            --arg runtimeSource "$RUNTIME_SOURCE" \
-            --arg runtimeVersion "$RUNTIME_VERSION" \
-            --arg sdkRef "$SDK_REF" \
-            --arg sdkSha "$SDK_SHA" \
-            '.channel == "unstable" and
-             .workflow.runId == $run and
-             .runtime.runId == $runtimeRun and
-             .runtime.sha == $runtimeSha and
-             .runtime.source == $runtimeSource and
-             .runtime.version == $runtimeVersion and
-             .sdk.ref == $sdkRef and
-             .sdk.sha == $sdkSha' "$MANIFEST" >/dev/null ||
-            { echo "::error::Canonical release manifest does not match the claimed runtime dispatch."; exit 1; }
-          {
-            echo "artifact_name=nodejs-unstable-$(jq -r .sdk.version "$MANIFEST")"
-            echo "resume_run_id=$CANONICAL_RUN_ID"
-            echo "sdk_version=$(jq -r .sdk.version "$MANIFEST")"
-            echo "workflow_created_at=$(jq -r .workflow.createdAt "$MANIFEST")"
-          } >> "$GITHUB_OUTPUT"
       - name: Calculate the release identity
-        if: needs.claim-runtime-dispatch.outputs.role == 'owner'
         id: plan
         working-directory: ./nodejs
         env:
@@ -410,7 +342,7 @@ jobs:
 
   runtime-backed-release:
     name: Run runtime-backed SDK pipeline
-    if: needs.claim-runtime-dispatch.outputs.role == 'owner' || needs.claim-runtime-dispatch.outputs.role == 'recovery'
+    if: needs.claim-runtime-dispatch.outputs.role == 'owner'
     needs: [claim-runtime-dispatch, plan]
     uses: ./.github/workflows/runtime-backed-node-release.yml
     permissions:
@@ -422,7 +354,6 @@ jobs:
       artifact_name: ${{ needs.plan.outputs.artifact_name }}
       channel: ${{ inputs.channel }}
       mode: ${{ inputs.mode }}
-      resume_run_id: ${{ needs.plan.outputs.resume_run_id }}
       runtime_run_id: ${{ inputs.runtime_run_id }}
       runtime_sha: ${{ inputs.runtime_sha }}
       runtime_source: ${{ inputs.runtime_source }}
@@ -434,7 +365,7 @@ jobs:
 
   publish-public:
     name: Publish unstable SDK publicly
-    if: inputs.channel == 'unstable' && (needs.claim-runtime-dispatch.outputs.role == 'owner' || needs.claim-runtime-dispatch.outputs.role == 'recovery')
+    if: inputs.channel == 'unstable' && needs.claim-runtime-dispatch.outputs.role == 'owner'
     needs: [claim-runtime-dispatch, plan, runtime-backed-release]
     runs-on: ubuntu-latest
     concurrency:
@@ -453,22 +384,11 @@ jobs:
         working-directory: ./nodejs
       - name: Update npm for trusted publishing
         run: npm install --global npm@11.6.3
-      - name: Download current retained release
-        if: needs.plan.outputs.resume_run_id == ''
+      - name: Download retained release
         uses: actions/download-artifact@v8.0.0
         with:
           name: ${{ needs.runtime-backed-release.outputs.artifact_name }}
           path: ./dist
-      - name: Download canonical retained release
-        if: needs.plan.outputs.resume_run_id != ''
-        uses: actions/download-artifact@v8.0.0
-        with:
-          github-token: ${{ github.token }}
-          merge-multiple: true
-          path: ./dist
-          pattern: ${{ needs.runtime-backed-release.outputs.artifact_name }}
-          repository: ${{ github.repository }}
-          run-id: ${{ needs.plan.outputs.resume_run_id }}
       - name: Validate retained release
         run: |
           node nodejs/node_modules/.bin/tsx nodejs/scripts/release-manifest.ts verify \

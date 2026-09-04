@@ -9,7 +9,6 @@ const expected: ExpectedDispatch = {
     channel: "unstable",
     currentRunId: "200",
     mode: "internal",
-    resumeRunId: "",
     runtimeRunId: "100",
     runtimeSha: "a".repeat(40),
     runtimeSource: "github-packages",
@@ -50,18 +49,12 @@ describe("runtime dispatch ledger", () => {
         );
     });
 
-    it("recognizes an exact duplicate and an authorized recovery", () => {
+    it("recognizes an exact duplicate", () => {
         const marker = createRuntimeDispatchMarker({ ...expected, currentRunId: "199" });
         const api = provenance("199");
         expect(validateRuntimeDispatchMarker(marker, api.artifact, api.run, expected)).toBe(
             "duplicate"
         );
-        expect(
-            validateRuntimeDispatchMarker(marker, api.artifact, api.run, {
-                ...expected,
-                resumeRunId: "199",
-            })
-        ).toBe("recovery");
     });
 
     it("rejects marker tuple collisions and forged API provenance", () => {
@@ -89,16 +82,5 @@ describe("runtime dispatch ledger", () => {
                 expected
             )
         ).toThrow();
-    });
-
-    it("requires recovery to name the canonical run", () => {
-        const marker = createRuntimeDispatchMarker({ ...expected, currentRunId: "199" });
-        const api = provenance("199");
-        expect(() =>
-            validateRuntimeDispatchMarker(marker, api.artifact, api.run, {
-                ...expected,
-                resumeRunId: "198",
-            })
-        ).toThrow(/canonical workflow run/);
     });
 });
