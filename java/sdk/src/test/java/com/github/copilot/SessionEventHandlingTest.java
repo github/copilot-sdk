@@ -200,8 +200,8 @@ public class SessionEventHandlingTest {
         var rpc = mock(JsonRpcClient.class);
         when(rpc.invoke(eq("session.send"), any(), eq(SendMessageResponse.class)))
                 .thenReturn(CompletableFuture.completedFuture(new SendMessageResponse("message-1")));
-        when(rpc.invoke(eq("session.destroy"), any(), eq(Void.class)))
-                .thenReturn(CompletableFuture.completedFuture(null));
+        when(rpc.invoke(eq("session.detach"), any(), eq(CopilotSession.SessionDetachResponse.class)))
+                .thenReturn(CompletableFuture.completedFuture(new CopilotSession.SessionDetachResponse(true, null)));
         session = new CopilotSession("test-session-id", rpc);
 
         try {

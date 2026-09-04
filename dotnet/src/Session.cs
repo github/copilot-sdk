@@ -2213,8 +2213,12 @@ public sealed partial class CopilotSession : IAsyncDisposable
 
         try
         {
-            await InvokeRpcAsync<object>(
-                "session.destroy", [new SessionDestroyRequest() { SessionId = SessionId }], CancellationToken.None);
+            var response = await InvokeRpcAsync<SessionDetachResponse>(
+                "session.detach", [new SessionDetachRequest() { SessionId = SessionId }], CancellationToken.None);
+            if (!response.Success)
+            {
+                LogSessionDetachFailed(SessionId, response.Error ?? "unknown error");
+            }
         }
         catch (ObjectDisposedException)
         {
@@ -2250,6 +2254,9 @@ public sealed partial class CopilotSession : IAsyncDisposable
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "Failed to fetch tool metadata for {toolName}")]
     private partial void LogToolMetadataFetchFailed(Exception exception, string toolName);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Failed to detach session {sessionId}: {error}")]
+    private partial void LogSessionDetachFailed(string sessionId, string error);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Permission handler or response delivery failed. SessionId={SessionId}, RequestId={RequestId}")]
     private partial void LogPermissionHandlerOrDeliveryFailed(Exception exception, string sessionId, string requestId);
@@ -2288,9 +2295,15 @@ public sealed partial class CopilotSession : IAsyncDisposable
         public string SessionId { get; init; } = string.Empty;
     }
 
-    internal record SessionDestroyRequest
+    internal record SessionDetachRequest
     {
         public string SessionId { get; init; } = string.Empty;
+    }
+
+    internal record SessionDetachResponse
+    {
+        public bool Success { get; init; }
+        public string? Error { get; init; }
     }
 
     internal void ThrowIfDisposed()
@@ -2325,7 +2338,8 @@ public sealed partial class CopilotSession : IAsyncDisposable
     [JsonSerializable(typeof(SendMessageRequest))]
     [JsonSerializable(typeof(SendMessageResponse))]
     [JsonSerializable(typeof(SessionAbortRequest))]
-    [JsonSerializable(typeof(SessionDestroyRequest))]
+    [JsonSerializable(typeof(SessionDetachRequest))]
+    [JsonSerializable(typeof(SessionDetachResponse))]
     [JsonSerializable(typeof(SessionEndHookInput))]
     [JsonSerializable(typeof(SessionEndHookOutput))]
     [JsonSerializable(typeof(SessionStartHookInput))]

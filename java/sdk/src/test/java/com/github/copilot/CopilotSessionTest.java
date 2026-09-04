@@ -352,6 +352,51 @@ public class CopilotSessionTest {
         }
     }
 
+    @Test
+    @Tag("isolated-resume")
+    void testShouldRecoverMarkerAfterColdResumeWithExplicitSessionId() throws Exception {
+        final String snapshot = "should_recover_marker_after_cold_resume_with_explicit_session_id";
+        ctx.configureForTest("session", snapshot);
+
+        String sessionId = "e2e-cold-resume-" + java.util.UUID.randomUUID();
+
+        try (CopilotClient client1 = ctx.createClient()) {
+            CopilotSession session1 = client1.createSession(
+                    new SessionConfig().setSessionId(sessionId).setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
+                    .get(30, TimeUnit.SECONDS);
+            assertEquals(sessionId, session1.getSessionId());
+
+            AssistantMessageEvent answer = session1.sendAndWait(new MessageOptions()
+                    .setPrompt("Please remember this exact secret marker for later - MARKER-7f3ac21e. "
+                            + "Reply with only the single word \"Acknowledged\"."))
+                    .get(60, TimeUnit.SECONDS);
+            assertNotNull(answer);
+            assertTrue(answer.getData().content().contains("Acknowledged"),
+                    "Response should contain Acknowledged: " + answer.getData().content());
+
+            session1.close();
+            client1.forceStop().get(30, TimeUnit.SECONDS);
+        }
+
+        try (CopilotClient client2 = ctx.createClient()) {
+            CopilotSession session2 = client2
+                    .resumeSession(sessionId,
+                            new ResumeSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
+                    .get(30, TimeUnit.SECONDS);
+            assertEquals(sessionId, session2.getSessionId());
+
+            AssistantMessageEvent answer2 = session2.sendAndWait(
+                    new MessageOptions().setPrompt("What was the exact secret marker I asked you to remember earlier? "
+                            + "Reply with only that marker value and nothing else."))
+                    .get(60, TimeUnit.SECONDS);
+            assertNotNull(answer2);
+            assertTrue(answer2.getData().content().contains("MARKER-7f3ac21e"),
+                    "Resumed response should contain marker: " + answer2.getData().content());
+
+            session2.close();
+        }
+    }
+
     /**
      * Verifies that sessions work with appended system message configuration.
      *

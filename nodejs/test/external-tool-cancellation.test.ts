@@ -114,7 +114,7 @@ it("remains retryable when disconnect fails", async () => {
     const sendRequest = vi
         .fn()
         .mockRejectedValueOnce(new Error("transient"))
-        .mockResolvedValueOnce(undefined);
+        .mockResolvedValueOnce({ success: true });
     const session = new CopilotSession("session-1", { sendRequest } as never);
     const controller = new AbortController();
     (session as any).pendingExternalTools.set("request-1", controller);
@@ -129,11 +129,11 @@ it("remains retryable when disconnect fails", async () => {
 });
 
 it("accepts tool requests while a failing disconnect is pending", async () => {
-    let rejectDestroy!: (error: Error) => void;
+    let rejectDetach!: (error: Error) => void;
     const sendRequest = vi.fn(
         () =>
             new Promise((_, reject) => {
-                rejectDestroy = reject;
+                rejectDetach = reject;
             })
     );
     const session = new CopilotSession("session-1", { sendRequest } as never);
@@ -160,7 +160,7 @@ it("accepts tool requests while a failing disconnect is pending", async () => {
     });
     await vi.waitFor(() => expect(handler).toHaveBeenCalledTimes(1));
 
-    rejectDestroy(new Error("transient"));
+    rejectDetach(new Error("transient"));
     await expect(disconnect).rejects.toThrow("transient");
     (session as any)._handleBroadcastEvent({
         type: "external_tool.completed",

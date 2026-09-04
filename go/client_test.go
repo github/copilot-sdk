@@ -565,8 +565,8 @@ func TestClient_ForceStopCancelsPendingExternalTools(t *testing.T) {
 
 func TestClient_ConnectionCloseCancelsPendingExternalTools(t *testing.T) {
 	rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
-	server.SetRequestHandler("session.destroy", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-		return []byte(`{}`), nil
+	server.SetRequestHandler("session.detach", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		return []byte(`{"success":true}`), nil
 	})
 	ctx, cancel := context.WithCancel(context.Background())
 	session := newSession("session-1", rpcClient, "", false)
@@ -2978,8 +2978,10 @@ func serveInMemoryRuntime(t *testing.T, stdinR *io.PipeReader, stdoutW *io.PipeW
 			result = map[string]any{"id": "interest-1"}
 		case "session.options.update":
 			result = map[string]any{"success": true}
-		case "session.skills.reload", "session.destroy":
+		case "session.skills.reload":
 			result = map[string]any{}
+		case "session.detach":
+			result = map[string]any{"success": true}
 		default:
 			t.Errorf("unexpected JSON-RPC method %s", request.Method)
 			return

@@ -169,8 +169,8 @@ public class CopilotClientTest {
         var rpc = mock(JsonRpcClient.class);
         when(rpc.invoke(eq("session.delete"), any(), eq(DeleteSessionResponse.class)))
                 .thenReturn(CompletableFuture.completedFuture(new DeleteSessionResponse(true, null)));
-        when(rpc.invoke(eq("session.destroy"), any(), eq(Void.class)))
-                .thenReturn(CompletableFuture.completedFuture(null));
+        when(rpc.invoke(eq("session.detach"), any(), eq(CopilotSession.SessionDetachResponse.class)))
+                .thenReturn(CompletableFuture.completedFuture(new CopilotSession.SessionDetachResponse(true, null)));
         setConnectionFuture(client, rpc, null);
 
         var registry = new GitHubTokenProviderRegistry();

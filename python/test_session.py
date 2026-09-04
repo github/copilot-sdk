@@ -115,9 +115,9 @@ async def test_external_tool_completed_cancels_blocked_handler():
 
 
 @pytest.mark.asyncio
-async def test_disconnect_from_tool_task_does_not_cancel_destroy_request():
+async def test_disconnect_from_tool_task_does_not_cancel_detach_request():
     client = Mock()
-    client.request = AsyncMock()
+    client.request = AsyncMock(return_value={"success": True})
     session = CopilotSession("session-1", client)
     current_task = asyncio.current_task()
     assert current_task is not None
@@ -125,4 +125,4 @@ async def test_disconnect_from_tool_task_does_not_cancel_destroy_request():
 
     await session.disconnect()
 
-    client.request.assert_awaited_once_with("session.destroy", {"sessionId": "session-1"})
+    client.request.assert_awaited_once_with("session.detach", {"sessionId": "session-1"})

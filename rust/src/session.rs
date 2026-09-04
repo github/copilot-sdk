@@ -768,7 +768,7 @@ impl Session {
 
     /// Disconnect this session from the CLI.
     ///
-    /// Sends the `session.destroy` RPC, stops the event loop, and unregisters
+    /// Sends the `session.detach` RPC, stops the event loop, and unregisters
     /// the session from the client. **Session state on disk** (conversation
     /// history, planning state, artifacts) is **preserved**, so the
     /// conversation can be resumed later via [`Client::resume_session`]
@@ -783,12 +783,7 @@ impl Session {
     /// [`Client::delete_session`]: crate::Client::delete_session
     /// [`send_and_wait`]: Self::send_and_wait
     pub async fn disconnect(&self) -> Result<(), Error> {
-        self.client
-            .call(
-                "session.destroy",
-                Some(serde_json::json!({ "sessionId": self.id })),
-            )
-            .await?;
+        self.client.detach_session(&self.id).await?;
         self.external_tools_shutdown.cancel();
         self.stop_event_loop().await;
         self.github_token_registration.lock().take();
@@ -797,9 +792,7 @@ impl Session {
         Ok(())
     }
 
-    /// Deprecated alias for [`disconnect`](Self::disconnect). The
-    /// underlying wire RPC happens to be named `session.destroy`, but it
-    /// only severs the connection — on-disk session state is preserved.
+    /// Deprecated alias for [`disconnect`](Self::disconnect).
     /// Prefer `disconnect` in new code.
     #[deprecated(since = "0.1.0", note = "Use `disconnect()` instead")]
     pub async fn destroy(&self) -> Result<(), Error> {
