@@ -11,6 +11,12 @@ The runtime workflow dispatches an SDK workflow at an explicit SDK ref. Each
 handoff includes the exact runtime version, full source SHA, and source workflow
 run ID.
 
+`sdk-canary.yml` and `publish.yml` remain separate entry points and trust
+boundaries. Both invoke `runtime-backed-node-release.yml`, which owns runtime
+acquisition, cross-platform tests, packaging, manifest retention, recovery, and
+optional internal publication. Only `publish.yml` contains public npm
+publication.
+
 Canary dispatches `.github/workflows/sdk-canary.yml` with these inputs:
 
 * `channel`: `canary`

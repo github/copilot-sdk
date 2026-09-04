@@ -1,0 +1,389 @@
+name: Runtime-backed Node SDK release
+
+on:
+  workflow_call:
+    inputs:
+      artifact_name:
+        required: false
+        type: string
+        default: ""
+      channel:
+        required: true
+        type: string
+      mode:
+        required: true
+        type: string
+      resume_run_id:
+        required: false
+        type: string
+        default: ""
+      runtime_run_id:
+        required: true
+        type: string
+      runtime_sha:
+        required: true
+        type: string
+      runtime_source:
+        required: true
+        type: string
+      runtime_version:
+        required: true
+        type: string
+      sdk_ref:
+        required: true
+        type: string
+      sdk_sha:
+        required: true
+        type: string
+      sdk_version:
+        required: false
+        type: string
+        default: ""
+    outputs:
+      artifact_name:
+        value: ${{ jobs.boundary.outputs.artifact_name }}
+      sdk_version:
+        value: ${{ jobs.boundary.outputs.sdk_version }}
+    secrets:
+      COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY:
+        required: true
+
+env:
+  ADO_RESOURCE: 499b84ac-1321-427f-aa17-267ca6975798
+  FEED_URL: https://pkgs.dev.azure.com/devdiv/_packaging/copilot-canary/npm/registry/
+  HUSKY: 0
+
+jobs:
+  boundary:
+    name: Validate shared release boundary
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      artifact_name: ${{ steps.validate.outputs.artifact_name }}
+      sdk_version: ${{ steps.validate.outputs.sdk_version }}
+      workflow_created_at: ${{ steps.validate.outputs.workflow_created_at }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./nodejs
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: actions/setup-node@v6
+        with:
+          cache: npm
+          cache-dependency-path: ./nodejs/package-lock.json
+          node-version: 22
+      - run: npm ci --ignore-scripts
+      - name: Enforce channel, source, mode, and identity
+        id: validate
+        env:
+          ARTIFACT_NAME: ${{ inputs.artifact_name }}
+          CHANNEL: ${{ inputs.channel }}
+          GH_TOKEN: ${{ github.token }}
+          MODE: ${{ inputs.mode }}
+          RESUME_RUN_ID: ${{ inputs.resume_run_id }}
+          RUNTIME_RUN_ID: ${{ inputs.runtime_run_id }}
+          RUNTIME_SHA: ${{ inputs.runtime_sha }}
+          RUNTIME_SOURCE: ${{ inputs.runtime_source }}
+          RUNTIME_VERSION: ${{ inputs.runtime_version }}
+          SDK_REF: ${{ inputs.sdk_ref }}
+          SDK_SHA: ${{ inputs.sdk_sha }}
+          SDK_VERSION: ${{ inputs.sdk_version }}
+        run: |
+          set -euo pipefail
+          case "$CHANNEL:$RUNTIME_SOURCE:$MODE" in
+            canary:azure:tests-only|canary:azure:internal|unstable:github-packages:internal) ;;
+            *) echo "::error::Invalid runtime-backed release matrix: $CHANNEL/$RUNTIME_SOURCE/$MODE."; exit 1 ;;
+          esac
+          [[ "$RUNTIME_VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]] ||
+            { echo "::error::runtime_version must be exact SemVer."; exit 1; }
+          [[ "$RUNTIME_SHA" =~ ^[0-9a-f]{40}$ ]] ||
+            { echo "::error::runtime_sha must be a lowercase full SHA."; exit 1; }
+          [[ "$RUNTIME_RUN_ID" =~ ^[0-9]+$ ]] ||
+            { echo "::error::runtime_run_id must be numeric."; exit 1; }
+          [[ "$SDK_SHA" =~ ^[0-9a-f]{40}$ ]] ||
+            { echo "::error::sdk_sha must be a lowercase full SHA."; exit 1; }
+          [ -n "$SDK_REF" ] || { echo "::error::sdk_ref is required."; exit 1; }
+          if [ -n "$RESUME_RUN_ID" ]; then
+            [ "$CHANNEL" = "unstable" ] ||
+              { echo "::error::Only unstable releases support resume_run_id."; exit 1; }
+            [[ "$RESUME_RUN_ID" =~ ^[0-9]+$ ]] ||
+              { echo "::error::resume_run_id must be numeric."; exit 1; }
+          fi
+          if [ "$CHANNEL" = "canary" ]; then
+            [ -z "$RESUME_RUN_ID" ] ||
+              { echo "::error::Canary cannot resume another workflow run."; exit 1; }
+            PUBLIC_LATEST="$(node scripts/get-version.js current)"
+            BASE="${PUBLIC_LATEST%%-*}"
+            IFS=. read -r MAJOR MINOR PATCH <<< "$BASE"
+            SDK_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))-canary.${GITHUB_RUN_NUMBER}.g${SDK_SHA:0:7}"
+          else
+            [ -n "$SDK_VERSION" ] || { echo "::error::Unstable sdk_version is required."; exit 1; }
+            [[ "$SDK_VERSION" =~ -unstable\. ]] ||
+              { echo "::error::Unstable sdk_version must use the unstable prerelease identifier."; exit 1; }
+          fi
+          npm exec -- semver "$SDK_VERSION" >/dev/null
+          EXPECTED_ARTIFACT="nodejs-${CHANNEL}-${SDK_VERSION}"
+          if [ -n "$ARTIFACT_NAME" ] && [ "$ARTIFACT_NAME" != "$EXPECTED_ARTIFACT" ]; then
+            echo "::error::artifact_name must be $EXPECTED_ARTIFACT."
+            exit 1
+          fi
+          WORKFLOW_CREATED_AT="$(gh api "/repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" --jq .created_at)"
+          {
+            echo "artifact_name=$EXPECTED_ARTIFACT"
+            echo "sdk_version=$SDK_VERSION"
+            echo "workflow_created_at=$WORKFLOW_CREATED_AT"
+          } >> "$GITHUB_OUTPUT"
+
+  acquire-runtime:
+    name: Acquire exact runtime packages
+    if: inputs.resume_run_id == ''
+    needs: boundary
+    runs-on: ubuntu-latest
+    environment: cicd
+    permissions:
+      contents: read
+      id-token: write
+      packages: read
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./nodejs
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: actions/setup-node@v6
+        with:
+          cache: npm
+          cache-dependency-path: ./nodejs/package-lock.json
+          node-version: 22
+      - run: npm ci --ignore-scripts
+      - name: Azure login
+        if: inputs.runtime_source == 'azure'
+        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
+        with:
+          allow-no-subscriptions: true
+          client-id: ${{ vars.CPD_ID_CLIENT_ID }}
+          tenant-id: ${{ vars.CPD_ID_TENANT_ID }}
+      - name: Configure authentication-only Azure npm access
+        if: inputs.runtime_source == 'azure'
+        run: |
+          TOKEN="$(az account get-access-token --resource "$ADO_RESOURCE" --query accessToken -o tsv)"
+          echo "::add-mask::$TOKEN"
+          FEED_AUTH_REGISTRY="${FEED_URL#https:}"
+          FEED_AUTH_BASE="${FEED_AUTH_REGISTRY%registry/}"
+          printf '%s\n' \
+            "${FEED_AUTH_REGISTRY}:_authToken=${TOKEN}" \
+            "${FEED_AUTH_BASE}:_authToken=${TOKEN}" > "$HOME/.npmrc"
+      - name: Configure authentication-only GitHub Packages access
+        if: inputs.runtime_source == 'github-packages'
+        env:
+          NODE_AUTH_TOKEN: ${{ github.token }}
+        run: echo "//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}" > "$HOME/.npmrc"
+      - name: Download and validate all runtime platforms
+        env:
+          REGISTRY: ${{ inputs.runtime_source == 'azure' && env.FEED_URL || 'https://npm.pkg.github.com' }}
+          RUNTIME_SHA: ${{ inputs.runtime_sha }}
+          RUNTIME_VERSION: ${{ inputs.runtime_version }}
+        run: |
+          npm run acquire:runtime-packages -- \
+            --version "$RUNTIME_VERSION" \
+            --sha "$RUNTIME_SHA" \
+            --registry "$REGISTRY" \
+            --output "$RUNNER_TEMP/runtime-packages"
+      - uses: actions/upload-artifact@v7.0.0
+        with:
+          name: runtime-${{ inputs.channel }}-${{ inputs.runtime_version }}-${{ inputs.runtime_sha }}
+          path: ${{ runner.temp }}/runtime-packages
+          if-no-files-found: error
+          retention-days: 7
+
+  test:
+    name: Runtime-backed Node tests (${{ matrix.os }})
+    if: inputs.resume_run_id == ''
+    needs: [boundary, acquire-runtime]
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    environment: cicd
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./nodejs
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: actions/setup-node@v6
+        with:
+          cache: npm
+          cache-dependency-path: ./nodejs/package-lock.json
+          node-version: 22
+      - run: npm ci --ignore-scripts
+      - name: Install test harness dependencies
+        working-directory: ./test/harness
+        run: npm ci --ignore-scripts
+      - uses: actions/download-artifact@v8.0.0
+        with:
+          name: runtime-${{ inputs.channel }}-${{ inputs.runtime_version }}-${{ inputs.runtime_sha }}
+          path: ${{ runner.temp }}/runtime-packages
+      - name: Select the acquired runtime
+        env:
+          COPILOT_SDK_RUNTIME_PACKAGE_DIR: ${{ runner.temp }}/runtime-packages
+          RUNTIME_VERSION: ${{ inputs.runtime_version }}
+        run: |
+          node scripts/set-cli-version.js "$RUNTIME_VERSION" --local-package
+          runtime_path="$(npm run --silent prepare:runtime -- --print-path)"
+          "$runtime_path" --version | grep -F "$RUNTIME_VERSION"
+          echo "COPILOT_CLI_PATH=$runtime_path" >> "$GITHUB_ENV"
+      - run: npm run build
+      - name: Warm up PowerShell
+        if: runner.os == 'Windows'
+        run: pwsh.exe -Command "Write-Host 'PowerShell ready'"
+      - name: Run Node SDK tests
+        env:
+          COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
+        run: npm test
+
+  package:
+    name: Build and verify nine SDK packages
+    if: inputs.resume_run_id == ''
+    needs: [boundary, acquire-runtime, test]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./nodejs
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: actions/setup-node@v6
+        with:
+          cache: npm
+          cache-dependency-path: ./nodejs/package-lock.json
+          node-version: 22
+      - run: npm ci --ignore-scripts
+      - uses: actions/download-artifact@v8.0.0
+        with:
+          name: runtime-${{ inputs.channel }}-${{ inputs.runtime_version }}-${{ inputs.runtime_sha }}
+          path: ${{ runner.temp }}/runtime-packages
+      - name: Build and verify exact package set
+        env:
+          COPILOT_SDK_RUNTIME_PACKAGE_DIR: ${{ runner.temp }}/runtime-packages
+          RUNTIME_VERSION: ${{ inputs.runtime_version }}
+          SDK_VERSION: ${{ needs.boundary.outputs.sdk_version }}
+        run: |
+          VERSION="$SDK_VERSION" node scripts/set-version.js
+          node scripts/set-cli-version.js "$RUNTIME_VERSION" --local-package
+          grep -F "COPILOT_CLI_USE_NPM_PACKAGE = false" src/cliVersion.ts
+          npm run build
+          npm run pack:release
+          npm run verify:release-packages
+      - name: Create immutable release manifest
+        env:
+          RELEASE_CHANNEL: ${{ inputs.channel }}
+          RUNTIME_RUN_ID: ${{ inputs.runtime_run_id }}
+          RUNTIME_SHA: ${{ inputs.runtime_sha }}
+          RUNTIME_SOURCE: ${{ inputs.runtime_source }}
+          RUNTIME_VERSION: ${{ inputs.runtime_version }}
+          SDK_REF: ${{ inputs.sdk_ref }}
+          SDK_SHA: ${{ inputs.sdk_sha }}
+          SDK_VERSION: ${{ needs.boundary.outputs.sdk_version }}
+          WORKFLOW_CREATED_AT: ${{ needs.boundary.outputs.workflow_created_at }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+          WORKFLOW_RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          npm run release:manifest -- create release-manifest.json .
+          npm run release:manifest -- verify release-manifest.json .
+      - uses: actions/upload-artifact@v7.0.0
+        with:
+          name: ${{ needs.boundary.outputs.artifact_name }}
+          path: |
+            nodejs/release-manifest.json
+            nodejs/github-copilot-sdk-*.tgz
+          if-no-files-found: error
+          retention-days: 30
+
+  publish-internal:
+    name: Publish and verify SDK internally
+    if: |
+      always() &&
+      !cancelled() &&
+      inputs.mode == 'internal' &&
+      needs.boundary.result == 'success' &&
+      (inputs.resume_run_id != '' || needs.package.result == 'success')
+    needs: [boundary, package]
+    runs-on: ubuntu-latest
+    environment: cicd
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - run: npm ci --ignore-scripts
+        working-directory: ./nodejs
+      - name: Download current retained release
+        if: inputs.resume_run_id == ''
+        uses: actions/download-artifact@v8.0.0
+        with:
+          name: ${{ needs.boundary.outputs.artifact_name }}
+          path: ./dist
+      - name: Download original retained release
+        if: inputs.resume_run_id != ''
+        uses: actions/download-artifact@v8.0.0
+        with:
+          github-token: ${{ github.token }}
+          merge-multiple: true
+          path: ./dist
+          pattern: ${{ needs.boundary.outputs.artifact_name }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.resume_run_id }}
+      - name: Validate retained release
+        env:
+          EXPECTED_RUN_ID: ${{ inputs.resume_run_id || github.run_id }}
+        run: |
+          node nodejs/node_modules/.bin/tsx nodejs/scripts/release-manifest.ts verify dist/release-manifest.json dist
+          [ "$(jq -r .workflow.runId dist/release-manifest.json)" = "$EXPECTED_RUN_ID" ] ||
+            { echo "::error::Retained release belongs to a different workflow run."; exit 1; }
+          [ "$(jq -r .channel dist/release-manifest.json)" = "${{ inputs.channel }}" ] ||
+            { echo "::error::Retained release channel does not match the requested channel."; exit 1; }
+      - name: Azure login
+        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
+        with:
+          allow-no-subscriptions: true
+          client-id: ${{ vars.CPD_ID_CLIENT_ID }}
+          tenant-id: ${{ vars.CPD_ID_TENANT_ID }}
+      - name: Configure authentication-only Azure npm access
+        run: |
+          TOKEN="$(az account get-access-token --resource "$ADO_RESOURCE" --query accessToken -o tsv)"
+          echo "::add-mask::$TOKEN"
+          FEED_AUTH_REGISTRY="${FEED_URL#https:}"
+          FEED_AUTH_BASE="${FEED_AUTH_REGISTRY%registry/}"
+          printf '%s\n' \
+            "${FEED_AUTH_REGISTRY}:_authToken=${TOKEN}" \
+            "${FEED_AUTH_BASE}:_authToken=${TOKEN}" > "$HOME/.npmrc"
+      - name: Publish exact tarballs internally
+        run: |
+          node nodejs/scripts/npm-release.js publish-manifest \
+            dist/release-manifest.json dist "${{ inputs.channel }}" "$FEED_URL" azure
+      - name: Clean install and runtime version check
+        env:
+          RUNTIME_VERSION: ${{ inputs.runtime_version }}
+          SDK_VERSION: ${{ needs.boundary.outputs.sdk_version }}
+        run: |
+          VERIFY_ROOT="$RUNNER_TEMP/sdk-${{ inputs.channel }}-verification"
+          mkdir -p "$VERIFY_ROOT"
+          cd "$VERIFY_ROOT"
+          npm init -y >/dev/null
+          printf '%s\n' "@github:registry=${FEED_URL}" >> "$HOME/.npmrc"
+          npm install --ignore-scripts "@github/copilot-sdk@${SDK_VERSION}"
+          RUNTIME="./node_modules/@github/copilot-sdk-linux-x64/prebuilds/linux-x64/copilot-runtime"
+          "$RUNTIME" --version | grep -F "$RUNTIME_VERSION"

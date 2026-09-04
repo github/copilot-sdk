@@ -1,10 +1,5 @@
 name: "SDK Canary Test/Publish"
 
-env:
-  ADO_RESOURCE: 499b84ac-1321-427f-aa17-267ca6975798
-  FEED_URL: https://pkgs.dev.azure.com/devdiv/_packaging/copilot-canary/npm/registry/
-  HUSKY: 0
-
 on:
   workflow_dispatch:
     inputs:
@@ -125,236 +120,21 @@ jobs:
             echo "runtime_version=$RUNTIME_VERSION"
           } >> "$GITHUB_OUTPUT"
 
-  acquire-runtime:
-    name: Acquire exact runtime packages
+  runtime-backed-release:
+    name: Run canary SDK pipeline
     needs: resolve
-    runs-on: ubuntu-latest
-    environment: cicd
-    permissions:
-      contents: read
-      id-token: write
-    defaults:
-      run:
-        shell: bash
-        working-directory: ./nodejs
-    steps:
-      - uses: actions/checkout@v6.0.2
-      - uses: actions/setup-node@v6
-        with:
-          cache: npm
-          cache-dependency-path: ./nodejs/package-lock.json
-          node-version: 22
-      - run: npm ci --ignore-scripts
-      - name: Azure login
-        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
-        with:
-          allow-no-subscriptions: true
-          client-id: ${{ vars.CPD_ID_CLIENT_ID }}
-          tenant-id: ${{ vars.CPD_ID_TENANT_ID }}
-      - name: Configure authentication-only Azure npm access
-        run: |
-          set -euo pipefail
-          TOKEN="$(az account get-access-token --resource "$ADO_RESOURCE" --query accessToken -o tsv)"
-          echo "::add-mask::$TOKEN"
-          FEED_AUTH_REGISTRY="${FEED_URL#https:}"
-          FEED_AUTH_BASE="${FEED_AUTH_REGISTRY%registry/}"
-          printf '%s\n' \
-            "${FEED_AUTH_REGISTRY}:_authToken=${TOKEN}" \
-            "${FEED_AUTH_BASE}:_authToken=${TOKEN}" > "$HOME/.npmrc"
-      - name: Download and validate all runtime platforms
-        env:
-          RUNTIME_SHA: ${{ needs.resolve.outputs.runtime_sha }}
-          RUNTIME_VERSION: ${{ needs.resolve.outputs.runtime_version }}
-        run: |
-          npm run acquire:runtime-packages -- \
-            --version "$RUNTIME_VERSION" \
-            --sha "$RUNTIME_SHA" \
-            --registry "$FEED_URL" \
-            --output "$RUNNER_TEMP/runtime-packages"
-      - uses: actions/upload-artifact@v7.0.0
-        with:
-          name: canary-runtime-${{ needs.resolve.outputs.runtime_version }}-${{ needs.resolve.outputs.runtime_sha }}
-          path: ${{ runner.temp }}/runtime-packages
-          if-no-files-found: error
-          retention-days: 7
-
-  test:
-    name: Runtime-backed Node tests (${{ matrix.os }})
-    needs: [resolve, acquire-runtime]
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
-    environment: cicd
-    defaults:
-      run:
-        shell: bash
-        working-directory: ./nodejs
-    steps:
-      - uses: actions/checkout@v6.0.2
-      - uses: actions/setup-node@v6
-        with:
-          cache: npm
-          cache-dependency-path: ./nodejs/package-lock.json
-          node-version: 22
-      - run: npm ci --ignore-scripts
-      - name: Install test harness dependencies
-        working-directory: ./test/harness
-        run: npm ci --ignore-scripts
-      - uses: actions/download-artifact@v8.0.0
-        with:
-          name: canary-runtime-${{ needs.resolve.outputs.runtime_version }}-${{ needs.resolve.outputs.runtime_sha }}
-          path: ${{ runner.temp }}/runtime-packages
-      - name: Select the acquired runtime
-        env:
-          COPILOT_SDK_RUNTIME_PACKAGE_DIR: ${{ runner.temp }}/runtime-packages
-          RUNTIME_VERSION: ${{ needs.resolve.outputs.runtime_version }}
-        run: |
-          set -euo pipefail
-          node scripts/set-cli-version.js "$RUNTIME_VERSION" --local-package
-          runtime_path="$(npm run --silent prepare:runtime -- --print-path)"
-          "$runtime_path" --version | grep -F "$RUNTIME_VERSION"
-          echo "COPILOT_CLI_PATH=$runtime_path" >> "$GITHUB_ENV"
-      - run: npm run build
-      - name: Warm up PowerShell
-        if: runner.os == 'Windows'
-        run: pwsh.exe -Command "Write-Host 'PowerShell ready'"
-      - name: Run Node SDK tests
-        env:
-          COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
-        run: npm test
-
-  package:
-    name: Build and verify nine SDK packages
-    needs: [resolve, acquire-runtime, test]
-    runs-on: ubuntu-latest
+    uses: ./.github/workflows/runtime-backed-node-release.yml
     permissions:
       actions: read
       contents: read
-    outputs:
-      artifact_name: ${{ steps.identity.outputs.artifact_name }}
-      sdk_version: ${{ steps.identity.outputs.sdk_version }}
-    defaults:
-      run:
-        shell: bash
-        working-directory: ./nodejs
-    steps:
-      - uses: actions/checkout@v6.0.2
-      - uses: actions/setup-node@v6
-        with:
-          cache: npm
-          cache-dependency-path: ./nodejs/package-lock.json
-          node-version: 22
-      - run: npm ci --ignore-scripts
-      - uses: actions/download-artifact@v8.0.0
-        with:
-          name: canary-runtime-${{ needs.resolve.outputs.runtime_version }}-${{ needs.resolve.outputs.runtime_sha }}
-          path: ${{ runner.temp }}/runtime-packages
-      - name: Freeze SDK canary version
-        id: identity
-        env:
-          SDK_SHA: ${{ github.sha }}
-        run: |
-          set -euo pipefail
-          PUBLIC_LATEST="$(node scripts/get-version.js current)"
-          BASE="${PUBLIC_LATEST%%-*}"
-          IFS=. read -r MAJOR MINOR PATCH <<< "$BASE"
-          SDK_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))-canary.${GITHUB_RUN_NUMBER}.g${SDK_SHA:0:7}"
-          npm exec -- semver "$SDK_VERSION"
-          echo "sdk_version=$SDK_VERSION" >> "$GITHUB_OUTPUT"
-          echo "artifact_name=nodejs-canary-$SDK_VERSION" >> "$GITHUB_OUTPUT"
-      - name: Build package set
-        env:
-          COPILOT_SDK_RUNTIME_PACKAGE_DIR: ${{ runner.temp }}/runtime-packages
-          RUNTIME_VERSION: ${{ needs.resolve.outputs.runtime_version }}
-          SDK_VERSION: ${{ steps.identity.outputs.sdk_version }}
-        run: |
-          set -euo pipefail
-          VERSION="$SDK_VERSION" node scripts/set-version.js
-          node scripts/set-cli-version.js "$RUNTIME_VERSION" --local-package
-          grep -F "COPILOT_CLI_USE_NPM_PACKAGE = false" src/cliVersion.ts
-          npm run build
-          npm run pack:release
-          npm run verify:release-packages
-      - name: Create retained release manifest
-        env:
-          RELEASE_CHANNEL: canary
-          RUNTIME_RUN_ID: ${{ needs.resolve.outputs.runtime_run_id }}
-          RUNTIME_SHA: ${{ needs.resolve.outputs.runtime_sha }}
-          RUNTIME_SOURCE: azure
-          RUNTIME_VERSION: ${{ needs.resolve.outputs.runtime_version }}
-          SDK_REF: ${{ github.ref }}
-          SDK_SHA: ${{ github.sha }}
-          SDK_VERSION: ${{ steps.identity.outputs.sdk_version }}
-          WORKFLOW_RUN_ID: ${{ github.run_id }}
-          WORKFLOW_RUN_NUMBER: ${{ github.run_number }}
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          WORKFLOW_CREATED_AT="$(gh api "/repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" --jq .created_at)"
-          export WORKFLOW_CREATED_AT
-          npm run release:manifest -- create release-manifest.json .
-          npm run release:manifest -- verify release-manifest.json .
-      - uses: actions/upload-artifact@v7.0.0
-        with:
-          name: ${{ steps.identity.outputs.artifact_name }}
-          path: |
-            nodejs/release-manifest.json
-            nodejs/github-copilot-sdk-*.tgz
-          if-no-files-found: error
-          retention-days: 30
-
-  publish-internal:
-    name: Publish and verify SDK canary internally
-    if: needs.resolve.outputs.mode == 'internal'
-    needs: [resolve, package]
-    runs-on: ubuntu-latest
-    environment: cicd
-    permissions:
-      contents: read
       id-token: write
-    steps:
-      - uses: actions/checkout@v6.0.2
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 22
-      - run: npm ci --ignore-scripts
-        working-directory: ./nodejs
-      - uses: actions/download-artifact@v8.0.0
-        with:
-          name: ${{ needs.package.outputs.artifact_name }}
-          path: ./dist
-      - name: Azure login
-        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
-        with:
-          allow-no-subscriptions: true
-          client-id: ${{ vars.CPD_ID_CLIENT_ID }}
-          tenant-id: ${{ vars.CPD_ID_TENANT_ID }}
-      - name: Configure authentication-only Azure npm access
-        run: |
-          set -euo pipefail
-          TOKEN="$(az account get-access-token --resource "$ADO_RESOURCE" --query accessToken -o tsv)"
-          echo "::add-mask::$TOKEN"
-          FEED_AUTH_REGISTRY="${FEED_URL#https:}"
-          FEED_AUTH_BASE="${FEED_AUTH_REGISTRY%registry/}"
-          printf '%s\n' \
-            "${FEED_AUTH_REGISTRY}:_authToken=${TOKEN}" \
-            "${FEED_AUTH_BASE}:_authToken=${TOKEN}" > "$HOME/.npmrc"
-      - name: Publish exact manifest package set
-        run: |
-          node nodejs/scripts/npm-release.js publish-manifest \
-            dist/release-manifest.json dist canary "$FEED_URL" azure
-      - name: Clean install and runtime version check
-        env:
-          RUNTIME_VERSION: ${{ needs.resolve.outputs.runtime_version }}
-          SDK_VERSION: ${{ needs.package.outputs.sdk_version }}
-        run: |
-          set -euo pipefail
-          VERIFY_ROOT="$RUNNER_TEMP/sdk-canary-verification"
-          mkdir -p "$VERIFY_ROOT"
-          cd "$VERIFY_ROOT"
-          npm init -y >/dev/null
-          printf '%s\n' "@github:registry=${FEED_URL}" >> "$HOME/.npmrc"
-          npm install --ignore-scripts "@github/copilot-sdk@${SDK_VERSION}"
-          RUNTIME="./node_modules/@github/copilot-sdk-linux-x64/prebuilds/linux-x64/copilot-runtime"
-          "$RUNTIME" --version | grep -F "$RUNTIME_VERSION"
+    with:
+      channel: canary
+      mode: ${{ needs.resolve.outputs.mode }}
+      runtime_run_id: ${{ needs.resolve.outputs.runtime_run_id }}
+      runtime_sha: ${{ needs.resolve.outputs.runtime_sha }}
+      runtime_source: ${{ needs.resolve.outputs.runtime_source }}
+      runtime_version: ${{ needs.resolve.outputs.runtime_version }}
+      sdk_ref: ${{ github.ref }}
+      sdk_sha: ${{ github.sha }}
+    secrets: inherit
