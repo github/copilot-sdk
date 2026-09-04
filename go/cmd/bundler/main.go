@@ -437,7 +437,6 @@ type bundleMetadata struct {
 	CLIVersion   string `json:"cliVersion"`
 	Platform     string `json:"platform"`
 	ReleaseAsset string `json:"releaseAsset"`
-	ReleaseHash  string `json:"releaseHash"`
 	BinaryHash   string `json:"binaryHash"`
 	RuntimeHash  string `json:"runtimeHash"`
 	WrapperHash  string `json:"wrapperHash"`
@@ -474,7 +473,7 @@ func buildBundle(info platformInfo, cliVersion, outputPath, goos string, include
 	}
 	defer os.RemoveAll(tempDir)
 
-	binaryPath, tarballPath, releaseHash, err := downloadCLIBinary(info.releasePlatform, info.binaryName, cliVersion, tempDir)
+	binaryPath, tarballPath, err := downloadCLIBinary(info.releasePlatform, info.binaryName, cliVersion, tempDir)
 	if err != nil {
 		return bundleArtifacts{}, fmt.Errorf("failed to download CLI binary: %w", err)
 	}
@@ -543,7 +542,7 @@ func buildBundle(info platformInfo, cliVersion, outputPath, goos string, include
 	artifacts.runtimeHash = runtimeHash
 	artifacts.wrapperHash = wrapperHash
 	artifacts.assetsHash = assetsHash
-	if err := writeBundleMetadata(artifacts, cliVersion, info.releasePlatform, releaseHash, includeLicense); err != nil {
+	if err := writeBundleMetadata(artifacts, cliVersion, info.releasePlatform, includeLicense); err != nil {
 		return bundleArtifacts{}, fmt.Errorf("failed to write bundle metadata: %w", err)
 	}
 
@@ -579,7 +578,6 @@ func loadCachedBundle(artifacts bundleArtifacts, cliVersion, platform string, in
 		metadata.CLIVersion != cliVersion ||
 		metadata.Platform != platform ||
 		metadata.ReleaseAsset != releaseAssetName(cliVersion, platform) ||
-		!isSHA256(metadata.ReleaseHash) ||
 		(includeLicense && !isSHA256(metadata.LicenseHash)) {
 		return bundleArtifacts{}, false
 	}
@@ -614,13 +612,12 @@ func loadCachedBundle(artifacts bundleArtifacts, cliVersion, platform string, in
 	return artifacts, true
 }
 
-func writeBundleMetadata(artifacts bundleArtifacts, cliVersion, platform, releaseHash string, includeLicense bool) error {
+func writeBundleMetadata(artifacts bundleArtifacts, cliVersion, platform string, includeLicense bool) error {
 	metadata := bundleMetadata{
 		Schema:       bundleMetadataSchema,
 		CLIVersion:   cliVersion,
 		Platform:     platform,
 		ReleaseAsset: releaseAssetName(cliVersion, platform),
-		ReleaseHash:  releaseHash,
 		BinaryHash:   hex.EncodeToString(artifacts.binaryHash),
 		RuntimeHash:  hex.EncodeToString(artifacts.runtimeHash),
 		WrapperHash:  hex.EncodeToString(artifacts.wrapperHash),
@@ -996,12 +993,12 @@ func mustDecodeBase64(s string) []byte {
 // downloadCLIBinary downloads and verifies the CLI release archive, then
 // extracts the CLI binary. It returns the extracted binary path and archive path
 // so callers can extract the runtime artifacts from the same verified archive.
-func downloadCLIBinary(releasePlatform, binaryName, cliVersion, destDir string) (string, string, string, error) {
+func downloadCLIBinary(releasePlatform, binaryName, cliVersion, destDir string) (string, string, error) {
 	assetName := releaseAssetName(cliVersion, releasePlatform)
 	releaseURL := fmt.Sprintf("%s/v%s", releaseDownloadBaseURL(), cliVersion)
 	expectedChecksum, err := downloadReleaseChecksum(releaseURL, assetName)
 	if err != nil {
-		return "", "", "", err
+		return "", "", err
 	}
 	tarballURL := releaseURL + "/" + assetName
 
@@ -1009,7 +1006,7 @@ func downloadCLIBinary(releasePlatform, binaryName, cliVersion, destDir string) 
 
 	resp, err := getReleaseURL(tarballURL)
 	if err != nil {
-		return "", "", "", err
+		return "", "", err
 	}
 	defer resp.Body.Close()
 
@@ -1017,50 +1014,50 @@ func downloadCLIBinary(releasePlatform, binaryName, cliVersion, destDir string) 
 	tarballPath := filepath.Join(destDir, assetName)
 	tarballFile, err := os.Create(tarballPath)
 	if err != nil {
-		return "", "", "", fmt.Errorf("failed to create tarball file: %w", err)
+		return "", "", fmt.Errorf("failed to create tarball file: %w", err)
 	}
 
 	hasher := sha256.New()
 	if _, err := io.Copy(io.MultiWriter(tarballFile, hasher), resp.Body); err != nil {
 		tarballFile.Close()
-		return "", "", "", fmt.Errorf("failed to save tarball: %w", err)
+		return "", "", fmt.Errorf("failed to save tarball: %w", err)
 	}
 	if err := tarballFile.Close(); err != nil {
-		return "", "", "", fmt.Errorf("failed to close tarball file: %w", err)
+		return "", "", fmt.Errorf("failed to close tarball file: %w", err)
 	}
 	actualChecksum := hex.EncodeToString(hasher.Sum(nil))
 	if actualChecksum != expectedChecksum {
 		_ = os.Remove(tarballPath)
-		return "", "", "", fmt.Errorf("checksum mismatch for %s: expected %s, got %s", assetName, expectedChecksum, actualChecksum)
+		return "", "", fmt.Errorf("checksum mismatch for %s: expected %s, got %s", assetName, expectedChecksum, actualChecksum)
 	}
 	fmt.Printf("Integrity verified for %s\n", assetName)
 
 	// Extract only the CLI binary to avoid unpacking the full package tree.
 	binaryPath := filepath.Join(destDir, binaryName)
 	if err := extractFileFromTarball(tarballPath, destDir, "package/"+binaryName, binaryName); err != nil {
-		return "", "", "", fmt.Errorf("failed to extract binary: %w", err)
+		return "", "", fmt.Errorf("failed to extract binary: %w", err)
 	}
 
 	// Verify binary exists
 	if _, err := os.Stat(binaryPath); err != nil {
-		return "", "", "", fmt.Errorf("binary not found after extraction: %w", err)
+		return "", "", fmt.Errorf("binary not found after extraction: %w", err)
 	}
 
 	// Make executable on Unix
 	if !strings.HasSuffix(binaryName, ".exe") {
 		if err := os.Chmod(binaryPath, 0755); err != nil {
-			return "", "", "", fmt.Errorf("failed to chmod binary: %w", err)
+			return "", "", fmt.Errorf("failed to chmod binary: %w", err)
 		}
 	}
 
 	stat, err := os.Stat(binaryPath)
 	if err != nil {
-		return "", "", "", fmt.Errorf("failed to stat binary: %w", err)
+		return "", "", fmt.Errorf("failed to stat binary: %w", err)
 	}
 	sizeMB := float64(stat.Size()) / 1024 / 1024
 	fmt.Printf("Downloaded %s (%.1f MB)\n", binaryName, sizeMB)
 
-	return binaryPath, tarballPath, actualChecksum, nil
+	return binaryPath, tarballPath, nil
 }
 
 func releaseAssetName(cliVersion, platform string) string {

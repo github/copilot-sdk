@@ -133,7 +133,7 @@ func TestDownloadCLIBinaryUsesVerifiedReleaseAsset(t *testing.T) {
 	defer server.Close()
 	t.Setenv(releaseDownloadURLEnv, server.URL+"/")
 
-	binaryPath, downloadedArchivePath, archiveChecksum, err := downloadCLIBinary("linux-x64", "copilot", "1.2.3", t.TempDir())
+	binaryPath, downloadedArchivePath, err := downloadCLIBinary("linux-x64", "copilot", "1.2.3", t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -146,9 +146,6 @@ func TestDownloadCLIBinaryUsesVerifiedReleaseAsset(t *testing.T) {
 	}
 	if filepath.Base(downloadedArchivePath) != assetName {
 		t.Fatalf("archive name = %q, want %q", filepath.Base(downloadedArchivePath), assetName)
-	}
-	if archiveChecksum != fmt.Sprintf("%x", checksum) {
-		t.Fatalf("archive checksum = %q, want %x", archiveChecksum, checksum)
 	}
 }
 
@@ -175,7 +172,7 @@ func TestDownloadCLIBinaryRejectsChecksumMismatch(t *testing.T) {
 	t.Setenv(releaseDownloadURLEnv, server.URL)
 
 	destination := t.TempDir()
-	_, downloadedArchivePath, _, err := downloadCLIBinary("linux-x64", "copilot", "1.2.3", destination)
+	_, downloadedArchivePath, err := downloadCLIBinary("linux-x64", "copilot", "1.2.3", destination)
 	if err == nil || !strings.Contains(err.Error(), "checksum mismatch") {
 		t.Fatalf("downloadCLIBinary() error = %v, want checksum mismatch", err)
 	}
@@ -241,6 +238,13 @@ func TestBuildBundleRefreshesCorruptCache(t *testing.T) {
 	bundle, err := buildBundle(info, "1.2.3", outputPath, "linux", true)
 	if err != nil {
 		t.Fatal(err)
+	}
+	metadata, err := os.ReadFile(bundleMetadataPath(outputPath))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(metadata), "releaseHash") {
+		t.Fatal("bundle metadata contains unenforced releaseHash")
 	}
 	if _, err := buildBundle(info, "1.2.3", outputPath, "linux", true); err != nil {
 		t.Fatal(err)
