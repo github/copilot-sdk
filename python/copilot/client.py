@@ -20,7 +20,6 @@ import ipaddress
 import logging
 import os
 import re
-import shutil
 import subprocess
 import sys
 import threading
@@ -4328,11 +4327,15 @@ class CopilotClient:
         cli_path = conn.path
         assert cli_path is not None  # resolved in __init__
 
-        # Verify CLI exists
+        # Verify the resolved CLI path exists. `cli_path` must already come from
+        # an explicit override, COPILOT_CLI_PATH, or the SDK-managed downloaded
+        # runtime (see `_resolve_runtime_entrypoint`); the SDK never falls back to
+        # searching PATH for an arbitrary system installation.
         if not os.path.exists(cli_path):
-            original_path = cli_path
-            if (cli_path := shutil.which(cli_path)) is None:
-                raise RuntimeError(f"Copilot CLI not found at {original_path}")
+            raise RuntimeError(
+                f"Copilot CLI not found at {cli_path!r}. Set an explicit path, "
+                "COPILOT_CLI_PATH, or ensure the SDK-managed runtime download succeeded."
+            )
 
         # Start with user-provided args, then add SDK-managed args
         args = list(conn.args) + [

@@ -80,6 +80,25 @@ def test_copilot_cli_path_does_not_require_runtime_bundle(tmp_path):
     assert connection.path == str(explicit)
 
 
+@pytest.mark.asyncio
+async def test_missing_cli_path_does_not_fall_back_to_path_search(tmp_path):
+    """A missing resolved CLI path must fail rather than silently resolving an
+    arbitrary same-named executable found on PATH (see #2524 / commit 05dd60e)."""
+    path_dir = tmp_path / "on_path"
+    path_dir.mkdir()
+    decoy = path_dir / "copilot"
+    decoy.write_text("#!/bin/sh\necho decoy\n")
+    decoy.chmod(0o755)
+
+    missing = tmp_path / "copilot"
+    connection = RuntimeConnection.for_stdio(path=str(missing))
+    client = CopilotClient(connection=connection, env={"PATH": str(path_dir)})
+
+    with patch.dict(os.environ, {"PATH": str(path_dir)}):
+        with pytest.raises(RuntimeError, match="Copilot CLI not found"):
+            await client._start_cli_server()
+
+
 class TestBuiltinPluginDirectories:
     @staticmethod
     async def _start_client(paths=None):
