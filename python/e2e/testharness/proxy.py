@@ -199,10 +199,12 @@ def _kill_process_tree(process: subprocess.Popen) -> None:
                 timeout=PROCESS_SHUTDOWN_TIMEOUT_SECONDS,
             )
         except subprocess.TimeoutExpired:
+            # Fall through to the direct-process kill below.
             pass
 
     if process.poll() is None:
         try:
             process.kill()
         except ProcessLookupError:
+            # The process exited between poll() and kill().
             pass
