@@ -10,9 +10,12 @@ import static org.mockito.Mockito.*;
 
 import java.io.Closeable;
 import java.lang.reflect.Method;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -26,11 +29,15 @@ import org.junit.jupiter.api.Test;
 
 import com.github.copilot.generated.SessionEvent;
 import com.github.copilot.generated.AssistantMessageEvent;
+import com.github.copilot.generated.ExternalToolCompletedEvent;
+import com.github.copilot.generated.ExternalToolRequestedEvent;
 import com.github.copilot.generated.SessionIdleEvent;
 import com.github.copilot.generated.SessionMode;
 import com.github.copilot.generated.SessionStartEvent;
+import com.github.copilot.generated.rpc.SessionToolsGetCurrentMetadataResult;
 import com.github.copilot.rpc.MessageOptions;
 import com.github.copilot.rpc.SendMessageResponse;
+import com.github.copilot.rpc.ToolDefinition;
 
 /**
  * Unit tests for session event handling API.
@@ -50,10 +57,14 @@ public class SessionEventHandlingTest {
     }
 
     private CopilotSession createTestSession() throws Exception {
+        return createTestSession(null);
+    }
+
+    private CopilotSession createTestSession(JsonRpcClient rpc) throws Exception {
         // Use the package-private constructor via reflection for testing
         var constructor = CopilotSession.class.getDeclaredConstructor(String.class, JsonRpcClient.class, String.class);
         constructor.setAccessible(true);
-        return constructor.newInstance("test-session-id", null, null);
+        return constructor.newInstance("test-session-id", rpc, null);
     }
 
     @Test
@@ -71,6 +82,103 @@ public class SessionEventHandlingTest {
         assertInstanceOf(SessionStartEvent.class, receivedEvents.get(0));
         assertInstanceOf(AssistantMessageEvent.class, receivedEvents.get(1));
         assertInstanceOf(SessionIdleEvent.class, receivedEvents.get(2));
+    }
+
+    @Test
+    void testExternalToolCompletedCancelsBlockedHandler() throws Exception {
+        var toolFuture = new CompletableFuture<Object>();
+        var started = new CountDownLatch(1);
+        session.registerTools(List.of(ToolDefinition.create("blocked_tool", "Blocks", Map.of(), invocation -> {
+            started.countDown();
+            return toolFuture;
+        })));
+
+        var requested = new ExternalToolRequestedEvent();
+        requested.setData(new ExternalToolRequestedEvent.ExternalToolRequestedEventData("request-1", "test-session-id",
+                "tool-call-1", "blocked_tool", null, Map.of(), null, null, null));
+        dispatchEvent(requested);
+        assertTrue(started.await(1, TimeUnit.SECONDS));
+
+        var completed = new ExternalToolCompletedEvent();
+        completed.setData(new ExternalToolCompletedEvent.ExternalToolCompletedEventData("request-1"));
+        dispatchEvent(completed);
+
+        assertThrows(CancellationException.class, () -> toolFuture.get(1, TimeUnit.SECONDS));
+    }
+
+    @Test
+    void testCloseCancelsBlockedExternalTool() throws Exception {
+        var rpc = mock(JsonRpcClient.class);
+        when(rpc.invoke(eq("session.detach"), any(), eq(CopilotSession.SessionDetachResponse.class)))
+                .thenReturn(CompletableFuture.completedFuture(new CopilotSession.SessionDetachResponse(true, null)));
+        session = createTestSession(rpc);
+        var toolFuture = new CompletableFuture<Object>();
+        var started = new CountDownLatch(1);
+        session.registerTools(List.of(ToolDefinition.create("blocked_tool", "Blocks", Map.of(), invocation -> {
+            started.countDown();
+            return toolFuture;
+        })));
+
+        var requested = new ExternalToolRequestedEvent();
+        requested.setData(new ExternalToolRequestedEvent.ExternalToolRequestedEventData("request-close",
+                "test-session-id", "tool-call-close", "blocked_tool", null, Map.of(), null, null, null));
+        dispatchEvent(requested);
+        assertTrue(started.await(1, TimeUnit.SECONDS));
+
+        session.close();
+
+        assertThrows(CancellationException.class, () -> toolFuture.get(1, TimeUnit.SECONDS));
+    }
+
+    @Test
+    void testExternalToolCompletedDoesNotBlockOnSynchronousHandler() throws Exception {
+        var started = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        session.registerTools(
+                List.of(ToolDefinition.create("blocked_tool", "Blocks synchronously", Map.of(), invocation -> {
+                    started.countDown();
+                    try {
+                        release.await();
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                    return CompletableFuture.completedFuture("done");
+                })));
+
+        var requested = new ExternalToolRequestedEvent();
+        requested.setData(new ExternalToolRequestedEvent.ExternalToolRequestedEventData("request-sync",
+                "test-session-id", "tool-call-sync", "blocked_tool", null, Map.of(), null, null, null));
+        dispatchEvent(requested);
+        assertTrue(started.await(1, TimeUnit.SECONDS));
+
+        var completed = new ExternalToolCompletedEvent();
+        completed.setData(new ExternalToolCompletedEvent.ExternalToolCompletedEventData("request-sync"));
+        try {
+            assertTimeoutPreemptively(Duration.ofSeconds(1), () -> dispatchEvent(completed));
+        } finally {
+            release.countDown();
+        }
+    }
+
+    @Test
+    void testToolSearchRunsWhenMetadataResultIsNull() throws Exception {
+        var rpc = mock(JsonRpcClient.class);
+        CompletableFuture<SessionToolsGetCurrentMetadataResult> metadata = CompletableFuture.completedFuture(null);
+        when(rpc.invoke(eq("session.tools.getCurrentMetadata"), any(), eq(SessionToolsGetCurrentMetadataResult.class)))
+                .thenReturn(metadata);
+        session = createTestSession(rpc);
+        var invoked = new CountDownLatch(1);
+        session.registerTools(List.of(ToolDefinition.create("tool_search_tool", "Searches", Map.of(), invocation -> {
+            invoked.countDown();
+            return new CompletableFuture<>();
+        })));
+
+        var requested = new ExternalToolRequestedEvent();
+        requested.setData(new ExternalToolRequestedEvent.ExternalToolRequestedEventData("request-search",
+                "test-session-id", "tool-call-search", "tool_search_tool", null, Map.of(), null, null, null));
+        dispatchEvent(requested);
+
+        assertTrue(invoked.await(1, TimeUnit.SECONDS));
     }
 
     @Test

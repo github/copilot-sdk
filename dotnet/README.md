@@ -14,6 +14,13 @@ To use the SDK, you'll need:
 dotnet add package GitHub.Copilot.SDK
 ```
 
+The package downloads the pinned Copilot CLI runtime for the build RID from the
+matching `github/copilot-cli` GitHub release and verifies the archive against
+that release's `SHA256SUMS.txt`. Set `CopilotCliReleaseBaseUrl` in MSBuild (or
+`COPILOT_CLI_DOWNLOAD_BASE_URL` in the environment) to use a release mirror.
+Set `CopilotCliBinaryPath` to copy a preinstalled binary instead, or set
+`CopilotSkipCliDownload=true` to omit runtime acquisition.
+
 ## Run the Samples
 
 Try the interactive chat sample (from the repo root):

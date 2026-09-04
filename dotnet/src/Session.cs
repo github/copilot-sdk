@@ -5,6 +5,7 @@
 using GitHub.Copilot.Rpc;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
+using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
@@ -60,6 +61,8 @@ public sealed partial class CopilotSession : IAsyncDisposable
     private readonly Dictionary<string, AIFunction> _toolHandlers = [];
     private readonly Dictionary<string, Func<CommandContext, Task>> _commandHandlers = [];
     private readonly Dictionary<string, Func<ProviderTokenArgs, Task<string>>> _bearerTokenProviders = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, CancellationTokenSource> _pendingExternalTools = new(StringComparer.Ordinal);
+    private readonly CancellationTokenSource _externalToolLifetime = new();
     private readonly ILogger _logger;
     private readonly CopilotClient _parentClient;
 
@@ -226,6 +229,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// </summary>
     internal void Unregister()
     {
+        CancelPendingExternalTools();
         CloseEventChannel();
         RemoveFromClient();
     }
@@ -675,6 +679,10 @@ public sealed partial class CopilotSession : IAsyncDisposable
                         break;
                     }
 
+                case ExternalToolCompletedEvent completedEvent:
+                    CancelExternalTool(completedEvent.Data.RequestId);
+                    break;
+
                 case PermissionRequestedEvent permEvent:
                     {
                         var data = permEvent.Data;
@@ -884,8 +892,24 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// </summary>
     private async Task ExecuteToolAndRespondAsync(string requestId, string toolName, string toolCallId, JsonElement? arguments, AIFunction tool)
     {
+        if (_externalToolLifetime.IsCancellationRequested)
+        {
+            return;
+        }
+
+        using var cancellationSource = CancellationTokenSource.CreateLinkedTokenSource(_externalToolLifetime.Token);
+        if (!_pendingExternalTools.TryAdd(requestId, cancellationSource))
+        {
+            return;
+        }
+
         try
         {
+            if (cancellationSource.IsCancellationRequested)
+            {
+                return;
+            }
+
             var invocation = new ToolInvocation
             {
                 SessionId = SessionId,
@@ -903,7 +927,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
             {
                 try
                 {
-                    var metadata = await Rpc.Tools.GetCurrentMetadataAsync();
+                    var metadata = await Rpc.Tools.GetCurrentMetadataAsync(cancellationSource.Token);
                     invocation.AvailableTools = metadata.Tools;
                 }
                 catch (Exception ex) when (ex is RemoteRpcException or IOException or ObjectDisposedException or JsonException)
@@ -938,7 +962,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
             }
 
             var toolTimestamp = Stopwatch.GetTimestamp();
-            var result = await tool.InvokeAsync(aiFunctionArgs);
+            var result = await tool.InvokeAsync(aiFunctionArgs, cancellationSource.Token);
             LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
                 "CopilotSession.ExecuteToolAndRespondAsync tool dispatch. Elapsed={Elapsed}, SessionId={SessionId}, RequestId={RequestId}, ToolCallId={ToolCallId}, Tool={ToolName}",
                 toolTimestamp,
@@ -948,9 +972,14 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 toolName);
 
             var toolResultObject = ToolResultObject.ConvertFromInvocationResult(result, tool.JsonSerializerOptions);
+            if (!TryClaimExternalTool(requestId, cancellationSource))
+            {
+                return;
+            }
 
             var responseRpcTimestamp = Stopwatch.GetTimestamp();
-            await Rpc.Tools.HandlePendingToolCallAsync(requestId, toolResultObject, error: null);
+            await Rpc.Tools.HandlePendingToolCallAsync(
+                requestId, toolResultObject, error: null, cancellationSource.Token);
             LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
                 "CopilotSession.ExecuteToolAndRespondAsync response sent successfully. Elapsed={Elapsed}, SessionId={SessionId}, RequestId={RequestId}, ToolCallId={ToolCallId}, Tool={ToolName}",
                 responseRpcTimestamp,
@@ -959,11 +988,33 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 toolCallId,
                 toolName);
         }
-        catch (Exception ex)
+        catch (OperationCanceledException) when (cancellationSource.IsCancellationRequested)
         {
+            // The runtime has already completed the request or the session is shutting down.
+        }
+        catch (RemoteRpcException) when (cancellationSource.IsCancellationRequested)
+        {
+            // Another client answered after this invocation completed locally.
+        }
+        catch (Exception) when (cancellationSource.IsCancellationRequested)
+        {
+            // Cancellation won the request; no response or error should escape.
+        }
+        catch (Exception ex) when (!cancellationSource.IsCancellationRequested)
+        {
+            if (!TryClaimExternalTool(requestId, cancellationSource))
+            {
+                return;
+            }
+
             try
             {
-                await Rpc.Tools.HandlePendingToolCallAsync(requestId, result: null, error: ex.Message);
+                await Rpc.Tools.HandlePendingToolCallAsync(
+                    requestId, result: null, error: ex.Message, cancellationSource.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                // Teardown canceled the in-flight error response.
             }
             catch (IOException)
             {
@@ -973,6 +1024,15 @@ public sealed partial class CopilotSession : IAsyncDisposable
             {
                 // Connection already disposed — nothing we can do
             }
+            catch (RemoteRpcException)
+            {
+                // Another client may have answered the broadcast request first.
+            }
+        }
+        finally
+        {
+            ((ICollection<KeyValuePair<string, CancellationTokenSource>>)_pendingExternalTools)
+                .Remove(new(requestId, cancellationSource));
         }
 
         static string GetSingleParameterName(AIFunction tool)
@@ -1023,6 +1083,49 @@ public sealed partial class CopilotSession : IAsyncDisposable
             throw new ArgumentException(
                 $"Tool '{tool.Name}' received non-object arguments, but its schema does not define exactly one parameter or one required parameter.");
         }
+    }
+
+    private bool TryClaimExternalTool(string requestId, CancellationTokenSource cancellationSource)
+        => ((ICollection<KeyValuePair<string, CancellationTokenSource>>)_pendingExternalTools)
+            .Remove(new(requestId, cancellationSource));
+
+    private void CancelExternalTool(string requestId)
+    {
+        if (!string.IsNullOrEmpty(requestId) && _pendingExternalTools.TryRemove(requestId, out var cancellationSource))
+        {
+            _ = Task.Run(() =>
+            {
+                try
+                {
+                    cancellationSource.Cancel();
+                }
+                catch (AggregateException)
+                {
+                    // Cancellation callbacks are consumer code and must not disrupt event dispatch.
+                }
+                catch (ObjectDisposedException)
+                {
+                    // The invocation completed while cancellation was being delivered.
+                }
+            });
+        }
+    }
+
+    internal void CancelPendingExternalTools()
+    {
+        try
+        {
+            _externalToolLifetime.Cancel();
+        }
+        catch (AggregateException)
+        {
+            // User cancellation callbacks must not prevent session teardown.
+        }
+        catch (ObjectDisposedException)
+        {
+            // Session teardown already completed.
+        }
+        _pendingExternalTools.Clear();
     }
 
     /// <summary>
@@ -2105,6 +2208,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
             return;
         }
 
+        CancelPendingExternalTools();
         CloseEventChannel();
 
         try

@@ -443,6 +443,7 @@ export class CopilotClient {
     private ffiHost: FfiRuntimeHost | null = null;
     private connection: MessageConnection | null = null;
     private messageWriter: TeardownResilientStreamMessageWriter | null = null;
+    private connectionClosed: boolean = false;
     private socket: Socket | null = null;
     private runtimePort: number | null = null;
     private actualHost: string = "localhost";
@@ -935,6 +936,7 @@ export class CopilotClient {
         }
 
         this.forceStopping = false;
+        this.connectionClosed = false;
         this.processTransportError = null;
         this.state = "connecting";
 
@@ -1070,7 +1072,12 @@ export class CopilotClient {
         // Ask SDK-owned runtimes to flush and clean up before we tear down
         // their transport/process. External runtimes may be shared, so only
         // close our connection to them.
-        if (this.connection && (this.cliProcess || this.ffiHost) && !this.isExternalServer) {
+        if (
+            this.connection &&
+            !this.connectionClosed &&
+            (this.cliProcess || this.ffiHost) &&
+            !this.isExternalServer
+        ) {
             const runtimeShutdownStart = Date.now();
             const shutdownPromise = this.rpc.runtime.shutdown();
             void shutdownPromise.catch(() => undefined);
@@ -1750,6 +1757,7 @@ export class CopilotClient {
             await this.updateSessionOptionsForMode(session, config);
             this.commitGitHubTokenProvider(returnedSessionId, gitHubTokenProviderRegistrationId);
         } catch (e) {
+            session?._markDisconnected();
             if (registeredId !== undefined) {
                 this.sessions.delete(registeredId);
             }
@@ -2028,6 +2036,7 @@ export class CopilotClient {
             await this.updateSessionOptionsForMode(session, config);
             this.commitGitHubTokenProvider(sessionId, gitHubTokenProviderRegistrationId);
         } catch (e) {
+            session._markDisconnected();
             this.sessions.delete(sessionId);
             if (gitHubTokenProviderRegistrationId !== undefined) {
                 this.githubTokenProviders.delete(gitHubTokenProviderRegistrationId);
@@ -3052,13 +3061,24 @@ export class CopilotClient {
             }
         );
 
-        this.connection.onClose(() => {
+        const connection = this.connection;
+        const markDisconnected = () => {
+            if (this.connection !== connection) {
+                return;
+            }
+            this.connectionClosed = true;
             this.state = "disconnected";
+            for (const session of this.sessions.values()) {
+                session._markDisconnected();
+            }
+            this.sessions.clear();
             this.githubTokenProviders.clear();
-        });
-
-        this.connection.onError((_error) => {
-            this.state = "disconnected";
+        };
+        this.connection.onClose(markDisconnected);
+        this.connection.onError(() => {
+            if (this.connection === connection) {
+                this.state = "disconnected";
+            }
         });
     }
 

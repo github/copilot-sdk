@@ -94,6 +94,41 @@ pub(crate) struct SessionHandlers {
     pub tools: Arc<HashMap<String, Arc<dyn crate::tool::ToolHandler>>>,
 }
 
+type PendingExternalTools = Arc<ParkingLotMutex<HashMap<RequestId, Arc<CancellationToken>>>>;
+
+struct PendingExternalToolGuard {
+    request_id: RequestId,
+    token: Arc<CancellationToken>,
+    pending: PendingExternalTools,
+}
+
+impl Drop for PendingExternalToolGuard {
+    fn drop(&mut self) {
+        let mut pending = self.pending.lock();
+        if pending
+            .get(&self.request_id)
+            .is_some_and(|token| Arc::ptr_eq(token, &self.token))
+        {
+            pending.remove(&self.request_id);
+        }
+    }
+}
+
+impl PendingExternalToolGuard {
+    fn claim(&self) -> bool {
+        let mut pending = self.pending.lock();
+        if pending
+            .get(&self.request_id)
+            .is_some_and(|token| Arc::ptr_eq(token, &self.token))
+        {
+            pending.remove(&self.request_id);
+            true
+        } else {
+            false
+        }
+    }
+}
+
 fn has_managed_settings(
     enable_managed_settings: Option<bool>,
     managed_settings: Option<&crate::types::ManagedSettings>,
@@ -134,6 +169,7 @@ struct PendingSessionRegistration {
     client: Client,
     session_id: PendingSessionId,
     shutdown: CancellationToken,
+    external_tools_shutdown: CancellationToken,
     disarmed: bool,
 }
 
@@ -159,11 +195,13 @@ impl PendingSessionRegistration {
         session_id: SessionId,
         token: crate::router::RegistrationToken,
         shutdown: CancellationToken,
+        external_tools_shutdown: CancellationToken,
     ) -> Self {
         Self {
             client,
             session_id: PendingSessionId::Known(session_id, token),
             shutdown,
+            external_tools_shutdown,
             disarmed: false,
         }
     }
@@ -173,11 +211,13 @@ impl PendingSessionRegistration {
         client: Client,
         stash: Arc<ParkingLotMutex<Option<(SessionId, crate::router::SessionRegistration)>>>,
         shutdown: CancellationToken,
+        external_tools_shutdown: CancellationToken,
     ) -> Self {
         Self {
             client,
             session_id: PendingSessionId::Deferred(stash),
             shutdown,
+            external_tools_shutdown,
             disarmed: false,
         }
     }
@@ -197,6 +237,7 @@ impl PendingSessionRegistration {
     }
 
     async fn cleanup(mut self, event_loop: JoinHandle<()>) {
+        self.external_tools_shutdown.cancel();
         self.shutdown.cancel();
         let _ = event_loop.await;
         if let Some(id) = self.registered_id() {
@@ -219,6 +260,7 @@ impl PendingSessionRegistration {
 impl Drop for PendingSessionRegistration {
     fn drop(&mut self) {
         if !self.disarmed {
+            self.external_tools_shutdown.cancel();
             self.shutdown.cancel();
             if let Some(id) = self.registered_id() {
                 if let PendingSessionId::Known(_, token) = self.session_id {
@@ -270,6 +312,9 @@ pub struct Session {
     /// via [`Session::cancellation_token`] to bind their own work to
     /// the session lifetime.
     shutdown: CancellationToken,
+    /// Cancels only host-owned external tool callbacks. Disconnect signals this
+    /// before the destroy RPC without stopping unrelated event delivery.
+    external_tools_shutdown: CancellationToken,
     /// Only populated while a `send_and_wait` call is in flight.
     ///
     /// Sync `parking_lot::Mutex` because the lock is never held across an
@@ -739,6 +784,7 @@ impl Session {
     /// [`send_and_wait`]: Self::send_and_wait
     pub async fn disconnect(&self) -> Result<(), Error> {
         self.client.detach_session(&self.id).await?;
+        self.external_tools_shutdown.cancel();
         self.stop_event_loop().await;
         self.github_token_registration.lock().take();
         self.client
@@ -817,6 +863,7 @@ impl Drop for Session {
         // tokio runtime when it next polls; we intentionally don't await
         // it here because Drop is sync.
         self.shutdown.cancel();
+        self.external_tools_shutdown.cancel();
         self.github_token_registration.lock().take();
         self.client
             .unregister_session_owned(&self.id, self.registration_token);
@@ -1260,6 +1307,7 @@ impl Client {
         let capabilities = Arc::new(parking_lot::RwLock::new(SessionCapabilities::default()));
         let idle_waiter = Arc::new(ParkingLotMutex::new(None));
         let open_canvases = Arc::new(parking_lot::RwLock::new(Vec::new()));
+        let external_tools_shutdown = self.inner.rpc.connection_closed_token();
 
         // For cloud sessions (use_server_generated_id), defer session
         // registration to the inline callback so the read task registers
@@ -1322,12 +1370,19 @@ impl Client {
                     .expect("session registration must exist")
                     .1
                     .token;
-                PendingSessionRegistration::new(self.clone(), sid.clone(), token, shutdown.clone())
+                PendingSessionRegistration::new(
+                    self.clone(),
+                    sid.clone(),
+                    token,
+                    shutdown.clone(),
+                    external_tools_shutdown.clone(),
+                )
             }
             None => PendingSessionRegistration::deferred(
                 self.clone(),
                 inline_stash.clone(),
                 shutdown.clone(),
+                external_tools_shutdown.clone(),
             ),
         };
 
@@ -1374,6 +1429,7 @@ impl Client {
             open_canvases.clone(),
             event_tx.clone(),
             shutdown.clone(),
+            external_tools_shutdown.clone(),
         );
         tracing::debug!(
             elapsed_ms = setup_start.elapsed().as_millis(),
@@ -1405,6 +1461,7 @@ impl Client {
             client: self.clone(),
             event_loop: ParkingLotMutex::new(Some(event_loop)),
             shutdown,
+            external_tools_shutdown,
             idle_waiter,
             capabilities,
             open_canvases,
@@ -1572,6 +1629,7 @@ impl Client {
         let channels = registration.channels;
         let idle_waiter = Arc::new(ParkingLotMutex::new(None));
         let open_canvases = Arc::new(parking_lot::RwLock::new(Vec::new()));
+        let external_tools_shutdown = self.inner.rpc.connection_closed_token();
         let event_loop = spawn_event_loop(
             session_id.clone(),
             self.clone(),
@@ -1588,12 +1646,14 @@ impl Client {
             open_canvases.clone(),
             event_tx.clone(),
             shutdown.clone(),
+            external_tools_shutdown.clone(),
         );
         let mut registration = PendingSessionRegistration::new(
             self.clone(),
             session_id.clone(),
             registration_token,
             shutdown.clone(),
+            external_tools_shutdown.clone(),
         );
         tracing::debug!(
             elapsed_ms = setup_start.elapsed().as_millis(),
@@ -1692,6 +1752,7 @@ impl Client {
             client: self.clone(),
             event_loop: ParkingLotMutex::new(Some(event_loop)),
             shutdown,
+            external_tools_shutdown,
             idle_waiter,
             capabilities,
             open_canvases,
@@ -1993,11 +2054,14 @@ fn spawn_event_loop(
     open_canvases: Arc<parking_lot::RwLock<Vec<OpenCanvasInstance>>>,
     event_tx: tokio::sync::broadcast::Sender<SessionEvent>,
     shutdown: CancellationToken,
+    external_tools_shutdown: CancellationToken,
 ) -> JoinHandle<()> {
     let crate::router::SessionChannels {
         mut notifications,
         mut requests,
     } = channels;
+    let pending_external_tools: PendingExternalTools =
+        Arc::new(ParkingLotMutex::new(HashMap::new()));
 
     let span = tracing::error_span!("session_event_loop", session_id = %session_id);
     tokio::spawn(
@@ -2030,7 +2094,7 @@ fn spawn_event_loop(
                     _ = shutdown.cancelled() => break,
                     Some(notification) = notifications.recv() => {
                         handle_notification(
-                            &session_id, &client, &handlers, &command_handlers, notification, &idle_waiter, &capabilities, &open_canvases, &event_tx, &shutdown,
+                            &session_id, &client, &handlers, &command_handlers, notification, &idle_waiter, &capabilities, &open_canvases, &event_tx, &shutdown, &external_tools_shutdown, &pending_external_tools,
                         ).await;
                     }
                     Some(request) = requests.recv() => {
@@ -2197,6 +2261,8 @@ async fn handle_notification(
     open_canvases: &Arc<parking_lot::RwLock<Vec<OpenCanvasInstance>>>,
     event_tx: &tokio::sync::broadcast::Sender<SessionEvent>,
     shutdown: &CancellationToken,
+    external_tools_shutdown: &CancellationToken,
+    pending_external_tools: &PendingExternalTools,
 ) {
     let dispatch_start = Instant::now();
     let event = notification.event.clone();
@@ -2310,6 +2376,13 @@ async fn handle_notification(
     // Notification-based permission/tool/elicitation requests require a
     // separate RPC callback. Spawn concurrently since the CLI doesn't block.
     match event_type {
+        SessionEventType::ExternalToolCompleted => {
+            if let Some(request_id) = extract_request_id(&notification.event.data)
+                && let Some(token) = pending_external_tools.lock().remove(&request_id)
+            {
+                token.cancel();
+            }
+        }
         SessionEventType::PermissionRequested => {
             let Some(request_id) = extract_request_id(&notification.event.data) else {
                 return;
@@ -2453,8 +2526,19 @@ async fn handle_notification(
             let Some(tool_handler) = tool_handler else {
                 return;
             };
+            let cancellation = Arc::new(external_tools_shutdown.child_token());
+            {
+                let mut pending = pending_external_tools.lock();
+                if external_tools_shutdown.is_cancelled() || pending.contains_key(&request_id) {
+                    return;
+                }
+                pending.insert(request_id.clone(), cancellation.clone());
+            }
             let client = client.clone();
             let sid = session_id.clone();
+            let pending_external_tools = pending_external_tools.clone();
+            let guard_request_id = request_id.clone();
+            let guard_cancellation = cancellation.clone();
             let span = tracing::error_span!(
                 "external_tool_handler",
                 session_id = %sid,
@@ -2462,11 +2546,22 @@ async fn handle_notification(
             );
             tokio::spawn(
                 async move {
+                    let guard = PendingExternalToolGuard {
+                        request_id: guard_request_id,
+                        token: guard_cancellation,
+                        pending: pending_external_tools,
+                    };
+                    if cancellation.is_cancelled() {
+                        return;
+                    }
                     // `tool_name.is_empty()` would have produced a `None`
                     // lookup in `handlers.tools` and short-circuited at the
                     // outer guard above, so only the tool_call_id check is
                     // reachable here.
                     if data.tool_call_id.is_empty() {
+                        if !guard.claim() {
+                            return;
+                        }
                         let error_msg = "Missing toolCallId";
                         let rpc_start = Instant::now();
                         let _ = client
@@ -2496,13 +2591,15 @@ async fn handle_notification(
                     // call; a failed fetch leaves the snapshot `None` rather than
                     // failing the tool.
                     let available_tools = if tool_name == TOOL_SEARCH_TOOL_NAME {
-                        match client
-                            .call(
+                        let metadata_result = tokio::select! {
+                            biased;
+                            _ = cancellation.cancelled() => return,
+                            result = client.call(
                                 rpc_methods::SESSION_TOOLS_GETCURRENTMETADATA,
                                 Some(serde_json::json!({ "sessionId": sid })),
-                            )
-                            .await
-                        {
+                            ) => result,
+                        };
+                        match metadata_result {
                             Ok(value) => {
                                 serde_json::from_value::<ToolsGetCurrentMetadataResult>(value)
                                     .ok()
@@ -2525,9 +2622,13 @@ async fn handle_notification(
                         tracestate: data.tracestate,
                     };
                     let handler_start = Instant::now();
-                    let tool_result = match tool_handler.call(invocation).await {
-                        Ok(r) => r,
-                        Err(e) => tool_failure_result(e.to_string()),
+                    let tool_result = tokio::select! {
+                        biased;
+                        _ = cancellation.cancelled() => return,
+                        result = tool_handler.call(invocation) => match result {
+                            Ok(r) => r,
+                            Err(e) => tool_failure_result(e.to_string()),
+                        },
                     };
                     tracing::debug!(
                         elapsed_ms = handler_start.elapsed().as_millis(),
@@ -2537,6 +2638,9 @@ async fn handle_notification(
                         tool_name = %tool_name,
                         "ToolHandler::call dispatch"
                     );
+                    if !guard.claim() {
+                        return;
+                    }
                     let result_value = serde_json::to_value(tool_result).unwrap_or(Value::Null);
                     let rpc_start = Instant::now();
                     let _ = client

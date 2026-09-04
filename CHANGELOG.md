@@ -7,6 +7,10 @@ See [GitHub Releases](https://github.com/github/copilot-sdk/releases) for the fu
 
 ## [Unreleased]
 
+### Feature: cancellation for host-owned external tools
+
+Host-owned external tool callbacks are now cancelled when their runtime request completes or their SDK session terminates. The cancellation primitive is idiomatic per SDK: .NET passes a request token to `AIFunction`, Node.js exposes `ToolInvocation.signal`, Go cancels `ToolInvocation.TraceContext`, Java cancels the returned `CompletableFuture`, Python cancels the handler task, and Rust drops the handler future. Go handlers that retain `TraceContext` for background work must derive a separate lifetime because the invocation context is cancelled when the request ends.
+
 ### Feature: declare application identity with client info
 
 Client options now accept optional client info (application name and version, integration name and version) across all six SDKs, exposed idiomatically per language (`clientInfo` in Node.js, `client_info` in Python and Rust, `ClientInfo` in Go and .NET, `setClientInfo` in Java). When set, the SDK forwards it on the `server.connect` handshake so the telemetry the runtime emits on the connection is attributed to the application and its Copilot integration instead of the runtime's own build. All fields are optional, and leaving client info unset keeps the runtime's default attribution. See [Client info](./docs/features/client-info.md).

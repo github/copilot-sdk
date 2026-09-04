@@ -59,7 +59,7 @@
             <!--
                 On a supported build host, download and verify the matching native
                 runtime binary. The helper script reads the pinned version and
-                release SHA256SUMS.txt, downloads the platform npm tarball from
+                release SHA256SUMS.txt, downloads the platform release tarball from
                 github/copilot-cli, verifies it, and extracts runtime.node into
                 the staging directory. Requires Node.js, which is already required
                 for the Java E2E tests.

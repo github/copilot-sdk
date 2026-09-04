@@ -3343,6 +3343,42 @@ describe("CopilotClient", () => {
                 const client = new CopilotClient();
                 await client.start();
                 onTestFinished(() => stopClient(client));
+                let invocationSignal: AbortSignal | undefined;
+                let toolStarted!: () => void;
+                const started = new Promise<void>((resolve) => {
+                    toolStarted = resolve;
+                });
+                const session = await client.createSession({
+                    onPermissionRequest: approveAll,
+                    tools: [
+                        {
+                            name: "blocked_tool",
+                            description: "blocks until cancelled",
+                            handler: async (_args, invocation) => {
+                                invocationSignal = invocation.signal;
+                                toolStarted();
+                                await new Promise<void>((_, reject) =>
+                                    invocation.signal?.addEventListener(
+                                        "abort",
+                                        () => reject(invocation.signal?.reason),
+                                        { once: true }
+                                    )
+                                );
+                            },
+                        },
+                    ],
+                });
+                (session as any)._handleBroadcastEvent({
+                    type: "external_tool.requested",
+                    data: {
+                        requestId: "request-connection-close",
+                        sessionId: session.sessionId,
+                        toolCallId: "tool-call-connection-close",
+                        toolName: "blocked_tool",
+                        arguments: {},
+                    },
+                });
+                await started;
 
                 expect((client as any).state).toBe("connected");
 
@@ -3354,6 +3390,7 @@ describe("CopilotClient", () => {
                 // Wait for the connection.onClose handler to fire
                 await vi.waitFor(() => {
                     expect((client as any).state).toBe("disconnected");
+                    expect(invocationSignal?.aborted).toBe(true);
                 });
             }
         );

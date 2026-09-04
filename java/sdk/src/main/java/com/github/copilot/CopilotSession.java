@@ -20,6 +20,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.logging.Level;
@@ -31,6 +32,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.github.copilot.generated.AssistantMessageEvent;
+import com.github.copilot.generated.ExternalToolCompletedEvent;
 import com.github.copilot.generated.rpc.SessionCommandsHandlePendingCommandParams;
 import com.github.copilot.generated.rpc.SessionLogParams;
 import com.github.copilot.generated.rpc.SessionLogLevel;
@@ -187,6 +189,8 @@ public final class CopilotSession implements AutoCloseable {
     private volatile SessionRpc sessionRpc;
     private final Set<Consumer<SessionEvent>> eventHandlers = ConcurrentHashMap.newKeySet();
     private final Map<String, ToolDefinition> toolHandlers = new ConcurrentHashMap<>();
+    private final Map<String, PendingExternalTool> pendingExternalTools = new ConcurrentHashMap<>();
+    private boolean externalToolsClosed;
     private final Map<String, CommandHandler> commandHandlers = new ConcurrentHashMap<>();
     private final Map<String, BearerTokenProvider> bearerTokenProviders = new ConcurrentHashMap<>();
     private final AtomicReference<PermissionHandler> permissionHandler = new AtomicReference<>();
@@ -206,6 +210,46 @@ public final class CopilotSession implements AutoCloseable {
 
     /** Tracks whether this session instance has been terminated via close(). */
     private volatile boolean isTerminated = false;
+
+    private static final class PendingExternalTool {
+        private static final int WAITING = 0;
+        private static final int STARTED = 1;
+        private static final int CANCELLED = 2;
+
+        private final AtomicInteger state = new AtomicInteger(WAITING);
+        private final AtomicReference<CompletableFuture<?>> future = new AtomicReference<>();
+
+        <T> T join(CompletableFuture<T> operation) {
+            future.set(operation);
+            if (state.get() == CANCELLED) {
+                operation.cancel(true);
+            }
+            try {
+                return operation.join();
+            } finally {
+                future.compareAndSet(operation, null);
+            }
+        }
+
+        boolean tryStart() {
+            return state.compareAndSet(WAITING, STARTED);
+        }
+
+        void attach(CompletableFuture<Object> toolFuture) {
+            future.set(toolFuture);
+            if (state.get() == CANCELLED) {
+                toolFuture.cancel(true);
+            }
+        }
+
+        void cancel() {
+            state.set(CANCELLED);
+            CompletableFuture<?> activeFuture = future.get();
+            if (activeFuture != null) {
+                activeFuture.cancel(true);
+            }
+        }
+    }
 
     /**
      * Creates a new session with the given ID and RPC client.
@@ -860,6 +904,14 @@ public final class CopilotSession implements AutoCloseable {
             }
             executeToolAndRespondAsync(data.requestId(), data.toolName(), data.toolCallId(), data.arguments(), tool);
 
+        } else if (event instanceof ExternalToolCompletedEvent completedEvent) {
+            var data = completedEvent.getData();
+            if (data != null && data.requestId() != null) {
+                PendingExternalTool pending = pendingExternalTools.remove(data.requestId());
+                if (pending != null) {
+                    pending.cancel();
+                }
+            }
         } else if (event instanceof PermissionRequestedEvent permEvent) {
             var data = permEvent.getData();
             if (data == null || data.requestId() == null || data.permissionRequest() == null) {
@@ -931,9 +983,9 @@ public final class CopilotSession implements AutoCloseable {
      * built-in tool-search tool, so an override can filter the live catalog without
      * issuing its own RPC. The snapshot is fetched only for that tool to avoid a
      * round-trip on every ordinary tool call; a failed fetch leaves the snapshot
-     * {@code null} rather than failing the tool. Shared by both server-to-client
-     * tool dispatch paths ({@link RpcHandlerDispatcher} and
-     * {@link #executeToolAndRespondAsync}).
+     * {@code null} rather than failing the tool. Used by the direct RPC dispatch
+     * path; event-dispatched tools perform the same lookup with request-scoped
+     * cancellation.
      *
      * @param toolName
      *            the name of the tool being invoked
@@ -958,6 +1010,12 @@ public final class CopilotSession implements AutoCloseable {
      */
     private void executeToolAndRespondAsync(String requestId, String toolName, String toolCallId, Object arguments,
             ToolDefinition tool) {
+        var pending = new PendingExternalTool();
+        synchronized (this) {
+            if (isTerminated || externalToolsClosed || pendingExternalTools.putIfAbsent(requestId, pending) != null) {
+                return;
+            }
+        }
         Runnable task = () -> {
             try {
                 JsonNode argumentsNode = arguments instanceof JsonNode jn
@@ -966,9 +1024,32 @@ public final class CopilotSession implements AutoCloseable {
                 var invocation = new com.github.copilot.rpc.ToolInvocation().setSessionId(sessionId)
                         .setToolCallId(toolCallId).setToolName(toolName).setArguments(argumentsNode);
 
-                populateToolSearchMetadata(toolName, invocation);
+                if (TOOL_SEARCH_TOOL_NAME.equals(toolName)) {
+                    try {
+                        var metadata = pending.join(getRpc().tools.getCurrentMetadata());
+                        if (metadata != null) {
+                            invocation.setAvailableTools(metadata.tools());
+                        }
+                    } catch (RuntimeException e) {
+                        if (pendingExternalTools.get(requestId) != pending) {
+                            return;
+                        }
+                        LOG.log(Level.FINE, "Failed to fetch tool metadata for tool search", e);
+                    }
+                    if (pendingExternalTools.get(requestId) != pending) {
+                        return;
+                    }
+                }
 
-                tool.handler().invoke(invocation).thenAccept(result -> {
+                if (!pending.tryStart()) {
+                    return;
+                }
+                CompletableFuture<Object> toolFuture = tool.handler().invoke(invocation);
+                pending.attach(toolFuture);
+                toolFuture.thenAccept(result -> {
+                    if (!pendingExternalTools.remove(requestId, pending)) {
+                        return;
+                    }
                     try {
                         ToolResultObject toolResult;
                         if (result instanceof ToolResultObject tr) {
@@ -983,6 +1064,9 @@ public final class CopilotSession implements AutoCloseable {
                         LOG.log(Level.WARNING, "Error sending tool result for requestId=" + requestId, e);
                     }
                 }).exceptionally(ex -> {
+                    if (!pendingExternalTools.remove(requestId, pending)) {
+                        return null;
+                    }
                     try {
                         getRpc().tools.handlePendingToolCall(new SessionToolsHandlePendingToolCallParams(sessionId,
                                 requestId, null, ex.getMessage() != null ? ex.getMessage() : ex.toString()));
@@ -990,8 +1074,11 @@ public final class CopilotSession implements AutoCloseable {
                         LOG.log(Level.WARNING, "Error sending tool error for requestId=" + requestId, e);
                     }
                     return null;
-                });
+                }).whenComplete((result, error) -> pendingExternalTools.remove(requestId, pending));
             } catch (Exception e) {
+                if (!pendingExternalTools.remove(requestId, pending)) {
+                    return;
+                }
                 LOG.log(Level.WARNING, "Error executing tool for requestId=" + requestId, e);
                 try {
                     getRpc().tools.handlePendingToolCall(new SessionToolsHandlePendingToolCallParams(sessionId,
@@ -1011,6 +1098,16 @@ public final class CopilotSession implements AutoCloseable {
             LOG.log(Level.WARNING, "Executor rejected tool task for requestId=" + requestId + "; running inline", e);
             task.run();
         }
+    }
+
+    void cancelPendingExternalTools() {
+        List<PendingExternalTool> pending;
+        synchronized (this) {
+            externalToolsClosed = true;
+            pending = new ArrayList<>(pendingExternalTools.values());
+            pendingExternalTools.clear();
+        }
+        pending.forEach(PendingExternalTool::cancel);
     }
 
     /**
@@ -2429,6 +2526,7 @@ public final class CopilotSession implements AutoCloseable {
             isTerminated = true;
         }
 
+        cancelPendingExternalTools();
         timeoutScheduler.shutdownNow();
         releaseGitHubTokenProviderRegistration();
 

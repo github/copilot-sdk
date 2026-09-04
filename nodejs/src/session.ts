@@ -422,6 +422,7 @@ export class CopilotSession {
     private typedEventHandlers: Map<SessionEventType, Set<(event: SessionEvent) => void>> =
         new Map();
     private toolHandlers: Map<string, ToolHandler> = new Map();
+    private pendingExternalTools: Map<string, AbortController> = new Map();
     private canvases: Map<string, Canvas> = new Map();
     private bearerTokenProviders: Map<string, BearerTokenProvider> = new Map();
     private commandHandlers: Map<string, CommandHandler> = new Map();
@@ -441,6 +442,7 @@ export class CopilotSession {
     private _capabilities: SessionCapabilities = {};
     private openCanvasInstances: OpenCanvasInstance[] = [];
     private disconnected = false;
+    private disconnecting = false;
     private onDisconnected?: () => void;
 
     /** @internal Client session API handlers, populated by CopilotClient during create/resume. */
@@ -820,6 +822,10 @@ export class CopilotSession {
             return;
         }
         this.disconnected = true;
+        for (const controller of this.pendingExternalTools.values()) {
+            controller.abort();
+        }
+        this.pendingExternalTools.clear();
         this._runOnDisconnected();
         this.eventHandlers.clear();
         this.typedEventHandlers.clear();
@@ -996,6 +1002,15 @@ export class CopilotSession {
                     tracestate
                 );
             }
+        } else if (event.type === "external_tool.completed") {
+            const { requestId } = event.data as { requestId?: string };
+            if (requestId) {
+                const controller = this.pendingExternalTools.get(requestId);
+                if (controller) {
+                    this.pendingExternalTools.delete(requestId);
+                    controller.abort();
+                }
+            }
         } else if (event.type === "permission.requested") {
             const { requestId, permissionRequest, resolvedByHook } = event.data as {
                 requestId: string;
@@ -1105,6 +1120,12 @@ export class CopilotSession {
         traceparent?: string,
         tracestate?: string
     ): Promise<void> {
+        const controller = new AbortController();
+        if (this.disconnected || this.pendingExternalTools.has(requestId)) {
+            return;
+        }
+        this.pendingExternalTools.set(requestId, controller);
+
         try {
             // The built-in tool-search tool receives a snapshot of the session's
             // currently initialized tools so an override can filter the live
@@ -1113,12 +1134,26 @@ export class CopilotSession {
             // leaves the snapshot undefined rather than failing the tool.
             let availableTools: CurrentToolMetadata[] | undefined;
             if (toolName === TOOL_SEARCH_TOOL_NAME) {
+                if (controller.signal.aborted) {
+                    return;
+                }
+                const aborted = new Promise<undefined>((resolve) => {
+                    controller.signal.addEventListener("abort", () => resolve(undefined), {
+                        once: true,
+                    });
+                });
                 try {
-                    const metadata = await this.rpc.tools.getCurrentMetadata();
-                    availableTools = metadata.tools ?? undefined;
+                    const metadata = await Promise.race([
+                        this.rpc.tools.getCurrentMetadata(),
+                        aborted,
+                    ]);
+                    availableTools = metadata?.tools ?? undefined;
                 } catch {
                     availableTools = undefined;
                 }
+            }
+            if (controller.signal.aborted) {
+                return;
             }
             const rawResult = await handler(args, {
                 sessionId: this.sessionId,
@@ -1128,6 +1163,7 @@ export class CopilotSession {
                 availableTools,
                 traceparent,
                 tracestate,
+                signal: controller.signal,
             });
             let result: ToolResult;
             if (rawResult == null) {
@@ -1139,12 +1175,12 @@ export class CopilotSession {
             } else {
                 result = JSON.stringify(rawResult);
             }
-            if (this.disconnected) {
+            if (!this._claimExternalTool(requestId, controller)) {
                 return;
             }
             await this.rpc.tools.handlePendingToolCall({ requestId, result });
         } catch (error) {
-            if (this.disconnected) {
+            if (!this._claimExternalTool(requestId, controller)) {
                 return;
             }
             const message = error instanceof Error ? error.message : String(error);
@@ -1156,7 +1192,20 @@ export class CopilotSession {
                 }
                 // Connection lost or RPC error — nothing we can do
             }
+        } finally {
+            if (this.pendingExternalTools.get(requestId) === controller) {
+                this.pendingExternalTools.delete(requestId);
+            }
+            controller.abort();
         }
+    }
+
+    private _claimExternalTool(requestId: string, controller: AbortController): boolean {
+        if (this.disconnected || this.pendingExternalTools.get(requestId) !== controller) {
+            return false;
+        }
+        this.pendingExternalTools.delete(requestId);
+        return true;
     }
 
     /**
@@ -2016,22 +2065,27 @@ export class CopilotSession {
      * ```
      */
     async disconnect(): Promise<void> {
-        if (this.disconnected) {
+        if (this.disconnected || this.disconnecting) {
             return;
         }
-        let response: { success: boolean; error?: string } = { success: false };
-        for (let attempt = 0; attempt < 2 && !response.success; attempt++) {
-            response = (await this.connection.sendRequest("session.detach", {
-                sessionId: this.sessionId,
-            })) as { success: boolean; error?: string };
+        this.disconnecting = true;
+        try {
+            let response: { success: boolean; error?: string } = { success: false };
+            for (let attempt = 0; attempt < 2 && !response.success; attempt++) {
+                response = (await this.connection.sendRequest("session.detach", {
+                    sessionId: this.sessionId,
+                })) as { success: boolean; error?: string };
+            }
+            if (!response.success) {
+                throw new Error(
+                    `Failed to disconnect session ${this.sessionId}: ${response.error || "Unknown error"}`
+                );
+            }
+            this._markDisconnected();
+        } catch (error) {
+            this.disconnecting = false;
+            throw error;
         }
-        if (!response.success) {
-            throw new Error(
-                `Failed to disconnect session ${this.sessionId}: ${response.error || "Unknown error"}`
-            );
-        }
-        this._markDisconnected();
-        this.onDisconnected?.();
     }
 
     /** Enables `await using session = ...` syntax for automatic cleanup. */

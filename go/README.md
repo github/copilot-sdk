@@ -101,6 +101,9 @@ tool name is `<server-key>-<tool-name>`. For `AvailableTools` and
 
 The SDK supports bundling, using Go's `embed` package, the Copilot CLI binary within your application's distribution.
 This allows you to bundle a specific CLI version and avoid external dependencies on the user's system.
+The bundler downloads the matching `github-copilot-<version>-<platform>.tgz`
+asset from the `github/copilot-cli` release and verifies it against that
+release's `SHA256SUMS.txt`.
 
 Follow these steps to embed the CLI:
 
