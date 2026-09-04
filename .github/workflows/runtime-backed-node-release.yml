@@ -103,7 +103,13 @@ jobs:
           [ -n "$SDK_REF" ] || { echo "::error::sdk_ref is required."; exit 1; }
           if [ "$CHANNEL" = "canary" ]; then
             PUBLIC_LATEST="$(node scripts/get-version.js current)"
-            BASE="${PUBLIC_LATEST%%-*}"
+            BASE="$(node -e '
+              const semver = require("semver");
+              const parsed = semver.parse(process.argv[1]);
+              if (!parsed) process.exit(1);
+              process.stdout.write(`${parsed.major}.${parsed.minor}.${parsed.patch}`);
+            ' "$PUBLIC_LATEST")" ||
+              { echo "::error::Current public SDK version is not valid SemVer: $PUBLIC_LATEST"; exit 1; }
             IFS=. read -r MAJOR MINOR PATCH <<< "$BASE"
             SDK_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))-canary.${GITHUB_RUN_NUMBER}.g${SDK_SHA:0:7}"
           else
