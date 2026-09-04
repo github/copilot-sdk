@@ -26,6 +26,7 @@ const SYMBOL_PREFIX = "copilot_runtime_";
 // connection is open (see start()); the exact interval is irrelevant.
 const KEEP_ALIVE_INTERVAL_MS = 1 << 30;
 const CLEANUP_RETRY_INTERVAL_MS = 100;
+const HOST_SHUTDOWN_TIMEOUT_MS = 10_000;
 
 type KoffiFunction = ReturnType<ReturnType<typeof koffi.load>["func"]>;
 type KoffiType = ReturnType<typeof koffi.pointer>;
@@ -243,7 +244,7 @@ export class FfiRuntimeHost {
             );
             if (!this.connectionId) {
                 this.unregisterCallback();
-                this.lib.hostShutdown(this.serverId);
+                this.shutdownHost(this.serverId);
                 this.serverId = 0;
                 throw new Error("copilot_runtime_connection_open failed.");
             }
@@ -373,17 +374,7 @@ export class FfiRuntimeHost {
             }
 
             if (this.serverId) {
-                try {
-                    if (!this.lib.hostShutdown(this.serverId)) {
-                        console.error(
-                            `In-process FFI host shutdown did not recognize server ${this.serverId}.`
-                        );
-                    }
-                } catch (error) {
-                    console.error(
-                        `Failed to shut down in-process FFI host: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
-                    );
-                }
+                this.shutdownHost(this.serverId);
                 this.serverId = 0;
             }
             if (callbackUnregistered) {
@@ -404,5 +395,28 @@ export class FfiRuntimeHost {
         if (!this.starting) {
             this.tryFinalizeCleanup();
         }
+    }
+
+    private shutdownHost(serverId: number): void {
+        let completed = false;
+        const timeout = setTimeout(() => {
+            if (!completed) {
+                console.error(
+                    `In-process FFI host_shutdown did not complete within ${HOST_SHUTDOWN_TIMEOUT_MS}ms; abandoning wait.`
+                );
+            }
+        }, HOST_SHUTDOWN_TIMEOUT_MS).unref();
+
+        this.lib.hostShutdown.async(serverId, (error: Error | null, result: boolean) => {
+            completed = true;
+            clearTimeout(timeout);
+            if (error) {
+                console.error(
+                    `Failed to shut down in-process FFI host: ${error.stack ?? error.message}`
+                );
+            } else if (!result) {
+                console.error(`In-process FFI host shutdown did not recognize server ${serverId}.`);
+            }
+        });
     }
 }

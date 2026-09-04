@@ -45,6 +45,7 @@ internal sealed partial class FfiRuntimeHost : IDisposable
     /// <summary>Logical name the native interop layer binds the cdylib to.</summary>
     private const string LibraryName = "copilot_runtime";
     private const int CleanupRetryDelayMilliseconds = 100;
+    private static readonly TimeSpan s_hostShutdownTimeout = TimeSpan.FromSeconds(10);
     private static readonly object QuarantineLock = new();
     private static readonly HashSet<FfiRuntimeHost> QuarantinedHosts = [];
 
@@ -306,24 +307,39 @@ internal sealed partial class FfiRuntimeHost : IDisposable
 
         if (_serverId != 0)
         {
+            var serverId = _serverId;
+            _serverId = 0;
+            ShutdownHost(serverId);
+        }
+
+        return NativeCleanupResult.Complete;
+    }
+
+    private void ShutdownHost(uint serverId)
+    {
+        var shutdownTask = Task.Run(() =>
+        {
             try
             {
-                if (!_hostShutdown(_serverId) && _logger.IsEnabled(LogLevel.Debug))
+                if (!_hostShutdown(serverId) && _logger.IsEnabled(LogLevel.Debug))
                 {
                     _logger.LogDebug(
                         "FfiRuntimeHost: host_shutdown did not recognize server {ServerId}",
-                        _serverId);
+                        serverId);
                 }
             }
             catch (Exception ex)
             {
                 _logger.LogDebug(ex, "FfiRuntimeHost: host_shutdown failed");
             }
+        });
 
-            _serverId = 0;
+        if (!shutdownTask.Wait(s_hostShutdownTimeout))
+        {
+            _logger.LogWarning(
+                "FfiRuntimeHost: host_shutdown did not complete within {Timeout}; abandoning wait.",
+                s_hostShutdownTimeout);
         }
-
-        return NativeCleanupResult.Complete;
     }
 
     private void ScheduleNativeCleanupRetry()
