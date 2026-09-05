@@ -1184,7 +1184,7 @@ export class CopilotClient {
             const host = this.ffiHost;
             this.ffiHost = null;
             try {
-                host.dispose();
+                await host.dispose();
             } catch (error) {
                 errors.push(
                     new Error(
@@ -1299,7 +1299,7 @@ export class CopilotClient {
         // Tear down the in-process FFI host (if any).
         if (this.ffiHost) {
             try {
-                this.ffiHost.dispose();
+                await this.ffiHost.dispose();
             } catch {
                 // Ignore errors during force stop
             }

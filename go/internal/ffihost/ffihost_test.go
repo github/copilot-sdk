@@ -133,3 +133,41 @@ func TestDisposeWaitsForStartBeforeShuttingDown(t *testing.T) {
 		t.Fatalf("Expected shutdown of server 41, got %d", got)
 	}
 }
+
+// Regression test for github/copilot-sdk#2525: Dispose used to call the
+// native host_shutdown export in-line with no bound, so a stuck native
+// shutdown would hang Dispose (and thus Client.ForceStop, which is
+// documented as a bounded recovery path for exactly this kind of hang)
+// forever. Asserts that Dispose gives up waiting once hostShutdownTimeout
+// elapses, even if the native call never returns.
+func TestDisposeAbandonsWaitAfterHostShutdownTimeout(t *testing.T) {
+	originalTimeout := hostShutdownTimeout
+	hostShutdownTimeout = 20 * time.Millisecond
+	defer func() { hostShutdownTimeout = originalTimeout }()
+
+	blockShutdown := make(chan struct{})
+	t.Cleanup(func() { close(blockShutdown) }) // let the stuck goroutine finish so it doesn't leak past the test
+
+	host := &Host{
+		lib: &ffiLibrary{
+			hostShutdown: func(_ uint32) bool {
+				<-blockShutdown
+				return true
+			},
+		},
+		recv:     newReceiveBuffer(),
+		serverID: 7,
+	}
+
+	disposeDone := make(chan struct{})
+	go func() {
+		host.Dispose()
+		close(disposeDone)
+	}()
+
+	select {
+	case <-disposeDone:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Dispose did not return within a bounded time after a stuck native host_shutdown call")
+	}
+}

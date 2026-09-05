@@ -20,7 +20,14 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    # The "cargo test" step below allows up to 90 minutes on its own
+    # (timeout-minutes: 90), but a *job*-level timeout still cancels the whole
+    # job (including checkout/toolchain/cache steps) once it elapses,
+    # regardless of any step-level timeout. It must stay >= the step timeout
+    # plus setup overhead, or a slow-but-healthy run (e.g. a cold Windows
+    # dependency compile) is killed as "canceled" before the step's own bound
+    # is ever reached. See github/copilot-sdk#2525.
+    timeout-minutes: 100
     defaults:
       run:
         shell: bash
@@ -206,7 +213,20 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # TODO: Re-enable Windows after fixing the napi-oop peer shutdown crash.
+        # Windows was previously excluded here because of a napi-oop peer
+        # shutdown crash; the runtime no longer depends on a Node
+        # child/parent process (napi-oop is gone), so that specific failure
+        # mode no longer applies. However, actually running Windows in this
+        # job (github/copilot-sdk#2531) reproduced a *different*, still-open
+        # problem: real native `STATUS_ACCESS_VIOLATION` crashes (SIGSEGV)
+        # partway through the full E2E suite, with no single deterministic
+        # reproducer — consistent with native memory corruption in the
+        # shared runtime cdylib rather than anything fixable from this SDK's
+        # FFI bindings. An identical crash class (AccessViolationException)
+        # was independently reproduced on Windows in-process in the .NET SDK
+        # in the same PR, ruling out a per-language binding bug. Tracked
+        # upstream at github/copilot-agent-runtime#18990; re-add
+        # windows-latest here once that's resolved. See github/copilot-sdk#2525.
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20

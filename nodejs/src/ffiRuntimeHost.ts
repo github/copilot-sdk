@@ -26,6 +26,10 @@ const SYMBOL_PREFIX = "copilot_runtime_";
 // connection is open (see start()); the exact interval is irrelevant.
 const KEEP_ALIVE_INTERVAL_MS = 1 << 30;
 
+// Upper bound on how long dispose() waits for the native host_shutdown call; see
+// shutdownHost() for why this exists.
+const HOST_SHUTDOWN_TIMEOUT_MS = 10_000;
+
 type KoffiFunction = ReturnType<ReturnType<typeof koffi.load>["func"]>;
 type KoffiType = ReturnType<typeof koffi.pointer>;
 type KoffiRegisteredCallback = ReturnType<typeof koffi.register>;
@@ -226,9 +230,9 @@ export class FfiRuntimeHost {
             0
         );
         if (!this.connectionId) {
-            this.unregisterCallback();
-            this.lib.hostShutdown(this.serverId);
+            const serverId = this.serverId;
             this.serverId = 0;
+            await this.shutdownHost(serverId);
             throw new Error("copilot_runtime_connection_open failed.");
         }
 
@@ -297,7 +301,7 @@ export class FfiRuntimeHost {
     }
 
     /** Closes the FFI connection, shuts down the native host, and releases resources. */
-    dispose(): void {
+    async dispose(): Promise<void> {
         if (this.disposed) {
             return;
         }
@@ -317,16 +321,56 @@ export class FfiRuntimeHost {
             // Ignore teardown failures.
         }
 
-        try {
-            if (this.serverId) {
-                this.lib.hostShutdown(this.serverId);
-                this.serverId = 0;
-            }
-        } catch {
-            // Ignore teardown failures.
-        }
-
         this.receiveStream.end();
-        this.unregisterCallback();
+
+        const serverId = this.serverId;
+        this.serverId = 0;
+        if (serverId) {
+            await this.shutdownHost(serverId);
+        } else {
+            this.unregisterCallback();
+        }
+    }
+
+    /**
+     * Calls the native `host_shutdown` export and bounds how long {@link dispose} waits
+     * for it.
+     *
+     * This runs the runtime's own teardown (including closing its SQLite session store)
+     * in this process. Calling it synchronously previously blocked the entire Node event
+     * loop until it returned, with no way to time out — on Windows in-process, a slow or
+     * stuck shutdown could hang the whole process, which is exactly the failure mode this
+     * bounds against (see github/copilot-sdk#2525). Using koffi's `.async` variant runs
+     * the call on koffi's native thread pool instead of the event loop, so a stuck call
+     * cannot freeze the process, and racing it against a timeout keeps `dispose()` (and
+     * thus `forceStop()`) from hanging indefinitely even if the native call itself never
+     * returns. The callback still unregisters the outbound callback once the native call
+     * completes, whether or not this method already timed out waiting for it.
+     */
+    private async shutdownHost(serverId: number): Promise<void> {
+        const shutdownCompleted = new Promise<void>((resolvePromise) => {
+            this.lib.hostShutdown.async(serverId, () => {
+                this.unregisterCallback();
+                resolvePromise();
+            });
+        });
+
+        const timedOut = Symbol("host_shutdown timeout");
+        const result = await Promise.race([
+            shutdownCompleted.then(() => "completed" as const),
+            new Promise<typeof timedOut>((resolvePromise) =>
+                setTimeout(() => resolvePromise(timedOut), HOST_SHUTDOWN_TIMEOUT_MS).unref()
+            ),
+        ]);
+
+        if (result === timedOut) {
+            // The native call (and the callback unregistration that follows it) keeps
+            // running; we just stop waiting here so the caller is not blocked forever.
+            // This should be rare and indicates a runtime-side shutdown defect worth
+            // reporting upstream, not something for the SDK to retry.
+            console.error(
+                `In-process FFI host_shutdown did not complete within ${HOST_SHUTDOWN_TIMEOUT_MS}ms; abandoning wait.`
+            );
+        }
     }
 }

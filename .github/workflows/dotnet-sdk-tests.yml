@@ -56,19 +56,25 @@ jobs:
         transport: ["default", "inprocess"]
         backend: [capi]
         shard: [full]
-        # TODO: Re-enable after fixing in-process sqlite file locking on shutdown on Windows.
         exclude:
-          - os: windows-latest
-            transport: "inprocess"
           - os: windows-latest
             transport: default
             shard: full
           # TODO(cli-1.0.81-2): CLI 1.0.81-5 still stops completing in-process
           # CAPI model turns, causing repeated per-test timeouts until the
           # 30-minute job limit. Stdio CAPI and in-process BYOK remain enabled.
+          # This affects every OS equally (it is a CLI/CAPI regression, not a
+          # platform-specific one), so Linux/macOS are excluded from the `capi`
+          # in-process cell here; see the ubuntu-latest/inprocess include cells
+          # further down for their in-process coverage via the alternate
+          # backends. windows-latest/inprocess has no in-process coverage at
+          # all right now (capi or otherwise) -- see the comment further down
+          # by the removed windows-latest/inprocess include cells for why.
           - os: ubuntu-latest
             transport: inprocess
           - os: macos-latest
+            transport: inprocess
+          - os: windows-latest
             transport: inprocess
           # The macOS default/capi host runs the whole suite on the smallest
           # runner in the matrix (3 vCPU / 7 GB vs ubuntu's 4 / 16). Since the
@@ -182,6 +188,15 @@ jobs:
             backend: openai-completions
             shard: full
             test-filter: "FullyQualifiedName~GitHub.Copilot.Test.E2E&E2EBackend!=SelfConfiguredBackend&E2EBackend!=CapiOnly"
+          # Windows in-process coverage was attempted here (github/copilot-sdk#2525):
+          # FfiRuntimeHost.Dispose() now bounds its wait on native shutdown (see below),
+          # which should have made this safe to enable now that napi-oop is gone. But
+          # actually running it on real Windows CI (github/copilot-sdk#2531) reproduced
+          # native `System.AccessViolationException` crashes in ConnectionWrite during
+          # ordinary connection I/O -- unrelated to shutdown/disposal, and independently
+          # matched by a SIGSEGV in the Rust SDK's own Windows in-process CI in the same
+          # PR. That rules out an SDK-side binding bug; tracked upstream at
+          # github/copilot-agent-runtime#18990. Re-add windows-latest here once resolved.
     runs-on: ${{ matrix.os }}
     # A hung test used to run until the runner died (~50 min) and the dying
     # runner never uploaded its logs, so the failures were undiagnosable.

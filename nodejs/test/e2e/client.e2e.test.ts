@@ -125,6 +125,33 @@ describe("Client", () => {
         await client.forceStop();
     });
 
+    // Regression test for github/copilot-sdk#2525: the in-process FFI host's dispose()
+    // used to call the native host_shutdown export synchronously with no timeout, which
+    // on Node blocks the entire event loop until it returns. A slow/stuck native shutdown
+    // (observed on Windows with the runtime's SQLite session store) would hang stop()
+    // indefinitely. Asserting a bounded completion time here catches any regression back
+    // to an unbounded/synchronous wait.
+    it.runIf(isInProcessTransport)(
+        "should stop within a bounded time over the in-process transport",
+        async () => {
+            const client = new CopilotClient({});
+            onTestFinishedStop(client);
+
+            await client.createSession({ onPermissionRequest: approveAll });
+
+            const timedOut = Symbol("timeout");
+            const result = await Promise.race([
+                client.stop().then(() => "stopped" as const),
+                new Promise<typeof timedOut>((resolvePromise) =>
+                    setTimeout(() => resolvePromise(timedOut), 20_000).unref()
+                ),
+            ]);
+
+            expect(result).toBe("stopped");
+        },
+        30_000
+    );
+
     it("should get status with version and protocol info", async () => {
         const client = new CopilotClient();
         onTestFinishedStop(client);
