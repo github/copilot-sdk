@@ -82,6 +82,13 @@ pub(crate) mod generated;
 /// source-qualified tool filter patterns.
 pub mod mode;
 
+/// Shared integration with the experimental `Windows.UI.Shell.Tasks`
+/// ("Forerunner" / taskbar presence) API, re-exported from the standalone
+/// `github-copilot-shell-tasks` crate. Off by default; enable the
+/// `shell-tasks` feature.
+#[cfg(feature = "shell-tasks")]
+pub use github_copilot_shell_tasks as shell_tasks;
+
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
