@@ -31,7 +31,8 @@ use github_copilot_sdk::types::{
     ElicitationRequest, ElicitationResult, ExitPlanModeData, ExtensionInfo, ManagedSettings,
     ManagedSettingsPermissions, MessageOptions, PermissionDecisionContext,
     PermissionDecisionOutcome, PermissionDecisionSource, PermissionDecisionSurface, RequestId,
-    SessionConfig, SessionId, SetModelOptions, Tool, ToolInvocation, ToolResult,
+    SessionConfig, SessionId, SessionStoreIdentity, SetModelOptions, Tool, ToolInvocation,
+    ToolResult,
 };
 use github_copilot_sdk::{Client, ContextTier, ErrorKind, ProtocolErrorKind, tool};
 use serde_json::Value;
@@ -2090,6 +2091,57 @@ async fn list_sessions_returns_typed_metadata() {
     assert_eq!(sessions.len(), 1);
     assert_eq!(sessions[0].session_id, "s1");
     assert_eq!(sessions[0].summary, Some("test session".to_string()));
+}
+
+#[tokio::test]
+async fn set_session_store_identity_sends_exact_wire_shape() {
+    let (client, mut server_read, mut server_write) = make_client();
+    let identity = SessionStoreIdentity::new("https://github.com", "123456");
+
+    let handle = tokio::spawn({
+        let client = client.clone();
+        async move { client.set_session_store_identity(Some(&identity)).await }
+    });
+
+    let request = read_framed(&mut server_read).await;
+    assert_eq!(request["method"], "sessionStore.setIdentity");
+    assert_eq!(
+        request["params"],
+        serde_json::json!({
+            "identity": {
+                "authority": "https://github.com",
+                "accountId": "123456"
+            }
+        })
+    );
+    let response = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": request["id"],
+        "result": {}
+    });
+    write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
+    handle.await.unwrap().unwrap();
+}
+
+#[tokio::test]
+async fn set_session_store_identity_sends_null_to_clear() {
+    let (client, mut server_read, mut server_write) = make_client();
+
+    let handle = tokio::spawn({
+        let client = client.clone();
+        async move { client.set_session_store_identity(None).await }
+    });
+
+    let request = read_framed(&mut server_read).await;
+    assert_eq!(request["method"], "sessionStore.setIdentity");
+    assert_eq!(request["params"], serde_json::json!({ "identity": null }));
+    let response = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": request["id"],
+        "result": {}
+    });
+    write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
+    handle.await.unwrap().unwrap();
 }
 
 #[tokio::test]

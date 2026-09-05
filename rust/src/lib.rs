@@ -2573,6 +2573,23 @@ impl Client {
         Ok(serde_json::from_value(value)?)
     }
 
+    /// Set the account identity used to scope persisted session-store operations.
+    ///
+    /// Call this after connecting and before local session-store operations such
+    /// as listing or resuming sessions. Pass `None` to clear the identity, such
+    /// as when the user logs out.
+    pub async fn set_session_store_identity(
+        &self,
+        identity: Option<&SessionStoreIdentity>,
+    ) -> Result<()> {
+        self.call(
+            "sessionStore.setIdentity",
+            Some(serde_json::json!({ "identity": identity })),
+        )
+        .await?;
+        Ok(())
+    }
+
     /// List persisted sessions, optionally filtered by working directory,
     /// repository, or git context.
     pub async fn list_sessions(
