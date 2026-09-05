@@ -82,6 +82,19 @@ it("delivers sequential, coalesced, and fragmented large snapshots over extensio
     const readyFile = join(dir, "ready");
     const snapshotFile = join(dir, "snapshot");
     const errorFile = join(dir, "error");
+    const invalidBatchFile = join(dir, "invalid-batch");
+    const badgeUpdates = [
+        {
+            workspaceId: "workspace-2",
+            sessionId: "visible-session-2",
+            badge: { state: "open", label: "PR open" },
+        },
+        {
+            workspaceId: "workspace-1",
+            sessionId: "visible-session-1",
+            badge: null,
+        },
+    ];
     const child = spawn(process.execPath, [FIXTURE], {
         stdio: ["pipe", "pipe", "pipe"],
         env: {
@@ -91,6 +104,8 @@ it("delivers sequential, coalesced, and fragmented large snapshots over extensio
             EXTENSION_READY_FILE: readyFile,
             EXTENSION_SNAPSHOT_FILE: snapshotFile,
             EXTENSION_ERROR_FILE: errorFile,
+            EXTENSION_INVALID_BATCH_FILE: invalidBatchFile,
+            EXTENSION_BADGE_UPDATES: JSON.stringify(badgeUpdates),
         },
     });
     const stderr: string[] = [];
@@ -101,12 +116,17 @@ it("delivers sequential, coalesced, and fragmented large snapshots over extensio
         new StreamMessageWriter(child.stdin!)
     );
     let registered = false;
+    const batchRequests: unknown[] = [];
     connection.onRequest("connect", () => ({ protocolVersion: getSdkProtocolVersion() }));
     connection.onRequest("session.resume", (params: Record<string, unknown>) => ({
         sessionId: params.sessionId,
     }));
     connection.onRequest("extensions.appSessionBadges.register", () => {
         registered = true;
+        return null;
+    });
+    connection.onRequest("extensions.appSessionBadges.setBadges", (params: unknown) => {
+        batchRequests.push(params);
         return null;
     });
     connection.onRequest(() => ({}));
@@ -131,6 +151,15 @@ it("delivers sequential, coalesced, and fragmented large snapshots over extensio
                     }; stderr: ${stderr.join("")}`
                 ).toBe(true);
                 expect(registered).toBe(true);
+                expect(batchRequests).toEqual([
+                    {
+                        protocolVersion: 1,
+                        updates: badgeUpdates,
+                    },
+                ]);
+                expect(readFileSync(invalidBatchFile, "utf8")).toContain(
+                    "updates contains duplicate target"
+                );
             },
             100,
             50

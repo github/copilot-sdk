@@ -20,6 +20,30 @@ try {
             appendFileSync(process.env.EXTENSION_SNAPSHOT_FILE, `${JSON.stringify(snapshot)}\n`);
         }
     });
+    if (process.env.EXTENSION_INVALID_BATCH_FILE) {
+        try {
+            await badges.setBadges([
+                {
+                    workspaceId: "duplicate-workspace",
+                    sessionId: "duplicate-session",
+                    badge: { state: "open" },
+                },
+                {
+                    workspaceId: "duplicate-workspace",
+                    sessionId: "duplicate-session",
+                    badge: null,
+                },
+            ]);
+        } catch (error) {
+            record(
+                process.env.EXTENSION_INVALID_BATCH_FILE,
+                error instanceof Error ? error.message : String(error)
+            );
+        }
+    }
+    if (process.env.EXTENSION_BADGE_UPDATES) {
+        await badges.setBadges(JSON.parse(process.env.EXTENSION_BADGE_UPDATES));
+    }
     record(process.env.EXTENSION_READY_FILE, "ready");
 } catch (error) {
     record(

@@ -84,14 +84,23 @@ import { joinAppSessionBadges } from "@github/copilot-sdk/extension";
 const badges = await joinAppSessionBadges();
 
 badges.onSnapshot(async (snapshot) => {
-    for (const target of snapshot.sessions) {
-        await badges.setBadge(target, {
-            state: "open",
-            label: target.branch,
-        });
-    }
+    await badges.setBadges(
+        snapshot.sessions.map((target) => ({
+            workspaceId: target.workspaceId,
+            sessionId: target.sessionId,
+            badge: {
+                state: "open",
+                label: target.branch,
+            },
+        }))
+    );
 });
 ```
+
+`setBadges()` validates the complete ordered batch before sending one
+`extensions.appSessionBadges.setBadges` JSON-RPC request. Duplicate workspace and session target
+pairs reject the complete batch. Use `badge: null` to clear a target. An empty batch is a local
+no-op. `setBadge()` and `clearBadge()` remain available for individual updates.
 
 Each snapshot is a full replacement of the sessions that the app considers eligible. The app owns hidden-session lifecycle, visibility filtering, and repository inspection. Native GitHub pull request badges remain authoritative, and the app can reject an update when a native badge appears after the snapshot. Extensions can publish only `draft`, `open`, `merged`, or `closed` states with an optional label; arbitrary markup, icons, colors, and URLs are not supported.
 

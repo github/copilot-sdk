@@ -8,6 +8,7 @@ import type { CopilotSession } from "./session.js";
 const APP_SESSION_BADGES_PROTOCOL_VERSION = 1 as const;
 const REGISTER_METHOD = "extensions.appSessionBadges.register";
 const SET_BADGE_METHOD = "extensions.appSessionBadges.setBadge";
+const SET_BADGES_METHOD = "extensions.appSessionBadges.setBadges";
 const SNAPSHOT_NOTIFICATION = "appSessionBadges.snapshot";
 
 /** Badge states an app-level extension can contribute for a workspace. */
@@ -40,6 +41,13 @@ export type AppSessionBadgeTargetIdentity = Pick<
     AppSessionBadgeTarget,
     "workspaceId" | "sessionId"
 >;
+
+/** One badge publication or clear in an atomic batch. */
+export interface AppSessionBadgeUpdate {
+    readonly workspaceId: string;
+    readonly sessionId: string;
+    readonly badge: AppSessionBadge | null;
+}
 
 /** Callback invoked for each full eligible-session snapshot. */
 export type AppSessionBadgesSnapshotHandler = (snapshot: AppSessionBadgesSnapshot) => void;
@@ -88,15 +96,29 @@ export class AppSessionBadgesExtension {
         target: AppSessionBadgeTargetIdentity,
         badge: AppSessionBadge | null
     ): Promise<void> {
-        assertNonEmptyString(target.workspaceId, "workspaceId");
-        assertNonEmptyString(target.sessionId, "sessionId");
-        const normalizedBadge = normalizeBadge(badge);
+        const update = normalizeBadgeUpdate({ ...target, badge }, 0);
 
         await this.connection.sendRequest(SET_BADGE_METHOD, {
             protocolVersion: APP_SESSION_BADGES_PROTOCOL_VERSION,
-            workspaceId: target.workspaceId,
-            sessionId: target.sessionId,
-            badge: normalizedBadge,
+            ...update,
+        });
+    }
+
+    /**
+     * Atomically publish or clear badges for multiple eligible targets.
+     *
+     * The complete batch is validated before one request is sent. Duplicate
+     * workspace and session target pairs are rejected.
+     */
+    async setBadges(updates: readonly AppSessionBadgeUpdate[]): Promise<void> {
+        const normalizedUpdates = normalizeBadgeUpdates(updates);
+        if (normalizedUpdates.length === 0) {
+            return;
+        }
+
+        await this.connection.sendRequest(SET_BADGES_METHOD, {
+            protocolVersion: APP_SESSION_BADGES_PROTOCOL_VERSION,
+            updates: normalizedUpdates,
         });
     }
 
@@ -227,6 +249,38 @@ function normalizeBadge(badge: AppSessionBadge | null): AppSessionBadge | null {
     return badge.label === undefined
         ? { state: badge.state as AppSessionBadgeState }
         : { state: badge.state as AppSessionBadgeState, label: badge.label };
+}
+
+function normalizeBadgeUpdates(updates: readonly AppSessionBadgeUpdate[]): AppSessionBadgeUpdate[] {
+    if (!Array.isArray(updates)) {
+        throw new TypeError("updates must be an array");
+    }
+
+    const targetIds = new Set<string>();
+    return updates.map((update, index) => {
+        const normalized = normalizeBadgeUpdate(update, index);
+        const targetId = `${normalized.workspaceId}\0${normalized.sessionId}`;
+        if (targetIds.has(targetId)) {
+            throw new TypeError(
+                `updates contains duplicate target: ${normalized.workspaceId}/${normalized.sessionId}`
+            );
+        }
+        targetIds.add(targetId);
+        return normalized;
+    });
+}
+
+function normalizeBadgeUpdate(update: AppSessionBadgeUpdate, index: number): AppSessionBadgeUpdate {
+    if (!isRecord(update)) {
+        throw new TypeError(`updates[${index}] must be an object`);
+    }
+    assertNonEmptyString(update.workspaceId, `updates[${index}].workspaceId`);
+    assertNonEmptyString(update.sessionId, `updates[${index}].sessionId`);
+    return {
+        workspaceId: update.workspaceId,
+        sessionId: update.sessionId,
+        badge: normalizeBadge(update.badge),
+    };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

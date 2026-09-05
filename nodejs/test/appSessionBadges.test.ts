@@ -168,6 +168,88 @@ describe("AppSessionBadgesExtension", () => {
         ]);
     });
 
+    it("publishes one ordered atomic batch with null clears", async () => {
+        const { connection, requests } = createConnection();
+        const contribution = await AppSessionBadgesExtension.register(
+            {} as CopilotSession,
+            connection
+        );
+
+        await contribution.setBadges([
+            {
+                workspaceId: "workspace-2",
+                sessionId: "session-2",
+                badge: { state: "draft", label: "Draft" },
+            },
+            {
+                workspaceId: "workspace-1",
+                sessionId: "session-1",
+                badge: null,
+            },
+        ]);
+
+        expect(requests.slice(1)).toEqual([
+            {
+                method: "extensions.appSessionBadges.setBadges",
+                params: {
+                    protocolVersion: 1,
+                    updates: [
+                        {
+                            workspaceId: "workspace-2",
+                            sessionId: "session-2",
+                            badge: { state: "draft", label: "Draft" },
+                        },
+                        {
+                            workspaceId: "workspace-1",
+                            sessionId: "session-1",
+                            badge: null,
+                        },
+                    ],
+                },
+            },
+        ]);
+    });
+
+    it("validates an entire batch before sending and rejects duplicate targets", async () => {
+        const { connection, requests } = createConnection();
+        const contribution = await AppSessionBadgesExtension.register(
+            {} as CopilotSession,
+            connection
+        );
+
+        await expect(
+            contribution.setBadges([
+                {
+                    workspaceId: "workspace-1",
+                    sessionId: "session-1",
+                    badge: { state: "open" },
+                },
+                {
+                    workspaceId: "workspace-2",
+                    sessionId: "session-2",
+                    badge: { state: "queued" },
+                },
+            ] as never)
+        ).rejects.toThrow("Unsupported app session badge state");
+        await expect(
+            contribution.setBadges([
+                {
+                    workspaceId: "workspace-1",
+                    sessionId: "session-1",
+                    badge: { state: "open" },
+                },
+                {
+                    workspaceId: "workspace-1",
+                    sessionId: "session-1",
+                    badge: null,
+                },
+            ])
+        ).rejects.toThrow("updates contains duplicate target: workspace-1/session-1");
+        await contribution.setBadges([]);
+
+        expect(requests).toHaveLength(1);
+    });
+
     it("rejects unsupported badge states", async () => {
         const { connection, notifications } = createConnection();
         const contribution = await AppSessionBadgesExtension.register(
