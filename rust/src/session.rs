@@ -2989,7 +2989,11 @@ async fn handle_request(
                 .unwrap_or(Value::Object(Default::default()));
 
             let rpc_result = if let Some(hooks) = hooks {
-                match crate::hooks::dispatch_hook(hooks, &sid, hook_type, input).await {
+                match crate::hooks::dispatch_hook_for_request(
+                    hooks, &sid, request.id, hook_type, input,
+                )
+                .await
+                {
                     Ok(output) => output,
                     Err(e) => {
                         warn!(error = %e, hook_type = hook_type, "hook dispatch failed");
@@ -3006,7 +3010,17 @@ async fn handle_request(
                 result: Some(rpc_result),
                 error: None,
             };
-            let _ = client.send_response(&rpc_response).await;
+            if client.send_response(&rpc_response).await.is_ok()
+                && let Some(hooks) = hooks
+            {
+                hooks
+                    .on_hook_response_sent(crate::hooks::HookResponseSent {
+                        session_id: sid,
+                        request_id: request.id,
+                        hook_type: hook_type.to_string(),
+                    })
+                    .await;
+            }
         }
 
         "userInput.request" => {

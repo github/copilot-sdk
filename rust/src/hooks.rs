@@ -19,6 +19,19 @@ use crate::types::SessionId;
 pub struct HookContext {
     /// The session this hook was triggered in.
     pub session_id: SessionId,
+    /// JSON-RPC request ID for this hook invocation.
+    pub request_id: u64,
+}
+
+/// Hook response that was successfully written back to the CLI.
+#[derive(Debug, Clone)]
+pub struct HookResponseSent {
+    /// The session this hook was triggered in.
+    pub session_id: SessionId,
+    /// JSON-RPC request ID for this hook invocation.
+    pub request_id: u64,
+    /// Runtime hook type, such as `userPromptSubmitted` or `preToolUse`.
+    pub hook_type: String,
 }
 
 /// Input for the `preToolUse` hook — received before a tool executes.
@@ -570,6 +583,9 @@ pub trait SessionHooks: Send + Sync + 'static {
         }
     }
 
+    /// Called after a hook response is successfully written back to the CLI.
+    async fn on_hook_response_sent(&self, _response: HookResponseSent) {}
+
     /// Called before a tool executes. Return `Some(output)` to approve/deny
     /// or modify the call, or `None` (default) to pass through unchanged.
     async fn on_pre_tool_use(
@@ -680,14 +696,26 @@ pub trait SessionHooks: Send + Sync + 'static {
 /// Returns `Ok(Value)` shaped like `{ "output": ... }` on success.
 /// If no hook is registered ([`HookOutput::None`]), the output is an empty
 /// object: `{ "output": {} }`.
-pub(crate) async fn dispatch_hook(
+#[cfg(test)]
+async fn dispatch_hook(
     hooks: &dyn SessionHooks,
     session_id: &SessionId,
     hook_type: &str,
     raw_input: Value,
 ) -> Result<Value, crate::Error> {
+    dispatch_hook_for_request(hooks, session_id, 0, hook_type, raw_input).await
+}
+
+pub(crate) async fn dispatch_hook_for_request(
+    hooks: &dyn SessionHooks,
+    session_id: &SessionId,
+    request_id: u64,
+    hook_type: &str,
+    raw_input: Value,
+) -> Result<Value, crate::Error> {
     let ctx = HookContext {
         session_id: session_id.clone(),
+        request_id,
     };
 
     let event = match hook_type {
