@@ -9,91 +9,47 @@ import contextlib
 import os
 import re
 import shutil
+import subprocess
 import tempfile
 import time
-from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
 from copilot import CopilotClient, RuntimeConnection
-from copilot._cli_version import get_npm_platform
 
 from .proxy import CapiProxy
 
 
-def _cli_platform_package_names(npm_platform: str | None = None) -> list[str]:
-    """Return candidate ``@github/copilot-*`` directory names, best match first.
-
-    Mirrors ``getCliPlatformPackageNames()`` in ``nodejs/src/client.ts``: as of CLI
-    1.0.64-1 the runnable ``index.js`` ships in a platform package such as
-    ``copilot-darwin-arm64``. On Linux both libc variants are listed (the detected
-    one first) because npm installs exactly one of them and musl probing can come up
-    empty in minimal containers.
-    """
-    primary = npm_platform or get_npm_platform()
-    names = [f"copilot-{primary}"]
-    if primary.startswith("linux"):
-        arch = primary.rsplit("-", 1)[-1]
-        for variant in (f"linux-{arch}", f"linuxmusl-{arch}"):
-            name = f"copilot-{variant}"
-            if name not in names:
-                names.append(name)
-    return names
-
-
-def _find_cli_in_node_modules(github_modules: Path, package_names: Sequence[str]) -> str | None:
-    """Return the resolved ``index.js`` of the first installed candidate package.
-
-    Only exact package names are probed, so unrelated ``copilot-*`` directories
-    (e.g. ``copilot-language-server``) can never be mistaken for the CLI.
-    """
-    for name in package_names:
-        candidate = github_modules / name / "index.js"
-        if candidate.exists():
-            return str(candidate.resolve())
-    return None
-
-
-def _installed_cli_package_names(github_modules: Path) -> list[str]:
-    """Return the ``copilot-*`` directory names present, for error messages only.
-
-    Selection never globs — that was the #2103 bug. This exists so a failure can
-    say what *is* installed, which is the difference between a dead-end "run npm
-    install" and a message that diagnoses itself on a mixed-architecture host.
-    """
-    if not github_modules.is_dir():
-        return []
-    return sorted(path.name for path in github_modules.glob("copilot-*") if path.is_dir())
+def _prepare_pinned_cli(repo_root: Path) -> str:
+    npm = "npm.cmd" if os.name == "nt" else "npm"
+    result = subprocess.run(
+        [npm, "run", "--silent", "prepare:runtime", "--", "--print-path"],
+        cwd=repo_root / "nodejs",
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    output = result.stdout.strip()
+    if result.returncode != 0 or not output:
+        detail = result.stderr.strip() or output or f"exit code {result.returncode}"
+        raise RuntimeError(f"Failed to prepare the pinned Copilot CLI: {detail}")
+    cli_path = Path(output.splitlines()[-1])
+    if not cli_path.is_file():
+        raise RuntimeError(f"Pinned Copilot CLI was not created at {cli_path}")
+    return str(cli_path.resolve())
 
 
 def get_cli_path_for_tests() -> str:
     """Get CLI path for E2E tests.
 
-    Uses COPILOT_CLI_PATH env var if set, otherwise the platform-specific CLI
-    package in the sibling nodejs directory's node_modules.
+    Uses COPILOT_CLI_PATH env var if set, otherwise prepares the release pinned
+    by the sibling Node.js SDK.
     """
     env_path = os.environ.get("COPILOT_CLI_PATH")
     if env_path and Path(env_path).exists():
         return str(Path(env_path).resolve())
 
-    # Look for CLI in sibling nodejs directory's node_modules. As of CLI 1.0.64-1
-    # the @github/copilot package is a thin loader; the runnable index.js ships in
-    # the installed platform package (e.g. @github/copilot-linux-x64), so pick the
-    # one built for this host rather than whichever sorts first (#2103).
-    base_path = Path(__file__).parents[3]
-    github_modules = base_path / "nodejs" / "node_modules" / "@github"
-    package_names = _cli_platform_package_names()
-    found = _find_cli_in_node_modules(github_modules, package_names)
-    if found is not None:
-        return found
-
-    installed = _installed_cli_package_names(github_modules)
-    raise RuntimeError(
-        f"CLI not found for tests under {github_modules} "
-        f"(tried: {', '.join(package_names)}; "
-        f"present: {', '.join(installed) or 'none'}). "
-        "Run 'npm install' in the nodejs directory, or set COPILOT_CLI_PATH."
-    )
+    return _prepare_pinned_cli(Path(__file__).parents[3])
 
 
 CLI_PATH = get_cli_path_for_tests()
@@ -191,6 +147,7 @@ class E2ETestContext:
             {
                 "GH_TOKEN": DEFAULT_GITHUB_TOKEN,
                 "GITHUB_TOKEN": DEFAULT_GITHUB_TOKEN,
+                "COPILOT_CLI_PATH": self.cli_path,
                 "COPILOT_HMAC_KEY": "",
                 "CAPI_HMAC_KEY": "",
             }

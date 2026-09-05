@@ -26,7 +26,7 @@ import (
 // when provided, is written next to the installed binary.
 //
 // RuntimeExecutable and RuntimeNode form the adjacent out-of-process runtime
-// pair. RuntimeAssets is a filtered npm package archive containing auxiliary
+// pair. RuntimeAssets is a filtered release package archive containing auxiliary
 // binaries and resources. RuntimeLib is the same cdylib bytes installed under
 // the natural platform name for the optional in-process transport.
 type Config struct {
@@ -264,6 +264,13 @@ func installAt(installDir string) (string, error) {
 		if !bytes.Equal(existingHash, config.CliHash) {
 			return "", fmt.Errorf("existing binary hash mismatch")
 		}
+		if config.RuntimeExecutable != nil {
+			path, err := installRuntimePair(installDir)
+			if err != nil {
+				return "", err
+			}
+			runtimePath = path
+		}
 		if config.RuntimeLib != nil {
 			libPath, err := installRuntimeLib(installDir)
 			if err != nil {
@@ -298,6 +305,14 @@ func installAt(installDir string) (string, error) {
 		}
 	}
 
+	if config.RuntimeExecutable != nil {
+		path, err := installRuntimePair(installDir)
+		if err != nil {
+			return "", err
+		}
+		runtimePath = path
+	}
+
 	// Install the native in-process runtime library (if bundled) next to the CLI.
 	// Fail closed on any hash mismatch; never place unverified native code.
 	if config.RuntimeLib != nil {
@@ -305,10 +320,10 @@ func installAt(installDir string) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		if err := installRuntimeAssets(installDir); err != nil {
-			return "", err
-		}
 		runtimeLibPath = libPath
+	}
+	if err := installRuntimeAssets(installDir); err != nil {
+		return "", err
 	}
 
 	return finalPath, nil

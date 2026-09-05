@@ -138,6 +138,9 @@ public sealed class GitHubTelemetryTests
         Assert.True(
             !present || flag.ValueKind == JsonValueKind.Null,
             "connect request should omit enableGitHubTelemetryForwarding (or send null) when no handler is registered");
+        Assert.Equal(
+            ["agent", "client", "shell"],
+            connectParams.GetProperty("supportedTaskKinds").EnumerateArray().Select(kind => kind.GetString()));
     }
 
     [Fact]
@@ -492,7 +495,7 @@ public sealed class GitHubTelemetryTests
                 "session.create" => CaptureCreate(request),
                 "session.resume" => CaptureResume(request),
                 "session.send" => new Dictionary<string, object?> { ["messageId"] = "message-1" },
-                "session.destroy" => new Dictionary<string, object?>(),
+                "session.detach" => new Dictionary<string, object?> { ["success"] = true },
                 "session.options.update" => new Dictionary<string, object?> { ["success"] = true },
                 "runtime.shutdown" => new Dictionary<string, object?>(),
                 _ => throw new InvalidOperationException($"Unexpected RPC method '{method}'."),

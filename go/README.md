@@ -20,7 +20,10 @@ go get github.com/github/copilot-sdk/go
 Try the interactive chat sample (from the repo root):
 
 ```bash
-cd go/samples
+cd nodejs
+npm ci
+export COPILOT_CLI_PATH="$(npm run --silent prepare:runtime -- --print-path)"
+cd ../go/samples
 go run chat.go
 ```
 
@@ -98,6 +101,9 @@ tool name is `<server-key>-<tool-name>`. For `AvailableTools` and
 
 The SDK supports bundling, using Go's `embed` package, the Copilot CLI binary within your application's distribution.
 This allows you to bundle a specific CLI version and avoid external dependencies on the user's system.
+The bundler downloads the matching `github-copilot-<version>-<platform>.tgz`
+asset from the `github/copilot-cli` release and verifies it against that
+release's `SHA256SUMS.txt`.
 
 Follow these steps to embed the CLI:
 
@@ -328,6 +334,30 @@ Each section override supports five actions:
 - **`preserve`** — No-op that opts an individually-addressable section out of a group-level `remove`
 
 Unknown section IDs are handled gracefully: content from `replace`/`append`/`prepend` overrides is appended to additional instructions, and `remove` overrides are silently ignored.
+
+## Auto routing tiers
+
+Change the Auto routing preference without changing the selected model. The runtime does not apply the preference immediately: it records the request and commits it only when a later user turn using the `auto` model successfully obtains a usable model from the provider, so a `pending` status confirms acceptance rather than effect. Only the most recent request survives.
+
+Watch for the outcome through the `session.model_change` event on success or the ephemeral `session.auto_tier_switch_failed` event on failure. Read the authoritative committed, pending, and activating preferences at any time through the session's `model.getCurrent` RPC method.
+
+```go
+tier := copilot.AutoTierIntelligence
+result, err := session.SetAutoTier(ctx, &tier)
+if err != nil {
+    return err
+}
+if result.Status == rpc.ModelSwitchAutoTierStatusPending {
+    // Accepted, but not yet in effect.
+}
+
+// Return to the provider's default Auto routing.
+_, err = session.SetAutoTier(ctx, nil)
+```
+
+`SetModel` accepts the same preference through `SetModelOptions.AutoTier`, which stages the tier atomically with selecting `auto`. Set `ResetAutoTier` instead to return to provider-default routing; the two options are mutually exclusive.
+
+See [Auto tier persistence](../docs/features/session-persistence.md#auto-tier-persistence) for the full lifecycle rules.
 
 ## Image Support
 

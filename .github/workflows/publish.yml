@@ -107,19 +107,19 @@ jobs:
       - name: Build
         run: npm run build
       - name: Pack
-        id: pack
         run: |
-          TARBALL="$(npm pack . --json | jq -r '.[0].filename')"
-          if [ -z "$TARBALL" ] || [ ! -f "$TARBALL" ]; then
-            echo "::error::npm pack did not produce a tarball."
+          npm run pack:release
+          TARBALL_COUNT="$(find . -maxdepth 1 -name 'github-copilot-sdk-*.tgz' | wc -l | tr -d ' ')"
+          if [ "$TARBALL_COUNT" -ne 9 ]; then
+            echo "::error::Expected nine Node.js package tarballs, found $TARBALL_COUNT."
             exit 1
           fi
-          echo "tarball=$TARBALL" >> "$GITHUB_OUTPUT"
+          npm run verify:release-packages
       - name: Upload artifact
         uses: actions/upload-artifact@v7.0.0
         with:
           name: nodejs-package
-          path: nodejs/${{ steps.pack.outputs.tarball }}
+          path: nodejs/github-copilot-sdk-*.tgz
           if-no-files-found: error
 
   publish-nodejs:
@@ -150,12 +150,29 @@ jobs:
           set -euo pipefail
           shopt -s nullglob
           TARBALLS=(./dist/*.tgz)
-          if [ "${#TARBALLS[@]}" -ne 1 ]; then
-            echo "::error::Expected exactly one Node.js package tarball, found ${#TARBALLS[@]}."
+          if [ "${#TARBALLS[@]}" -ne 9 ]; then
+            echo "::error::Expected nine Node.js package tarballs, found ${#TARBALLS[@]}."
+            exit 1
+          fi
+          MAIN_TARBALL=""
+          for TARBALL in "${TARBALLS[@]}"; do
+            PACKAGE_NAME="$(tar -xOf "$TARBALL" package/package.json | jq -r .name)"
+            if [ "$PACKAGE_NAME" = "@github/copilot-sdk" ]; then
+              MAIN_TARBALL="$TARBALL"
+              continue
+            fi
+            node nodejs/scripts/npm-release.js publish \
+              "$TARBALL" \
+              "$DIST_TAG" \
+              https://registry.npmjs.org \
+              public
+          done
+          if [ -z "$MAIN_TARBALL" ]; then
+            echo "::error::Main @github/copilot-sdk tarball not found."
             exit 1
           fi
           node nodejs/scripts/npm-release.js publish \
-            "${TARBALLS[0]}" \
+            "$MAIN_TARBALL" \
             "$DIST_TAG" \
             https://registry.npmjs.org \
             public
@@ -209,12 +226,29 @@ jobs:
           fi
           shopt -s nullglob
           TARBALLS=(./dist/*.tgz)
-          if [ "${#TARBALLS[@]}" -ne 1 ]; then
-            echo "::error::Expected exactly one Node.js package tarball, found ${#TARBALLS[@]}."
+          if [ "${#TARBALLS[@]}" -ne 9 ]; then
+            echo "::error::Expected nine Node.js package tarballs, found ${#TARBALLS[@]}."
+            exit 1
+          fi
+          MAIN_TARBALL=""
+          for TARBALL in "${TARBALLS[@]}"; do
+            PACKAGE_NAME="$(tar -xOf "$TARBALL" package/package.json | jq -r .name)"
+            if [ "$PACKAGE_NAME" = "@github/copilot-sdk" ]; then
+              MAIN_TARBALL="$TARBALL"
+              continue
+            fi
+            node nodejs/scripts/npm-release.js publish \
+              "$TARBALL" \
+              "$DIST_TAG" \
+              "$FEED_URL" \
+              azure
+          done
+          if [ -z "$MAIN_TARBALL" ]; then
+            echo "::error::Main @github/copilot-sdk tarball not found."
             exit 1
           fi
           node nodejs/scripts/npm-release.js publish \
-            "${TARBALLS[0]}" \
+            "$MAIN_TARBALL" \
             "$DIST_TAG" \
             "$FEED_URL" \
             azure
@@ -327,9 +361,6 @@ jobs:
           node-version: "22.x"
       - name: Set up uv
         uses: astral-sh/setup-uv@v7
-      - name: Install Node.js dependencies (for CLI version)
-        working-directory: ./nodejs
-        run: npm ci --ignore-scripts
       - name: Set version
         run: sed -i "s/^version = .*/version = \"${{ needs.version.outputs.version }}\"/" pyproject.toml
       - name: Inject CLI version

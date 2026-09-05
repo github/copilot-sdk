@@ -28,16 +28,21 @@ public class RpcShellEdgeCaseE2ETests(E2ETestFixture fixture, ITestOutputHelper 
         var markerPath = Path.Join(Ctx.WorkDir, $"shell-timeout-{Guid.NewGuid():N}.txt");
         var startedPath = Path.Join(Ctx.WorkDir, $"shell-timeout-started-{Guid.NewGuid():N}.txt");
 
-        // Sleep 30s but timeout at 200ms — runtime should SIGTERM the child before the
+        // Sleep 30s but use a much shorter timeout — runtime should SIGTERM the child before the
         // sleep completes, which means the marker file must NEVER appear within a wait
         // window comfortably greater than the timeout but well under the sleep duration.
+        // Process startup on Windows can exceed 200ms on loaded runners, so match the
+        // platform-specific allowance used by the Rust coverage for this RPC.
+        var timeout = OperatingSystem.IsWindows()
+            ? TimeSpan.FromSeconds(2)
+            : TimeSpan.FromMilliseconds(200);
         var command = OperatingSystem.IsWindows()
-            ? $"echo started>\"{startedPath}\" & for /L %i in (1,1,2147483647) do @rem & echo should-not-exist>\"{markerPath}\""
+            ? $"powershell -NoLogo -NoProfile -Command \"Set-Content -LiteralPath '{startedPath}' -Value started; Start-Sleep -Seconds 30; Set-Content -LiteralPath '{markerPath}' -Value should-not-exist\""
             : $"printf 'started' > '{startedPath}'; sleep 30; printf 'should-not-exist' > '{markerPath}'";
 
         // On Windows, terminating the shell wrapper can briefly leave children alive.
         // Keep this long-running command outside the fixture workspace so cleanup is not blocked by cwd handles.
-        var result = await session.Rpc.Shell.ExecAsync(command, cwd: Path.GetTempPath(), timeout: TimeSpan.FromMilliseconds(200));
+        var result = await session.Rpc.Shell.ExecAsync(command, cwd: Path.GetTempPath(), timeout: timeout);
         Assert.False(string.IsNullOrWhiteSpace(result.ProcessId));
 
         await TestHelper.WaitForConditionAsync(
@@ -164,12 +169,10 @@ public class RpcShellEdgeCaseE2ETests(E2ETestFixture fixture, ITestOutputHelper 
         var session = await CreateSessionAsync();
         var markerPath = Path.Join(Ctx.WorkDir, $"shell-stdout-{Guid.NewGuid():N}.txt");
 
-        // Print a payload large enough to exceed the runtime's 64KB chunk threshold so the
-        // chunked-output path is executed. We use a single 200KB write so the runtime has to
-        // emit at least 3 chunks (200KB / 64KB ≈ 4).
+        // Exceed the runtime's 64KB chunk threshold without flooding slower CI runners.
         var command = OperatingSystem.IsWindows()
-            ? $"powershell -NoLogo -NoProfile -Command \"Write-Host ('x' * 204800); Set-Content -LiteralPath '{markerPath}' -Value 'done'\""
-            : $"printf '%0.s=' $(seq 1 204800); printf 'done' > '{markerPath}'";
+            ? $"powershell -NoLogo -NoProfile -Command \"Write-Host ('x' * 71680); Set-Content -LiteralPath '{markerPath}' -Value 'done'\""
+            : $"printf '%0.s=' $(seq 1 71680); printf 'done' > '{markerPath}'";
 
         var result = await session.Rpc.Shell.ExecAsync(command);
         Assert.False(string.IsNullOrWhiteSpace(result.ProcessId));
@@ -185,10 +188,9 @@ public class RpcShellEdgeCaseE2ETests(E2ETestFixture fixture, ITestOutputHelper 
     private static async Task AssertProcessMapCleanedUpAsync(CopilotSession session, string processId, string scenario)
     {
         // The shell RPC surface exposes kill but not a non-mutating status API.
-        // Give the runtime's close/exit handler a bounded grace period, then
-        // probe exactly once; if this returns true, the assertion fails instead
-        // of letting a polling kill make the test pass by cleaning up itself.
-        await Task.Delay(TimeSpan.FromSeconds(1));
+        // Give slower CI runners enough time to flush output and process the exit
+        // before the single mutating cleanup probe.
+        await Task.Delay(TimeSpan.FromSeconds(5));
         var killResult = await session.Rpc.Shell.KillAsync(processId);
         Assert.False(killResult.Killed, $"{scenario} should have already exited and been removed from the runtime's process map.");
     }

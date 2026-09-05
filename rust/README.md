@@ -103,7 +103,7 @@ transports.
 | `transport`         | `Transport`                 | `Default`, `Stdio`, `InProcess`, `Tcp`, or `External`             |
 | `extension_launch_provider` | `Option<Arc<dyn ExtensionLaunchProvider>>` | Connection-global extension launch resolver |
 
-With the default `CliProgram::Resolve`, managed stdio and TCP transports resolve an explicit `CliProgram::Path(path)`, `COPILOT_CLI_PATH`, then the bundled `copilot-runtime` wrapper and adjacent `runtime.node`. In-process transport retains its CLI-entrypoint resolution. There is no PATH scanning.
+With the default `CliProgram::Resolve`, managed stdio and TCP transports resolve an explicit `CliProgram::Path(path)`, `COPILOT_CLI_PATH`, then the bundled `copilot-runtime` wrapper and adjacent `runtime.node`. In-process transport loads the native runtime library adjacent to that resolved runtime bundle. There is no PATH scanning.
 
 #### Extension launch provider
 
@@ -380,9 +380,30 @@ let config = SessionConfig::default()
 The same options work with `ResumeSessionConfig::with_capi` and can be combined
 with `with_enable_web_socket_responses(false)`. The SDK omits an unset tier:
 the runtime chooses its default on create and preserves the persisted/current
-tier on resume. An explicit tier overrides the persisted tier on cold resume;
-the runtime rejects a conflicting tier when the session is already resident
-in memory. The SDK does not choose a default or manage tier persistence.
+tier on resume. An explicit tier overrides the persisted tier on cold resume. On
+resident resume, a different tier requests a safe switch applied after the
+resume succeeds; it cannot change a turn that is already in flight. The SDK does not choose a default or manage tier persistence.
+
+### Changing the Auto tier during a session
+
+Change the Auto routing preference without changing the selected model. The runtime does not apply the preference immediately: it records the request and commits it only when a later user turn using the `auto` model successfully obtains a usable model from the provider, so a `pending` status confirms acceptance rather than effect. Only the most recent request survives.
+
+Watch for the outcome through the `session.model_change` event on success or the ephemeral `session.auto_tier_switch_failed` event on failure. Read the authoritative committed, pending, and activating preferences at any time through the session's `model.getCurrent` RPC method.
+
+```rust,ignore
+use github_copilot_sdk::{AutoTier, ModelSwitchAutoTierStatus};
+
+let result = session.set_auto_tier(Some(AutoTier::Intelligence)).await?;
+if result.status == ModelSwitchAutoTierStatus::Pending {
+    // Accepted, but not yet in effect.
+}
+
+// Return to the provider's default Auto routing.
+session.set_auto_tier(None).await?;
+```
+
+`set_model` accepts the same preference through `SetModelOptions::with_auto_tier`, which stages the tier atomically with selecting `auto`. Use `with_reset_auto_tier` instead to return to provider-default routing.
+
 See [Auto tier persistence](../docs/features/session-persistence.md#auto-tier-persistence)
 for the lifecycle rules.
 
@@ -696,6 +717,36 @@ while let Ok(event) = events.recv().await {
 
 When streaming is off (the default), only the final `assistant.message` and `assistant.reasoning` events fire. Delta events arrive in order; concatenating their `delta` text payloads reproduces the final message.
 
+#### Subscribing before the session starts
+
+`session.subscribe()` can only be called once the session exists, so any event the runtime emits while `session.create` / `session.resume` is still in flight is broadcast with no receiver installed and is not delivered. Ephemeral events such as `session.idle` are not written to the session log either, so `get_messages` can't recover them afterwards.
+
+`Client::prepare_session` / `Client::prepare_resume_session` close that window. They return a `PreparedSession` that owns the session's broadcast channel up front:
+
+```rust,ignore
+let prepared = client.prepare_session(
+    SessionConfig::default().with_event_buffer_capacity(2048),
+)?;
+
+// Installed before any wire activity happens.
+let mut events = prepared.subscribe();
+tokio::spawn(async move {
+    while let Ok(event) = events.recv().await {
+        println!("{}", event.event_type);
+    }
+});
+
+let session = prepared.start().await?;
+```
+
+`prepare_*` is synchronous and inert — it validates the buffer capacity, allocates a local channel and cancellation token, and touches neither the router nor the transport until `start()` is first polled. `start(self)` consumes the handle and `PreparedSession` is deliberately not `Clone`, so a prepared session can never spawn two event loops. Dropping an unstarted handle leaves no state and closes its subscriptions; dropping the `start()` future cancels the startup, unregisters the session, and lets a same-ID retry succeed. Cleanup removes only the exact registration that startup owned, so a retry started while an abandoned attempt is still unwinding is never evicted by it.
+
+The buffer is finite — `session::DEFAULT_EVENT_BUFFER_CAPACITY` (512) unless `event_buffer_capacity` overrides it, and `Some(0)` is rejected as `ErrorKind::InvalidConfig` rather than clamped. Subscribers that fall behind observe `RecvErrorKind::Lagged` with the skipped count instead of applying backpressure, so a consumer that needs a lossless view of a large startup burst must configure enough capacity or drain concurrently with `start()`.
+
+For cloud sessions where the server assigns the session ID, notifications can't be routed until the create response arrives; the guarantee is that *routed* events are never dropped for lack of a receiver. Pin `session_id` for full pre-response coverage.
+
+`create_session` / `resume_session` are unchanged wrappers over `prepare_*(...)?.start()`, with identical RPC sequences and error kinds.
+
 ### Infinite Sessions
 
 Enable the SDK's session-store integration so conversations persist across CLI restarts and grow beyond the model's context window via automatic compaction:
@@ -899,6 +950,12 @@ none of them are scheduled for removal.
   arg vectors for "prepend before subcommand" vs "append after the
   built-in flags", giving precise control over CLI invocation order
   without string-splicing.
+- **`Client::prepare_session` / `prepare_resume_session`** — return an inert
+  `PreparedSession` whose `subscribe()` installs an event receiver before any
+  protocol activity, so startup events (including ephemeral `session.idle`)
+  aren't dropped. Other SDKs register callbacks on a config object instead,
+  which sidesteps the problem in a way Rust's broadcast-based `subscribe()`
+  cannot.
 
 ## Layout
 
@@ -906,7 +963,7 @@ none of them are scheduled for removal.
 | ----------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | `lib.rs`          | `Client`, `ClientOptions`, `CliProgram`, `Transport`, `Error`                                                              |
 | `extension_launch_provider.rs` | Connection-global `ExtensionLaunchProvider` trait and launch profile DTOs                                      |
-| `session.rs`      | `Session` struct, event loop, `send`/`send_and_wait`, `Client::create_session`/`resume_session`                            |
+| `session.rs`      | `Session` struct, `PreparedSession`, event loop, `send`/`send_and_wait`, `Client::create_session`/`resume_session`/`prepare_session`/`prepare_resume_session` |
 | `subscription.rs` | `EventSubscription` / `LifecycleSubscription` (`Stream`-able observer handles for `subscribe()` / `subscribe_lifecycle()`) |
 | `handler.rs`      | `PermissionHandler`, `ElicitationHandler`, `UserInputHandler`, `ExitPlanModeHandler`, `AutoModeSwitchHandler` traits; `ApproveAllHandler`, `DenyAllHandler`           |
 | `hooks.rs`        | `SessionHooks` trait, `HookEvent`/`HookOutput` enums, typed hook inputs/outputs                                            |
@@ -920,15 +977,16 @@ none of them are scheduled for removal.
 
 ## Bundled runtime artifacts
 
-The SDK provisions its runtime at build time. By default the `bundled-cli`
-feature embeds the verified `copilot-runtime` wrapper and adjacent
-`runtime.node` in your compiled crate. The compatible CLI artifact remains
-available separately for `install_bundled_cli` and in-process hosting.
-Enable `bundled-in-process` to additionally embed the native runtime library
-and use `Transport::InProcess`:
+The SDK provisions two verified artifacts at build time. By default the
+`bundled-cli` feature embeds both the full Copilot CLI/Node SEA and a separate
+runtime bundle containing `copilot-runtime`, adjacent `runtime.node`, and its
+required assets. Managed transports use only the runtime bundle; the full CLI
+is available through `install_bundled_cli` for diagnostics and version probes.
+Enable `bundled-in-process` to additionally include the native runtime library
+in the runtime bundle and use `Transport::InProcess`:
 
 ```toml
-github-copilot-sdk = { version = "0.1", features = ["bundled-in-process"] }
+github-copilot-sdk = { version = "1", features = ["bundled-in-process"] }
 ```
 
 `CliProgram::Path` and raw `ClientOptions::extra_args` apply only to
@@ -938,7 +996,7 @@ provisioned compatible runtime package with in-process transport.
 For builds that prefer a smaller artifact, disable the `bundled-cli` feature:
 
 ```toml
-github-copilot-sdk = { version = "0.1", default-features = false }
+github-copilot-sdk = { version = "1", default-features = false }
 ```
 
 > **You become responsible for supplying the runtime at deployment.** With
@@ -960,17 +1018,24 @@ github-copilot-sdk = { version = "0.1", default-features = false }
 ### How it works
 
 1. **Version pin.** `build.rs` reads the CLI version from one of two sources:
-   - `cli-version.txt` at the crate root (present in published crate tarballs and vendored slots).
-   - Otherwise, `../nodejs/package-lock.json` (contributor build inside the github/copilot-sdk repo — matches the .NET and Go SDK conventions here).
+   - `cli-version.txt` and `cli-version-in-process.txt` at the crate root
+     (present in published crate tarballs and vendored slots).
+   - Otherwise, `../nodejs/package.json` (contributor build inside the github/copilot-sdk repo).
 
    The resolved version is baked into the crate via `cargo:rustc-env=COPILOT_SDK_CLI_VERSION` regardless of mode. The runtime resolver consumes it to recompute the on-disk path by convention, so no absolute paths leak into the rlib.
 
-2. **Build time:** `build.rs` downloads the platform-specific npm package and
-   verifies its `sha512` integrity against the lockfile or publish snapshot.
+2. **Build time:** `build.rs` downloads the platform-specific full CLI archive
+   and runtime package, then verifies both SHA-256 hashes against the release's
+   `SHA256SUMS.txt` or the publish snapshots.
    Then:
-   - **`bundled-cli` on (default):** creates and embeds a minimal archive containing the CLI executable, `copilot-runtime[.exe]`, and `runtime.node`.
-   - **`bundled-in-process` on:** the archive additionally contains the platform-native runtime library (`.dll`, `.so`, or `.dylib`).
-   - **`bundled-cli` off:** extracts the same artifacts directly into the platform cache using staging files and atomic renames.
+   - **`bundled-cli` on (default):** embeds the full CLI release archive and a
+     separately filtered runtime archive containing `copilot-runtime[.exe]`,
+     `runtime.node`, and required assets.
+   - **`bundled-in-process` on:** the runtime archive additionally contains the
+     platform-native runtime library (`.dll`, `.so`, or `.dylib`).
+   - **`bundled-cli` off:** downloads only the runtime package and extracts its
+     managed runtime artifacts directly into the platform cache using staging
+     files and atomic renames.
 
 3. **Runtime:** in both modes the artifacts share one versioned directory:
 
@@ -1018,9 +1083,9 @@ For managed child-process transports, `Client::start` resolves the program in th
 3. **`bundled-cli` on:** the embedded wrapper pair, lazily extracted on first call.
 4. **`bundled-cli` off:** the build-time-extracted wrapper pair in the per-user cache.
 
-In-process transport resolves the compatible CLI artifact from
-`COPILOT_CLI_PATH`, the embedded archive, or the build-time cache. There is no
-PATH scanning.
+In-process transport loads the native runtime library adjacent to the runtime
+wrapper selected from `COPILOT_CLI_PATH`, the embedded runtime archive, or the
+build-time cache. There is no PATH scanning.
 
 ### Reaching the bundled binary without a `Client`
 
@@ -1061,11 +1126,19 @@ returns the wrapper path.
 
 ### Download cache (build-time, embed mode)
 
-In embed mode `build.rs` re-downloads on every clean build by default. Set `BUNDLED_CLI_CACHE_DIR=<path>` to cache the verified archive between builds (CI keys this on `<os>-<version>` for ~zero-cost rebuilds on cache hits). With `bundled-cli` disabled there is no separate archive cache — the extracted binary itself is the cache.
+In embed mode `build.rs` downloads both verified archives on every clean build
+by default. Set `BUNDLED_CLI_CACHE_DIR=<path>` to cache them between builds (CI
+keys this on `<os>-<version>` for near-zero-cost rebuilds on cache hits). For
+Copilot CLI 1.0.83-5, the two upstream archives total roughly 132-157 MB per
+platform before the runtime package is filtered. With `bundled-cli` disabled
+there is no separate archive cache: the extracted runtime bundle is the cache.
 
 ### Platforms
 
-Supported: `darwin-arm64`, `darwin-x64`, `linux-x64`, `linux-arm64`, `win32-x64`, `win32-arm64`. The target platform is auto-detected from `CARGO_CFG_TARGET_OS` and `CARGO_CFG_TARGET_ARCH` (cross-compilation works).
+Supported: `darwin-arm64`, `darwin-x64`, `linux-x64`, `linux-arm64`,
+`linuxmusl-x64`, `linuxmusl-arm64`, `win32-x64`, and `win32-arm64`. The target
+platform is auto-detected from `CARGO_CFG_TARGET_OS`, `CARGO_CFG_TARGET_ARCH`,
+and `CARGO_CFG_TARGET_ENV` (cross-compilation works).
 
 ## Features
 
@@ -1076,20 +1149,17 @@ Supported: `darwin-arm64`, `darwin-x64`, `linux-x64`, `linux-arm64`, `win32-x64`
 | `derive` | — | `schema_for::<T>()` for generating JSON Schema from Rust types (adds `schemars`). |
 
 ```toml
-# These examples use registry syntax for illustration; until the crate is
-# published, use a path or git dependency instead.
-
 # Default — bundles the Copilot CLI in your binary.
-github-copilot-sdk = "0.1"
+github-copilot-sdk = "1"
 
 # Enable the in-process transport and bundle its native runtime library.
-github-copilot-sdk = { version = "0.1", features = ["bundled-in-process"] }
+github-copilot-sdk = { version = "1", features = ["bundled-in-process"] }
 
 # Opt out of bundling — supply the CLI explicitly at runtime.
-github-copilot-sdk = { version = "0.1", default-features = false }
+github-copilot-sdk = { version = "1", default-features = false }
 
 # Derive JSON Schema for tool parameters (adds to default bundled-cli).
-github-copilot-sdk = { version = "0.1", features = ["derive"] }
+github-copilot-sdk = { version = "1", features = ["derive"] }
 ```
 
 ## Development

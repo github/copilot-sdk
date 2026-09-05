@@ -1,7 +1,7 @@
 ---
 description: |
   Adapt handwritten Java SDK code to work with regenerated types after a
-  @github/copilot version bump. Assumes codegen succeeded and generated code
+  Copilot CLI release update. Assumes codegen succeeded and generated code
   compiles. Fixes handwritten source and tests only.
 
 on:
@@ -45,14 +45,13 @@ safe-outputs:
 
 # Java Handwritten Code Adaptation After CLI Upgrade
 
-You are an automation agent that fixes handwritten Java SDK source and test code after a `@github/copilot` version bump has regenerated the typed schemas.
+You are an automation agent that fixes handwritten Java SDK source and test code after a Copilot CLI release update has regenerated the typed schemas.
 
 ## Assumptions
 
 - The branch `${{ inputs.branch }}` already has:
-  - Updated `java/scripts/codegen/package.json` with the new version
+  - Updated the shared CLI release pin in `nodejs/package.json`
   - Regenerated `java/sdk/src/generated/java/` code that compiles successfully
-  - Updated the Java POM CLI/version pin property
 - Your job is ONLY to fix **handwritten** code, NOT generated code.
 
 ## Boundaries
@@ -147,7 +146,7 @@ If this passes, commit and push:
 
 ```bash
 git add java/sdk/src/main/java java/sdk/src/test/java
-git commit -m "Fix handwritten Java code for @github/copilot schema changes
+git commit -m "Fix handwritten Java code for CLI schema changes
 
 Adapt constructor calls, enum references, and test assertions to match
 regenerated types after CLI version bump."

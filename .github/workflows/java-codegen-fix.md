@@ -52,7 +52,7 @@ You are an automation agent that fixes Java compilation and test failures caused
 
 ## Context
 
-A Dependabot PR bumped the `@github/copilot` npm dependency in `java/scripts/codegen/package.json`. The `java-codegen-check` workflow ran the code generator (`java/scripts/codegen/java.ts`) against the new schemas and `mvn verify` subsequently failed. Your job is to fix **both** the code generator script (if needed) and the handwritten SDK/test source code so the build passes.
+A Copilot CLI release pin update fetched new schemas from GitHub Releases. The `java-codegen-check` workflow ran the code generator (`java/scripts/codegen/java.ts`) against those schemas and `mvn verify` subsequently failed. Your job is to fix **both** the code generator script (if needed) and the handwritten SDK/test source code so the build passes.
 
 **❌❌❌ YOU MUST NEVER EDIT any of the java source code in `java/sdk/src/generated/` directly.** ✅✅Rather, the way to affect changes in these files is to change the code generator script and re-generate the classes in `java/sdk/src/generated`.
 
@@ -66,9 +66,9 @@ ${{ inputs.error_summary }}
 
 ## Architecture overview
 
-The code generator (`java/scripts/codegen/java.ts`) reads JSON schemas from `node_modules/@github/copilot/schemas/` and produces Java source files under `java/sdk/src/generated/java/`. These generated types are consumed by handwritten code in `java/sdk/src/main/java/` (primarily `CopilotSession.java`) and tested by handwritten tests in `java/sdk/src/test/java/`.
+The code generator (`java/scripts/codegen/java.ts`) reads JSON schemas from `java/scripts/codegen/target/schemas/`. The schemas are extracted from the pinned `github-copilot-<version>-linux-x64.tgz` GitHub Release asset by `fetch-schemas.mjs`. The generator produces Java source files under `java/sdk/src/generated/java/`. These generated types are consumed by handwritten code in `java/sdk/src/main/java/` (primarily `CopilotSession.java`) and tested by handwritten tests in `java/sdk/src/test/java/`.
 
-When `@github/copilot` is bumped, the schemas may change in ways the code generator does not yet handle. Common schema changes include:
+When the Copilot CLI release pin is bumped, the schemas may change in ways the code generator does not yet handle. Common schema changes include:
 
 - **`$ref` references**: Inline nested type definitions replaced with `$ref` pointers to `#/definitions/` entries. The code generator must resolve these references and emit standalone Java types instead of nested records.
 - **Field type changes**: Numeric fields changing between `double`, `Long`, `int`, etc.
@@ -97,10 +97,10 @@ mvn --version
 node --version
 ```
 
-Install codegen dependencies:
+Install codegen dependencies and fetch the pinned release schemas:
 
 ```bash
-cd java/scripts/codegen && npm ci && cd ../../..
+cd java/scripts/codegen && npm ci && npm run fetch:schemas && cd ../../..
 ```
 
 ### Step 1: Reproduce the failure
@@ -135,13 +135,13 @@ To diagnose, compare the current schemas with the generated output:
 
 ```bash
 # List available schemas
-ls java/scripts/codegen/node_modules/@github/copilot/schemas/
+ls java/scripts/codegen/target/schemas/
 
 # Check for $ref usage in schemas (indicates the codegen may need $ref resolution)
-grep -r '"$ref"' java/scripts/codegen/node_modules/@github/copilot/schemas/ | head -20
+grep -r '"$ref"' java/scripts/codegen/target/schemas/ | head -20
 
 # Look at a specific schema that relates to failing types
-cat java/scripts/codegen/node_modules/@github/copilot/schemas/<relevant-schema>.json | head -80
+head -80 java/scripts/codegen/target/schemas/<relevant-schema>.json
 ```
 
 ### Step 3: Fix the code generator (if needed)
@@ -157,7 +157,7 @@ If the diagnosis shows the code generator does not handle the new schema format:
 
 3. **Re-run code generation** to produce updated generated files:
    ```bash
-   cd java/scripts/codegen && npx tsx java.ts && cd ../../..
+   cd java/scripts/codegen && npm run generate && cd ../../..
    ```
 
 4. **Verify the generated output** looks reasonable:
@@ -213,7 +213,7 @@ After `mvn verify` passes, commit all changes and use the `push-to-pull-request-
 
 ```bash
 git add -A
-git commit -m "Fix Java codegen and build failures after @github/copilot update
+git commit -m "Fix Java codegen and build failures after CLI update
 
 Automated fix applied by java-codegen-fix workflow."
 ```
@@ -236,7 +236,7 @@ Do **NOT** push broken code.
 
 ## Important constraints
 
-- **NEVER** hand-edit files under `java/sdk/src/generated/java/` — these are auto-generated. They are updated by running `cd java/scripts/codegen && npx tsx java.ts`.
+- **NEVER** hand-edit files under `java/sdk/src/generated/java/` — these are auto-generated. They are updated by running `cd java/scripts/codegen && npm run generate`.
 - **NEVER** modify `java/sdk/pom.xml` — build config is not in scope
 - **NEVER** modify `java/scripts/codegen/package.json` or `java/scripts/codegen/package-lock.json` — dependency versions are not in scope
 - **NEVER** modify files under `.github/` — workflow files are not in scope

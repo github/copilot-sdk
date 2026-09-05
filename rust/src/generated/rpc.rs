@@ -905,6 +905,26 @@ impl<'a> ClientRpcManagedSettings<'a> {
             .await?;
         Ok(serde_json::from_value(_value)?)
     }
+
+    /// Force-refreshes enterprise managed settings for every account: wipes the persistent server-policy cache (the whole `<cacheHome>/managed-settings` directory) and drops this runtime process's in-memory retained server policy. It does not itself fetch policy — the effect is that the next time a session resolves managed settings for an account, that resolution re-fetches the account's org policy from the network instead of serving a cached response. Note that `managedSettings.read` returns only device/MDM settings and never triggers the account server-policy fetch, so a host implementing "sync account policy" should start a fresh session resolution rather than treat a subsequent `managedSettings.read` as the refreshed org policy. Mirrors the invalidation a sign-out performs, broadened from the one signing-out account to all of them; device/MDM layers describe the machine, not the account, and are left untouched. Rejects if the on-disk cache cannot be removed.
+    ///
+    /// Wire method: `managedSettings.clearCache`.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn clear_cache(&self) -> Result<(), Error> {
+        let wire_params = serde_json::json!({});
+        let _value = self
+            .client
+            .call(rpc_methods::MANAGEDSETTINGS_CLEARCACHE, Some(wire_params))
+            .await?;
+        Ok(())
+    }
 }
 
 /// `mcp.*` RPCs.
@@ -3080,6 +3100,13 @@ impl<'a> SessionRpc<'a> {
         }
     }
 
+    /// `session.autopilotObjective.*` sub-namespace.
+    pub fn autopilot_objective(&self) -> SessionRpcAutopilotObjective<'a> {
+        SessionRpcAutopilotObjective {
+            session: self.session,
+        }
+    }
+
     /// `session.canvas.*` sub-namespace.
     pub fn canvas(&self) -> SessionRpcCanvas<'a> {
         SessionRpcCanvas {
@@ -3797,6 +3824,42 @@ impl<'a> SessionRpcAgent<'a> {
             .session
             .client()
             .call(rpc_methods::SESSION_AGENT_RELOAD, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+}
+
+/// `session.autopilotObjective.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct SessionRpcAutopilotObjective<'a> {
+    pub(crate) session: &'a Session,
+}
+
+impl<'a> SessionRpcAutopilotObjective<'a> {
+    /// Reads the current canonical autopilot objective state for this session.
+    ///
+    /// Wire method: `session.autopilotObjective.getState`.
+    ///
+    /// # Returns
+    ///
+    /// Canonical runtime state for the session's current autopilot objective.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn get_state(&self) -> Result<AutopilotObjectiveGetStateResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_AUTOPILOTOBJECTIVE_GETSTATE,
+                Some(wire_params),
+            )
             .await?;
         Ok(serde_json::from_value(_value)?)
     }
@@ -7434,13 +7497,13 @@ pub struct SessionRpcModel<'a> {
 }
 
 impl<'a> SessionRpcModel<'a> {
-    /// Gets the currently selected model for the session.
+    /// Gets the session's authoritative model snapshot, including the committed Auto preference and any newer unclaimed Auto preference waiting for a future user turn.
     ///
     /// Wire method: `session.model.getCurrent`.
     ///
     /// # Returns
     ///
-    /// The currently selected model, reasoning effort, and context tier for the session. The context tier reflects `Session.getContextTier()`, restored from the session journal on resume.
+    /// The session's authoritative model snapshot. Auto preference fields are configuration for the virtual `auto` model and do not change the selected model identifier. The context tier reflects `Session.getContextTier()`, restored from the session journal on resume.
     ///
     /// <div class="warning">
     ///
@@ -7488,6 +7551,39 @@ impl<'a> SessionRpcModel<'a> {
             .session
             .client()
             .call(rpc_methods::SESSION_MODEL_SWITCHTO, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Requests an Auto preference change without changing the session's selected model. The latest unclaimed request wins; the runtime commits it only after a later prompt using the `auto` model mints a usable model and token pair. A `pending` response confirms that the request was accepted, not that it committed. Observe eventual success through `session.model_change`, failure through the ephemeral `session.auto_tier_switch_failed` event, or current unclaimed state through `session.model.getCurrent`.
+    ///
+    /// Wire method: `session.model.switchAutoTier`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - An Auto preference request for the session. This updates Auto configuration only; it does not change the selected model to `auto`.
+    ///
+    /// # Returns
+    ///
+    /// Immediate acknowledgement and Auto preference snapshot after a switch request. This result never implies that a pending preference committed.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn switch_auto_tier(
+        &self,
+        params: ModelSwitchAutoTierRequest,
+    ) -> Result<ModelSwitchAutoTierResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_MODEL_SWITCHAUTOTIER, Some(wire_params))
             .await?;
         Ok(serde_json::from_value(_value)?)
     }
@@ -10239,6 +10335,69 @@ impl<'a> SessionRpcTasks<'a> {
             .session
             .client()
             .call(rpc_methods::SESSION_TASKS_LIST, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Registers a client-owned task, or reclaims an orphaned task belonging to the same extension principal.
+    ///
+    /// Wire method: `session.tasks.register`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Registers or reclaims a client-owned task.
+    ///
+    /// # Returns
+    ///
+    /// Result of registering or reclaiming a client-owned task.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn register(
+        &self,
+        params: TasksRegisterRequest,
+    ) -> Result<TasksRegisterResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_TASKS_REGISTER, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Publishes generic progress or a terminal outcome for a client-owned task.
+    ///
+    /// Wire method: `session.tasks.update`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Updates a client-owned task.
+    ///
+    /// # Returns
+    ///
+    /// Result of publishing a client-owned task update.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn update(&self, params: TasksUpdateRequest) -> Result<TasksUpdateResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_TASKS_UPDATE, Some(wire_params))
             .await?;
         Ok(serde_json::from_value(_value)?)
     }

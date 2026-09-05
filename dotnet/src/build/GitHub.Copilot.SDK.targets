@@ -26,7 +26,7 @@
     <Error Text="Could not determine a supported portable RID from RuntimeIdentifier '$(RuntimeIdentifier)'. Supported RIDs: win-x64, win-arm64, linux-x64, linux-arm64, linux-musl-x64, linux-musl-arm64, osx-x64, osx-arm64." />
   </Target>
 
-  <!-- Map RID to platform name used in npm packages -->
+  <!-- Map RID to the platform suffix used by Copilot CLI release assets -->
   <PropertyGroup>
     <_CopilotPlatform Condition="'$(_CopilotRid)' == 'win-x64'">win32-x64</_CopilotPlatform>
     <_CopilotPlatform Condition="'$(_CopilotRid)' == 'win-arm64'">win32-arm64</_CopilotPlatform>
@@ -49,15 +49,16 @@
     <_CopilotRuntimeLib Condition="'$(_CopilotRuntimeLib)' == ''">libcopilot_runtime.so</_CopilotRuntimeLib>
   </PropertyGroup>
 
-  <!-- Allow customization of the npm registry URL used to download the Copilot CLI.
-       This is primarily for organizations using private or mirrored npm registries.
-       Set CopilotNpmRegistryUrl in your .csproj or Directory.Build.props, for example:
+  <!-- Allow customization of the Copilot CLI GitHub release download base URL.
+       This is primarily for organizations using private or mirrored release assets.
+       Set CopilotCliReleaseBaseUrl in your .csproj or Directory.Build.props, for example:
        <PropertyGroup>
-         <CopilotNpmRegistryUrl>https://your-private-registry.example.com</CopilotNpmRegistryUrl>
+         <CopilotCliReleaseBaseUrl>https://your-mirror.example.com/copilot-cli/releases/download</CopilotCliReleaseBaseUrl>
        </PropertyGroup>
-       If not set, this defaults to https://registry.npmjs.org. -->
+       COPILOT_CLI_DOWNLOAD_BASE_URL is also honored. -->
   <PropertyGroup>
-    <CopilotNpmRegistryUrl Condition="'$(CopilotNpmRegistryUrl)' == ''">https://registry.npmjs.org</CopilotNpmRegistryUrl>
+    <CopilotCliReleaseBaseUrl Condition="'$(CopilotCliReleaseBaseUrl)' == '' And '$(COPILOT_CLI_DOWNLOAD_BASE_URL)' != ''">$(COPILOT_CLI_DOWNLOAD_BASE_URL)</CopilotCliReleaseBaseUrl>
+    <CopilotCliReleaseBaseUrl Condition="'$(CopilotCliReleaseBaseUrl)' == ''">https://github.com/github/copilot-cli/releases/download</CopilotCliReleaseBaseUrl>
   </PropertyGroup>
 
   <!-- Timeout in seconds for downloading the Copilot CLI tarball.
@@ -68,8 +69,8 @@
   </PropertyGroup>
 
   <!-- Allow consumers to point the targets at a pre-downloaded Copilot CLI binary
-       (for example, fetched separately using `npm pack` with authentication for a private
-       npm feed, since MSBuild's DownloadFile task does not support credentials).
+       (for example, fetched separately from an authenticated release mirror, since
+       MSBuild's DownloadFile task does not support credentials).
        When CopilotCliBinaryPath is set:
          - The built-in download target is skipped automatically; no need to also set
            CopilotSkipCliDownload=true.
@@ -84,7 +85,7 @@
     <_CopilotCliBinaryPath Condition="'$(CopilotCliBinaryPath)' != ''">$(CopilotCliBinaryPath)</_CopilotCliBinaryPath>
   </PropertyGroup>
 
-  <!-- Download and extract CLI binary.
+  <!-- Download and extract the CLI runtime bundle.
        Skipped when CopilotCliBinaryPath is set (consumer supplied the binary)
        or when CopilotSkipCliDownload=true (consumer opted out entirely). -->
   <Target Name="_DownloadCopilotCli" DependsOnTargets="$(_CopilotCliVersionTarget)" BeforeTargets="BeforeBuild" Condition="'$(TargetFramework)' != '' And '$(CopilotCliBinaryPath)' == '' And '$(CopilotSkipCliDownload)' != 'true' And '$(_CopilotPlatform)' != ''">
@@ -93,23 +94,58 @@
     <!-- Compute paths using version (now available) -->
     <PropertyGroup>
       <_CopilotCacheDir>$(IntermediateOutputPath)copilot-cli\$(CopilotCliVersion)\$(_CopilotPlatform)</_CopilotCacheDir>
-      <_CopilotCliBinaryPath Condition="'$(_CopilotCliBinaryPath)' == ''">$(_CopilotCacheDir)\$(_CopilotBinary)</_CopilotCliBinaryPath>
+      <!-- Release archives do not contain package/copilot[.exe]. Use the runtime
+           wrapper as the cached compatibility entrypoint and completion marker. -->
+      <_CopilotCliBinaryPath Condition="'$(_CopilotCliBinaryPath)' == ''">$(_CopilotCacheDir)\prebuilds\$(_CopilotPlatform)\$(_CopilotRuntimeWrapper)</_CopilotCliBinaryPath>
+      <_CopilotRuntimeNodePath>$(_CopilotCacheDir)\prebuilds\$(_CopilotPlatform)\runtime.node</_CopilotRuntimeNodePath>
+      <_CopilotRuntimeBundleCompleteMarker>$(_CopilotCacheDir)\.copilot-runtime-complete</_CopilotRuntimeBundleCompleteMarker>
       <_CopilotArchivePath>$(_CopilotCacheDir)\copilot.tgz</_CopilotArchivePath>
-      <_CopilotNormalizedRegistryUrl>$([System.String]::Copy('$(CopilotNpmRegistryUrl)').TrimEnd('/'))</_CopilotNormalizedRegistryUrl>
-      <_CopilotDownloadUrl>$(_CopilotNormalizedRegistryUrl)/@github/copilot-$(_CopilotPlatform)/-/copilot-$(_CopilotPlatform)-$(CopilotCliVersion).tgz</_CopilotDownloadUrl>
+      <_CopilotChecksumPath>$(_CopilotCacheDir)\SHA256SUMS.txt</_CopilotChecksumPath>
+      <_CopilotAssetName>github-copilot-$(CopilotCliVersion)-$(_CopilotPlatform).tgz</_CopilotAssetName>
+      <_CopilotAssetNameRegex>$([System.Text.RegularExpressions.Regex]::Escape('$(_CopilotAssetName)'))</_CopilotAssetNameRegex>
+      <_CopilotNormalizedReleaseBaseUrl>$([System.String]::Copy('$(CopilotCliReleaseBaseUrl)').TrimEnd('/'))</_CopilotNormalizedReleaseBaseUrl>
+      <_CopilotReleaseUrl>$(_CopilotNormalizedReleaseBaseUrl)/v$(CopilotCliVersion)</_CopilotReleaseUrl>
+      <_CopilotDownloadUrl>$(_CopilotReleaseUrl)/$(_CopilotAssetName)</_CopilotDownloadUrl>
+      <_CopilotChecksumsUrl>$(_CopilotReleaseUrl)/SHA256SUMS.txt</_CopilotChecksumsUrl>
+      <_CopilotRuntimeBundleMissing Condition="!Exists('$(_CopilotCliBinaryPath)') Or !Exists('$(_CopilotRuntimeNodePath)') Or !Exists('$(_CopilotRuntimeBundleCompleteMarker)')">true</_CopilotRuntimeBundleMissing>
       <!-- DownloadFile Timeout is in milliseconds; convert from user-facing seconds -->
       <_CopilotCliDownloadTimeoutMs>$([System.Convert]::ToInt32($([MSBuild]::Multiply($(CopilotCliDownloadTimeout), 1000))))</_CopilotCliDownloadTimeoutMs>
     </PropertyGroup>
 
-    <!-- Delete archive if binary missing (handles partial/corrupted downloads) -->
-    <Delete Files="$(_CopilotArchivePath)" Condition="!Exists('$(_CopilotCliBinaryPath)') And Exists('$(_CopilotArchivePath)')" />
+    <!-- Reacquire incomplete bundles into an empty cache so stale files cannot survive extraction. -->
+    <RemoveDir Directories="$(_CopilotCacheDir)" Condition="'$(_CopilotRuntimeBundleMissing)' == 'true'" />
 
     <!-- Download if not cached -->
-    <MakeDir Directories="$(_CopilotCacheDir)" Condition="!Exists('$(_CopilotCliBinaryPath)')" />
-    <Message Importance="high" Text="Downloading Copilot CLI $(CopilotCliVersion) for $(_CopilotPlatform)..." Condition="!Exists('$(_CopilotCliBinaryPath)')" />
+    <MakeDir Directories="$(_CopilotCacheDir)" Condition="'$(_CopilotRuntimeBundleMissing)' == 'true'" />
+    <Message Importance="high" Text="Downloading Copilot CLI $(CopilotCliVersion) for $(_CopilotPlatform)..." Condition="'$(_CopilotRuntimeBundleMissing)' == 'true'" />
+    <DownloadFile SourceUrl="$(_CopilotChecksumsUrl)" DestinationFolder="$(_CopilotCacheDir)" DestinationFileName="SHA256SUMS.txt"
+                  Timeout="$(_CopilotCliDownloadTimeoutMs)"
+                  Condition="'$(_CopilotRuntimeBundleMissing)' == 'true'" />
+    <ReadLinesFromFile File="$(_CopilotChecksumPath)" Condition="'$(_CopilotRuntimeBundleMissing)' == 'true'">
+      <Output TaskParameter="Lines" ItemName="_CopilotChecksumLine" />
+    </ReadLinesFromFile>
+    <ItemGroup Condition="'$(_CopilotRuntimeBundleMissing)' == 'true'">
+      <_CopilotChecksumMatch Include="@(_CopilotChecksumLine)"
+                             Condition="$([System.Text.RegularExpressions.Regex]::IsMatch('%(Identity)', '^[0-9a-fA-F]{64}[\t ]+\*?$(_CopilotAssetNameRegex)[\t ]*$'))" />
+    </ItemGroup>
+    <Error Condition="'$(_CopilotRuntimeBundleMissing)' == 'true' And '@(_CopilotChecksumMatch->Count())' != '1'"
+           Text="SHA256SUMS.txt from '$(_CopilotChecksumsUrl)' must contain exactly one checksum for $(_CopilotAssetName)." />
     <DownloadFile SourceUrl="$(_CopilotDownloadUrl)" DestinationFolder="$(_CopilotCacheDir)" DestinationFileName="copilot.tgz"
                   Timeout="$(_CopilotCliDownloadTimeoutMs)"
-                  Condition="!Exists('$(_CopilotCliBinaryPath)')" />
+                  Condition="'$(_CopilotRuntimeBundleMissing)' == 'true'" />
+    <GetFileHash Files="$(_CopilotArchivePath)" Algorithm="SHA256" Condition="'$(_CopilotRuntimeBundleMissing)' == 'true'">
+      <Output TaskParameter="Items" ItemName="_CopilotArchiveHash" />
+    </GetFileHash>
+    <PropertyGroup Condition="'$(_CopilotRuntimeBundleMissing)' == 'true'">
+      <_CopilotChecksumLineValue>@(_CopilotChecksumMatch)</_CopilotChecksumLineValue>
+      <_CopilotArchiveHashValue>@(_CopilotArchiveHash->'%(FileHash)')</_CopilotArchiveHashValue>
+      <_CopilotExpectedChecksum>$([System.String]::Copy('$(_CopilotChecksumLineValue)').Substring(0, 64).ToUpperInvariant())</_CopilotExpectedChecksum>
+      <_CopilotActualChecksum>$([System.String]::Copy('$(_CopilotArchiveHashValue)').ToUpperInvariant())</_CopilotActualChecksum>
+      <_CopilotChecksumMismatch Condition="'$(_CopilotExpectedChecksum)' != '$(_CopilotActualChecksum)'">true</_CopilotChecksumMismatch>
+    </PropertyGroup>
+    <Delete Files="$(_CopilotArchivePath)" Condition="'$(_CopilotChecksumMismatch)' == 'true'" />
+    <Error Condition="'$(_CopilotChecksumMismatch)' == 'true'"
+           Text="Checksum mismatch for $(_CopilotAssetName): expected $(_CopilotExpectedChecksum), got $(_CopilotActualChecksum)." />
 
     <!-- Extract using tar (use Windows system tar explicitly to avoid Git bash tar issues) -->
     <PropertyGroup>
@@ -117,23 +153,26 @@
       <_TarCommand Condition="'$(_TarCommand)' == ''">tar</_TarCommand>
     </PropertyGroup>
     <Exec Command="&quot;$(_TarCommand)&quot; -xzf &quot;$(_CopilotArchivePath)&quot; --strip-components=1 -C &quot;$(_CopilotCacheDir)&quot;"
-          Condition="!Exists('$(_CopilotCliBinaryPath)')" />
+          Condition="'$(_CopilotRuntimeBundleMissing)' == 'true'" />
 
-    <Error Condition="!Exists('$(_CopilotCliBinaryPath)')" Text="Failed to extract Copilot CLI binary to $(_CopilotCliBinaryPath)" />
+    <Error Condition="!Exists('$(_CopilotCliBinaryPath)')" Text="Failed to extract Copilot runtime wrapper to $(_CopilotCliBinaryPath)" />
+    <Error Condition="!Exists('$(_CopilotRuntimeNodePath)')" Text="Copilot runtime wrapper at '$(_CopilotCliBinaryPath)' is missing its adjacent runtime.node at '$(_CopilotRuntimeNodePath)'." />
+    <WriteLinesToFile File="$(_CopilotRuntimeBundleCompleteMarker)" Lines="$(CopilotCliVersion)" Overwrite="true"
+                      Condition="'$(_CopilotRuntimeBundleMissing)' == 'true'" />
   </Target>
 
-  <!-- Copy CLI binary to output runtimes folder and register for transitive copy.
-       Runs whenever we have a binary to place in the output: either the user provided
-       CopilotCliBinaryPath, or the default download path is in effect. Skipped only
-       when CopilotSkipCliDownload=true and no CopilotCliBinaryPath was supplied. -->
+  <!-- Copy the compatibility CLI entrypoint to output and register it for transitive
+       copy. Release bundles use copilot-runtime[.exe] as the source and retain the
+       copilot[.exe] output alias; explicit CopilotCliBinaryPath values are unchanged.
+       Skipped only when CopilotSkipCliDownload=true and no path was supplied. -->
   <Target Name="_CopyCopilotCliToOutput" AfterTargets="Build" DependsOnTargets="_DownloadCopilotCli" Condition="'$(TargetFramework)' != '' And ('$(CopilotCliBinaryPath)' != '' Or '$(CopilotSkipCliDownload)' != 'true') And '$(_CopilotPlatform)' != ''">
     <PropertyGroup>
       <_CopilotCacheDir Condition="'$(_CopilotCacheDir)' == ''">$(IntermediateOutputPath)copilot-cli\$(CopilotCliVersion)\$(_CopilotPlatform)</_CopilotCacheDir>
-      <_CopilotCliBinaryPath Condition="'$(_CopilotCliBinaryPath)' == ''">$(_CopilotCacheDir)\$(_CopilotBinary)</_CopilotCliBinaryPath>
+      <_CopilotCliBinaryPath Condition="'$(_CopilotCliBinaryPath)' == ''">$(_CopilotCacheDir)\prebuilds\$(_CopilotPlatform)\$(_CopilotRuntimeWrapper)</_CopilotCliBinaryPath>
       <_CopilotOutputDir>$(OutDir)runtimes\$(_CopilotRid)\native</_CopilotOutputDir>
       <!-- FFI in-process hosting cdylib. Loaded by the SDK in-proc (not needed
            for stdio), so only emitted when the tarball ships it. Copied from the
-           tarball's prebuilds/<npm-platform>/runtime.node to a flat, natural
+           tarball's prebuilds/<platform>/runtime.node to a flat, natural
            shared-library name next to the CLI binary. -->
       <_CopilotRuntimeNodePath>$(_CopilotCacheDir)\prebuilds\$(_CopilotPlatform)\runtime.node</_CopilotRuntimeNodePath>
       <_CopilotRuntimeWrapperPath Condition="'$(_CopilotRuntimeWrapperPath)' == ''">$(_CopilotCacheDir)\prebuilds\$(_CopilotPlatform)\$(_CopilotRuntimeWrapper)</_CopilotRuntimeWrapperPath>
@@ -153,7 +192,7 @@
     <Delete Files="$(_CopilotRuntimeAssetManifest)" />
     <ItemGroup Condition="Exists('$(_CopilotRuntimeWrapperPath)') And Exists('$(_CopilotRuntimeNodePath)')">
       <_CopilotRuntimeRootAsset Include="$(_CopilotCacheDir)\**\*"
-                                Exclude="$(_CopilotCacheDir)\app.js;$(_CopilotCacheDir)\assets\**\*;$(_CopilotCacheDir)\changelog.json;$(_CopilotCacheDir)\copilot;$(_CopilotCacheDir)\copilot.exe;$(_CopilotCacheDir)\copilot-sdk\**\*;$(_CopilotCacheDir)\copilot.tgz;$(_CopilotCacheDir)\foundry-local-sdk\**\*;$(_CopilotCacheDir)\index.js;$(_CopilotCacheDir)\LICENSE.md;$(_CopilotCacheDir)\napi-oop-runtime\**\*;$(_CopilotCacheDir)\npm-loader.js;$(_CopilotCacheDir)\package.json;$(_CopilotCacheDir)\prebuilds\**\*;$(_CopilotCacheDir)\preloads\**\*;$(_CopilotCacheDir)\pvrecorder\**\*;$(_CopilotCacheDir)\queries\**\*;$(_CopilotCacheDir)\README.md;$(_CopilotCacheDir)\sdk\**\*;$(_CopilotCacheDir)\sea-loader.js;$(_CopilotCacheDir)\tree-sitter*.wasm;$(_CopilotCacheDir)\voice-*.js;$(_CopilotCacheDir)\webview\**\*" />
+                                Exclude="$(_CopilotCacheDir)\.copilot-runtime-complete;$(_CopilotCacheDir)\app.js;$(_CopilotCacheDir)\assets\**\*;$(_CopilotCacheDir)\changelog.json;$(_CopilotCacheDir)\copilot;$(_CopilotCacheDir)\copilot.exe;$(_CopilotCacheDir)\copilot.tgz;$(_CopilotCacheDir)\foundry-local-sdk\**\*;$(_CopilotCacheDir)\index.js;$(_CopilotCacheDir)\LICENSE.md;$(_CopilotCacheDir)\napi-oop-runtime\**\*;$(_CopilotCacheDir)\npm-loader.js;$(_CopilotCacheDir)\package.json;$(_CopilotCacheDir)\prebuilds\**\*;$(_CopilotCacheDir)\pvrecorder\**\*;$(_CopilotCacheDir)\queries\**\*;$(_CopilotCacheDir)\README.md;$(_CopilotCacheDir)\sea-loader.js;$(_CopilotCacheDir)\SHA256SUMS.txt;$(_CopilotCacheDir)\tree-sitter*.wasm;$(_CopilotCacheDir)\voice-*.js;$(_CopilotCacheDir)\webview\**\*" />
       <_CopilotRuntimePrebuildAsset Include="$(_CopilotCacheDir)\prebuilds\$(_CopilotPlatform)\**\*"
                                     Exclude="$(_CopilotCacheDir)\prebuilds\$(_CopilotPlatform)\cli-native.node;$(_CopilotCacheDir)\prebuilds\$(_CopilotPlatform)\mediaremote-adapter\**\*;$(_CopilotCacheDir)\prebuilds\$(_CopilotPlatform)\copilot-runtime-bin*" />
     </ItemGroup>
@@ -176,12 +215,12 @@
     <Delete Files="$(_CopilotOutputDir)\$(_CopilotRuntimeLib)" Condition="!Exists('$(_CopilotRuntimeNodePath)')" />
   </Target>
 
-  <!-- Register CLI binary as content so it flows through project references.
+  <!-- Register the compatibility entrypoint as content so it flows through project references.
        Same gating semantics as _CopyCopilotCliToOutput. -->
   <Target Name="_RegisterCopilotCliForCopy" BeforeTargets="GetCopyToOutputDirectoryItems" DependsOnTargets="_DownloadCopilotCli" Condition="'$(TargetFramework)' != '' And ('$(CopilotCliBinaryPath)' != '' Or '$(CopilotSkipCliDownload)' != 'true') And '$(_CopilotPlatform)' != ''">
     <PropertyGroup>
       <_CopilotCacheDir Condition="'$(_CopilotCacheDir)' == ''">$(IntermediateOutputPath)copilot-cli\$(CopilotCliVersion)\$(_CopilotPlatform)</_CopilotCacheDir>
-      <_CopilotCliBinaryPath Condition="'$(_CopilotCliBinaryPath)' == ''">$(_CopilotCacheDir)\$(_CopilotBinary)</_CopilotCliBinaryPath>
+      <_CopilotCliBinaryPath Condition="'$(_CopilotCliBinaryPath)' == ''">$(_CopilotCacheDir)\prebuilds\$(_CopilotPlatform)\$(_CopilotRuntimeWrapper)</_CopilotCliBinaryPath>
       <_CopilotRuntimeNodePath>$(_CopilotCacheDir)\prebuilds\$(_CopilotPlatform)\runtime.node</_CopilotRuntimeNodePath>
       <_CopilotRuntimeWrapperPath Condition="'$(_CopilotRuntimeWrapperPath)' == ''">$(_CopilotCacheDir)\prebuilds\$(_CopilotPlatform)\$(_CopilotRuntimeWrapper)</_CopilotRuntimeWrapperPath>
       <_CopilotExplicitCliMarker>$(_CopilotCacheDir)\.copilot-explicit-cli</_CopilotExplicitCliMarker>
@@ -193,7 +232,7 @@
                       Condition="'$(CopilotCliBinaryPath)' != ''" />
     <ItemGroup>
       <_CopilotRuntimeRootAsset Include="$(_CopilotCacheDir)\**\*"
-                                Exclude="$(_CopilotCacheDir)\app.js;$(_CopilotCacheDir)\assets\**\*;$(_CopilotCacheDir)\changelog.json;$(_CopilotCacheDir)\copilot;$(_CopilotCacheDir)\copilot.exe;$(_CopilotCacheDir)\copilot-sdk\**\*;$(_CopilotCacheDir)\copilot.tgz;$(_CopilotCacheDir)\foundry-local-sdk\**\*;$(_CopilotCacheDir)\index.js;$(_CopilotCacheDir)\LICENSE.md;$(_CopilotCacheDir)\napi-oop-runtime\**\*;$(_CopilotCacheDir)\npm-loader.js;$(_CopilotCacheDir)\package.json;$(_CopilotCacheDir)\prebuilds\**\*;$(_CopilotCacheDir)\preloads\**\*;$(_CopilotCacheDir)\pvrecorder\**\*;$(_CopilotCacheDir)\queries\**\*;$(_CopilotCacheDir)\README.md;$(_CopilotCacheDir)\sdk\**\*;$(_CopilotCacheDir)\sea-loader.js;$(_CopilotCacheDir)\tree-sitter*.wasm;$(_CopilotCacheDir)\voice-*.js;$(_CopilotCacheDir)\webview\**\*"
+                                Exclude="$(_CopilotCacheDir)\.copilot-runtime-complete;$(_CopilotCacheDir)\app.js;$(_CopilotCacheDir)\assets\**\*;$(_CopilotCacheDir)\changelog.json;$(_CopilotCacheDir)\copilot;$(_CopilotCacheDir)\copilot.exe;$(_CopilotCacheDir)\copilot.tgz;$(_CopilotCacheDir)\foundry-local-sdk\**\*;$(_CopilotCacheDir)\index.js;$(_CopilotCacheDir)\LICENSE.md;$(_CopilotCacheDir)\napi-oop-runtime\**\*;$(_CopilotCacheDir)\npm-loader.js;$(_CopilotCacheDir)\package.json;$(_CopilotCacheDir)\prebuilds\**\*;$(_CopilotCacheDir)\pvrecorder\**\*;$(_CopilotCacheDir)\queries\**\*;$(_CopilotCacheDir)\README.md;$(_CopilotCacheDir)\sea-loader.js;$(_CopilotCacheDir)\SHA256SUMS.txt;$(_CopilotCacheDir)\tree-sitter*.wasm;$(_CopilotCacheDir)\voice-*.js;$(_CopilotCacheDir)\webview\**\*"
                                 Condition="Exists('$(_CopilotRuntimeWrapperPath)') And Exists('$(_CopilotRuntimeNodePath)')" />
       <_CopilotRuntimePrebuildAsset Include="$(_CopilotCacheDir)\prebuilds\$(_CopilotPlatform)\**\*"
                                     Exclude="$(_CopilotCacheDir)\prebuilds\$(_CopilotPlatform)\cli-native.node;$(_CopilotCacheDir)\prebuilds\$(_CopilotPlatform)\mediaremote-adapter\**\*;$(_CopilotCacheDir)\prebuilds\$(_CopilotPlatform)\copilot-runtime-bin*"

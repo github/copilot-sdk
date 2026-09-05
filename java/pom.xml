@@ -7,7 +7,7 @@
 
     <groupId>com.github</groupId>
     <artifactId>copilot-sdk-java-parent</artifactId>
-    <version>1.0.14-preview.4-SNAPSHOT</version>
+    <version>1.0.14-preview.5-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <name>GitHub Copilot SDK :: Java :: Parent</name>
@@ -55,15 +55,6 @@
             adjust for their directory depth (e.g. sdk/ overrides with ../../).
         -->
         <copilot.sdk.root>${project.basedir}/..</copilot.sdk.root>
-        <!--
-            The pinned version of the @github/copilot npm package used by CI
-            workflows (java-smoke-test.yml, update-copilot-dependency.yml) to
-            install the correct CLI for smoke tests and codegen updates.
-
-            DO NOT EDIT MANUALLY. Updated by the update-copilot-dependency
-            workflow.
-        -->
-        <readonly-copilot-sdk-ref-impl-version-from-lastmerge-file-updated-by-reference-impl-sync>^1.0.83-3</readonly-copilot-sdk-ref-impl-version-from-lastmerge-file-updated-by-reference-impl-sync>
         <!-- The parent POM is not published to Maven Central. -->
         <maven.deploy.skip>true</maven.deploy.skip>
     </properties>

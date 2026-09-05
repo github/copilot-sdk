@@ -221,7 +221,10 @@ public final class CopilotClient implements AutoCloseable {
         // Parse CliUrl if provided
         if (this.options.getCliUrl() != null && !this.options.getCliUrl().isEmpty()) {
             URI uri = CliServerManager.parseCliUrl(this.options.getCliUrl());
-            this.optionsHost = uri.getHost();
+            String host = uri.getHost();
+            this.optionsHost = host != null && host.startsWith("[") && host.endsWith("]")
+                    ? host.substring(1, host.length() - 1)
+                    : host;
             this.optionsPort = uri.getPort();
         } else {
             this.optionsHost = null;
@@ -550,6 +553,7 @@ public final class CopilotClient implements AutoCloseable {
             JsonRpcClient connectedRpc = rpc;
             Connection connection = new Connection(connectedRpc, process, new ServerRpc(connectedRpc::invoke),
                     inProcessTransport == null ? null : inProcessTransport.host());
+            connectedRpc.setCloseHandler(() -> sessions.values().forEach(CopilotSession::cancelPendingExternalTools));
 
             // Register handlers for server-to-client calls
             RpcHandlerDispatcher dispatcher = new RpcHandlerDispatcher(sessions, lifecycleManager::dispatch, executor,
@@ -635,6 +639,7 @@ public final class CopilotClient implements AutoCloseable {
             if (effectiveConnectionToken != null) {
                 connectParams.put("token", effectiveConnectionToken);
             }
+            connectParams.put("supportedTaskKinds", List.of("agent", "client", "shell"));
             // Opt into GitHub telemetry forwarding at the connection level when a handler
             // is registered, so the runtime can forward the first session's un-replayable
             // start event. Also sent on session create/resume for backward compatibility
@@ -742,7 +747,9 @@ public final class CopilotClient implements AutoCloseable {
      */
     public CompletableFuture<Void> forceStop() {
         disposed = true;
+        var activeSessions = new ArrayList<>(sessions.values());
         sessions.clear();
+        activeSessions.forEach(CopilotSession::cancelPendingExternalTools);
         gitHubTokenProviders.clear();
         // Dispatch the blocking shutdownOwnedExecutor() on a dedicated thread:
         // cleanupConnection() is chained off async work running on the owned
@@ -1014,6 +1021,7 @@ public final class CopilotClient implements AutoCloseable {
                         CopilotSession session = preRegisteredSessionHolder[0] != null
                                 ? preRegisteredSessionHolder[0]
                                 : initializeSession.apply(returnedId);
+                        preRegisteredSessionHolder[0] = session;
                         if (tokenRegistration != null) {
                             session.setGitHubTokenProviderRegistration(tokenRegistration);
                         }
@@ -1045,6 +1053,9 @@ public final class CopilotClient implements AutoCloseable {
                             return session;
                         });
                     }).exceptionally(ex -> {
+                        if (preRegisteredSessionHolder[0] != null) {
+                            preRegisteredSessionHolder[0].cancelPendingExternalTools();
+                        }
                         if (registeredIdHolder[0] != null) {
                             sessions.remove(registeredIdHolder[0]);
                         }
@@ -1225,6 +1236,7 @@ public final class CopilotClient implements AutoCloseable {
                                     return session;
                                 });
                     }).exceptionally(ex -> {
+                        session.cancelPendingExternalTools();
                         sessions.remove(sessionId);
                         // Also remove the re-keyed entry if the server returned a different ID
                         String activeId = session.getSessionId();

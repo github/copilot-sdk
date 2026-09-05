@@ -1,10 +1,10 @@
-name: "Update @github/copilot Dependency"
+name: "Update Copilot CLI Version"
 
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Target version of @github/copilot (e.g. 0.0.420)"
+        description: "Target github/copilot-cli release version (e.g. 1.0.83-0)"
         required: true
         type: string
 
@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   update:
-    name: "Update @github/copilot to ${{ inputs.version }}"
+    name: "Update Copilot CLI to ${{ inputs.version }}"
     runs-on: ubuntu-latest
     steps:
       - name: Validate version input
@@ -56,17 +56,13 @@ jobs:
           toolchain: nightly-2026-04-14
           components: rustfmt
 
-      - name: Update @github/copilot in nodejs
+      - name: Update the Node.js CLI release pin
         env:
           VERSION: ${{ inputs.version }}
         working-directory: ./nodejs
-        run: npm install "@github/copilot@$VERSION"
-
-      - name: Update @github/copilot in test harness
-        env:
-          VERSION: ${{ inputs.version }}
-        working-directory: ./test/harness
-        run: npm install "@github/copilot@$VERSION"
+        run: |
+          node scripts/set-cli-version.js "$VERSION"
+          npm install --ignore-scripts
 
       - name: Refresh nodejs/samples lockfile
         working-directory: ./nodejs/samples
@@ -90,25 +86,6 @@ jobs:
         with:
           java-version: "25"
           distribution: "microsoft"
-
-      - name: Update @github/copilot in Java codegen
-        env:
-          VERSION: ${{ inputs.version }}
-        working-directory: ./java/scripts/codegen
-        run: npm install "@github/copilot@$VERSION"
-
-      - name: Update Java POM CLI version property
-        env:
-          VERSION: ${{ inputs.version }}
-        working-directory: ./java
-        run: |
-          PROP="readonly-copilot-sdk-ref-impl-version-from-lastmerge-file-updated-by-reference-impl-sync"
-          sed -i -E "s|(<${PROP}>)[^<]*(</${PROP}>)|\1^${VERSION}\2|" pom.xml
-          # Use fixed-string matching (-F) because npm versions contain regex
-          # metacharacters: '^' (caret ranges) and '.' (dots in semver) would
-          # otherwise be interpreted as start-of-line and any-char respectively,
-          # causing false negatives or spurious matches.
-          grep -qF "<${PROP}>^${VERSION}</${PROP}>" pom.xml
 
       - name: Run Java codegen
         working-directory: ./java
@@ -165,22 +142,23 @@ jobs:
             exit 0
           fi
 
-          git commit -m "Update @github/copilot to $VERSION
+          git commit -m "Update Copilot CLI to $VERSION
 
-          - Updated nodejs and test harness dependencies
+          - Updated the shared CLI release pin
           - Re-ran code generators
           - Formatted generated code"
 
           git push origin "$BRANCH" --force-with-lease
 
           PR_BODY=$(cat <<'BODY_EOF'
-          Automated update of `@github/copilot` to version `PLACEHOLDER_VERSION`.
+          Automated update of the Copilot CLI release to version `PLACEHOLDER_VERSION`.
 
           ### Changes
-          - Updated `@github/copilot` in `nodejs/package.json` and `test/harness/package.json`
+          - Updated the shared release pin in `nodejs/package.json`
+          - Validated the release assets listed in `SHA256SUMS.txt`
           - Re-ran all code generators (`scripts/codegen`)
           - Formatted generated output
-          - Updated Java codegen dependency, POM property, and regenerated Java types
+          - Regenerated Java types from the pinned CLI release schemas
 
           ### Java Handwritten Code Adaptation Plan
 
@@ -208,7 +186,7 @@ jobs:
           ### Next steps
           When ready, click **Ready for review** to trigger CI checks.
 
-          > Created by the **Update @github/copilot Dependency** workflow.
+          > Created by the **Update Copilot CLI Version** workflow.
           BODY_EOF
           )
           PR_BODY="${PR_BODY//PLACEHOLDER_VERSION/$VERSION}"
@@ -224,7 +202,7 @@ jobs:
           else
             gh pr create \
               --draft \
-              --title "Update @github/copilot to $VERSION" \
+              --title "Update Copilot CLI to $VERSION" \
               --body "$PR_BODY" \
               --base main \
               --head "$BRANCH"

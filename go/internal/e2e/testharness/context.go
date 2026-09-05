@@ -2,6 +2,7 @@ package testharness
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -29,15 +30,18 @@ func CLIPath() string {
 			return
 		}
 
-		// Look for CLI in sibling nodejs directory's node_modules. As of CLI
-		// 1.0.64-1 the @github/copilot package is a thin loader; the runnable
-		// index.js ships in the installed platform package
-		// (e.g. @github/copilot-linux-x64).
-		base := RepoPath("nodejs", "node_modules", "@github")
-		matches, _ := filepath.Glob(filepath.Join(base, "copilot-*", "index.js"))
-		if len(matches) > 0 {
-			cliPath = matches[0]
-			return
+		npm := "npm"
+		if runtime.GOOS == "windows" {
+			npm = "npm.cmd"
+		}
+		command := exec.Command(npm, "run", "--silent", "prepare:runtime", "--", "--print-path")
+		command.Dir = RepoPath("nodejs")
+		output, err := command.Output()
+		if err == nil {
+			candidate := strings.TrimSpace(string(output))
+			if info, statErr := os.Stat(candidate); statErr == nil && !info.IsDir() {
+				cliPath = candidate
+			}
 		}
 	})
 	return cliPath
@@ -158,6 +162,15 @@ func NewTestContext(t *testing.T) *TestContext {
 		os.RemoveAll(homeDir)
 		os.RemoveAll(workDir)
 		t.Fatalf("Failed to start proxy: %v", err)
+	}
+	// Initialize the proxy before any client can start runtime requests. Tests that
+	// use a snapshot replace this empty configuration before model traffic begins.
+	dummySnapshotPath := filepath.Join(workDir, "__no_snapshot__.yaml")
+	if err := proxy.Configure(dummySnapshotPath, workDir); err != nil {
+		proxy.StopWithOptions(true)
+		os.RemoveAll(homeDir)
+		os.RemoveAll(workDir)
+		t.Fatalf("Failed to initialize proxy: %v", err)
 	}
 	if err := proxy.SetCopilotUserByToken(defaultGitHubToken, map[string]interface{}{
 		"login":        "e2e-test-user",

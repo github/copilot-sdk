@@ -24,6 +24,8 @@ public record ToolExecutionCompleteError(
     /** Human-readable error message */
     @JsonProperty("message") String message,
     /** Machine-readable error code */
-    @JsonProperty("code") String code
+    @JsonProperty("code") String code,
+    /** What the user must do to recover, when the runtime knows of an action. Set on sandbox policy denials, where `message` names the rule that blocked the call but never the client affordance that relaxes it. */
+    @JsonProperty("remediation") RemediationAction remediation
 ) {
 }

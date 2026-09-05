@@ -29,9 +29,11 @@ runtime:
 python -m copilot download-runtime
 ```
 
-This caches `copilot-runtime`, its adjacent `runtime.node`, and the compatible
-`copilot` host locally. If you skip this step, the SDK downloads the bundle
-automatically on first managed stdio/TCP use.
+This downloads the platform release package, verifies it against the release's
+`SHA256SUMS.txt`, and directly stages `copilot-runtime`, its adjacent `runtime.node`,
+and the filtered hostless runtime assets locally without retaining the downloaded
+archive. If you skip this step, the SDK performs the same staging automatically on
+first managed stdio/TCP use.
 
 To pre-provision the native library required by the in-process (FFI) transport
 (see [In-process (FFI) transport](#in-process-ffi-transport)), pass `--in-process`:
@@ -40,9 +42,10 @@ To pre-provision the native library required by the in-process (FFI) transport
 python -m copilot download-runtime --in-process
 ```
 
-This instead provisions the compatible CLI artifact and native runtime library
-used by in-process hosting. When omitted, they are downloaded lazily on first
-use of the in-process transport.
+This also creates a `copilot` compatibility entrypoint from `copilot-runtime`
+inside the complete materialized bundle. Its adjacent `runtime.node` can then be
+used for in-process hosting. That canonical staged library is reused, so this does
+not download a second runtime artifact.
 
 | Platform | Cache path |
 |----------|-----------|
@@ -55,10 +58,9 @@ use of the in-process transport.
 | Variable | Description |
 |----------|-------------|
 | `COPILOT_CLI_PATH` | Use this specific binary instead of downloading |
-| `COPILOT_CLI_EXTRACT_DIR` | Override the cache directory (binary placed directly here) |
+| `COPILOT_CLI_EXTRACT_DIR` | Override the version-specific cache directory |
 | `COPILOT_SKIP_CLI_DOWNLOAD` | Set to `1` to disable auto-download |
-| `COPILOT_NPM_REGISTRY_URL` | Override the npm registry used for managed out-of-process and in-process runtime downloads |
-| `COPILOT_CLI_DOWNLOAD_BASE_URL` | Override the GitHub Releases download URL used for the root CLI |
+| `COPILOT_CLI_DOWNLOAD_BASE_URL` | Override the GitHub Releases download URL used for the runtime package and checksums |
 
 ## Run the Sample
 
@@ -459,6 +461,25 @@ Set `defer` to control whether a tool may be loaded lazily via tool search rathe
 async def lookup_issue(params: LookupParams) -> str:
     # your logic
 ```
+
+## Auto routing tiers
+
+Change the Auto routing preference without changing the selected model. The runtime does not apply the preference immediately: it records the request and commits it only when a later user turn using the `auto` model successfully obtains a usable model from the provider, so a `pending` status confirms acceptance rather than effect. Only the most recent request survives.
+
+Watch for the outcome through the `session.model_change` event on success or the ephemeral `session.auto_tier_switch_failed` event on failure. Read the authoritative committed, pending, and activating preferences at any time through the session's `model.getCurrent` RPC method.
+
+```python
+result = await session.set_auto_tier("intelligence")
+if result.status == ModelSwitchAutoTierStatus.PENDING:
+    ...  # Accepted, but not yet in effect.
+
+# Return to the provider's default Auto routing.
+await session.set_auto_tier(None)
+```
+
+`set_model()` accepts the same preference through its `auto_tier` argument, which stages the tier atomically with selecting `auto`. Pass `None` to return to provider-default routing, or omit the argument to leave the current preference unchanged.
+
+See [Auto tier persistence](../docs/features/session-persistence.md#auto-tier-persistence) for the full lifecycle rules.
 
 ## Image Support
 

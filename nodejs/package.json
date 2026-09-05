@@ -5,6 +5,7 @@
         "url": "https://github.com/github/copilot-sdk.git"
     },
     "version": "0.0.0-dev",
+    "copilotCliVersion": "1.0.83-5",
     "description": "TypeScript SDK for programmatic control of GitHub Copilot CLI via JSON-RPC",
     "main": "./dist/cjs/index.js",
     "types": "./dist/index.d.ts",
@@ -34,6 +35,9 @@
     "scripts": {
         "clean": "rimraf --glob dist *.tgz",
         "build": "tsx esbuild-copilotsdk-nodejs.ts",
+        "pack:release": "tsx scripts/package-sdk.ts",
+        "verify:release-packages": "tsx scripts/verify-release-packages.ts",
+        "prepare:runtime": "tsx scripts/prepare-runtime.ts",
         "test": "vitest run",
         "test:watch": "vitest",
         "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\" --ignore-path .prettierignore",
@@ -42,9 +46,10 @@
         "lint:fix": "eslint --fix \"src/**/*.ts\" \"test/**/*.ts\"",
         "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
         "generate": "cd ../scripts/codegen && npm run generate",
+        "set:cli-version": "node scripts/set-cli-version.js",
         "update:protocol-version": "tsx scripts/update-protocol-version.ts",
         "prepublishOnly": "npm run build",
-        "package": "npm run clean && npm run build && node scripts/set-version.js && npm pack && npm version 0.0.0-dev --no-git-tag-version --allow-same-version"
+        "package": "npm run clean && npm run build && node scripts/set-version.js && npm run pack:release && npm version 0.0.0-dev --no-git-tag-version --allow-same-version"
     },
     "keywords": [
         "github",
@@ -56,7 +61,6 @@
     "author": "GitHub",
     "license": "MIT",
     "dependencies": {
-        "@github/copilot": "^1.0.83-3",
         "koffi": "^3.1.0",
         "vscode-jsonrpc": "^8.2.1",
         "zod": "^4.3.6"
@@ -76,6 +80,7 @@
         "quicktype-core": "^23.2.6",
         "rimraf": "^6.1.2",
         "semver": "^7.7.3",
+        "tar": "^7.5.22",
         "tsx": "^4.20.6",
         "typescript": "^5.0.0",
         "vitest": "^4.0.18",

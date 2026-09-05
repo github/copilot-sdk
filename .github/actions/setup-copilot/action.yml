@@ -4,6 +4,9 @@ outputs:
   cli-path:
     description: "Path to the Copilot CLI"
     value: ${{ steps.cli-path.outputs.path }}
+  javascript-cli-path:
+    description: "Path to the JavaScript Copilot CLI entrypoint"
+    value: ${{ steps.cli-path.outputs.javascript-path }}
 runs:
   using: "composite"
   steps:
@@ -23,16 +26,19 @@ runs:
     - name: Set CLI path
       id: cli-path
       run: |
-        # As of CLI 1.0.64-1 the @github/copilot package is a thin loader; the
-        # runnable index.js ships in the installed platform package
-        # (e.g. @github/copilot-linux-x64). Exactly one is installed.
-        cli_path=$(ls "$(pwd)"/nodejs/node_modules/@github/copilot-*/index.js 2>/dev/null | head -n1)
+        cli_path=$(npm --prefix "$(pwd)/nodejs" run --silent prepare:runtime -- --print-path)
         if [ -z "$cli_path" ]; then
-          echo "Could not find @github/copilot platform package (index.js) under nodejs/node_modules" >&2
+          echo "Could not prepare the Copilot CLI runtime" >&2
+          exit 1
+        fi
+        javascript_cli_path=$(npm --prefix "$(pwd)/nodejs" run --silent prepare:runtime -- --print-legacy-path)
+        if [ -z "$javascript_cli_path" ]; then
+          echo "Could not prepare the Copilot CLI JavaScript entrypoint" >&2
           exit 1
         fi
         echo "path=$cli_path" >> $GITHUB_OUTPUT
+        echo "javascript-path=$javascript_cli_path" >> $GITHUB_OUTPUT
       shell: bash
     - name: Verify CLI works
-      run: node ${{ steps.cli-path.outputs.path }} --version
+      run: node "${{ steps.cli-path.outputs.javascript-path }}" --version
       shell: bash

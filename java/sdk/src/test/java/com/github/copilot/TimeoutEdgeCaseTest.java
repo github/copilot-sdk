@@ -10,7 +10,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.PipedInputStream;
+import java.io.PipedOutputStream;
 import java.net.Socket;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CompletableFuture;
 
 import org.junit.jupiter.api.Test;
@@ -34,29 +38,46 @@ import com.github.copilot.rpc.MessageOptions;
 public class TimeoutEdgeCaseTest {
 
     /**
-     * Creates a {@link JsonRpcClient} whose {@code invoke()} returns futures that
-     * never complete. The reader thread blocks forever on the input stream, and
-     * writes go to a no-op output stream.
+     * Creates a {@link JsonRpcClient} whose prompt requests never complete but
+     * whose cleanup detach request succeeds.
      */
     private JsonRpcClient createHangingRpcClient() throws Exception {
-        InputStream blockingInput = new InputStream() {
+        PipedInputStream input = new PipedInputStream();
+        PipedOutputStream responseWriter = new PipedOutputStream(input);
+        OutputStream sinkOutput = new ByteArrayOutputStream() {
             @Override
-            public int read() throws IOException {
+            public synchronized void flush() throws IOException {
+                super.flush();
+                // Each JsonRpcClient.sendMessage() call writes exactly one
+                // complete message before calling flush(), so the buffer must
+                // be cleared after every flush; otherwise a later request's
+                // "id" lookup can match a stale, already-processed message
+                // still sitting in the buffer.
                 try {
-                    Thread.sleep(Long.MAX_VALUE);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    return -1;
+                    String request = toString(StandardCharsets.UTF_8);
+                    if (!request.contains("\"method\":\"session.detach\"")) {
+                        return;
+                    }
+
+                    int idIndex = request.indexOf("\"id\":");
+                    int idEnd = request.indexOf(",", idIndex);
+                    String id = request.substring(idIndex + "\"id\":".length(), idEnd);
+                    String response = "{\"jsonrpc\":\"2.0\",\"id\":" + id + ",\"result\":{\"success\":true}}";
+                    byte[] responseBytes = response.getBytes(StandardCharsets.UTF_8);
+                    responseWriter.write(
+                            ("Content-Length: " + responseBytes.length + "\r\n\r\n").getBytes(StandardCharsets.UTF_8));
+                    responseWriter.write(responseBytes);
+                    responseWriter.flush();
+                } finally {
+                    reset();
                 }
-                return -1;
             }
         };
-        ByteArrayOutputStream sinkOutput = new ByteArrayOutputStream();
 
         var ctor = JsonRpcClient.class.getDeclaredConstructor(InputStream.class, java.io.OutputStream.class,
                 Socket.class, Process.class);
         ctor.setAccessible(true);
-        return (JsonRpcClient) ctor.newInstance(blockingInput, sinkOutput, null, null);
+        return (JsonRpcClient) ctor.newInstance(input, sinkOutput, null, null);
     }
 
     /**
@@ -64,7 +85,7 @@ public class TimeoutEdgeCaseTest {
      * completed by a stale timeout.
      * <p>
      * Contract: {@code close()} shuts down the timeout scheduler before the
-     * blocking {@code session.destroy} RPC call, so any pending timeout task is
+     * blocking {@code session.detach} RPC call, so any pending timeout task is
      * cancelled and the future remains incomplete (not exceptionally completed with
      * {@code TimeoutException}).
      */
@@ -79,7 +100,7 @@ public class TimeoutEdgeCaseTest {
 
                 assertFalse(result.isDone(), "Future should be pending before timeout fires");
 
-                // close() blocks up to 5s on session.destroy RPC. The 2s timeout
+                // close() blocks up to 5s on session.detach RPC. The 2s timeout
                 // fires during that window with the current per-call scheduler.
                 session.close();
 

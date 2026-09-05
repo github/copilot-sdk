@@ -23,6 +23,7 @@ export type SessionEvent =
   | InfoEvent
   | WarningEvent
   | ModelChangeEvent
+  | AutoTierSwitchFailedEvent
   | ModeChangedEvent
   | ModeNoticeDeliveredEvent
   | SessionLimitsChangedEvent
@@ -126,6 +127,8 @@ export type SessionEvent =
   | CustomAgentsUpdatedEvent
   | McpServersLoadedEvent
   | McpServerStatusChangedEvent
+  | McpServerRemovedEvent
+  | McpServerNeedsReconnectEvent
   | McpToolsListChangedEvent
   | McpResourcesListChangedEvent
   | McpPromptsListChangedEvent
@@ -184,6 +187,20 @@ export type Verbosity =
   | "medium"
   /** A more detailed response was requested. */
   | "high";
+/**
+ * What the user must do to recover from a failure, named as an action rather than as one client's affordance. The runtime cannot know which affordance a client offers — a slash command, a settings pane, a link — so the accompanying message stays host-agnostic and each client renders its own copy from this value. Absent when the runtime knows of no action the user can take.
+ */
+export type RemediationAction =
+  /** Authenticate again with the Copilot backend. The current credential is absent, expired, or rejected. */
+  | "sign_in"
+  /** Authenticate as a different account. The current account exists but lacks access to the requested resource. */
+  | "switch_account"
+  /** Inspect which account is currently authenticated before deciding what to change. */
+  | "show_account"
+  /** Review or widen the sandbox policy. The blocked path or host is named by the accompanying message or by the tool result the action arrived with. */
+  | "review_sandbox_policy"
+  /** Permit outbound network access in the sandbox policy. */
+  | "allow_sandbox_outbound";
 /**
  * The session mode the agent is operating in
  */
@@ -250,6 +267,18 @@ export type ModelChangeSource =
   | "automatic"
   /** An SDK or RPC caller selected the model. */
   | "sdk";
+/**
+ * Terminal reason an Auto preference activation failed.
+ */
+export type AutoTierSwitchFailureReason =
+  /** The candidate model was rejected by model policy. */
+  | "policy_rejected"
+  /** The Auto routing request failed or returned an unusable response. */
+  | "request_failed"
+  /** The runtime could not prepare the Auto routing request. */
+  | "setup_failed"
+  /** The provider does not support Auto routing. */
+  | "unsupported";
 /**
  * Permission mode for the session.
  */
@@ -1461,6 +1490,7 @@ export interface ErrorData {
    * GitHub request tracing ID (x-github-request-id header) for correlating with server-side logs
    */
   providerCallId?: string;
+  remediation?: RemediationAction;
   /**
    * Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation
    */
@@ -1841,6 +1871,7 @@ export interface WarningData {
    * Human-readable warning message for display in the timeline
    */
   message: string;
+  remediation?: RemediationAction;
   /**
    * Optional URL associated with this warning that the user can open in a browser
    */
@@ -1885,6 +1916,10 @@ export interface ModelChangeEvent {
  */
 export interface ModelChangeData {
   /**
+   * Committed Auto preference after the model configuration change, when applicable.
+   */
+  autoTier?: AutoTier | null;
+  /**
    * Reason the change happened, when not user-initiated. `"rate_limit_auto_switch"` for changes triggered by the auto-mode-switch rate-limit recovery path, or `"refusal_fallback"` when the active model declined a request (content refusal) and the runtime switched to the configured refusal-fallback model. UI clients can use this to render contextual copy.
    */
   cause?: string;
@@ -1896,6 +1931,7 @@ export interface ModelChangeData {
    * Newly selected model identifier
    */
   newModel: string;
+  previousAutoTier?: AutoTier;
   /**
    * Model that was previously selected, if any
    */
@@ -1913,6 +1949,47 @@ export interface ModelChangeData {
   reasoningSummary?: ReasoningSummary;
   source?: ModelChangeSource;
   verbosity?: Verbosity;
+}
+/**
+ * Session event "session.auto_tier_switch_failed". A transient Auto preference failure emitted when the runtime cannot mint or accept a usable model and token pair. The previously effective preference remains active, so SDK clients can surface a non-blocking failure without changing their committed-tier state. This event is ephemeral and is not persisted or replayed on resume.
+ */
+export interface AutoTierSwitchFailedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: AutoTierSwitchFailedData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "session.auto_tier_switch_failed".
+   */
+  type: "session.auto_tier_switch_failed";
+}
+/**
+ * A transient Auto preference failure emitted when the runtime cannot mint or accept a usable model and token pair. The previously effective preference remains active, so SDK clients can surface a non-blocking failure without changing their committed-tier state. This event is ephemeral and is not persisted or replayed on resume.
+ */
+export interface AutoTierSwitchFailedData {
+  effectiveAutoTier?: AutoTier;
+  reason: AutoTierSwitchFailureReason;
+  /**
+   * Auto preference that failed to activate, or null when returning to provider-default routing failed.
+   */
+  requestedAutoTier: AutoTier | null;
 }
 /**
  * Session event "session.mode_changed". Agent mode change details including previous and new modes
@@ -6279,6 +6356,7 @@ export interface ToolExecutionCompleteError {
    * Human-readable error message
    */
   message: string;
+  remediation?: RemediationAction;
 }
 /**
  * Tool execution result on success
@@ -7887,11 +7965,11 @@ export interface PermissionRequestShell {
    */
   possibleUrls: PermissionRequestShellPossibleUrl[];
   /**
-   * True when the model has requested to run this command outside the sandbox (it set requestSandboxBypass: true and the host opted in via sandbox.allowBypass). This is a request, not a grant: the command runs unsandboxed only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
+   * True when the tool is asking to run this command outside the sandbox, either because the command detaches and cannot be sandboxed at all, or because a sandboxed run looked blocked (host opted in via sandbox.allowBypass). The model cannot ask for this; only the tool raises it. This is a request, not a grant: the command runs unsandboxed only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
    */
   requestSandboxBypass?: boolean;
   /**
-   * Model-provided justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.
+   * What the tool tells the user about the bypass on offer: which policy rule blocked the call, or why it cannot be sandboxed. Only meaningful when requestSandboxBypass is true.
    */
   requestSandboxBypassReason?: string;
   /**
@@ -8004,11 +8082,11 @@ export interface PermissionRequestRead {
    */
   path: string;
   /**
-   * True when the model has requested to run this search outside the sandbox (it set requestSandboxBypass: true and the host opted in via sandbox.allowBypass). This is a request, not a grant: the search runs unsandboxed only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
+   * True when the tool is asking to re-run this search outside the sandbox, after a sandboxed run looked blocked (host opted in via sandbox.allowBypass). The model cannot ask for this; only the tool raises it. This is a request, not a grant: the search runs unsandboxed only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
    */
   requestSandboxBypass?: boolean;
   /**
-   * Model-provided justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.
+   * What the tool tells the user about the bypass on offer: which policy rule blocked the call, or why it cannot be sandboxed. Only meaningful when requestSandboxBypass is true.
    */
   requestSandboxBypassReason?: string;
   /**
@@ -8076,11 +8154,11 @@ export interface PermissionRequestUrl {
    */
   redirectedFrom?: string;
   /**
-   * True when this URL fetch is requesting to bypass the sandbox network policy: either the model set requestSandboxBypass: true, or the tool re-issued the request as an interactive bypass after the network policy denied the approved URL (host opted in via sandbox.allowBypass). This is a request, not a grant: the fetch runs only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
+   * True when the tool is asking to run this URL fetch outside the sandbox, after the network policy denied the approved URL or the sandbox proxy could not reach it (host opted in via sandbox.allowBypass). The model cannot ask for this; only the tool raises it. This is a request, not a grant: the fetch runs only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
    */
   requestSandboxBypass?: boolean;
   /**
-   * Model-provided justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.
+   * What the tool tells the user about the bypass on offer: which policy rule blocked the call, or why it cannot be sandboxed. Only meaningful when requestSandboxBypass is true.
    */
   requestSandboxBypassReason?: string;
   /**
@@ -8537,11 +8615,11 @@ export interface PermissionPromptRequestUrl {
    */
   redirectedFrom?: string;
   /**
-   * True when this URL fetch is requesting to bypass the sandbox network policy: either the model set requestSandboxBypass: true, or the tool re-issued the request as an interactive bypass after the network policy denied the approved URL (host opted in via sandbox.allowBypass). This is a request, not a grant: the fetch runs only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
+   * True when the tool is asking to run this URL fetch outside the sandbox, after the network policy denied the approved URL or the sandbox proxy could not reach it (host opted in via sandbox.allowBypass). The model cannot ask for this; only the tool raises it. This is a request, not a grant: the fetch runs only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
    */
   requestSandboxBypass?: boolean;
   /**
-   * Model-provided justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.
+   * What the tool tells the user about the bypass on offer: which policy rule blocked the call, or why it cannot be sandboxed. Only meaningful when requestSandboxBypass is true.
    */
   requestSandboxBypassReason?: string;
   /**
@@ -11136,9 +11214,19 @@ export interface McpServersLoadedServer {
    * Version of the plugin that supplied the effective MCP server config, only when source is plugin
    */
   pluginVersion?: string;
+  serverMetadata?: McpServerMetadata;
   source?: McpServerSource;
   status: McpServerStatus;
   transport?: McpServerTransport;
+}
+/**
+ * Server-advertised metadata learned through modern discovery or legacy initialization.
+ */
+export interface McpServerMetadata {
+  /**
+   * Non-empty natural-language guidance for using the server, or null when the server omitted instructions or advertised an empty string.
+   */
+  instructions: string | null;
 }
 /**
  * Session event "session.mcp_server_status_changed". Payload of `session.mcp_server_status_changed` for one MCP server's status and optional failure error.
@@ -11183,6 +11271,84 @@ export interface McpServerStatusChangedData {
    */
   serverName: string;
   status: McpServerStatus;
+}
+/**
+ * Session event "session.mcp_server_removed". Payload of `session.mcp_server_removed` identifying an MCP server the graph no longer runs.
+ */
+export interface McpServerRemovedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: McpServerRemovedData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "session.mcp_server_removed".
+   */
+  type: "session.mcp_server_removed";
+}
+/**
+ * Payload of `session.mcp_server_removed` identifying an MCP server the graph no longer runs.
+ */
+export interface McpServerRemovedData {
+  /**
+   * Name of the MCP server that was removed from the graph
+   */
+  serverName: string;
+}
+/**
+ * Session event "session.mcp_server_needs_reconnect". Payload of `session.mcp_server_needs_reconnect` identifying an MCP server whose connection must be re-established.
+ */
+export interface McpServerNeedsReconnectEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: McpServerNeedsReconnectData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "session.mcp_server_needs_reconnect".
+   */
+  type: "session.mcp_server_needs_reconnect";
+}
+/**
+ * Payload of `session.mcp_server_needs_reconnect` identifying an MCP server whose connection must be re-established.
+ */
+export interface McpServerNeedsReconnectData {
+  /**
+   * Name of the MCP server that needs to reconnect
+   */
+  serverName: string;
 }
 /**
  * Session event "mcp.tools.list_changed". Payload identifying the MCP server associated with a list change.
