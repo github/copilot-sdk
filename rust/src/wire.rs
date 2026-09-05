@@ -29,7 +29,7 @@ use crate::types::{
     CustomAgentConfig, DefaultAgentConfig, ExtensionInfo, GitHubMcpToolConfig,
     InfiniteSessionConfig, LargeToolOutputConfig, McpServerConfig, MemoryConfiguration,
     NamedProviderConfig, ProviderConfig, ProviderModelConfig, SessionId, SessionLimitsConfig,
-    SystemMessageConfig, Tool, ToolSearchConfig,
+    SessionStoreIdentity, SystemMessageConfig, Tool, ToolSearchConfig,
 };
 
 /// Wire representation of a slash command (name + description only). The
@@ -110,6 +110,8 @@ pub(crate) struct SessionCreateWire {
     pub enable_host_git_operations: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_session_store: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_store_identity: Option<SessionStoreIdentity>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_skills: Option<bool>,
     pub request_user_input: bool,
@@ -269,6 +271,8 @@ pub(crate) struct SessionResumeWire {
     pub enable_host_git_operations: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_session_store: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_store_identity: Option<SessionStoreIdentity>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_skills: Option<bool>,
     pub request_user_input: bool,

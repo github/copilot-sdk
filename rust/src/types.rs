@@ -1078,6 +1078,26 @@ impl ExtensionInfo {
     }
 }
 
+/// Identity used to isolate persisted session-store data by GitHub account.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionStoreIdentity {
+    /// Canonical HTTPS origin for GitHub.com or the GitHub Enterprise Server.
+    pub authority: String,
+    /// Positive decimal GitHub account database ID.
+    pub account_id: String,
+}
+
+impl SessionStoreIdentity {
+    /// Create a session-store identity.
+    pub fn new(authority: impl Into<String>, account_id: impl Into<String>) -> Self {
+        Self {
+            authority: authority.into(),
+            account_id: account_id.into(),
+        }
+    }
+}
+
 /// Stable identity for a host/SDK connection that supplies built-in canvases.
 ///
 /// When set on session create or resume, the runtime uses [`id`] verbatim as
@@ -2029,6 +2049,8 @@ pub struct SessionConfig {
     pub enable_host_git_operations: Option<bool>,
     /// When true, enables the session store for this session.
     pub enable_session_store: Option<bool>,
+    /// Identity used to isolate this session's persisted session-store data.
+    pub session_store_identity: Option<SessionStoreIdentity>,
     /// When true, enables skills for this session.
     pub enable_skills: Option<bool>,
     /// **Experimental.** This option is part of an experimental wire-protocol
@@ -2339,6 +2361,7 @@ impl std::fmt::Debug for SessionConfig {
                 &self.enable_host_git_operations,
             )
             .field("enable_session_store", &self.enable_session_store)
+            .field("session_store_identity", &self.session_store_identity)
             .field("enable_skills", &self.enable_skills)
             .field("enable_mcp_apps", &self.enable_mcp_apps)
             .field("skill_directories", &self.skill_directories)
@@ -2466,6 +2489,7 @@ impl Default for SessionConfig {
             enable_file_hooks: None,
             enable_host_git_operations: None,
             enable_session_store: None,
+            session_store_identity: None,
             enable_skills: None,
             embedding_cache_storage: None,
             enable_mcp_apps: None,
@@ -2637,6 +2661,7 @@ impl SessionConfig {
             enable_file_hooks: self.enable_file_hooks,
             enable_host_git_operations: self.enable_host_git_operations,
             enable_session_store: self.enable_session_store,
+            session_store_identity: self.session_store_identity,
             enable_skills: self.enable_skills,
             request_user_input,
             request_permission: permission_active,
@@ -3021,6 +3046,12 @@ impl SessionConfig {
     /// Set [`Self::enable_session_store`].
     pub fn with_enable_session_store(mut self, value: bool) -> Self {
         self.enable_session_store = Some(value);
+        self
+    }
+
+    /// Set the identity used to isolate persisted session-store data.
+    pub fn with_session_store_identity(mut self, identity: SessionStoreIdentity) -> Self {
+        self.session_store_identity = Some(identity);
         self
     }
 
@@ -3462,6 +3493,8 @@ pub struct ResumeSessionConfig {
     pub enable_host_git_operations: Option<bool>,
     /// When true, enables the session store on resume.
     pub enable_session_store: Option<bool>,
+    /// Identity used to isolate the resumed session's persisted session-store data.
+    pub session_store_identity: Option<SessionStoreIdentity>,
     /// When true, enables skills on resume.
     pub enable_skills: Option<bool>,
     /// **Experimental.** This option is part of an experimental wire-protocol
@@ -3692,6 +3725,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
                 &self.enable_host_git_operations,
             )
             .field("enable_session_store", &self.enable_session_store)
+            .field("session_store_identity", &self.session_store_identity)
             .field("enable_skills", &self.enable_skills)
             .field("enable_mcp_apps", &self.enable_mcp_apps)
             .field("skill_directories", &self.skill_directories)
@@ -3863,6 +3897,7 @@ impl ResumeSessionConfig {
             enable_file_hooks: self.enable_file_hooks,
             enable_host_git_operations: self.enable_host_git_operations,
             enable_session_store: self.enable_session_store,
+            session_store_identity: self.session_store_identity,
             enable_skills: self.enable_skills,
             request_user_input,
             request_permission: permission_active,
@@ -3970,6 +4005,7 @@ impl ResumeSessionConfig {
             enable_file_hooks: None,
             enable_host_git_operations: None,
             enable_session_store: None,
+            session_store_identity: None,
             enable_skills: None,
             embedding_cache_storage: None,
             enable_mcp_apps: None,
@@ -4328,6 +4364,12 @@ impl ResumeSessionConfig {
     /// Set [`Self::enable_session_store`].
     pub fn with_enable_session_store(mut self, value: bool) -> Self {
         self.enable_session_store = Some(value);
+        self
+    }
+
+    /// Set the identity used to isolate persisted session-store data on resume.
+    pub fn with_session_store_identity(mut self, identity: SessionStoreIdentity) -> Self {
+        self.session_store_identity = Some(identity);
         self
     }
 
@@ -6147,8 +6189,8 @@ mod tests {
         InfiniteSessionConfig, LargeToolOutputConfig, McpServerConfig, McpStdioServerConfig,
         MemoryConfiguration, NamedProviderConfig, PermissionResponseCapability, ProviderConfig,
         ProviderModelConfig, ReasoningSummary, ResumeSessionConfig, SessionConfig, SessionEvent,
-        SessionId, SystemMessageConfig, Tool, ToolBinaryResult, ToolResult, ToolResultExpanded,
-        ToolResultResponse, ensure_attachment_display_names,
+        SessionId, SessionStoreIdentity, SystemMessageConfig, Tool, ToolBinaryResult, ToolResult,
+        ToolResultExpanded, ToolResultResponse, ensure_attachment_display_names,
     };
     use crate::generated::session_events::TypedSessionEvent;
 
@@ -6434,6 +6476,60 @@ mod tests {
         assert!(!wire.request_mcp_apps);
         let json = serde_json::to_value(&wire).unwrap();
         assert!(json.get("askUserVariant").is_none());
+    }
+
+    #[test]
+    fn session_store_identity_serializes_to_exact_create_and_resume_wire_shape() {
+        let identity = SessionStoreIdentity::new("https://github.com", "123456");
+        assert_eq!(
+            serde_json::to_value(&identity).unwrap(),
+            json!({
+                "authority": "https://github.com",
+                "accountId": "123456"
+            })
+        );
+
+        let (create_wire, _) = SessionConfig::default()
+            .with_session_store_identity(identity.clone())
+            .into_wire(Some(SessionId::from("store-identity-create")))
+            .expect("create config has no duplicate handlers");
+        let create_json = serde_json::to_value(&create_wire).unwrap();
+        assert_eq!(
+            create_json["sessionStoreIdentity"],
+            json!({
+                "authority": "https://github.com",
+                "accountId": "123456"
+            })
+        );
+
+        let (resume_wire, _) = ResumeSessionConfig::new(SessionId::from("store-identity-resume"))
+            .with_session_store_identity(identity)
+            .into_wire()
+            .expect("resume config has no duplicate handlers");
+        let resume_json = serde_json::to_value(&resume_wire).unwrap();
+        assert_eq!(
+            resume_json["sessionStoreIdentity"],
+            json!({
+                "authority": "https://github.com",
+                "accountId": "123456"
+            })
+        );
+    }
+
+    #[test]
+    fn session_store_identity_is_omitted_when_absent() {
+        let (create_wire, _) = SessionConfig::default()
+            .into_wire(Some(SessionId::from("store-identity-create-unset")))
+            .expect("create config has no duplicate handlers");
+        let create_json = serde_json::to_value(&create_wire).unwrap();
+        assert!(create_json.get("sessionStoreIdentity").is_none());
+
+        let (resume_wire, _) =
+            ResumeSessionConfig::new(SessionId::from("store-identity-resume-unset"))
+                .into_wire()
+                .expect("resume config has no duplicate handlers");
+        let resume_json = serde_json::to_value(&resume_wire).unwrap();
+        assert!(resume_json.get("sessionStoreIdentity").is_none());
     }
 
     #[test]
