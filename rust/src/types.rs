@@ -1081,6 +1081,7 @@ impl ExtensionInfo {
 /// Identity used to isolate persisted session-store data by GitHub account.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct SessionStoreIdentity {
     /// Canonical HTTPS origin for GitHub.com or the GitHub Enterprise Server.
     pub authority: String,
