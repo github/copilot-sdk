@@ -14,6 +14,7 @@ import {
     StreamMessageReader,
     StreamMessageWriter,
 } from "vscode-jsonrpc/node.js";
+import type { AppSessionBadgesSnapshot } from "../../src/appSessionBadges.js";
 import { getSdkProtocolVersion } from "../../src/sdkProtocolVersion.js";
 import { retry } from "./harness/sdkTestHelper.js";
 
@@ -21,7 +22,58 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const FIXTURE = join(__dirname, "fixtures", "app-session-badges-extension.mjs");
 const DIST_DIR = resolve(__dirname, "..", "..", "dist");
 
-it("delivers a later app-session badge snapshot over extension stdio", async () => {
+function encodeNotification(snapshot: AppSessionBadgesSnapshot): Buffer {
+    const body = Buffer.from(
+        JSON.stringify({
+            jsonrpc: "2.0",
+            method: "appSessionBadges.snapshot",
+            params: snapshot,
+        })
+    );
+    return Buffer.concat([Buffer.from(`Content-Length: ${body.byteLength}\r\n\r\n`), body]);
+}
+
+function readSnapshots(path: string): AppSessionBadgesSnapshot[] {
+    if (!existsSync(path)) {
+        return [];
+    }
+    return readFileSync(path, "utf8")
+        .trim()
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => JSON.parse(line) as AppSessionBadgesSnapshot);
+}
+
+function largeSnapshot(revision: number): AppSessionBadgesSnapshot {
+    return {
+        protocolVersion: 1,
+        revision,
+        sessions: Array.from({ length: 40 }, (_, index) => ({
+            workspaceId: `workspace-${revision}-${index}`,
+            sessionId: `visible-session-${revision}-${index}`,
+            repositoryPath: `C:\\src\\repository-${index}-${"r".repeat(80)}`,
+            worktreePath: `C:\\src\\worktree-${index}-${"w".repeat(80)}`,
+            branch: `feature/${revision}/${index}/${"b".repeat(40)}`,
+        })),
+    };
+}
+
+function snakeCaseSnapshot(revision: number): object {
+    return {
+        protocolVersion: 1,
+        revision,
+        sessions: [
+            {
+                workspace_id: "workspace-incorrect",
+                session_id: "visible-session-incorrect",
+                repository_path: "C:\\src\\repo",
+                worktree_path: "C:\\src\\worktree",
+            },
+        ],
+    };
+}
+
+it("delivers sequential, coalesced, and fragmented large snapshots over extension stdio", async () => {
     if (!existsSync(join(DIST_DIR, "extension.js"))) {
         throw new Error(`Built SDK not found at ${DIST_DIR}. Run \`npm run build\` first.`);
     }
@@ -61,19 +113,12 @@ it("delivers a later app-session badge snapshot over extension stdio", async () 
     connection.onNotification(() => {});
     connection.listen();
 
-    const snapshot = {
+    const initialSnapshot: AppSessionBadgesSnapshot = {
         protocolVersion: 1,
         revision: 4,
-        sessions: [
-            {
-                workspaceId: "workspace-1",
-                sessionId: "visible-session-1",
-                repositoryPath: "C:\\src\\repo",
-                worktreePath: "C:\\src\\worktree",
-                branch: "feature",
-            },
-        ],
+        sessions: [],
     };
+    const snapshots = [largeSnapshot(5), largeSnapshot(6), largeSnapshot(7)];
 
     try {
         await retry(
@@ -91,20 +136,34 @@ it("delivers a later app-session badge snapshot over extension stdio", async () 
             50
         );
 
-        await connection.sendNotification("appSessionBadges.snapshot", snapshot);
+        await connection.sendNotification("appSessionBadges.snapshot", initialSnapshot);
+        await connection.sendNotification("appSessionBadges.snapshot", snakeCaseSnapshot(5));
+
+        const coalesced = Buffer.concat([
+            encodeNotification(snapshots[0]!),
+            encodeNotification(snapshots[1]!),
+        ]);
+        child.stdin!.write(coalesced);
+
+        const fragmented = encodeNotification(snapshots[2]!);
+        for (let offset = 0; offset < fragmented.byteLength; offset += 97) {
+            child.stdin!.write(fragmented.subarray(offset, offset + 97));
+        }
 
         await retry(
-            "wait for the later snapshot callback",
+            "wait for every later snapshot callback",
             async () => {
                 expect(
-                    existsSync(snapshotFile),
-                    `snapshot callback did not fire; stderr: ${stderr.join("")}`
-                ).toBe(true);
+                    readSnapshots(snapshotFile),
+                    `not every snapshot callback fired; stderr: ${stderr.join("")}`
+                ).toHaveLength(4);
             },
             100,
             50
         );
-        expect(JSON.parse(readFileSync(snapshotFile, "utf8"))).toEqual(snapshot);
+        expect(readSnapshots(snapshotFile)).toEqual([initialSnapshot, ...snapshots]);
+        expect(encodeNotification(snapshots[0]!).byteLength).toBeGreaterThan(11_000);
+        expect(stderr.join("")).toContain("Invalid app session badges snapshot ignored");
     } finally {
         connection.dispose();
         child.kill();

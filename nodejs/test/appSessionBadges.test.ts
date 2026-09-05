@@ -168,7 +168,7 @@ describe("AppSessionBadgesExtension", () => {
         ]);
     });
 
-    it("rejects unsupported states and malformed snapshots", async () => {
+    it("rejects unsupported badge states", async () => {
         const { connection, notifications } = createConnection();
         const contribution = await AppSessionBadgesExtension.register(
             {} as CopilotSession,
@@ -180,13 +180,45 @@ describe("AppSessionBadgesExtension", () => {
                 state: "queued",
             } as never)
         ).rejects.toThrow("Unsupported app session badge state");
-        expect(() =>
-            notifications.get("appSessionBadges.snapshot")?.({
-                protocolVersion: 2,
-                revision: 8,
-                sessions: [],
-            })
-        ).toThrow("Unsupported app session badges protocol version");
+        expect(notifications.has("appSessionBadges.snapshot")).toBe(true);
+    });
+
+    it("reports malformed snapshots and continues delivering valid snapshots", async () => {
+        const { connection, notifications } = createConnection();
+        const contribution = await AppSessionBadgesExtension.register(
+            {} as CopilotSession,
+            connection
+        );
+        const handler = vi.fn();
+        contribution.onSnapshot(handler);
+        handler.mockClear();
+        const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+        notifications.get("appSessionBadges.snapshot")?.({
+            protocolVersion: 1,
+            revision: 8,
+            sessions: [
+                {
+                    workspace_id: "workspace-1",
+                    session_id: "session-1",
+                    repository_path: "C:\\src\\repo",
+                    worktree_path: "C:\\src\\worktree",
+                },
+            ],
+        });
+        notifications.get("appSessionBadges.snapshot")?.({
+            protocolVersion: 1,
+            revision: 9,
+            sessions: [],
+        });
+
+        expect(consoleError).toHaveBeenCalledOnce();
+        expect(consoleError.mock.calls[0]?.[0]).toBe("Invalid app session badges snapshot ignored");
+        expect(consoleError.mock.calls[0]?.[1]).toBeInstanceOf(TypeError);
+        expect(handler).toHaveBeenCalledOnce();
+        expect(handler.mock.calls[0]?.[0].revision).toBe(9);
+        expect(contribution.snapshot?.revision).toBe(9);
+        consoleError.mockRestore();
     });
 
     it("disposes its notification registration", async () => {

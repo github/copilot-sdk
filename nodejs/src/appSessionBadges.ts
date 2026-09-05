@@ -125,7 +125,13 @@ export class AppSessionBadgesExtension {
         const contribution = new AppSessionBadgesExtension(session, connection);
         contribution.notificationRegistration = connection.onNotification(
             SNAPSHOT_NOTIFICATION,
-            (payload: unknown) => contribution.handleSnapshot(payload)
+            (payload: unknown) => {
+                try {
+                    contribution.handleSnapshot(payload);
+                } catch (error) {
+                    console.error("Invalid app session badges snapshot ignored", error);
+                }
+            }
         );
 
         try {
