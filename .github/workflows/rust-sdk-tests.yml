@@ -364,7 +364,7 @@ jobs:
           command: |
             rustc --print cfg | grep -Fqx "target_arch=\"aarch64\""
             rustc --print cfg | grep -Fqx "target_env=\"musl\""
-            apk add --no-cache bash build-base git pkgconf openssl-dev nodejs npm
+            apk add --no-cache build-base pkgconf openssl-dev nodejs npm
             npm --prefix /workspace/nodejs ci --ignore-scripts
             export COPILOT_CLI_PATH="$(npm --prefix /workspace/nodejs run --silent prepare:runtime -- --print-path)"
             test -f "$COPILOT_CLI_PATH"

@@ -289,12 +289,19 @@ public class MSBuildTargetsTests
                 : "x64";
         if (OperatingSystem.IsWindows()) return $"win32-{arch}";
         if (OperatingSystem.IsMacOS()) return $"darwin-{arch}";
-        var platform = System.Runtime.InteropServices.RuntimeInformation.RuntimeIdentifier.StartsWith(
-            "linux-musl-",
-            StringComparison.Ordinal)
-            ? "linuxmusl"
-            : "linux";
+        var platform = IsMusl() ? "linuxmusl" : "linux";
         return $"{platform}-{arch}";
+    }
+
+    private static bool IsMusl()
+    {
+#if NETFRAMEWORK
+        return false;
+#else
+        return System.Runtime.InteropServices.RuntimeInformation.RuntimeIdentifier.StartsWith(
+            "linux-musl-",
+            StringComparison.Ordinal);
+#endif
     }
 
     private static string ComputeSha256(byte[] contents)
@@ -510,11 +517,7 @@ public class MSBuildTargetsTests
                     _ => "osx-x64",
                 };
             }
-            var os = System.Runtime.InteropServices.RuntimeInformation.RuntimeIdentifier.StartsWith(
-                "linux-musl-",
-                StringComparison.Ordinal)
-                ? "linux-musl"
-                : "linux";
+            var os = IsMusl() ? "linux-musl" : "linux";
             var architecture = System.Runtime.InteropServices.RuntimeInformation.OSArchitecture switch
             {
                 System.Runtime.InteropServices.Architecture.Arm64 => "arm64",

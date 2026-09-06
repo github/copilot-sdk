@@ -119,7 +119,6 @@ jobs:
           workdir: /workspace/nodejs
           transport: ${{ matrix.transport }}
           command: |
-            apk add --no-cache bash git
             npm ci --ignore-scripts
             npm run build
             (cd /workspace/test/harness && npm ci --ignore-scripts)

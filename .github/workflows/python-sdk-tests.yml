@@ -121,7 +121,7 @@ jobs:
           workdir: /workspace
           transport: ${{ matrix.transport }}
           command: |
-            apk add --no-cache bash git nodejs npm
+            apk add --no-cache nodejs npm
             python -m pip install --no-cache-dir uv
 
             (

@@ -104,7 +104,7 @@ jobs:
           workdir: /workspace
           transport: ${{ matrix.transport }}
           command: |
-            apk add --no-cache bash build-base git nodejs npm
+            apk add --no-cache build-base nodejs npm
             npm --prefix nodejs ci --ignore-scripts
             npm --prefix test/harness ci --ignore-scripts
             runtime_path="$(npm --prefix nodejs run --silent prepare:runtime -- --print-path)"

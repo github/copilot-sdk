@@ -30,6 +30,9 @@ runs:
         #!/bin/sh
         set -eux
 
+        apk add --no-cache bash git
+        git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
         test "$(uname -m)" = "aarch64"
         ldd --version 2>&1 | grep -qi musl
 

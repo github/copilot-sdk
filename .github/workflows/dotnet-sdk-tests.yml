@@ -376,7 +376,7 @@ jobs:
           command: |
             dotnet --info | grep -Eq "RID:[[:space:]]+linux-musl-arm64"
 
-            apk add --no-cache bash git nodejs npm
+            apk add --no-cache nodejs npm
             (cd nodejs && npm ci --ignore-scripts)
             (cd test/harness && npm ci --ignore-scripts)
 
