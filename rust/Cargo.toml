@@ -27,12 +27,25 @@ include = [
 [lib]
 name = "github_copilot_sdk"
 
+# This manifest is both the root package and the workspace root. The standalone
+# `github-copilot-shell-tasks` crate is a member so it builds/tests with the
+# workspace and can be depended on by path above.
+[workspace]
+members = ["crates/github-copilot-shell-tasks"]
+resolver = "3"
+
 [features]
 default = ["bundled-cli"]
 bundled-cli = ["dep:tar", "dep:flate2", "dep:zip"]
 bundled-in-process = ["bundled-cli", "dep:libloading"]
 derive = ["dep:schemars"]
 test-support = []
+# Shared `Windows.UI.Shell.Tasks` ("Forerunner" / taskbar presence) integration,
+# re-exported as the `shell_tasks` module. Off by default to keep the base SDK
+# lean. Enabling it pulls the standalone, build.rs-free
+# `github-copilot-shell-tasks` crate (its `windows` / `windows-core` deps only
+# activate on Windows), mirroring how `bundled-cli` gates its optional `zip`.
+shell-tasks = ["dep:github-copilot-shell-tasks"]
 
 # Build docs.rs documentation with all features so feature-gated APIs
 # (e.g. `define_tool`, `schema_for`) appear and intra-doc links resolve.
@@ -59,6 +72,10 @@ getrandom = "0.2"
 uuid = { version = "1", default-features = false, features = ["v4"] }
 flate2 = { version = "1", optional = true }
 tar = { version = "0.4", optional = true }
+# Shared Windows.UI.Shell.Tasks integration, re-exported as `shell_tasks` behind
+# the `shell-tasks` feature. Standalone + build.rs-free so enabling it does not
+# perturb the base SDK; its Windows-only WinRT deps activate only on Windows.
+github-copilot-shell-tasks = { version = "0.0.0-dev", path = "crates/github-copilot-shell-tasks", optional = true }
 # LLM inference callback transport: idiomatic HTTP/WebSocket forwarding for the
 # `CopilotRequestHandler`, plus base64/byte/stream plumbing for the chunk protocol.
 base64 = "0.22"

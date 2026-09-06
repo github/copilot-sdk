@@ -1,0 +1,34 @@
+[package]
+name = "github-copilot-shell-tasks"
+version = "0.0.0-dev"
+edition = "2024"
+rust-version = "1.94.0"
+description = "Shared Windows.UI.Shell.Tasks (Forerunner / taskbar presence) integration for GitHub Copilot, consumable by the desktop app and CLI without the full SDK client."
+keywords = ["copilot", "github", "windows", "taskbar", "forerunner"]
+categories = ["os::windows-apis", "api-bindings"]
+repository = "https://github.com/github/copilot-sdk"
+homepage = "https://github.com/github/copilot-sdk"
+license = "MIT"
+
+[lib]
+name = "github_copilot_shell_tasks"
+
+# Intentionally lightweight: no build.rs, and the only dependencies are the
+# Windows-only WinRT crates. This lets a napi addon (CLI) or Tauri backend (app)
+# depend on the shared integration without dragging in the `github-copilot-sdk`
+# client crate (JSON-RPC, tokio, and its network-touching build.rs).
+[dependencies]
+
+# `Foundation` covers the projection's `DateTime`/`IReference`/`Uri`;
+# `ApplicationModel` + `Management_Deployment` + `Win32_System_Com` back the
+# sparse-identity registrar (`sparse`); `windows-core` provides the WinRT
+# runtime. Declared under `cfg(windows)` so non-Windows builds pull neither
+# crate and the whole crate compiles as a pure-`std` no-op.
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = [
+    "Foundation",
+    "ApplicationModel",
+    "Management_Deployment",
+    "Win32_System_Com",
+] }
+windows-core = "0.62"
