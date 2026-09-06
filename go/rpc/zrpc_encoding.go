@@ -5381,6 +5381,7 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 		AgentContext                           *string                                              `json:"agentContext,omitempty"`
 		AllowAllMCPServerInstructions          *bool                                                `json:"allowAllMcpServerInstructions,omitempty"`
 		AskUserDisabled                        *bool                                                `json:"askUserDisabled,omitempty"`
+		AuthClientIDMetadataURL                *string                                              `json:"authClientIdMetadataUrl,omitempty"`
 		AuthInfo                               json.RawMessage                                      `json:"authInfo,omitempty"`
 		AvailableTools                         []string                                             `json:"availableTools,omitzero"`
 		Capi                                   *CapiSessionOptions                                  `json:"capi,omitempty"`
@@ -5457,6 +5458,7 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 	r.AgentContext = raw.AgentContext
 	r.AllowAllMCPServerInstructions = raw.AllowAllMCPServerInstructions
 	r.AskUserDisabled = raw.AskUserDisabled
+	r.AuthClientIDMetadataURL = raw.AuthClientIDMetadataURL
 	if raw.AuthInfo != nil {
 		value, err := unmarshalAuthInfo(raw.AuthInfo)
 		if err != nil {
@@ -5945,6 +5947,103 @@ func (r SlashCommandTextResult) MarshalJSON() ([]byte, error) {
 	})
 }
 
+func unmarshalTaskClientUpdate(data []byte) (TaskClientUpdate, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		Kind TaskClientUpdateKind `json:"kind"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.Kind {
+	case TaskClientUpdateKindCancelled:
+		var d TaskClientUpdateCancelled
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case TaskClientUpdateKindCompleted:
+		var d TaskClientUpdateCompleted
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case TaskClientUpdateKindFailed:
+		var d TaskClientUpdateFailed
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case TaskClientUpdateKindProgress:
+		var d TaskClientUpdateProgress
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	default:
+		return &RawTaskClientUpdateData{Discriminator: raw.Kind, Raw: data}, nil
+	}
+}
+
+func (r RawTaskClientUpdateData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		Kind TaskClientUpdateKind `json:"kind"`
+	}{
+		Kind: r.Discriminator,
+	})
+}
+
+func (r TaskClientUpdateCancelled) MarshalJSON() ([]byte, error) {
+	type alias TaskClientUpdateCancelled
+	return json.Marshal(struct {
+		Kind TaskClientUpdateKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r TaskClientUpdateCompleted) MarshalJSON() ([]byte, error) {
+	type alias TaskClientUpdateCompleted
+	return json.Marshal(struct {
+		Kind TaskClientUpdateKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r TaskClientUpdateFailed) MarshalJSON() ([]byte, error) {
+	type alias TaskClientUpdateFailed
+	return json.Marshal(struct {
+		Kind TaskClientUpdateKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r TaskClientUpdateProgress) MarshalJSON() ([]byte, error) {
+	type alias TaskClientUpdateProgress
+	return json.Marshal(struct {
+		Kind TaskClientUpdateKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
 func unmarshalTaskInfo(data []byte) (TaskInfo, error) {
 	if string(data) == "null" {
 		return nil, nil
@@ -5960,6 +6059,12 @@ func unmarshalTaskInfo(data []byte) (TaskInfo, error) {
 	switch raw.Type {
 	case TaskInfoTypeAgent:
 		var d TaskAgentInfo
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case TaskInfoTypeClient:
+		var d TaskClientInfo
 		if err := json.Unmarshal(data, &d); err != nil {
 			return nil, err
 		}
@@ -5988,6 +6093,17 @@ func (r RawTaskInfoData) MarshalJSON() ([]byte, error) {
 
 func (r TaskAgentInfo) MarshalJSON() ([]byte, error) {
 	type alias TaskAgentInfo
+	return json.Marshal(struct {
+		Type TaskInfoType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func (r TaskClientInfo) MarshalJSON() ([]byte, error) {
+	type alias TaskClientInfo
 	return json.Marshal(struct {
 		Type TaskInfoType `json:"type"`
 		alias
@@ -6048,6 +6164,12 @@ func unmarshalTaskProgress(data []byte) (TaskProgress, error) {
 			return nil, err
 		}
 		return &d, nil
+	case TaskProgressTypeClient:
+		var d TaskClientProgress
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
 	case TaskProgressTypeShell:
 		var d TaskShellProgress
 		if err := json.Unmarshal(data, &d); err != nil {
@@ -6072,6 +6194,17 @@ func (r RawTaskProgressData) MarshalJSON() ([]byte, error) {
 
 func (r TaskAgentProgress) MarshalJSON() ([]byte, error) {
 	type alias TaskAgentProgress
+	return json.Marshal(struct {
+		Type TaskProgressType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func (r TaskClientProgress) MarshalJSON() ([]byte, error) {
+	type alias TaskClientProgress
 	return json.Marshal(struct {
 		Type TaskProgressType `json:"type"`
 		alias
@@ -6142,6 +6275,28 @@ func (r *TasksPromoteCurrentToBackgroundResult) UnmarshalJSON(data []byte) error
 			return err
 		}
 		r.Task = value
+	}
+	return nil
+}
+
+func (r *TasksUpdateRequest) UnmarshalJSON(data []byte) error {
+	type rawTasksUpdateRequest struct {
+		ID       string          `json:"id"`
+		Sequence int64           `json:"sequence"`
+		Update   json.RawMessage `json:"update"`
+	}
+	var raw rawTasksUpdateRequest
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	r.ID = raw.ID
+	r.Sequence = raw.Sequence
+	if raw.Update != nil {
+		value, err := unmarshalTaskClientUpdate(raw.Update)
+		if err != nil {
+			return err
+		}
+		r.Update = value
 	}
 	return nil
 }

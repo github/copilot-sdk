@@ -90,6 +90,7 @@ from .copilot_request_handler import (
     LlmInferenceHeaders,
 )
 from .generated.rpc import (
+    CurrentModel,
     CurrentToolMetadata,
     GitHubTelemetryClientInfo,
     GitHubTelemetryEvent,
@@ -99,6 +100,8 @@ from .generated.rpc import (
     GitHubTokenAcquireResultKind,
     ModelBillingTokenPrices,
     ModelBillingTokenPricesLongContext,
+    ModelSwitchAutoTierResult,
+    ModelSwitchAutoTierStatus,
     PermissionDecisionContext,
     PermissionDecisionOutcome,
     PermissionDecisionSource,
@@ -106,7 +109,9 @@ from .generated.rpc import (
     PermissionResponseCapability,
 )
 from .generated.session_events import (
+    AutoTierSwitchFailureReason,
     PermissionRequest,
+    SessionAutoTierSwitchFailedData,
     SessionEvent,
     SessionEventType,
 )
@@ -234,6 +239,11 @@ __all__ = [
     "AutoModeSwitchResponse",
     "AskUserVariant",
     "AutoTier",
+    "SessionAutoTierSwitchFailedData",
+    "AutoTierSwitchFailureReason",
+    "CurrentModel",
+    "ModelSwitchAutoTierResult",
+    "ModelSwitchAutoTierStatus",
     "BUILTIN_TOOLS_ISOLATED",
     "CanvasAction",
     "CanvasDeclaration",

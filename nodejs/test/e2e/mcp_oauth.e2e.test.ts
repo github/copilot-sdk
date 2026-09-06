@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { spawn } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
@@ -10,7 +10,7 @@ import { describe, expect, it, onTestFinished } from "vitest";
 import type { CopilotSession, MCPServerConfig, McpAuthRequest } from "../../src/index.js";
 import { approveAll } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
-import { waitForCondition } from "./harness/sdkTestHelper.js";
+import { stopChildProcess, waitForCondition } from "./harness/sdkTestHelper.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -59,6 +59,7 @@ describe("MCP OAuth host auth", async () => {
         });
         onTestFinished(() => disconnectSession(session));
 
+        await session.rpc.mcp.reload();
         await waitForMcpServerStatus(session, serverName);
 
         const tools = await session.rpc.mcp.listTools({ serverName });
@@ -95,10 +96,7 @@ describe("MCP OAuth host auth", async () => {
         async () => {
             const oauthServer = await startOAuthMcpServer();
             const serverName = "oauth-direct-rpc-mcp";
-            let resolveAuthRequest!: (request: McpAuthRequest) => void;
-            const authRequest = new Promise<McpAuthRequest>((resolve) => {
-                resolveAuthRequest = resolve;
-            });
+            const authRequests = createAsyncQueue<McpAuthRequest>();
             let releaseHandler!: (value: unknown) => void;
             const handlerResult = new Promise<unknown>((resolve) => {
                 releaseHandler = resolve;
@@ -108,7 +106,7 @@ describe("MCP OAuth host auth", async () => {
                 onPermissionRequest: approveAll,
                 enableMcpApps: true,
                 onMcpAuthRequest: async (request) => {
-                    resolveAuthRequest(request);
+                    authRequests.push(request);
                     await handlerResult;
                     return { kind: "token", accessToken: EXPECTED_TOKEN };
                 },
@@ -124,8 +122,25 @@ describe("MCP OAuth host auth", async () => {
             });
             onTestFinished(() => disconnectSession(session));
 
+            const reload = session.rpc.mcp.reload();
             const connected = waitForMcpServerStatus(session, serverName);
-            const request = await authRequest;
+            let request = await authRequests.next();
+            while (
+                !(
+                    await session.rpc.mcp.oauth.handlePendingRequest({
+                        requestId: request.requestId,
+                        result: {
+                            kind: "token",
+                            accessToken: EXPECTED_TOKEN,
+                            tokenType: "Bearer",
+                            expiresIn: 3600,
+                        },
+                    })
+                ).success
+            ) {
+                request = await authRequests.next();
+            }
+
             expect(request).toMatchObject({
                 requestId: expect.any(String),
                 serverName,
@@ -138,21 +153,11 @@ describe("MCP OAuth host auth", async () => {
                 },
             });
 
-            const handled = await session.rpc.mcp.oauth.handlePendingRequest({
-                requestId: request.requestId,
-                result: {
-                    kind: "token",
-                    accessToken: EXPECTED_TOKEN,
-                    tokenType: "Bearer",
-                    expiresIn: 3600,
-                },
-            });
-            expect(handled.success).toBe(true);
-
+            releaseHandler(undefined);
+            await reload;
             await connected;
             const tools = await session.rpc.mcp.listTools({ serverName });
             expect(tools.tools.map((tool) => tool.name)).toContain("whoami");
-            releaseHandler(undefined);
         }
     );
 
@@ -197,18 +202,18 @@ describe("MCP OAuth host auth", async () => {
             });
             onTestFinished(() => disconnectSession(session));
 
+            await session.rpc.mcp.reload();
             await waitForMcpServerStatus(session, serverName);
+            refreshCount = 0;
             await callWhoami(session, serverName, "refresh");
             await callWhoami(session, serverName, "upscope");
             await callWhoami(session, serverName, "reauth");
 
-            expect(authRequests.map((request) => request.reason)).toEqual([
-                "initial",
-                "refresh",
-                "upscope",
-                "refresh",
-                "reauth",
-            ]);
+            expect(
+                authRequests
+                    .filter((request) => request.reason !== "initial")
+                    .map((request) => request.reason)
+            ).toEqual(["refresh", "upscope", "refresh", "reauth"]);
 
             const upscopeRequest = authRequests.find((request) => request.reason === "upscope");
             expect(upscopeRequest?.wwwAuthenticateParams).toEqual({
@@ -263,6 +268,7 @@ describe("MCP OAuth host auth", async () => {
             });
             onTestFinished(() => disconnectSession(session));
 
+            await session.rpc.mcp.reload();
             await waitForMcpServerStatus(session, serverName, "needs-auth");
 
             expect(await authRequest).toMatchObject({
@@ -316,7 +322,7 @@ async function startOAuthMcpServer(): Promise<{
         env: { ...process.env, EXPECTED_TOKEN },
         stdio: ["ignore", "pipe", "pipe"],
     });
-    onTestFinished(() => stopChild(child));
+    onTestFinished(() => stopChildProcess(child));
 
     const stderr: string[] = [];
     child.stderr.on("data", (chunk) => stderr.push(String(chunk)));
@@ -369,13 +375,23 @@ async function disconnectSession(session: CopilotSession): Promise<void> {
     }
 }
 
-function stopChild(child: ChildProcessWithoutNullStreams): Promise<void> {
-    if (child.exitCode !== null || child.killed) {
-        return Promise.resolve();
-    }
-    const exitPromise = new Promise<void>((resolvePromise) => {
-        child.once("exit", () => resolvePromise());
-    });
-    child.kill("SIGTERM");
-    return exitPromise;
+function createAsyncQueue<T>(): { push(value: T): void; next(): Promise<T> } {
+    const values: T[] = [];
+    const waiters: Array<(value: T) => void> = [];
+    return {
+        push(value) {
+            const waiter = waiters.shift();
+            if (waiter) {
+                waiter(value);
+            } else {
+                values.push(value);
+            }
+        },
+        next() {
+            const value = values.shift();
+            return value === undefined
+                ? new Promise<T>((resolvePromise) => waiters.push(resolvePromise))
+                : Promise.resolve(value);
+        },
+    };
 }

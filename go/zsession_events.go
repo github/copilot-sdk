@@ -73,6 +73,7 @@ type (
 	AutoModeSwitchResponse                                         = rpc.AutoModeSwitchResponse
 	AutopilotObjectiveChangedOperation                             = rpc.AutopilotObjectiveChangedOperation
 	AutopilotObjectiveChangedStatus                                = rpc.AutopilotObjectiveChangedStatus
+	AutoTierSwitchFailureReason                                    = rpc.AutoTierSwitchFailureReason
 	BinaryAssetReference                                           = rpc.BinaryAssetReference
 	BinaryAssetReferenceType                                       = rpc.BinaryAssetReferenceType
 	BinaryAssetType                                                = rpc.BinaryAssetType
@@ -168,6 +169,7 @@ type (
 	MCPOauthWwwAuthenticateParams                                  = rpc.MCPOauthWwwAuthenticateParams
 	MCPPromptsListChangedData                                      = rpc.MCPPromptsListChangedData
 	MCPResourcesListChangedData                                    = rpc.MCPResourcesListChangedData
+	MCPServerMetadata                                              = rpc.MCPServerMetadata
 	MCPServersLoadedServer                                         = rpc.MCPServersLoadedServer
 	MCPServerSource                                                = rpc.MCPServerSource
 	MCPServerStatus                                                = rpc.MCPServerStatus
@@ -257,12 +259,14 @@ type (
 	RawSystemNotification                                          = rpc.RawSystemNotification
 	RawToolExecutionCompleteContent                                = rpc.RawToolExecutionCompleteContent
 	ReasoningSummary                                               = rpc.ReasoningSummary
+	RemediationAction                                              = rpc.RemediationAction
 	SamplingCompletedData                                          = rpc.SamplingCompletedData
 	SamplingRequestedData                                          = rpc.SamplingRequestedData
 	SandboxDecisionData                                            = rpc.SandboxDecisionData
 	ScheduleOrigin                                                 = rpc.ScheduleOrigin
 	SessionAutoModeResolvedData                                    = rpc.SessionAutoModeResolvedData
 	SessionAutopilotObjectiveChangedData                           = rpc.SessionAutopilotObjectiveChangedData
+	SessionAutoTierSwitchFailedData                                = rpc.SessionAutoTierSwitchFailedData
 	SessionBackgroundTasksChangedData                              = rpc.SessionBackgroundTasksChangedData
 	SessionBinaryAssetData                                         = rpc.SessionBinaryAssetData
 	SessionCanvasClosedData                                        = rpc.SessionCanvasClosedData
@@ -298,6 +302,8 @@ type (
 	SessionLimitsExhaustedResponseAction                           = rpc.SessionLimitsExhaustedResponseAction
 	SessionManagedSettingsEnforcedData                             = rpc.SessionManagedSettingsEnforcedData
 	SessionManagedSettingsResolvedData                             = rpc.SessionManagedSettingsResolvedData
+	SessionMCPServerNeedsReconnectData                             = rpc.SessionMCPServerNeedsReconnectData
+	SessionMCPServerRemovedData                                    = rpc.SessionMCPServerRemovedData
 	SessionMCPServersLoadedData                                    = rpc.SessionMCPServersLoadedData
 	SessionMCPServerStatusChangedData                              = rpc.SessionMCPServerStatusChangedData
 	SessionMode                                                    = rpc.SessionMode
@@ -487,6 +493,10 @@ const (
 	AutopilotObjectiveChangedStatusCapReached                          = rpc.AutopilotObjectiveChangedStatusCapReached
 	AutopilotObjectiveChangedStatusCompleted                           = rpc.AutopilotObjectiveChangedStatusCompleted
 	AutopilotObjectiveChangedStatusPaused                              = rpc.AutopilotObjectiveChangedStatusPaused
+	AutoTierSwitchFailureReasonPolicyRejected                          = rpc.AutoTierSwitchFailureReasonPolicyRejected
+	AutoTierSwitchFailureReasonRequestFailed                           = rpc.AutoTierSwitchFailureReasonRequestFailed
+	AutoTierSwitchFailureReasonSetupFailed                             = rpc.AutoTierSwitchFailureReasonSetupFailed
+	AutoTierSwitchFailureReasonUnsupported                             = rpc.AutoTierSwitchFailureReasonUnsupported
 	BinaryAssetReferenceTypeImage                                      = rpc.BinaryAssetReferenceTypeImage
 	BinaryAssetReferenceTypeResource                                   = rpc.BinaryAssetReferenceTypeResource
 	BinaryAssetTypeImage                                               = rpc.BinaryAssetTypeImage
@@ -689,6 +699,11 @@ const (
 	ReasoningSummaryConcise                                            = rpc.ReasoningSummaryConcise
 	ReasoningSummaryDetailed                                           = rpc.ReasoningSummaryDetailed
 	ReasoningSummaryNone                                               = rpc.ReasoningSummaryNone
+	RemediationActionAllowSandboxOutbound                              = rpc.RemediationActionAllowSandboxOutbound
+	RemediationActionReviewSandboxPolicy                               = rpc.RemediationActionReviewSandboxPolicy
+	RemediationActionShowAccount                                       = rpc.RemediationActionShowAccount
+	RemediationActionSignIn                                            = rpc.RemediationActionSignIn
+	RemediationActionSwitchAccount                                     = rpc.RemediationActionSwitchAccount
 	ScheduleOriginModel                                                = rpc.ScheduleOriginModel
 	ScheduleOriginUser                                                 = rpc.ScheduleOriginUser
 	SessionEventTypeAbort                                              = rpc.SessionEventTypeAbort
@@ -750,6 +765,7 @@ const (
 	SessionEventTypeSandboxDecision                                    = rpc.SessionEventTypeSandboxDecision
 	SessionEventTypeSessionAutoModeResolved                            = rpc.SessionEventTypeSessionAutoModeResolved
 	SessionEventTypeSessionAutopilotObjectiveChanged                   = rpc.SessionEventTypeSessionAutopilotObjectiveChanged
+	SessionEventTypeSessionAutoTierSwitchFailed                        = rpc.SessionEventTypeSessionAutoTierSwitchFailed
 	SessionEventTypeSessionBackgroundTasksChanged                      = rpc.SessionEventTypeSessionBackgroundTasksChanged
 	SessionEventTypeSessionBinaryAsset                                 = rpc.SessionEventTypeSessionBinaryAsset
 	SessionEventTypeSessionCanvasClosed                                = rpc.SessionEventTypeSessionCanvasClosed
@@ -779,6 +795,8 @@ const (
 	SessionEventTypeSessionLimitsExhaustedRequested                    = rpc.SessionEventTypeSessionLimitsExhaustedRequested
 	SessionEventTypeSessionManagedSettingsEnforced                     = rpc.SessionEventTypeSessionManagedSettingsEnforced
 	SessionEventTypeSessionManagedSettingsResolved                     = rpc.SessionEventTypeSessionManagedSettingsResolved
+	SessionEventTypeSessionMCPServerNeedsReconnect                     = rpc.SessionEventTypeSessionMCPServerNeedsReconnect
+	SessionEventTypeSessionMCPServerRemoved                            = rpc.SessionEventTypeSessionMCPServerRemoved
 	SessionEventTypeSessionMCPServersLoaded                            = rpc.SessionEventTypeSessionMCPServersLoaded
 	SessionEventTypeSessionMCPServerStatusChanged                      = rpc.SessionEventTypeSessionMCPServerStatusChanged
 	SessionEventTypeSessionModeChanged                                 = rpc.SessionEventTypeSessionModeChanged

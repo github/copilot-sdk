@@ -577,6 +577,14 @@ Always include PINEAPPLE_COCONUT_42.
                 arguments: '{"command":"sleep 100"}',
               },
             },
+            {
+              id: "tc3",
+              type: "function",
+              function: {
+                name: "bash",
+                arguments: '{"command":"sleep 100"}',
+              },
+            },
           ],
         },
         {
@@ -589,6 +597,11 @@ Always include PINEAPPLE_COCONUT_42.
           role: "tool",
           tool_call_id: "tc2",
           content: "<shell context is being reconfigured; retry the command>",
+        },
+        {
+          role: "tool",
+          tool_call_id: "tc3",
+          content: "unknown attachedShellSession handle 9",
         },
       ],
     });
@@ -605,6 +618,7 @@ Always include PINEAPPLE_COCONUT_42.
       (m) => m.role === "tool",
     );
     expect(toolMessages.map((message) => message.content)).toEqual([
+      "The execution of this tool, or a previous tool was interrupted.",
       "The execution of this tool, or a previous tool was interrupted.",
       "The execution of this tool, or a previous tool was interrupted.",
     ]);
@@ -967,7 +981,7 @@ Always include PINEAPPLE_COCONUT_42.
       }
     });
 
-    test("matches semantically equivalent interrupted shell results", async () => {
+    test("matches semantically equivalent interrupted tool results", async () => {
       const originalShellConfig =
         process.platform === "win32"
           ? ShellConfig.powerShell
@@ -1042,8 +1056,7 @@ Always include PINEAPPLE_COCONUT_42.
                 {
                   role: "tool",
                   tool_call_id: "runtime-call-id",
-                  content:
-                    "<shell context is being reconfigured; retry the command>",
+                  content: "Session aborted",
                 },
               ],
             },
@@ -1055,6 +1068,25 @@ Always include PINEAPPLE_COCONUT_42.
           (JSON.parse(interruptedResponse.body) as ChatCompletion).choices[0]
             .message.content,
         ).toBe("Ready for another request.");
+
+        const unknownHandleResponse = await makeRequest(
+          proxyUrl,
+          "/chat/completions",
+          {
+            body: {
+              model: "test-model",
+              messages: [
+                ...messages,
+                {
+                  role: "tool",
+                  tool_call_id: "runtime-call-id",
+                  content: "unknown attachedShellSession handle 9",
+                },
+              ],
+            },
+          },
+        );
+        expect(unknownHandleResponse.status).toBe(200);
 
         const meaningfulErrorResponse = await makeRequest(
           proxyUrl,

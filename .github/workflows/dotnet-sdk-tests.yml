@@ -104,43 +104,65 @@ jobs:
           - os: macos-latest
             transport: default
             backend: capi
-            shard: "2b1a-permission-provider"
+            shard: "2b-pending"
           - os: macos-latest
             transport: default
             backend: capi
-            shard: "2b1a-rewind"
+            shard: "2b-permission"
           - os: macos-latest
             transport: default
             backend: capi
-            shard: "2b1a-rpc-a"
+            shard: "2b-auth"
           - os: macos-latest
             transport: default
             backend: capi
-            shard: "2b1a-rpc-e"
+            shard: "2b-hooks"
           - os: macos-latest
             transport: default
             backend: capi
-            shard: "2b1b-mcp-and-skills"
+            shard: "2b-unit-p"
           - os: macos-latest
             transport: default
             backend: capi
-            shard: "2b1b-mcp-config"
+            shard: "2b-provider"
           - os: macos-latest
             transport: default
             backend: capi
-            shard: "2b1b-mcp-lifecycle"
+            shard: "2b-rpc-additional"
           - os: macos-latest
             transport: default
             backend: capi
-            shard: "2b1b-queue"
+            shard: "2b-rpc-agent"
           - os: macos-latest
             transport: default
             backend: capi
-            shard: "2b1b-remote"
+            shard: "2b-rpc-event-log"
           - os: macos-latest
             transport: default
             backend: capi
-            shard: "2b2"
+            shard: "2b-rpc-event-effects"
+          - os: macos-latest
+            transport: default
+            backend: capi
+            shard: "2b-rpc-mcp-skills"
+          - os: macos-latest
+            transport: default
+            backend: capi
+            shard: "2b-rpc-mcp-config"
+          - os: macos-latest
+            transport: default
+            backend: capi
+            shard: "2b-rpc-mcp-lifecycle"
+          - os: macos-latest
+            transport: default
+            backend: capi
+            shard: "2b-rpc-q-z"
+          # Standalone extension tests require the legacy JavaScript entrypoint.
+          # Keep its subprocess tree isolated from the rest of the O/P/R shard.
+          - os: macos-latest
+            transport: default
+            backend: capi
+            shard: extensions
           - os: macos-latest
             transport: default
             backend: capi
@@ -223,7 +245,6 @@ jobs:
           )
 
           filter="$DOTNET_TEST_FILTER"
-          individual_filters=()
           if [[ "$DOTNET_TEST_SHARD" != "full" ]]; then
             case "$DOTNET_TEST_SHARD" in
               1)
@@ -240,68 +261,71 @@ jobs:
                 initials=(B E F G)
                 shard_filter=""
                 ;;
-              2b1a-permission-provider)
+              2b-pending)
                 initials=()
-                shard_filter=""
-                individual_filters=(
-                  "FullyQualifiedName~GitHub.Copilot.Test.E2E.PendingWorkResumeE2ETests"
-                  "FullyQualifiedName~GitHub.Copilot.Test.E2E.PerSessionAuthE2ETests"
-                  "FullyQualifiedName~GitHub.Copilot.Test.E2E.PermissionE2ETests"
-                  "FullyQualifiedName~GitHub.Copilot.Test.E2E.PreMcpToolCallHookE2ETests"
-                  "FullyQualifiedName~GitHub.Copilot.Test.E2E.ProviderEndpointE2ETests"
-                  "FullyQualifiedName~GitHub.Copilot.Test.Unit.PermissionHandlerTests"
-                  "FullyQualifiedName~GitHub.Copilot.Test.Unit.PublicDtoTests"
-                )
+                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.PendingWorkResumeE2ETests"
                 ;;
-              2b1a-rewind)
+              2b-permission)
                 initials=()
-                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.Rewind"
+                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.PermissionE2ETests"
                 ;;
-              2b1a-rpc-a)
+              2b-auth)
                 initials=()
-                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcA"
+                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.PerSessionAuthE2ETests"
                 ;;
-              2b1a-rpc-e)
+              2b-hooks)
                 initials=()
-                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcE"
+                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.PreMcpToolCallHookE2ETests"
                 ;;
-              2b1b-mcp-and-skills)
+              2b-unit-p)
+                initials=()
+                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.Unit.P"
+                ;;
+              2b-provider)
+                initials=(O)
+                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.ProviderEndpointE2ETests|FullyQualifiedName~GitHub.Copilot.Test.E2E.RewindE2ETests|FullyQualifiedName~GitHub.Copilot.Test.Unit.R"
+                ;;
+              2b-rpc-additional)
+                initials=()
+                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcAdditionalEdgeCasesE2ETests"
+                ;;
+              2b-rpc-agent)
+                initials=()
+                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcAgentE2ETests"
+                ;;
+              2b-rpc-event-log)
+                initials=()
+                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcEventLogE2ETests"
+                ;;
+              2b-rpc-event-effects)
+                initials=()
+                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcEventSideEffectsE2ETests"
+                ;;
+              2b-rpc-mcp-skills)
                 initials=()
                 shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcMcpAndSkillsE2ETests"
                 ;;
-              2b1b-mcp-config)
+              2b-rpc-mcp-config)
                 initials=()
                 shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcMcpConfigE2ETests"
                 ;;
-              2b1b-mcp-lifecycle)
+              2b-rpc-mcp-lifecycle)
                 initials=()
                 shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcMcpLifecycleE2ETests"
                 ;;
-              2b1b-queue)
+              2b-rpc-q-z)
                 initials=()
-                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcQ"
+                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcQueueE2ETests|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcRemoteE2ETests|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcScheduleE2ETests|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcServerE2ETests|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcServerMiscE2ETests|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcServerPluginsE2ETests|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcServerRemoteControlE2ETests|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcSessionStateE2ETests|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcSessionStateExtrasE2ETests|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcShellAndFleetE2ETests|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcShellEdgeCaseE2ETests|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcShellUserRequestedE2ETests|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcTasksAndHandlersE2ETests|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcUiEphemeralQueryE2ETests|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcWorkspaceCheckpointsE2ETests"
                 ;;
-              2b1b-remote)
+              extensions)
                 initials=()
-                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcR"
-                ;;
-              2b2)
-                initials=()
-                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcS|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcT|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcU|FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcW|FullyQualifiedName~GitHub.Copilot.Test.Unit.R"
+                shard_filter="FullyQualifiedName~GitHub.Copilot.Test.E2E.RpcExtensionsLoadedE2ETests"
                 ;;
               2c)
                 initials=(T V X Z)
                 shard_filter=""
                 ;;
             esac
-
-            if (( ${#individual_filters[@]} > 0 )); then
-              for individual_filter in "${individual_filters[@]}"; do
-                combined_filter="${filter:+(${filter})&}(${individual_filter})"
-                dotnet test test/GitHub.Copilot.SDK.Test.csproj "${args[@]}" --filter "$combined_filter"
-              done
-              exit 0
-            fi
 
             for namespace in E2E Unit; do
               for initial in "${initials[@]}"; do

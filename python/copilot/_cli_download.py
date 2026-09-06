@@ -1,22 +1,24 @@
-"""Download and cache the Copilot CLI binary.
+"""Download and cache the Copilot CLI runtime package.
 
-This module implements a download-at-first-use strategy for the Copilot CLI
-binary, similar to the Rust SDK's build.rs approach but triggered at runtime.
-The binary is cached in a shared directory compatible with the Rust SDK:
+The platform-specific GitHub release package contains the out-of-process runtime
+wrapper, native runtime library, and runtime assets, but omits the legacy SEA
+``copilot[.exe]``. Its bytes are downloaded and verified, then the filtered hostless
+bundle is materialized directly into the SDK's existing cache layout. ``download_cli``
+preserves the historical CLI filename by creating a compatibility alias from the
+runtime wrapper inside the complete materialized bundle:
 
-- Linux:   ~/.cache/github-copilot-sdk/cli/{version}/copilot
-- macOS:   ~/Library/Caches/github-copilot-sdk/cli/{version}/copilot
-- Windows: %LOCALAPPDATA%/github-copilot-sdk/cli/{version}/copilot.exe
+- Linux:   ~/.cache/github-copilot-sdk/cli/{version}/prebuilds/{platform}/copilot
+- macOS:   ~/Library/Caches/github-copilot-sdk/cli/{version}/prebuilds/{platform}/copilot
+- Windows: %LOCALAPPDATA%/github-copilot-sdk/cli/{version}/prebuilds/{platform}/copilot.exe
 
 Environment variables:
-- COPILOT_CLI_EXTRACT_DIR: Override the cache directory (binary placed directly here).
+- COPILOT_CLI_EXTRACT_DIR: Override the runtime bundle cache root.
 - COPILOT_SKIP_CLI_DOWNLOAD: Set to "1" or "true" to disable auto-download.
 - COPILOT_CLI_DOWNLOAD_BASE_URL: Override the GitHub Releases base URL.
 """
 
 from __future__ import annotations
 
-import base64
 import hashlib
 import io
 import os
@@ -26,23 +28,24 @@ import sys
 import tarfile
 import tempfile
 import time
-import zipfile
+from http.client import IncompleteRead
 from pathlib import Path, PurePosixPath
 from urllib.error import HTTPError, URLError
 from urllib.request import urlopen
 
 from ._cli_version import (
     CLI_VERSION,
-    get_asset_info,
     get_checksums_url,
+    get_cli_binary_name,
     get_download_url,
-    get_npm_platform,
-    get_runtime_lib_packument_url,
-    get_runtime_lib_url,
+    get_release_asset_name,
+    get_runtime_platform,
 )
 
 _CACHE_DIR_NAME = "github-copilot-sdk"
 _MAX_RETRIES = 3
+_RETRIABLE_DOWNLOAD_ERRORS = (HTTPError, URLError, IncompleteRead)
+_HOSTLESS_ASSETS_MARKER = ".hostless-runtime-assets-v2"
 
 
 def _sanitize_version(version: str) -> str:
@@ -55,13 +58,12 @@ def _sanitize_version(version: str) -> str:
 
 
 def get_cache_dir(version: str | None = None) -> Path:
-    """Return the cache directory for CLI binaries.
+    """Return the cache directory for runtime bundles.
 
     Args:
         version: CLI version string. If None, returns the root cache dir.
     """
-    # COPILOT_CLI_EXTRACT_DIR overrides the entire version-specific directory
-    # (binary lives directly at $dir/<binary>, no version subdir). Matches Rust SDK.
+    # COPILOT_CLI_EXTRACT_DIR overrides the entire version-specific directory.
     extract_override = os.environ.get("COPILOT_CLI_EXTRACT_DIR")
     if extract_override:
         return Path(extract_override)
@@ -87,7 +89,7 @@ def get_cache_dir(version: str | None = None) -> Path:
 
 
 def get_cached_cli_path(version: str | None = None) -> str | None:
-    """Return the path to the cached CLI binary if it exists.
+    """Return the cached compatibility entrypoint for a complete runtime bundle.
 
     Args:
         version: CLI version. Defaults to the pinned CLI_VERSION.
@@ -100,12 +102,21 @@ def get_cached_cli_path(version: str | None = None) -> str | None:
         return None
 
     try:
-        _, binary_name = get_asset_info()
+        runtime_platform = get_runtime_platform()
     except RuntimeError:
         return None
-    binary_path = get_cache_dir(ver) / binary_name
+    binary_name = get_cli_binary_name()
+    wrapper_name = "copilot-runtime.exe" if sys.platform == "win32" else "copilot-runtime"
+    pair_dir = get_cache_dir(ver) / "prebuilds" / runtime_platform
+    binary_path = pair_dir / binary_name
+    required = (
+        binary_path,
+        pair_dir / wrapper_name,
+        pair_dir / "runtime.node",
+        pair_dir / _HOSTLESS_ASSETS_MARKER,
+    )
 
-    if binary_path.exists():
+    if all(path.is_file() and path.stat().st_size > 0 for path in required):
         return str(binary_path)
     return None
 
@@ -122,30 +133,22 @@ def _fetch_checksums(version: str) -> dict[str, str]:
     Returns a dict mapping filename → sha256 hex digest.
     """
     url = get_checksums_url(version)
-    last_exc: Exception | None = None
-    for attempt in range(_MAX_RETRIES):
-        try:
-            with urlopen(url, timeout=30) as response:
-                text = response.read().decode("utf-8")
-            break
-        except (HTTPError, URLError) as exc:
-            last_exc = exc
-            if attempt < _MAX_RETRIES - 1:
-                time.sleep(2**attempt)
-    else:
+    try:
+        text = _fetch_url_bytes(url, timeout=30).decode("utf-8")
+    except (RuntimeError, UnicodeDecodeError) as exc:
         raise RuntimeError(
-            f"Failed to download checksums from {url}: {last_exc}\n\n"
+            f"Failed to download checksums from {url}: {exc}\n\n"
             "If you are in an offline or firewalled environment, set "
             "COPILOT_CLI_PATH to point to a manually-installed binary."
-        ) from last_exc
+        ) from exc
 
     checksums: dict[str, str] = {}
     for line in text.strip().splitlines():
         parts = line.split()
-        if len(parts) == 2:
+        if len(parts) == 2 and re.fullmatch(r"[a-fA-F0-9]{64}", parts[0]):
             digest, filename = parts
             # Some formats use *filename (binary mode indicator)
-            checksums[filename.lstrip("*")] = digest
+            checksums[filename.lstrip("*")] = digest.lower()
     return checksums
 
 
@@ -158,65 +161,36 @@ def _verify_checksum(data: bytes, expected_hash: str, filename: str) -> None:
         )
 
 
-def _extract_tar_gz(data: bytes, binary_name: str, dest_dir: Path) -> Path:
-    """Extract the CLI binary from a .tar.gz archive."""
-    with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as tf:
-        # Find the binary in the archive (may be at top level or in a subdirectory)
-        members = tf.getnames()
-        target_member = None
-        for name in members:
-            if name == binary_name or name.endswith(f"/{binary_name}"):
-                target_member = name
-                break
-
-        if target_member is None:
-            raise RuntimeError(
-                f"Binary '{binary_name}' not found in archive. Archive contains: {members}"
-            )
-
-        member = tf.getmember(target_member)
-        f = tf.extractfile(member)
-        if f is None:
-            raise RuntimeError(f"Could not extract '{target_member}' from archive")
-
-        dest_path = dest_dir / binary_name
-        with open(dest_path, "wb") as out:
-            out.write(f.read())
-
-    return dest_path
+def _fetch_verified_release_package(version: str, runtime_platform: str) -> bytes:
+    """Download and verify the unified platform release package."""
+    asset_name = get_release_asset_name(version, runtime_platform)
+    expected_hash = _fetch_checksums(version).get(asset_name)
+    if not expected_hash:
+        raise RuntimeError(f"SHA256SUMS.txt does not contain {asset_name}.")
+    url = get_download_url(version, asset_name)
+    data = _fetch_url_bytes(url, timeout=600)
+    _verify_checksum(data, expected_hash, asset_name)
+    return data
 
 
-def _extract_zip(data: bytes, binary_name: str, dest_dir: Path) -> Path:
-    """Extract the CLI binary from a .zip archive."""
-    with zipfile.ZipFile(io.BytesIO(data)) as zf:
-        names = zf.namelist()
-        target_member = None
-        for name in names:
-            if name == binary_name or name.endswith(f"/{binary_name}"):
-                target_member = name
-                break
-
-        if target_member is None:
-            raise RuntimeError(
-                f"Binary '{binary_name}' not found in archive. Archive contains: {names}"
-            )
-
-        dest_path = dest_dir / binary_name
-        with zf.open(target_member) as src, open(dest_path, "wb") as out:
-            out.write(src.read())
-
-    return dest_path
+def _runtime_bundle_is_complete(pair_dir: Path, wrapper_name: str) -> bool:
+    required = (
+        pair_dir / wrapper_name,
+        pair_dir / "runtime.node",
+        pair_dir / _HOSTLESS_ASSETS_MARKER,
+    )
+    return all(path.is_file() and path.stat().st_size > 0 for path in required)
 
 
 def download_cli(version: str | None = None, *, force: bool = False) -> str:
-    """Download the Copilot CLI binary and cache it.
+    """Provision a complete runtime bundle with a ``copilot[.exe]`` alias.
 
     Args:
         version: CLI version to download. Defaults to the pinned CLI_VERSION.
         force: If True, re-download even if already cached.
 
     Returns:
-        Path to the cached binary.
+        Path to the compatibility entrypoint adjacent to the complete runtime bundle.
 
     Raises:
         RuntimeError: If the version is not set, download fails, or
@@ -229,81 +203,33 @@ def download_cli(version: str | None = None, *, force: bool = False) -> str:
             "set COPILOT_CLI_PATH or install a published wheel."
         )
 
-    archive_name, binary_name = get_asset_info()
-    cache_dir = get_cache_dir(ver)
-    binary_path = cache_dir / binary_name
+    binary_name = get_cli_binary_name()
 
-    # Return cached binary if available (unless force)
-    if not force and binary_path.exists():
-        return str(binary_path)
+    if not force:
+        cached = get_cached_cli_path(ver)
+        if cached is not None:
+            return cached
 
-    # Fetch checksums
-    checksums = _fetch_checksums(ver)
-    expected_hash = checksums.get(archive_name)
-    if not expected_hash:
-        raise RuntimeError(
-            f"No checksum found for '{archive_name}' in SHA256SUMS.txt. "
-            f"Available files: {list(checksums.keys())}"
-        )
-
-    # Download archive with retries
-    url = get_download_url(ver, archive_name)
-    last_exc: Exception | None = None
-    data: bytes | None = None
-    for attempt in range(_MAX_RETRIES):
-        try:
-            with urlopen(url, timeout=120) as response:
-                data = response.read()
-            break
-        except (HTTPError, URLError) as exc:
-            last_exc = exc
-            if attempt < _MAX_RETRIES - 1:
-                time.sleep(2**attempt)
-    if data is None:
-        raise RuntimeError(
-            f"Failed to download runtime from {url}: {last_exc}\n\n"
-            "If you are in an offline or firewalled environment, you can:\n"
-            f"1. Manually download the archive from: {url}\n"
-            f"2. Extract the '{binary_name}' binary to: {binary_path}\n"
-            "Or set COPILOT_CLI_PATH to point to an existing binary."
-        ) from last_exc
-
-    # Verify checksum
-    _verify_checksum(data, expected_hash, archive_name)
-
-    # Extract to a temporary directory, then atomically move into place.
-    # This prevents partial/corrupt cache entries if the process is interrupted.
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    staging_dir = Path(tempfile.mkdtemp(dir=cache_dir, prefix=".download-"))
+    wrapper_path = Path(ensure_runtime_wrapper(ver, force=force))
+    binary_path = wrapper_path.with_name(binary_name)
+    fd, temp_name = tempfile.mkstemp(dir=wrapper_path.parent, prefix=".cli-")
     try:
-        if archive_name.endswith(".tar.gz"):
-            extracted = _extract_tar_gz(data, binary_name, staging_dir)
-        elif archive_name.endswith(".zip"):
-            extracted = _extract_zip(data, binary_name, staging_dir)
-        else:
-            raise RuntimeError(f"Unknown archive format: {archive_name}")
-
-        # Make executable on Unix
+        with os.fdopen(fd, "wb") as destination:
+            destination.write(wrapper_path.read_bytes())
+        staged = Path(temp_name)
         if sys.platform != "win32":
-            extracted.chmod(extracted.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
-
-        # Atomic rename into final location. Handle concurrent processes:
-        # another process may have written the file while we were downloading.
+            staged.chmod(staged.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+        os.replace(staged, binary_path)
+    except OSError:
         try:
-            extracted.replace(binary_path)
+            os.unlink(temp_name)
         except OSError:
-            if not force and binary_path.exists():
-                return str(binary_path)
-            raise
-    finally:
-        # Clean up staging directory
-        try:
-            staging_dir.rmdir()
-        except OSError:
-            # May not be empty if rename failed or other files were extracted
-            import shutil
-
-            shutil.rmtree(staging_dir, ignore_errors=True)
+            pass
+        if not force:
+            cached = get_cached_cli_path(ver)
+            if cached is not None:
+                return cached
+        raise
 
     return str(binary_path)
 
@@ -315,76 +241,11 @@ def _fetch_url_bytes(url: str, *, timeout: int) -> bytes:
         try:
             with urlopen(url, timeout=timeout) as response:
                 return response.read()
-        except (HTTPError, URLError) as exc:
+        except _RETRIABLE_DOWNLOAD_ERRORS as exc:
             last_exc = exc
             if attempt < _MAX_RETRIES - 1:
                 time.sleep(2**attempt)
     raise RuntimeError(f"Failed to download from {url}: {last_exc}") from last_exc
-
-
-def _fetch_runtime_integrity(npm_platform: str, version: str) -> str | None:
-    """Return the npm ``dist.integrity`` (Subresource Integrity) for the tarball.
-
-    Best-effort: returns None if the packument can't be fetched or parsed.
-    """
-    import json
-
-    url = get_runtime_lib_packument_url(npm_platform)
-    try:
-        raw = _fetch_url_bytes(url, timeout=30)
-        packument = json.loads(raw)
-        dist = packument.get("versions", {}).get(version, {}).get("dist", {})
-        integrity = dist.get("integrity")
-        return integrity if isinstance(integrity, str) else None
-    except (RuntimeError, ValueError, KeyError):
-        return None
-
-
-def _verify_integrity(data: bytes, integrity: str) -> None:
-    """Verify data against an npm Subresource Integrity string (e.g. ``sha512-<b64>``)."""
-    algo, _, b64 = integrity.partition("-")
-    algo = algo.lower()
-    if algo not in ("sha512", "sha384", "sha256"):
-        # Fail closed: an unrecognized algorithm means we cannot verify this native
-        # library, so refuse rather than loading unverified native code.
-        raise RuntimeError(
-            f"Unsupported integrity algorithm '{algo}' for the in-process runtime "
-            "library; refusing to load unverified native code."
-        )
-    expected = base64.b64decode(b64)
-    actual = hashlib.new(algo, data).digest()
-    if actual != expected:
-        raise RuntimeError(
-            f"Integrity mismatch for runtime library ({algo}): "
-            "downloaded tarball does not match the npm registry checksum."
-        )
-
-
-def _extract_runtime_node(data: bytes, npm_platform: str) -> bytes:
-    """Extract ``package/prebuilds/<npm_platform>/runtime.node`` from an npm tarball."""
-    target = f"package/prebuilds/{npm_platform}/runtime.node"
-    with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as tf:
-        for name in tf.getnames():
-            if name == target or name.endswith(f"/prebuilds/{npm_platform}/runtime.node"):
-                member = tf.getmember(name)
-                extracted = tf.extractfile(member)
-                if extracted is not None:
-                    return extracted.read()
-        raise RuntimeError(f"'{target}' not found in runtime package for {npm_platform}.")
-
-
-def _extract_runtime_wrapper(data: bytes, npm_platform: str) -> bytes:
-    """Extract the SDK out-of-process wrapper from an npm platform tarball."""
-    wrapper_name = "copilot-runtime.exe" if sys.platform == "win32" else "copilot-runtime"
-    target = f"package/prebuilds/{npm_platform}/{wrapper_name}"
-    with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as tf:
-        for name in tf.getnames():
-            if name == target or name.endswith(f"/prebuilds/{npm_platform}/{wrapper_name}"):
-                member = tf.getmember(name)
-                extracted = tf.extractfile(member)
-                if extracted is not None:
-                    return extracted.read()
-        raise RuntimeError(f"'{target}' not found in runtime package for {npm_platform}.")
 
 
 _HOSTLESS_EXCLUDED_TOP_LEVEL = {
@@ -410,7 +271,9 @@ _HOSTLESS_EXCLUDED_TOP_LEVEL = {
 }
 
 
-def _hostless_runtime_path(member_name: str, npm_platform: str) -> Path | None:
+def _hostless_runtime_path(member_name: str, runtime_platform: str) -> Path | None:
+    if "\\" in member_name:
+        raise RuntimeError(f"Unsafe runtime package path: {member_name}")
     parts = PurePosixPath(member_name).parts
     if not parts or parts[0] != "package" or len(parts) < 2:
         return None
@@ -427,7 +290,7 @@ def _hostless_runtime_path(member_name: str, npm_platform: str) -> Path | None:
     ):
         return None
     if top_level == "prebuilds":
-        if len(relative) < 3 or relative[1] != npm_platform:
+        if len(relative) < 3 or relative[1] != runtime_platform:
             return None
         relative = relative[2:]
     destination = Path(*relative)
@@ -436,11 +299,11 @@ def _hostless_runtime_path(member_name: str, npm_platform: str) -> Path | None:
     return destination
 
 
-def _extract_runtime_bundle(data: bytes, npm_platform: str, destination: Path) -> None:
+def _materialize_runtime_bundle(data: bytes, runtime_platform: str, destination: Path) -> None:
     """Extract the hostless runtime tree, retaining unknown package assets by default."""
     with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as archive:
         for member in archive:
-            relative = _hostless_runtime_path(member.name, npm_platform)
+            relative = _hostless_runtime_path(member.name, runtime_platform)
             if relative is None or member.isdir():
                 continue
             if not member.isfile():
@@ -456,20 +319,20 @@ def _extract_runtime_bundle(data: bytes, npm_platform: str, destination: Path) -
 
 
 def ensure_runtime_wrapper(version: str | None = None, force: bool = False) -> str:
-    """Provision the runtime pair and its retained npm package assets."""
+    """Provision the runtime pair and retained assets from the release package."""
     ver = version or CLI_VERSION
     if not ver:
         raise RuntimeError("No runtime version is pinned.")
-    npm_platform = get_npm_platform()
+    runtime_platform = get_runtime_platform()
     wrapper_name = "copilot-runtime.exe" if sys.platform == "win32" else "copilot-runtime"
-    pair_dir = get_cache_dir(ver) / "prebuilds" / npm_platform
+    pair_dir = get_cache_dir(ver) / "prebuilds" / runtime_platform
     wrapper_path = pair_dir / wrapper_name
     runtime_path = pair_dir / "runtime.node"
-    assets_marker = pair_dir / ".hostless-runtime-assets-v2"
+    assets_marker = pair_dir / _HOSTLESS_ASSETS_MARKER
 
     wrapper_exists = wrapper_path.is_file() and wrapper_path.stat().st_size > 0
     runtime_exists = runtime_path.is_file() and runtime_path.stat().st_size > 0
-    if wrapper_exists and runtime_exists and assets_marker.is_file() and not force:
+    if _runtime_bundle_is_complete(pair_dir, wrapper_name) and not force:
         return str(wrapper_path)
     if not force and wrapper_exists != runtime_exists:
         raise RuntimeError(
@@ -482,20 +345,13 @@ def ensure_runtime_wrapper(version: str | None = None, force: bool = False) -> s
             "and automatic downloads are disabled."
         )
 
-    data = _fetch_url_bytes(get_runtime_lib_url(ver, npm_platform), timeout=600)
-    integrity = _fetch_runtime_integrity(npm_platform, ver)
-    if not integrity:
-        raise RuntimeError(
-            "No Subresource Integrity value available for the Copilot runtime "
-            f"package ({npm_platform}@{ver}); refusing to stage unverified native code."
-        )
-    _verify_integrity(data, integrity)
+    data = _fetch_verified_release_package(ver, runtime_platform)
     import shutil
 
     pair_dir.parent.mkdir(parents=True, exist_ok=True)
     staging_dir = Path(tempfile.mkdtemp(dir=pair_dir.parent, prefix=".runtime-bundle-"))
     try:
-        _extract_runtime_bundle(data, npm_platform, staging_dir)
+        _materialize_runtime_bundle(data, runtime_platform, staging_dir)
         staged_wrapper = staging_dir / wrapper_name
         staged_runtime = staging_dir / "runtime.node"
         if (
@@ -534,15 +390,15 @@ def ensure_runtime_wrapper(version: str | None = None, force: bool = False) -> s
 def ensure_runtime_library(cli_path: str, version: str | None = None) -> str | None:
     """Ensure the native in-process (FFI) runtime library sits next to ``cli_path``.
 
-    The library is NOT part of the GitHub Releases CLI archive; it ships in the npm
-    platform package ``@github/copilot-<platform>`` under
-    ``package/prebuilds/<platform>/runtime.node``. This helper downloads that tarball
-    and writes the library next to the CLI binary under its natural platform name
-    (``libcopilot_runtime.so`` / ``.dylib`` / ``copilot_runtime.dll``).
+    The canonical staged bundle contains ``prebuilds/<platform>/runtime.node``.
+    This helper reuses that verified library and copies it next to the CLI binary
+    under its natural platform name (``libcopilot_runtime.so`` / ``.dylib`` /
+    ``copilot_runtime.dll``).
 
-    This is opt-in — only invoked when the in-process transport is actually selected
-    (lazy) or via ``python -m copilot download-runtime --in-process`` (explicit). The
-    default stdio download path never fetches these extra bytes.
+    Copying the library next to an external CLI is opt-in — this is only invoked when
+    the in-process transport is selected (lazy) or via
+    ``python -m copilot download-runtime --in-process`` (explicit). The default stdio
+    path leaves the library in the canonical staged bundle.
 
     Returns the absolute path to the library, or None if it could not be provisioned
     (e.g. download disabled or unsupported platform). Raises RuntimeError on
@@ -556,15 +412,12 @@ def ensure_runtime_library(cli_path: str, version: str | None = None) -> str | N
     if existing is not None:
         return existing
 
-    if _should_skip_download():
-        return None
-
     ver = version or CLI_VERSION
     if not ver:
         return None
 
     try:
-        npm_platform = get_npm_platform()
+        runtime_platform = get_runtime_platform()
     except RuntimeError:
         return None
 
@@ -573,31 +426,22 @@ def ensure_runtime_library(cli_path: str, version: str | None = None) -> str | N
     if lib_path.exists():
         return str(lib_path)
 
-    url = get_runtime_lib_url(ver, npm_platform)
-    data = _fetch_url_bytes(url, timeout=600)
-
-    integrity = _fetch_runtime_integrity(npm_platform, ver)
-    if not integrity:
-        # Fail closed: this native library is loaded into the host process, so it must
-        # be verified before use. The npm packument (which carries dist.integrity) was
-        # unavailable, so refuse rather than loading unverified native code — mirroring
-        # the CLI download, which requires a checksum. Retry when the registry is
-        # reachable, or install a runtime package that ships the library.
-        raise RuntimeError(
-            "No Subresource Integrity value available for the in-process runtime "
-            f"library ({npm_platform}@{ver}); refusing to load unverified native code."
-        )
-    _verify_integrity(data, integrity)
-
-    lib_bytes = _extract_runtime_node(data, npm_platform)
+    pair_dir = get_cache_dir(ver) / "prebuilds" / runtime_platform
+    wrapper_name = "copilot-runtime.exe" if sys.platform == "win32" else "copilot-runtime"
+    if _should_skip_download() and not _runtime_bundle_is_complete(pair_dir, wrapper_name):
+        return None
+    wrapper_path = Path(ensure_runtime_wrapper(ver))
+    canonical_runtime = wrapper_path.with_name("runtime.node")
 
     # Write atomically next to the CLI so concurrent starts don't observe a partial
     # library. A rename within the same directory is atomic on POSIX and Windows.
+    import shutil
+
     cli_dir.mkdir(parents=True, exist_ok=True)
     fd, tmp_name = tempfile.mkstemp(dir=cli_dir, prefix=".runtime-lib-")
     try:
-        with os.fdopen(fd, "wb") as out:
-            out.write(lib_bytes)
+        with os.fdopen(fd, "wb") as out, canonical_runtime.open("rb") as source:
+            shutil.copyfileobj(source, out)
         os.replace(tmp_name, lib_path)
     except OSError:
         try:
@@ -632,15 +476,17 @@ def get_or_download_cli(version: str | None = None) -> str | None:
     if cached:
         return cached
 
-    # Check if download is disabled
-    if _should_skip_download():
-        return None
-
     # Check platform support before attempting download
     try:
-        get_asset_info()
+        runtime_platform = get_runtime_platform()
     except RuntimeError:
         return None
+
+    if _should_skip_download():
+        pair_dir = get_cache_dir(ver) / "prebuilds" / runtime_platform
+        wrapper_name = "copilot-runtime.exe" if sys.platform == "win32" else "copilot-runtime"
+        if not _runtime_bundle_is_complete(pair_dir, wrapper_name):
+            return None
 
     # Download
     return download_cli(ver)

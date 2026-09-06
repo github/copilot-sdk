@@ -40,6 +40,9 @@ func TestGeneratedRPCAPIShape(t *testing.T) {
 	assertStructFieldType(t, file, fileSet, "MCPConfigUpdateRequest", "Config", "MCPSerializableServerConfig")
 	assertStructFieldType(t, file, fileSet, "MCPServerConfigHTTP", "FilterMapping", "FilterMapping")
 	assertStructFieldType(t, file, fileSet, "MCPServerConfigStdio", "FilterMapping", "FilterMapping")
+	assertStructFieldType(t, file, fileSet, "ModelSwitchToRequest", "AutoTier", "**AutoTier")
+	assertStructFieldType(t, file, fileSet, "TaskClientUpdateProgress", "Percentage", "**float64")
+	assertStructFieldType(t, file, fileSet, "TaskClientUpdateProgress", "Phase", "**string")
 
 	assertInterfaceType(t, file, "UIElicitationFieldValue")
 	assertTypeExpr(t, fileSet, findTypeSpec(t, file, "UIElicitationStringArrayValue").Type, "[]string")

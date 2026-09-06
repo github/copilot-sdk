@@ -37,6 +37,8 @@ public record SessionOpenOptions(
     @JsonProperty("verbosity") Verbosity verbosity,
     /** Identifier of the client driving the session. */
     @JsonProperty("clientName") String clientName,
+    /** OAuth Client ID Metadata Document URL used by this host for MCP authorization. */
+    @JsonProperty("authClientIdMetadataUrl") String authClientIdMetadataUrl,
     /** Structured client kind used for runtime behavior gates. */
     @JsonProperty("clientKind") String clientKind,
     /** Identifier sent to LSP-style integrations. */

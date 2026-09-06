@@ -772,6 +772,108 @@ async fn create_session_registers_mcp_auth_interest_only_with_handler() {
 }
 
 #[tokio::test]
+async fn create_session_mcp_auth_registration_failure_cancels_external_tools() {
+    struct DropProbe(Option<tokio::sync::oneshot::Sender<()>>);
+
+    impl Drop for DropProbe {
+        fn drop(&mut self) {
+            if let Some(sender) = self.0.take() {
+                let _ = sender.send(());
+            }
+        }
+    }
+
+    struct BlockingTool {
+        started: parking_lot::Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
+        cancelled: parking_lot::Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
+    }
+
+    #[async_trait]
+    impl tool::ToolHandler for BlockingTool {
+        async fn call(
+            &self,
+            _invocation: ToolInvocation,
+        ) -> Result<ToolResult, github_copilot_sdk::Error> {
+            if let Some(sender) = self.started.lock().take() {
+                let _ = sender.send(());
+            }
+            let _probe = DropProbe(self.cancelled.lock().take());
+            std::future::pending().await
+        }
+    }
+
+    let (started_tx, started_rx) = tokio::sync::oneshot::channel();
+    let (cancelled_tx, cancelled_rx) = tokio::sync::oneshot::channel();
+    let (client, mut server_read, mut server_write) = make_client();
+    let create_handle = tokio::spawn({
+        let client = client.clone();
+        async move {
+            client
+                .create_session(
+                    SessionConfig::default()
+                        .with_permission_handler(Arc::new(ApproveAllHandler))
+                        .with_mcp_auth_handler(Arc::new(CancelMcpAuthHandler))
+                        .with_tools(vec![
+                            Tool::new("blocked_tool")
+                                .with_description("Blocks")
+                                .with_parameters(serde_json::json!({"type":"object"}))
+                                .with_handler(Arc::new(BlockingTool {
+                                    started: parking_lot::Mutex::new(Some(started_tx)),
+                                    cancelled: parking_lot::Mutex::new(Some(cancelled_tx)),
+                                })),
+                        ]),
+                )
+                .await
+        }
+    });
+
+    let create_req = read_framed(&mut server_read).await;
+    let session_id = requested_session_id(&create_req).to_string();
+    server_respond_create(&mut server_write, &create_req, &session_id).await;
+    let interest_req = read_framed(&mut server_read).await;
+    assert_eq!(interest_req["method"], "session.eventLog.registerInterest");
+
+    let event = serde_json::json!({
+        "jsonrpc": "2.0",
+        "method": "session.event",
+        "params": {
+            "sessionId": session_id,
+            "event": {
+                "id": "evt-registration-failure",
+                "timestamp": "2025-01-01T00:00:00Z",
+                "type": "external_tool.requested",
+                "data": {
+                    "requestId": "request-registration-failure",
+                    "sessionId": session_id,
+                    "toolCallId": "tool-call-registration-failure",
+                    "toolName": "blocked_tool",
+                    "arguments": {},
+                },
+            },
+        },
+    });
+    write_framed(&mut server_write, &serde_json::to_vec(&event).unwrap()).await;
+    timeout(TIMEOUT, started_rx).await.unwrap().unwrap();
+
+    let interest_id = interest_req["id"].as_u64().unwrap();
+    let error = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": interest_id,
+        "error": { "code": -32603, "message": "registration failed" },
+    });
+    write_framed(&mut server_write, &serde_json::to_vec(&error).unwrap()).await;
+
+    assert!(
+        timeout(TIMEOUT, create_handle)
+            .await
+            .unwrap()
+            .unwrap()
+            .is_err()
+    );
+    timeout(TIMEOUT, cancelled_rx).await.unwrap().unwrap();
+}
+
+#[tokio::test]
 async fn cloud_create_session_registers_mcp_auth_interest_after_create_only_with_handler() {
     let cloud = || {
         CloudSessionOptions::with_repository(
@@ -1884,7 +1986,7 @@ async fn session_rpc_methods_send_correct_method_names() {
     let cases: Vec<(&str, Option<&str>)> = vec![
         ("session.abort", None),
         ("session.log", Some("message")),
-        ("session.destroy", None),
+        ("session.detach", None),
     ];
 
     for (expected_method, extra_param_key) in cases {
@@ -1893,7 +1995,7 @@ async fn session_rpc_methods_send_correct_method_names() {
             match expected_method {
                 "session.abort" => s.abort().await.map(|_| ()),
                 "session.log" => s.log("test msg", None).await,
-                "session.destroy" => s.disconnect().await,
+                "session.detach" => s.disconnect().await,
                 _ => unreachable!(),
             }
         });
@@ -1911,6 +2013,7 @@ async fn session_rpc_methods_send_correct_method_names() {
             "session.log" => {
                 serde_json::json!({ "eventId": "00000000-0000-0000-0000-000000000000" })
             }
+            "session.detach" => serde_json::json!({ "success": true }),
             _ => serde_json::json!({}),
         };
         server.respond(&request, response).await;
@@ -3544,10 +3647,10 @@ async fn send_and_wait_drop_clears_waiter() {
 }
 
 /// Cancel-safety regression: `Session::stop_event_loop` must NOT abort
-/// the event-loop task mid-handler. An in-flight handler (here a slow
-/// `userInput.request` callback) must run to completion before the loop
-/// exits — the CLI receives the response on the wire before the session
-/// tears down.
+/// the event-loop task at an arbitrary await point. Requests are
+/// dispatched to their own tasks, so a handler that is still running when
+/// shutdown is signalled keeps going and its response still reaches the
+/// wire rather than being lost mid-protocol.
 ///
 /// Closes RFD-400 review finding #3.
 #[tokio::test]
@@ -3591,29 +3694,82 @@ async fn stop_event_loop_completes_in_flight_handler() {
     // Give the loop a moment to dispatch into the handler.
     tokio::time::sleep(Duration::from_millis(20)).await;
 
-    // Now request shutdown. The loop is parked in handle_request awaiting
-    // the slow handler. `notify_one()` buffers the signal until the loop
-    // re-enters its select, which can only happen after the handler
-    // returns and the response is sent on the wire.
+    // Now request shutdown while the spawned handler is still sleeping.
     let stop_handle = tokio::spawn({
         let session = session.clone();
         async move { session.stop_event_loop().await }
     });
 
-    // Verify the handler's response lands on the wire BEFORE the loop
-    // exits — i.e. stop_event_loop did not abort mid-handler.
+    // The handler task is independent of the loop, so its response still
+    // lands on the wire instead of being lost to an aborted task.
     let response = timeout(Duration::from_secs(2), server.read_response())
         .await
         .unwrap();
     assert_eq!(response["id"], 900);
     assert_eq!(response["result"]["answer"], "completed");
 
-    // stop_event_loop completes after the handler returns and the loop
-    // observes the buffered shutdown signal on its next select iteration.
     timeout(Duration::from_secs(2), stop_handle)
         .await
         .unwrap()
         .unwrap();
+}
+
+/// A panicking request handler must still answer its request id. Tokio
+/// isolates the panic to the spawned handler task, so without an explicit
+/// reply the caller would wait out its own timeout on a request that can
+/// never complete.
+#[tokio::test]
+async fn panicking_request_handler_responds_with_internal_error() {
+    struct PanickingHandler;
+    #[async_trait]
+    impl UserInputHandler for PanickingHandler {
+        async fn handle(
+            &self,
+            _session_id: SessionId,
+            _question: String,
+            _choices: Option<Vec<String>>,
+            _allow_freeform: Option<bool>,
+        ) -> Option<UserInputResponse> {
+            panic!("handler blew up");
+        }
+    }
+
+    let (session, mut server) = create_session_pair_with_config(|cfg| {
+        cfg.with_user_input_handler(Arc::new(PanickingHandler))
+    })
+    .await;
+
+    server
+        .send_request(
+            901,
+            "userInput.request",
+            serde_json::json!({
+                "sessionId": server.session_id,
+                "question": "boom",
+                "choices": null,
+                "allowFreeform": true,
+            }),
+        )
+        .await;
+
+    let response = timeout(TIMEOUT, server.read_response()).await.unwrap();
+    assert_eq!(response["id"], 901);
+    assert_eq!(response["error"]["code"], -32603);
+    assert!(response.get("result").is_none());
+
+    // The loop survives the panicking handler and keeps serving requests.
+    server
+        .send_request(
+            902,
+            "unknown.method",
+            serde_json::json!({ "sessionId": server.session_id }),
+        )
+        .await;
+    let response = timeout(TIMEOUT, server.read_response()).await.unwrap();
+    assert_eq!(response["id"], 902);
+    assert_eq!(response["error"]["code"], -32601);
+
+    session.stop_event_loop().await;
 }
 
 /// Cancel-safety regression: dropping a Session does NOT abort the event
@@ -3855,6 +4011,229 @@ async fn external_tool_requested_dispatches_to_handler_and_responds() {
     assert_eq!(rpc_call["method"], "session.tools.handlePendingToolCall");
     assert_eq!(rpc_call["params"]["requestId"], "req-ext-1");
     assert_eq!(rpc_call["params"]["result"], "all tests passed");
+}
+
+#[tokio::test]
+async fn external_tool_completed_cancels_blocked_handler() {
+    struct DropProbe(Option<tokio::sync::oneshot::Sender<()>>);
+
+    impl Drop for DropProbe {
+        fn drop(&mut self) {
+            if let Some(sender) = self.0.take() {
+                let _ = sender.send(());
+            }
+        }
+    }
+
+    struct BlockingTool {
+        started: parking_lot::Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
+        cancelled: parking_lot::Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
+    }
+
+    #[async_trait]
+    impl tool::ToolHandler for BlockingTool {
+        async fn call(
+            &self,
+            _invocation: ToolInvocation,
+        ) -> Result<ToolResult, github_copilot_sdk::Error> {
+            if let Some(sender) = self.started.lock().take() {
+                let _ = sender.send(());
+            }
+            let _probe = DropProbe(self.cancelled.lock().take());
+            std::future::pending().await
+        }
+    }
+
+    let (started_tx, started_rx) = tokio::sync::oneshot::channel();
+    let (cancelled_tx, cancelled_rx) = tokio::sync::oneshot::channel();
+    let (_session, mut server) = create_session_pair_with_config(|cfg| {
+        cfg.with_tools(vec![
+            Tool::new("blocked_tool")
+                .with_description("Blocks")
+                .with_parameters(serde_json::json!({"type":"object"}))
+                .with_handler(Arc::new(BlockingTool {
+                    started: parking_lot::Mutex::new(Some(started_tx)),
+                    cancelled: parking_lot::Mutex::new(Some(cancelled_tx)),
+                })),
+        ])
+    })
+    .await;
+
+    server
+        .send_event(
+            "external_tool.requested",
+            serde_json::json!({
+                "requestId": "request-cancel-1",
+                "sessionId": server.session_id,
+                "toolCallId": "tool-call-cancel-1",
+                "toolName": "blocked_tool",
+                "arguments": {},
+            }),
+        )
+        .await;
+    timeout(TIMEOUT, started_rx).await.unwrap().unwrap();
+
+    server
+        .send_event(
+            "external_tool.completed",
+            serde_json::json!({ "requestId": "request-cancel-1" }),
+        )
+        .await;
+
+    timeout(TIMEOUT, cancelled_rx).await.unwrap().unwrap();
+}
+
+#[tokio::test]
+async fn connection_close_cancels_blocked_external_tool() {
+    struct DropProbe(Option<tokio::sync::oneshot::Sender<()>>);
+
+    impl Drop for DropProbe {
+        fn drop(&mut self) {
+            if let Some(sender) = self.0.take() {
+                let _ = sender.send(());
+            }
+        }
+    }
+
+    struct BlockingTool {
+        started: parking_lot::Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
+        cancelled: parking_lot::Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
+    }
+
+    #[async_trait]
+    impl tool::ToolHandler for BlockingTool {
+        async fn call(
+            &self,
+            _invocation: ToolInvocation,
+        ) -> Result<ToolResult, github_copilot_sdk::Error> {
+            if let Some(sender) = self.started.lock().take() {
+                let _ = sender.send(());
+            }
+            let _probe = DropProbe(self.cancelled.lock().take());
+            std::future::pending().await
+        }
+    }
+
+    let (started_tx, started_rx) = tokio::sync::oneshot::channel();
+    let (cancelled_tx, cancelled_rx) = tokio::sync::oneshot::channel();
+    let (_session, mut server) = create_session_pair_with_config(|cfg| {
+        cfg.with_tools(vec![
+            Tool::new("blocked_tool")
+                .with_description("Blocks")
+                .with_parameters(serde_json::json!({"type":"object"}))
+                .with_handler(Arc::new(BlockingTool {
+                    started: parking_lot::Mutex::new(Some(started_tx)),
+                    cancelled: parking_lot::Mutex::new(Some(cancelled_tx)),
+                })),
+        ])
+    })
+    .await;
+
+    server
+        .send_event(
+            "external_tool.requested",
+            serde_json::json!({
+                "requestId": "request-connection-close",
+                "sessionId": server.session_id,
+                "toolCallId": "tool-call-connection-close",
+                "toolName": "blocked_tool",
+                "arguments": {},
+            }),
+        )
+        .await;
+    timeout(TIMEOUT, started_rx).await.unwrap().unwrap();
+
+    drop(server);
+
+    timeout(TIMEOUT, cancelled_rx).await.unwrap().unwrap();
+}
+
+#[tokio::test]
+async fn disconnect_cancels_external_tools_before_stopping_session() {
+    struct DropProbe(Option<tokio::sync::oneshot::Sender<()>>);
+
+    impl Drop for DropProbe {
+        fn drop(&mut self) {
+            if let Some(sender) = self.0.take() {
+                let _ = sender.send(());
+            }
+        }
+    }
+
+    struct BlockingTool {
+        started: parking_lot::Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
+        cancelled: parking_lot::Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
+    }
+
+    #[async_trait]
+    impl tool::ToolHandler for BlockingTool {
+        async fn call(
+            &self,
+            _invocation: ToolInvocation,
+        ) -> Result<ToolResult, github_copilot_sdk::Error> {
+            if let Some(sender) = self.started.lock().take() {
+                let _ = sender.send(());
+            }
+            let _probe = DropProbe(self.cancelled.lock().take());
+            std::future::pending().await
+        }
+    }
+
+    let (started_tx, started_rx) = tokio::sync::oneshot::channel();
+    let (cancelled_tx, mut cancelled_rx) = tokio::sync::oneshot::channel();
+    let (session, mut server) = create_session_pair_with_config(|cfg| {
+        cfg.with_tools(vec![
+            Tool::new("blocked_tool")
+                .with_description("Blocks")
+                .with_parameters(serde_json::json!({"type":"object"}))
+                .with_handler(Arc::new(BlockingTool {
+                    started: parking_lot::Mutex::new(Some(started_tx)),
+                    cancelled: parking_lot::Mutex::new(Some(cancelled_tx)),
+                })),
+        ])
+    })
+    .await;
+    let session = Arc::new(session);
+    let lifetime = session.cancellation_token();
+
+    server
+        .send_event(
+            "external_tool.requested",
+            serde_json::json!({
+                "requestId": "request-disconnect",
+                "sessionId": server.session_id,
+                "toolCallId": "tool-call-disconnect",
+                "toolName": "blocked_tool",
+                "arguments": {},
+            }),
+        )
+        .await;
+    timeout(TIMEOUT, started_rx).await.unwrap().unwrap();
+
+    let disconnect = tokio::spawn({
+        let session = session.clone();
+        async move { session.disconnect().await }
+    });
+
+    let request = timeout(TIMEOUT, server.read_request()).await.unwrap();
+    assert_eq!(request["method"], "session.detach");
+    assert!(!lifetime.is_cancelled());
+    assert!(
+        timeout(Duration::from_millis(50), &mut cancelled_rx)
+            .await
+            .is_err()
+    );
+
+    server
+        .respond(&request, serde_json::json!({"success": true}))
+        .await;
+    timeout(TIMEOUT, cancelled_rx).await.unwrap().unwrap();
+    timeout(TIMEOUT, disconnect)
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap();
+    assert!(lifetime.is_cancelled());
 }
 
 #[tokio::test]
@@ -4788,7 +5167,7 @@ async fn rpc_namespace_client_models_list_dispatches_correctly() {
 #[tokio::test]
 async fn client_stop_sends_session_destroy_for_each_active_session() {
     // One client, two registered sessions. Client::stop must send
-    // session.destroy for each before returning Ok.
+    // session.detach for each before returning Ok.
     let (client, server_read, server_write) = make_client();
 
     let mut server = FakeServer {
@@ -4838,31 +5217,33 @@ async fn client_stop_sends_session_destroy_for_each_active_session() {
         .await;
     let _session_b = timeout(TIMEOUT, create_b).await.unwrap();
 
-    // Drive Client::stop and respond to each destroy in turn.
+    // Drive Client::stop and respond to each detach in turn.
     let stop_handle = tokio::spawn({
         let client = client.clone();
         async move { client.stop().await }
     });
 
-    let mut destroyed = Vec::new();
+    let mut detached = Vec::new();
     for _ in 0..2 {
         let req = server.read_request().await;
-        assert_eq!(req["method"], "session.destroy");
-        destroyed.push(req["params"]["sessionId"].as_str().unwrap().to_string());
-        server.respond(&req, serde_json::json!(null)).await;
+        assert_eq!(req["method"], "session.detach");
+        detached.push(req["params"]["sessionId"].as_str().unwrap().to_string());
+        server
+            .respond(&req, serde_json::json!({ "success": true }))
+            .await;
     }
-    destroyed.sort();
+    detached.sort();
     let mut expected = [session_id_a.clone(), session_id_b.clone()];
     expected.sort();
-    assert_eq!(destroyed, expected);
+    assert_eq!(detached, expected);
 
     let stop_result = timeout(TIMEOUT, stop_handle).await.unwrap().unwrap();
     assert!(stop_result.is_ok(), "stop returned errors: {stop_result:?}");
 }
 
 #[tokio::test]
-async fn client_stop_aggregates_session_destroy_errors() {
-    // session.destroy fails on the wire — Client::stop returns
+async fn client_stop_aggregates_session_detach_errors() {
+    // session.detach fails on the wire — Client::stop returns
     // StopErrors carrying the failure rather than short-circuiting.
     let (session, mut server) = create_session_pair().await;
     let client = session.client().clone();
@@ -4870,7 +5251,7 @@ async fn client_stop_aggregates_session_destroy_errors() {
     let stop_handle = tokio::spawn(async move { client.stop().await });
 
     let req = server.read_request().await;
-    assert_eq!(req["method"], "session.destroy");
+    assert_eq!(req["method"], "session.detach");
     let id = req["id"].as_u64().unwrap();
     let response = serde_json::json!({
         "jsonrpc": "2.0",

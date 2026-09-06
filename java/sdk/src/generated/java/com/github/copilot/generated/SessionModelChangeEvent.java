@@ -55,7 +55,11 @@ public final class SessionModelChangeEvent extends SessionEvent {
         /** Reason the change happened, when not user-initiated. `"rate_limit_auto_switch"` for changes triggered by the auto-mode-switch rate-limit recovery path, or `"refusal_fallback"` when the active model declined a request (content refusal) and the runtime switched to the configured refusal-fallback model. UI clients can use this to render contextual copy. */
         @JsonProperty("cause") String cause,
         /** Origin of the effective model change, when known. */
-        @JsonProperty("source") ModelChangeSource source
+        @JsonProperty("source") ModelChangeSource source,
+        /** Previously committed Auto preference, when one was explicitly selected. */
+        @JsonProperty("previousAutoTier") AutoTier previousAutoTier,
+        /** Committed Auto preference after the model configuration change, when applicable. */
+        @JsonProperty("autoTier") AutoTier autoTier
     ) {
     }
 }

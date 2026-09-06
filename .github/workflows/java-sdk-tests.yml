@@ -410,6 +410,7 @@ jobs:
           mvn -B -pl copilot-native deploy -Prelease -DskipTests \
             -Dcopilot.native.libc=glibc \
             -Dcopilot.native.test.local.publication=true \
+            -DskipPublishing=true \
             "-Dcopilot.native.external.linux.arm64.classifier.path=$LINUX_ARM64_JAR" \
             "-Dcopilot.native.external.win32.classifier.path=$WINDOWS_JAR" \
             "-Dcopilot.native.external.win32.arm64.classifier.path=$WINDOWS_ARM64_JAR" \
@@ -458,7 +459,12 @@ jobs:
         run: mvn javadoc:javadoc -q
 
       - name: Verify CLI works
-        run: node ../nodejs/node_modules/@github/copilot/npm-loader.js --version
+        run: |
+          npm --prefix ../nodejs ci --ignore-scripts
+          cli_path=$(npm --prefix ../nodejs run --silent prepare:runtime -- --print-path)
+          test -x "$cli_path"
+          legacy_cli=$(npm --prefix ../nodejs run --silent prepare:runtime -- --print-legacy-path)
+          node "$legacy_cli" --version
 
       - name: Run spotless check
         if: matrix.test-jdk == '25'

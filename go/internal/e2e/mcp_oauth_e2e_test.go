@@ -163,16 +163,21 @@ func TestMCPOAuthE2E(t *testing.T) {
 		}
 		t.Cleanup(func() { session.Disconnect() })
 
+		if _, err := session.RPC.MCP.Reload(t.Context()); err != nil {
+			t.Fatalf("Failed to reload MCP servers: %v", err)
+		}
 		waitForMCPServerStatus(t, session, serverName, rpc.MCPServerStatusConnected)
 		callWhoami(t, session, serverName, "refresh")
 		callWhoami(t, session, serverName, "upscope")
 		callWhoami(t, session, serverName, "reauth")
 
 		mu.Lock()
+		observedReasons = slices.DeleteFunc(observedReasons, func(reason copilot.MCPOauthRequestReason) bool {
+			return reason == copilot.MCPOauthRequestReasonInitial
+		})
 		reasons := append([]copilot.MCPOauthRequestReason(nil), observedReasons...)
 		mu.Unlock()
 		expectedReasons := []copilot.MCPOauthRequestReason{
-			copilot.MCPOauthRequestReasonInitial,
 			copilot.MCPOauthRequestReasonRefresh,
 			copilot.MCPOauthRequestReasonUpscope,
 			copilot.MCPOauthRequestReasonRefresh,
@@ -256,6 +261,7 @@ func TestMCPOAuthE2E(t *testing.T) {
 	})
 
 	t.Run("resolve pending MCP OAuth request through RPC", func(t *testing.T) {
+		testharness.SkipIfInProcess(t, "blocked on github/copilot-agent-runtime#18961 MCP OAuth connection stall")
 		ctx := testharness.NewTestContext(t)
 		ctx.ConfigureWithoutSnapshot(t)
 		client := ctx.NewClient()

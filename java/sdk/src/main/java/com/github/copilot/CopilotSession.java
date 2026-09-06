@@ -20,6 +20,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.logging.Level;
@@ -29,7 +30,9 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.github.copilot.generated.AssistantMessageEvent;
+import com.github.copilot.generated.ExternalToolCompletedEvent;
 import com.github.copilot.generated.rpc.SessionCommandsHandlePendingCommandParams;
 import com.github.copilot.generated.rpc.SessionLogParams;
 import com.github.copilot.generated.rpc.SessionLogLevel;
@@ -37,6 +40,8 @@ import com.github.copilot.generated.rpc.SessionMcpOauthHandlePendingRequestParam
 import com.github.copilot.generated.rpc.ModelCapabilitiesOverride;
 import com.github.copilot.generated.rpc.ModelCapabilitiesOverrideLimits;
 import com.github.copilot.generated.rpc.ModelCapabilitiesOverrideSupports;
+import com.github.copilot.generated.rpc.SessionModelSwitchAutoTierParams;
+import com.github.copilot.generated.rpc.SessionModelSwitchAutoTierResult;
 import com.github.copilot.generated.rpc.SessionModelSwitchToParams;
 import com.github.copilot.generated.rpc.SessionPermissionsHandlePendingPermissionRequestParams;
 import com.github.copilot.generated.rpc.SessionRpc;
@@ -184,6 +189,8 @@ public final class CopilotSession implements AutoCloseable {
     private volatile SessionRpc sessionRpc;
     private final Set<Consumer<SessionEvent>> eventHandlers = ConcurrentHashMap.newKeySet();
     private final Map<String, ToolDefinition> toolHandlers = new ConcurrentHashMap<>();
+    private final Map<String, PendingExternalTool> pendingExternalTools = new ConcurrentHashMap<>();
+    private boolean externalToolsClosed;
     private final Map<String, CommandHandler> commandHandlers = new ConcurrentHashMap<>();
     private final Map<String, BearerTokenProvider> bearerTokenProviders = new ConcurrentHashMap<>();
     private final AtomicReference<PermissionHandler> permissionHandler = new AtomicReference<>();
@@ -203,6 +210,46 @@ public final class CopilotSession implements AutoCloseable {
 
     /** Tracks whether this session instance has been terminated via close(). */
     private volatile boolean isTerminated = false;
+
+    private static final class PendingExternalTool {
+        private static final int WAITING = 0;
+        private static final int STARTED = 1;
+        private static final int CANCELLED = 2;
+
+        private final AtomicInteger state = new AtomicInteger(WAITING);
+        private final AtomicReference<CompletableFuture<?>> future = new AtomicReference<>();
+
+        <T> T join(CompletableFuture<T> operation) {
+            future.set(operation);
+            if (state.get() == CANCELLED) {
+                operation.cancel(true);
+            }
+            try {
+                return operation.join();
+            } finally {
+                future.compareAndSet(operation, null);
+            }
+        }
+
+        boolean tryStart() {
+            return state.compareAndSet(WAITING, STARTED);
+        }
+
+        void attach(CompletableFuture<Object> toolFuture) {
+            future.set(toolFuture);
+            if (state.get() == CANCELLED) {
+                toolFuture.cancel(true);
+            }
+        }
+
+        void cancel() {
+            state.set(CANCELLED);
+            CompletableFuture<?> activeFuture = future.get();
+            if (activeFuture != null) {
+                activeFuture.cancel(true);
+            }
+        }
+    }
 
     /**
      * Creates a new session with the given ID and RPC client.
@@ -857,6 +904,14 @@ public final class CopilotSession implements AutoCloseable {
             }
             executeToolAndRespondAsync(data.requestId(), data.toolName(), data.toolCallId(), data.arguments(), tool);
 
+        } else if (event instanceof ExternalToolCompletedEvent completedEvent) {
+            var data = completedEvent.getData();
+            if (data != null && data.requestId() != null) {
+                PendingExternalTool pending = pendingExternalTools.remove(data.requestId());
+                if (pending != null) {
+                    pending.cancel();
+                }
+            }
         } else if (event instanceof PermissionRequestedEvent permEvent) {
             var data = permEvent.getData();
             if (data == null || data.requestId() == null || data.permissionRequest() == null) {
@@ -928,9 +983,9 @@ public final class CopilotSession implements AutoCloseable {
      * built-in tool-search tool, so an override can filter the live catalog without
      * issuing its own RPC. The snapshot is fetched only for that tool to avoid a
      * round-trip on every ordinary tool call; a failed fetch leaves the snapshot
-     * {@code null} rather than failing the tool. Shared by both server-to-client
-     * tool dispatch paths ({@link RpcHandlerDispatcher} and
-     * {@link #executeToolAndRespondAsync}).
+     * {@code null} rather than failing the tool. Used by the direct RPC dispatch
+     * path; event-dispatched tools perform the same lookup with request-scoped
+     * cancellation.
      *
      * @param toolName
      *            the name of the tool being invoked
@@ -955,6 +1010,12 @@ public final class CopilotSession implements AutoCloseable {
      */
     private void executeToolAndRespondAsync(String requestId, String toolName, String toolCallId, Object arguments,
             ToolDefinition tool) {
+        var pending = new PendingExternalTool();
+        synchronized (this) {
+            if (isTerminated || externalToolsClosed || pendingExternalTools.putIfAbsent(requestId, pending) != null) {
+                return;
+            }
+        }
         Runnable task = () -> {
             try {
                 JsonNode argumentsNode = arguments instanceof JsonNode jn
@@ -963,9 +1024,32 @@ public final class CopilotSession implements AutoCloseable {
                 var invocation = new com.github.copilot.rpc.ToolInvocation().setSessionId(sessionId)
                         .setToolCallId(toolCallId).setToolName(toolName).setArguments(argumentsNode);
 
-                populateToolSearchMetadata(toolName, invocation);
+                if (TOOL_SEARCH_TOOL_NAME.equals(toolName)) {
+                    try {
+                        var metadata = pending.join(getRpc().tools.getCurrentMetadata());
+                        if (metadata != null) {
+                            invocation.setAvailableTools(metadata.tools());
+                        }
+                    } catch (RuntimeException e) {
+                        if (pendingExternalTools.get(requestId) != pending) {
+                            return;
+                        }
+                        LOG.log(Level.FINE, "Failed to fetch tool metadata for tool search", e);
+                    }
+                    if (pendingExternalTools.get(requestId) != pending) {
+                        return;
+                    }
+                }
 
-                tool.handler().invoke(invocation).thenAccept(result -> {
+                if (!pending.tryStart()) {
+                    return;
+                }
+                CompletableFuture<Object> toolFuture = tool.handler().invoke(invocation);
+                pending.attach(toolFuture);
+                toolFuture.thenAccept(result -> {
+                    if (!pendingExternalTools.remove(requestId, pending)) {
+                        return;
+                    }
                     try {
                         ToolResultObject toolResult;
                         if (result instanceof ToolResultObject tr) {
@@ -980,6 +1064,9 @@ public final class CopilotSession implements AutoCloseable {
                         LOG.log(Level.WARNING, "Error sending tool result for requestId=" + requestId, e);
                     }
                 }).exceptionally(ex -> {
+                    if (!pendingExternalTools.remove(requestId, pending)) {
+                        return null;
+                    }
                     try {
                         getRpc().tools.handlePendingToolCall(new SessionToolsHandlePendingToolCallParams(sessionId,
                                 requestId, null, ex.getMessage() != null ? ex.getMessage() : ex.toString()));
@@ -987,8 +1074,11 @@ public final class CopilotSession implements AutoCloseable {
                         LOG.log(Level.WARNING, "Error sending tool error for requestId=" + requestId, e);
                     }
                     return null;
-                });
+                }).whenComplete((result, error) -> pendingExternalTools.remove(requestId, pending));
             } catch (Exception e) {
+                if (!pendingExternalTools.remove(requestId, pending)) {
+                    return;
+                }
                 LOG.log(Level.WARNING, "Error executing tool for requestId=" + requestId, e);
                 try {
                     getRpc().tools.handlePendingToolCall(new SessionToolsHandlePendingToolCallParams(sessionId,
@@ -1008,6 +1098,16 @@ public final class CopilotSession implements AutoCloseable {
             LOG.log(Level.WARNING, "Executor rejected tool task for requestId=" + requestId + "; running inline", e);
             task.run();
         }
+    }
+
+    void cancelPendingExternalTools() {
+        List<PendingExternalTool> pending;
+        synchronized (this) {
+            externalToolsClosed = true;
+            pending = new ArrayList<>(pendingExternalTools.values());
+            pendingExternalTools.clear();
+        }
+        pending.forEach(PendingExternalTool::cancel);
     }
 
     /**
@@ -2010,8 +2110,8 @@ public final class CopilotSession implements AutoCloseable {
      */
     public CompletableFuture<Void> setModel(String model, String reasoningEffort) {
         ensureNotTerminated();
-        return getRpc().model.switchTo(new SessionModelSwitchToParams(sessionId, model, reasoningEffort, null, null,
-                null, null, null, null, null, null, null, null, null, null)).thenApply(r -> null);
+        return getRpc().model.switchTo(new SessionModelSwitchToParams(sessionId, model, null, reasoningEffort, null,
+                null, null, null, null, null, null, null, null, null, null, null)).thenApply(r -> null);
     }
 
     /**
@@ -2073,28 +2173,139 @@ public final class CopilotSession implements AutoCloseable {
     public CompletableFuture<Void> setModel(String model, String reasoningEffort, String reasoningSummary,
             com.github.copilot.rpc.ModelCapabilitiesOverride modelCapabilities) {
         ensureNotTerminated();
-        ModelCapabilitiesOverride generatedCapabilities = null;
-        if (modelCapabilities != null) {
-            ModelCapabilitiesOverrideSupports supports = null;
-            if (modelCapabilities.getSupports() != null) {
-                var s = modelCapabilities.getSupports();
-                supports = new ModelCapabilitiesOverrideSupports(s.getVision().orElse(null),
-                        s.getReasoningEffort().orElse(null), null);
-            }
-            ModelCapabilitiesOverrideLimits limits = null;
-            if (modelCapabilities.getLimits() != null) {
-                limits = new ObjectMapper().convertValue(modelCapabilities.getLimits(),
-                        ModelCapabilitiesOverrideLimits.class);
-            }
-            generatedCapabilities = new ModelCapabilitiesOverride(supports, limits);
-        }
+        ModelCapabilitiesOverride generatedCapabilities = toGeneratedCapabilities(modelCapabilities);
         var generatedReasoningSummary = reasoningSummary == null
                 ? null
                 : com.github.copilot.generated.rpc.ReasoningSummary.fromValue(reasoningSummary);
-        return getRpc().model
-                .switchTo(new SessionModelSwitchToParams(sessionId, model, reasoningEffort, generatedReasoningSummary,
-                        null, generatedCapabilities, null, null, null, null, null, null, null, null, null))
+        return getRpc().model.switchTo(
+                new SessionModelSwitchToParams(sessionId, model, null, reasoningEffort, generatedReasoningSummary, null,
+                        generatedCapabilities, null, null, null, null, null, null, null, null, null))
                 .thenApply(r -> null);
+    }
+
+    private static ModelCapabilitiesOverride toGeneratedCapabilities(
+            com.github.copilot.rpc.ModelCapabilitiesOverride modelCapabilities) {
+        if (modelCapabilities == null) {
+            return null;
+        }
+        ModelCapabilitiesOverrideSupports supports = null;
+        if (modelCapabilities.getSupports() != null) {
+            var s = modelCapabilities.getSupports();
+            supports = new ModelCapabilitiesOverrideSupports(s.getVision().orElse(null),
+                    s.getReasoningEffort().orElse(null), null);
+        }
+        ModelCapabilitiesOverrideLimits limits = null;
+        if (modelCapabilities.getLimits() != null) {
+            limits = MAPPER.convertValue(modelCapabilities.getLimits(), ModelCapabilitiesOverrideLimits.class);
+        }
+        return new ModelCapabilitiesOverride(supports, limits);
+    }
+
+    private static com.github.copilot.generated.rpc.AutoTier toGeneratedAutoTier(
+            com.github.copilot.rpc.AutoTier autoTier) {
+        return autoTier == null ? null : com.github.copilot.generated.rpc.AutoTier.fromValue(autoTier.getValue());
+    }
+
+    /**
+     * Changes the model for this session using an options object.
+     * <p>
+     * The new model takes effect for the next message. Conversation history is
+     * preserved. Use {@link com.github.copilot.rpc.SetModelOptions#setAutoTier} to
+     * request an Auto routing preference at the same time, which the runtime
+     * accepts only when the model is {@code "auto"}.
+     *
+     * <pre>{@code
+     * session.setModel(new SetModelOptions().setModel("auto").setAutoTier(AutoTier.INTELLIGENCE)).get();
+     * session.setModel(new SetModelOptions().setModel("auto").setResetAutoTier(true)).get();
+     * }</pre>
+     *
+     * @param options
+     *            the switch settings; the model ID is required
+     * @return a future that completes when the model switch is acknowledged
+     * @throws IllegalArgumentException
+     *             if {@code options} is {@code null}, if it carries no model ID, or
+     *             if it requests both an explicit Auto tier and a return to
+     *             provider-default Auto routing
+     * @throws IllegalStateException
+     *             if this session has been terminated
+     * @since 1.6.0
+     */
+    public CompletableFuture<Void> setModel(com.github.copilot.rpc.SetModelOptions options) {
+        ensureNotTerminated();
+        if (options == null) {
+            throw new IllegalArgumentException("options must not be null");
+        }
+        if (options.getModel() == null) {
+            throw new IllegalArgumentException("options must specify a model");
+        }
+        if (options.getAutoTier() != null && options.isResetAutoTier()) {
+            throw new IllegalArgumentException(
+                    "setModel cannot combine an explicit autoTier with resetAutoTier; choose one");
+        }
+        var generatedReasoningSummary = options.getReasoningSummary() == null
+                ? null
+                : com.github.copilot.generated.rpc.ReasoningSummary.fromValue(options.getReasoningSummary());
+        var params = new SessionModelSwitchToParams(sessionId, options.getModel(),
+                toGeneratedAutoTier(options.getAutoTier()), options.getReasoningEffort(), generatedReasoningSummary,
+                null, toGeneratedCapabilities(options.getModelCapabilities()), null, null, null, null, null, null, null,
+                null, null);
+        if (!options.isResetAutoTier()) {
+            return getRpc().model.switchTo(params).thenApply(r -> null);
+        }
+        // The generated params record omits null properties, but returning to
+        // provider-default Auto routing requires sending an explicit null tier, so
+        // build the payload directly and reinstate the null.
+        ObjectNode payload = MAPPER.valueToTree(params);
+        payload.putNull("autoTier");
+        return rpc.invoke("session.model.switchTo", payload, Void.class);
+    }
+
+    /**
+     * Changes the Auto routing preference without changing the selected model.
+     * <p>
+     * The runtime does not apply the preference immediately. It records the request
+     * and commits it only when a later user turn using the {@code auto} model
+     * successfully obtains a usable model from the provider. A {@code pending}
+     * status therefore confirms that the request was accepted, not that it took
+     * effect.
+     * <p>
+     * Watch for the outcome through the {@code session.model_change} event on
+     * success, or the ephemeral {@code session.auto_tier_switch_failed} event on
+     * failure. You can also read the committed and in-flight state at any time with
+     * {@code session.getRpc().model.getCurrent()}.
+     * <p>
+     * Only the most recent request survives: a new request replaces any earlier one
+     * that no turn has claimed yet.
+     *
+     * <pre>{@code
+     * var result = session.setAutoTier(AutoTier.INTELLIGENCE).get();
+     * if (result.status() == ModelSwitchAutoTierStatus.PENDING) {
+     * 	// Takes effect on a later turn that uses the `auto` model.
+     * }
+     * }</pre>
+     *
+     * @param autoTier
+     *            the routing preference to activate, or {@code null} to return to
+     *            the provider's default Auto routing
+     * @return a future completing with the runtime's immediate acknowledgement and
+     *         Auto preference snapshot
+     * @throws IllegalStateException
+     *             if this session has been terminated
+     * @since 1.6.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionModelSwitchAutoTierResult> setAutoTier(com.github.copilot.rpc.AutoTier autoTier) {
+        ensureNotTerminated();
+        var params = new SessionModelSwitchAutoTierParams(sessionId, toGeneratedAutoTier(autoTier), null);
+        if (autoTier != null) {
+            return getRpc().model.switchAutoTier(params);
+        }
+        // The generated params record omits null properties, but the runtime
+        // distinguishes an explicit null tier (return to provider-default routing)
+        // from an absent one, so build the payload directly and reinstate the null.
+        ObjectNode payload = MAPPER.valueToTree(params);
+        payload.putNull("autoTier");
+        return rpc.invoke("session.model.switchAutoTier", payload, SessionModelSwitchAutoTierResult.class);
     }
 
     /**
@@ -2315,13 +2526,24 @@ public final class CopilotSession implements AutoCloseable {
             isTerminated = true;
         }
 
+        cancelPendingExternalTools();
         timeoutScheduler.shutdownNow();
         releaseGitHubTokenProviderRegistration();
 
+        RuntimeException detachFailure = null;
         try {
-            rpc.invoke("session.destroy", Map.of("sessionId", sessionId), Void.class).get(5, TimeUnit.SECONDS);
+            SessionDetachResponse response = rpc
+                    .invoke("session.detach", Map.of("sessionId", sessionId), SessionDetachResponse.class)
+                    .get(5, TimeUnit.SECONDS);
+            if (response == null || !response.success()) {
+                String detail = response != null && response.error() != null ? response.error() : "unknown error";
+                detachFailure = new IllegalStateException("Failed to detach session " + sessionId + ": " + detail);
+            }
         } catch (Exception e) {
-            LOG.log(Level.FINE, "Error destroying session", e);
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            detachFailure = new IllegalStateException("Failed to detach session " + sessionId, e);
         }
 
         eventHandlers.clear();
@@ -2333,9 +2555,17 @@ public final class CopilotSession implements AutoCloseable {
         exitPlanModeHandler.set(null);
         autoModeSwitchHandler.set(null);
         hooksHandler.set(null);
+
+        if (detachFailure != null) {
+            throw detachFailure;
+        }
     }
 
     // ===== Internal response types for agent API =====
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record SessionDetachResponse(@JsonProperty("success") boolean success, @JsonProperty("error") String error) {
+    }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     private record AgentListResponse(@JsonProperty("agents") List<AgentInfo> agents) {

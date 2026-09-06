@@ -56,6 +56,10 @@ internal sealed class ConnectResult
     [JsonPropertyName("protocolVersion")]
     public long ProtocolVersion { get; set; }
 
+    /// <summary>Task kinds the server may return to this connection.</summary>
+    [JsonPropertyName("taskKinds")]
+    public IList<TaskKind>? TaskKinds { get; set; }
+
     /// <summary>Server package version.</summary>
     [JsonPropertyName("version")]
     public string Version { get; set; } = string.Empty;
@@ -93,6 +97,10 @@ internal sealed class ConnectRequest
     /// <summary>Opt this connection in to GitHub telemetry forwarding for its lifetime. When set, the runtime forwards every internal telemetry event it emits — across all sessions, plus sessionless events — to this connection over the `gitHubTelemetry.event` notification. Regular events are also written to the runtime's normal GitHub/CTS path (dual-write); host-only compatibility events are forward-only and intentionally skip that path. Intended for first-party hosts that re-emit the events into their own telemetry stores. Both unrestricted and restricted events are forwarded, each tagged with a `restricted` discriminator; a backstop drops restricted events when restricted telemetry is disabled — using the process-global gate for ordinary events and an explicit session-scoped decision for host-only events.</summary>
     [JsonPropertyName("enableGitHubTelemetryForwarding")]
     public bool? EnableGitHubTelemetryForwarding { get; set; }
+
+    /// <summary>Task kinds this connection can decode when observing session tasks. Omit to retain agent and shell compatibility.</summary>
+    [JsonPropertyName("supportedTaskKinds")]
+    public IList<TaskKind>? SupportedTaskKinds { get; set; }
 
     /// <summary>Connection token; required when the server was started with COPILOT_CONNECTION_TOKEN.</summary>
     [JsonPropertyName("token")]
@@ -432,6 +440,10 @@ public sealed class Model
     /// <summary>Informational notices the service published for this model, such as an upcoming change or a recommended alternative. Present only when the service published at least one notice. Hosts should surface these without implying anything is wrong with the model.</summary>
     [JsonPropertyName("infoMessages")]
     public IList<ModelMessage>? InfoMessages { get; set; }
+
+    /// <summary>Provider-supplied model metadata. Keys and JSON-compatible values are preserved unchanged. This is factual metadata published by the model provider; it carries no picker or UX semantics.</summary>
+    [JsonPropertyName("metadata")]
+    public IDictionary<string, JsonElement>? Metadata { get; set; }
 
     /// <summary>Model capability category for grouping in the model picker.</summary>
     [JsonPropertyName("modelPickerCategory")]
@@ -2231,6 +2243,10 @@ internal sealed class McpConfigUpdateRequest
 [Experimental(Diagnostics.Experimental)]
 internal sealed class McpConfigRemoveRequest
 {
+    /// <summary>OAuth Client ID Metadata Document URL whose persisted credentials should also be removed.</summary>
+    [JsonPropertyName("authClientIdMetadataUrl")]
+    public string? AuthClientIdMetadataUrl { get; set; }
+
     /// <summary>Name of the MCP server to remove.</summary>
     [RegularExpression("^[^\\x00-\\x1f/\\x7f-\\x9f}]+(?:\\/[^\\x00-\\x1f/\\x7f-\\x9f}]+)*$")]
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
@@ -2905,6 +2921,10 @@ public sealed class PluginInstallResult
     /// <summary>Number of skills discovered and installed from the plugin.</summary>
     [JsonPropertyName("skillsInstalled")]
     public long SkillsInstalled { get; set; }
+
+    /// <summary>Where the completed plugin tree was staged before atomic promotion.</summary>
+    [JsonPropertyName("stagingMode")]
+    public PluginInstallStagingMode? StagingMode { get; set; }
 }
 
 /// <summary>Plugin source and optional working directory for relative-path resolution.</summary>
@@ -7357,10 +7377,18 @@ internal sealed class FactoryJournalPutRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>The currently selected model, reasoning effort, and context tier for the session. The context tier reflects `Session.getContextTier()`, restored from the session journal on resume.</summary>
+/// <summary>The session's authoritative model snapshot. Auto preference fields are configuration for the virtual `auto` model and do not change the selected model identifier. The context tier reflects `Session.getContextTier()`, restored from the session journal on resume.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class CurrentModel
 {
+    /// <summary>Auto preference currently claimed by an in-progress activation. Null means the activation is returning to provider-default routing.</summary>
+    [JsonPropertyName("activatingAutoTier")]
+    public AutoTier? ActivatingAutoTier { get; set; }
+
+    /// <summary>Auto preference currently committed for the session. This can remain available while another model is selected so a later switch to `auto` can reuse it.</summary>
+    [JsonPropertyName("autoTier")]
+    public AutoTier? AutoTier { get; set; }
+
     /// <summary>Context tier for models that support multiple context-window sizes.</summary>
     [JsonPropertyName("contextTier")]
     public ContextTier? ContextTier { get; set; }
@@ -7368,6 +7396,10 @@ public sealed class CurrentModel
     /// <summary>Currently active model identifier.</summary>
     [JsonPropertyName("modelId")]
     public string? ModelId { get; set; }
+
+    /// <summary>Latest unclaimed Auto preference waiting for a future user turn. Null means the pending request is returning to provider-default routing.</summary>
+    [JsonPropertyName("pendingAutoTier")]
+    public AutoTier? PendingAutoTier { get; set; }
 
     /// <summary>Reasoning effort level currently applied to the active model, when one is set. Reads `Session.getReasoningEffort()` synchronously after `getSelectedModel()` resolves so the two values are reported as a snapshot.</summary>
     [JsonPropertyName("reasoningEffort")]
@@ -7423,6 +7455,10 @@ public sealed class ModelSwitchToResult
     /// <summary>Currently active model identifier after the switch.</summary>
     [JsonPropertyName("modelId")]
     public string? ModelId { get; set; }
+
+    /// <summary>Authoritative model and Auto preference state after an immediate switch. For deferred switches this remains the current state until the queued change drains.</summary>
+    [JsonPropertyName("modelState")]
+    public CurrentModel? ModelState { get; set; }
 
     /// <summary>Persistence failure encountered after applying the model switch.</summary>
     [JsonPropertyName("persistenceError")]
@@ -7548,6 +7584,10 @@ public sealed class ModelPickerPersistenceRequest
 [Experimental(Diagnostics.Experimental)]
 internal sealed class ModelSwitchToRequest
 {
+    /// <summary>Optional Auto routing preference to stage atomically with selecting `auto`. Pass null to return to provider-default Auto routing. This field is rejected when `modelId` is not `auto`.</summary>
+    [JsonPropertyName("autoTier")]
+    public AutoTier? AutoTier { get; set; }
+
     /// <summary>Explicit response to a model-switch compaction preflight. Omit to request a confirmation projection when compaction is necessary.</summary>
     [JsonPropertyName("compactionDecision")]
     public string? CompactionDecision { get; set; }
@@ -7607,6 +7647,48 @@ internal sealed class ModelSwitchToRequest
     /// <summary>Output verbosity level to request for supported models.</summary>
     [JsonPropertyName("verbosity")]
     public Verbosity? Verbosity { get; set; }
+}
+
+/// <summary>Immediate acknowledgement and Auto preference snapshot after a switch request. This result never implies that a pending preference committed.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ModelSwitchAutoTierResult
+{
+    /// <summary>Auto preference currently claimed by an in-progress activation. Null means the activation is returning to provider-default routing.</summary>
+    [JsonPropertyName("activatingAutoTier")]
+    public AutoTier? ActivatingAutoTier { get; set; }
+
+    /// <summary>Auto preference currently committed for the session.</summary>
+    [JsonPropertyName("effectiveAutoTier")]
+    public AutoTier? EffectiveAutoTier { get; set; }
+
+    /// <summary>Latest unclaimed Auto preference waiting for a future user turn.</summary>
+    [JsonPropertyName("pendingAutoTier")]
+    public AutoTier? PendingAutoTier { get; set; }
+
+    /// <summary>Immediate request status. `pending` means accepted but not committed.</summary>
+    [JsonPropertyName("status")]
+    public ModelSwitchAutoTierStatus Status { get; set; }
+
+    /// <summary>Earlier unclaimed preference replaced by this request. This can be present with either status, including when selecting the effective preference cancels pending work.</summary>
+    [JsonPropertyName("supersededAutoTier")]
+    public AutoTier? SupersededAutoTier { get; set; }
+}
+
+/// <summary>An Auto preference request for the session. This updates Auto configuration only; it does not change the selected model to `auto`.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class ModelSwitchAutoTierRequest
+{
+    /// <summary>Auto preference to activate when a future user turn using the `auto` model safely mints a replacement model and token pair. Pass null to return to provider-default Auto routing.</summary>
+    [JsonPropertyName("autoTier")]
+    public AutoTier? AutoTier { get; set; }
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>Origin to record on the effective `session.model_change` event. Defaults to `sdk` when omitted.</summary>
+    [JsonPropertyName("source")]
+    public ModelChangeSource? Source { get; set; }
 }
 
 /// <summary>Managed, repository, and CLI model overrides to overlay onto the session at startup.</summary>
@@ -8483,6 +8565,80 @@ internal sealed class WorkspacesDiffRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
+/// <summary>Current per-window credit limit and consumption for an autopilot objective.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class AutopilotObjectiveCreditLimit
+{
+    /// <summary>Configured AI-credit cap, when one is set.</summary>
+    [JsonPropertyName("credits")]
+    public double? Credits { get; set; }
+
+    /// <summary>Window consumption in fractional AI credits, for display.</summary>
+    [JsonPropertyName("creditsUsed")]
+    public double CreditsUsed { get; set; }
+
+    /// <summary>Exact window consumption in non-negative integer nano-AIU, encoded as a decimal string.</summary>
+    [RegularExpression("^[0-9]+$")]
+    [JsonPropertyName("creditsUsedNanoAiu")]
+    public string CreditsUsedNanoAiu { get; set; } = string.Empty;
+}
+
+/// <summary>Public, persistence-independent projection of an autopilot objective.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class AutopilotObjectiveState
+{
+    /// <summary>Optional summary recorded when the objective completed.</summary>
+    [JsonPropertyName("completionSummary")]
+    public string? CompletionSummary { get; set; }
+
+    /// <summary>Exact lifetime AI-credit consumption in non-negative integer nano-AIU, encoded as a decimal string.</summary>
+    [RegularExpression("^[0-9]+$")]
+    [JsonPropertyName("creditCountNanoAiu")]
+    public string CreditCountNanoAiu { get; set; } = string.Empty;
+
+    /// <summary>Current per-window consumption and optional cap, when a credit-tracking window is present.</summary>
+    [JsonPropertyName("creditLimit")]
+    public AutopilotObjectiveCreditLimit? CreditLimit { get; set; }
+
+    /// <summary>Session-local objective identifier.</summary>
+    [JsonPropertyName("id")]
+    public long Id { get; set; }
+
+    /// <summary>User-provided objective text.</summary>
+    [JsonPropertyName("objective")]
+    public string Objective { get; set; } = string.Empty;
+
+    /// <summary>Optional reason the objective is paused.</summary>
+    [JsonPropertyName("pauseReason")]
+    public string? PauseReason { get; set; }
+
+    /// <summary>Current normalized lifecycle status.</summary>
+    [JsonPropertyName("status")]
+    public AutopilotObjectiveStatus Status { get; set; }
+
+    /// <summary>Number of objective turns started.</summary>
+    [JsonPropertyName("turnCount")]
+    public long TurnCount { get; set; }
+}
+
+/// <summary>Canonical runtime state for the session's current autopilot objective.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class AutopilotObjectiveGetStateResult
+{
+    /// <summary>Current objective state, or `null` when the session has no objective.</summary>
+    [JsonPropertyName("state")]
+    public AutopilotObjectiveState? State { get; set; }
+}
+
+/// <summary>Identifies the target session.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class SessionAutopilotObjectiveGetStateRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
 /// <summary>Characters that, when typed in the composer, should trigger a `completions.request`. Empty when the session has no host-driven completions (e.g. local sessions, or a relay host that does not advertise `completionTriggerCharacters`).</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class CompletionsGetTriggerCharactersResult
@@ -8753,13 +8909,14 @@ internal sealed class TasksStartAgentRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>Tracked task union returned by task APIs, containing either an agent task or a shell task.</summary>
+/// <summary>Tracked task union returned by task APIs, containing an agent, client, or shell task.</summary>
 /// <remarks>Polymorphic base type discriminated by <c>type</c>.</remarks>
 [Experimental(Diagnostics.Experimental)]
 [JsonPolymorphic(
     TypeDiscriminatorPropertyName = "type",
     UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
 [JsonDerivedType(typeof(TaskInfoAgent), "agent")]
+[JsonDerivedType(typeof(TaskInfoClient), "client")]
 [JsonDerivedType(typeof(TaskInfoShell), "shell")]
 public partial class TaskInfo
 {
@@ -8868,6 +9025,143 @@ public partial class TaskInfoAgent : TaskInfo
     public required string ToolCallId { get; set; }
 }
 
+/// <summary>Public owner attribution for a client-owned task. Identifiers are opaque and never authorize requests.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class TaskClientOwner
+{
+    /// <summary>ISO 8601 timestamp when the bound join disconnected.</summary>
+    [JsonPropertyName("disconnectedAt")]
+    public DateTimeOffset? DisconnectedAt { get; set; }
+
+    /// <summary>Display-only owner name.</summary>
+    [JsonPropertyName("displayName")]
+    public string? DisplayName { get; set; }
+
+    /// <summary>Opaque identity of the currently or most recently bound session join.</summary>
+    [JsonPropertyName("joinId")]
+    public string JoinId { get; set; } = string.Empty;
+
+    /// <summary>Class of the task owner.</summary>
+    [JsonPropertyName("kind")]
+    public TaskClientOwnerKind Kind { get; set; }
+
+    /// <summary>Opaque session-scoped participant identity.</summary>
+    [JsonPropertyName("participantId")]
+    public string ParticipantId { get; set; } = string.Empty;
+
+    /// <summary>Whether this task's bound join is currently connected.</summary>
+    [JsonPropertyName("presence")]
+    public TaskClientOwnerPresence Presence { get; set; }
+
+    /// <summary>Display-only owner source.</summary>
+    [JsonPropertyName("source")]
+    public string? Source { get; set; }
+}
+
+/// <summary>Tracked client-owned task metadata.</summary>
+/// <remarks>The <c>client</c> variant of <see cref="TaskInfo"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class TaskInfoClient : TaskInfo
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "client";
+
+    /// <summary>ISO 8601 timestamp when the current active segment started.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("activeStartedAt")]
+    public DateTimeOffset? ActiveStartedAt { get; set; }
+
+    /// <summary>Accumulated active execution time in milliseconds.</summary>
+    [JsonPropertyName("activeTimeMs")]
+    public required long ActiveTimeMs { get; set; }
+
+    /// <summary>Whether the currently bound owner can receive a cancellation request.</summary>
+    [JsonPropertyName("canCancel")]
+    public required bool CanCancel { get; set; }
+
+    /// <summary>Human-readable reason for terminal cancellation.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("cancellationReason")]
+    public string? CancellationReason { get; set; }
+
+    /// <summary>Owner-scoped registration and reclaim key.</summary>
+    [JsonPropertyName("clientTaskId")]
+    public required string ClientTaskId { get; set; }
+
+    /// <summary>ISO 8601 timestamp when the task reached a terminal status.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("completedAt")]
+    public DateTimeOffset? CompletedAt { get; set; }
+
+    /// <summary>Task description.</summary>
+    [JsonPropertyName("description")]
+    public required string Description { get; set; }
+
+    /// <summary>Optional task display name.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("displayName")]
+    public string? DisplayName { get; set; }
+
+    /// <summary>Human-readable terminal failure message.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("error")]
+    public string? Error { get; set; }
+
+    /// <summary>Optional owner-supplied terminal failure code.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("errorCode")]
+    public string? ErrorCode { get; set; }
+
+    /// <summary>Execution mode, which is always background for client-owned tasks.</summary>
+    [JsonPropertyName("executionMode")]
+    public required TaskClientExecutionMode ExecutionMode { get; set; }
+
+    /// <summary>Canonical runtime-generated task identifier.</summary>
+    [JsonPropertyName("id")]
+    public required string Id { get; set; }
+
+    /// <summary>ISO 8601 timestamp when the connected owner entered idle status.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("idleSince")]
+    public DateTimeOffset? IdleSince { get; set; }
+
+    /// <summary>ISO 8601 timestamp of the most recent orphan transition.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("orphanedAt")]
+    public DateTimeOffset? OrphanedAt { get; set; }
+
+    /// <summary>Public attribution and presence for the task owner.</summary>
+    [JsonPropertyName("owner")]
+    public required TaskClientOwner Owner { get; set; }
+
+    /// <summary>ISO 8601 timestamp of the most recent successful reclaim.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("reclaimedAt")]
+    public DateTimeOffset? ReclaimedAt { get; set; }
+
+    /// <summary>Opaque successful terminal result supplied by the task owner.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("result")]
+    public JsonElement? Result { get; set; }
+
+    /// <summary>Sequence number of the latest accepted owner update.</summary>
+    [JsonPropertyName("sequence")]
+    public required long Sequence { get; set; }
+
+    /// <summary>ISO 8601 timestamp when the task started.</summary>
+    [JsonPropertyName("startedAt")]
+    public required DateTimeOffset StartedAt { get; set; }
+
+    /// <summary>Client task lifecycle status.</summary>
+    [JsonPropertyName("status")]
+    public required TaskClientStatus Status { get; set; }
+
+    /// <summary>ISO 8601 timestamp of the latest accepted lifecycle change.</summary>
+    [JsonPropertyName("updatedAt")]
+    public required DateTimeOffset UpdatedAt { get; set; }
+}
+
 /// <summary>Tracked shell task metadata, including ID, command, status, timing, attachment/execution mode, log path, and PID.</summary>
 /// <remarks>The <c>shell</c> variant of <see cref="TaskInfo"/>.</remarks>
 [Experimental(Diagnostics.Experimental)]
@@ -8945,6 +9239,299 @@ internal sealed class SessionTasksListRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
+/// <summary>Tracked client-owned task metadata.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class TaskClientInfo
+{
+    /// <summary>ISO 8601 timestamp when the current active segment started.</summary>
+    [JsonPropertyName("activeStartedAt")]
+    public DateTimeOffset? ActiveStartedAt { get; set; }
+
+    /// <summary>Accumulated active execution time in milliseconds.</summary>
+    [JsonPropertyName("activeTimeMs")]
+    public long ActiveTimeMs { get; set; }
+
+    /// <summary>Whether the currently bound owner can receive a cancellation request.</summary>
+    [JsonPropertyName("canCancel")]
+    public bool CanCancel { get; set; }
+
+    /// <summary>Human-readable reason for terminal cancellation.</summary>
+    [JsonPropertyName("cancellationReason")]
+    public string? CancellationReason { get; set; }
+
+    /// <summary>Owner-scoped registration and reclaim key.</summary>
+    [JsonPropertyName("clientTaskId")]
+    public string ClientTaskId { get; set; } = string.Empty;
+
+    /// <summary>ISO 8601 timestamp when the task reached a terminal status.</summary>
+    [JsonPropertyName("completedAt")]
+    public DateTimeOffset? CompletedAt { get; set; }
+
+    /// <summary>Task description.</summary>
+    [JsonPropertyName("description")]
+    public string Description { get; set; } = string.Empty;
+
+    /// <summary>Optional task display name.</summary>
+    [JsonPropertyName("displayName")]
+    public string? DisplayName { get; set; }
+
+    /// <summary>Human-readable terminal failure message.</summary>
+    [JsonPropertyName("error")]
+    public string? Error { get; set; }
+
+    /// <summary>Optional owner-supplied terminal failure code.</summary>
+    [JsonPropertyName("errorCode")]
+    public string? ErrorCode { get; set; }
+
+    /// <summary>Execution mode, which is always background for client-owned tasks.</summary>
+    [JsonPropertyName("executionMode")]
+    public TaskClientExecutionMode ExecutionMode { get; set; }
+
+    /// <summary>Canonical runtime-generated task identifier.</summary>
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+
+    /// <summary>ISO 8601 timestamp when the connected owner entered idle status.</summary>
+    [JsonPropertyName("idleSince")]
+    public DateTimeOffset? IdleSince { get; set; }
+
+    /// <summary>ISO 8601 timestamp of the most recent orphan transition.</summary>
+    [JsonPropertyName("orphanedAt")]
+    public DateTimeOffset? OrphanedAt { get; set; }
+
+    /// <summary>Public attribution and presence for the task owner.</summary>
+    [JsonPropertyName("owner")]
+    public TaskClientOwner Owner { get => field ??= new(); set; }
+
+    /// <summary>ISO 8601 timestamp of the most recent successful reclaim.</summary>
+    [JsonPropertyName("reclaimedAt")]
+    public DateTimeOffset? ReclaimedAt { get; set; }
+
+    /// <summary>Opaque successful terminal result supplied by the task owner.</summary>
+    [JsonPropertyName("result")]
+    public JsonElement? Result { get; set; }
+
+    /// <summary>Sequence number of the latest accepted owner update.</summary>
+    [JsonPropertyName("sequence")]
+    public long Sequence { get; set; }
+
+    /// <summary>ISO 8601 timestamp when the task started.</summary>
+    [JsonPropertyName("startedAt")]
+    public DateTimeOffset StartedAt { get; set; }
+
+    /// <summary>Client task lifecycle status.</summary>
+    [JsonPropertyName("status")]
+    public TaskClientStatus Status { get; set; }
+
+    /// <summary>Task kind.</summary>
+    [JsonPropertyName("type")]
+    public TaskClientType Type { get; set; }
+
+    /// <summary>ISO 8601 timestamp of the latest accepted lifecycle change.</summary>
+    [JsonPropertyName("updatedAt")]
+    public DateTimeOffset UpdatedAt { get; set; }
+}
+
+/// <summary>Result of registering or reclaiming a client-owned task.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class TasksRegisterResult
+{
+    /// <summary>True only when this invocation created a new task.</summary>
+    [JsonPropertyName("created")]
+    public bool Created { get; set; }
+
+    /// <summary>True only when this invocation reclaimed an orphaned task.</summary>
+    [JsonPropertyName("reclaimed")]
+    public bool Reclaimed { get; set; }
+
+    /// <summary>Authoritative registered or reclaimed task.</summary>
+    [JsonPropertyName("task")]
+    public TaskClientInfo Task { get => field ??= new(); set; }
+}
+
+/// <summary>Registers or reclaims a client-owned task.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class TasksRegisterRequest
+{
+    /// <summary>Whether the owner supports runtime cancellation requests.</summary>
+    [JsonPropertyName("cancellable")]
+    public bool Cancellable { get; set; }
+
+    /// <summary>Owner-scoped idempotency key used for registration and reclaim.</summary>
+    [JsonPropertyName("clientTaskId")]
+    public string ClientTaskId { get; set; } = string.Empty;
+
+    /// <summary>Human-readable description of the external work.</summary>
+    [JsonPropertyName("description")]
+    public string Description { get; set; } = string.Empty;
+
+    /// <summary>Optional short display name for the external work.</summary>
+    [JsonPropertyName("displayName")]
+    public string? DisplayName { get; set; }
+
+    /// <summary>Expected current sequence for idempotent registration or orphan reclaim.</summary>
+    [JsonPropertyName("expectedSequence")]
+    public long? ExpectedSequence { get; set; }
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>Task kind.</summary>
+    [JsonPropertyName("type")]
+    public TaskClientType Type { get; set; }
+}
+
+/// <summary>Result of publishing a client-owned task update.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class TasksUpdateResult
+{
+    /// <summary>Whether this invocation changed task state.</summary>
+    [JsonPropertyName("applied")]
+    public bool Applied { get; set; }
+
+    /// <summary>Whether this invocation repeated the latest accepted update.</summary>
+    [JsonPropertyName("duplicate")]
+    public bool Duplicate { get; set; }
+
+    /// <summary>Authoritative task after processing the update.</summary>
+    [JsonPropertyName("task")]
+    public TaskClientInfo Task { get => field ??= new(); set; }
+}
+
+/// <summary>Progress or terminal update for a client-owned task.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>kind</c>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "kind",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(TaskClientUpdateProgress), "progress")]
+[JsonDerivedType(typeof(TaskClientUpdateCompleted), "completed")]
+[JsonDerivedType(typeof(TaskClientUpdateFailed), "failed")]
+[JsonDerivedType(typeof(TaskClientUpdateCancelled), "cancelled")]
+public partial class TaskClientUpdate
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("kind")]
+    public virtual string Kind { get; set; } = string.Empty;
+}
+
+
+/// <summary>Publishes nonterminal progress for a running or idle client task.</summary>
+/// <remarks>The <c>progress</c> variant of <see cref="TaskClientUpdate"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class TaskClientUpdateProgress : TaskClientUpdate
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "progress";
+
+    /// <summary>Optional progress message appended to recent activity when nonempty.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("message")]
+    public string? Message { get; set; }
+
+    /// <summary>Optional completion percentage; null clears the current percentage.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("percentage")]
+    public double? Percentage { get; set; }
+
+    /// <summary>Optional progress phase; null clears the current phase.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("phase")]
+    public string? Phase { get; set; }
+
+    /// <summary>Optional active status transition.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("status")]
+    public TaskClientActiveStatus? Status { get; set; }
+}
+
+/// <summary>Reports successful terminal completion.</summary>
+/// <remarks>The <c>completed</c> variant of <see cref="TaskClientUpdate"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class TaskClientUpdateCompleted : TaskClientUpdate
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "completed";
+
+    /// <summary>Optional final progress message.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("message")]
+    public string? Message { get; set; }
+
+    /// <summary>Optional opaque successful terminal result.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("result")]
+    public JsonElement? Result { get; set; }
+}
+
+/// <summary>Reports terminal failure.</summary>
+/// <remarks>The <c>failed</c> variant of <see cref="TaskClientUpdate"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class TaskClientUpdateFailed : TaskClientUpdate
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "failed";
+
+    /// <summary>Optional owner-supplied terminal failure code.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("code")]
+    public string? Code { get; set; }
+
+    /// <summary>Human-readable terminal failure message.</summary>
+    [JsonPropertyName("error")]
+    public required string Error { get; set; }
+
+    /// <summary>Optional final progress message.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("message")]
+    public string? Message { get; set; }
+}
+
+/// <summary>Reports terminal cancellation after external work stopped.</summary>
+/// <remarks>The <c>cancelled</c> variant of <see cref="TaskClientUpdate"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class TaskClientUpdateCancelled : TaskClientUpdate
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "cancelled";
+
+    /// <summary>Optional final progress message.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("message")]
+    public string? Message { get; set; }
+
+    /// <summary>Optional human-readable cancellation reason.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("reason")]
+    public string? Reason { get; set; }
+}
+
+/// <summary>Updates a client-owned task.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class TasksUpdateRequest
+{
+    /// <summary>Canonical runtime-generated task identifier.</summary>
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+
+    /// <summary>Owner update sequence to apply.</summary>
+    [JsonPropertyName("sequence")]
+    public long Sequence { get; set; }
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>Progress or terminal update payload.</summary>
+    [JsonPropertyName("update")]
+    public TaskClientUpdate Update { get => field ??= new(); set; }
+}
+
 /// <summary>Refresh metadata for any detached background shells the runtime knows about. Use after a long pause to pick up exit/output state for shells running outside the agent loop.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class TasksRefreshResult
@@ -8975,13 +9562,16 @@ internal sealed class SessionTasksWaitForPendingRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>Polymorphic base type discriminated by <c>type</c>.</summary>
+/// <summary>Progress information for the task, discriminated by type. Returns null when no task with this ID is currently tracked.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>type</c>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 [JsonPolymorphic(
     TypeDiscriminatorPropertyName = "type",
     UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
-[JsonDerivedType(typeof(TasksGetProgressResultProgressAgent), "agent")]
-[JsonDerivedType(typeof(TasksGetProgressResultProgressShell), "shell")]
-public partial class TasksGetProgressResultProgress
+[JsonDerivedType(typeof(TaskProgressAgent), "agent")]
+[JsonDerivedType(typeof(TaskProgressClient), "client")]
+[JsonDerivedType(typeof(TaskProgressShell), "shell")]
+public partial class TaskProgress
 {
     /// <summary>The type discriminator.</summary>
     [JsonPropertyName("type")]
@@ -9003,8 +9593,9 @@ public sealed class TaskProgressLine
 }
 
 /// <summary>Progress snapshot for an agent task, with recent activity lines and optional latest intent.</summary>
-/// <remarks>The <c>agent</c> variant of <see cref="TasksGetProgressResultProgress"/>.</remarks>
-public partial class TasksGetProgressResultProgressAgent : TasksGetProgressResultProgress
+/// <remarks>The <c>agent</c> variant of <see cref="TaskProgress"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class TaskProgressAgent : TaskProgress
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -9020,9 +9611,51 @@ public partial class TasksGetProgressResultProgressAgent : TasksGetProgressResul
     public required IList<TaskProgressLine> RecentActivity { get; set; }
 }
 
+/// <summary>Generic progress for a client-owned task.</summary>
+/// <remarks>The <c>client</c> variant of <see cref="TaskProgress"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class TaskProgressClient : TaskProgress
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "client";
+
+    /// <summary>Most recent nonempty progress message.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("lastMessage")]
+    public string? LastMessage { get; set; }
+
+    /// <summary>Current completion percentage from zero through one hundred.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("percentage")]
+    public double? Percentage { get; set; }
+
+    /// <summary>Current owner-defined progress phase.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("phase")]
+    public string? Phase { get; set; }
+
+    /// <summary>Recent server-timestamped progress messages.</summary>
+    [JsonPropertyName("recentActivity")]
+    public required IList<TaskProgressLine> RecentActivity { get; set; }
+
+    /// <summary>Sequence number of the latest accepted owner update.</summary>
+    [JsonPropertyName("sequence")]
+    public required long Sequence { get; set; }
+
+    /// <summary>Current client task lifecycle status.</summary>
+    [JsonPropertyName("status")]
+    public required TaskClientStatus Status { get; set; }
+
+    /// <summary>ISO 8601 timestamp of the latest accepted lifecycle change.</summary>
+    [JsonPropertyName("updatedAt")]
+    public required DateTimeOffset UpdatedAt { get; set; }
+}
+
 /// <summary>Progress snapshot for a shell task, with recent stdout/stderr output and optional process ID.</summary>
-/// <remarks>The <c>shell</c> variant of <see cref="TasksGetProgressResultProgress"/>.</remarks>
-public partial class TasksGetProgressResultProgressShell : TasksGetProgressResultProgress
+/// <remarks>The <c>shell</c> variant of <see cref="TaskProgress"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class TaskProgressShell : TaskProgress
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -9044,7 +9677,7 @@ public sealed class TasksGetProgressResult
 {
     /// <summary>Progress information for the task, discriminated by type. Returns null when no task with this ID is currently tracked.</summary>
     [JsonPropertyName("progress")]
-    public TasksGetProgressResultProgress? Progress { get; set; }
+    public TaskProgress? Progress { get; set; }
 }
 
 /// <summary>Identifier of the background task to fetch progress for.</summary>
@@ -9428,6 +10061,10 @@ public sealed class McpServer
     [MinLength(1)]
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
+
+    /// <summary>Server-advertised metadata for a connected server. Omitted when no live connection metadata is available, including while pending or when failed, disabled, stopped, or not configured.</summary>
+    [JsonPropertyName("serverMetadata")]
+    public McpServerMetadata? ServerMetadata { get; set; }
 
     /// <summary>Configuration source: user, workspace, plugin, or builtin.</summary>
     [JsonPropertyName("source")]
@@ -11113,7 +11750,7 @@ public sealed class OptionsUpdateAdditionalContentExclusionPolicy
 [Experimental(Diagnostics.Experimental)]
 public sealed class CapiSessionOptions
 {
-    /// <summary>Routing preference used when the session model is `auto`. The runtime persists the preference across cold resume. When omitted, the default routing behavior is used. Resuming an already-resident session cannot change its preference.</summary>
+    /// <summary>Routing preference for sessions whose model is `auto`. On create or cold resume, this establishes the preference sent as `tier` on CAPI `/auto` requests; when omitted on cold resume, the runtime restores the last committed preference. On resident resume, a different value requests a safe switch after resume succeeds and cannot change an in-flight turn. Successful switches are persisted for later cold resume. When no preference is supplied or restored, CAPI default routing is used.</summary>
     [JsonPropertyName("autoTier")]
     public AutoTier? AutoTier { get; set; }
 
@@ -11356,6 +11993,10 @@ public sealed class SandboxConfig
     [JsonPropertyName("addCurrentWorkingDirectory")]
     public bool? AddCurrentWorkingDirectory { get; set; }
 
+    /// <summary>Whether the agent may request that an individual command run outside the sandbox, which the host then approves or denies through the usual permission flow. A host capability flag rather than part of the policy: it is stripped from the effective spawn policy and only has an effect while `enabled` is true. Fail-closed, unlike the opt-out flags on this object: omitting it offers no bypass. Default: false (opt-in).</summary>
+    [JsonPropertyName("allowBypass")]
+    public bool? AllowBypass { get; set; }
+
     /// <summary>Whether to auto-grant read access to tool directories discovered on PATH and in toolchain environment variables (GOROOT, JAVA_HOME, VIRTUAL_ENV, and similar), and to common developer-tool caches, config, and toolchains. Writable grants cover scratch caches, the Unix GitHub CLI cache, and Cargo's registry, git store, and lock/tracker files. A relocated CARGO_HOME gets the same narrow split: registry and git are read-write; bin is read-only; the home root, config.toml, and credentials.toml stay ungranted. Set to false to disable every grant listed above; user-installed toolchains and caches then need explicit userPolicy.filesystem readonlyPaths and readwritePaths entries. The working directory (see addCurrentWorkingDirectory), temporary storage, session log paths, and system locations follow their own rules and stay granted. Default: true (enabled by default; set to false to opt out).</summary>
     [JsonPropertyName("allowDevToolAccess")]
     public bool? AllowDevToolAccess { get; set; }
@@ -11367,6 +12008,24 @@ public sealed class SandboxConfig
     /// <summary>Whether sandboxing is enabled for the session.</summary>
     [JsonPropertyName("enabled")]
     public bool Enabled { get; set; }
+
+    /// <summary>The `sandboxLspServers` counterpart of `managedMcpRoutingLocked`.</summary>
+    [JsonInclude]
+    [JsonPropertyName("managedLspRoutingLocked")]
+    internal bool? ManagedLspRoutingLocked { get; set; }
+
+    /// <summary>Set by the runtime when a managed policy forced `sandboxMcpServers` on and took the local opt-out away. Provenance rather than policy: it lets a sandbox startup failure point at the administrator instead of a setting the next managed merge would override, and it is ignored when comparing two configs for change. Only the managed merge may set it; a caller-supplied value is stripped.</summary>
+    [JsonInclude]
+    [JsonPropertyName("managedMcpRoutingLocked")]
+    internal bool? ManagedMcpRoutingLocked { get; set; }
+
+    /// <summary>Whether language servers the session launches are confined by the sandbox. Only an explicit `false` opts out. Ignored while `enabled` is false. Default: true (enabled by default; set to false to opt out).</summary>
+    [JsonPropertyName("sandboxLspServers")]
+    public bool? SandboxLspServers { get; set; }
+
+    /// <summary>Whether MCP servers the session launches are confined by the sandbox. Only an explicit `false` opts out; doing so also lets remote-MCP egress leave the sandbox, so the flag and `enabled` are always read together. Ignored while `enabled` is false. Default: true (enabled by default; set to false to opt out).</summary>
+    [JsonPropertyName("sandboxMcpServers")]
+    public bool? SandboxMcpServers { get; set; }
 
     /// <summary>User-managed sandbox policy fragment merged into the auto-discovered base policy.</summary>
     [JsonPropertyName("userPolicy")]
@@ -13317,6 +13976,10 @@ public partial class SlashCommandInvocationResultSelectSubcommand : SlashCommand
 [Experimental(Diagnostics.Experimental)]
 public sealed class SlashCommandTimelineEntry
 {
+    /// <summary>What the user must do to recover, when the entry reports a failure the runtime knows an action for. The `text` never names a client affordance, so a client that offers one renders it from this value.</summary>
+    [JsonPropertyName("remediation")]
+    public RemediationAction? Remediation { get; set; }
+
     /// <summary>Text displayed for the timeline entry.</summary>
     [JsonPropertyName("text")]
     public string Text { get; set; } = string.Empty;
@@ -18088,6 +18751,40 @@ public sealed class FactoryAbortRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
+/// <summary>Whether the client authoritatively confirmed its external work stopped.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ClientTaskCancelResult
+{
+    /// <summary>True only when the owner confirms that external work stopped before responding.</summary>
+    [JsonPropertyName("cancelled")]
+    public bool Cancelled { get; set; }
+}
+
+/// <summary>Runtime-to-owner cancellation request for a client-owned task.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ClientTaskCancelRequest
+{
+    /// <summary>Opaque identifier shared by coalesced cancellation callers.</summary>
+    [JsonPropertyName("cancellationId")]
+    public string CancellationId { get; set; } = string.Empty;
+
+    /// <summary>Owner-scoped task key included for correlation.</summary>
+    [JsonPropertyName("clientTaskId")]
+    public string ClientTaskId { get; set; } = string.Empty;
+
+    /// <summary>Canonical runtime-generated task identifier.</summary>
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+
+    /// <summary>Reason the runtime requests cancellation.</summary>
+    [JsonPropertyName("reason")]
+    public ClientTaskCancelReason Reason { get; set; }
+
+    /// <summary>Session that owns the client task.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
 /// <summary>Describes a filesystem error.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class SessionFsError
@@ -18940,6 +19637,72 @@ public sealed class GitHubTokenAcquireRequest
     [JsonPropertyName("sessionId")]
     public string? SessionId { get; set; }
 }
+
+/// <summary>Closed set of public task kinds a connection can negotiate.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct TaskKind : IEquatable<TaskKind>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="TaskKind"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="TaskKind"/>.</param>
+    [JsonConstructor]
+    public TaskKind(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="TaskKind"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Runtime-owned background agent task.</summary>
+    public static TaskKind Agent { get; } = new("agent");
+
+    /// <summary>Runtime-owned shell task.</summary>
+    public static TaskKind Shell { get; } = new("shell");
+
+    /// <summary>Client-owned externally executed task.</summary>
+    public static TaskKind Client { get; } = new("client");
+
+    /// <summary>Returns a value indicating whether two <see cref="TaskKind"/> instances are equivalent.</summary>
+    public static bool operator ==(TaskKind left, TaskKind right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="TaskKind"/> instances are not equivalent.</summary>
+    public static bool operator !=(TaskKind left, TaskKind right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is TaskKind other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(TaskKind other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{TaskKind}"/> for serializing <see cref="TaskKind"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<TaskKind>
+    {
+        /// <inheritdoc />
+        public override TaskKind Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, TaskKind value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(TaskKind));
+        }
+    }
+}
+
 
 /// <summary>Hook event name. Discovery emits the file-configurable subset; SDK callbacks additionally support callback-only events.</summary>
 [Experimental(Diagnostics.Experimental)]
@@ -21396,6 +22159,69 @@ public readonly struct CatalogCandidateKind : IEquatable<CatalogCandidateKind>
         public override void Write(Utf8JsonWriter writer, CatalogCandidateKind value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(CatalogCandidateKind));
+        }
+    }
+}
+
+
+/// <summary>Where completed plugin content was staged before atomic promotion.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct PluginInstallStagingMode : IEquatable<PluginInstallStagingMode>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="PluginInstallStagingMode"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="PluginInstallStagingMode"/>.</param>
+    [JsonConstructor]
+    public PluginInstallStagingMode(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="PluginInstallStagingMode"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>A sibling of the installed-plugins root, outside the recursively watched tree.</summary>
+    public static PluginInstallStagingMode External { get; } = new("external");
+
+    /// <summary>A sibling of the destination plugin directory, used when external staging is unavailable.</summary>
+    public static PluginInstallStagingMode DestinationSibling { get; } = new("destination_sibling");
+
+    /// <summary>Returns a value indicating whether two <see cref="PluginInstallStagingMode"/> instances are equivalent.</summary>
+    public static bool operator ==(PluginInstallStagingMode left, PluginInstallStagingMode right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="PluginInstallStagingMode"/> instances are not equivalent.</summary>
+    public static bool operator !=(PluginInstallStagingMode left, PluginInstallStagingMode right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is PluginInstallStagingMode other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(PluginInstallStagingMode other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{PluginInstallStagingMode}"/> for serializing <see cref="PluginInstallStagingMode"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<PluginInstallStagingMode>
+    {
+        /// <inheritdoc />
+        public override PluginInstallStagingMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, PluginInstallStagingMode value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PluginInstallStagingMode));
         }
     }
 }
@@ -24179,6 +25005,69 @@ public readonly struct FactoryLogLineKind : IEquatable<FactoryLogLineKind>
 }
 
 
+/// <summary>Whether the requested preference was already effective or was accepted for later transactional activation.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ModelSwitchAutoTierStatus : IEquatable<ModelSwitchAutoTierStatus>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ModelSwitchAutoTierStatus"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ModelSwitchAutoTierStatus"/>.</param>
+    [JsonConstructor]
+    public ModelSwitchAutoTierStatus(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ModelSwitchAutoTierStatus"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The requested preference is already effective. No activation is pending for it, although this request may have cancelled an earlier unclaimed preference reported in `supersededAutoTier`.</summary>
+    public static ModelSwitchAutoTierStatus Unchanged { get; } = new("unchanged");
+
+    /// <summary>The request was accepted but has not committed. A later user turn using the `auto` model must mint and validate the replacement before it becomes effective.</summary>
+    public static ModelSwitchAutoTierStatus Pending { get; } = new("pending");
+
+    /// <summary>Returns a value indicating whether two <see cref="ModelSwitchAutoTierStatus"/> instances are equivalent.</summary>
+    public static bool operator ==(ModelSwitchAutoTierStatus left, ModelSwitchAutoTierStatus right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ModelSwitchAutoTierStatus"/> instances are not equivalent.</summary>
+    public static bool operator !=(ModelSwitchAutoTierStatus left, ModelSwitchAutoTierStatus right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ModelSwitchAutoTierStatus other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ModelSwitchAutoTierStatus other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ModelSwitchAutoTierStatus}"/> for serializing <see cref="ModelSwitchAutoTierStatus"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ModelSwitchAutoTierStatus>
+    {
+        /// <inheritdoc />
+        public override ModelSwitchAutoTierStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ModelSwitchAutoTierStatus value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ModelSwitchAutoTierStatus));
+        }
+    }
+}
+
+
 /// <summary>Allowed values for the `WorkspacesWorkspaceDetailsHostType` enumeration.</summary>
 [Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -24443,6 +25332,72 @@ public readonly struct HistoryRewindUnavailableReason : IEquatable<HistoryRewind
 }
 
 
+/// <summary>Current normalized autopilot objective lifecycle status.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct AutopilotObjectiveStatus : IEquatable<AutopilotObjectiveStatus>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="AutopilotObjectiveStatus"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="AutopilotObjectiveStatus"/>.</param>
+    [JsonConstructor]
+    public AutopilotObjectiveStatus(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="AutopilotObjectiveStatus"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The objective is actively running.</summary>
+    public static AutopilotObjectiveStatus Active { get; } = new("active");
+
+    /// <summary>The objective is paused and may be resumed.</summary>
+    public static AutopilotObjectiveStatus Paused { get; } = new("paused");
+
+    /// <summary>The objective completed.</summary>
+    public static AutopilotObjectiveStatus Completed { get; } = new("completed");
+
+    /// <summary>Returns a value indicating whether two <see cref="AutopilotObjectiveStatus"/> instances are equivalent.</summary>
+    public static bool operator ==(AutopilotObjectiveStatus left, AutopilotObjectiveStatus right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="AutopilotObjectiveStatus"/> instances are not equivalent.</summary>
+    public static bool operator !=(AutopilotObjectiveStatus left, AutopilotObjectiveStatus right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is AutopilotObjectiveStatus other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(AutopilotObjectiveStatus other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{AutopilotObjectiveStatus}"/> for serializing <see cref="AutopilotObjectiveStatus"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<AutopilotObjectiveStatus>
+    {
+        /// <inheritdoc />
+        public override AutopilotObjectiveStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, AutopilotObjectiveStatus value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AutopilotObjectiveStatus));
+        }
+    }
+}
+
+
 /// <summary>Whether task execution is synchronously awaited or managed in the background.</summary>
 [Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -24578,6 +25533,267 @@ public readonly struct TaskStatus : IEquatable<TaskStatus>
 }
 
 
+/// <summary>Client-owned tasks always execute outside the runtime in background mode.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct TaskClientExecutionMode : IEquatable<TaskClientExecutionMode>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="TaskClientExecutionMode"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="TaskClientExecutionMode"/>.</param>
+    [JsonConstructor]
+    public TaskClientExecutionMode(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="TaskClientExecutionMode"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Gets the <c>background</c> value.</summary>
+    public static TaskClientExecutionMode Background { get; } = new("background");
+
+    /// <summary>Returns a value indicating whether two <see cref="TaskClientExecutionMode"/> instances are equivalent.</summary>
+    public static bool operator ==(TaskClientExecutionMode left, TaskClientExecutionMode right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="TaskClientExecutionMode"/> instances are not equivalent.</summary>
+    public static bool operator !=(TaskClientExecutionMode left, TaskClientExecutionMode right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is TaskClientExecutionMode other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(TaskClientExecutionMode other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{TaskClientExecutionMode}"/> for serializing <see cref="TaskClientExecutionMode"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<TaskClientExecutionMode>
+    {
+        /// <inheritdoc />
+        public override TaskClientExecutionMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, TaskClientExecutionMode value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(TaskClientExecutionMode));
+        }
+    }
+}
+
+
+/// <summary>Connection class owning a client task.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct TaskClientOwnerKind : IEquatable<TaskClientOwnerKind>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="TaskClientOwnerKind"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="TaskClientOwnerKind"/>.</param>
+    [JsonConstructor]
+    public TaskClientOwnerKind(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="TaskClientOwnerKind"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>A discovered extension connection owns the task.</summary>
+    public static TaskClientOwnerKind Extension { get; } = new("extension");
+
+    /// <summary>A generic SDK connection owns the task.</summary>
+    public static TaskClientOwnerKind Sdk { get; } = new("sdk");
+
+    /// <summary>Returns a value indicating whether two <see cref="TaskClientOwnerKind"/> instances are equivalent.</summary>
+    public static bool operator ==(TaskClientOwnerKind left, TaskClientOwnerKind right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="TaskClientOwnerKind"/> instances are not equivalent.</summary>
+    public static bool operator !=(TaskClientOwnerKind left, TaskClientOwnerKind right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is TaskClientOwnerKind other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(TaskClientOwnerKind other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{TaskClientOwnerKind}"/> for serializing <see cref="TaskClientOwnerKind"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<TaskClientOwnerKind>
+    {
+        /// <inheritdoc />
+        public override TaskClientOwnerKind Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, TaskClientOwnerKind value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(TaskClientOwnerKind));
+        }
+    }
+}
+
+
+/// <summary>Presence of the task's bound join.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct TaskClientOwnerPresence : IEquatable<TaskClientOwnerPresence>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="TaskClientOwnerPresence"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="TaskClientOwnerPresence"/>.</param>
+    [JsonConstructor]
+    public TaskClientOwnerPresence(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="TaskClientOwnerPresence"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The bound session join is connected.</summary>
+    public static TaskClientOwnerPresence Connected { get; } = new("connected");
+
+    /// <summary>The bound session join is disconnected.</summary>
+    public static TaskClientOwnerPresence Disconnected { get; } = new("disconnected");
+
+    /// <summary>Returns a value indicating whether two <see cref="TaskClientOwnerPresence"/> instances are equivalent.</summary>
+    public static bool operator ==(TaskClientOwnerPresence left, TaskClientOwnerPresence right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="TaskClientOwnerPresence"/> instances are not equivalent.</summary>
+    public static bool operator !=(TaskClientOwnerPresence left, TaskClientOwnerPresence right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is TaskClientOwnerPresence other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(TaskClientOwnerPresence other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{TaskClientOwnerPresence}"/> for serializing <see cref="TaskClientOwnerPresence"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<TaskClientOwnerPresence>
+    {
+        /// <inheritdoc />
+        public override TaskClientOwnerPresence Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, TaskClientOwnerPresence value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(TaskClientOwnerPresence));
+        }
+    }
+}
+
+
+/// <summary>Lifecycle status of a client-owned task.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct TaskClientStatus : IEquatable<TaskClientStatus>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="TaskClientStatus"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="TaskClientStatus"/>.</param>
+    [JsonConstructor]
+    public TaskClientStatus(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="TaskClientStatus"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The external owner is actively working.</summary>
+    public static TaskClientStatus Running { get; } = new("running");
+
+    /// <summary>The external owner is connected but waiting.</summary>
+    public static TaskClientStatus Idle { get; } = new("idle");
+
+    /// <summary>The owner reported successful completion.</summary>
+    public static TaskClientStatus Completed { get; } = new("completed");
+
+    /// <summary>The owner reported failure.</summary>
+    public static TaskClientStatus Failed { get; } = new("failed");
+
+    /// <summary>The owner reported or confirmed cancellation.</summary>
+    public static TaskClientStatus Cancelled { get; } = new("cancelled");
+
+    /// <summary>The bound owner join disappeared; external executor state is unknown.</summary>
+    public static TaskClientStatus Orphaned { get; } = new("orphaned");
+
+    /// <summary>Returns a value indicating whether two <see cref="TaskClientStatus"/> instances are equivalent.</summary>
+    public static bool operator ==(TaskClientStatus left, TaskClientStatus right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="TaskClientStatus"/> instances are not equivalent.</summary>
+    public static bool operator !=(TaskClientStatus left, TaskClientStatus right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is TaskClientStatus other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(TaskClientStatus other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{TaskClientStatus}"/> for serializing <see cref="TaskClientStatus"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<TaskClientStatus>
+    {
+        /// <inheritdoc />
+        public override TaskClientStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, TaskClientStatus value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(TaskClientStatus));
+        }
+    }
+}
+
+
 /// <summary>Whether the shell runs inside a managed PTY session or as an independent background process.</summary>
 [Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -24636,6 +25852,129 @@ public readonly struct TaskShellInfoAttachmentMode : IEquatable<TaskShellInfoAtt
         public override void Write(Utf8JsonWriter writer, TaskShellInfoAttachmentMode value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(TaskShellInfoAttachmentMode));
+        }
+    }
+}
+
+
+/// <summary>Discriminator for a client-owned task.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct TaskClientType : IEquatable<TaskClientType>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="TaskClientType"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="TaskClientType"/>.</param>
+    [JsonConstructor]
+    public TaskClientType(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="TaskClientType"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Gets the <c>client</c> value.</summary>
+    public static TaskClientType Client { get; } = new("client");
+
+    /// <summary>Returns a value indicating whether two <see cref="TaskClientType"/> instances are equivalent.</summary>
+    public static bool operator ==(TaskClientType left, TaskClientType right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="TaskClientType"/> instances are not equivalent.</summary>
+    public static bool operator !=(TaskClientType left, TaskClientType right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is TaskClientType other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(TaskClientType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{TaskClientType}"/> for serializing <see cref="TaskClientType"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<TaskClientType>
+    {
+        /// <inheritdoc />
+        public override TaskClientType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, TaskClientType value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(TaskClientType));
+        }
+    }
+}
+
+
+/// <summary>Active status a client owner may publish with a progress update.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct TaskClientActiveStatus : IEquatable<TaskClientActiveStatus>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="TaskClientActiveStatus"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="TaskClientActiveStatus"/>.</param>
+    [JsonConstructor]
+    public TaskClientActiveStatus(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="TaskClientActiveStatus"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The external owner is actively working.</summary>
+    public static TaskClientActiveStatus Running { get; } = new("running");
+
+    /// <summary>The external owner is connected but waiting.</summary>
+    public static TaskClientActiveStatus Idle { get; } = new("idle");
+
+    /// <summary>Returns a value indicating whether two <see cref="TaskClientActiveStatus"/> instances are equivalent.</summary>
+    public static bool operator ==(TaskClientActiveStatus left, TaskClientActiveStatus right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="TaskClientActiveStatus"/> instances are not equivalent.</summary>
+    public static bool operator !=(TaskClientActiveStatus left, TaskClientActiveStatus right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is TaskClientActiveStatus other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(TaskClientActiveStatus other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{TaskClientActiveStatus}"/> for serializing <see cref="TaskClientActiveStatus"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<TaskClientActiveStatus>
+    {
+        /// <inheritdoc />
+        public override TaskClientActiveStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, TaskClientActiveStatus value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(TaskClientActiveStatus));
         }
     }
 }
@@ -29479,6 +30818,69 @@ public readonly struct SessionVisibilityStatus : IEquatable<SessionVisibilitySta
 }
 
 
+/// <summary>Why the runtime requests client-task cancellation.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ClientTaskCancelReason : IEquatable<ClientTaskCancelReason>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ClientTaskCancelReason"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ClientTaskCancelReason"/>.</param>
+    [JsonConstructor]
+    public ClientTaskCancelReason(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ClientTaskCancelReason"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>A caller requested task cancellation.</summary>
+    public static ClientTaskCancelReason CancelRequested { get; } = new("cancel_requested");
+
+    /// <summary>The session is shutting down.</summary>
+    public static ClientTaskCancelReason SessionShutdown { get; } = new("session_shutdown");
+
+    /// <summary>Returns a value indicating whether two <see cref="ClientTaskCancelReason"/> instances are equivalent.</summary>
+    public static bool operator ==(ClientTaskCancelReason left, ClientTaskCancelReason right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ClientTaskCancelReason"/> instances are not equivalent.</summary>
+    public static bool operator !=(ClientTaskCancelReason left, ClientTaskCancelReason right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ClientTaskCancelReason other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ClientTaskCancelReason other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ClientTaskCancelReason}"/> for serializing <see cref="ClientTaskCancelReason"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ClientTaskCancelReason>
+    {
+        /// <inheritdoc />
+        public override ClientTaskCancelReason Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ClientTaskCancelReason value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ClientTaskCancelReason));
+        }
+    }
+}
+
+
 /// <summary>Error classification.</summary>
 [Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -29887,13 +31289,14 @@ public sealed class ServerRpc
     /// <summary>Performs the SDK server connection handshake and validates the optional connection token. Marked internal because this is JSON-RPC transport plumbing invoked automatically by an SDK client's own `connect()` wrapper, not a user-facing method. Stays internal as long as the SDK client owns the handshake; would only become public if the SDK ever exposed the raw schema surface to consumers without a connection wrapper.</summary>
     /// <param name="enableGitHubTelemetryForwarding">Opt this connection in to GitHub telemetry forwarding for its lifetime. When set, the runtime forwards every internal telemetry event it emits — across all sessions, plus sessionless events — to this connection over the `gitHubTelemetry.event` notification. Regular events are also written to the runtime's normal GitHub/CTS path (dual-write); host-only compatibility events are forward-only and intentionally skip that path. Intended for first-party hosts that re-emit the events into their own telemetry stores. Both unrestricted and restricted events are forwarded, each tagged with a `restricted` discriminator; a backstop drops restricted events when restricted telemetry is disabled — using the process-global gate for ordinary events and an explicit session-scoped decision for host-only events.</param>
     /// <param name="clientInfo">Identity of the integrating host. Optional; omit it to keep the default attribution.</param>
+    /// <param name="supportedTaskKinds">Task kinds this connection can decode when observing session tasks. Omit to retain agent and shell compatibility.</param>
     /// <param name="token">Connection token; required when the server was started with COPILOT_CONNECTION_TOKEN.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Handshake result reporting the server's protocol version and package version on success.</returns>
     [Experimental(Diagnostics.Experimental)]
-    internal async Task<ConnectResult> ConnectAsync(bool? enableGitHubTelemetryForwarding = null, ConnectClientInfo? clientInfo = null, string? token = null, CancellationToken cancellationToken = default)
+    internal async Task<ConnectResult> ConnectAsync(bool? enableGitHubTelemetryForwarding = null, ConnectClientInfo? clientInfo = null, IList<TaskKind>? supportedTaskKinds = null, string? token = null, CancellationToken cancellationToken = default)
     {
-        var request = new ConnectRequest { EnableGitHubTelemetryForwarding = enableGitHubTelemetryForwarding, ClientInfo = clientInfo, Token = token };
+        var request = new ConnectRequest { EnableGitHubTelemetryForwarding = enableGitHubTelemetryForwarding, ClientInfo = clientInfo, SupportedTaskKinds = supportedTaskKinds, Token = token };
         return await CopilotClient.InvokeRpcAsync<ConnectResult>(_rpc, "connect", [request], cancellationToken);
     }
 
@@ -30281,12 +31684,13 @@ public sealed class ServerMcpConfigApi
 
     /// <summary>Removes an MCP server from user configuration.</summary>
     /// <param name="name">Name of the MCP server to remove.</param>
+    /// <param name="authClientIdMetadataUrl">OAuth Client ID Metadata Document URL whose persisted credentials should also be removed.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    public async Task RemoveAsync(string name, CancellationToken cancellationToken = default)
+    public async Task RemoveAsync(string name, string? authClientIdMetadataUrl = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(name);
 
-        var request = new McpConfigRemoveRequest { Name = name };
+        var request = new McpConfigRemoveRequest { Name = name, AuthClientIdMetadataUrl = authClientIdMetadataUrl };
         await CopilotClient.InvokeRpcAsync(_rpc, "mcp.config.remove", [request], cancellationToken);
     }
 
@@ -30818,6 +32222,13 @@ public sealed class ServerManagedSettingsApi
     public async Task<ManagedSettingsReadResult> ReadAsync(CancellationToken cancellationToken = default)
     {
         return await CopilotClient.InvokeRpcAsync<ManagedSettingsReadResult>(_rpc, "managedSettings.read", [], cancellationToken);
+    }
+
+    /// <summary>Force-refreshes enterprise managed settings for every account: wipes the persistent server-policy cache (the whole `&lt;cacheHome&gt;/managed-settings` directory) and drops this runtime process's in-memory retained server policy. It does not itself fetch policy — the effect is that the next time a session resolves managed settings for an account, that resolution re-fetches the account's org policy from the network instead of serving a cached response. Note that `managedSettings.read` returns only device/MDM settings and never triggers the account server-policy fetch, so a host implementing "sync account policy" should start a fresh session resolution rather than treat a subsequent `managedSettings.read` as the refreshed org policy. Mirrors the invalidation a sign-out performs, broadened from the one signing-out account to all of them; device/MDM layers describe the machine, not the account, and are left untouched. Rejects if the on-disk cache cannot be removed.</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    public async Task ClearCacheAsync(CancellationToken cancellationToken = default)
+    {
+        await CopilotClient.InvokeRpcAsync(_rpc, "managedSettings.clearCache", [], cancellationToken);
     }
 }
 
@@ -31407,6 +32818,12 @@ public sealed class SessionRpc
 
     /// <summary>Workspaces APIs.</summary>
     public WorkspacesApi Workspaces =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_session), null) ??
+        field;
+
+    /// <summary>AutopilotObjective APIs.</summary>
+    public AutopilotObjectiveApi AutopilotObjective =>
         field ??
         Interlocked.CompareExchange(ref field, new(_session), null) ??
         field;
@@ -32303,9 +33720,9 @@ public sealed class ModelApi
         _session = session;
     }
 
-    /// <summary>Gets the currently selected model for the session.</summary>
+    /// <summary>Gets the session's authoritative model snapshot, including the committed Auto preference and any newer unclaimed Auto preference waiting for a future user turn.</summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>The currently selected model, reasoning effort, and context tier for the session. The context tier reflects `Session.getContextTier()`, restored from the session journal on resume.</returns>
+    /// <returns>The session's authoritative model snapshot. Auto preference fields are configuration for the virtual `auto` model and do not change the selected model identifier. The context tier reflects `Session.getContextTier()`, restored from the session journal on resume.</returns>
     public async Task<CurrentModel> GetCurrentAsync(CancellationToken cancellationToken = default)
     {
         _session.ThrowIfDisposed();
@@ -32316,6 +33733,7 @@ public sealed class ModelApi
 
     /// <summary>Switches the session to a model and optional reasoning configuration.</summary>
     /// <param name="modelId">Model selection id to switch to, as returned by `list`. A bare id (e.g. `claude-sonnet-4.6`) names a Copilot (CAPI) model; a provider-qualified id (`provider/id`, e.g. `acme/claude-sonnet`) targets a registry BYOK model.</param>
+    /// <param name="autoTier">Optional Auto routing preference to stage atomically with selecting `auto`. Pass null to return to provider-default Auto routing. This field is rejected when `modelId` is not `auto`.</param>
     /// <param name="reasoningEffort">Reasoning effort level to use for the model. CAPI values are model-defined and validated against the selected model; BYOK providers may define additional values. "none" disables reasoning. When omitted, no effort override is applied.</param>
     /// <param name="reasoningSummary">Reasoning summary mode to request for supported model clients.</param>
     /// <param name="verbosity">Output verbosity level to request for supported models.</param>
@@ -32331,13 +33749,26 @@ public sealed class ModelApi
     /// <param name="pickerPersistence">Optional settings context and explicit-override flags used to persist a picker selection.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>The model identifier active on the session after the switch.</returns>
-    public async Task<ModelSwitchToResult> SwitchToAsync(string modelId, string? reasoningEffort = null, ReasoningSummary? reasoningSummary = null, Verbosity? verbosity = null, ModelCapabilitiesOverride? modelCapabilities = null, ContextTier? contextTier = null, ModelChangeSource? source = null, bool? deferIfModelChangeQueued = null, string? compactionDecision = null, bool? runCompactionPreflight = null, string? repoScope = null, string? modelChangeScope = null, bool? requireAvailable = null, ModelPickerPersistenceRequest? pickerPersistence = null, CancellationToken cancellationToken = default)
+    public async Task<ModelSwitchToResult> SwitchToAsync(string modelId, AutoTier? autoTier = null, string? reasoningEffort = null, ReasoningSummary? reasoningSummary = null, Verbosity? verbosity = null, ModelCapabilitiesOverride? modelCapabilities = null, ContextTier? contextTier = null, ModelChangeSource? source = null, bool? deferIfModelChangeQueued = null, string? compactionDecision = null, bool? runCompactionPreflight = null, string? repoScope = null, string? modelChangeScope = null, bool? requireAvailable = null, ModelPickerPersistenceRequest? pickerPersistence = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(modelId);
         _session.ThrowIfDisposed();
 
-        var request = new ModelSwitchToRequest { SessionId = _session.SessionId, ModelId = modelId, ReasoningEffort = reasoningEffort, ReasoningSummary = reasoningSummary, Verbosity = verbosity, ModelCapabilities = modelCapabilities, ContextTier = contextTier, Source = source, DeferIfModelChangeQueued = deferIfModelChangeQueued, CompactionDecision = compactionDecision, RunCompactionPreflight = runCompactionPreflight, RepoScope = repoScope, ModelChangeScope = modelChangeScope, RequireAvailable = requireAvailable, PickerPersistence = pickerPersistence };
+        var request = new ModelSwitchToRequest { SessionId = _session.SessionId, ModelId = modelId, AutoTier = autoTier, ReasoningEffort = reasoningEffort, ReasoningSummary = reasoningSummary, Verbosity = verbosity, ModelCapabilities = modelCapabilities, ContextTier = contextTier, Source = source, DeferIfModelChangeQueued = deferIfModelChangeQueued, CompactionDecision = compactionDecision, RunCompactionPreflight = runCompactionPreflight, RepoScope = repoScope, ModelChangeScope = modelChangeScope, RequireAvailable = requireAvailable, PickerPersistence = pickerPersistence };
         return await CopilotClient.InvokeRpcAsync<ModelSwitchToResult>(_session.Rpc, "session.model.switchTo", [request], cancellationToken);
+    }
+
+    /// <summary>Requests an Auto preference change without changing the session's selected model. The latest unclaimed request wins; the runtime commits it only after a later prompt using the `auto` model mints a usable model and token pair. A `pending` response confirms that the request was accepted, not that it committed. Observe eventual success through `session.model_change`, failure through the ephemeral `session.auto_tier_switch_failed` event, or current unclaimed state through `session.model.getCurrent`.</summary>
+    /// <param name="autoTier">Auto preference to activate when a future user turn using the `auto` model safely mints a replacement model and token pair. Pass null to return to provider-default Auto routing.</param>
+    /// <param name="source">Origin to record on the effective `session.model_change` event. Defaults to `sdk` when omitted.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Immediate acknowledgement and Auto preference snapshot after a switch request. This result never implies that a pending preference committed.</returns>
+    public async Task<ModelSwitchAutoTierResult> SwitchAutoTierAsync(AutoTier? autoTier, ModelChangeSource? source = null, CancellationToken cancellationToken = default)
+    {
+        _session.ThrowIfDisposed();
+
+        var request = new ModelSwitchAutoTierRequest { SessionId = _session.SessionId, AutoTier = autoTier, Source = source };
+        return await CopilotClient.InvokeRpcAsync<ModelSwitchAutoTierResult>(_session.Rpc, "session.model.switchAutoTier", [request], cancellationToken);
     }
 
     /// <summary>Resolves and applies organization-managed and repository model overlays.</summary>
@@ -32753,6 +34184,29 @@ public sealed class WorkspacesApi
     }
 }
 
+/// <summary>Provides session-scoped AutopilotObjective APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class AutopilotObjectiveApi
+{
+    private readonly CopilotSession _session;
+
+    internal AutopilotObjectiveApi(CopilotSession session)
+    {
+        _session = session;
+    }
+
+    /// <summary>Reads the current canonical autopilot objective state for this session.</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Canonical runtime state for the session's current autopilot objective.</returns>
+    public async Task<AutopilotObjectiveGetStateResult> GetStateAsync(CancellationToken cancellationToken = default)
+    {
+        _session.ThrowIfDisposed();
+
+        var request = new SessionAutopilotObjectiveGetStateRequest { SessionId = _session.SessionId };
+        return await CopilotClient.InvokeRpcAsync<AutopilotObjectiveGetStateResult>(_session.Rpc, "session.autopilotObjective.getState", [request], cancellationToken);
+    }
+}
+
 /// <summary>Provides session-scoped Completions APIs.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class CompletionsApi
@@ -32959,6 +34413,41 @@ public sealed class TasksApi
 
         var request = new SessionTasksListRequest { SessionId = _session.SessionId };
         return await CopilotClient.InvokeRpcAsync<TaskList>(_session.Rpc, "session.tasks.list", [request], cancellationToken);
+    }
+
+    /// <summary>Registers a client-owned task, or reclaims an orphaned task belonging to the same extension principal.</summary>
+    /// <param name="type">Task kind.</param>
+    /// <param name="clientTaskId">Owner-scoped idempotency key used for registration and reclaim.</param>
+    /// <param name="description">Human-readable description of the external work.</param>
+    /// <param name="cancellable">Whether the owner supports runtime cancellation requests.</param>
+    /// <param name="displayName">Optional short display name for the external work.</param>
+    /// <param name="expectedSequence">Expected current sequence for idempotent registration or orphan reclaim.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Result of registering or reclaiming a client-owned task.</returns>
+    public async Task<TasksRegisterResult> RegisterAsync(TaskClientType type, string clientTaskId, string description, bool cancellable, string? displayName = null, long? expectedSequence = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(clientTaskId);
+        ArgumentNullException.ThrowIfNull(description);
+        _session.ThrowIfDisposed();
+
+        var request = new TasksRegisterRequest { SessionId = _session.SessionId, Type = type, ClientTaskId = clientTaskId, Description = description, Cancellable = cancellable, DisplayName = displayName, ExpectedSequence = expectedSequence };
+        return await CopilotClient.InvokeRpcAsync<TasksRegisterResult>(_session.Rpc, "session.tasks.register", [request], cancellationToken);
+    }
+
+    /// <summary>Publishes generic progress or a terminal outcome for a client-owned task.</summary>
+    /// <param name="id">Canonical runtime-generated task identifier.</param>
+    /// <param name="sequence">Owner update sequence to apply.</param>
+    /// <param name="update">Progress or terminal update payload.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Result of publishing a client-owned task update.</returns>
+    public async Task<TasksUpdateResult> UpdateAsync(string id, long sequence, TaskClientUpdate update, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(id);
+        ArgumentNullException.ThrowIfNull(update);
+        _session.ThrowIfDisposed();
+
+        var request = new TasksUpdateRequest { SessionId = _session.SessionId, Id = id, Sequence = sequence, Update = update };
+        return await CopilotClient.InvokeRpcAsync<TasksUpdateResult>(_session.Rpc, "session.tasks.update", [request], cancellationToken);
     }
 
     /// <summary>Refreshes metadata for any detached background shells the runtime knows about.</summary>
@@ -35664,6 +37153,17 @@ public interface IFactoryHandler
     Task<FactoryAckResult> AbortAsync(FactoryAbortRequest request, CancellationToken cancellationToken = default);
 }
 
+/// <summary>Handles `tasks` client session API methods.</summary>
+[Experimental(Diagnostics.Experimental)]
+public interface ITasksHandler
+{
+    /// <summary>Asks the client currently bound to a client-owned session task to confirm that its external work stopped.</summary>
+    /// <param name="request">Runtime-to-owner cancellation request for a client-owned task.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Whether the client authoritatively confirmed its external work stopped.</returns>
+    Task<ClientTaskCancelResult> CancelAsync(ClientTaskCancelRequest request, CancellationToken cancellationToken = default);
+}
+
 /// <summary>Handles `sessionFs` client session API methods.</summary>
 [Experimental(Diagnostics.Experimental)]
 public interface ISessionFsHandler
@@ -35764,6 +37264,9 @@ public sealed class ClientSessionApiHandlers
     /// <summary>Optional handler for Factory client session API methods.</summary>
     public IFactoryHandler? Factory { get; set; }
 
+    /// <summary>Optional handler for Tasks client session API methods.</summary>
+    public ITasksHandler? Tasks { get; set; }
+
     /// <summary>Optional handler for SessionFs client session API methods.</summary>
     public ISessionFsHandler? SessionFs { get; set; }
 
@@ -35798,6 +37301,12 @@ internal static class ClientSessionApiRegistration
             var handler = getHandlers(request.SessionId).Factory;
             if (handler is null) throw new InvalidOperationException($"No factory handler registered for session: {request.SessionId}");
             return await handler.AbortAsync(request, cancellationToken);
+        }), singleObjectParam: true);
+        rpc.SetLocalRpcMethod("tasks.cancel", (Func<ClientTaskCancelRequest, CancellationToken, ValueTask<ClientTaskCancelResult>>)(async (request, cancellationToken) =>
+        {
+            var handler = getHandlers(request.SessionId).Tasks;
+            if (handler is null) throw new InvalidOperationException($"No tasks handler registered for session: {request.SessionId}");
+            return await handler.CancelAsync(request, cancellationToken);
         }), singleObjectParam: true);
         rpc.SetLocalRpcMethod("sessionFs.readFile", (Func<SessionFsReadFileRequest, CancellationToken, ValueTask<SessionFsReadFileResult>>)(async (request, cancellationToken) =>
         {
@@ -36092,6 +37601,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.AutoModeSwitchRequestedEvent), TypeInfoPropertyName = "SessionEventsAutoModeSwitchRequestedEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.AutoModeSwitchResponse), TypeInfoPropertyName = "SessionEventsAutoModeSwitchResponse")]
 [JsonSerializable(typeof(GitHub.Copilot.AutoTier), TypeInfoPropertyName = "SessionEventsAutoTier")]
+[JsonSerializable(typeof(GitHub.Copilot.AutoTierSwitchFailureReason), TypeInfoPropertyName = "SessionEventsAutoTierSwitchFailureReason")]
 [JsonSerializable(typeof(GitHub.Copilot.AutopilotObjectiveChangedOperation), TypeInfoPropertyName = "SessionEventsAutopilotObjectiveChangedOperation")]
 [JsonSerializable(typeof(GitHub.Copilot.AutopilotObjectiveChangedStatus), TypeInfoPropertyName = "SessionEventsAutopilotObjectiveChangedStatus")]
 [JsonSerializable(typeof(GitHub.Copilot.BinaryAssetReference), TypeInfoPropertyName = "SessionEventsBinaryAssetReference")]
@@ -36210,6 +37720,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.McpOauthWWWAuthenticateParams), TypeInfoPropertyName = "SessionEventsMcpOauthWWWAuthenticateParams")]
 [JsonSerializable(typeof(GitHub.Copilot.McpPromptsListChangedEvent), TypeInfoPropertyName = "SessionEventsMcpPromptsListChangedEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.McpResourcesListChangedEvent), TypeInfoPropertyName = "SessionEventsMcpResourcesListChangedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.McpServerMetadata), TypeInfoPropertyName = "SessionEventsMcpServerMetadata")]
 [JsonSerializable(typeof(GitHub.Copilot.McpServerSource), TypeInfoPropertyName = "SessionEventsMcpServerSource")]
 [JsonSerializable(typeof(GitHub.Copilot.McpServerStatus), TypeInfoPropertyName = "SessionEventsMcpServerStatus")]
 [JsonSerializable(typeof(GitHub.Copilot.McpServerTransport), TypeInfoPropertyName = "SessionEventsMcpServerTransport")]
@@ -36283,6 +37794,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.PromptCacheBreakData), TypeInfoPropertyName = "SessionEventsPromptCacheBreakData")]
 [JsonSerializable(typeof(GitHub.Copilot.PromptCacheBreakEvent), TypeInfoPropertyName = "SessionEventsPromptCacheBreakEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.ReasoningSummary), TypeInfoPropertyName = "SessionEventsReasoningSummary")]
+[JsonSerializable(typeof(GitHub.Copilot.RemediationAction), TypeInfoPropertyName = "SessionEventsRemediationAction")]
 [JsonSerializable(typeof(GitHub.Copilot.SamplingCompletedData), TypeInfoPropertyName = "SessionEventsSamplingCompletedData")]
 [JsonSerializable(typeof(GitHub.Copilot.SamplingCompletedEvent), TypeInfoPropertyName = "SessionEventsSamplingCompletedEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.SamplingRequestedData), TypeInfoPropertyName = "SessionEventsSamplingRequestedData")]
@@ -36437,6 +37949,9 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(AuthIdentity))]
 [JsonSerializable(typeof(AuthInfo))]
 [JsonSerializable(typeof(AuthValidationError))]
+[JsonSerializable(typeof(AutopilotObjectiveCreditLimit))]
+[JsonSerializable(typeof(AutopilotObjectiveGetStateResult))]
+[JsonSerializable(typeof(AutopilotObjectiveState))]
 [JsonSerializable(typeof(BuiltInModelCatalog))]
 [JsonSerializable(typeof(BuiltInModelCatalogEntry))]
 [JsonSerializable(typeof(BuiltinToolDescriptor))]
@@ -36469,6 +37984,8 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(CatalogNegotiatedContract))]
 [JsonSerializable(typeof(CatalogSearchRequest))]
 [JsonSerializable(typeof(CatalogSearchResult))]
+[JsonSerializable(typeof(ClientTaskCancelRequest))]
+[JsonSerializable(typeof(ClientTaskCancelResult))]
 [JsonSerializable(typeof(CommandList))]
 [JsonSerializable(typeof(CommandsFinalizeInvocationEffectRequest))]
 [JsonSerializable(typeof(CommandsFinalizeInvocationEffectRequestEffect))]
@@ -36775,6 +38292,8 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(ModelPolicy))]
 [JsonSerializable(typeof(ModelSetReasoningEffortRequest))]
 [JsonSerializable(typeof(ModelSetReasoningEffortResult))]
+[JsonSerializable(typeof(ModelSwitchAutoTierRequest))]
+[JsonSerializable(typeof(ModelSwitchAutoTierResult))]
 [JsonSerializable(typeof(ModelSwitchConfirmation))]
 [JsonSerializable(typeof(ModelSwitchToRequest))]
 [JsonSerializable(typeof(ModelSwitchToResult))]
@@ -36974,6 +38493,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SessionAuthLogoutUserRequest))]
 [JsonSerializable(typeof(SessionAuthStatus))]
 [JsonSerializable(typeof(SessionAuthSwitchRequest))]
+[JsonSerializable(typeof(SessionAutopilotObjectiveGetStateRequest))]
 [JsonSerializable(typeof(SessionBulkDeleteResult))]
 [JsonSerializable(typeof(SessionCancelAllBackgroundAgentsRequest))]
 [JsonSerializable(typeof(SessionCanvasListOpenRequest))]
@@ -37195,27 +38715,34 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SlashCommandSelectSubcommandOption))]
 [JsonSerializable(typeof(SlashCommandTimelineEntry))]
 [JsonSerializable(typeof(SubagentSettingsEntry))]
+[JsonSerializable(typeof(TaskClientInfo))]
+[JsonSerializable(typeof(TaskClientOwner))]
+[JsonSerializable(typeof(TaskClientUpdate))]
 [JsonSerializable(typeof(TaskCompleteData))]
 [JsonSerializable(typeof(TaskCompletionDecision))]
 [JsonSerializable(typeof(TaskInfo))]
 [JsonSerializable(typeof(TaskList))]
+[JsonSerializable(typeof(TaskProgress))]
 [JsonSerializable(typeof(TaskProgressLine))]
 [JsonSerializable(typeof(TasksCancelRequest))]
 [JsonSerializable(typeof(TasksCancelResult))]
 [JsonSerializable(typeof(TasksGetCurrentPromotableResult))]
 [JsonSerializable(typeof(TasksGetProgressRequest))]
 [JsonSerializable(typeof(TasksGetProgressResult))]
-[JsonSerializable(typeof(TasksGetProgressResultProgress))]
 [JsonSerializable(typeof(TasksPromoteCurrentToBackgroundResult))]
 [JsonSerializable(typeof(TasksPromoteToBackgroundRequest))]
 [JsonSerializable(typeof(TasksPromoteToBackgroundResult))]
 [JsonSerializable(typeof(TasksRefreshResult))]
+[JsonSerializable(typeof(TasksRegisterRequest))]
+[JsonSerializable(typeof(TasksRegisterResult))]
 [JsonSerializable(typeof(TasksRemoveRequest))]
 [JsonSerializable(typeof(TasksRemoveResult))]
 [JsonSerializable(typeof(TasksSendMessageRequest))]
 [JsonSerializable(typeof(TasksSendMessageResult))]
 [JsonSerializable(typeof(TasksStartAgentRequest))]
 [JsonSerializable(typeof(TasksStartAgentResult))]
+[JsonSerializable(typeof(TasksUpdateRequest))]
+[JsonSerializable(typeof(TasksUpdateResult))]
 [JsonSerializable(typeof(TasksWaitForPendingResult))]
 [JsonSerializable(typeof(TelemetrySetFeatureOverridesRequest))]
 [JsonSerializable(typeof(Tool))]

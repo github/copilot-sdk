@@ -18,6 +18,25 @@ namespace GitHub.Copilot.Test.Unit;
 public class SerializationTests
 {
     [Fact]
+    public void SandboxConfig_RoundtripsAllowBypass_AndOmitsWhenAbsent()
+    {
+        var options = GetSerializerOptions();
+        var configured = new SandboxConfig { Enabled = true, AllowBypass = true };
+
+        var json = JsonSerializer.Serialize(configured, options);
+        using var document = JsonDocument.Parse(json);
+        Assert.True(document.RootElement.GetProperty("allowBypass").GetBoolean());
+
+        var roundTripped = JsonSerializer.Deserialize<SandboxConfig>(json, options);
+        Assert.NotNull(roundTripped);
+        Assert.True(roundTripped.AllowBypass);
+
+        var omitted = JsonSerializer.Serialize(new SandboxConfig { Enabled = true }, options);
+        using var omittedDocument = JsonDocument.Parse(omitted);
+        Assert.False(omittedDocument.RootElement.TryGetProperty("allowBypass", out _));
+    }
+
+    [Fact]
     public void ProviderConfig_CanSerializeHeaders_WithSdkOptions()
     {
         var options = GetSerializerOptions();
@@ -1121,6 +1140,40 @@ public class SerializationTests
         using var document = JsonDocument.Parse(json);
         Assert.False(document.RootElement.TryGetProperty("toolReferences", out _));
     }
+
+#pragma warning disable GHCP001 // The queue management surface is intentionally experimental.
+    [Theory]
+    [InlineData("message-1")]
+    [InlineData(null)]
+    public void QueuePendingItems_MessageId_UsesCamelCaseAndIsOptional(string? messageId)
+    {
+        var options = GetSerializerOptions();
+        var messageIdProperty = messageId is null ? "" : $""","messageId":"{messageId}" """;
+        var json = $$"""
+            {
+                "id": "queue-1",
+                "kind": "message",
+                "displayText": "hello",
+                "agentMode": "interactive"
+                {{messageIdProperty}}
+            }
+            """;
+
+        var item = JsonSerializer.Deserialize<QueuePendingItems>(json, options);
+        Assert.NotNull(item);
+        Assert.Equal(messageId, item.MessageId);
+
+        using var document = JsonDocument.Parse(JsonSerializer.Serialize(item, options));
+        if (messageId is null)
+        {
+            Assert.False(document.RootElement.TryGetProperty("messageId", out _));
+        }
+        else
+        {
+            Assert.Equal(messageId, document.RootElement.GetProperty("messageId").GetString());
+        }
+    }
+#pragma warning restore GHCP001
 
     private static JsonSerializerOptions GetSerializerOptions()
     {

@@ -7,6 +7,10 @@ See [GitHub Releases](https://github.com/github/copilot-sdk/releases) for the fu
 
 ## [Unreleased]
 
+### Feature: cancellation for host-owned external tools
+
+Host-owned external tool callbacks are now cancelled when their runtime request completes or their SDK session terminates. The cancellation primitive is idiomatic per SDK: .NET passes a request token to `AIFunction`, Node.js exposes `ToolInvocation.signal`, Go cancels `ToolInvocation.TraceContext`, Java cancels the returned `CompletableFuture`, Python cancels the handler task, and Rust drops the handler future. Go handlers that retain `TraceContext` for background work must derive a separate lifetime because the invocation context is cancelled when the request ends.
+
 ### Feature: declare application identity with client info
 
 Client options now accept optional client info (application name and version, integration name and version) across all six SDKs, exposed idiomatically per language (`clientInfo` in Node.js, `client_info` in Python and Rust, `ClientInfo` in Go and .NET, `setClientInfo` in Java). When set, the SDK forwards it on the `server.connect` handshake so the telemetry the runtime emits on the connection is attributed to the application and its Copilot integration instead of the runtime's own build. All fields are optional, and leaving client info unset keeps the runtime's default attribution. See [Client info](./docs/features/client-info.md).
@@ -43,6 +47,28 @@ const session = await joinSession({
 });
 const token = process.env.GITHUB_TOKEN;
 ```
+
+### Feature: early session-event subscription (Rust)
+
+The Rust SDK can now observe every event routed to a session, starting with that session's very first routed event. `Client::prepare_session` and `Client::prepare_resume_session` return an inert `PreparedSession` that owns the session's event channel, so a subscription can be installed *before* any protocol activity begins:
+
+```rust
+let prepared = client.prepare_session(
+    SessionConfig::default().with_event_buffer_capacity(2048),
+)?;
+let mut events = prepared.subscribe();
+let session = prepared.start().await?;
+```
+
+Previously, `Session::subscribe` could only be called on the returned session, so events the runtime emitted while `session.create` / `session.resume` was still in flight were broadcast with no receiver installed and dropped. Ephemeral events such as `session.idle` are not persisted, so they could not be recovered with `getMessages` either.
+
+The guarantee is scoped to *routed* events. For cloud sessions where the server assigns the session ID, the SDK cannot route notifications until the `session.create` response arrives and the ID is known, so events emitted before that point are not routable to any session. Pin `session_id` on the config to get router registration before the RPC, and with it complete pre-response coverage.
+
+`prepare_*` is synchronous and inert: it validates the buffer capacity and allocates a local channel, and performs no router registration, task spawn, or wire activity until `start()` is first polled. `start(self)` consumes the handle and `PreparedSession` is not `Clone`, so a prepared session can never produce two event loops. Dropping an unstarted handle leaves no state behind; dropping a polled `start()` future cancels the startup and unregisters the session, so a retry with the same session ID succeeds. Session registrations now carry an ownership identity, so cleanup removes only the exact registration it owns and an abandoned startup can never evict a same-ID retry (or a session that replaced it).
+
+Both `SessionConfig` and `ResumeSessionConfig` gained a runtime-only `event_buffer_capacity` option (default 512, `Some(0)` rejected as an invalid config). The buffer is finite, so slow subscribers observe `Lagged` rather than applying backpressure; consumers that need a lossless view of a large startup burst must size the buffer accordingly or drain concurrently with `start()`.
+
+`create_session` and `resume_session` are unchanged wrappers over `prepare_*(...)?.start()` with identical RPC sequences and error kinds.
 
 ### Feature: host-injected managed settings permissions
 
