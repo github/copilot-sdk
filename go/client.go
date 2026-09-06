@@ -701,8 +701,15 @@ func (c *Client) ForceStop() {
 
 	// Clear sessions immediately without trying to destroy them
 	c.sessionsMux.Lock()
+	sessions := make([]*Session, 0, len(c.sessions))
+	for _, session := range c.sessions {
+		sessions = append(sessions, session)
+	}
 	c.sessions = make(map[string]*Session)
 	c.sessionsMux.Unlock()
+	for _, session := range sessions {
+		session.cancelPendingExternalTools()
+	}
 	c.clearGitHubTokenProviders()
 
 	c.startStopMux.Lock()
@@ -1012,6 +1019,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 			delete(c.sessions, sessionID)
 		}
 		c.sessionsMux.Unlock()
+		s.cancelPendingExternalTools()
 		s.stopEventProcessing()
 	}
 
@@ -1157,6 +1165,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 			"sessionId": session.SessionID,
 			"eventType": "mcp.oauth_required",
 		}); err != nil {
+			unregisterSession(registeredSessionID, session)
 			return nil, err
 		}
 	}
@@ -1171,6 +1180,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 		ManageScheduleEnabled:  config.ManageScheduleEnabled,
 		IncludedBuiltinSkills:  config.IncludedBuiltinSkills,
 	}); err != nil {
+		unregisterSession(registeredSessionID, session)
 		return nil, err
 	}
 
@@ -1431,6 +1441,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 			}
 		}
 		c.sessionsMux.Unlock()
+		session.cancelPendingExternalTools()
 		// newSession starts processEvents eagerly, before the RPC confirms the
 		// resume; every failure path here restores the previously-registered
 		// session (if any) but never returns this failed one to the caller, so
@@ -2520,6 +2531,15 @@ func (c *Client) clearGitHubTokenProviders() {
 
 func (c *Client) handleConnectionClose() {
 	c.clearGitHubTokenProviders()
+	c.sessionsMux.Lock()
+	sessions := make([]*Session, 0, len(c.sessions))
+	for _, session := range c.sessions {
+		sessions = append(sessions, session)
+	}
+	c.sessionsMux.Unlock()
+	for _, session := range sessions {
+		session.cancelPendingExternalTools()
+	}
 	// Avoid deadlocking with Stop/ForceStop, which hold startStopMux while
 	// waiting for the JSON-RPC read loop to finish.
 	go func() {

@@ -4,6 +4,9 @@ outputs:
   cli-path:
     description: "Path to the Copilot CLI"
     value: ${{ steps.cli-path.outputs.path }}
+  javascript-cli-path:
+    description: "Path to the JavaScript Copilot CLI entrypoint"
+    value: ${{ steps.cli-path.outputs.javascript-path }}
 runs:
   using: "composite"
   steps:
@@ -28,10 +31,14 @@ runs:
           echo "Could not prepare the Copilot CLI runtime" >&2
           exit 1
         fi
+        javascript_cli_path=$(npm --prefix "$(pwd)/nodejs" run --silent prepare:runtime -- --print-legacy-path)
+        if [ -z "$javascript_cli_path" ]; then
+          echo "Could not prepare the Copilot CLI JavaScript entrypoint" >&2
+          exit 1
+        fi
         echo "path=$cli_path" >> $GITHUB_OUTPUT
+        echo "javascript-path=$javascript_cli_path" >> $GITHUB_OUTPUT
       shell: bash
     - name: Verify CLI works
-      run: |
-        legacy_cli=$(npm --prefix "$(pwd)/nodejs" run --silent prepare:runtime -- --print-legacy-path)
-        node "$legacy_cli" --version
+      run: node "${{ steps.cli-path.outputs.javascript-path }}" --version
       shell: bash

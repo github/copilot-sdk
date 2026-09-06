@@ -491,6 +491,10 @@ function handleMessage(message) {
     writeResponse(message.id, { success: true });
     return;
   }
+  if (message.method === "session.detach") {
+    writeResponse(message.id, { success: true });
+    return;
+  }
   writeResponse(message.id, {});
 }
 

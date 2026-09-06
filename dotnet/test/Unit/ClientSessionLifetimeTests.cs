@@ -513,6 +513,111 @@ public sealed class ClientSessionLifetimeTests
     }
 
     [Theory]
+    [InlineData("efficiency")]
+    [InlineData("balance")]
+    [InlineData("intelligence")]
+    public async Task SetModelAsync_Serializes_AutoTier(string expectedTier)
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        await session.SetModelAsync("auto", new SetModelOptions { AutoTier = new AutoTier(expectedTier) });
+
+        var request = Assert.Single(server.Requests, request => request.Method == "session.model.switchTo");
+        Assert.Equal("auto", request.Params.GetProperty("modelId").GetString());
+        Assert.Equal(expectedTier, request.Params.GetProperty("autoTier").GetString());
+    }
+
+    [Fact]
+    public async Task SetModelAsync_Omits_AutoTier_WhenUnset()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        await session.SetModelAsync("gpt-5.4");
+
+        var request = Assert.Single(server.Requests, request => request.Method == "session.model.switchTo");
+        Assert.False(request.Params.TryGetProperty("autoTier", out _));
+    }
+
+    [Fact]
+    public async Task SetModelAsync_Writes_Null_AutoTier_WhenCleared()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        await session.SetModelAsync("auto", new SetModelOptions { ResetAutoTier = true });
+
+        // An explicit null must survive to the wire. Omitting it would mean "leave the
+        // preference alone" rather than "use provider-default routing".
+        var request = Assert.Single(server.Requests, request => request.Method == "session.model.switchTo");
+        Assert.True(request.Params.TryGetProperty("autoTier", out var autoTier));
+        Assert.Equal(JsonValueKind.Null, autoTier.ValueKind);
+    }
+
+    [Fact]
+    public async Task SetModelAsync_Rejects_Conflicting_AutoTier_Options()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        await Assert.ThrowsAsync<ArgumentException>(() => session.SetModelAsync(
+            "auto",
+            new SetModelOptions { AutoTier = AutoTier.Balance, ResetAutoTier = true }));
+    }
+
+    [Fact]
+    public async Task SetAutoTierAsync_Serializes_Tier_And_Returns_Snapshot()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        var result = await session.SetAutoTierAsync(AutoTier.Intelligence);
+
+        var request = Assert.Single(server.Requests, request => request.Method == "session.model.switchAutoTier");
+        Assert.Equal("intelligence", request.Params.GetProperty("autoTier").GetString());
+        Assert.Equal(ModelSwitchAutoTierStatus.Pending, result.Status);
+        Assert.Equal(AutoTier.Balance, result.EffectiveAutoTier);
+    }
+
+    [Fact]
+    public async Task SetAutoTierAsync_Writes_Null_Tier_ForDefaultRouting()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        await session.SetAutoTierAsync(null);
+
+        var request = Assert.Single(server.Requests, request => request.Method == "session.model.switchAutoTier");
+        Assert.True(request.Params.TryGetProperty("autoTier", out var autoTier));
+        Assert.Equal(JsonValueKind.Null, autoTier.ValueKind);
+    }
+
+    [Theory]
     [InlineData(false, null)]
     [InlineData(true, null)]
     [InlineData(true, false)]
@@ -1112,6 +1217,252 @@ public sealed class ClientSessionLifetimeTests
     }
 
     [Fact]
+    public async Task ExternalToolCompleted_Cancels_Blocked_Tool_When_Cancellation_Callback_Throws()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        var toolStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var toolCancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            Tools = [AIFunctionFactory.Create(BlockedTool, "blocked_tool")],
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        DispatchEvent(session, ExternalToolRequested("request-1"));
+        await toolStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        DispatchEvent(session, new ExternalToolCompletedEvent
+        {
+            Data = new ExternalToolCompletedData { RequestId = "request-1" }
+        });
+
+        await toolCancelled.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Task.Delay(50);
+        Assert.DoesNotContain(server.Requests,
+            request => request.Method == "session.tools.handlePendingToolCall"
+                && request.Params.GetProperty("requestId").GetString() == "request-1");
+
+        async Task<string> BlockedTool(CancellationToken cancellationToken)
+        {
+            toolStarted.TrySetResult();
+            using var registration = cancellationToken.Register(
+                () => throw new InvalidOperationException("cancellation callback failed"));
+            try
+            {
+                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+                return "unreachable";
+            }
+            catch (OperationCanceledException)
+            {
+                toolCancelled.TrySetResult();
+                throw;
+            }
+        }
+    }
+
+    [Fact]
+    public async Task ExternalToolCompleted_Does_Not_Block_Event_Dispatch_On_Cancellation_Callback()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        var toolStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var callbackStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseCallback = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var toolCancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            Tools = [AIFunctionFactory.Create(BlockedTool, "blocked_tool")],
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        DispatchEvent(session, ExternalToolRequested("request-blocking-callback"));
+        await toolStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var dispatchTask = Task.Run(() => DispatchEvent(session, new ExternalToolCompletedEvent
+        {
+            Data = new ExternalToolCompletedData { RequestId = "request-blocking-callback" }
+        }));
+        await callbackStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        try
+        {
+            await dispatchTask.WaitAsync(TimeSpan.FromSeconds(5));
+        }
+        finally
+        {
+            releaseCallback.TrySetResult();
+        }
+        await toolCancelled.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        async Task<string> BlockedTool(CancellationToken cancellationToken)
+        {
+            toolStarted.TrySetResult();
+            using var registration = cancellationToken.Register(() =>
+            {
+                callbackStarted.TrySetResult();
+                releaseCallback.Task.GetAwaiter().GetResult();
+            });
+            try
+            {
+                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+                return "unreachable";
+            }
+            catch (OperationCanceledException)
+            {
+                toolCancelled.TrySetResult();
+                throw;
+            }
+        }
+    }
+
+    [Fact]
+    public async Task ForceStopAsync_Cancels_Blocked_Tool_When_Cancellation_Callback_Throws()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        var toolStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var toolCancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            Tools = [AIFunctionFactory.Create(BlockedTool, "blocked_tool")],
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        DispatchEvent(session, ExternalToolRequested("request-force-stop"));
+        await toolStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        await client.ForceStopAsync();
+
+        await toolCancelled.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        async Task<string> BlockedTool(CancellationToken cancellationToken)
+        {
+            toolStarted.TrySetResult();
+            using var registration = cancellationToken.Register(
+                () => throw new InvalidOperationException("cancellation callback failed"));
+            try
+            {
+                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+                return "unreachable";
+            }
+            catch (OperationCanceledException)
+            {
+                toolCancelled.TrySetResult();
+                throw;
+            }
+        }
+    }
+
+    [Fact]
+    public async Task ForceStopAsync_Does_Not_Start_Late_External_Tool()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        var toolStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            Tools = [AIFunctionFactory.Create(Tool, "late_tool")],
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        await client.ForceStopAsync();
+        DispatchEvent(session, ExternalToolRequested("request-after-force-stop", "late_tool"));
+
+        Assert.False(toolStarted.Task.IsCompleted);
+
+        string Tool()
+        {
+            toolStarted.TrySetResult();
+            return "unexpected";
+        }
+    }
+
+    [Fact]
+    public async Task ConnectionClose_Cancels_Blocked_Tool_Delegate()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        var toolStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var toolCancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            Tools = [AIFunctionFactory.Create(BlockedTool, "blocked_tool")],
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        DispatchEvent(session, ExternalToolRequested("request-connection-close"));
+        await toolStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        server.CloseConnection();
+
+        await toolCancelled.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await client.ForceStopAsync();
+
+        async Task<string> BlockedTool(CancellationToken cancellationToken)
+        {
+            toolStarted.TrySetResult();
+            try
+            {
+                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+                return "unreachable";
+            }
+            catch (OperationCanceledException)
+            {
+                toolCancelled.TrySetResult();
+                throw;
+            }
+        }
+    }
+
+    [Fact]
+    public async Task DisposeAsync_Cancels_Blocked_Tool_Delegate()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        var toolStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var toolCancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            Tools = [AIFunctionFactory.Create(BlockedTool, "blocked_tool")],
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        DispatchEvent(session, ExternalToolRequested("request-2"));
+        await toolStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        await session.DisposeAsync();
+
+        await toolCancelled.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        async Task<string> BlockedTool(CancellationToken cancellationToken)
+        {
+            toolStarted.TrySetResult();
+            try
+            {
+                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+                return "unreachable";
+            }
+            catch (OperationCanceledException)
+            {
+                toolCancelled.TrySetResult();
+                throw;
+            }
+        }
+    }
+
+    private static ExternalToolRequestedEvent ExternalToolRequested(string requestId, string toolName = "blocked_tool") =>
+        new()
+        {
+            Data = new ExternalToolRequestedData
+            {
+                RequestId = requestId,
+                SessionId = "session-1",
+                ToolCallId = "tool-call-1",
+                ToolName = toolName
+            }
+        };
+
+    [Fact]
     public async Task Generated_Session_Rpc_Throws_When_Session_Disposed()
     {
         await using var server = await FakeCopilotServer.StartAsync();
@@ -1675,6 +2026,11 @@ public sealed class ClientSessionLifetimeTests
             _failSessionCreate = true;
         }
 
+        public void CloseConnection()
+        {
+            _stream?.Dispose();
+        }
+
         public async Task<JsonElement> SendRequestAsync(string method, Dictionary<string, object?> parameters)
         {
             var stream = _stream ?? throw new InvalidOperationException("Client is not connected.");
@@ -1832,11 +2188,20 @@ public sealed class ClientSessionLifetimeTests
                 {
                     ["success"] = true
                 },
+                "session.model.switchTo" => new Dictionary<string, object?>
+                {
+                    ["modelId"] = "auto"
+                },
+                "session.model.switchAutoTier" => new Dictionary<string, object?>
+                {
+                    ["status"] = "pending",
+                    ["effectiveAutoTier"] = "balance"
+                },
                 "session.delete" => new Dictionary<string, object?>
                 {
                     ["success"] = true
                 },
-                "session.destroy" => await DestroySessionAsync(cancellationToken),
+                "session.detach" => await DetachSessionAsync(cancellationToken),
                 "runtime.shutdown" => HandleRuntimeShutdown(),
                 _ => throw new InvalidOperationException($"Unexpected RPC method '{method}'.")
             };
@@ -1873,7 +2238,7 @@ public sealed class ClientSessionLifetimeTests
             };
         }
 
-        private async Task<Dictionary<string, object?>> DestroySessionAsync(CancellationToken cancellationToken)
+        private async Task<Dictionary<string, object?>> DetachSessionAsync(CancellationToken cancellationToken)
         {
             if (_delayDestroy)
             {
@@ -1881,7 +2246,7 @@ public sealed class ClientSessionLifetimeTests
                 await _allowDestroy.Task.WaitAsync(cancellationToken);
             }
 
-            return [];
+            return new Dictionary<string, object?> { ["success"] = true };
         }
 
         private Dictionary<string, object?> HandleRuntimeShutdown()

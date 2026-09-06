@@ -92,6 +92,7 @@ from .generated.session_events import (
 )
 from .session import (
     AutoModeSwitchHandler,
+    AutoTier,
     BearerTokenProvider,
     CommandDefinition,
     ContextTier,
@@ -264,10 +265,6 @@ def _exp_assignment_response_to_dict(
     return wire
 
 
-AutoTier = Literal["efficiency", "balance", "intelligence"]
-"""Routing preference used when the session model is ``auto``."""
-
-
 class CapiSessionOptions(TypedDict, total=False):
     """Provider-scoped Copilot API (CAPI) session options."""
 
@@ -276,9 +273,13 @@ class CapiSessionOptions(TypedDict, total=False):
 
     Requires a runtime with Auto tier support and V2 Auto routing. When omitted
     on create, the runtime uses its default routing behavior. The runtime persists
-    this preference across cold resume; an explicit tier on cold resume overrides
-    the persisted value. For an already-resident session, omission preserves the
-    current tier and a different tier is rejected.
+    this preference across cold resume; when omitted on cold resume, it restores
+    the last committed preference. On resident resume, a different tier requests a
+    safe switch that takes effect after resume succeeds and never disturbs a turn
+    that is already running.
+
+    To change the preference on a live session, call
+    :meth:`CopilotSession.set_auto_tier` instead.
     """
 
     enable_web_socket_responses: bool
@@ -2191,7 +2192,10 @@ class CopilotClient:
         """
         # Clear sessions immediately without trying to destroy them
         with self._sessions_lock:
+            sessions = list(self._sessions.values())
             self._sessions.clear()
+        for session in sessions:
+            session._mark_disconnected()
         with self._github_token_providers_lock:
             self._github_token_providers.clear()
 
@@ -4859,8 +4863,22 @@ class CopilotClient:
 
     def _handle_connection_close(self) -> None:
         self._state = "disconnected"
+        with self._sessions_lock:
+            sessions = list(self._sessions.values())
         with self._github_token_providers_lock:
             self._github_token_providers.clear()
+        client = self._client
+        loop = client._loop if client is not None else None
+        if loop is not None and not loop.is_closed():
+
+            def cancel_pending_external_tools() -> None:
+                for session in sessions:
+                    session._cancel_pending_external_tools()
+
+            try:
+                loop.call_soon_threadsafe(cancel_pending_external_tools)
+            except RuntimeError:
+                logger.debug("Event loop closed while handling connection loss")
 
     def _assign_github_token_provider(self, registration_id: str | None, session_id: str) -> None:
         if registration_id is None:
