@@ -100,14 +100,14 @@ jobs:
         run: uv run pytest -v -s -n 2 --dist=loadfile
 
   # JavaScript actions use a glibc-linked Node runtime, so Alpine runs through Docker.
-  test-musl-x64:
-    name: "Python SDK Tests (Alpine x64, ${{ matrix.transport }})"
+  test-musl-arm64:
+    name: "Python SDK Tests (Alpine ARM64, ${{ matrix.transport }})"
     if: github.event.repository.fork == false
     strategy:
       fail-fast: false
       matrix:
         transport: ["default", "inprocess"]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6.0.2

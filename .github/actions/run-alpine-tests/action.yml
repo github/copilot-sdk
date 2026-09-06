@@ -1,5 +1,5 @@
 name: "Run Alpine SDK Tests"
-description: "Run an SDK test command in an x64 Alpine container."
+description: "Run an SDK test command in an ARM64 Alpine container."
 inputs:
   image:
     description: "Container image used to run the tests."
@@ -30,7 +30,7 @@ runs:
         #!/bin/sh
         set -eux
 
-        test "$(uname -m)" = "x86_64"
+        test "$(uname -m)" = "aarch64"
         ldd --version 2>&1 | grep -qi musl
 
         case "$COPILOT_SDK_TEST_TRANSPORT" in
@@ -43,7 +43,7 @@ runs:
         chmod +x "$script_path"
 
         docker run --rm \
-          --platform linux/amd64 \
+          --platform linux/arm64 \
           --volume "$GITHUB_WORKSPACE:/workspace" \
           --volume "$script_path:/tmp/copilot-sdk-alpine-test.sh:ro" \
           --workdir "$ALPINE_TEST_WORKDIR" \
@@ -55,6 +55,7 @@ runs:
           --env BUNDLED_CLI_CACHE_DIR \
           --env CARGO_TERM_COLOR \
           --env RUST_BACKTRACE \
+          --env RUSTDOCFLAGS \
           --env RUSTFLAGS \
           --env COPILOT_SDK_TEST_TRANSPORT="$ALPINE_TEST_TRANSPORT" \
           "$ALPINE_TEST_IMAGE" \

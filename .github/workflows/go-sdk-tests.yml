@@ -83,10 +83,10 @@ jobs:
         run: /bin/bash test.sh
 
   # JavaScript actions use a glibc-linked Node runtime, so Alpine runs through Docker.
-  test-musl:
-    name: "Go SDK Tests (Alpine x64, ${{ matrix.transport }})"
+  test-musl-arm64:
+    name: "Go SDK Tests (Alpine ARM64, ${{ matrix.transport }})"
     if: github.event.repository.fork == false
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     timeout-minutes: 20
     strategy:
       fail-fast: false
@@ -95,7 +95,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6.0.2
 
-      - name: Run Go SDK tests on musl x64 (${{ matrix.transport }})
+      - name: Run Go SDK tests on musl ARM64 (${{ matrix.transport }})
         uses: ./.github/actions/run-alpine-tests
         env:
           COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
@@ -109,9 +109,9 @@ jobs:
             npm --prefix test/harness ci --ignore-scripts
             runtime_path="$(npm --prefix nodejs run --silent prepare:runtime -- --print-path)"
             case "$runtime_path" in
-              */prebuilds/linuxmusl-x64/copilot-runtime) ;;
+              */prebuilds/linuxmusl-arm64/copilot-runtime) ;;
               *)
-                echo "Expected the linuxmusl-x64 runtime bundle, got: $runtime_path" >&2
+                echo "Expected the linuxmusl-arm64 runtime bundle, got: $runtime_path" >&2
                 exit 1
                 ;;
             esac
@@ -125,7 +125,7 @@ jobs:
               unset GOFLAGS
             fi
             export CGO_ENABLED=1
-            test "$(go env GOARCH)" = "amd64"
+            test "$(go env GOARCH)" = "arm64"
             test "$(go env CGO_ENABLED)" = "1"
             cd go
             /bin/bash test.sh

@@ -333,12 +333,12 @@ jobs:
           cargo test --features bundled-in-process --lib embedded_archive_contains_only_expected_files
 
   # Build natively inside Alpine so Cargo reports target_env="musl". This
-  # exercises selection and extraction of the linuxmusl-x64 runtime artifact,
+  # exercises selection and extraction of the linuxmusl-arm64 runtime artifact,
   # then runs the same default and in-process coverage as glibc Linux.
-  test-musl-x64:
-    name: "Rust SDK Tests (Alpine x64, ${{ matrix.transport }})"
+  test-musl-arm64:
+    name: "Rust SDK Tests (Alpine ARM64, ${{ matrix.transport }})"
     if: github.event.repository.fork == false
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     timeout-minutes: 60
     strategy:
       fail-fast: false
@@ -356,12 +356,13 @@ jobs:
           BUNDLED_CLI_CACHE_DIR: /workspace/rust/.bundled-cli-cache
           # Rust's musl target defaults to a static CRT, which cannot load the in-process runtime.
           RUSTFLAGS: "-C target-feature=-crt-static"
+          RUSTDOCFLAGS: "-C target-feature=-crt-static"
         with:
           image: rust:1.94.0-alpine
           workdir: /workspace/rust
           transport: ${{ matrix.transport }}
           command: |
-            rustc --print cfg | grep -Fqx "target_arch=\"x86_64\""
+            rustc --print cfg | grep -Fqx "target_arch=\"aarch64\""
             rustc --print cfg | grep -Fqx "target_env=\"musl\""
             apk add --no-cache bash build-base git pkgconf openssl-dev nodejs npm
             npm --prefix /workspace/nodejs ci --ignore-scripts
@@ -370,6 +371,9 @@ jobs:
             cd /workspace/test/harness
             npm ci --ignore-scripts
             cd /workspace/rust
+            # Keep native musl artifacts out of the mounted workspace so they cannot
+            # collide with glibc or another architecture's host-build artifacts.
+            export CARGO_TARGET_DIR=/tmp/copilot-sdk-rust-target
             if [ "$COPILOT_SDK_TEST_TRANSPORT" = "inprocess" ]; then
               unset RUST_E2E_CONCURRENCY
               cargo test --no-default-features --features test-support,bundled-in-process --test e2e -- --test-threads=1 --nocapture
