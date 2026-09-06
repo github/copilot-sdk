@@ -2005,6 +2005,9 @@ pub struct SessionConfig {
     /// Controls how MCP OAuth tokens are stored for this session.
     ///
     /// - `"persistent"` — tokens are stored in the OS keychain (shared across sessions).
+    /// - `"persistent-file"` — tokens are stored in the secure file store, persist across
+    ///   processes, and avoid steady-state OS keychain access. The runtime imports legacy
+    ///   keychain credentials.
     /// - `"in-memory"` — tokens are stored in memory and discarded when the session ends.
     ///
     /// Defaults to `"in-memory"` when the client is in [`crate::ClientMode::Empty`],
@@ -2960,6 +2963,8 @@ impl SessionConfig {
     /// Set MCP OAuth token storage mode.
     ///
     /// - `"persistent"` — tokens stored in the OS keychain.
+    /// - `"persistent-file"` — tokens stored in the secure file store and shared across
+    ///   processes without steady-state OS keychain access.
     /// - `"in-memory"` — tokens discarded when the session ends.
     ///
     /// Defaults to `"in-memory"` when the client is in [`crate::ClientMode::Empty`],
@@ -3443,7 +3448,8 @@ pub struct ResumeSessionConfig {
     /// Re-supply MCP servers so they remain available after app restart.
     pub mcp_servers: Option<IndexMap<String, McpServerConfig>>,
     /// Controls how MCP OAuth tokens are stored for this session.
-    /// See [`SessionConfig::mcp_oauth_token_storage`] for details.
+    /// See [`SessionConfig::mcp_oauth_token_storage`] for supported modes, including
+    /// `"persistent-file"`.
     pub mcp_oauth_token_storage: Option<String>,
     /// Enables runtime discovery of supported configuration. Explicitly supplied
     /// configuration takes precedence over discovered values.
@@ -4270,7 +4276,8 @@ impl ResumeSessionConfig {
     }
 
     /// Set MCP OAuth token storage mode on resume.
-    /// See [`SessionConfig::with_mcp_oauth_token_storage`] for details.
+    /// See [`SessionConfig::with_mcp_oauth_token_storage`] for supported modes, including
+    /// `"persistent-file"`.
     pub fn with_mcp_oauth_token_storage(mut self, mode: impl Into<String>) -> Self {
         self.mcp_oauth_token_storage = Some(mode.into());
         self
@@ -7215,6 +7222,26 @@ mod tests {
         assert_eq!(
             resume_json["additionalDirectories"],
             serde_json::json!(["/tmp/resumed"])
+        );
+    }
+
+    #[test]
+    fn session_configs_serialize_persistent_file_oauth_storage() {
+        let create = SessionConfig::default().with_mcp_oauth_token_storage("persistent-file");
+        let (create_wire, _) = create.into_wire(None).expect("no duplicate handlers");
+        let create_json = serde_json::to_value(&create_wire).unwrap();
+        assert_eq!(
+            create_json["mcpOauthTokenStorage"],
+            serde_json::json!("persistent-file")
+        );
+
+        let resume = ResumeSessionConfig::new(SessionId::from("sess-1"))
+            .with_mcp_oauth_token_storage("persistent-file");
+        let (resume_wire, _) = resume.into_wire().expect("no duplicate handlers");
+        let resume_json = serde_json::to_value(&resume_wire).unwrap();
+        assert_eq!(
+            resume_json["mcpOauthTokenStorage"],
+            serde_json::json!("persistent-file")
         );
     }
 
