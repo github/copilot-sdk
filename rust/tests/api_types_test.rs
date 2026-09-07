@@ -5,9 +5,10 @@
 
 use github_copilot_sdk::rpc::{
     Extension, ExtensionList, ExtensionSource, ExtensionStatus, ExtensionsDisableRequest,
-    ExtensionsEnableRequest, FleetStartRequest, FleetStartResult, ModelSwitchAutoTierRequest,
-    ModelSwitchAutoTierResult, ModelSwitchAutoTierStatus, QueuePendingItems, QueuePendingItemsKind,
-    SandboxConfig, SendAgentMode, TasksStartAgentRequest,
+    ExtensionsEnableRequest, FleetStartRequest, FleetStartResult, ModelSetAllowedModelsRequest,
+    ModelSetAllowedModelsResult, ModelSwitchAutoTierRequest, ModelSwitchAutoTierResult,
+    ModelSwitchAutoTierStatus, QueuePendingItems, QueuePendingItemsKind, SandboxConfig,
+    SendAgentMode, TasksStartAgentRequest,
 };
 use github_copilot_sdk::session_events::{
     PermissionRequest, PermissionRequestedData, SessionEventData, TypedSessionEvent,
@@ -127,6 +128,42 @@ fn tasks_start_agent_request_fields_are_accessible() {
     assert_eq!(request.agent_type, "general-purpose");
     assert_eq!(request.name, "sdk-test-task");
     assert_eq!(request.description.as_deref(), Some("SDK task agent"));
+}
+
+#[test]
+fn model_allowed_models_request_and_result_preserve_contract_fields() {
+    let replace = ModelSetAllowedModelsRequest {
+        allowed_models: Some(vec!["gpt-5.4".to_string(), "gpt-5-mini".to_string()]),
+    };
+    assert_eq!(
+        serde_json::to_value(&replace).unwrap(),
+        serde_json::json!({ "allowedModels": ["gpt-5.4", "gpt-5-mini"] })
+    );
+
+    let clear = ModelSetAllowedModelsRequest::default();
+    assert_eq!(clear.allowed_models, None);
+    assert_eq!(serde_json::to_value(&clear).unwrap(), serde_json::json!({}));
+
+    let explicit_null: ModelSetAllowedModelsRequest =
+        serde_json::from_value(serde_json::json!({ "allowedModels": null })).unwrap();
+    assert_eq!(explicit_null.allowed_models, None);
+
+    let result = ModelSetAllowedModelsResult {
+        allowed_models: Some(vec!["gpt-5.4".to_string()]),
+        effective_allowed_models: Some(vec!["gpt-5.4".to_string()]),
+        fallback_model: Some("gpt-5.4".to_string()),
+        model_id: Some("gpt-5.4".to_string()),
+    };
+    assert_eq!(
+        result.allowed_models.as_deref(),
+        Some(["gpt-5.4".to_string()].as_slice())
+    );
+    assert_eq!(
+        result.effective_allowed_models.as_deref(),
+        Some(["gpt-5.4".to_string()].as_slice())
+    );
+    assert_eq!(result.fallback_model.as_deref(), Some("gpt-5.4"));
+    assert_eq!(result.model_id.as_deref(), Some("gpt-5.4"));
 }
 
 #[test]
