@@ -623,4 +623,4 @@ Each classifier JAR includes `runtime.node`, `platform.properties`, and `copilot
 
 ## License
 
-MIT — see [LICENSE](sdk/LICENSE) for details.
+MIT — see [LICENSE](../LICENSE) for details.
