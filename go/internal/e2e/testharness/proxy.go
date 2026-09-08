@@ -4,15 +4,21 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"os/exec"
 	"regexp"
+	"runtime"
+	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
+
+const proxyShutdownTimeout = 5 * time.Second
 
 // CapiProxy manages a child process that acts as a replaying proxy to AI endpoints.
 // It spawns the shared test harness server from test/harness/server.ts.
@@ -118,6 +124,11 @@ func (p *CapiProxy) StopWithOptions(skipWritingCache bool) error {
 	if p.cmd == nil || p.cmd.Process == nil {
 		return nil
 	}
+	cmd := p.cmd
+	defer func() {
+		p.cmd = nil
+		p.proxyURL = ""
+	}()
 
 	// Send stop request to the server
 	if p.proxyURL != "" {
@@ -126,18 +137,59 @@ func (p *CapiProxy) StopWithOptions(skipWritingCache bool) error {
 			stopURL += "?skipWritingCache=true"
 		}
 		// Best effort - ignore errors
-		resp, err := http.Post(stopURL, "application/json", nil)
+		client := http.Client{Timeout: proxyShutdownTimeout}
+		resp, err := client.Post(stopURL, "application/json", nil)
 		if err == nil {
 			resp.Body.Close()
 		}
 	}
 
-	// Wait for process to exit
-	p.cmd.Wait()
-	p.cmd = nil
-	p.proxyURL = ""
-
+	exited := make(chan struct{}, 1)
+	go func() {
+		_ = cmd.Wait()
+		exited <- struct{}{}
+	}()
+	if !waitForProcessExit(exited, proxyShutdownTimeout) {
+		if err := killProcessTree(cmd); err != nil {
+			return fmt.Errorf("failed to kill proxy process: %w", err)
+		}
+		if !waitForProcessExit(exited, proxyShutdownTimeout) {
+			return fmt.Errorf("proxy process did not exit after being killed")
+		}
+	}
 	return nil
+}
+
+func killProcessTree(cmd *exec.Cmd) error {
+	if runtime.GOOS == "windows" {
+		taskkill := exec.Command(
+			"taskkill",
+			"/PID",
+			strconv.Itoa(cmd.Process.Pid),
+			"/T",
+			"/F",
+		)
+		if err := taskkill.Run(); err == nil {
+			return nil
+		}
+	}
+
+	if err := cmd.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
+		return err
+	}
+	return nil
+}
+
+func waitForProcessExit(exited <-chan struct{}, timeout time.Duration) bool {
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+
+	select {
+	case <-exited:
+		return true
+	case <-timer.C:
+		return false
+	}
 }
 
 // Configure sends configuration to the proxy.
