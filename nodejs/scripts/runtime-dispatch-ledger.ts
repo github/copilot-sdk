@@ -83,7 +83,7 @@ export interface ClaimOptions {
 
 const workflowPath = ".github/workflows/runtime-sdk.yml";
 const workflowName = "Runtime-driven Node SDK";
-const canonicalNumericIdPattern = /^(0|[1-9][0-9]*)$/;
+const canonicalNumericIdPattern = /^[1-9][0-9]*$/;
 const runtimeVersionPattern =
     /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$/;
 

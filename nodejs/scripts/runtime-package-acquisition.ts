@@ -137,6 +137,10 @@ export async function acquireRuntimePackages(
 ): Promise<void> {
     assert.match(options.runtimeSha, /^[0-9a-f]{40}$/, "Runtime SHA must be lowercase full SHA");
     assert.match(options.registry, /^https:\/\//, "Runtime registry must use HTTPS");
+    assert(
+        options.outputDirectory.trim().length > 0,
+        "Runtime package output directory is required"
+    );
     const outputDirectory = resolve(options.outputDirectory);
     const tarballDirectory = join(outputDirectory, "tarballs");
     mkdirSync(tarballDirectory, { recursive: true });
@@ -236,23 +240,38 @@ export async function acquireRuntimePackages(
     );
 }
 
-function parseArguments(args: string[]): AcquireRuntimePackagesOptions {
+export function parseArguments(args: string[]): AcquireRuntimePackagesOptions {
+    const optionNames = new Set(["--version", "--sha", "--registry", "--output"]);
     const values = new Map<string, string>();
+    if (args.length !== optionNames.size * 2) {
+        throw new Error(
+            "Usage: runtime-package-acquisition.ts --version <version> --sha <sha> --registry <url> --output <directory>"
+        );
+    }
     for (let index = 0; index < args.length; index += 2) {
         const key = args[index];
         const value = args[index + 1];
-        if (!key?.startsWith("--") || !value) {
-            throw new Error(
-                "Usage: runtime-package-acquisition.ts --version <version> --sha <sha> --registry <url> --output <directory>"
-            );
+        if (!key || !optionNames.has(key)) {
+            throw new Error(`Unknown runtime package acquisition option: ${key ?? ""}`);
+        }
+        if (values.has(key)) {
+            throw new Error(`Duplicate runtime package acquisition option: ${key}`);
+        }
+        if (!value || value.trim().length === 0 || value.startsWith("--")) {
+            throw new Error(`Runtime package acquisition option ${key} requires a non-empty value`);
         }
         values.set(key, value);
     }
+    const requiredValue = (key: string): string => {
+        const value = values.get(key);
+        assert(value !== undefined, `Missing runtime package acquisition option: ${key}`);
+        return value;
+    };
     return {
-        runtimeVersion: values.get("--version") ?? "",
-        runtimeSha: values.get("--sha") ?? "",
-        registry: values.get("--registry") ?? "",
-        outputDirectory: values.get("--output") ?? "",
+        runtimeVersion: requiredValue("--version"),
+        runtimeSha: requiredValue("--sha"),
+        registry: requiredValue("--registry"),
+        outputDirectory: requiredValue("--output"),
     };
 }
 

@@ -207,7 +207,9 @@ describe("runtime dispatch ledger", () => {
 
     it("rejects non-canonical raw identity values", () => {
         for (const changed of [
+            { runtimeRunId: "0" },
             { runtimeRunId: "0100" },
+            { currentRunId: "0" },
             { currentRunId: "0200" },
             { runtimeVersion: " 1.2.3-unstable.4" },
             { sdkRef: "refs/heads/main " },
@@ -215,5 +217,16 @@ describe("runtime dispatch ledger", () => {
         ]) {
             expect(() => createRuntimeDispatchMarker({ ...expected, ...changed })).toThrow();
         }
+    });
+
+    it("rejects a zero canonical run ID in an existing marker", () => {
+        const marker = {
+            ...createRuntimeDispatchMarker(expected),
+            canonicalRunId: "0",
+        };
+        const api = provenance("0");
+        expect(() =>
+            validateRuntimeDispatchMarker(marker, api.artifact, api.run, expected)
+        ).toThrow("Canonical workflow run ID must be canonical numeric");
     });
 });
