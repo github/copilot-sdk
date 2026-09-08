@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -7,7 +7,6 @@ const workflow = (name: string) =>
     readFileSync(join(repositoryRoot, ".github", "workflows", name), "utf8");
 const publish = workflow("publish.yml");
 const runtimeSdk = workflow("runtime-sdk.yml");
-const shared = workflow("runtime-backed-node-release.yml");
 
 describe("normal publishing workflow contract", () => {
     it("remains the stable and prerelease entry without runtime handoff inputs", () => {
@@ -41,6 +40,14 @@ describe("normal publishing workflow contract", () => {
 });
 
 describe("runtime-driven Node SDK entry contract", () => {
+    it("contains the runtime-backed implementation without a single-caller reusable workflow", () => {
+        expect(
+            existsSync(
+                join(repositoryRoot, ".github", "workflows", "runtime-backed-node-release.yml")
+            )
+        ).toBe(false);
+    });
+
     it("owns both strict runtime handoff matrices", () => {
         expect(runtimeSdk).toContain("name: Runtime-driven Node SDK");
         expect(runtimeSdk).toContain("canary:azure:tests-only");
@@ -66,12 +73,12 @@ describe("runtime-driven Node SDK entry contract", () => {
     });
 
     it("delegates preparation before its separately serialized public publication", () => {
-        expect(runtimeSdk).toContain("uses: ./.github/workflows/runtime-backed-node-release.yml");
         expect(runtimeSdk).toContain("scripts/unstable-version.ts");
         expect(runtimeSdk).toContain("group: sdk-runtime-public-unstable");
-        expect(runtimeSdk.indexOf("runtime-backed-release:")).toBeLessThan(
+        expect(runtimeSdk.indexOf("publish-internal:")).toBeLessThan(
             runtimeSdk.indexOf("publish-public:")
         );
+        expect(runtimeSdk).toContain("needs: [claim-runtime-dispatch, plan, publish-internal]");
         expect(runtimeSdk).toContain("dist/release-manifest.json dist unstable");
     });
 
@@ -82,28 +89,27 @@ describe("runtime-driven Node SDK entry contract", () => {
     });
 });
 
-describe("shared runtime-backed Node pipeline", () => {
-    it("enforces the channel, source, and mode matrix again", () => {
-        expect(shared).toContain("canary:azure:tests-only");
-        expect(shared).toContain("canary:azure:internal");
-        expect(shared).toContain("unstable:github-packages:internal");
-        expect(shared).not.toContain("registry.npmjs.org");
+describe("runtime-backed Node release implementation", () => {
+    it("enforces the channel, source, and mode matrix", () => {
+        expect(runtimeSdk).toContain("canary:azure:tests-only");
+        expect(runtimeSdk).toContain("canary:azure:internal");
+        expect(runtimeSdk).toContain("unstable:github-packages:internal");
     });
 
     it("owns acquisition, cross-platform tests, packaging, and internal verification", () => {
-        expect(shared).toContain("os: [ubuntu-latest, macos-latest, windows-latest]");
-        expect(shared).toContain("npm run acquire:runtime-packages");
-        expect(shared).toContain("npm run verify:release-packages");
-        expect(shared).toContain("publish-manifest");
-        expect(shared).toContain("group: sdk-runtime-internal-${{ inputs.channel }}");
-        expect(shared).not.toContain('"$runtime_path" --version');
-        expect(shared).not.toContain('"$RUNTIME" --version');
-        expect(shared).not.toContain("resume_run_id");
-        expect(shared).toContain("const parsed = semver.parse(process.argv[1])");
-        expect(shared).toContain("parsed.major}.${parsed.minor}.${parsed.patch");
-        expect(shared).not.toContain('BASE="${PUBLIC_LATEST%%-*}"');
-        expect(shared.indexOf("npm run verify:release-packages")).toBeLessThan(
-            shared.indexOf("publish-manifest")
+        expect(runtimeSdk).toContain("os: [ubuntu-latest, macos-latest, windows-latest]");
+        expect(runtimeSdk).toContain("npm run acquire:runtime-packages");
+        expect(runtimeSdk).toContain("npm run verify:release-packages");
+        expect(runtimeSdk).toContain("publish-manifest");
+        expect(runtimeSdk).toContain("group: sdk-runtime-internal-${{ inputs.channel }}");
+        expect(runtimeSdk).not.toContain('"$runtime_path" --version');
+        expect(runtimeSdk).not.toContain('"$RUNTIME" --version');
+        expect(runtimeSdk).not.toContain("resume_run_id");
+        expect(runtimeSdk).toContain("const parsed = semver.parse(process.argv[1])");
+        expect(runtimeSdk).toContain("parsed.major}.${parsed.minor}.${parsed.patch");
+        expect(runtimeSdk).not.toContain('BASE="${PUBLIC_LATEST%%-*}"');
+        expect(runtimeSdk.indexOf("npm run verify:release-packages")).toBeLessThan(
+            runtimeSdk.indexOf("publish-manifest")
         );
     });
 });
