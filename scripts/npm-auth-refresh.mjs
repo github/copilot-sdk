@@ -3,7 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { spawnSync } from "node:child_process";
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -22,18 +22,32 @@ export function getProjectNpmrcPaths(scriptUrl = import.meta.url) {
     ];
 }
 
-export function buildProjectNpmConfig() {
-    return `@github:registry=${azureFeedLocalRegistry}\n`;
+export function buildProjectNpmConfig(existingConfig = "") {
+    const newline = existingConfig.includes("\r\n") ? "\r\n" : "\n";
+    const config = existingConfig.replace(
+        /^[ \t]*@github:registry[ \t]*=[^\r\n]*(?:\r?\n|$)/gm,
+        ""
+    );
+    const separator = config.length > 0 && !config.endsWith("\n") ? newline : "";
+    return `${config}${separator}@github:registry=${azureFeedLocalRegistry}${newline}`;
 }
 
 export function writeProjectNpmConfigs(npmrcPaths) {
-    const config = buildProjectNpmConfig();
     for (const npmrcPath of npmrcPaths) {
-        writeFileSync(npmrcPath, config, "utf8");
+        let existingConfig = "";
+        try {
+            existingConfig = readFileSync(npmrcPath, "utf8");
+        } catch (error) {
+            if (error.code !== "ENOENT") {
+                throw error;
+            }
+        }
+        writeFileSync(npmrcPath, buildProjectNpmConfig(existingConfig), "utf8");
     }
 }
 
 export function getAuthCommands(platform, npmrcPath) {
+    const cwd = (platform === "win32" ? path.win32 : path.posix).dirname(npmrcPath);
     if (platform === "win32") {
         return [
             {
@@ -42,7 +56,8 @@ export function getAuthCommands(platform, npmrcPath) {
             },
             {
                 command: "vsts-npm-auth.cmd",
-                args: ["-config", npmrcPath, "-Force", "-ReadOnly"],
+                args: ["-config", ".npmrc", "-Force", "-ReadOnly"],
+                cwd,
             },
         ];
     }
@@ -60,15 +75,16 @@ export function getAuthCommands(platform, npmrcPath) {
         },
         {
             command: "artifacts-npm-credprovider",
-            args: ["-c", npmrcPath],
+            args: ["-f", "-c", ".npmrc"],
+            cwd,
         },
     ];
 }
 
-export function getCommandInvocation(platform, command, args, commandInterpreter = "cmd.exe") {
+export function getCommandInvocation(platform, command, args) {
     if (platform === "win32") {
         return {
-            command: commandInterpreter,
+            command: "cmd.exe",
             args: ["/d", "/s", "/c", command, ...args],
         };
     }
@@ -76,15 +92,11 @@ export function getCommandInvocation(platform, command, args, commandInterpreter
     return { command, args };
 }
 
-export function runCommand(
-    command,
-    args,
-    platform = process.platform,
-    commandInterpreter = process.env.ComSpec ?? "cmd.exe"
-) {
-    const invocation = getCommandInvocation(platform, command, args, commandInterpreter);
+export function runCommand(command, args, platform = process.platform, cwd) {
+    const invocation = getCommandInvocation(platform, command, args);
     const result = spawnSync(invocation.command, invocation.args, {
         stdio: "inherit",
+        cwd,
     });
     if (result.error) {
         throw result.error;
@@ -105,15 +117,15 @@ export function refreshNpmAuthentication(
     runner = runCommand
 ) {
     writer(npmrcPaths);
-    for (const { command, args } of getAuthCommands(platform, npmrcPaths[0])) {
-        runner(command, args, platform);
+    for (const { command, args, cwd } of getAuthCommands(platform, npmrcPaths[0])) {
+        runner(command, args, platform, cwd);
     }
 }
 
 function usage() {
-    console.log(`Usage: npm run auth:refresh
+    console.log(`Usage: npm run auth:refresh (from the nodejs directory)
 
-Generate scoped project .npmrc files for the copilot-canary @Local view, then
+Update scoped project .npmrc files for the copilot-canary @Local view, then
 refresh Azure Artifacts credentials in the user-level npm configuration.`);
 }
 

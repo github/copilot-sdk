@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdtemp, mkdir, readFile, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -20,8 +20,21 @@ import {
     writeProjectNpmConfigs,
 } from "../../scripts/npm-auth-refresh.mjs";
 
+vi.mock("node:child_process", async (importOriginal) => {
+    const original = await importOriginal<typeof import("node:child_process")>();
+    return { ...original, spawnSync: vi.fn(original.spawnSync) };
+});
+
 const scriptPath = fileURLToPath(new URL("../../scripts/npm-auth-refresh.mjs", import.meta.url));
 const temporaryDirectories: string[] = [];
+const successfulSpawn: ReturnType<typeof spawnSync> = {
+    pid: 1,
+    output: [],
+    stdout: Buffer.alloc(0),
+    stderr: Buffer.alloc(0),
+    status: 0,
+    signal: null,
+};
 
 async function createTemporaryNpmrcPaths(): Promise<string[]> {
     const repositoryRoot = await mkdtemp(path.join(tmpdir(), "copilot-sdk-npm-auth-"));
@@ -37,6 +50,8 @@ async function createTemporaryNpmrcPaths(): Promise<string[]> {
 }
 
 afterEach(async () => {
+    vi.mocked(spawnSync).mockReset();
+    vi.unstubAllEnvs();
     await Promise.all(
         temporaryDirectories.splice(0).map((directory) => rm(directory, { recursive: true }))
     );
@@ -95,6 +110,59 @@ describe("local npm authentication refresh", () => {
         expect(buildProjectNpmConfig()).not.toMatch(/(?:_auth|token|password)/i);
     });
 
+    it.each(["\n", "\r\n"])(
+        "preserves unrelated config content using %j line endings",
+        async (newline) => {
+            const npmrcPaths = await createTemporaryNpmrcPaths();
+            const unrelatedLines = [
+                "; Local npm settings",
+                "registry=https://registry.npmjs.org/",
+                "@other:registry=https://example.com/npm/",
+                "# @github:registry=https://example.com/commented/",
+                "strict-ssl=true",
+            ];
+            const existingConfig = [
+                ...unrelatedLines.slice(0, 2),
+                "@github:registry=https://example.com/old/",
+                ...unrelatedLines.slice(2),
+                "\t@github:registry = https://example.com/duplicate/",
+            ].join(newline);
+            await Promise.all(npmrcPaths.map((npmrcPath) => writeFile(npmrcPath, existingConfig)));
+
+            const expected = [
+                ...unrelatedLines,
+                `@github:registry=${azureFeedLocalRegistry}`,
+                "",
+            ].join(newline);
+            for (let refresh = 0; refresh < 2; refresh++) {
+                writeProjectNpmConfigs(npmrcPaths);
+                await Promise.all(
+                    npmrcPaths.map(async (npmrcPath) => {
+                        await expect(readFile(npmrcPath, "utf8")).resolves.toBe(expected);
+                    })
+                );
+            }
+        }
+    );
+
+    it.each(["strict-ssl=true", "strict-ssl=true\n", "strict-ssl=true\r\n"])(
+        "adds the scoped registry without joining existing settings for %j",
+        (existingConfig) => {
+            const newline = existingConfig.includes("\r\n") ? "\r\n" : "\n";
+            const expected = `strict-ssl=true${newline}@github:registry=${azureFeedLocalRegistry}${newline}`;
+
+            expect(buildProjectNpmConfig(existingConfig)).toBe(expected);
+            expect(buildProjectNpmConfig(expected)).toBe(expected);
+        }
+    );
+
+    it("surfaces errors reading existing configs", async () => {
+        const npmrcPaths = await createTemporaryNpmrcPaths();
+        await mkdir(npmrcPaths[0]);
+
+        expect(() => writeProjectNpmConfigs(npmrcPaths)).toThrow();
+    });
+
     it("authenticates once using the nodejs config", () => {
         const npmrcPaths = [
             "C:\\repo\\nodejs\\.npmrc",
@@ -111,8 +179,9 @@ describe("local npm authentication refresh", () => {
         expect(runner).toHaveBeenCalledTimes(2);
         expect(runner).toHaveBeenLastCalledWith(
             "vsts-npm-auth.cmd",
-            ["-config", npmrcPaths[0], "-Force", "-ReadOnly"],
-            "win32"
+            ["-config", ".npmrc", "-Force", "-ReadOnly"],
+            "win32",
+            "C:\\repo\\nodejs"
         );
     });
 
@@ -124,35 +193,48 @@ describe("local npm authentication refresh", () => {
             },
             {
                 command: "vsts-npm-auth.cmd",
-                args: ["-config", "C:\\repo\\nodejs\\.npmrc", "-Force", "-ReadOnly"],
+                args: ["-config", ".npmrc", "-Force", "-ReadOnly"],
+                cwd: "C:\\repo\\nodejs",
             },
         ]);
     });
 
     it("launches Windows command shims through the command interpreter", () => {
-        expect(
-            getCommandInvocation(
-                "win32",
-                "npm.cmd",
-                ["--version"],
-                "C:\\Windows\\System32\\cmd.exe"
-            )
-        ).toEqual({
-            command: "C:\\Windows\\System32\\cmd.exe",
+        expect(getCommandInvocation("win32", "npm.cmd", ["--version"])).toEqual({
+            command: "cmd.exe",
             args: ["/d", "/s", "/c", "npm.cmd", "--version"],
         });
     });
 
+    it.each([
+        "C:\\repo with spaces\\nodejs\\.npmrc",
+        "C:\\repo&other\\nodejs\\.npmrc",
+        "C:\\repo%TEMP%^!()\\nodejs\\.npmrc",
+    ])("ignores ComSpec and keeps the config path out of shell arguments for %s", (npmrcPath) => {
+        vi.stubEnv("ComSpec", "C:\\untrusted\\not-cmd.exe");
+        vi.mocked(spawnSync).mockReturnValueOnce(successfulSpawn);
+        const { command, args, cwd } = getAuthCommands("win32", npmrcPath)[1];
+
+        runCommand(command, args, "win32", cwd);
+
+        expect(spawnSync).toHaveBeenCalledExactlyOnceWith(
+            "cmd.exe",
+            ["/d", "/s", "/c", "vsts-npm-auth.cmd", "-config", ".npmrc", "-Force", "-ReadOnly"],
+            { stdio: "inherit", cwd: path.win32.dirname(npmrcPath) }
+        );
+    });
+
     it("surfaces command spawn errors", () => {
-        expect(() =>
-            runCommand(path.join(tmpdir(), "copilot-sdk-command-does-not-exist"), [], "linux")
-        ).toThrow();
+        const error = new Error("Unable to spawn command");
+        vi.mocked(spawnSync).mockReturnValueOnce({ ...successfulSpawn, status: null, error });
+
+        expect(() => runCommand("npm", ["--version"], "linux")).toThrow(error);
     });
 
     it("surfaces nonzero command exit statuses", () => {
-        expect(() => runCommand(process.execPath, ["-e", "process.exit(7)"], "linux")).toThrow(
-            "exited with code 7"
-        );
+        vi.mocked(spawnSync).mockReturnValueOnce({ ...successfulSpawn, status: 7 });
+
+        expect(() => runCommand("npm", ["--version"], "linux")).toThrow("exited with code 7");
     });
 
     it.each(["linux", "darwin"])("uses the Azure credential provider on %s", (platform) => {
@@ -169,7 +251,8 @@ describe("local npm authentication refresh", () => {
             },
             {
                 command: "artifacts-npm-credprovider",
-                args: ["-c", "/repo/nodejs/.npmrc"],
+                args: ["-f", "-c", ".npmrc"],
+                cwd: "/repo/nodejs",
             },
         ]);
         expect(getCommandInvocation(platform, "npm", ["--version"])).toEqual({

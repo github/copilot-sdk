@@ -35,15 +35,17 @@ We are generally **not** looking for:
 
 ## Microsoft Contributor Setup
 
-Microsoft contributors who need recent builds of `@github`-scoped packages from the internal Azure Artifacts feed should run this command from `nodejs`:
+Microsoft contributors who need recent builds of `@github`-scoped packages from the internal Azure Artifacts feed can run this command from PowerShell at the repository root:
 
-```bash
-npm run auth:refresh
+```powershell
+node .\scripts\npm-auth-refresh.mjs --run
 ```
 
-The command generates scoped registry configurations at `nodejs/.npmrc`, `test/harness/.npmrc`, and `java/scripts/codegen/.npmrc`. Each configuration routes only the `@github` scope through the `copilot-canary` feed's `@Local` view, so you can then use the normal dependency installation commands. Credentials remain in your user-level npm configuration rather than in project files. On Windows, the command uses `vsts-npm-auth`; on Linux and macOS, it uses the Microsoft Azure Artifacts npm credential provider.
+Alternatively, on any platform, run `npm run auth:refresh` from the `nodejs` directory.
 
-Run `npm run auth:refresh` again after an Azure Artifacts 401 or 403 response. To return to public registry behavior, delete the three generated `.npmrc` files. Public contributors do not need this setup and are unaffected.
+The command creates or updates scoped registry configurations at `nodejs/.npmrc`, `test/harness/.npmrc`, and `java/scripts/codegen/.npmrc`, preserving unrelated settings. Each configuration routes only the `@github` scope through the `copilot-canary` feed's `@Local` view, so you can then use the normal dependency installation commands. Credentials remain in your user-level npm configuration rather than in project files. On Windows, the command uses `vsts-npm-auth`; on Linux and macOS, it uses the Microsoft Azure Artifacts npm credential provider. Both paths force a credential refresh.
+
+Run `node .\scripts\npm-auth-refresh.mjs --run` from PowerShell at the repository root again after an Azure Artifacts 401 or 403 response, or rerun `npm run auth:refresh` from `nodejs`. To return to your previous registry behavior, remove the `@github:registry` entry from each of the three `.npmrc` files, or restore its previous value if you had a custom entry. Delete a file only if it contains no other settings. Public contributors do not need this setup and are unaffected.
 
 ## Developing an SDK
 
