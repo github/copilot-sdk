@@ -204,4 +204,16 @@ describe("runtime dispatch ledger", () => {
             })
         ).toThrow("Invalid channel");
     });
+
+    it("rejects non-canonical raw identity values", () => {
+        for (const changed of [
+            { runtimeRunId: "0100" },
+            { currentRunId: "0200" },
+            { runtimeVersion: " 1.2.3-unstable.4" },
+            { sdkRef: "refs/heads/main " },
+            { versionOverride: " 1.2.3-unstable.4" },
+        ]) {
+            expect(() => createRuntimeDispatchMarker({ ...expected, ...changed })).toThrow();
+        }
+    });
 });

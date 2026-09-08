@@ -58,6 +58,7 @@ jobs:
     concurrency:
       group: sdk-runtime-dispatch-${{ inputs.runtime_run_id }}
       cancel-in-progress: false
+      queue: max
     permissions:
       actions: read
       contents: read
@@ -390,6 +391,7 @@ jobs:
     concurrency:
       group: sdk-runtime-internal-${{ inputs.channel }}
       cancel-in-progress: false
+      queue: max
     environment: cicd
     permissions:
       actions: read
@@ -460,6 +462,7 @@ jobs:
     concurrency:
       group: sdk-runtime-public-unstable
       cancel-in-progress: false
+      queue: max
     permissions:
       actions: read
       contents: read

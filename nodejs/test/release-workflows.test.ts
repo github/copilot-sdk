@@ -66,6 +66,7 @@ describe("runtime-driven Node SDK entry contract", () => {
     it("serializes and durably claims each runtime run", () => {
         expect(runtimeSdk).toContain("group: sdk-runtime-dispatch-${{ inputs.runtime_run_id }}");
         expect(runtimeSdk).toContain("cancel-in-progress: false");
+        expect(runtimeSdk.match(/queue: max/g)).toHaveLength(3);
         expect(runtimeSdk).toContain("sdk-runtime-dispatch-${{ inputs.runtime_run_id }}");
         expect(runtimeSdk).toContain("runtime-dispatch-ledger.ts claim");
         expect(runtimeSdk).toContain("steps.claim.outputs.created == 'true'");
@@ -74,6 +75,8 @@ describe("runtime-driven Node SDK entry contract", () => {
         expect(runtimeDispatchLedger).toContain("More than one unexpired");
         expect(runtimeDispatchLedger).toContain("attempts ?? 6");
         expect(runtimeDispatchLedger).toContain("actions/workflows/runtime-sdk.yml/runs");
+        expect(runtimeDispatchLedger).toContain("canonicalNumericIdPattern");
+        expect(runtimeDispatchLedger).not.toContain("process.env[name]?.trim()");
         expect(runtimeSdk).toContain('gh run watch "$CANONICAL_RUN_ID" --exit-status');
         expect(runtimeSdk).toContain("retention-days: 90");
         expect(runtimeSdk).not.toContain("resume_run_id");
