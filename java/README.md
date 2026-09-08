@@ -34,14 +34,14 @@ runtime.
 <dependency>
     <groupId>com.github</groupId>
     <artifactId>copilot-sdk-java</artifactId>
-    <version>1.0.13-preview.5</version>
+    <version>1.0.13</version>
 </dependency>
 ```
 
 ### Gradle
 
 ```groovy
-implementation 'com.github:copilot-sdk-java:1.0.13-preview.5'
+implementation 'com.github:copilot-sdk-java:1.0.13'
 ```
 
 ### Snapshot builds
@@ -62,14 +62,14 @@ Snapshot builds of the next development version are published to Maven Central S
 <dependency>
     <groupId>com.github</groupId>
     <artifactId>copilot-sdk-java</artifactId>
-    <version>1.0.14-preview.5-SNAPSHOT</version>
+    <version>1.0.14-SNAPSHOT</version>
 </dependency>
 ```
 
 #### Gradle
 
 ```groovy
-implementation 'com.github:copilot-sdk-java:1.0.14-preview.5-SNAPSHOT'
+implementation 'com.github:copilot-sdk-java:1.0.14-SNAPSHOT'
 ```
 
 ## In-process mode (experimental)
