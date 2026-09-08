@@ -46,6 +46,8 @@ export interface ReleaseManifest extends PackageSetManifest {
     };
     workflow: {
         createdAt: string;
+        name: "TEST ONLY - Runtime-driven Node SDK";
+        path: ".github/workflows/sdk-canary.yml";
         runId: string;
         runNumber: string;
         testPolicy: "advisory" | "required" | "skipped";
@@ -66,12 +68,17 @@ export interface ReleaseManifestMetadata {
     workflowRunNumber: string;
 }
 
-const expectedPackageNames = new Set(SDK_PACKAGE_NAMES);
-assert.deepEqual(
-    [...expectedPackageNames].sort(),
-    ["@github/copilot-sdk", ...RUNTIME_PLATFORMS.map(getRuntimePackageName)].sort(),
-    "Shared package manifest names must match the supported runtime platforms"
-);
+const testWorkflowName = "TEST ONLY - Runtime-driven Node SDK";
+const testWorkflowPath = ".github/workflows/sdk-canary.yml";
+
+const expectedPackageNames = new Set([
+    "@github/copilot-sdk",
+    ...RUNTIME_PLATFORMS.map(getRuntimePackageName),
+]);
+
+function integrity(buffer: Buffer): string {
+    return `sha512-${createHash("sha512").update(buffer).digest("base64")}`;
+}
 
 async function readPackedManifest(archive: string): Promise<{ name: string; version: string }> {
     const root = mkdtempSync(join(tmpdir(), "copilot-sdk-release-manifest-"));
@@ -124,7 +131,8 @@ export async function createReleaseManifest(
             runId: metadata.workflowRunId,
             runNumber: metadata.workflowRunNumber,
             createdAt: metadata.createdAt,
-            testPolicy: metadata.testPolicy,
+            name: testWorkflowName,
+            path: testWorkflowPath,
         },
     };
 }
@@ -199,6 +207,13 @@ export function verifyReleaseManifest(manifest: ReleaseManifest, packageDirector
     assert.equal(manifest.sdk.repository, "github/copilot-sdk");
     assert.equal(manifest.runtime.repository, "github/copilot-agent-runtime");
     assert.equal(manifest.runtime.source, "github-packages", "Invalid runtime package source");
+    assert.equal(manifest.workflow.name, testWorkflowName, "Unexpected test workflow name");
+    assert.equal(manifest.workflow.path, testWorkflowPath, "Unexpected test workflow path");
+    assert.match(
+        manifest.sdk.version,
+        new RegExp(`-${manifest.channel}\\..+\\.test\\.${manifest.workflow.runId}$`),
+        "Test SDK version must preserve the channel and end in its deterministic workflow run namespace"
+    );
 }
 
 function requiredEnvironment(name: string): string {
