@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { calculateUnstableVersion, targetCoreFromBaseline } from "../scripts/unstable-version.js";
+import {
+    calculateCanaryVersion,
+    calculateUnstableVersion,
+    targetCoreFromBaseline,
+} from "../scripts/unstable-version.js";
 
 const sha = "abcdef0123456789abcdef0123456789abcdef01";
 const release = (tag_name: string, published_at = "2026-09-01T00:00:00Z") => ({
@@ -63,5 +67,32 @@ describe("unstable SDK version planning", () => {
         expect(() =>
             calculateUnstableVersion({ ...options, versionOverride: "2.0.0-preview.1" })
         ).toThrow("unstable prerelease");
+    });
+});
+
+describe("canary SDK version planning", () => {
+    it("freezes the stable baseline at workflow creation time", () => {
+        const options = {
+            createdAt: "2026-09-04T00:00:00Z",
+            releases: [
+                release("v1.0.11", "2026-09-01T00:00:00Z"),
+                release("v1.0.12", "2026-09-05T00:00:00Z"),
+                release("v1.0.13-preview.1", "2026-09-03T00:00:00Z"),
+                {
+                    ...release("v2.0.0", "2026-09-02T00:00:00Z"),
+                    prerelease: true,
+                },
+            ],
+            runNumber: "8123",
+            sdkSha: sha,
+        };
+        const planned = calculateCanaryVersion(options);
+        expect(planned).toBe("1.0.12-canary.8123.gabcdef0");
+        expect(
+            calculateCanaryVersion({
+                ...options,
+                releases: [...options.releases, release("v1.0.13", "2026-09-06T00:00:00Z")],
+            })
+        ).toBe(planned);
     });
 });
