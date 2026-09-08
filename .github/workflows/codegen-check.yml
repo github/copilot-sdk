@@ -15,6 +15,12 @@ on:
       - 'go/rpc/**'
       - 'rust/src/generated/**'
       - 'sdk-protocol-version.json'
+      - 'nodejs/scripts/update-protocol-version.ts'
+      - 'nodejs/src/sdkProtocolVersion.ts'
+      - 'dotnet/src/SdkProtocolVersion.cs'
+      - 'python/copilot/_sdk_protocol_version.py'
+      - 'go/sdk_protocol_version.go'
+      - 'rust/src/sdk_protocol_version.rs'
       - 'java/sdk/src/main/java/com/github/copilot/SdkProtocolVersion.java'
       - '.github/workflows/codegen-check.yml'
   workflow_dispatch:
@@ -33,6 +39,32 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+
+      - name: Verify SDK protocol versions match
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs';
+
+          const expected = JSON.parse(readFileSync('sdk-protocol-version.json', 'utf8')).version;
+          if (!Number.isSafeInteger(expected) || expected < 1) {
+            throw new Error('sdk-protocol-version.json must contain a positive integer version');
+          }
+          const versions = [
+            ['nodejs/src/sdkProtocolVersion.ts', /^export const SDK_PROTOCOL_VERSION = (\d+);$/m],
+            ['go/sdk_protocol_version.go', /^const SDKProtocolVersion = (\d+)$/m],
+            ['python/copilot/_sdk_protocol_version.py', /^SDK_PROTOCOL_VERSION = (\d+)$/m],
+            ['dotnet/src/SdkProtocolVersion.cs', /^\s*private const int Version = (\d+);$/m],
+            ['rust/src/sdk_protocol_version.rs', /^pub const SDK_PROTOCOL_VERSION: u32 = (\d+);$/m],
+            ['java/sdk/src/main/java/com/github/copilot/SdkProtocolVersion.java', /^\s*LATEST\((\d+)\);$/m],
+          ];
+          for (const [file, pattern] of versions) {
+            const actual = readFileSync(file, 'utf8').match(pattern)?.[1];
+            if (actual !== String(expected)) {
+              console.error(`::error file=${file}::SDK protocol version (${actual ?? 'not found'}) does not match sdk-protocol-version.json (${expected}). Run 'cd nodejs && npm run update:protocol-version'; update Java through java/scripts/codegen.`);
+              process.exitCode = 1;
+            }
+          }
+          NODE
 
       - uses: actions/setup-go@v5
         with:
@@ -80,13 +112,3 @@ jobs:
             git diff
             exit 1
           fi
-
-      - name: Verify Java protocol version matches
-        run: |
-          EXPECTED=$(jq -r '.version' sdk-protocol-version.json)
-          ACTUAL=$(grep -oP 'LATEST\(\K[0-9]+' java/sdk/src/main/java/com/github/copilot/SdkProtocolVersion.java)
-          if [ "$EXPECTED" != "$ACTUAL" ]; then
-            echo "::error::Java SDK protocol version ($ACTUAL) does not match sdk-protocol-version.json ($EXPECTED). Java manages its own SdkProtocolVersion.java via java/scripts/codegen/. Update it to match."
-            exit 1
-          fi
-          echo "✅ Generated files are up-to-date"
