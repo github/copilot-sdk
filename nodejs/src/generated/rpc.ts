@@ -3979,6 +3979,15 @@ export type WorkspacesWorkspaceDetailsHostType =
   /** Workspace repository is hosted on Azure DevOps. */
   | "ado";
 /**
+ * Capability contribution point declared by a trusted app-extension manifest.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AppExtensionContributionPoint".
+ */
+/** @experimental */
+/** @internal */
+export type AppExtensionContributionPoint = "sessionBadges" | "canvases" | "forgeProvider" | "mediatedFetch";
+/**
  * List of all authenticated users
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -23615,6 +23624,18 @@ export interface AppExtensionCapabilities {
   mediatedFetch?: true;
 }
 /**
+ * Runtime-authenticated identity of one statically declared app-extension contribution.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AppExtensionDeclaredContribution".
+ */
+/** @experimental */
+/** @internal */
+export interface AppExtensionDeclaredContribution {
+  contributionPoint: AppExtensionContributionPoint;
+  contributionId: string;
+}
+/**
  * Authenticated principal and capability grants for one private app-extension activation.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -23626,6 +23647,7 @@ export interface AppExtensionRegisterResult {
   protocolVersion: 1;
   principal: AppExtensionPrincipal;
   capabilities: AppExtensionCapabilities;
+  contributions: AppExtensionDeclaredContribution[];
 }
 
 /** @experimental */

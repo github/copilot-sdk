@@ -42,6 +42,12 @@ describe("defineAppExtension", () => {
                 activationId: "activation-7",
             },
             capabilities: { sessionBadges: true },
+            contributions: [
+                {
+                    contributionPoint: "sessionBadges",
+                    contributionId: "github-pr",
+                },
+            ],
         });
         vi.spyOn(CopilotClient.prototype, "stop").mockResolvedValue([]);
         let closeTransport: (() => void) | undefined;
@@ -107,7 +113,7 @@ describe("defineAppExtension", () => {
                     expect(contribution).toBe(registered);
                     expect(identity.principal).toBe(host.principal);
                     expect(identity.contributionPoint).toBe("sessionBadges");
-                    expect(identity.contributionId).toBe("default");
+                    expect(identity.contributionId).toBe("github-pr");
                     snapshotHandler();
                 },
             });
@@ -233,6 +239,7 @@ describe("defineAppExtension", () => {
                 activationId: "activation-8",
             },
             capabilities: {},
+            contributions: [],
         });
         await defineAppExtension(async (host) => {
             await expect(host.sessionBadges.register()).rejects.toThrow(
@@ -319,6 +326,12 @@ describe("defineAppExtension", () => {
                     activationId: "activation-7",
                 },
                 capabilities: { sessionBadges: true },
+                contributions: [
+                    {
+                        contributionPoint: "sessionBadges",
+                        contributionId: "github-pr",
+                    },
+                ],
             }
         );
 
@@ -336,6 +349,12 @@ describe("defineAppExtension", () => {
                     activationId: "activation-8",
                 },
                 capabilities: { sessionBadges: false },
+                contributions: [
+                    {
+                        contributionPoint: "sessionBadges",
+                        contributionId: "github-pr",
+                    },
+                ],
             } as never
         );
         await expect(defineAppExtension(definition)).rejects.toThrow(
@@ -360,6 +379,67 @@ describe("defineAppExtension", () => {
 
         expect(delegate.dispose).toHaveBeenCalledOnce();
         expect(CopilotClient.prototype.stop).toHaveBeenCalledOnce();
+    });
+
+    it("requires one trusted session badge declaration and rejects duplicate identities", async () => {
+        arrange();
+        const registerDelegate = vi.spyOn(CopilotClient.prototype, "registerAppSessionBadges");
+        vi.mocked(CopilotClient.prototype[registerPrivateAppExtensionSymbol]).mockResolvedValueOnce(
+            {
+                protocolVersion: 1,
+                principal: {
+                    packageId: "bundled:github-app:badges",
+                    activationId: "activation-zero",
+                },
+                capabilities: { sessionBadges: true },
+                contributions: [],
+            }
+        );
+        await defineAppExtension(async (host) => {
+            await expect(host.sessionBadges.register()).rejects.toThrow(
+                "exactly one sessionBadges contribution; received 0"
+            );
+        }).then((activation) => activation.dispose());
+        expect(registerDelegate).not.toHaveBeenCalled();
+
+        vi.mocked(CopilotClient.prototype[registerPrivateAppExtensionSymbol]).mockResolvedValueOnce(
+            {
+                protocolVersion: 1,
+                principal: {
+                    packageId: "bundled:github-app:badges",
+                    activationId: "activation-multiple",
+                },
+                capabilities: { sessionBadges: true },
+                contributions: [
+                    { contributionPoint: "sessionBadges", contributionId: "github-pr" },
+                    { contributionPoint: "sessionBadges", contributionId: "checks" },
+                ],
+            }
+        );
+        await defineAppExtension(async (host) => {
+            await expect(host.sessionBadges.register()).rejects.toThrow(
+                "exactly one sessionBadges contribution; received 2"
+            );
+        }).then((activation) => activation.dispose());
+        expect(registerDelegate).not.toHaveBeenCalled();
+
+        vi.mocked(CopilotClient.prototype[registerPrivateAppExtensionSymbol]).mockResolvedValueOnce(
+            {
+                protocolVersion: 1,
+                principal: {
+                    packageId: "bundled:github-app:badges",
+                    activationId: "activation-duplicate",
+                },
+                capabilities: { sessionBadges: true },
+                contributions: [
+                    { contributionPoint: "sessionBadges", contributionId: "github-pr" },
+                    { contributionPoint: "sessionBadges", contributionId: "github-pr" },
+                ],
+            }
+        );
+        await expect(defineAppExtension(() => undefined)).rejects.toThrow(
+            "contributions contains duplicate identity sessionBadges/github-pr"
+        );
     });
 
     it("surfaces client stop errors from explicit disposal", async () => {

@@ -2,8 +2,11 @@
 //!
 //! This module supports app-bundled integrations and is not a stable public SDK surface.
 
+use std::collections::HashSet;
+
 use crate::generated::api_types::{
-    AppExtensionRegisterRequest, AppExtensionRegisterResult as WireRegisterResult,
+    AppExtensionContributionPoint as WireContributionPoint, AppExtensionRegisterRequest,
+    AppExtensionRegisterResult as WireRegisterResult,
 };
 use crate::{Client, Error, ErrorKind};
 
@@ -20,6 +23,26 @@ pub struct AppExtensionActivationId(String);
 /// Opaque identity for one principal-owned contribution.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AppExtensionContributionId(String);
+
+/// Capability contribution point declared by a trusted app-extension manifest.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum AppExtensionContributionPoint {
+    /// Session badge contribution.
+    SessionBadges,
+    /// Future app-canvas contribution.
+    Canvases,
+    /// Future forge-provider contribution.
+    ForgeProvider,
+    /// Future mediated-fetch contribution.
+    MediatedFetch,
+}
+
+/// Runtime-authenticated identity of one statically declared contribution.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AppExtensionDeclaredContribution {
+    contribution_point: AppExtensionContributionPoint,
+    contribution_id: AppExtensionContributionId,
+}
 
 /// Runtime-authenticated package and activation identity.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -49,6 +72,7 @@ pub struct AppExtensionContributionIdentity {
 pub struct AppExtensionRegistration {
     principal: AppExtensionPrincipal,
     capabilities: AppExtensionCapabilityGrants,
+    contributions: Vec<AppExtensionDeclaredContribution>,
 }
 
 impl AppExtensionRegistration {
@@ -63,11 +87,31 @@ impl AppExtensionRegistration {
     }
 
     /// Return the identity of the activation's single badge contribution.
-    pub fn session_badges_identity(&self) -> AppExtensionContributionIdentity {
-        AppExtensionContributionIdentity {
-            principal: self.principal.clone(),
-            contribution_id: AppExtensionContributionId("default".to_string()),
+    pub fn session_badges_identity(&self) -> Result<AppExtensionContributionIdentity, Error> {
+        let mut declarations = self.contributions.iter().filter(|contribution| {
+            contribution.contribution_point == AppExtensionContributionPoint::SessionBadges
+        });
+        let Some(declaration) = declarations.next() else {
+            return Err(invalid_registration(
+                "expected exactly one sessionBadges contribution; received 0".to_string(),
+            ));
+        };
+        if declarations.next().is_some() {
+            let count = self
+                .contributions
+                .iter()
+                .filter(|contribution| {
+                    contribution.contribution_point == AppExtensionContributionPoint::SessionBadges
+                })
+                .count();
+            return Err(invalid_registration(format!(
+                "expected exactly one sessionBadges contribution; received {count}"
+            )));
         }
+        Ok(AppExtensionContributionIdentity {
+            principal: self.principal.clone(),
+            contribution_id: declaration.contribution_id.clone(),
+        })
     }
 }
 
@@ -138,6 +182,18 @@ impl AppExtensionContributionIdentity {
     }
 }
 
+impl AppExtensionDeclaredContribution {
+    /// Return the declared contribution point.
+    pub fn contribution_point(&self) -> AppExtensionContributionPoint {
+        self.contribution_point
+    }
+
+    /// Return the opaque contribution identity.
+    pub fn contribution_id(&self) -> &AppExtensionContributionId {
+        &self.contribution_id
+    }
+}
+
 #[cfg_attr(not(test), expect(dead_code))]
 pub(crate) async fn register(client: &Client) -> Result<AppExtensionRegistration, Error> {
     let result = client
@@ -168,6 +224,36 @@ fn parse_registration(result: WireRegisterResult) -> Result<AppExtensionRegistra
             "principal.activationId must be a non-empty string".to_string(),
         ));
     }
+    let mut seen = HashSet::new();
+    let mut contributions = Vec::with_capacity(result.contributions.len());
+    for contribution in result.contributions {
+        if contribution.contribution_id.is_empty() {
+            return Err(invalid_registration(
+                "contributionId must be a non-empty string".to_string(),
+            ));
+        }
+        let contribution_point = match contribution.contribution_point {
+            WireContributionPoint::SessionBadges => AppExtensionContributionPoint::SessionBadges,
+            WireContributionPoint::Canvases => AppExtensionContributionPoint::Canvases,
+            WireContributionPoint::ForgeProvider => AppExtensionContributionPoint::ForgeProvider,
+            WireContributionPoint::MediatedFetch => AppExtensionContributionPoint::MediatedFetch,
+            WireContributionPoint::Unknown => {
+                return Err(invalid_registration(
+                    "unsupported app extension contribution point".to_string(),
+                ));
+            }
+        };
+        if !seen.insert((contribution_point, contribution.contribution_id.clone())) {
+            return Err(invalid_registration(format!(
+                "duplicate app extension contribution identity: {contribution_point:?}/{}",
+                contribution.contribution_id
+            )));
+        }
+        contributions.push(AppExtensionDeclaredContribution {
+            contribution_point,
+            contribution_id: AppExtensionContributionId(contribution.contribution_id),
+        });
+    }
 
     Ok(AppExtensionRegistration {
         principal: AppExtensionPrincipal {
@@ -180,6 +266,7 @@ fn parse_registration(result: WireRegisterResult) -> Result<AppExtensionRegistra
             forge_provider: result.capabilities.forge_provider == Some(true),
             mediated_fetch: result.capabilities.mediated_fetch == Some(true),
         },
+        contributions,
     })
 }
 
@@ -252,7 +339,11 @@ mod tests {
                         },
                         "capabilities": {
                             "sessionBadges": true
-                        }
+                        },
+                        "contributions": [{
+                            "contributionPoint": "sessionBadges",
+                            "contributionId": "github-pr"
+                        }]
                     }
                 }),
             )
@@ -273,10 +364,10 @@ mod tests {
         assert!(!registration.capabilities.forge_provider);
         assert!(!registration.capabilities.mediated_fetch);
         assert_eq!(
-            registration.session_badges_identity(),
+            registration.session_badges_identity().unwrap(),
             AppExtensionContributionIdentity {
                 principal: registration.principal,
-                contribution_id: AppExtensionContributionId("default".to_string()),
+                contribution_id: AppExtensionContributionId("github-pr".to_string()),
             }
         );
         server.await.unwrap();
@@ -292,10 +383,42 @@ mod tests {
             },
             "capabilities": {
                 "sessionBadges": true
-            }
+            },
+            "contributions": [{
+                "contributionPoint": "sessionBadges",
+                "contributionId": "github-pr"
+            }]
         }))
         .unwrap();
 
         assert!(parse_registration(result).is_err());
+    }
+
+    #[test]
+    fn session_badges_identity_requires_one_trusted_declaration() {
+        let registration = AppExtensionRegistration {
+            principal: AppExtensionPrincipal {
+                package_id: AppExtensionPackageId("package".to_string()),
+                activation_id: AppExtensionActivationId("activation".to_string()),
+            },
+            capabilities: AppExtensionCapabilityGrants {
+                session_badges: true,
+                canvases: false,
+                forge_provider: false,
+                mediated_fetch: false,
+            },
+            contributions: vec![],
+        };
+        assert!(registration.session_badges_identity().is_err());
+
+        let declaration = AppExtensionDeclaredContribution {
+            contribution_point: AppExtensionContributionPoint::SessionBadges,
+            contribution_id: AppExtensionContributionId("github-pr".to_string()),
+        };
+        let registration = AppExtensionRegistration {
+            contributions: vec![declaration.clone(), declaration],
+            ..registration
+        };
+        assert!(registration.session_badges_identity().is_err());
     }
 }

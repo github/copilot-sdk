@@ -22140,6 +22140,22 @@ pub(crate) struct AppExtensionCapabilities {
     pub session_badges: Option<bool>,
 }
 
+/// Runtime-authenticated identity of one statically declared app-extension contribution.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct AppExtensionDeclaredContribution {
+    pub contribution_id: String,
+    #[doc(hidden)]
+    pub(crate) contribution_point: AppExtensionContributionPoint,
+}
+
 /// Authenticated principal and capability grants for one private app-extension activation.
 ///
 /// <div class="warning">
@@ -22153,6 +22169,8 @@ pub(crate) struct AppExtensionCapabilities {
 pub(crate) struct AppExtensionRegisterResult {
     #[doc(hidden)]
     pub(crate) capabilities: AppExtensionCapabilities,
+    #[doc(hidden)]
+    pub(crate) contributions: Vec<AppExtensionDeclaredContribution>,
     #[doc(hidden)]
     pub(crate) principal: AppExtensionPrincipal,
     pub protocol_version: serde_json::Value,
@@ -22248,6 +22266,8 @@ pub struct ExtensionsDiscoverResult {
 pub(crate) struct ExtensionsAppExtensionRegisterResult {
     #[doc(hidden)]
     pub(crate) capabilities: AppExtensionCapabilities,
+    #[doc(hidden)]
+    pub(crate) contributions: Vec<AppExtensionDeclaredContribution>,
     #[doc(hidden)]
     pub(crate) principal: AppExtensionPrincipal,
     pub protocol_version: serde_json::Value,
@@ -34942,6 +34962,30 @@ pub enum WorkspacesWorkspaceDetailsHostType {
     /// Workspace repository is hosted on Azure DevOps.
     #[serde(rename = "ado")]
     Ado,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Capability contribution point declared by a trusted app-extension manifest.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AppExtensionContributionPoint {
+    #[serde(rename = "sessionBadges")]
+    SessionBadges,
+    #[serde(rename = "canvases")]
+    Canvases,
+    #[serde(rename = "forgeProvider")]
+    ForgeProvider,
+    #[serde(rename = "mediatedFetch")]
+    MediatedFetch,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

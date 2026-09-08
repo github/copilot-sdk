@@ -93,6 +93,12 @@ it("authenticates a private app extension and preserves badge notifications afte
                 activationId: "activation-stdio",
             },
             capabilities: { sessionBadges: true },
+            contributions: [
+                {
+                    contributionPoint: "sessionBadges",
+                    contributionId: "github-pr",
+                },
+            ],
         };
     });
     connection.onRequest("extensions.appSessionBadges.register", () => {
@@ -172,9 +178,19 @@ it("authenticates a private app extension and preserves badge notifications afte
         const delivered = readFileSync(snapshotFile, "utf8")
             .trim()
             .split("\n")
-            .map((line) => JSON.parse(line) as { snapshot: AppSessionBadgesSnapshot });
+            .map(
+                (line) =>
+                    JSON.parse(line) as {
+                        snapshot: AppSessionBadgesSnapshot;
+                        identity: { contributionPoint: string; contributionId: string };
+                    }
+            );
         expect(delivered).toHaveLength(1);
         expect(delivered[0]!.snapshot).toEqual(snapshot);
+        expect(delivered[0]!.identity).toMatchObject({
+            contributionPoint: "sessionBadges",
+            contributionId: "github-pr",
+        });
         expect(stderr.join("")).toContain("Invalid app session badges snapshot ignored");
     } finally {
         connection.dispose();

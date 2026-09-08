@@ -18,7 +18,6 @@ import {
 import { joinExtensionSession } from "./extensionSession.js";
 
 const APP_EXTENSION_PROTOCOL_VERSION = 1 as const;
-const SESSION_BADGES_CONTRIBUTION_ID = "default";
 
 declare const packageIdBrand: unique symbol;
 declare const activationIdBrand: unique symbol;
@@ -34,6 +33,16 @@ export type AppExtensionActivationId = string & { readonly [activationIdBrand]: 
 export type AppExtensionContributionId = string & {
     readonly [contributionIdBrand]: never;
 };
+
+/** Capability contribution point declared by a trusted app-extension manifest. */
+export type AppExtensionContributionPoint =
+    "sessionBadges" | "canvases" | "forgeProvider" | "mediatedFetch";
+
+/** Runtime-authenticated identity of one statically declared contribution. */
+export interface AppExtensionDeclaredContribution {
+    readonly contributionPoint: AppExtensionContributionPoint;
+    readonly contributionId: AppExtensionContributionId;
+}
 
 /** Runtime-authenticated package and activation identity. */
 export interface AppExtensionPrincipal {
@@ -142,11 +151,15 @@ class SessionBadgesContribution implements AppSessionBadgesContribution {
     #subscriptions = new Set<() => void>();
     #disposed = false;
 
-    constructor(principal: AppExtensionPrincipal, delegate: AppSessionBadgesExtension) {
+    constructor(
+        principal: AppExtensionPrincipal,
+        contributionId: AppExtensionContributionId,
+        delegate: AppSessionBadgesExtension
+    ) {
         this.identity = Object.freeze({
             principal,
             contributionPoint: "sessionBadges",
-            contributionId: SESSION_BADGES_CONTRIBUTION_ID as AppExtensionContributionId,
+            contributionId,
         });
         this.#delegate = delegate;
     }
@@ -228,6 +241,7 @@ class SessionBadgesRegistrar implements AppSessionBadgesHost {
     constructor(
         private readonly principal: AppExtensionPrincipal,
         private readonly granted: boolean,
+        private readonly declaredContributions: readonly AppExtensionDeclaredContribution[],
         private readonly registerDelegate: () => Promise<AppSessionBadgesExtension>
     ) {}
 
@@ -246,6 +260,14 @@ class SessionBadgesRegistrar implements AppSessionBadgesHost {
         if (!this.granted) {
             throw new Error("The app extension principal was not granted sessionBadges");
         }
+        const declarations = this.declaredContributions.filter(
+            (contribution) => contribution.contributionPoint === "sessionBadges"
+        );
+        if (declarations.length !== 1) {
+            throw new Error(
+                `The app extension must declare exactly one sessionBadges contribution; received ${declarations.length}`
+            );
+        }
         if (this.#registration) {
             throw new Error("The app extension already registered sessionBadges");
         }
@@ -261,7 +283,11 @@ class SessionBadgesRegistrar implements AppSessionBadgesHost {
                 delegate.dispose();
                 throw new Error("The app extension activation was disposed during registration");
             }
-            contribution = new SessionBadgesContribution(this.principal, delegate);
+            contribution = new SessionBadgesContribution(
+                this.principal,
+                declarations[0]!.contributionId,
+                delegate
+            );
             this.#registration = contribution;
             if (options.onSnapshot) {
                 contribution.deferSnapshotHandler(options.onSnapshot);
@@ -403,9 +429,11 @@ export async function defineAppExtension(
         const registration = await client[registerPrivateAppExtensionSymbol]();
         const principal = parsePrincipal(registration);
         const capabilities = parseCapabilities(registration.capabilities);
+        const contributions = parseContributions(registration.contributions);
         const sessionBadges = new SessionBadgesRegistrar(
             principal,
             capabilities.sessionBadges === true,
+            contributions,
             () => client.registerAppSessionBadges(session)
         );
         runtime = new AppExtensionRuntime(principal, client, session, sessionBadges);
@@ -467,6 +495,41 @@ function parsePrincipal(registration: {
         packageId: registration.principal.packageId as AppExtensionPackageId,
         activationId: registration.principal.activationId as AppExtensionActivationId,
     });
+}
+
+function parseContributions(contributions: unknown): readonly AppExtensionDeclaredContribution[] {
+    if (!Array.isArray(contributions)) {
+        throw new TypeError("contributions must be an array");
+    }
+    const seen = new Set<string>();
+    return Object.freeze(
+        contributions.map((contribution, index) => {
+            if (contribution === null || typeof contribution !== "object") {
+                throw new TypeError(`contributions[${index}] must be an object`);
+            }
+            const { contributionPoint, contributionId } = contribution as Record<string, unknown>;
+            if (
+                contributionPoint !== "sessionBadges" &&
+                contributionPoint !== "canvases" &&
+                contributionPoint !== "forgeProvider" &&
+                contributionPoint !== "mediatedFetch"
+            ) {
+                throw new TypeError(`contributions[${index}].contributionPoint is not supported`);
+            }
+            assertNonEmptyString(contributionId, `contributions[${index}].contributionId`);
+            const key = `${contributionPoint}\0${contributionId}`;
+            if (seen.has(key)) {
+                throw new TypeError(
+                    `contributions contains duplicate identity ${contributionPoint}/${contributionId}`
+                );
+            }
+            seen.add(key);
+            return Object.freeze({
+                contributionPoint,
+                contributionId: contributionId as AppExtensionContributionId,
+            });
+        })
+    );
 }
 
 function parseCapabilities(capabilities: {

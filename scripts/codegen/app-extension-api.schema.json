@@ -57,13 +57,37 @@
                 }
             }
         },
+        "AppExtensionContributionPoint": {
+            "title": "AppExtensionContributionPoint",
+            "description": "Capability contribution point declared by a trusted app-extension manifest.",
+            "visibility": "internal",
+            "type": "string",
+            "enum": ["sessionBadges", "canvases", "forgeProvider", "mediatedFetch"]
+        },
+        "AppExtensionDeclaredContribution": {
+            "title": "AppExtensionDeclaredContribution",
+            "description": "Runtime-authenticated identity of one statically declared app-extension contribution.",
+            "visibility": "internal",
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["contributionPoint", "contributionId"],
+            "properties": {
+                "contributionPoint": {
+                    "$ref": "#/definitions/AppExtensionContributionPoint"
+                },
+                "contributionId": {
+                    "type": "string",
+                    "minLength": 1
+                }
+            }
+        },
         "AppExtensionRegisterResult": {
             "title": "AppExtensionRegisterResult",
             "description": "Authenticated principal and capability grants for one private app-extension activation.",
             "visibility": "internal",
             "type": "object",
             "additionalProperties": false,
-            "required": ["protocolVersion", "principal", "capabilities"],
+            "required": ["protocolVersion", "principal", "capabilities", "contributions"],
             "properties": {
                 "protocolVersion": {
                     "type": "integer",
@@ -74,6 +98,12 @@
                 },
                 "capabilities": {
                     "$ref": "#/definitions/AppExtensionCapabilities"
+                },
+                "contributions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/AppExtensionDeclaredContribution"
+                    }
                 }
             }
         }
