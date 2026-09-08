@@ -1415,7 +1415,7 @@ impl<'a> ClientRpcPlugins<'a> {
     ///
     /// # Parameters
     ///
-    /// * `params` - Plugin names (or specs) to enable.
+    /// * `params` - Plugin names (or specs) to enable, plus the optional working directory the repository-controlled guard is evaluated against.
     ///
     /// <div class="warning">
     ///
@@ -1439,7 +1439,7 @@ impl<'a> ClientRpcPlugins<'a> {
     ///
     /// # Parameters
     ///
-    /// * `params` - Plugin names (or specs) to disable.
+    /// * `params` - Plugin names (or specs) to disable, plus the optional working directory the repository-controlled guard is evaluated against.
     ///
     /// <div class="warning">
     ///
@@ -5113,6 +5113,68 @@ impl<'a> SessionRpcFactory<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
+    /// Pauses a running factory and returns its settled run envelope.
+    ///
+    /// Wire method: `session.factory.pause`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Parameters for pausing a running factory.
+    ///
+    /// # Returns
+    ///
+    /// Complete current or terminal factory run envelope.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn pause(&self, params: FactoryPauseRequest) -> Result<FactoryRunResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_FACTORY_PAUSE, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Atomically pauses an owned factory attempt at a durable checkpoint.
+    ///
+    /// Wire method: `session.factory.pauseAtCheckpoint`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Parameters for an owned durable pause checkpoint.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn pause_at_checkpoint(
+        &self,
+        params: FactoryPauseCheckpointRequest,
+    ) -> Result<FactoryPauseCheckpointResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_FACTORY_PAUSEATCHECKPOINT,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
     /// Records a batch of ordered factory progress lines.
     ///
     /// Wire method: `session.factory.log`.
@@ -7624,6 +7686,42 @@ impl<'a> SessionRpcModel<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
+    /// Replaces or clears the host-supplied model allowlist for a running session.
+    ///
+    /// Wire method: `session.model.setAllowedModels`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Host-supplied exact model selection IDs to allow for this running session. CAPI IDs are intersected with repository `.github/allowed_models.txt` policy; provider-qualified IDs remain exempt from repository-only policy but are restricted by this host list. Omit or pass null to clear the host restriction; an explicit empty or disjoint list is rejected. Validation and pre-selection fallback failures preserve the previous restriction. Failures after a fallback selection commits retain the new restriction and selected model; callers should inspect current session state after such an error.
+    ///
+    /// # Returns
+    ///
+    /// The applied host allowlist and effective session model policy after intersection.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn set_allowed_models(
+        &self,
+        params: ModelSetAllowedModelsRequest,
+    ) -> Result<ModelSetAllowedModelsResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_MODEL_SETALLOWEDMODELS,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
     /// Updates the session's reasoning effort without changing the selected model.
     ///
     /// Wire method: `session.model.setReasoningEffort`.
@@ -9622,6 +9720,42 @@ impl<'a> SessionRpcSandbox<'a> {
             .client()
             .call(
                 rpc_methods::SESSION_SANDBOX_GETENFORCEMENTSTATUS,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Disables sandboxing for the remainder of the current session and approves the referenced pending sandbox-bypass permission request. The request is rejected unless the exact request is still pending and the effective sandbox policy permits bypass.
+    ///
+    /// Wire method: `session.sandbox.disableForSession`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Request to disable sandboxing for the current session while resolving an active sandbox-bypass permission prompt.
+    ///
+    /// # Returns
+    ///
+    /// Result of attempting to disable sandboxing for the current session.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn disable_for_session(
+        &self,
+        params: SandboxDisableForSessionRequest,
+    ) -> Result<SandboxDisableForSessionResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_SANDBOX_DISABLEFORSESSION,
                 Some(wire_params),
             )
             .await?;

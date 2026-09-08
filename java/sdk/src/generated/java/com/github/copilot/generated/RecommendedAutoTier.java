@@ -3,37 +3,35 @@
  *--------------------------------------------------------------------------------------------*/
 
 // AUTO-GENERATED FILE - DO NOT EDIT
-// Generated from: api.schema.json
+// Generated from: session-events.schema.json
 
-package com.github.copilot.generated.rpc;
+package com.github.copilot.generated;
 
 import javax.annotation.processing.Generated;
 
 /**
- * Routing preference used when the session model is `auto`. `fast` is an integrator-only latency preset and is not a first-party GitHub Copilot product preference.
+ * Auto preferences that Copilot API can recommend.
  *
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
-public enum AutoTier {
+public enum RecommendedAutoTier {
     /** The {@code efficiency} variant. */
     EFFICIENCY("efficiency"),
     /** The {@code balance} variant. */
     BALANCE("balance"),
     /** The {@code intelligence} variant. */
-    INTELLIGENCE("intelligence"),
-    /** The {@code fast} variant. */
-    FAST("fast");
+    INTELLIGENCE("intelligence");
 
     private final String value;
-    AutoTier(String value) { this.value = value; }
+    RecommendedAutoTier(String value) { this.value = value; }
     @com.fasterxml.jackson.annotation.JsonValue
     public String getValue() { return value; }
     @com.fasterxml.jackson.annotation.JsonCreator
-    public static AutoTier fromValue(String value) {
-        for (AutoTier v : values()) {
+    public static RecommendedAutoTier fromValue(String value) {
+        for (RecommendedAutoTier v : values()) {
             if (v.value.equals(value)) return v;
         }
-        throw new IllegalArgumentException("Unknown AutoTier value: " + value);
+        throw new IllegalArgumentException("Unknown RecommendedAutoTier value: " + value);
     }
 }

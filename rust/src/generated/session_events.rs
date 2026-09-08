@@ -37,6 +37,15 @@ pub enum SessionEventType {
     SessionWarning,
     #[serde(rename = "session.model_change")]
     SessionModelChange,
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "session.auto_tier_recommendation")]
+    SessionAutoTierRecommendation,
     #[serde(rename = "session.auto_tier_switch_failed")]
     SessionAutoTierSwitchFailed,
     #[serde(rename = "session.mode_changed")]
@@ -489,6 +498,15 @@ pub enum SessionEventData {
     SessionWarning(SessionWarningData),
     #[serde(rename = "session.model_change")]
     SessionModelChange(SessionModelChangeData),
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "session.auto_tier_recommendation")]
+    SessionAutoTierRecommendation(SessionAutoTierRecommendationData),
     #[serde(rename = "session.auto_tier_switch_failed")]
     SessionAutoTierSwitchFailed(SessionAutoTierSwitchFailedData),
     #[serde(rename = "session.mode_changed")]
@@ -1289,6 +1307,21 @@ pub struct SessionModelChangeData {
     pub verbosity: Option<Verbosity>,
 }
 
+/// Session event "session.auto_tier_recommendation". Live-only Auto preference recommendation from Copilot API after a successful Auto model call.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionAutoTierRecommendationData {
+    /// Recommended Auto preference.
+    pub recommended_auto_tier: RecommendedAutoTier,
+}
+
 /// Session event "session.auto_tier_switch_failed". A transient Auto preference failure emitted when the runtime cannot mint or accept a usable model and token pair. The previously effective preference remains active, so SDK clients can surface a non-blocking failure without changing their committed-tier state. This event is ephemeral and is not persisted or replayed on resume.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1360,7 +1393,8 @@ pub struct SessionPermissionsChangedData {
     /// and may change or be removed in future SDK or CLI releases.
     ///
     /// </div>
-    pub mode: PermissionMode,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mode: Option<PermissionMode>,
     /// Permission mode before the change
     ///
     /// <div class="warning">
@@ -1369,7 +1403,8 @@ pub struct SessionPermissionsChangedData {
     /// and may change or be removed in future SDK or CLI releases.
     ///
     /// </div>
-    pub previous_mode: PermissionMode,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub previous_mode: Option<PermissionMode>,
 }
 
 /// Session event "session.plan_changed". Plan file operation details indicating what changed
@@ -1769,6 +1804,9 @@ pub struct CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail {
     pub batch_size: i64,
     /// Cost per batch of tokens
     pub cost_per_batch: i64,
+    /// Model responsible for this billing entry
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
     /// Total token count for this entry
     pub token_count: i64,
     /// Token category (e.g., "input", "output")
@@ -1779,6 +1817,10 @@ pub struct CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct CompactionCompleteCompactionTokensUsedCopilotUsage {
+    /// Default billing model for token details that do not identify their own model
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) model: Option<String>,
     /// Itemized token usage breakdown
     #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1820,6 +1862,10 @@ pub struct CompactionCompleteCompactionTokensUsed {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionCompactionCompleteData {
+    /// Authoritative active-factory reminder appended to the compacted context
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) active_factory_summary: Option<String>,
     /// Canonical model identifier used for model-specific behavior when replaying compaction
     #[serde(skip_serializing_if = "Option::is_none")]
     pub behavior_model_id: Option<String>,
@@ -2931,6 +2977,9 @@ pub struct AssistantUsageCopilotUsageTokenDetail {
     pub batch_size: i64,
     /// Cost per batch of tokens
     pub cost_per_batch: i64,
+    /// Model responsible for this billing entry
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
     /// Total token count for this entry
     pub token_count: i64,
     /// Token category (e.g., "input", "output")
@@ -2941,6 +2990,9 @@ pub struct AssistantUsageCopilotUsageTokenDetail {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AssistantUsageCopilotUsage {
+    /// Default billing model for token details that do not identify their own model
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
     /// Itemized token usage breakdown
     #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -4131,6 +4183,9 @@ pub struct SubagentStartedData {
     /// Whether this sub-agent can be resumed. Currently always false.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub resumable: Option<bool>,
+    /// Where the model input for this sub-agent came from. Present when the task planner resolved the launch (the task tool and factory agents); absent for sub-agents created through other runtime paths.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub task_model_source: Option<SubagentTaskModelSource>,
     /// Tool call ID of the parent tool invocation that spawned this sub-agent
     pub tool_call_id: String,
 }
@@ -4442,6 +4497,9 @@ pub struct PermissionRequestShell {
     /// What the tool tells the user about the bypass on offer: which policy rule blocked the call, or why it cannot be sandboxed. Only meaningful when requestSandboxBypass is true.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_sandbox_bypass_reason: Option<String>,
+    /// True when the requested escalation is a permissive retry rather than a full bypass: the command re-runs inside the sandbox with its file and process restrictions recording instead of blocking, while the network policy stays enforced. Always accompanied by requestSandboxBypass, so hosts that do not recognize this field still treat the request as the escalation it is. Hosts that do recognize it must not describe the command as running outside the sandbox, which would overstate the privilege being granted.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_sandbox_permissive: Option<bool>,
     /// Tool call ID that triggered this permission request
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_call_id: Option<String>,
@@ -4827,6 +4885,15 @@ pub struct PermissionPromptRequestCommands {
     /// Whether managed policy requires a human response and forbids host auto-approval
     #[serde(skip_serializing_if = "Option::is_none")]
     pub managed_approval_required: Option<bool>,
+    /// True when the shell command is requesting sandbox escalation. This is a request, not a grant.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_sandbox_bypass: Option<bool>,
+    /// Reason for the sandbox escalation request.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_sandbox_bypass_reason: Option<String>,
+    /// True when the escalation is a permissive retry that keeps the sandbox and network policy attached while recording file and process accesses instead of blocking them.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_sandbox_permissive: Option<bool>,
     /// Tool call ID that triggered this permission request
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_call_id: Option<String>,
@@ -6197,6 +6264,9 @@ pub struct SessionSkillsLoadedData {
 pub struct CustomAgentsUpdatedAgent {
     /// Description of what the agent does
     pub description: String,
+    /// Whether model-driven invocation is disabled for this agent.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub disable_model_invocation: Option<bool>,
     /// Human-readable display name
     pub display_name: String,
     /// Unique identifier for the agent
@@ -6602,7 +6672,7 @@ pub struct McpAppToolCallCompleteData {
     pub tool_name: String,
 }
 
-/// Routing preference used when the session model is `auto`.
+/// Routing preference used when the session model is `auto`. `fast` is an integrator-only latency preset and is not a first-party GitHub Copilot product preference.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AutoTier {
     /// Optimize for efficiency.
@@ -6614,6 +6684,9 @@ pub enum AutoTier {
     /// Optimize for intelligence.
     #[serde(rename = "intelligence")]
     Intelligence,
+    /// Integrator-only preset that optimizes for latency.
+    #[serde(rename = "fast")]
+    Fast,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
@@ -6818,6 +6891,24 @@ pub enum ModelChangeSource {
     /// An SDK or RPC caller selected the model.
     #[serde(rename = "sdk")]
     Sdk,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Auto preferences that Copilot API can recommend.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum RecommendedAutoTier {
+    /// Optimize for efficiency.
+    #[serde(rename = "efficiency")]
+    Efficiency,
+    /// Balance efficiency and intelligence.
+    #[serde(rename = "balance")]
+    Balance,
+    /// Optimize for intelligence.
+    #[serde(rename = "intelligence")]
+    Intelligence,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
@@ -7697,6 +7788,27 @@ pub enum SkillInvokedTrigger {
     /// Skill content loaded as part of another context, such as a configured custom agent or subagent.
     #[serde(rename = "context-load")]
     ContextLoad,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Where the model input for a task-tool sub-agent came from.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SubagentTaskModelSource {
+    /// The spawning agent supplied the task tool's model argument.
+    #[serde(rename = "task_argument")]
+    TaskArgument,
+    /// The task omitted a model and the per-sub-agent settings entry supplied a concrete one.
+    #[serde(rename = "subagent_configuration")]
+    SubagentConfiguration,
+    /// The task omitted a model and the user-defined custom agent's definition supplied one.
+    #[serde(rename = "custom_agent_definition")]
+    CustomAgentDefinition,
+    /// Neither the task call, the per-sub-agent settings entry, nor a custom agent definition supplied a model.
+    #[serde(rename = "unset")]
+    Unset,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
@@ -8616,6 +8728,9 @@ pub enum FactoryRunSettledStatus {
     /// The run was stopped by a limit, an approval refusal or another policy decision.
     #[serde(rename = "halted")]
     Halted,
+    /// The attempt paused intentionally while preserving resumable run state.
+    #[serde(rename = "paused")]
+    Paused,
     /// The run was cancelled by its caller or by session disposal.
     #[serde(rename = "cancelled")]
     Cancelled,
