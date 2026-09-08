@@ -106,4 +106,16 @@ describe("joinSession", () => {
 
         expect(register).toHaveBeenCalledWith(session);
     });
+
+    it("stops the parent-process client when extension session resume fails", async () => {
+        process.env.SESSION_ID = "session-123";
+        vi.spyOn(CopilotClient.prototype, "resumeSessionForExtension").mockRejectedValue(
+            new Error("resume failed")
+        );
+        const stop = vi.spyOn(CopilotClient.prototype, "stop").mockResolvedValue([]);
+
+        await expect(joinSession()).rejects.toThrow("resume failed");
+
+        expect(stop).toHaveBeenCalledOnce();
+    });
 });

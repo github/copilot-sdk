@@ -32,6 +32,7 @@ import {
     registerClientSessionApiHandlers,
 } from "./generated/rpc.js";
 import type {
+    AppExtensionRegisterResult,
     ConnectClientInfo,
     GitHubTelemetryNotification,
     GitHubTokenAcquireRequest,
@@ -94,6 +95,10 @@ import type {
 import { defaultJoinSessionPermissionHandler } from "./types.js";
 import type { FactoryHandle } from "./factory.js";
 import { AppSessionBadgesExtension } from "./appSessionBadges.js";
+import {
+    onExtensionTransportClosedSymbol,
+    registerPrivateAppExtensionSymbol,
+} from "./appExtensionClientAccess.js";
 
 /**
  * Minimum protocol version this SDK can communicate with.
@@ -497,6 +502,7 @@ export class CopilotClient {
         string,
         { provider: GitHubTokenProvider; sessionId?: string; committed: boolean }
     >();
+    private extensionTransportCloseHandlers = new Set<() => void>();
 
     /**
      * Typed server-scoped RPC methods.
@@ -1817,6 +1823,19 @@ export class CopilotClient {
         return AppSessionBadgesExtension.register(session, this.connection);
     }
 
+    /** @internal */
+    async [registerPrivateAppExtensionSymbol](): Promise<AppExtensionRegisterResult> {
+        return this.internalRpc.extensions.appExtension.register({ protocolVersion: 1 });
+    }
+
+    /** @internal */
+    [onExtensionTransportClosedSymbol](handler: () => void): () => void {
+        this.extensionTransportCloseHandlers.add(handler);
+        return () => {
+            this.extensionTransportCloseHandlers.delete(handler);
+        };
+    }
+
     private async resumeSessionInternal(
         sessionId: string,
         config: ResumeSessionConfig,
@@ -3082,13 +3101,23 @@ export class CopilotClient {
             }
             this.sessions.clear();
             this.githubTokenProviders.clear();
+            this.notifyExtensionTransportClosed();
         };
         this.connection.onClose(markDisconnected);
         this.connection.onError(() => {
             if (this.connection === connection) {
                 this.state = "disconnected";
+                this.notifyExtensionTransportClosed();
             }
         });
+    }
+
+    private notifyExtensionTransportClosed(): void {
+        const handlers = [...this.extensionTransportCloseHandlers];
+        this.extensionTransportCloseHandlers.clear();
+        for (const handler of handlers) {
+            handler();
+        }
     }
 
     private handleSessionEventNotification(notification: unknown): void {

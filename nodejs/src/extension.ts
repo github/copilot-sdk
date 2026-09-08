@@ -2,15 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { CopilotClient } from "./client.js";
 import type { CopilotSession } from "./session.js";
-import {
-    defaultJoinSessionPermissionHandler,
-    type PermissionHandler,
-    type ResumeSessionConfig,
-} from "./types.js";
+import { type PermissionHandler, type ResumeSessionConfig } from "./types.js";
 import type { FactoryHandle } from "./factory.js";
 import type { AppSessionBadgesExtension } from "./appSessionBadges.js";
+import { joinExtensionSession } from "./extensionSession.js";
 
 export {
     AppSessionBadgesExtension,
@@ -148,43 +144,4 @@ export async function joinAppSessionBadges(
         }
         throw error;
     }
-}
-
-async function joinExtensionSession(
-    config: JoinSessionConfig
-): Promise<{ client: CopilotClient; session: CopilotSession }> {
-    const sessionId = process.env.SESSION_ID;
-    if (!sessionId) {
-        throw new Error(
-            "joinSession() is intended for extensions running as child processes of the Copilot CLI."
-        );
-    }
-
-    const client = new CopilotClient({ _internalConnection: { kind: "parent-process" } });
-
-    // Strip `extensionSdkPath` at runtime even though `JoinSessionConfig` omits it
-    // at the type level — untyped (JS) callers can still slip it through, and
-    // honoring it here would be misleading since the extension subprocess has
-    // already been forked by the host with the SDK the host chose.
-    const {
-        extensionSdkPath: _stripped,
-        factories,
-        requestedEnvironmentVariables,
-        ...rest
-    } = config as JoinSessionConfig & {
-        extensionSdkPath?: string;
-    };
-    void _stripped;
-
-    const session = await client.resumeSessionForExtension(
-        sessionId,
-        {
-            ...rest,
-            onPermissionRequest: config.onPermissionRequest ?? defaultJoinSessionPermissionHandler,
-            suppressResumeEvent: config.suppressResumeEvent ?? true,
-        },
-        factories,
-        requestedEnvironmentVariables?.length ? { requestedEnvironmentVariables } : undefined
-    );
-    return { client, session };
 }
