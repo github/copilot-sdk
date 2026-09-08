@@ -2,6 +2,7 @@ import type { JSONSchema7 } from "json-schema";
 import { describe, expect, it } from "vitest";
 
 import {
+    type ApiSchema,
     collectDefinitionCollections,
     collectExperimentalOnlyRpcReferencedDefinitionNames,
     collectReachableDefinitionNames,
@@ -9,10 +10,105 @@ import {
     getEnumValueDescriptions,
     inlineExternalSchemaDefinitions,
     isIntegerSchemaBoundedToInt32,
+    mergeApiSchemaOverlay,
     rewriteSharedDefinitionReferences,
 } from "../../scripts/codegen/utils.ts";
 
 describe("shared schema definition codegen utilities", () => {
+    it("merges non-conflicting SDK-owned API definitions and methods", () => {
+        const base: ApiSchema = {
+            definitions: {
+                Existing: { type: "string" },
+            },
+            server: {
+                existing: {
+                    rpcMethod: "existing.method",
+                    params: { type: "null" },
+                },
+            },
+        };
+        const overlay: ApiSchema = {
+            definitions: {
+                PrivatePrincipal: { type: "object" },
+            },
+            server: {
+                extensions: {
+                    appExtension: {
+                        register: {
+                            rpcMethod: "extensions.appExtension.register",
+                            params: { type: "object" },
+                        },
+                    },
+                },
+            },
+        };
+
+        const merged = mergeApiSchemaOverlay(base, overlay);
+
+        expect(merged.definitions).toEqual({
+            Existing: { type: "string" },
+            PrivatePrincipal: { type: "object" },
+        });
+        expect(merged.server).toEqual({
+            existing: {
+                rpcMethod: "existing.method",
+                params: { type: "null" },
+            },
+            extensions: {
+                appExtension: {
+                    register: {
+                        rpcMethod: "extensions.appExtension.register",
+                        params: { type: "object" },
+                    },
+                },
+            },
+        });
+        expect(base).toEqual({
+            definitions: {
+                Existing: { type: "string" },
+            },
+            server: {
+                existing: {
+                    rpcMethod: "existing.method",
+                    params: { type: "null" },
+                },
+            },
+        });
+    });
+
+    it("rejects an SDK API overlay that conflicts with the runtime schema", () => {
+        expect(() =>
+            mergeApiSchemaOverlay(
+                {
+                    server: {
+                        extensions: {
+                            appExtension: {
+                                register: {
+                                    rpcMethod: "extensions.appExtension.register",
+                                    params: { type: "object" },
+                                },
+                            },
+                        },
+                    },
+                },
+                {
+                    server: {
+                        extensions: {
+                            appExtension: {
+                                register: {
+                                    rpcMethod: "extensions.appExtension.register",
+                                    params: { type: "null" },
+                                },
+                            },
+                        },
+                    },
+                }
+            )
+        ).toThrow(
+            "SDK API schema overlay conflicts with the runtime schema at server.extensions.appExtension.register"
+        );
+    });
+
     it("detects integer schemas bounded to the 32-bit signed range", () => {
         expect(
             isIntegerSchemaBoundedToInt32({

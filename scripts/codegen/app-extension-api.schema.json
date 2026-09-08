@@ -1,0 +1,99 @@
+{
+    "definitions": {
+        "AppExtensionRegisterRequest": {
+            "title": "AppExtensionRegisterRequest",
+            "description": "Private app-extension activation handshake. Identity is derived from trusted runtime connection metadata and is never accepted from request parameters.",
+            "visibility": "internal",
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["protocolVersion"],
+            "properties": {
+                "protocolVersion": {
+                    "type": "integer",
+                    "const": 1
+                }
+            }
+        },
+        "AppExtensionPrincipal": {
+            "title": "AppExtensionPrincipal",
+            "description": "Opaque runtime-authenticated identity for one allowlisted app-extension activation.",
+            "visibility": "internal",
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["packageId", "activationId"],
+            "properties": {
+                "packageId": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "activationId": {
+                    "type": "string",
+                    "minLength": 1
+                }
+            }
+        },
+        "AppExtensionCapabilities": {
+            "title": "AppExtensionCapabilities",
+            "description": "Capability grants bound to an authenticated app-extension principal. Keys are present only when granted.",
+            "visibility": "internal",
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "sessionBadges": {
+                    "type": "boolean",
+                    "const": true
+                },
+                "canvases": {
+                    "type": "boolean",
+                    "const": true
+                },
+                "forgeProvider": {
+                    "type": "boolean",
+                    "const": true
+                },
+                "mediatedFetch": {
+                    "type": "boolean",
+                    "const": true
+                }
+            }
+        },
+        "AppExtensionRegisterResult": {
+            "title": "AppExtensionRegisterResult",
+            "description": "Authenticated principal and capability grants for one private app-extension activation.",
+            "visibility": "internal",
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["protocolVersion", "principal", "capabilities"],
+            "properties": {
+                "protocolVersion": {
+                    "type": "integer",
+                    "const": 1
+                },
+                "principal": {
+                    "$ref": "#/definitions/AppExtensionPrincipal"
+                },
+                "capabilities": {
+                    "$ref": "#/definitions/AppExtensionCapabilities"
+                }
+            }
+        }
+    },
+    "server": {
+        "extensions": {
+            "appExtension": {
+                "register": {
+                    "rpcMethod": "extensions.appExtension.register",
+                    "description": "Authenticates an allowlisted app-extension connection and returns its opaque principal and capability grants.",
+                    "visibility": "internal",
+                    "stability": "experimental",
+                    "params": {
+                        "$ref": "#/definitions/AppExtensionRegisterRequest"
+                    },
+                    "result": {
+                        "$ref": "#/definitions/AppExtensionRegisterResult"
+                    }
+                }
+            }
+        }
+    }
+}

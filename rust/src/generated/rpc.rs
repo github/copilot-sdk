@@ -590,6 +590,13 @@ pub struct ClientRpcExtensions<'a> {
 }
 
 impl<'a> ClientRpcExtensions<'a> {
+    /// `extensions.appExtension.*` sub-namespace.
+    pub fn app_extension(&self) -> ClientRpcExtensionsAppExtension<'a> {
+        ClientRpcExtensionsAppExtension {
+            client: self.client,
+        }
+    }
+
     /// Discovers user and enabled installed-plugin extensions from persisted Copilot home state, including enablement preferences. Launch-scoped additional plugins are not included.
     ///
     /// Wire method: `extensions.discover`.
@@ -660,6 +667,48 @@ impl<'a> ClientRpcExtensions<'a> {
             .call(rpc_methods::EXTENSIONS_DISABLE, Some(wire_params))
             .await?;
         Ok(())
+    }
+}
+
+/// `extensions.appExtension.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct ClientRpcExtensionsAppExtension<'a> {
+    pub(crate) client: &'a Client,
+}
+
+impl<'a> ClientRpcExtensionsAppExtension<'a> {
+    /// Authenticates an allowlisted app-extension connection and returns its opaque principal and capability grants.
+    ///
+    /// Wire method: `extensions.appExtension.register`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Private app-extension activation handshake. Identity is derived from trusted runtime connection metadata and is never accepted from request parameters.
+    ///
+    /// # Returns
+    ///
+    /// Authenticated principal and capability grants for one private app-extension activation.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn register(
+        &self,
+        params: AppExtensionRegisterRequest,
+    ) -> Result<AppExtensionRegisterResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(
+                rpc_methods::EXTENSIONS_APPEXTENSION_REGISTER,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
     }
 }
 

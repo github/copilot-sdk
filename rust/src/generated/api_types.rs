@@ -68,6 +68,8 @@ pub mod rpc_methods {
     pub const EXTENSIONS_ENABLE: &str = "extensions.enable";
     /// `extensions.disable`
     pub const EXTENSIONS_DISABLE: &str = "extensions.disable";
+    /// `extensions.appExtension.register`
+    pub const EXTENSIONS_APPEXTENSION_REGISTER: &str = "extensions.appExtension.register";
     /// `registerExtensionLaunchProvider`
     pub const REGISTEREXTENSIONLAUNCHPROVIDER: &str = "registerExtensionLaunchProvider";
     /// `catalog.search`
@@ -22088,6 +22090,74 @@ pub struct WorkspacesWriteAutopilotObjectiveResult {
     pub operation: String,
 }
 
+/// Private app-extension activation handshake. Identity is derived from trusted runtime connection metadata and is never accepted from request parameters.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct AppExtensionRegisterRequest {
+    pub protocol_version: serde_json::Value,
+}
+
+/// Opaque runtime-authenticated identity for one allowlisted app-extension activation.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct AppExtensionPrincipal {
+    pub activation_id: String,
+    pub package_id: String,
+}
+
+/// Capability grants bound to an authenticated app-extension principal. Keys are present only when granted.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct AppExtensionCapabilities {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub canvases: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub forge_provider: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mediated_fetch: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_badges: Option<bool>,
+}
+
+/// Authenticated principal and capability grants for one private app-extension activation.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct AppExtensionRegisterResult {
+    #[doc(hidden)]
+    pub(crate) capabilities: AppExtensionCapabilities,
+    #[doc(hidden)]
+    pub(crate) principal: AppExtensionPrincipal,
+    pub protocol_version: serde_json::Value,
+}
+
 /// List of Copilot models available to the resolved user, including capabilities and billing metadata.
 ///
 /// <div class="warning">
@@ -22163,6 +22233,24 @@ pub struct ExtensionsDiscoverResult {
     pub extensions: Vec<DiscoveredExtension>,
     /// Effective extension loading mode. Defaults to load_and_augment when unset.
     pub mode: DiscoveredExtensionMode,
+}
+
+/// Authenticated principal and capability grants for one private app-extension activation.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ExtensionsAppExtensionRegisterResult {
+    #[doc(hidden)]
+    pub(crate) capabilities: AppExtensionCapabilities,
+    #[doc(hidden)]
+    pub(crate) principal: AppExtensionPrincipal,
+    pub protocol_version: serde_json::Value,
 }
 
 /// Plugins installed in user/global state.

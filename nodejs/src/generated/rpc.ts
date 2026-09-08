@@ -23577,6 +23577,56 @@ export interface WorkspacesWriteAutopilotObjectiveResult {
    */
   operation: string;
 }
+/**
+ * Private app-extension activation handshake. Identity is derived from trusted runtime connection metadata and is never accepted from request parameters.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AppExtensionRegisterRequest".
+ */
+/** @experimental */
+/** @internal */
+export interface AppExtensionRegisterRequest {
+  protocolVersion: 1;
+}
+/**
+ * Opaque runtime-authenticated identity for one allowlisted app-extension activation.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AppExtensionPrincipal".
+ */
+/** @experimental */
+/** @internal */
+export interface AppExtensionPrincipal {
+  packageId: string;
+  activationId: string;
+}
+/**
+ * Capability grants bound to an authenticated app-extension principal. Keys are present only when granted.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AppExtensionCapabilities".
+ */
+/** @experimental */
+/** @internal */
+export interface AppExtensionCapabilities {
+  sessionBadges?: true;
+  canvases?: true;
+  forgeProvider?: true;
+  mediatedFetch?: true;
+}
+/**
+ * Authenticated principal and capability grants for one private app-extension activation.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AppExtensionRegisterResult".
+ */
+/** @experimental */
+/** @internal */
+export interface AppExtensionRegisterResult {
+  protocolVersion: 1;
+  principal: AppExtensionPrincipal;
+  capabilities: AppExtensionCapabilities;
+}
 
 /** @experimental */
 export interface SessionModelListRequest {
@@ -24477,6 +24527,21 @@ export function createInternalServerRpc(connection: MessageConnection) {
          */
         connect: async (params: ConnectRequest): Promise<ConnectResult> =>
             connection.sendRequest("connect", params),
+        /** @experimental */
+        extensions: {
+            /** @experimental */
+            appExtension: {
+                /**
+                 * Authenticates an allowlisted app-extension connection and returns its opaque principal and capability grants.
+                 *
+                 * @param params Private app-extension activation handshake. Identity is derived from trusted runtime connection metadata and is never accepted from request parameters.
+                 *
+                 * @returns Authenticated principal and capability grants for one private app-extension activation.
+                 */
+                register: async (params: AppExtensionRegisterRequest): Promise<AppExtensionRegisterResult> =>
+                    connection.sendRequest("extensions.appExtension.register", params),
+            },
+        },
         /** @experimental */
         sessions: {
             /**

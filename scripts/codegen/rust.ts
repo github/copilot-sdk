@@ -29,7 +29,7 @@ import {
 	collectReachableDefinitionNames,
 	collectRpcMethodReferencedDefinitionNames,
 	findSharedSchemaDefinitions,
-	getApiSchemaPath,
+	getSdkApiSchemaPath,
 	getEnumValueDescriptions,
 	getNullableInner,
 	getRpcSchemaTypeName,
@@ -2214,7 +2214,7 @@ async function generate(): Promise<void> {
 	const schemaArgs = parseSchemaArgs();
 	const sessionEventsSchemaPath =
 		schemaArgs.sessionEventsSchemaPath || (await getSessionEventsSchemaPath());
-	const apiSchemaPath = await getApiSchemaPath(schemaArgs.apiSchemaPath);
+	const apiSchemaPath = await getSdkApiSchemaPath(schemaArgs.apiSchemaPath);
 
 	const sessionEventsRaw = normalizeSchemaBrandCasing(
 		JSON.parse(await fs.readFile(sessionEventsSchemaPath, "utf-8")),
