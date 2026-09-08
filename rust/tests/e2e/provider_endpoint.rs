@@ -91,6 +91,11 @@ async fn byok_provider_endpoint_returns_configured_endpoint() {
 #[tokio::test]
 #[allow(deprecated)]
 async fn capi_provider_endpoint_returns_resolved_credentials() {
+    // TODO(cli-1.0.81-2): CLI 1.0.81-2 stopped honoring client-level GitHub tokens over the
+    // in-process (FFI) host, which resolves auth from the ambient environment instead.
+    if super::support::skip_inprocess("client-level GitHub tokens are not supported in-process") {
+        return;
+    }
     with_e2e_context(
         "provider-endpoint",
         "capi_provider_endpoint_returns_resolved_credentials",

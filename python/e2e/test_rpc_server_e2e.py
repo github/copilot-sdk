@@ -183,7 +183,7 @@ class TestRpcServer:
             await client.start()
             result = await client.rpc.models.list(ModelsListRequest())
             assert result.models is not None
-            assert any(model.id == "claude-sonnet-4.5" for model in result.models)
+            assert any(model.id == "claude-sonnet-5" for model in result.models)
             assert all((model.name or "").strip() for model in result.models)
         finally:
             try:

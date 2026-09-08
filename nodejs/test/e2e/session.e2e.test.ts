@@ -95,10 +95,63 @@ describe("Sessions", () => {
         await resumedSession.disconnect();
         await originalSession.disconnect();
     });
+
+    it("should recover marker after cold resume with explicit session id", async () => {
+        const sessionId = `e2e-resume-${Date.now()}`;
+        const marker = "MARKER-7f3ac21e";
+        const firstClient = new CopilotClient({
+            workingDirectory: workDir,
+            env,
+            connection: RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH }),
+        });
+        onTestFinished(async () => {
+            try {
+                await firstClient.stop();
+            } catch {
+                // ignore
+            }
+        });
+
+        const session = await firstClient.createSession({
+            sessionId,
+            onPermissionRequest: approveAll,
+            model: "claude-sonnet-4.5",
+        });
+        await session.sendAndWait({
+            prompt: `Please remember this exact secret marker for later - ${marker}. Reply with only the single word "Acknowledged".`,
+        });
+        await session.disconnect();
+        await firstClient.stop();
+
+        const secondClient = new CopilotClient({
+            workingDirectory: workDir,
+            env,
+            connection: RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH }),
+        });
+        onTestFinished(async () => {
+            try {
+                await secondClient.stop();
+            } catch {
+                // ignore
+            }
+        });
+        const resumedSession = await secondClient.resumeSession(sessionId, {
+            onPermissionRequest: approveAll,
+            model: "claude-sonnet-4.5",
+        });
+        const response = await resumedSession.sendAndWait({
+            prompt: "What was the exact secret marker I asked you to remember earlier? Reply with only that marker value and nothing else.",
+        });
+
+        expect(response?.data.content).toContain(marker);
+        await resumedSession.disconnect();
+        await secondClient.stop();
+    });
+
     it("should create and disconnect sessions", async () => {
         await using session = await client.createSession({
             onPermissionRequest: approveAll,
-            model: "claude-sonnet-4.5",
+            model: "claude-sonnet-5",
         });
         expect(session.sessionId).toMatch(/^[a-f0-9-]+$/);
 
@@ -107,7 +160,7 @@ describe("Sessions", () => {
         expect(sessionStartEvents).toMatchObject([
             {
                 type: "session.start",
-                data: { sessionId: session.sessionId, selectedModel: "claude-sonnet-4.5" },
+                data: { sessionId: session.sessionId, selectedModel: "claude-sonnet-5" },
             },
         ]);
 
@@ -252,10 +305,13 @@ describe("Sessions", () => {
 
         // It only tells the model about the specified tools and no others
         const traffic = await waitForExchanges();
-        expect(traffic[0].request.tools).toMatchObject([
-            { function: { name: "view" } },
-            { function: { name: "edit" } },
-        ]);
+        expect(traffic[0].request.tools).toHaveLength(2);
+        expect(traffic[0].request.tools).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({ function: expect.objectContaining({ name: "view" }) }),
+                expect.objectContaining({ function: expect.objectContaining({ name: "edit" }) }),
+            ])
+        );
     });
 
     it("should create a session with excludedTools", async () => {

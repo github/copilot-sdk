@@ -1387,9 +1387,6 @@ function resolveSessionPropertyType(
 
 function generateDataClass(variant: EventVariant, knownTypes: Map<string, string>, nestedClasses: Map<string, string>, enumOutput: string[]): string {
     const dataVisibility = isSchemaInternal(variant.dataSchema) ? "internal" : "public";
-    if (!variant.dataSchema?.properties) return `${dataVisibility} sealed partial class ${variant.dataClassName} { }`;
-
-    const required = new Set(variant.dataSchema.required || []);
     const lines: string[] = [];
     if (variant.dataDescription) {
         lines.push(...xmlDocComment(variant.dataDescription, ""));
@@ -1402,6 +1399,12 @@ function generateDataClass(variant: EventVariant, knownTypes: Map<string, string
     if (isSchemaDeprecated(variant.dataSchema)) {
         pushObsoleteAttributes(lines);
     }
+    if (!variant.dataSchema?.properties) {
+        lines.push(`${dataVisibility} sealed partial class ${variant.dataClassName} { }`);
+        return lines.join("\n");
+    }
+
+    const required = new Set(variant.dataSchema.required || []);
     lines.push(`${dataVisibility} sealed partial class ${variant.dataClassName}`, `{`);
 
     for (const [propName, propSchema] of Object.entries(variant.dataSchema.properties).sort(([a], [b]) => a.localeCompare(b))) {
@@ -2720,14 +2723,23 @@ export async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSO
     const resolvedPath = schemaPath ?? (await getApiSchemaPath());
     handWrittenCSharpTypeNames = await collectHandWrittenCSharpTypeNames();
     let schema = fixNullableRequiredRefsInApiSchema(cloneSchemaForCodegen((await loadSchemaJson(resolvedPath)) as ApiSchema));
+    let sessionEventsCode: string | undefined;
     if (sessionEventsSchema) {
+        sessionEventsCode = generateSessionEventsCode(sessionEventsSchema);
         const sharedDefinitions = findSharedSchemaDefinitions(
             schema as unknown as Record<string, unknown>,
             sessionEventsSchema as unknown as Record<string, unknown>
         );
         const reachableDefinitions = collectReachableDefinitionNames(sessionEventsSchema as unknown as Record<string, unknown>);
         for (const name of [...sharedDefinitions]) {
-            if (!reachableDefinitions.has(name)) {
+            const typeName = typeToClassName(name);
+            const declarationPattern = new RegExp(
+                `\\bpublic\\s+(?:(?:sealed|abstract|partial|readonly)\\s+)*(?:class|struct|enum)\\s+${typeName}\\b`
+            );
+            if (
+                !reachableDefinitions.has(name) ||
+                (!declarationPattern.test(sessionEventsCode) && !handWrittenCSharpTypeNames.has(typeName))
+            ) {
                 sharedDefinitions.delete(name);
             }
         }
@@ -2735,8 +2747,7 @@ export async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSO
     }
     const externalJsonSerializableRefs = new Map<string, Set<string>>();
     const externalValueTypes = new Set<string>();
-    if (sessionEventsSchema) {
-        const sessionEventsCode = generateSessionEventsCode(sessionEventsSchema);
+    if (sessionEventsSchema && sessionEventsCode) {
         const externalRefs = collectExternalSchemaRefNames(schema);
         const sessionEventRefs = externalRefs.get("session-events.schema.json");
         if (sessionEventRefs && sessionEventRefs.size > 0) {

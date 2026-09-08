@@ -76,6 +76,22 @@ public final class SessionCommandsApi {
     }
 
     /**
+     * The pending slash-command invocation effect to finalize, plus whether the host applied or cancelled it.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionCommandsFinalizeInvocationEffectResult> finalizeInvocationEffect(SessionCommandsFinalizeInvocationEffectParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.commands.finalizeInvocationEffect", _p, SessionCommandsFinalizeInvocationEffectResult.class);
+    }
+
+    /**
      * Pending command request ID and an optional error if the client handler failed.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden

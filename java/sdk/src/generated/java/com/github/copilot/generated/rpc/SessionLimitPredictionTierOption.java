@@ -21,6 +21,7 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionLimitPredictionTierOption(
+    /** Semantic usage tier. */
     @JsonProperty("tier") SessionLimitPredictionTier tier,
     /** AI-credit cap for this tier. */
     @JsonProperty("cap") Double cap

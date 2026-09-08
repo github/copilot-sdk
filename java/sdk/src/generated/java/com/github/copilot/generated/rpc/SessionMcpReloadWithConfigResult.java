@@ -28,6 +28,8 @@ public record SessionMcpReloadWithConfigResult(
     /** Servers filtered out before startup */
     @JsonProperty("filteredServers") List<McpFilteredServer> filteredServers,
     /** Non-default servers allowed by policy */
-    @JsonProperty("allowedServers") List<McpAllowedServer> allowedServers
+    @JsonProperty("allowedServers") List<McpAllowedServer> allowedServers,
+    /** Servers whose connection attempt failed. */
+    @JsonProperty("failedServers") List<McpFailedServer> failedServers
 ) {
 }

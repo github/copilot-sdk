@@ -73,7 +73,7 @@ describe("Session RPC", async () => {
     it.skip("should call session.rpc.model.getCurrent", async () => {
         const session = await client.createSession({
             onPermissionRequest: approveAll,
-            model: "claude-sonnet-4.5",
+            model: "claude-sonnet-5",
         });
 
         const result = await session.rpc.model.getCurrent();
@@ -85,7 +85,7 @@ describe("Session RPC", async () => {
     it.skip("should call session.rpc.model.switchTo", async () => {
         const session = await client.createSession({
             onPermissionRequest: approveAll,
-            model: "claude-sonnet-4.5",
+            model: "claude-sonnet-5",
         });
 
         // Get initial model

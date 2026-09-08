@@ -14,7 +14,7 @@ import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * Transient answer generated from current conversation context.
+ * Completed transient query. Ordered chunks and the terminal outcome are also delivered through `ui.ephemeral_query` session events while it runs.
  *
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
@@ -24,7 +24,7 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionUiEphemeralQueryResult(
-    /** Full assistant response text. */
+    /** Answer returned by the model */
     @JsonProperty("answer") String answer
 ) {
 }

@@ -42,6 +42,8 @@ public record SessionUsageGetMetricsResult(
     @JsonProperty("codeChanges") UsageMetricsCodeChanges codeChanges,
     /** Per-model token and request metrics, keyed by model identifier */
     @JsonProperty("modelMetrics") Map<String, UsageMetricsModelMetric> modelMetrics,
+    /** Per-agent usage metrics, keyed by agent instance identifier. The main conversation uses the stable key `main`. */
+    @JsonProperty("agentMetrics") Map<String, UsageMetricsAgentMetric> agentMetrics,
     /** Currently active model identifier */
     @JsonProperty("currentModel") String currentModel,
     /** Input tokens from the most recent main-agent API call */

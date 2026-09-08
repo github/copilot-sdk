@@ -1,5 +1,5 @@
 models:
-  - claude-sonnet-4.5
+  - claude-sonnet-5
 conversations:
   - messages:
       - role: system
@@ -83,7 +83,7 @@ conversations:
               arguments: '{"path":"${workdir}/greeting.txt"}'
       - role: tool
         tool_call_id: toolcall_2
-        content: 1. Hello from multi-turn test
+        content: Hello from multi-turn test
       - role: assistant
         content: |-
           The exact contents of `greeting.txt` are:

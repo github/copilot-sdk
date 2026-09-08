@@ -14,6 +14,13 @@ To use the SDK, you'll need:
 dotnet add package GitHub.Copilot.SDK
 ```
 
+The package downloads the pinned Copilot CLI runtime for the build RID from the
+matching `github/copilot-cli` GitHub release and verifies the archive against
+that release's `SHA256SUMS.txt`. Set `CopilotCliReleaseBaseUrl` in MSBuild (or
+`COPILOT_CLI_DOWNLOAD_BASE_URL` in the environment) to use a release mirror.
+Set `CopilotCliBinaryPath` to copy a preinstalled binary instead, or set
+`CopilotSkipCliDownload=true` to omit runtime acquisition.
+
 ## Run the Samples
 
 Try the interactive chat sample (from the repo root):
@@ -101,6 +108,11 @@ new CopilotClient(CopilotClientOptions? options = null)
 - `RuntimeConnection.ForTcp(port = 0, connectionToken?, path?, args?)` — spawns the runtime as a child process listening on a TCP port. `port = 0` auto-allocates; if a non-zero port is already in use, startup fails (no fallback). Use `CopilotClient.RuntimePort` after `StartAsync` to read the assigned port. `connectionToken` is required if other clients will connect via `RuntimeConnection.ForUri(...)`.
 - `RuntimeConnection.ForUri(url, connectionToken?)` — connects to an already-running runtime at `url` (e.g., `"localhost:8080"`). Does not spawn a process.
 
+Managed stdio and TCP connections use the bundled `copilot-runtime[.exe]` and
+adjacent `runtime.node` by default. An explicit connection path or
+`COPILOT_CLI_PATH` overrides the bundled runtime.
+Managed launch fails if the bundled wrapper pair is unavailable.
+
 #### Methods
 
 ##### `StartAsync(): Task`
@@ -133,8 +145,10 @@ Create a new conversation session.
 - `InfiniteSessions` - Configure automatic context compaction (see below)
 - `WorkingDirectory` - Working directory for the session. When not set, the runtime uses its own process working directory.
 - `EnableSessionStore` - Enables the cross-session store for search and retrieval across sessions. When unset in `CopilotClientMode.CopilotCli`, the runtime default applies (enabled). In `CopilotClientMode.Empty`, defaults to disabled.
+- `GitHubTokenProvider` - Acquires session-scoped GitHub tokens on demand. Return `GitHubTokenProviderResult.FromToken` with a positive `ExpiresIn` value (production GitHub tokens typically use `8 * 60 * 60` seconds), or `GitHubTokenProviderResult.Cancel()`. Cannot be combined with `GitHubToken`.
 - `OnPermissionRequest` - Optional handler called before each tool execution to approve or deny it. When omitted, permission requests are emitted as events and left pending for manual resolution. `PermissionHandler.ApproveAll` approves requests when managed settings are disabled and throws when `EnableManagedSettings` is true. Custom handlers can inspect `ManagedApprovalRequired` for human-facing confirmation logic. See [Permission Handling](#permission-handling) section.
-- `OnUserInputRequest` - Handler for user input requests from the agent (enables ask_user tool). See [User Input Requests](#user-input-requests) section.
+- `OnUserInputRequest` - Handler for legacy question-and-answer requests from the agent. Enables the legacy `ask_user` tool. See [User Input Requests](#user-input-requests) section.
+- `AskUserVariant` - Selects the model-facing `ask_user` tool shape. Defaults to `AskUserVariant.Legacy`; use `AskUserVariant.Elicitation` with `OnElicitationRequest`.
 - `Hooks` - Hook handlers for session lifecycle events. See [Session Hooks](#session-hooks) section.
 
 ##### `ResumeSessionAsync(string sessionId, ResumeSessionConfig? config = null): Task<CopilotSession>`
@@ -144,6 +158,25 @@ Resume an existing session. Returns the session with `WorkspacePath` populated i
 **ResumeSessionConfig:**
 
 - `OnPermissionRequest` - Optional handler called before each tool execution to approve or deny it. See [Permission Handling](#permission-handling) section.
+- `GitHubTokenProvider` - Replaces the session-scoped token provider when resuming. Cannot be combined with `GitHubToken`.
+- `AskUserVariant` - Re-supplies the model-facing `ask_user` tool shape on cold resume.
+
+```csharp
+await using var session = await client.CreateSessionAsync(new SessionConfig
+{
+    GitHubTokenProvider = async args =>
+    {
+        var token = await AcquireTokenAsync(args.Host);
+        return GitHubTokenProviderResult.FromToken(new GitHubToken
+        {
+            AccessToken = token,
+            ExpiresIn = 8 * 60 * 60
+        });
+    }
+});
+```
+
+Initial acquisition runs during session creation or resume. Cancellation, provider errors, and invalid token responses reject that operation instead of falling back to ambient authentication. Idle sessions refresh only before their next credential-consuming operation; there is no background refresh timer.
 
 ##### `PingAsync(string? message = null): Task<PingResponse>`
 
@@ -217,8 +250,32 @@ Send a message to the session.
 - `Prompt` - The message/prompt to send
 - `Attachments` - File attachments
 - `Mode` - Delivery mode ("enqueue" or "immediate")
+- `Source` - Optional message origin: `MessageSource.User`, `MessageSource.System`, or `MessageSource.Agent(id)`. Omitted by default, preserving the runtime's default user behavior.
 
 Returns the message ID.
+
+Use `MessageSource.System` for application-generated system context and
+`MessageSource.Agent(id)` for messages from an identified agent. This marks the
+message's origin; it does not replace the session's system prompt or change
+delivery mode. `SendAndWaitAsync` accepts the same option and still waits for
+session idle, returning null if no assistant message was received.
+
+```csharp
+await session.SendAsync(new MessageOptions
+{
+    Prompt = "The background build completed successfully.",
+    Source = MessageSource.System,
+});
+
+await session.SendAndWaitAsync(new MessageOptions
+{
+    Prompt = "The review found no blocking issues.",
+    Source = MessageSource.Agent("reviewer"),
+});
+```
+
+Agent sources serialize as `agent-<id>`. Pass the agent ID without adding a
+prefix. The SDK preserves its case and whitespace and rejects null IDs.
 
 ##### `On(Action<SessionEvent> handler): IDisposable`
 
@@ -257,6 +314,27 @@ await session2.DisposeAsync();
 ```
 
 ---
+
+## Auto routing tiers
+
+Change the Auto routing preference without changing the selected model. The runtime does not apply the preference immediately: it records the request and commits it only when a later user turn using the `auto` model successfully obtains a usable model from the provider, so a `pending` status confirms acceptance rather than effect. Only the most recent request survives.
+
+Watch for the outcome through the `session.model_change` event on success or the ephemeral `session.auto_tier_switch_failed` event on failure. Read the authoritative committed, pending, and activating preferences at any time through the session's `model.getCurrent` RPC method.
+
+```csharp
+var result = await session.SetAutoTierAsync(AutoTier.Intelligence);
+if (result.Status == ModelSwitchAutoTierStatus.Pending)
+{
+    // Accepted, but not yet in effect.
+}
+
+// Return to the provider's default Auto routing.
+await session.SetAutoTierAsync(null);
+```
+
+`SetModelAsync` accepts the same preference through `SetModelOptions.AutoTier`, which stages the tier atomically with selecting `auto`. Set `ResetAutoTier` instead to return to provider-default routing; the two options are mutually exclusive.
+
+See [Auto tier persistence](../docs/features/session-persistence.md#auto-tier-persistence) for the full lifecycle rules.
 
 ## Event Types
 
@@ -852,7 +930,7 @@ To let a specific custom tool bypass the permission prompt entirely, set `SkipPe
 
 ## User Input Requests
 
-Enable the agent to ask questions to the user using the `ask_user` tool by providing an `OnUserInputRequest` handler:
+Enable the legacy question-and-answer `ask_user` tool by providing an `OnUserInputRequest` handler:
 
 ```csharp
 var session = await client.CreateSessionAsync(new SessionConfig
@@ -985,6 +1063,7 @@ var session = await client.CreateSessionAsync(new SessionConfig
 {
     Model = "gpt-5",
     OnPermissionRequest = PermissionHandler.ApproveAll,
+    AskUserVariant = AskUserVariant.Elicitation,
     OnElicitationRequest = async (context) =>
     {
         // context.SessionId - Session that triggered the request

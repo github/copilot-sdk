@@ -37,6 +37,8 @@ public final class UserMessageEvent extends SessionEvent {
     public record UserMessageEventData(
         /** The user's message text as displayed in the timeline */
         @JsonProperty("content") String content,
+        /** Stable identity of the logical user message, matching the ID returned by send and retained by pending queue snapshots */
+        @JsonProperty("messageId") String messageId,
         /** Transformed version of the message sent to the model, with XML wrapping, timestamps, and other augmentations for prompt caching */
         @JsonProperty("transformedContent") String transformedContent,
         /** Files, selections, or GitHub references attached to the message */
@@ -55,6 +57,8 @@ public final class UserMessageEvent extends SessionEvent {
         @JsonProperty("isAutopilotContinuation") Boolean isAutopilotContinuation,
         /** CAPI interaction ID for correlating this user message with its turn */
         @JsonProperty("interactionId") String interactionId,
+        /** The agent-loop turn ID that consumed this message; absent when no agent-loop turn consumed it */
+        @JsonProperty("turnId") String turnId,
         /** Parent agent task ID for background telemetry correlated to this user turn */
         @JsonProperty("parentAgentTaskId") String parentAgentTaskId
     ) {

@@ -25,6 +25,8 @@ public final class ServerRpc {
 
     private final RpcCaller caller;
 
+    /** API methods for the {@code hooks} namespace. */
+    public final ServerHooksApi hooks;
     /** API methods for the {@code models} namespace. */
     public final ServerModelsApi models;
     /** API methods for the {@code tools} namespace. */
@@ -37,6 +39,8 @@ public final class ServerRpc {
     public final ServerMcpApi mcp;
     /** API methods for the {@code extensions} namespace. */
     public final ServerExtensionsApi extensions;
+    /** API methods for the {@code catalog} namespace. */
+    public final ServerCatalogApi catalog;
     /** API methods for the {@code plugins} namespace. */
     public final ServerPluginsApi plugins;
     /** API methods for the {@code skills} namespace. */
@@ -69,12 +73,14 @@ public final class ServerRpc {
      */
     public ServerRpc(RpcCaller caller) {
         this.caller = caller;
+        this.hooks = new ServerHooksApi(caller);
         this.models = new ServerModelsApi(caller);
         this.tools = new ServerToolsApi(caller);
         this.account = new ServerAccountApi(caller);
         this.secrets = new ServerSecretsApi(caller);
         this.mcp = new ServerMcpApi(caller);
         this.extensions = new ServerExtensionsApi(caller);
+        this.catalog = new ServerCatalogApi(caller);
         this.plugins = new ServerPluginsApi(caller);
         this.skills = new ServerSkillsApi(caller);
         this.agents = new ServerAgentsApi(caller);
@@ -101,7 +107,7 @@ public final class ServerRpc {
     }
 
     /**
-     * Parameters for the `server.connect` handshake: an optional connection token and optional connection-level opt-ins (e.g. GitHub telemetry forwarding).
+     * Connection-level opt-ins for the `server.connect` handshake. Transport authentication is consumed by the native protocol boundary before dispatch.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0

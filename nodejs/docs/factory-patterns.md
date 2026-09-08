@@ -189,6 +189,6 @@ Compose these freely.
 
 Match the orchestration to what was asked. A quick check wants a couple of subagents and single-vote verification; a request to be thorough or comprehensive wants a larger finder pool, a three-to-five vote adversarial pass, and a synthesis stage.
 
-There is no in-script budget object. Scale with your own counters, as in the loop patterns above, and treat the declared limits as the safety ceiling rather than the control mechanism. Only `agent()` spawns are throttled, by `maxConcurrentSubagents` falling back to `maxTotalSubagents`; with neither declared there is no built-in concurrency cap, so declare one before fanning out widely. `parallel` itself is `Promise.all`, so non-agent work in a thunk runs fully concurrently regardless.
+There is no in-script budget object. Scale with your own counters, as in the loop patterns above, and treat any declared limits as the safety ceiling rather than the control mechanism. Only `agent()` spawns are throttled, by `maxConcurrentSubagents` falling back to `maxTotalSubagents`; with neither declared there is no built-in concurrency cap, so bound a wide fan-out with the factory's own counters. Do not invent a ceiling to compensate, and see [Resource limits](./factories.md#resource-limits) for when declaring one is appropriate. `parallel` itself is `Promise.all`, so non-agent work in a thunk runs fully concurrently regardless.
 
 These patterns are not exhaustive. Compose novel harnesses — tournament brackets, self-repair loops, staged escalation — when the task calls for it.

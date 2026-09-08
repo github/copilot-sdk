@@ -142,6 +142,10 @@ func TestStreamingFidelityE2E(t *testing.T) {
 	})
 
 	t.Run("should produce deltas after session resume", func(t *testing.T) {
+		// TODO(cli-1.0.81-2): resuming a session over the in-process transport no longer
+		// routes model traffic through COPILOT_API_URL, so the CLI reaches the real
+		// api.githubcopilot.com and macOS rejects the proxy certificate with an EKU error.
+		testharness.SkipIfInProcessOnMacOS(t, "session resume ignores COPILOT_API_URL")
 		ctx.ConfigureForTest(t)
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
@@ -212,6 +216,10 @@ func TestStreamingFidelityE2E(t *testing.T) {
 	})
 
 	t.Run("should not produce deltas after session resume with streaming disabled", func(t *testing.T) {
+		// TODO(cli-1.0.81-2): resuming a session over the in-process transport no longer
+		// routes model traffic through COPILOT_API_URL, so the CLI reaches the real
+		// api.githubcopilot.com and macOS rejects the proxy certificate with an EKU error.
+		testharness.SkipIfInProcessOnMacOS(t, "session resume ignores COPILOT_API_URL")
 		ctx.ConfigureForTest(t)
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{

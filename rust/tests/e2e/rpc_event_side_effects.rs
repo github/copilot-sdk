@@ -40,6 +40,7 @@ async fn should_emit_mode_changed_event_when_mode_set() {
                     .mode()
                     .set(ModeSetRequest {
                         mode: SessionMode::Plan,
+                        ..Default::default()
                     })
                     .await
                     .expect("set mode");

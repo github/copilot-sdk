@@ -53,10 +53,7 @@ export async function startOAuthMcpServer({
       return;
     }
 
-    if (
-      req.method === "GET" &&
-      url.pathname === PROTECTED_RESOURCE_PATH
-    ) {
+    if (req.method === "GET" && url.pathname === PROTECTED_RESOURCE_PATH) {
       respondJson(res, 200, {
         resource: `${baseUrl}/mcp`,
         authorization_servers: [baseUrl],
@@ -165,9 +162,10 @@ export async function startOAuthMcpServer({
     url: `http://${host}:${address.port}`,
     requests,
     close: () =>
-      new Promise((resolve, reject) =>
-        server.close((err) => (err ? reject(err) : resolve())),
-      ),
+      new Promise((resolve, reject) => {
+        server.close((err) => (err ? reject(err) : resolve()));
+        server.closeAllConnections();
+      }),
   };
 }
 
@@ -313,7 +311,10 @@ function respondJson(res, statusCode, body) {
   res.end(data);
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (
+  process.argv[1] &&
+  path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+) {
   const server = await startOAuthMcpServer({
     expectedToken: process.env.EXPECTED_TOKEN ?? DEFAULT_EXPECTED_TOKEN,
   });

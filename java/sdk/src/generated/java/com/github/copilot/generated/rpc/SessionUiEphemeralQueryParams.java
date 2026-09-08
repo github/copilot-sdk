@@ -28,9 +28,9 @@ public record SessionUiEphemeralQueryParams(
     @JsonProperty("sessionId") String sessionId,
     /** Question to answer from the current conversation context. */
     @JsonProperty("question") String question,
-    /** In-process streaming callback `(text) => void` invoked with each token as the model emits it. Marked internal: excluded from the public SDK surface. In a process-separated SDK this is replaced by a streaming RPC that yields chunks and a final answer. */
+    /** In-process streaming callback `(text) => void` invoked with each token as the model emits it. Internal and excluded from the public SDK surface. */
     @JsonProperty("onChunk") Object onChunk,
-    /** In-process `AbortSignal` forwarded to the model client to cancel an in-flight request. Marked internal: excluded from the public SDK surface. Replaced by an explicit cancellation token + cancel RPC in the SDK migration. */
+    /** In-process `AbortSignal` forwarded to the model client to cancel an in-flight request. Internal and excluded from the public SDK surface. */
     @JsonProperty("abortSignal") Object abortSignal
 ) {
 }

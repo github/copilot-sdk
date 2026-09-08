@@ -22,14 +22,14 @@ public class RpcSessionStateE2ETests(E2ETestFixture fixture, ITestOutputHelper o
     [Fact]
     public async Task Should_Call_Session_Rpc_Model_GetCurrent()
     {
-        await using var session = await CreateSessionAsync(new SessionConfig { Model = "claude-sonnet-4.5" });
+        await using var session = await CreateSessionAsync(new SessionConfig { Model = "claude-sonnet-5" });
 
         var result = await session.Rpc.Model.GetCurrentAsync();
 
         Assert.NotNull(result.ModelId);
         Assert.NotEmpty(result.ModelId);
         // Strengthen: verify the configured model is actually in effect, not just any model
-        Assert.Equal("claude-sonnet-4.5", result.ModelId);
+        Assert.Equal("claude-sonnet-5", result.ModelId);
     }
 
     [Fact]
@@ -48,12 +48,12 @@ public class RpcSessionStateE2ETests(E2ETestFixture fixture, ITestOutputHelper o
 
         await using var session = await isolatedCtx.CreateSessionAsync(isolatedClient, new SessionConfig
         {
-            Model = "claude-sonnet-4.5",
+            Model = "claude-sonnet-5",
             OnPermissionRequest = PermissionHandler.ApproveAll,
         });
 
         var before = await session.Rpc.Model.GetCurrentAsync();
-        Assert.Equal("claude-sonnet-4.5", before.ModelId);
+        Assert.Equal("claude-sonnet-5", before.ModelId);
 
         var result = await session.Rpc.Model.SwitchToAsync(modelId: "gpt-5.4", reasoningEffort: "high");
         Assert.Equal("gpt-5.4", result.ModelId);
@@ -281,14 +281,14 @@ public class RpcSessionStateE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         var branch = $"rpc-context-{Guid.NewGuid():N}";
         await using var session = await CreateSessionAsync(new SessionConfig
         {
-            Model = "claude-sonnet-4.5",
+            Model = "claude-sonnet-5",
             WorkingDirectory = firstDirectory,
         });
 
         var initialSnapshot = await session.Rpc.Metadata.SnapshotAsync();
         Assert.Equal(session.SessionId, initialSnapshot.SessionId);
         Assert.Equal(MetadataSnapshotCurrentMode.Interactive, initialSnapshot.CurrentMode);
-        Assert.Equal("claude-sonnet-4.5", initialSnapshot.SelectedModel);
+        Assert.Equal("claude-sonnet-5", initialSnapshot.SelectedModel);
         Assert.False(initialSnapshot.IsRemote);
         Assert.False(initialSnapshot.AlreadyInUse);
         Assert.NotEqual(default, initialSnapshot.StartTime);
@@ -405,14 +405,14 @@ public class RpcSessionStateE2ETests(E2ETestFixture fixture, ITestOutputHelper o
     {
         await using var session = await CreateSessionAsync(new SessionConfig
         {
-            Model = "claude-sonnet-4.5",
+            Model = "claude-sonnet-5",
         });
 
         var reasoning = await session.Rpc.Model.SetReasoningEffortAsync("high");
         Assert.Equal("high", reasoning.ReasoningEffort);
 
         var currentModel = await session.Rpc.Model.GetCurrentAsync();
-        Assert.Equal("claude-sonnet-4.5", currentModel.ModelId);
+        Assert.Equal("claude-sonnet-5", currentModel.ModelId);
         Assert.Equal("high", currentModel.ReasoningEffort);
 
         var autoName = $"Auto Session {Guid.NewGuid():N}";
@@ -451,7 +451,7 @@ public class RpcSessionStateE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         });
         var login = $"sdk-rpc-{Guid.NewGuid():N}";
 
-        var setCredentials = await session.Rpc.GitHubAuth.SetCredentialsAsync(new AuthInfoUser
+        var setCredentials = await session.Rpc.GitHubAuth.SetCredentialsAsync(new SettableAuthInfoUser
         {
             CopilotUser = new CopilotUserResponse
             {
@@ -653,9 +653,9 @@ public class RpcSessionStateE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         var contextInfo = await session.Rpc.Metadata.ContextInfoAsync(
             promptTokenLimit: 128_000,
             outputTokenLimit: 4_096,
-            selectedModel: "claude-sonnet-4.5");
+            selectedModel: "claude-sonnet-5");
         var context = Assert.IsType<MetadataContextInfoResultContextInfo>(contextInfo.ContextInfo);
-        Assert.Equal("claude-sonnet-4.5", context.ModelName);
+        Assert.Equal("claude-sonnet-5", context.ModelName);
         Assert.Equal(128_000, context.PromptTokenLimit);
         Assert.True(context.Limit >= context.PromptTokenLimit);
         Assert.True(context.TotalTokens > 0);
@@ -666,7 +666,7 @@ public class RpcSessionStateE2ETests(E2ETestFixture fixture, ITestOutputHelper o
             context.SystemTokens + context.ConversationTokens + context.ToolDefinitionsTokens,
             context.TotalTokens);
 
-        var recomputed = await session.Rpc.Metadata.RecomputeContextTokensAsync("claude-sonnet-4.5");
+        var recomputed = await session.Rpc.Metadata.RecomputeContextTokensAsync("claude-sonnet-5");
         Assert.True(recomputed.SystemTokenCount > 0);
         Assert.True(recomputed.MessagesTokenCount > 0);
         Assert.Equal(recomputed.SystemTokenCount + recomputed.MessagesTokenCount, recomputed.TotalTokens);

@@ -135,7 +135,7 @@ class RpcServerE2ETest {
             var result = client.getRpc().models.list().get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
 
             assertNotNull(result.models());
-            assertTrue(result.models().stream().anyMatch(model -> "claude-sonnet-4.5".equals(model.id())));
+            assertTrue(result.models().stream().anyMatch(model -> "claude-sonnet-5".equals(model.id())));
             result.models().forEach(model -> {
                 assertFalse(model.id().isBlank());
                 assertFalse(model.name().isBlank());

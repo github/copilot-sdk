@@ -101,8 +101,63 @@ transports.
 | `env_remove`        | `Vec<OsString>`             | Environment variables to remove                                   |
 | `extra_args`        | `Vec<String>`               | Extra CLI flags                                                   |
 | `transport`         | `Transport`                 | `Default`, `Stdio`, `InProcess`, `Tcp`, or `External`             |
+| `extension_launch_provider` | `Option<Arc<dyn ExtensionLaunchProvider>>` | Connection-global extension launch resolver |
 
-With the default `CliProgram::Resolve`, `Client::start()` resolves the CLI in this order: an explicit `CliProgram::Path(path)`, the `COPILOT_CLI_PATH` env var, then the bundled CLI that was embedded at build time. There is no PATH scanning — if you've opted out of bundling (`default-features = false`) you must supply either `CliProgram::Path` or `COPILOT_CLI_PATH`.
+With the default `CliProgram::Resolve`, managed stdio and TCP transports resolve an explicit `CliProgram::Path(path)`, `COPILOT_CLI_PATH`, then the bundled `copilot-runtime` wrapper and adjacent `runtime.node`. In-process transport loads the native runtime library adjacent to that resolved runtime bundle. There is no PATH scanning.
+
+#### Extension launch provider
+
+Hosts that own legacy extension process assets can supply a typed, asynchronous
+launch resolver:
+
+```rust,ignore
+use std::collections::HashMap;
+
+use async_trait::async_trait;
+use github_copilot_sdk::extension_launch_provider::{
+    ExtensionLaunchProfile, ExtensionLaunchProvider, ExtensionLaunchProviderResolveRequest,
+    ExtensionLaunchProviderResolveResult,
+};
+use github_copilot_sdk::{Client, ClientOptions, Result};
+
+struct AppExtensionLaunchProvider;
+
+#[async_trait]
+impl ExtensionLaunchProvider for AppExtensionLaunchProvider {
+    async fn resolve(
+        &self,
+        request: ExtensionLaunchProviderResolveRequest,
+    ) -> Result<ExtensionLaunchProviderResolveResult> {
+        Ok(ExtensionLaunchProviderResolveResult {
+            launch: Some(ExtensionLaunchProfile {
+                executable: "/app/copilot".to_string(),
+                args: vec!["/app/preloads/extension_bootstrap.mjs".to_string()],
+                env: HashMap::from([
+                    ("COPILOT_AUTO_UPDATE".to_string(), "false".to_string()),
+                    ("EXTENSION_PATH".to_string(), request.module_path),
+                ]),
+            }),
+        })
+    }
+}
+
+let client = Client::start(
+    ClientOptions::new().with_extension_launch_provider(AppExtensionLaunchProvider),
+).await?;
+```
+
+`Client::start` registers the provider before returning, and reverse requests
+are routed at the connection level rather than through a session. The SDK
+forwards the returned executable, arguments, and environment unchanged; it
+does not discover or bundle an executable or bootstrap. The runtime owns and
+overrides `COPILOT_SDK_PATH`, `SESSION_ID`, and
+`COPILOT_EXTENSION_PARENT_PID`.
+
+`COPILOT_CLI_DIST_DIR` is only appropriate when the host supplies a complete
+CLI distribution containing `index.js` and its matching preloads. When the
+executable is a version-matched standalone Copilot binary, omit that variable
+and set `COPILOT_AUTO_UPDATE=false` so its embedded distribution remains
+selected.
 
 ### Session
 
@@ -273,6 +328,84 @@ let config = SessionConfig {
 .with_permission_handler(handler);
 let session = client.create_session(config).await?;
 ```
+
+Use `with_ask_user_variant(AskUserVariant::Elicitation)` together with
+`with_elicitation_handler(...)` to expose the structured form-based `ask_user`
+tool. The default remains `AskUserVariant::Legacy`. Re-supply the option and
+handler through `ResumeSessionConfig` on a cold resume.
+
+For rotating per-session GitHub credentials, install a `GitHubTokenProvider`
+instead of setting `github_token`:
+
+```rust,ignore
+use github_copilot_sdk::{
+    GitHubToken, GitHubTokenProviderArgs, GitHubTokenProviderResult, SessionConfig,
+};
+
+let provider = Arc::new(|args: GitHubTokenProviderArgs| async move {
+    let access_token = acquire_for_host(&args.host).await?;
+    Ok(GitHubTokenProviderResult::Token(GitHubToken::new(
+        access_token,
+        8 * 60 * 60,
+    )))
+});
+let config = SessionConfig::default().with_github_token_provider(provider);
+```
+
+The remaining lifetime is required and must be positive when the callback
+completes; production GitHub tokens typically last eight hours. Static
+`github_token` and a provider are mutually exclusive. The same provider API is
+available on `ResumeSessionConfig`.
+
+Initial acquisition runs during session creation or resume. Cancellation,
+provider errors, and invalid token responses reject that operation instead of
+falling back to ambient authentication. Idle sessions refresh only before their
+next credential-consuming operation; there is no background refresh timer.
+
+### Auto routing tiers
+
+Use `CapiSessionOptions::with_auto_tier` to select `AutoTier::Efficiency`,
+`AutoTier::Balance`, or `AutoTier::Intelligence`. This option is meaningful only
+with model `auto` (Auto mode V2).
+It requires a runtime version that supports `capi.autoTier`.
+
+```rust
+use github_copilot_sdk::{AutoTier, CapiSessionOptions, SessionConfig};
+
+let config = SessionConfig::default()
+    .with_model("auto")
+    .with_capi(CapiSessionOptions::new().with_auto_tier(AutoTier::Balance));
+```
+
+The same options work with `ResumeSessionConfig::with_capi` and can be combined
+with `with_enable_web_socket_responses(false)`. The SDK omits an unset tier:
+the runtime chooses its default on create and preserves the persisted/current
+tier on resume. An explicit tier overrides the persisted tier on cold resume. On
+resident resume, a different tier requests a safe switch applied after the
+resume succeeds; it cannot change a turn that is already in flight. The SDK does not choose a default or manage tier persistence.
+
+### Changing the Auto tier during a session
+
+Change the Auto routing preference without changing the selected model. The runtime does not apply the preference immediately: it records the request and commits it only when a later user turn using the `auto` model successfully obtains a usable model from the provider, so a `pending` status confirms acceptance rather than effect. Only the most recent request survives.
+
+Watch for the outcome through the `session.model_change` event on success or the ephemeral `session.auto_tier_switch_failed` event on failure. Read the authoritative committed, pending, and activating preferences at any time through the session's `model.getCurrent` RPC method.
+
+```rust,ignore
+use github_copilot_sdk::{AutoTier, ModelSwitchAutoTierStatus};
+
+let result = session.set_auto_tier(Some(AutoTier::Intelligence)).await?;
+if result.status == ModelSwitchAutoTierStatus::Pending {
+    // Accepted, but not yet in effect.
+}
+
+// Return to the provider's default Auto routing.
+session.set_auto_tier(None).await?;
+```
+
+`set_model` accepts the same preference through `SetModelOptions::with_auto_tier`, which stages the tier atomically with selecting `auto`. Use `with_reset_auto_tier` instead to return to provider-default routing.
+
+See [Auto tier persistence](../docs/features/session-persistence.md#auto-tier-persistence)
+for the lifecycle rules.
 
 ### Session Hooks
 
@@ -493,6 +626,7 @@ impl ElicitationHandler for MyElicitation {
 
 let config = SessionConfig::default()
     .with_permission_handler(Arc::new(ApproveAllHandler))
+    .with_ask_user_variant(AskUserVariant::Elicitation)
     .with_elicitation_handler(Arc::new(MyElicitation));
 ```
 
@@ -583,6 +717,36 @@ while let Ok(event) = events.recv().await {
 
 When streaming is off (the default), only the final `assistant.message` and `assistant.reasoning` events fire. Delta events arrive in order; concatenating their `delta` text payloads reproduces the final message.
 
+#### Subscribing before the session starts
+
+`session.subscribe()` can only be called once the session exists, so any event the runtime emits while `session.create` / `session.resume` is still in flight is broadcast with no receiver installed and is not delivered. Ephemeral events such as `session.idle` are not written to the session log either, so `get_messages` can't recover them afterwards.
+
+`Client::prepare_session` / `Client::prepare_resume_session` close that window. They return a `PreparedSession` that owns the session's broadcast channel up front:
+
+```rust,ignore
+let prepared = client.prepare_session(
+    SessionConfig::default().with_event_buffer_capacity(2048),
+)?;
+
+// Installed before any wire activity happens.
+let mut events = prepared.subscribe();
+tokio::spawn(async move {
+    while let Ok(event) = events.recv().await {
+        println!("{}", event.event_type);
+    }
+});
+
+let session = prepared.start().await?;
+```
+
+`prepare_*` is synchronous and inert — it validates the buffer capacity, allocates a local channel and cancellation token, and touches neither the router nor the transport until `start()` is first polled. `start(self)` consumes the handle and `PreparedSession` is deliberately not `Clone`, so a prepared session can never spawn two event loops. Dropping an unstarted handle leaves no state and closes its subscriptions; dropping the `start()` future cancels the startup, unregisters the session, and lets a same-ID retry succeed. Cleanup removes only the exact registration that startup owned, so a retry started while an abandoned attempt is still unwinding is never evicted by it.
+
+The buffer is finite — `session::DEFAULT_EVENT_BUFFER_CAPACITY` (512) unless `event_buffer_capacity` overrides it, and `Some(0)` is rejected as `ErrorKind::InvalidConfig` rather than clamped. Subscribers that fall behind observe `RecvErrorKind::Lagged` with the skipped count instead of applying backpressure, so a consumer that needs a lossless view of a large startup burst must configure enough capacity or drain concurrently with `start()`.
+
+For cloud sessions where the server assigns the session ID, notifications can't be routed until the create response arrives; the guarantee is that *routed* events are never dropped for lack of a receiver. Pin `session_id` for full pre-response coverage.
+
+`create_session` / `resume_session` are unchanged wrappers over `prepare_*(...)?.start()`, with identical RPC sequences and error kinds.
+
 ### Infinite Sessions
 
 Enable the SDK's session-store integration so conversations persist across CLI restarts and grow beyond the model's context window via automatic compaction:
@@ -653,6 +817,42 @@ let client = Client::start(opts).await?;
 ```
 
 The SDK injects the appropriate environment variables (`COPILOT_OTEL_EXPORTER_TYPE`, `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_PROTOCOL`, ...) into the spawned CLI process. The SDK takes no OpenTelemetry dependency; the CLI itself owns the exporter pipeline. Caller-supplied `ClientOptions::env` entries override telemetry-injected values.
+
+### Message Source
+
+Use `MessageSource::System` for automated messages sent by your application. Ordinary human sends leave `source` unset, so the field is omitted from the request. Use `MessageSource::User` when you need to set it explicitly.
+
+For messages from another agent, use `MessageSource::Agent("sender-id".into())` with the trusted sender ID. It serializes as `"agent-sender-id"` and works with both `MessageOptions::with_source` and `rpc::SendRequest::with_source`. Unlike internal system context, an identified agent message retains agent provenance.
+
+```rust,no_run
+use github_copilot_sdk::{MessageOptions, MessageSource, session::Session};
+
+# async fn example(session: &Session) -> Result<(), github_copilot_sdk::Error> {
+session
+    .send(MessageOptions::new("Context updated").with_source(MessageSource::System))
+    .await?;
+# Ok(())
+# }
+```
+
+The raw RPC path supports the same builder, including requests with JSON attachments:
+
+```rust,no_run
+use github_copilot_sdk::{MessageSource, rpc::SendRequest, session::Session};
+
+# async fn example(session: &Session) -> Result<(), github_copilot_sdk::Error> {
+let mut request = SendRequest::default().with_source(MessageSource::System);
+request.prompt = "Context updated".into();
+request.attachments = Some(vec![serde_json::json!({
+    "type": "github_url",
+    "url": "https://github.com/github/copilot-sdk"
+})]);
+session.rpc().send(request).await?;
+# Ok(())
+# }
+```
+
+Both paths use ordinary `session.send`. Source does not select a delivery mode or set billing flags; the runtime applies its existing source behavior. `send_and_wait` still completes on `session.idle` and may return `Ok(None)` when no assistant message was emitted. Genuine errors still propagate.
 
 ### Progress Reporting (`send_and_wait`)
 
@@ -786,13 +986,20 @@ none of them are scheduled for removal.
   arg vectors for "prepend before subcommand" vs "append after the
   built-in flags", giving precise control over CLI invocation order
   without string-splicing.
+- **`Client::prepare_session` / `prepare_resume_session`** — return an inert
+  `PreparedSession` whose `subscribe()` installs an event receiver before any
+  protocol activity, so startup events (including ephemeral `session.idle`)
+  aren't dropped. Other SDKs register callbacks on a config object instead,
+  which sidesteps the problem in a way Rust's broadcast-based `subscribe()`
+  cannot.
 
 ## Layout
 
 | File              | Description                                                                                                                |
 | ----------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | `lib.rs`          | `Client`, `ClientOptions`, `CliProgram`, `Transport`, `Error`                                                              |
-| `session.rs`      | `Session` struct, event loop, `send`/`send_and_wait`, `Client::create_session`/`resume_session`                            |
+| `extension_launch_provider.rs` | Connection-global `ExtensionLaunchProvider` trait and launch profile DTOs                                      |
+| `session.rs`      | `Session` struct, `PreparedSession`, event loop, `send`/`send_and_wait`, `Client::create_session`/`resume_session`/`prepare_session`/`prepare_resume_session` |
 | `subscription.rs` | `EventSubscription` / `LifecycleSubscription` (`Stream`-able observer handles for `subscribe()` / `subscribe_lifecycle()`) |
 | `handler.rs`      | `PermissionHandler`, `ElicitationHandler`, `UserInputHandler`, `ExitPlanModeHandler`, `AutoModeSwitchHandler` traits; `ApproveAllHandler`, `DenyAllHandler`           |
 | `hooks.rs`        | `SessionHooks` trait, `HookEvent`/`HookOutput` enums, typed hook inputs/outputs                                            |
@@ -801,18 +1008,21 @@ none of them are scheduled for removal.
 | `types.rs`        | CLI protocol types (`SessionId`, `SessionEvent`, `SessionConfig`, `Tool`, etc.)                                            |
 | `resolve.rs`      | Bundled-CLI resolution (`copilot_binary`)                                                                                  |
 | `embeddedcli.rs`  | Embedded CLI extraction (gated on the default `bundled-cli` feature)                                                       |
-| `router.rs`       | Internal per-session event demux                                                                                           |
+| `router.rs`       | Internal connection-global request dispatch and per-session event demux                                                   |
 | `jsonrpc.rs`      | Internal Content-Length framed JSON-RPC transport                                                                          |
 
-## Embedded CLI
+## Bundled runtime artifacts
 
-The SDK provisions its runtime at build time. By default the `bundled-cli`
-feature embeds the verified child-process runtime in your compiled crate.
-Enable `bundled-in-process` to additionally embed the native runtime library
-and use `Transport::InProcess`:
+The SDK provisions two verified artifacts at build time. By default the
+`bundled-cli` feature embeds both the full Copilot CLI/Node SEA and a separate
+runtime bundle containing `copilot-runtime`, adjacent `runtime.node`, and its
+required assets. Managed transports use only the runtime bundle; the full CLI
+is available through `install_bundled_cli` for diagnostics and version probes.
+Enable `bundled-in-process` to additionally include the native runtime library
+in the runtime bundle and use `Transport::InProcess`:
 
 ```toml
-github-copilot-sdk = { version = "0.1", features = ["bundled-in-process"] }
+github-copilot-sdk = { version = "1", features = ["bundled-in-process"] }
 ```
 
 `CliProgram::Path` and raw `ClientOptions::extra_args` apply only to
@@ -822,18 +1032,14 @@ provisioned compatible runtime package with in-process transport.
 For builds that prefer a smaller artifact, disable the `bundled-cli` feature:
 
 ```toml
-github-copilot-sdk = { version = "0.1", default-features = false }
+github-copilot-sdk = { version = "1", default-features = false }
 ```
 
-> **You become responsible for supplying the CLI at runtime.** With
-> `bundled-cli` disabled, the produced binary does not contain the CLI
-> and will not search the system for one. You must point it at a
-> compatible CLI via [`CliProgram::Path`] (on `ClientOptions`) or the
-> `COPILOT_CLI_PATH` environment variable, and you are responsible for
-> guaranteeing the supplied CLI version is compatible with this SDK
-> release. Do **not** assume that whatever CLI happens to be installed
-> on the target system will work — the SDK and CLI are versioned
-> together.
+> **You become responsible for supplying the runtime at deployment.** With
+> `bundled-cli` disabled, the produced binary does not contain these artifacts
+> and will not search the system for them. For managed child-process transports,
+> supply a compatible wrapper pair via an explicit [`CliProgram::Path`].
+> `COPILOT_CLI_PATH` remains a direct program override.
 >
 > **Convenience on the build machine only.** As a special case,
 > `build.rs` downloads and integrity-verifies the compatible CLI version and
@@ -842,31 +1048,38 @@ github-copilot-sdk = { version = "0.1", default-features = false }
 > makes local development and CI ergonomic, but it does **not** carry
 > over when you copy the built binary to another machine — distributed
 > builds (release artifacts, signed installers, container images, etc.)
-> must either keep `bundled-cli` enabled or ship the CLI alongside and
-> set `CliProgram::Path` / `COPILOT_CLI_PATH`.
+> must either keep `bundled-cli` enabled or ship the runtime pair and set
+> `CliProgram::Path`.
 
 ### How it works
 
 1. **Version pin.** `build.rs` reads the CLI version from one of two sources:
-   - `cli-version.txt` at the crate root (present in published crate tarballs and vendored slots).
-   - Otherwise, `../nodejs/package-lock.json` (contributor build inside the github/copilot-sdk repo — matches the .NET and Go SDK conventions here).
+   - `cli-version.txt` and `cli-version-in-process.txt` at the crate root
+     (present in published crate tarballs and vendored slots).
+   - Otherwise, `../nodejs/package.json` (contributor build inside the github/copilot-sdk repo).
 
    The resolved version is baked into the crate via `cargo:rustc-env=COPILOT_SDK_CLI_VERSION` regardless of mode. The runtime resolver consumes it to recompute the on-disk path by convention, so no absolute paths leak into the rlib.
 
-2. **Build time:** `build.rs` downloads the platform-specific npm package and
-   verifies its `sha512` integrity against the lockfile or publish snapshot.
+2. **Build time:** `build.rs` downloads the platform-specific full CLI archive
+   and runtime package, then verifies both SHA-256 hashes against the release's
+   `SHA256SUMS.txt` or the publish snapshots.
    Then:
-   - **`bundled-cli` on (default):** creates and embeds a minimal archive containing only the CLI executable.
-   - **`bundled-in-process` on:** the minimal archive additionally contains the platform-native runtime library (`.dll`, `.so`, or `.dylib`); no other npm package files are embedded.
-   - **`bundled-cli` off:** extracts the binary directly into the platform cache (staging file + atomic rename), idempotent across rebuilds. If the extracted binary is already present at the expected path, the download is skipped entirely — the extracted binary *is* the cache.
+   - **`bundled-cli` on (default):** embeds the full CLI release archive and a
+     separately filtered runtime archive containing `copilot-runtime[.exe]`,
+     `runtime.node`, and required assets.
+   - **`bundled-in-process` on:** the runtime archive additionally contains the
+     platform-native runtime library (`.dll`, `.so`, or `.dylib`).
+   - **`bundled-cli` off:** downloads only the runtime package and extracts its
+     managed runtime artifacts directly into the platform cache using staging
+     files and atomic renames.
 
-3. **Runtime:** in both modes the binary lives at:
+3. **Runtime:** in both modes the artifacts share one versioned directory:
 
    | OS | Path |
    |----|------|
-   | macOS | `~/Library/Caches/github-copilot-sdk/cli/<version>/copilot` |
-   | Linux | `${XDG_CACHE_HOME:-~/.cache}/github-copilot-sdk/cli/<version>/copilot` |
-   | Windows | `%LOCALAPPDATA%\github-copilot-sdk\cli\<version>\copilot.exe` |
+   | macOS | `~/Library/Caches/github-copilot-sdk/cli/<version>/` |
+   | Linux | `${XDG_CACHE_HOME:-~/.cache}/github-copilot-sdk/cli/<version>/` |
+   | Windows | `%LOCALAPPDATA%\github-copilot-sdk\cli\<version>\` |
 
    Old version directories accumulate in siblings; clean them up at your leisure.
 
@@ -895,18 +1108,20 @@ COPILOT_CLI_EXTRACT_DIR = { value = "vendor/copilot", relative = true, force = t
 
 ### Skipping the bundle entirely
 
-Set `COPILOT_SKIP_CLI_DOWNLOAD=1` at build time to disable the entire download / bundle / cache mechanism — `build.rs` returns immediately without touching the network. Use this when you always supply the CLI at runtime via `ClientOptions::program = CliProgram::Path(...)` or `COPILOT_CLI_PATH`. Works regardless of the `bundled-cli` feature state; runtime resolution falls through to `Error::BinaryNotFound` unless one of those explicit sources resolves.
+Set `COPILOT_SKIP_CLI_DOWNLOAD=1` at build time to disable the entire download / bundle / cache mechanism — `build.rs` returns immediately without touching the network. Use this when you always supply the managed runtime via `ClientOptions::program = CliProgram::Path(...)`. Works regardless of the `bundled-cli` feature state; runtime resolution falls through to `Error::BinaryNotFound` unless an applicable explicit source resolves.
 
 ### Resolution priority
 
-`Client::start` resolves the CLI in this order:
+For managed child-process transports, `Client::start` resolves the program in this order:
 
 1. Explicit `CliProgram::Path(path)` on `ClientOptions::program`.
 2. `COPILOT_CLI_PATH` environment variable, if it points at a real file.
-3. **`bundled-cli` on:** the embedded archive, lazily extracted on first call.
-4. **`bundled-cli` off:** the build-time-extracted binary in the per-user cache, located by recomputing the convention from `COPILOT_SDK_CLI_VERSION` + OS + optional `COPILOT_CLI_EXTRACT_DIR`.
+3. **`bundled-cli` on:** the embedded wrapper pair, lazily extracted on first call.
+4. **`bundled-cli` off:** the build-time-extracted wrapper pair in the per-user cache.
 
-There is no PATH scanning. If none of the above resolves, `Client::start` returns `Error::BinaryNotFound`.
+In-process transport loads the native runtime library adjacent to the runtime
+wrapper selected from `COPILOT_CLI_PATH`, the embedded runtime archive, or the
+build-time cache. There is no PATH scanning.
 
 ### Reaching the bundled binary without a `Client`
 
@@ -926,44 +1141,61 @@ if HAS_BUNDLED_CLI {
 }
 ```
 
-This returns the same path `Client::start` would resolve to for
-`CliProgram::Resolve` with no `COPILOT_CLI_PATH` override and no
-`ClientOptions::bundled_cli_extract_dir` configured. It returns `None`
-when `bundled-cli` is off or the target is unsupported, and (unlike the
-full resolver) does not fall back to the build-time-extracted dev-cache
-path.
+This returns the bundled CLI artifact, preserving the public API's original
+meaning. Managed child-process transports resolve `copilot-runtime` instead.
+The function returns `None` when `bundled-cli` is off or the target is
+unsupported and does not fall back to the build-time extraction cache.
+
+Use [`install_bundled_runtime`] when a health check or intermediate launcher
+needs the managed runtime executable:
+
+```rust,no_run
+use github_copilot_sdk::install_bundled_runtime;
+
+if let Some(path) = install_bundled_runtime() {
+    println!("bundled runtime at {}", path.display());
+}
+```
+
+This extracts `copilot-runtime` together with adjacent `runtime.node`, then
+returns the wrapper path.
 
 ### Download cache (build-time, embed mode)
 
-In embed mode `build.rs` re-downloads on every clean build by default. Set `BUNDLED_CLI_CACHE_DIR=<path>` to cache the verified archive between builds (CI keys this on `<os>-<version>` for ~zero-cost rebuilds on cache hits). With `bundled-cli` disabled there is no separate archive cache — the extracted binary itself is the cache.
+In embed mode `build.rs` downloads both verified archives on every clean build
+by default. Set `BUNDLED_CLI_CACHE_DIR=<path>` to cache them between builds (CI
+keys this on `<os>-<version>` for near-zero-cost rebuilds on cache hits). For
+Copilot CLI 1.0.83-5, the two upstream archives total roughly 132-157 MB per
+platform before the runtime package is filtered. With `bundled-cli` disabled
+there is no separate archive cache: the extracted runtime bundle is the cache.
 
 ### Platforms
 
-Supported: `darwin-arm64`, `darwin-x64`, `linux-x64`, `linux-arm64`, `win32-x64`, `win32-arm64`. The target platform is auto-detected from `CARGO_CFG_TARGET_OS` and `CARGO_CFG_TARGET_ARCH` (cross-compilation works).
+Supported: `darwin-arm64`, `darwin-x64`, `linux-x64`, `linux-arm64`,
+`linuxmusl-x64`, `linuxmusl-arm64`, `win32-x64`, and `win32-arm64`. The target
+platform is auto-detected from `CARGO_CFG_TARGET_OS`, `CARGO_CFG_TARGET_ARCH`,
+and `CARGO_CFG_TARGET_ENV` (cross-compilation works).
 
 ## Features
 
 | Feature | Default | Description |
 | ------- | ------- | ----------- |
-| `bundled-cli` | ✓ | Embeds only the CLI executable. Disable via `default-features = false` when supplying the CLI via `CliProgram::Path` or `COPILOT_CLI_PATH`. |
-| `bundled-in-process` | — | Enables `Transport::InProcess`, implies `bundled-cli`, and additionally embeds only the platform-native runtime library. |
+| `bundled-cli` | ✓ | Embeds the managed wrapper pair and compatible CLI artifact. Disable via `default-features = false` when supplying the runtime explicitly. |
+| `bundled-in-process` | — | Enables `Transport::InProcess`, implies `bundled-cli`, and additionally embeds the platform-native runtime library. |
 | `derive` | — | `schema_for::<T>()` for generating JSON Schema from Rust types (adds `schemars`). |
 
 ```toml
-# These examples use registry syntax for illustration; until the crate is
-# published, use a path or git dependency instead.
-
 # Default — bundles the Copilot CLI in your binary.
-github-copilot-sdk = "0.1"
+github-copilot-sdk = "1"
 
 # Enable the in-process transport and bundle its native runtime library.
-github-copilot-sdk = { version = "0.1", features = ["bundled-in-process"] }
+github-copilot-sdk = { version = "1", features = ["bundled-in-process"] }
 
 # Opt out of bundling — supply the CLI explicitly at runtime.
-github-copilot-sdk = { version = "0.1", default-features = false }
+github-copilot-sdk = { version = "1", default-features = false }
 
 # Derive JSON Schema for tool parameters (adds to default bundled-cli).
-github-copilot-sdk = { version = "0.1", features = ["derive"] }
+github-copilot-sdk = { version = "1", features = ["derive"] }
 ```
 
 ## Development

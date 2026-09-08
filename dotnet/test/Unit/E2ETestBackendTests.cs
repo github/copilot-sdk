@@ -25,7 +25,7 @@ public class E2ETestBackendTests
             () => E2ETestBackendConfiguration.Parse("unknown"));
 
     [Theory]
-    [InlineData("anthropic-messages", "anthropic", null, "claude-sonnet-4.5")]
+    [InlineData("anthropic-messages", "anthropic", null, "claude-sonnet-5")]
     [InlineData("openai-responses", "openai", "responses", "gpt-4.1")]
     [InlineData("openai-completions", "openai", "completions", "gpt-4.1")]
     public void AppliesProvider(

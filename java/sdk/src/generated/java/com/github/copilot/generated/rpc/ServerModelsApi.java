@@ -27,7 +27,7 @@ public final class ServerModelsApi {
     }
 
     /**
-     * Optional GitHub token used to list models for a specific user instead of the global auth context.
+     * Optional opaque account selection or compatibility GitHub token used to list models.
      * <p>
      * Invokes the method with no params, applying the runtime defaults.
      *
@@ -40,7 +40,7 @@ public final class ServerModelsApi {
     }
 
     /**
-     * Optional GitHub token used to list models for a specific user instead of the global auth context.
+     * Optional opaque account selection or compatibility GitHub token used to list models.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0

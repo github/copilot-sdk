@@ -21,12 +21,15 @@ public final class ServerPluginsApi {
 
     private final RpcCaller caller;
 
+    /** API methods for the {@code plugins.builtin} sub-namespace. */
+    public final ServerPluginsBuiltinApi builtin;
     /** API methods for the {@code plugins.marketplaces} sub-namespace. */
     public final ServerPluginsMarketplacesApi marketplaces;
 
     /** @param caller the RPC transport function */
     ServerPluginsApi(RpcCaller caller) {
         this.caller = caller;
+        this.builtin = new ServerPluginsBuiltinApi(caller);
         this.marketplaces = new ServerPluginsMarketplacesApi(caller);
     }
 

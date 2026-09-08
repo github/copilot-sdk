@@ -131,7 +131,6 @@ public class McpAndAgentsTest {
             CopilotSession session1 = client
                     .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
             String sessionId = session1.getSessionId();
-            session1.sendAndWait(new MessageOptions().setPrompt("What is 1+1?")).get(60, TimeUnit.SECONDS);
 
             // Resume with MCP servers
             var mcpServers = createTestMcpServers("test-server");
@@ -452,7 +451,7 @@ public class McpAndAgentsTest {
 
             assertNotNull(session.getSessionId());
             String sessionId = session.getSessionId();
-            // Do not call session.close() here — that invokes session.destroy on the
+            // Do not call session.close() here — that invokes session.detach on the
             // server,
             // which removes the session and causes the subsequent resumeSession to fail
             // with "Session not found". The session handle is simply abandoned and the

@@ -11,6 +11,7 @@ import type { Canvas } from "./canvas.js";
 import type { SessionFsProvider } from "./sessionFsProvider.js";
 import type { CopilotRequestHandler } from "./copilotRequestHandler.js";
 import type {
+    AutoTier,
     PermissionRequest as GeneratedPermissionRequest,
     PermissionRequestedData as GeneratedPermissionRequestedData,
     PermissionRequestedEvent as GeneratedPermissionRequestedEvent,
@@ -21,6 +22,8 @@ import type {
 import type { CopilotSession } from "./session.js";
 import type { FactoryJsonSchema, JsonValue } from "./factory.js";
 import type {
+    GitHubTokenAcquireRequest,
+    GitHubTokenAcquireResult,
     GitHubTelemetryNotification,
     ModelBillingTokenPrices,
     OpenCanvasInstance,
@@ -31,10 +34,38 @@ import type { ToolSet } from "./toolSet.js";
 export type { RemoteSessionMode } from "./generated/rpc.js";
 export type { CurrentToolMetadata } from "./generated/rpc.js";
 export type {
+    GitHubTokenAcquireReason,
+    GitHubTokenAcquireResult,
     GitHubTelemetryNotification,
     GitHubTelemetryEvent,
     GitHubTelemetryClientInfo,
 } from "./generated/rpc.js";
+
+/**
+ * Arguments passed to a session's {@link GitHubTokenProvider}.
+ *
+ * The callback registration identifier is intentionally kept inside the SDK.
+ */
+export type GitHubTokenProviderArgs = Pick<
+    GitHubTokenAcquireRequest,
+    "host" | "sessionId" | "reason"
+>;
+
+/** Tagged token or cancellation returned by a {@link GitHubTokenProvider}. */
+export type GitHubTokenProviderResult = GitHubTokenAcquireResult;
+
+/**
+ * Acquires a GitHub token for one session.
+ *
+ * A token result must include `expiresIn`: the positive number of seconds of
+ * remaining lifetime when the callback completes. Production GitHub tokens
+ * typically last eight hours. Initial cancellation, callback errors, and
+ * invalid token responses reject session creation or resume instead of falling
+ * back to ambient authentication.
+ */
+export type GitHubTokenProvider = (
+    args: GitHubTokenProviderArgs
+) => GitHubTokenProviderResult | Promise<GitHubTokenProviderResult>;
 export type {
     ModelBillingTokenPrices,
     ModelBillingTokenPricesLongContext,
@@ -42,7 +73,12 @@ export type {
 export type SessionEvent =
     | Exclude<GeneratedSessionEvent, { type: "permission.requested" }>
     | PermissionRequestedEvent;
-export type { ReasoningSummary } from "./generated/session-events.js";
+export type { AutoTier, ReasoningSummary } from "./generated/session-events.js";
+export type {
+    CurrentModel,
+    ModelSwitchAutoTierResult,
+    ModelSwitchAutoTierStatus,
+} from "./generated/rpc.js";
 export type { SessionFsProvider } from "./sessionFsProvider.js";
 export { createSessionFsAdapter } from "./sessionFsProvider.js";
 export type { SessionFsFileInfo } from "./sessionFsProvider.js";
@@ -58,6 +94,7 @@ export type {
     PermissionDecisionOutcome,
     PermissionDecisionSource,
     PermissionDecisionSurface,
+    PermissionResponseCapability,
 } from "./generated/rpc.js";
 export type { CopilotRequestContext } from "./copilotRequestHandler.js";
 export {
@@ -275,6 +312,37 @@ export type InternalRuntimeConnection = RuntimeConnection | ParentProcessRuntime
  */
 export type CopilotClientMode = "empty" | "copilot-cli";
 
+/**
+ * Identity of the integrating application, declared once on the `server.connect`
+ * handshake so the telemetry the runtime emits on this connection is attributed
+ * to a single, consistent surface rather than to the runtime's own build.
+ *
+ * All fields are optional; omit any of them (or the whole object) to keep the
+ * runtime's default attribution. Version fields are ignored by the runtime
+ * unless they look like a version string.
+ */
+export interface CopilotClientInfo {
+    /**
+     * Name of the application using the SDK, e.g. `"acme-developer-portal"`.
+     */
+    applicationName?: string;
+
+    /**
+     * Version of the application using the SDK, e.g. `"2.4.0"`.
+     */
+    applicationVersion?: string;
+
+    /**
+     * Optional name of a specific integration within the application, such as an extension or plugin.
+     */
+    integrationName?: string;
+
+    /**
+     * Optional version of the integration identified by `integrationName`.
+     */
+    integrationVersion?: string;
+}
+
 export interface CopilotClientOptions {
     /**
      * How to connect to the Copilot runtime. When omitted, defaults to
@@ -447,6 +515,16 @@ export interface CopilotClientOptions {
     enableRemoteSessions?: boolean;
 
     /**
+     * Identity of the integrating application, forwarded to the runtime on the
+     * `server.connect` handshake. Declaring it lets the telemetry the runtime
+     * emits on this connection be attributed to a single, consistent surface
+     * (e.g. the application and its Copilot integration) instead of the
+     * runtime's own build. All fields are optional; omit it to keep the default
+     * attribution.
+     */
+    clientInfo?: CopilotClientInfo;
+
+    /**
      * @internal Hook used by `joinSession()` to construct a client that talks
      * to its parent process over stdio. Not part of the public API.
      */
@@ -614,6 +692,8 @@ export interface ToolInvocation {
     traceparent?: string;
     /** W3C Trace Context tracestate from the CLI's execute_tool span. */
     tracestate?: string;
+    /** Aborted when the runtime completes this request or the session disconnects. */
+    signal?: AbortSignal;
 }
 
 export type ToolHandler<TArgs = unknown> = (
@@ -1234,7 +1314,7 @@ export const defaultJoinSessionPermissionHandler: PermissionHandler =
 // ============================================================================
 
 /**
- * Request for user input from the agent (enables ask_user tool)
+ * Legacy question-and-answer request from the `ask_user` tool.
  */
 export interface UserInputRequest {
     /**
@@ -2099,6 +2179,21 @@ export interface FactoryMeta {
  */
 export interface CapiSessionOptions {
     /**
+     * Routing preference used when the session model is `auto`.
+     * Requires a runtime with Auto tier support and V2 Auto routing.
+     *
+     * When omitted on create, the runtime uses its default routing behavior.
+     * The runtime persists this preference across cold resume; when omitted on
+     * cold resume, it restores the last committed preference. On resident
+     * resume, a different tier requests a safe switch that takes effect after
+     * resume succeeds, and never disturbs a turn that is already running.
+     *
+     * To change the preference on a live session, call
+     * {@link CopilotSession.setAutoTier} instead.
+     */
+    autoTier?: AutoTier;
+
+    /**
      * Whether to use the WebSocket transport for the CAPI Responses API.
      *
      * WebSocket transport is enabled by default whenever the selected model
@@ -2167,6 +2262,14 @@ export interface GitHubMcpToolConfig {
     disableFormDeferral?: boolean;
 }
 
+/** Well-known managed bypass-permissions policies. */
+export const DisableBypassPermissionsModes = {
+    /** Turn off bypass-permissions mode entirely. */
+    Disable: "disable",
+    /** Permit automatic bypass but block full allow-all. */
+    AllowAutoOnly: "allow-auto-only",
+} as const;
+
 /**
  * Permissions-only managed policy injected by the host via
  * {@link SessionConfigBase.managedSettings}.
@@ -2177,11 +2280,11 @@ export interface GitHubMcpToolConfig {
  */
 export interface ManagedSettingsPermissions {
     /**
-     * When set to `"disable"`, bypass-permissions ("yolo") mode is turned off
-     * for the session. This is deny-wins: it cannot be re-enabled by any other
-     * layer.
+     * Restricts bypass-permissions mode for the session. See
+     * {@link DisableBypassPermissionsModes} for well-known values. Unknown
+     * values are forwarded so newer runtime policies fail closed.
      */
-    disableBypassPermissionsMode?: "disable";
+    disableBypassPermissionsMode?: string;
     /** Operations that must always be denied. Unioned across managed layers. */
     deny?: string[];
     /**
@@ -2205,6 +2308,9 @@ export interface ManagedSettings {
     /** Managed permission policy for the session. */
     permissions?: ManagedSettingsPermissions;
 }
+
+/** Selects the model-facing shape of the built-in `ask_user` tool. */
+export type AskUserVariant = "legacy" | "elicitation";
 
 /**
  * Shared configuration fields used by both {@link SessionConfig} (for
@@ -2387,6 +2493,13 @@ export interface SessionConfigBase {
     excludedBuiltinAgents?: string[];
 
     /**
+     * Built-in skill names to include in the session. In `mode: "empty"`,
+     * omitting this option excludes all runtime-bundled skills; specifying names
+     * opts those built-ins back in. Skills from other sources remain eligible.
+     */
+    includedBuiltinSkills?: string[];
+
+    /**
      * Custom provider configuration (BYOK - Bring Your Own Key).
      * When specified, uses the provided API endpoint instead of the Copilot API.
      */
@@ -2510,9 +2623,19 @@ export interface SessionConfigBase {
 
     /**
      * Handler for user input requests from the agent.
-     * When provided, enables the ask_user tool allowing the agent to ask questions.
+     * When provided with the default `legacy` {@link AskUserVariant}, enables the
+     * question-and-answer form of the `ask_user` tool.
      */
     onUserInputRequest?: UserInputHandler;
+
+    /**
+     * Selects the model-facing shape of the built-in `ask_user` tool.
+     *
+     * The default is `"legacy"`. To use `"elicitation"`, also provide
+     * {@link onElicitationRequest} so the host can answer structured forms.
+     * The runtime resolves this option when it creates or cold-resumes the session.
+     */
+    askUserVariant?: AskUserVariant;
 
     /**
      * Handler for elicitation requests from the agent.
@@ -2705,6 +2828,16 @@ export interface SessionConfigBase {
     gitHubToken?: string;
 
     /**
+     * Acquires short-lived GitHub credentials for this session on demand.
+     *
+     * Mutually exclusive with {@link SessionConfigBase.gitHubToken}. The
+     * callback receives the effective GitHub host, the session ID when known,
+     * and whether this is the initial acquisition or a refresh. Its opaque
+     * registration ID remains internal to the SDK.
+     */
+    gitHubTokenProvider?: GitHubTokenProvider;
+
+    /**
      * Opt-in: when true, the runtime self-fetches enterprise managed settings
      * (bypass-permissions policy) at session bootstrap using the session's
      * `gitHubToken`. Requires {@link SessionConfigBase.gitHubToken} to be set;
@@ -2721,8 +2854,8 @@ export interface SessionConfigBase {
      * with the same managed-permission parser it uses for fetched policy and
      * composes it restrictively with any self-fetched (server) and
      * device-managed (MDM) layers: `deny`/`ask` rules are unioned, every
-     * declared `allow` list must admit an operation, and
-     * `disableBypassPermissionsMode: "disable"` is deny-wins.
+     * declared `allow` list must admit an operation, and bypass-mode
+     * restrictions are composed fail-closed.
      *
      * This is startup-only. It is **not** persisted: it must be re-supplied on
      * {@link CopilotClient.resumeSession | resume}, where it replaces the prior
@@ -2818,6 +2951,12 @@ export interface SessionConfigBase {
     createSessionFsProvider?: (session: CopilotSession) => SessionFsProvider;
 
     /**
+     * Feature-flag values resolved by the host for this session.
+     * Re-supply them when resuming after a runtime restart.
+     */
+    featureFlags?: Record<string, boolean>;
+
+    /**
      * ExP assignment ("flight") data injected by a trusted integrator, in the
      * same JSON shape the Copilot CLI fetches from the experimentation service
      * (`CopilotExpAssignmentResponse`). When supplied, the runtime feeds it
@@ -2877,6 +3016,20 @@ export interface ResumeSessionConfig extends SessionConfigBase {
      * do not need to re-open canvases that were active before the previous shutdown.
      */
     openCanvases?: OpenCanvasInstance[];
+}
+
+/**
+ * Options that only an extension join may supply, kept off {@link ResumeSessionConfig}
+ * because the runtime ignores them for every other kind of connection.
+ *
+ * @internal
+ */
+export interface ExtensionJoinOptions {
+    /**
+     * Names of sensitive environment variables the extension asks the host to grant.
+     * Sent on the `session.resume` wire payload as `requestedEnvironmentVariables`.
+     */
+    requestedEnvironmentVariables?: string[];
 }
 
 /**
@@ -3164,11 +3317,23 @@ export interface ProviderModelConfig {
      */
     capabilities?: ModelCapabilitiesOverride;
 }
+/**
+ * Message provenance, independent of delivery mode.
+ */
+export type MessageSource = "user" | "system" | `agent-${string}`;
+
 export interface MessageOptions {
     /**
      * The prompt/message to send
      */
     prompt: string;
+
+    /**
+     * Optional message provenance. Omitted by default to preserve the runtime's
+     * default for user messages. Use "system" for application-generated context
+     * or `agent-${id}` for messages originating from an identified agent.
+     */
+    source?: MessageSource;
 
     /**
      * File, directory, selection, or blob attachments

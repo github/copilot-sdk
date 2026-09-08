@@ -41,9 +41,8 @@ public class ClientE2ETests(E2ETestFixture fixture) : IClassFixture<E2ETestFixtu
     [Fact]
     public async Task Should_Start_And_Connect_Over_InProcess_Ffi()
     {
-        // In-process FFI hosting resolves the CLI entrypoint (COPILOT_CLI_PATH or the
-        // bundled CLI binary) and its sibling native runtime library itself; if neither
-        // is available, StartAsync throws and the test fails hard.
+        // In-process FFI hosting loads the bundled runtime library directly; if it is
+        // unavailable, StartAsync throws and the test fails hard.
         using var client = new CopilotClient(new CopilotClientOptions
         {
             Connection = RuntimeConnection.ForInProcess(),
@@ -193,15 +192,18 @@ public class ClientE2ETests(E2ETestFixture fixture) : IClassFixture<E2ETestFixtu
         var ex = await Assert.ThrowsAsync<IOException>(() => client.StartAsync());
 
         var errorMessage = ex.Message;
-        // On .NET Framework with stdio transport, the pipe error may not include stderr content.
-        if (errorMessage.Contains("pipe", StringComparison.OrdinalIgnoreCase))
+#if NETFRAMEWORK
+        // .NET Framework can surface the stdio pipe failure before redirected stderr is readable.
+        if (useStdio)
         {
-            // .NET Framework pipe behavior — just verify we got an IOException
-            Assert.Contains("pipe", errorMessage, StringComparison.OrdinalIgnoreCase);
+            Assert.True(
+                errorMessage.Contains("CLI", StringComparison.OrdinalIgnoreCase)
+                    || errorMessage.Contains("pipe", StringComparison.OrdinalIgnoreCase),
+                $"Expected a CLI process or pipe error, got: {errorMessage}");
         }
         else
+#endif
         {
-            // Verify we get the stderr output in the error message
             Assert.Contains("stderr", errorMessage, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("nonexistent", errorMessage, StringComparison.OrdinalIgnoreCase);
         }

@@ -1,21 +1,37 @@
 models:
-  - claude-sonnet-4.5
+  - claude-sonnet-5
 conversations:
   - messages:
       - role: system
         content: ${system}
       - role: user
-        content: Use the create tool to create rewind-sdk.txt containing exactly SDK rewind content. After the tool succeeds,
-          reply with exactly SDK_REWIND_DONE.
+        content: Use the edit tool to replace the exact contents of rewind-sdk.txt from Original rewind content to Prepared
+          rewind content. After the tool succeeds, reply with exactly SDK_REWIND_READY.
       - role: assistant
         tool_calls:
           - id: toolcall_0
             type: function
             function:
-              name: create
-              arguments: '{"path":"${workdir}/rewind-sdk.txt","file_text":"SDK rewind content"}'
+              name: edit
+              arguments: '{"path":"${workdir}/rewind-sdk.txt","old_str":"Original rewind content","new_str":"Prepared rewind
+                content"}'
       - role: tool
         tool_call_id: toolcall_0
-        content: Created file ${workdir}/rewind-sdk.txt with 18 characters
+        content: File ${workdir}/rewind-sdk.txt updated with changes.
+      - role: assistant
+        content: SDK_REWIND_READY
+      - role: user
+        content: Use the edit tool to replace the exact contents of rewind-sdk.txt from Prepared rewind content to SDK rewind
+          content. After the tool succeeds, reply with exactly SDK_REWIND_DONE.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_1
+            type: function
+            function:
+              name: edit
+              arguments: '{"path":"${workdir}/rewind-sdk.txt","old_str":"Prepared rewind content","new_str":"SDK rewind content"}'
+      - role: tool
+        tool_call_id: toolcall_1
+        content: File ${workdir}/rewind-sdk.txt updated with changes.
       - role: assistant
         content: SDK_REWIND_DONE

@@ -80,7 +80,7 @@ class TestCommands:
             payload = captured["session.create"]
             assert payload["commands"] == [
                 {"name": "deploy", "description": "Deploy the app"},
-                {"name": "rollback", "description": None},
+                {"name": "rollback", "description": ""},
             ]
         finally:
             await client.force_stop()

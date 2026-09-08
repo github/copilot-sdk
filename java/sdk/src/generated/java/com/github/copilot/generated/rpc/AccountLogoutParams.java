@@ -24,6 +24,8 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record AccountLogoutParams(
+    /** Opaque account identifier returned by `account.getAllUsers` */
+    @JsonProperty("selectionId") String selectionId,
     /** Authentication information for the user to log out */
     @JsonProperty("authInfo") Object authInfo
 ) {

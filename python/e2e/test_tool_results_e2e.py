@@ -184,10 +184,11 @@ class TestToolResults:
 
         unsubscribe = session.on(on_event)
         try:
-            asyncio.ensure_future(
-                session.send(
+            send_task = asyncio.create_task(
+                session.send_and_wait(
                     "Use access_secret to get the API key."
-                    " If access is denied, tell me it was 'access denied'."
+                    " If access is denied, tell me it was 'access denied'.",
+                    timeout=60.0,
                 )
             )
             tool_evt = await asyncio.wait_for(tool_complete_future, timeout=60.0)
@@ -201,7 +202,7 @@ class TestToolResults:
             error_msg = error if isinstance(error, str) else getattr(error, "message", None)
             assert "Access denied" in (error_msg or "")
 
-            answer = await get_final_assistant_message(session, timeout=60.0)
+            answer = await send_task
             assert answer is not None
         finally:
             unsubscribe()

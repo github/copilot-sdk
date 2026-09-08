@@ -118,9 +118,6 @@ class TestTelemetryExport:
             scope = span.get("instrumentationScope") or {}
             assert scope.get("name") == source_name
 
-        trace_ids = {s.get("traceId") for s in spans if s.get("traceId")}
-        assert len(trace_ids) == 1
-
         for span in spans:
             status = (span.get("status") or {}).get("code", 0)
             assert status != 2, f"span in error state: {span}"
@@ -132,11 +129,14 @@ class TestTelemetryExport:
         assert _is_root_span(invoke_agent)
         invoke_agent_span_id = invoke_agent.get("spanId")
         assert invoke_agent_span_id
+        invoke_agent_trace_id = invoke_agent.get("traceId")
+        assert invoke_agent_trace_id
 
         chat_spans = [s for s in spans if _string_attribute(s, "gen_ai.operation.name") == "chat"]
         assert chat_spans
         for chat in chat_spans:
             assert chat.get("parentSpanId") == invoke_agent_span_id
+            assert chat.get("traceId") == invoke_agent_trace_id
         assert any(
             prompt in (_string_attribute(c, "gen_ai.input.messages") or "") for c in chat_spans
         )
@@ -149,6 +149,7 @@ class TestTelemetryExport:
             s for s in spans if _string_attribute(s, "gen_ai.operation.name") == "execute_tool"
         )
         assert tool_span.get("parentSpanId") == invoke_agent_span_id
+        assert tool_span.get("traceId") == invoke_agent_trace_id
         assert _string_attribute(tool_span, "gen_ai.tool.name") == tool_name
         assert (_string_attribute(tool_span, "gen_ai.tool.call.id") or "").strip()
         assert (

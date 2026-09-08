@@ -23,10 +23,15 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record AssistantMessageServerTools(
+    /** Model provider that produced this server-tool payload. */
     @JsonProperty("provider") String provider,
+    /** Provider-native server-tool call and output items preserved verbatim for replay. */
     @JsonProperty("items") List<Object> items,
+    /** Provider function-call namespaces keyed by function-call identifier. */
     @JsonProperty("functionCallNamespaces") Map<String, String> functionCallNamespaces,
+    /** Raw provider content blocks retained for verbatim round-tripping. */
     @JsonProperty("rawContentBlocks") List<Object> rawContentBlocks,
+    /** Advisor model identifier associated with the server-tool payload. */
     @JsonProperty("advisorModel") String advisorModel
 ) {
 }

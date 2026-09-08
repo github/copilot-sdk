@@ -23,6 +23,8 @@ import javax.annotation.processing.Generated;
 public record SubagentSettingsEntry(
     /** Model override for matching subagents */
     @JsonProperty("model") String model,
+    /** Whether the configured model strategy is preferred or required */
+    @JsonProperty("modelPolicy") AgentModelPolicy modelPolicy,
     /** Reasoning effort override for matching subagents */
     @JsonProperty("effortLevel") String effortLevel,
     /** Context tier override for matching subagents */

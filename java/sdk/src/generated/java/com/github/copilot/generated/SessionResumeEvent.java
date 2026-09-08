@@ -51,6 +51,8 @@ public final class SessionResumeEvent extends SessionEvent {
         @JsonProperty("verbosity") Verbosity verbosity,
         /** Context tier currently selected at resume time; null when no tier is active */
         @JsonProperty("contextTier") ContextTier contextTier,
+        /** Auto routing preference active at resume time */
+        @JsonProperty("autoTier") AutoTier autoTier,
         /** Session limits currently configured at resume time; null when no limits are active */
         @JsonProperty("sessionLimits") SessionLimitsConfig sessionLimits,
         /** Updated working directory and git context at resume time */

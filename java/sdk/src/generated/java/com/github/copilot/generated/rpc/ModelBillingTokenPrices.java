@@ -31,6 +31,8 @@ public record ModelBillingTokenPrices(
     @JsonProperty("cacheReadPrice") Double cacheReadPrice,
     /** AI Credits cost per billing batch of cache-write (cache creation) tokens. */
     @JsonProperty("cacheWritePrice") Double cacheWritePrice,
+    /** AI Credits cost per billing batch of 1-hour cache-write (cache creation) tokens. */
+    @JsonProperty("cacheWrite1hPrice") Double cacheWrite1hPrice,
     /** Number of tokens per standard billing batch */
     @JsonProperty("batchSize") Long batchSize,
     /** Use maxPromptTokens instead. Prompt token budget for the default tier. The total context window is this value plus the model's max_output_tokens. */

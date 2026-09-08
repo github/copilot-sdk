@@ -21,18 +21,33 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record FactoryAgentSummary(
+    /** Stable direct-agent identifier. */
     @JsonProperty("agentId") String agentId,
+    /** Tool-call identifier that launched the agent. */
     @JsonProperty("toolCallId") String toolCallId,
+    /** Owning factory run identifier. */
     @JsonProperty("runId") String runId,
+    /** Phase identifier active when the agent was launched, or null. */
     @JsonProperty("phaseId") String phaseId,
+    /** Friendly, non-unique name intended for display */
     @JsonProperty("label") String label,
+    /** Friendly, non-unique name intended for display */
+    @JsonProperty("displayName") String displayName,
+    /** Registered agent type. */
     @JsonProperty("agentType") String agentType,
+    /** Current durable or live agent status. */
     @JsonProperty("status") String status,
+    /** Model requested when the agent was launched. */
     @JsonProperty("requestedModel") String requestedModel,
+    /** Concrete model resolved for the agent. */
     @JsonProperty("resolvedModel") String resolvedModel,
+    /** Epoch milliseconds when the agent started. */
     @JsonProperty("startedAt") Long startedAt,
+    /** Epoch milliseconds when the agent completed. */
     @JsonProperty("completedAt") Long completedAt,
+    /** Accumulated active agent time in milliseconds. */
     @JsonProperty("activeMs") Long activeMs,
+    /** Prompt-safe live activity text. */
     @JsonProperty("activity") String activity
 ) {
 }

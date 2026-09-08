@@ -103,7 +103,7 @@ public final class SessionPermissionsApi {
     }
 
     /**
-     * Allow-all mode to apply for the session.
+     * Permission mode to apply for the session.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -112,10 +112,10 @@ public final class SessionPermissionsApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<SessionPermissionsSetAllowAllResult> setAllowAll(SessionPermissionsSetAllowAllParams params) {
+    public CompletableFuture<SessionPermissionsSetModeResult> setMode(SessionPermissionsSetModeParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
-        return caller.invoke("session.permissions.setAllowAll", _p, SessionPermissionsSetAllowAllResult.class);
+        return caller.invoke("session.permissions.setMode", _p, SessionPermissionsSetModeResult.class);
     }
 
     /**
@@ -125,8 +125,8 @@ public final class SessionPermissionsApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<SessionPermissionsGetAllowAllResult> getAllowAll() {
-        return caller.invoke("session.permissions.getAllowAll", java.util.Map.of("sessionId", this.sessionId), SessionPermissionsGetAllowAllResult.class);
+    public CompletableFuture<SessionPermissionsGetModeResult> getMode() {
+        return caller.invoke("session.permissions.getMode", java.util.Map.of("sessionId", this.sessionId), SessionPermissionsGetModeResult.class);
     }
 
     /**

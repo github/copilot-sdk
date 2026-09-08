@@ -40,7 +40,9 @@ public final class SessionUsageCheckpointEvent extends SessionEvent {
         /** Total number of premium API requests used at checkpoint time */
         @JsonProperty("totalPremiumRequests") Double totalPremiumRequests,
         /** Internal per-model prompt-cache state used to restore expiration tracking on resume */
-        @JsonProperty("modelCacheState") List<UsageCheckpointModelCacheState> modelCacheState
+        @JsonProperty("modelCacheState") List<UsageCheckpointModelCacheState> modelCacheState,
+        /** Internal per-conversation prompt-cache-break detector baselines restored on resume */
+        @JsonProperty("promptCacheBreakState") List<Object> promptCacheBreakState
     ) {
     }
 }

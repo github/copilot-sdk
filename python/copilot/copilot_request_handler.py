@@ -458,8 +458,12 @@ class _CopilotRequestExchange:
             raise RuntimeError("Copilot request response write() called before start().")
         if self.finished:
             raise RuntimeError("Copilot request response write() called after end()/error().")
-        is_binary = isinstance(data, (bytes, bytearray))
-        payload = base64.b64encode(bytes(data)).decode("ascii") if is_binary else str(data)
+        if isinstance(data, bytes):
+            payload = base64.b64encode(data).decode("ascii")
+            is_binary = True
+        else:
+            payload = data
+            is_binary = False
         await self._require_rpc().http_response_chunk(
             LlmInferenceHTTPResponseChunkRequest(
                 data=payload,

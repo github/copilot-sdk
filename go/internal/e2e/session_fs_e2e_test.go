@@ -196,6 +196,8 @@ func TestSessionFSE2E(t *testing.T) {
 			t.Fatalf("Failed to get messages: %v", err)
 		}
 		toolResult := findToolCallResult(messages, "get_big_string")
+		// Windows reports the spilled file with backslash separators.
+		toolResult = strings.ReplaceAll(toolResult, "\\", "/")
 		if !strings.Contains(toolResult, sessionStatePath+"/temp/") {
 			t.Fatalf("Expected tool result to reference %s/temp/, got %q", sessionStatePath, toolResult)
 		}

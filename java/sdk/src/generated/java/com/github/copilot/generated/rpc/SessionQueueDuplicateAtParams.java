@@ -26,6 +26,7 @@ import javax.annotation.processing.Generated;
 public record SessionQueueDuplicateAtParams(
     /** Target session identifier */
     @JsonProperty("sessionId") String sessionId,
+    /** Stable opaque ID of the queued item to duplicate. */
     @JsonProperty("id") String id
 ) {
 }

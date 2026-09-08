@@ -21,8 +21,11 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionSettingsJobSnapshot(
+    /** GitHub Actions event type for the job. */
     @JsonProperty("eventType") String eventType,
+    /** Whether this is the workflow's trigger job. */
     @JsonProperty("isTriggerJob") Boolean isTriggerJob,
+    /** Availability of job-specific built-in tools. */
     @JsonProperty("builtInToolAvailability") SessionSettingsBuiltInToolAvailabilitySnapshot builtInToolAvailability
 ) {
 }

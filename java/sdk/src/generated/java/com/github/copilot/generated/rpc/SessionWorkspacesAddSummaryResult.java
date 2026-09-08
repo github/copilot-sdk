@@ -25,7 +25,9 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionWorkspacesAddSummaryResult(
+    /** Metadata for the persisted summary. */
     @JsonProperty("summary") Map<String, Object> summary,
+    /** Refreshed metadata for the containing workspace. */
     @JsonProperty("workspace") Map<String, Object> workspace
 ) {
 }

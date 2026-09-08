@@ -48,6 +48,11 @@ async fn should_call_rpc_ping_with_typed_params_and_result() {
 
 #[tokio::test]
 async fn should_call_rpc_models_list_with_typed_result() {
+    // TODO(cli-1.0.81-2): CLI 1.0.81-2 stopped honoring client-level GitHub tokens over the
+    // in-process (FFI) host, which resolves auth from the ambient environment instead.
+    if super::support::skip_inprocess("client-level GitHub tokens are not supported in-process") {
+        return;
+    }
     with_e2e_context(
         "rpc_server",
         "should_call_rpc_models_list_with_typed_result",
@@ -65,7 +70,7 @@ async fn should_call_rpc_models_list_with_typed_result() {
                     result
                         .models
                         .iter()
-                        .any(|model| model.id == "claude-sonnet-4.5")
+                        .any(|model| model.id == "claude-sonnet-5")
                 );
                 assert!(result.models.iter().all(|model| !model.name.is_empty()));
                 client.stop().await.expect("stop client");
@@ -77,6 +82,11 @@ async fn should_call_rpc_models_list_with_typed_result() {
 
 #[tokio::test]
 async fn should_call_rpc_account_get_quota_when_authenticated() {
+    // TODO(cli-1.0.81-2): CLI 1.0.81-2 stopped honoring client-level GitHub tokens over the
+    // in-process (FFI) host, which resolves auth from the ambient environment instead.
+    if super::support::skip_inprocess("client-level GitHub tokens are not supported in-process") {
+        return;
+    }
     with_e2e_context(
         "rpc_server",
         "should_call_rpc_account_get_quota_when_authenticated",

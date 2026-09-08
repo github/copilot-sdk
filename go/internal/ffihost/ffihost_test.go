@@ -25,10 +25,9 @@ func TestDisposeUnregistersOutboundTarget(t *testing.T) {
 	}
 }
 
-func TestBuildArgvAppendsManagedOptions(t *testing.T) {
+func TestBuildArgvWithoutEntrypointContainsOnlyManagedOptions(t *testing.T) {
 	host := &Host{
-		cliEntrypoint: "copilot",
-		args:          []string{"--log-level", "debug", "--remote"},
+		args: []string{"--log-level", "debug", "--remote"},
 	}
 
 	var argv []string
@@ -36,7 +35,45 @@ func TestBuildArgvAppendsManagedOptions(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	expected := []string{"copilot", "--embedded-host", "--no-auto-update", "--log-level", "debug", "--remote"}
+	expected := []string{"--log-level", "debug", "--remote"}
+	if len(argv) != len(expected) {
+		t.Fatalf("Expected %d arguments, got %d: %v", len(expected), len(argv), argv)
+	}
+	for i := range expected {
+		if argv[i] != expected[i] {
+			t.Fatalf("Expected argument %d to be %q, got %q", i, expected[i], argv[i])
+		}
+	}
+}
+
+func TestBuildArgvPreservesExplicitEntrypoint(t *testing.T) {
+	host := &Host{cliEntrypoint: "copilot", args: []string{"--remote"}}
+
+	var argv []string
+	if err := json.Unmarshal(host.buildArgv(), &argv); err != nil {
+		t.Fatal(err)
+	}
+
+	expected := []string{"copilot", "--embedded-host", "--no-auto-update", "--remote"}
+	if len(argv) != len(expected) {
+		t.Fatalf("Expected %d arguments, got %d: %v", len(expected), len(argv), argv)
+	}
+	for i := range expected {
+		if argv[i] != expected[i] {
+			t.Fatalf("Expected argument %d to be %q, got %q", i, expected[i], argv[i])
+		}
+	}
+}
+
+func TestBuildArgvUsesNodeForExplicitJavaScriptEntrypoint(t *testing.T) {
+	host := &Host{cliEntrypoint: "copilot.js"}
+
+	var argv []string
+	if err := json.Unmarshal(host.buildArgv(), &argv); err != nil {
+		t.Fatal(err)
+	}
+
+	expected := []string{"node", "copilot.js", "--embedded-host", "--no-auto-update"}
 	if len(argv) != len(expected) {
 		t.Fatalf("Expected %d arguments, got %d: %v", len(expected), len(argv), argv)
 	}

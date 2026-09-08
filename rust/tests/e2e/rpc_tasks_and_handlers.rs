@@ -66,7 +66,7 @@ async fn should_list_task_state_and_return_false_for_missing_task_operations() {
                         .await
                         .expect("progress missing")
                         .progress
-                        .is_none()
+                        .is_null()
                 );
                 assert!(
                     session
@@ -273,6 +273,7 @@ async fn should_return_expected_results_for_missing_pending_handler_requestids()
                         result: UIElicitationResponse {
                             action: UIElicitationResponseAction::Cancel,
                             content: Default::default(),
+                            meta: None,
                         },
                     })
                     .await

@@ -97,7 +97,7 @@ class GeneratedRpcApiCoverageTest {
         var stub = new StubCaller();
         var server = new ServerRpc(stub);
 
-        var params = new McpConfigRemoveParams("myServer");
+        var params = new McpConfigRemoveParams("myServer", null);
         server.mcp.config.remove(params);
 
         assertEquals(1, stub.calls.size());
@@ -126,7 +126,8 @@ class GeneratedRpcApiCoverageTest {
         var stub = new StubCaller();
         var session = new SessionRpc(stub, "sess-mode-set");
 
-        var modeParams = new SessionModeSetParams(null, null);
+        var modeParams = new SessionModeSetParams(null, null, null, null, null, null, null, null, null, null, null,
+                null);
         session.mode.set(modeParams);
 
         assertEquals(1, stub.calls.size());
@@ -466,7 +467,7 @@ class GeneratedRpcApiCoverageTest {
         var stub = new StubCaller();
         var session = new SessionRpc(stub, "sess-ui");
 
-        var uiParams = new SessionUiElicitationParams(null, "Please provide info", null);
+        var uiParams = new SessionUiElicitationParams(null, null, "Please provide info", null, null, null);
         session.ui.elicitation(uiParams);
 
         assertEquals(1, stub.calls.size());

@@ -44,7 +44,9 @@ public final class ExitPlanModeRequestedEvent extends SessionEvent {
         /** Available actions the user can take */
         @JsonProperty("actions") List<ExitPlanModeAction> actions,
         /** Recommended action to preselect for the user */
-        @JsonProperty("recommendedAction") ExitPlanModeAction recommendedAction
+        @JsonProperty("recommendedAction") ExitPlanModeAction recommendedAction,
+        /** Model the session had selected when the plan was authored, when one is known */
+        @JsonProperty("model") String model
     ) {
     }
 }

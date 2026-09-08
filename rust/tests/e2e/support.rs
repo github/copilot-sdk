@@ -31,6 +31,7 @@ static SHARED_E2E_RUNTIME: LazyLock<tokio::runtime::Runtime> = LazyLock::new(|| 
         .expect("create shared E2E runtime")
 });
 const SHARED_E2E_CLEANUP_TIMEOUT: Duration = Duration::from_secs(10);
+const PROXY_STARTUP_TIMEOUT: Duration = Duration::from_secs(30);
 
 pub const DEFAULT_TEST_TOKEN: &str = "rust-e2e-token";
 
@@ -510,12 +511,8 @@ impl E2eContext {
             .expect("start E2E client")
     }
 
-    /// Start a client that hosts the runtime in-process over FFI
-    /// ([`Transport::InProcess`]). Unlike the stdio harness, the CLI
-    /// entrypoint is passed as the program directly (the FFI host builds the
-    /// `node <entrypoint> --embedded-host` argv itself and loads the sibling
-    /// runtime cdylib), so a `.js` entrypoint is not split into node +
-    /// prefix_args here.
+    /// Start a client that hosts the bundled runtime directly in-process over
+    /// FFI ([`Transport::InProcess`]).
     #[cfg_attr(not(feature = "bundled-in-process"), allow(dead_code))]
     pub async fn start_inprocess_client(&self) -> Client {
         let options = ClientOptions::new().with_transport(Transport::InProcess);
@@ -677,7 +674,7 @@ impl E2eContext {
 impl SharedE2eState {
     async fn prepare_test(&mut self, category: &str, snapshot_name: &str) -> std::io::Result<()> {
         self.cleanup_sessions().await?;
-        clear_directory_contents(self.context.work_dir())?;
+        clear_directory_contents(self.context.work_dir()).await?;
         self.context.configure(category, snapshot_name)?;
         self.context.set_default_copilot_user();
         Ok(())
@@ -685,7 +682,7 @@ impl SharedE2eState {
 
     async fn cleanup_after_test(&mut self) -> std::io::Result<()> {
         self.cleanup_sessions().await?;
-        clear_directory_contents(self.context.work_dir())
+        clear_directory_contents(self.context.work_dir()).await
     }
 
     async fn cleanup_sessions(&self) -> std::io::Result<()> {
@@ -785,17 +782,34 @@ fn is_filtered_test_run() -> bool {
     })
 }
 
-fn clear_directory_contents(directory: &Path) -> std::io::Result<()> {
+async fn clear_directory_contents(directory: &Path) -> std::io::Result<()> {
     for entry in std::fs::read_dir(directory)? {
         let entry = entry?;
         let path = entry.path();
-        if entry.file_type()?.is_dir() {
-            std::fs::remove_dir_all(path)?;
-        } else {
-            std::fs::remove_file(path)?;
+        let is_directory = entry.file_type()?.is_dir();
+
+        for attempt in 1..=20 {
+            let result = if is_directory {
+                std::fs::remove_dir_all(&path)
+            } else {
+                std::fs::remove_file(&path)
+            };
+
+            match result {
+                Ok(()) => break,
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => break,
+                Err(error) if is_transient_windows_file_lock(&error) && attempt < 20 => {
+                    tokio::time::sleep(Duration::from_millis(50)).await;
+                }
+                Err(error) => return Err(error),
+            }
         }
     }
     Ok(())
+}
+
+fn is_transient_windows_file_lock(error: &std::io::Error) -> bool {
+    cfg!(windows) && matches!(error.raw_os_error(), Some(5 | 32 | 145))
 }
 
 impl Drop for E2eContext {
@@ -1070,7 +1084,8 @@ impl InProcessEnvGuard {
         pairs.push(("COPILOT_SDK_AUTH_TOKEN".into(), "".into()));
         pairs.push((
             "COPILOT_CLI_PATH".into(),
-            ctx.cli_path.clone().into_os_string(),
+            std::env::var_os("COPILOT_CLI_PATH")
+                .unwrap_or_else(|| ctx.cli_path.clone().into_os_string()),
         ));
         // Some tests opt into gated runtime APIs via per-client `options.env`, which the
         // in-process transport does not pass to the shared native runtime (see issue #1934).
@@ -1177,29 +1192,23 @@ fn cli_path(repo_root: &Path) -> std::io::Result<PathBuf> {
         }
     }
 
-    // The `@github/copilot` package is a thin loader; the runnable `index.js`
-    // ships in a platform-specific `@github/copilot-<platform>-<arch>` package,
-    // exactly one of which is installed. Resolve whichever one is present.
-    let github_dir = repo_root
-        .join("nodejs")
-        .join("node_modules")
-        .join("@github");
-    if let Ok(entries) = std::fs::read_dir(&github_dir) {
-        for entry in entries.flatten() {
-            if entry.file_name().to_string_lossy().starts_with("copilot-") {
-                let candidate = entry.path().join("index.js");
-                if candidate.exists() {
-                    return Ok(candidate);
-                }
-            }
+    let npm = if cfg!(windows) { "npm.cmd" } else { "npm" };
+    let output = std::process::Command::new(npm)
+        .args(["run", "--silent", "prepare:runtime", "--", "--print-path"])
+        .current_dir(repo_root.join("nodejs"))
+        .output()?;
+    if output.status.success() {
+        let path = PathBuf::from(String::from_utf8_lossy(&output.stdout).trim());
+        if path.is_file() {
+            return Ok(path);
         }
     }
 
     Err(std::io::Error::new(
         std::io::ErrorKind::NotFound,
         format!(
-            "CLI not found under {}; run npm install in nodejs first",
-            github_dir.display()
+            "failed to prepare the pinned Copilot CLI: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
         ),
     ))
 }
@@ -1277,7 +1286,7 @@ impl CapiProxy {
             }
         });
         let re = regex::Regex::new(r"Listening: (http://[^\s]+)\s+(\{.*\})$").unwrap();
-        let deadline = Instant::now() + SHARED_E2E_CLEANUP_TIMEOUT;
+        let deadline = Instant::now() + PROXY_STARTUP_TIMEOUT;
         while let Some(remaining) = deadline.checked_duration_since(Instant::now()) {
             let line = match line_rx.recv_timeout(remaining) {
                 Ok(Ok(line)) => line,
@@ -1344,7 +1353,7 @@ impl CapiProxy {
 
         kill_and_wait_child(&mut child);
         Err(std::io::Error::other(format!(
-            "timed out after {SHARED_E2E_CLEANUP_TIMEOUT:?} waiting for proxy startup"
+            "timed out after {PROXY_STARTUP_TIMEOUT:?} waiting for proxy startup"
         )))
     }
 
@@ -1385,8 +1394,17 @@ impl CapiProxy {
             "/stop"
         };
         let result = self.post_json(path, "");
-        if let Some(mut child) = self.child.take() {
-            wait_for_child_exit(&mut child)?;
+        if let Some(mut child) = self.child.take()
+            && let Err(error) = wait_for_child_exit(&mut child)
+        {
+            if result.is_err() {
+                return Err(error);
+            }
+            // The proxy acknowledges /stop before its asynchronous server shutdown.
+            // npm/tsx can occasionally leave its wrapper alive after the proxy has
+            // accepted the request; wait_for_child_exit has reaped it, so do not turn
+            // an otherwise successful test into a teardown failure.
+            eprintln!("force-killed E2E proxy after successful stop request: {error}");
         }
         result
     }

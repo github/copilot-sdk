@@ -22,7 +22,9 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionOpenOptionsAdditionalContentExclusionPolicy(
+    /** Content-exclusion rules to apply. */
     @JsonProperty("rules") List<SessionOpenOptionsAdditionalContentExclusionPolicyRule> rules,
+    /** Opaque policy update timestamp supplied by the host. */
     @JsonProperty("last_updated_at") Object lastUpdatedAt,
     /** Allowed values for the `SessionOpenOptionsAdditionalContentExclusionPolicyScope` enumeration. */
     @JsonProperty("scope") SessionOpenOptionsAdditionalContentExclusionPolicyScope scope

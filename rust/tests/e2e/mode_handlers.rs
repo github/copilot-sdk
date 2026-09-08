@@ -118,6 +118,7 @@ async fn should_invoke_exit_plan_mode_handler_when_model_uses_tool() {
                     .mode()
                     .set(ModeSetRequest {
                         mode: SessionMode::Plan,
+                        ..Default::default()
                     })
                     .await
                     .expect("set plan mode");

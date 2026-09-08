@@ -15,7 +15,7 @@ internal enum E2ETestBackend
 internal static class E2ETestBackendConfiguration
 {
     internal const string EnvironmentVariable = "COPILOT_SDK_E2E_BACKEND";
-    private const string AnthropicDefaultModel = "claude-sonnet-4.5";
+    private const string AnthropicDefaultModel = "claude-sonnet-5";
     private const string OpenAIDefaultModel = "gpt-4.1";
     private const string FakeCredential = "fake-byok-credential-for-e2e-tests";
 

@@ -55,6 +55,8 @@ public final class SessionShutdownEvent extends SessionEvent {
         @JsonProperty("codeChanges") ShutdownCodeChanges codeChanges,
         /** Per-model usage breakdown, keyed by model identifier */
         @JsonProperty("modelMetrics") Map<String, ShutdownModelMetric> modelMetrics,
+        /** Per-agent usage breakdown, keyed by agent instance identifier. The main conversation uses the stable key `main`. */
+        @JsonProperty("agentMetrics") Map<String, ShutdownAgentMetric> agentMetrics,
         /** Model that was selected at the time of shutdown */
         @JsonProperty("currentModel") String currentModel,
         /** Total tokens in context window at shutdown */

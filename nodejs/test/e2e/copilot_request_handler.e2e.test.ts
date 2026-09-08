@@ -42,8 +42,8 @@ async function startFakeUpstream(): Promise<{
             sendJson(res, 200, {
                 data: [
                     {
-                        id: "claude-sonnet-4.5",
-                        name: "Claude Sonnet 4.5",
+                        id: "claude-sonnet-5",
+                        name: "Claude Sonnet 5",
                         object: "model",
                         vendor: "Anthropic",
                         version: "1",
@@ -52,7 +52,7 @@ async function startFakeUpstream(): Promise<{
                         supported_endpoints: ["/responses", "ws:/responses"],
                         capabilities: {
                             type: "chat",
-                            family: "claude-sonnet-4.5",
+                            family: "claude-sonnet-5",
                             tokenizer: "o200k_base",
                             limits: {
                                 max_context_window_tokens: 200000,

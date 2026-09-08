@@ -21,7 +21,9 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record FactoryCurrentPhase(
+    /** Current phase identifier. */
     @JsonProperty("id") String id,
+    /** Zero-based declared phase ordinal, or null for an undeclared phase. */
     @JsonProperty("ordinal") Long ordinal
 ) {
 }

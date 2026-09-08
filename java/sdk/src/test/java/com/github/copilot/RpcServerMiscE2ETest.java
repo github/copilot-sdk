@@ -106,7 +106,8 @@ class RpcServerMiscE2ETest {
             users.stream().filter(user -> accountLogin(user).equals(login)).findFirst()
                     .ifPresent(user -> assertEquals(token, user.token()));
 
-            var logout = client.getRpc().account.logout(new AccountLogoutParams(authInfo)).get(30, TimeUnit.SECONDS);
+            var logout = client.getRpc().account.logout(new AccountLogoutParams(null, authInfo)).get(30,
+                    TimeUnit.SECONDS);
             assertFalse(logout.hasMoreUsers());
             assertNull(client.getRpc().account.getCurrentAuth().get(30, TimeUnit.SECONDS).authInfo());
         }

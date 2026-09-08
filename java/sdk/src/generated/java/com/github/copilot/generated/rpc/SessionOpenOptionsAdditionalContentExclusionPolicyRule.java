@@ -22,8 +22,11 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionOpenOptionsAdditionalContentExclusionPolicyRule(
+    /** Path patterns covered by this rule. */
     @JsonProperty("paths") List<String> paths,
+    /** Conditions of which at least one must match. */
     @JsonProperty("ifAnyMatch") List<String> ifAnyMatch,
+    /** Conditions none of which may match. */
     @JsonProperty("ifNoneMatch") List<String> ifNoneMatch,
     /** Source descriptor for a `sessions.open` content-exclusion rule, with source name and type. */
     @JsonProperty("source") SessionOpenOptionsAdditionalContentExclusionPolicyRuleSource source

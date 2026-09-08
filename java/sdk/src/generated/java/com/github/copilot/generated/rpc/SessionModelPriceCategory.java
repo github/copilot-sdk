@@ -21,7 +21,9 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionModelPriceCategory(
+    /** CAPI model identifier. */
     @JsonProperty("id") String id,
+    /** Cost category assigned to the model. */
     @JsonProperty("priceCategory") ModelPickerPriceCategory priceCategory
 ) {
 }

@@ -16,8 +16,8 @@ import javax.annotation.processing.Generated;
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 public enum PermissionDecisionSource {
-    /** The {@code judge_recommendation} variant. */
-    JUDGE_RECOMMENDATION("judge_recommendation"),
+    /** The {@code assisted_approval} variant. */
+    ASSISTED_APPROVAL("assisted_approval"),
     /** The {@code human_response} variant. */
     HUMAN_RESPONSE("human_response"),
     /** The {@code host_policy} variant. */

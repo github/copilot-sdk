@@ -21,9 +21,13 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record FactoryDeclaredLimits(
+    /** Maximum concurrently active subagents. */
     @JsonProperty("maxConcurrentSubagents") Long maxConcurrentSubagents,
+    /** Maximum total subagents spawned by the run. */
     @JsonProperty("maxTotalSubagents") Long maxTotalSubagents,
+    /** Maximum accumulated active execution time in seconds. */
     @JsonProperty("timeoutSeconds") Double timeoutSeconds,
+    /** Maximum AI credits consumed by subagents and descendants. */
     @JsonProperty("maxAiCredits") Double maxAiCredits
 ) {
 }

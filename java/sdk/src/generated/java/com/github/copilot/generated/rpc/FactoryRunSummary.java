@@ -21,24 +21,43 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record FactoryRunSummary(
+    /** Factory run identifier. */
     @JsonProperty("runId") String runId,
+    /** Registered factory name. */
     @JsonProperty("factoryName") String factoryName,
+    /** Human-readable factory description. */
     @JsonProperty("description") String description,
+    /** Current factory run status. */
     @JsonProperty("status") FactoryRunStatus status,
+    /** Monotonic durable run revision. */
     @JsonProperty("revision") Long revision,
+    /** Epoch milliseconds when the run was created. */
     @JsonProperty("createdAt") Long createdAt,
+    /** Epoch milliseconds when execution first started, or null before start. */
     @JsonProperty("startedAt") Long startedAt,
+    /** Epoch milliseconds when the durable run was last updated. */
     @JsonProperty("updatedAt") Long updatedAt,
+    /** Epoch milliseconds when the run completed, or null while nonterminal. */
     @JsonProperty("completedAt") Long completedAt,
+    /** Current phase identity, or null before any phase is entered. */
     @JsonProperty("currentPhase") FactoryCurrentPhase currentPhase,
+    /** Number of phases declared by the factory. */
     @JsonProperty("declaredPhaseCount") Long declaredPhaseCount,
+    /** Number of direct factory agents currently live. */
     @JsonProperty("liveAgentCount") Long liveAgentCount,
+    /** Total direct factory agents spawned across all attempts. */
     @JsonProperty("totalSpawnedAgentCount") Long totalSpawnedAgentCount,
+    /** Durable resource consumption. */
     @JsonProperty("consumed") FactoryRunConsumed consumed,
+    /** Resource ceilings declared by the factory. */
     @JsonProperty("declaredLimits") FactoryDeclaredLimits declaredLimits,
+    /** Approved effective resource ceilings, or null until approved. */
     @JsonProperty("approved") FactoryDeclaredLimits approved,
+    /** Epoch milliseconds when this live-overlay snapshot was observed. */
     @JsonProperty("observedAt") Long observedAt,
+    /** Epoch milliseconds when the current active segment started, or null while inactive. */
     @JsonProperty("activeSegmentStartedAt") Long activeSegmentStartedAt,
+    /** Terminal run outcome, or null while nonterminal. */
     @JsonProperty("terminal") FactoryRunTerminal terminal
 ) {
 }

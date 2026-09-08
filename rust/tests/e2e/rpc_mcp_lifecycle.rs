@@ -138,6 +138,10 @@ async fn should_stop_running_mcp_server() {
     .await;
 }
 
+// TODO(cli-1.0.81-2): CLI 1.0.81-2 no longer installs an MCP config from the inline start
+// payload, so `session.mcp.startServer` reports "has no installed config to start".
+// Re-enable once the runtime fix ships.
+#[ignore = "blocked on CLI 1.0.81-2 MCP installed-config regression"]
 #[tokio::test]
 async fn should_start_and_restart_mcp_server() {
     super::support::with_shared_e2e_context(
@@ -205,6 +209,7 @@ async fn should_start_and_restart_mcp_server() {
 // internal methods generically; it never exercised a supported wire API.
 
 #[tokio::test]
+#[ignore = "blocked on CLI 1.0.81-6 missing session.mcp.reloadWithConfig handler"]
 async fn should_reload_mcp_servers_with_config() {
     super::support::with_shared_e2e_context(
         &E2E,
@@ -248,6 +253,7 @@ async fn should_reload_mcp_servers_with_config() {
 }
 
 #[tokio::test]
+#[ignore = "blocked on CLI 1.0.81-6 missing session.mcp.configureGitHub handler"]
 async fn should_configure_github_mcp_server() {
     super::support::with_shared_e2e_context(
         &E2E,

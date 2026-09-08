@@ -31,6 +31,7 @@ public record LlmInferenceHttpRequestStartRequest(
     @JsonProperty("method") String method,
     /** Absolute request URL. */
     @JsonProperty("url") String url,
+    /** HTTP request headers, preserving multiple values per name. */
     @JsonProperty("headers") Map<String, List<String>> headers,
     /** Transport the runtime would otherwise use for this request. `http` (the default when absent) covers plain HTTP and SSE responses; `websocket` indicates a full-duplex message channel where each body chunk maps to one WebSocket message and the `binary` flag distinguishes text from binary frames. The SDK consumer uses this to decide whether to service the request with an HTTP client or a WebSocket client. It is the one piece of request metadata the consumer cannot reliably infer from the URL or headers alone. */
     @JsonProperty("transport") LlmInferenceHttpRequestStartTransport transport,

@@ -38,7 +38,7 @@ use std::time::Duration;
 #[non_exhaustive]
 pub struct StartupTimings {
     /// Time spent in `resolve::copilot_binary_with_extract_dir` locating (and,
-    /// for a bundled CLI, extracting) the copilot binary. `None` when the
+    /// for bundled artifacts, extracting) the Copilot program. `None` when the
     /// caller passes an explicit [`CliProgram::Path`](crate::CliProgram::Path).
     pub program_resolve_ms: Option<u64>,
     /// Time spent spawning the CLI subprocess (`command.spawn()`). `None` for

@@ -23,6 +23,13 @@ public class CloneTests
             BuiltinPluginDirectories = ["/plugins/core", "/plugins/github"],
             EnableRemoteSessions = true,
             SessionIdleTimeoutSeconds = 600,
+            ClientInfo = new CopilotClientInfo
+            {
+                ApplicationName = "example-app",
+                ApplicationVersion = "1.0.0",
+                IntegrationName = "example-integration",
+                IntegrationVersion = "2.0.0",
+            },
         };
 
         var clone = original.Clone();
@@ -38,6 +45,7 @@ public class CloneTests
         Assert.NotSame(original.BuiltinPluginDirectories, clone.BuiltinPluginDirectories);
         Assert.Equal(original.EnableRemoteSessions, clone.EnableRemoteSessions);
         Assert.Equal(original.SessionIdleTimeoutSeconds, clone.SessionIdleTimeoutSeconds);
+        Assert.Same(original.ClientInfo, clone.ClientInfo);
     }
 
     [Fact]
@@ -73,6 +81,7 @@ public class CloneTests
             ReasoningEffort = "high",
             ReasoningSummary = ReasoningSummary.Detailed,
             ContextTier = ContextTier.LongContext,
+            AskUserVariant = AskUserVariant.Elicitation,
             ConfigDirectory = "/config",
             AvailableTools = ["tool1", "tool2"],
             ExcludedTools = ["tool3"],
@@ -121,6 +130,7 @@ public class CloneTests
         Assert.Equal(original.ReasoningEffort, clone.ReasoningEffort);
         Assert.Equal(original.ReasoningSummary, clone.ReasoningSummary);
         Assert.Equal(original.ContextTier, clone.ContextTier);
+        Assert.Equal(original.AskUserVariant, clone.AskUserVariant);
         Assert.Equal(original.ConfigDirectory, clone.ConfigDirectory);
         Assert.Equal(original.AvailableTools, clone.AvailableTools);
         Assert.Equal(original.ExcludedTools, clone.ExcludedTools);
@@ -265,21 +275,42 @@ public class CloneTests
         Assert.True(clone.McpServers!.ContainsKey("SERVER"));
     }
 
-    [Fact]
-    public void MessageOptions_Clone_CopiesAllProperties()
+    public static TheoryData<MessageSource?> MessageSources => new()
+    {
+        null, MessageSource.User, MessageSource.System, MessageSource.Agent("Reviewer-7")
+    };
+
+    [Theory]
+    [MemberData(nameof(MessageSources))]
+    public void MessageOptions_Clone_CopiesAllProperties(MessageSource? source)
     {
         var original = new MessageOptions
         {
             Prompt = "Hello",
             Attachments = [new AttachmentFile { Path = "/test.txt", DisplayName = "test.txt" }],
-            Mode = "chat",
+            Mode = "immediate",
+            AgentMode = AgentMode.Plan,
+            Source = source,
+            DisplayPrompt = "Display text",
+            RequestHeaders = new Dictionary<string, string> { ["X-Test"] = "original" },
         };
 
         var clone = original.Clone();
 
         Assert.Equal(original.Prompt, clone.Prompt);
         Assert.Equal(original.Mode, clone.Mode);
+        Assert.Equal(original.AgentMode, clone.AgentMode);
+        Assert.Equal(original.Source, clone.Source);
+        Assert.Equal(original.DisplayPrompt, clone.DisplayPrompt);
         Assert.Single(clone.Attachments!);
+        Assert.NotSame(original.Attachments, clone.Attachments);
+        Assert.Equal(original.RequestHeaders, clone.RequestHeaders);
+        Assert.NotSame(original.RequestHeaders, clone.RequestHeaders);
+
+        clone.Source = source == MessageSource.System ? MessageSource.User : MessageSource.System;
+        clone.RequestHeaders!["X-Test"] = "changed";
+        Assert.Equal(source, original.Source);
+        Assert.Equal("original", original.RequestHeaders["X-Test"]);
     }
 
     [Fact]

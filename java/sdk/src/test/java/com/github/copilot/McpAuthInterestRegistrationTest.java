@@ -255,7 +255,10 @@ class McpAuthInterestRegistrationTest {
                 }
                 case "session.eventLog.registerInterest" -> result.put("id", "interest-1");
                 case "session.options.update" -> result.put("success", true);
-                case "session.skills.reload", "session.destroy" -> {
+                case "session.skills.reload" -> {
+                }
+                case "session.detach" -> {
+                    result.put("success", true);
                 }
                 default -> throw new IllegalStateException("Unexpected RPC method " + method);
             }

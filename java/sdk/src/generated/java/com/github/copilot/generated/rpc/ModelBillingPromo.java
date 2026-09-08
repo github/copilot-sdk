@@ -28,6 +28,8 @@ public record ModelBillingPromo(
     /** UTC ISO 8601 timestamp marking when the promotion ends. Optional: an open-ended promotion omits this field. When present, the API only surfaces a promo whose expiry parses and is in the future, so consumers should treat a past value as expired. */
     @JsonProperty("endsAt") String endsAt,
     /** Human-readable promotion message. Does not include the expiry timestamp; consumers may format endsAt and append it when present. */
-    @JsonProperty("message") String message
+    @JsonProperty("message") String message,
+    /** Whether the service asked hosts to give this promotion a prominent surface, such as a dedicated banner, in addition to listing it with the model. `true` requests that surface and `false` asks for the model list only. Absent means the service expressed no preference — for example a response that predates the field — so hosts should apply their own default rather than read it as `false`. */
+    @JsonProperty("showBanner") Boolean showBanner
 ) {
 }

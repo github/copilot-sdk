@@ -14,6 +14,8 @@ import pytest
 
 from copilot.session_events import (
     AttachmentGitHubReferenceType,
+    AutoTier,
+    AutoTierSwitchFailureReason,
     Data,
     ElicitationCompletedAction,
     ElicitationRequestedMode,
@@ -22,8 +24,11 @@ from copilot.session_events import (
     PermissionPromptRequestMemory,
     PermissionRequestMemory,
     PermissionRequestMemoryAction,
+    SessionAutoTierSwitchFailedData,
     SessionEventType,
     SessionManagedSettingsResolvedData,
+    SessionResumeData,
+    SessionStartData,
     SessionTaskCompleteData,
     UserMessageAgentMode,
     session_event_from_dict,
@@ -33,6 +38,87 @@ from copilot.session_events import (
 
 class TestEventForwardCompatibility:
     """Test forward compatibility for unknown event types."""
+
+    @pytest.mark.parametrize("event_type", ["session.start", "session.resume"])
+    @pytest.mark.parametrize("tier", ["efficiency", "balance", "intelligence", None])
+    def test_auto_tier_lifecycle_events_round_trip(self, event_type, tier):
+        timestamp = "2026-08-28T00:00:00Z"
+        data = (
+            {
+                "copilotVersion": "1.0.82-1",
+                "producer": "copilot-agent",
+                "sessionId": str(uuid4()),
+                "startTime": timestamp,
+                "version": 1,
+            }
+            if event_type == "session.start"
+            else {"eventCount": 1, "resumeTime": timestamp}
+        )
+        if tier is not None:
+            data["autoTier"] = tier
+        event = session_event_from_dict(
+            {
+                "id": str(uuid4()),
+                "timestamp": timestamp,
+                "parentId": None,
+                "type": event_type,
+                "data": data,
+            }
+        )
+        assert isinstance(event.data, (SessionStartData, SessionResumeData))
+        assert event.data.auto_tier == (AutoTier(tier) if tier is not None else None)
+        serialized = session_event_to_dict(event)["data"]
+        if tier is None:
+            assert "autoTier" not in serialized
+        else:
+            assert serialized["autoTier"] == tier
+
+    @pytest.mark.parametrize(
+        "reason",
+        ["policy_rejected", "request_failed", "setup_failed", "unsupported"],
+    )
+    def test_auto_tier_switch_failed_event_decodes_every_reason(self, reason):
+        timestamp = "2026-08-28T00:00:00Z"
+        event = session_event_from_dict(
+            {
+                "id": str(uuid4()),
+                "timestamp": timestamp,
+                "parentId": None,
+                "type": "session.auto_tier_switch_failed",
+                "data": {
+                    "effectiveAutoTier": "balance",
+                    "requestedAutoTier": "intelligence",
+                    "reason": reason,
+                },
+            }
+        )
+        assert isinstance(event.data, SessionAutoTierSwitchFailedData)
+        assert event.data.reason == AutoTierSwitchFailureReason(reason)
+        assert event.data.effective_auto_tier == AutoTier.BALANCE
+        assert event.data.requested_auto_tier == AutoTier.INTELLIGENCE
+
+    def test_auto_tier_switch_failed_event_allows_null_requested_tier(self):
+        # A null requested tier means the attempt to return to provider-default
+        # Auto routing is what failed.
+        timestamp = "2026-08-28T00:00:00Z"
+        event = session_event_from_dict(
+            {
+                "id": str(uuid4()),
+                "timestamp": timestamp,
+                "parentId": None,
+                "type": "session.auto_tier_switch_failed",
+                "data": {
+                    "effectiveAutoTier": "efficiency",
+                    "requestedAutoTier": None,
+                    "reason": "unsupported",
+                },
+            }
+        )
+        assert isinstance(event.data, SessionAutoTierSwitchFailedData)
+        assert event.data.requested_auto_tier is None
+        assert event.data.effective_auto_tier == AutoTier.EFFICIENCY
+        serialized = session_event_to_dict(event)["data"]
+        assert serialized["requestedAutoTier"] is None
 
     def test_session_usage_info_is_recognized(self):
         """The session.usage_info event type should be in the enum."""
@@ -144,6 +230,7 @@ class TestEventForwardCompatibility:
             "server",
             "device",
             "client",
+            "policyHelper",
             "mixed",
             "none",
         ]

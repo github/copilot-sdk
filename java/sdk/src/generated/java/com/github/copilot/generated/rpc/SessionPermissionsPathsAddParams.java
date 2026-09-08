@@ -26,7 +26,7 @@ import javax.annotation.processing.Generated;
 public record SessionPermissionsPathsAddParams(
     /** Target session identifier */
     @JsonProperty("sessionId") String sessionId,
-    /** Directory to add to the allow-list. The runtime resolves and validates the path before adding. */
+    /** Directory to add to the allow-list. The runtime resolves and validates the path before adding, then loads conventional `.github/skills/` and `.github/agents/` definitions under it when their subsystem gates are enabled. Adding the directory is therefore also a trust decision for configuration stored there. */
     @JsonProperty("path") String path
 ) {
 }

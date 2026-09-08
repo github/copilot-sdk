@@ -95,6 +95,17 @@ public final class ServerSessionsApi {
     }
 
     /**
+     * Pagination options for reading an inactive or active local session's persisted event journal.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionsReadPersistedEventsResult> readPersistedEvents(SessionsReadPersistedEventsParams params) {
+        return caller.invoke("sessions.readPersistedEvents", params, SessionsReadPersistedEventsResult.class);
+    }
+
+    /**
      * Limit for non-empty local session IDs.
      *
      * @apiNote This method is experimental and may change in a future version.

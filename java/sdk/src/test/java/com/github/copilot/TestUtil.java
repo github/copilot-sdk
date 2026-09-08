@@ -5,9 +5,12 @@
 package com.github.copilot;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.InputStreamReader;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.regex.Pattern;
 
 /**
  * Shared test utilities for locating the Copilot CLI binary and other
@@ -37,10 +40,9 @@ public final class TestUtil {
      * Resolution order:
      * <ol>
      * <li>Use the {@code COPILOT_CLI_PATH} environment variable when set.</li>
+     * <li>Prepare the release pinned by {@code nodejs/package.json}.</li>
      * <li>Otherwise search the system PATH using {@code where.exe} (Windows) or
      * {@code which} (Linux/macOS).</li>
-     * <li>Walk parent directories looking for
-     * {@code nodejs/node_modules/@github/copilot/npm-loader.js}.</li>
      * </ol>
      *
      * <p>
@@ -60,43 +62,54 @@ public final class TestUtil {
             return envPath;
         }
 
-        String copilotInPath = findCopilotInPath();
-        if (copilotInPath != null) {
-            return copilotInPath;
-        }
-
-        // Walk parent directories looking for the CLI in the test harness or nodejs
-        // installation. Mirrors the resolution order in E2ETestContext.getCliPath().
-        String os = System.getProperty("os.name").toLowerCase();
-        String arch = System.getProperty("os.arch").toLowerCase();
-        String platform = os.contains("mac") ? "darwin" : os.contains("win") ? "win32" : "linux";
-        String cpuArch = arch.contains("aarch64") || arch.contains("arm64") ? "arm64" : "x64";
-        String binaryName = os.contains("win") ? "copilot.exe" : "copilot";
-
         Path current = Paths.get(System.getProperty("user.dir"));
         while (current != null) {
-            // Test harness platform-specific binary
-            Path platformBinary = current.resolve(
-                    "test/harness/node_modules/@github/copilot-" + platform + "-" + cpuArch + "/" + binaryName);
-            if (platformBinary.toFile().exists()) {
-                return platformBinary.toString();
-            }
-
-            // Test harness npm-loader.js
-            Path npmLoader = current.resolve("test/harness/node_modules/@github/copilot/npm-loader.js");
-            if (npmLoader.toFile().exists()) {
-                return npmLoader.toString();
-            }
-
-            // nodejs installation (thin loader; resolves the platform-specific
-            // CLI package internally)
-            Path cliPath = current.resolve("nodejs/node_modules/@github/copilot/npm-loader.js");
-            if (cliPath.toFile().exists()) {
-                return cliPath.toString();
+            if (current.resolve("nodejs/package.json").toFile().exists()) {
+                try {
+                    return preparePinnedCli(current);
+                } catch (Exception preparationFailed) {
+                    break;
+                }
             }
             current = current.getParent();
         }
 
+        return findCopilotInPath();
+    }
+
+    static String preparePinnedCli(Path repoRoot) throws Exception {
+        var nodePath = findExecutableInPath("node");
+        if (nodePath == null) {
+            throw new IllegalStateException("Node.js was not found in PATH");
+        }
+        var process = new ProcessBuilder(nodePath, "node_modules/tsx/dist/cli.mjs", "scripts/prepare-runtime.ts",
+                "--print-path").directory(repoRoot.resolve("nodejs").toFile()).redirectErrorStream(true).start();
+        String output;
+        try (var reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+            output = reader.lines().reduce((first, second) -> second).orElse("").trim();
+        }
+        int exitCode = process.waitFor();
+        if (exitCode != 0 || output.isEmpty()) {
+            throw new IllegalStateException("Failed to prepare the pinned Copilot CLI: " + output);
+        }
+        return output;
+    }
+
+    private static String findExecutableInPath(String name) {
+        var pathValue = System.getenv("PATH");
+        if (pathValue == null || pathValue.isEmpty()) {
+            return null;
+        }
+
+        var windows = System.getProperty("os.name").toLowerCase().contains("win");
+        var fileName = windows ? name + ".exe" : name;
+        for (var directory : pathValue.split(Pattern.quote(File.pathSeparator))) {
+            var unquotedDirectory = directory.replaceAll("^\"|\"$", "");
+            var candidate = Paths.get(unquotedDirectory, fileName).toAbsolutePath().normalize();
+            if (Files.isRegularFile(candidate) && (windows || Files.isExecutable(candidate))) {
+                return candidate.toString();
+            }
+        }
         return null;
     }
 

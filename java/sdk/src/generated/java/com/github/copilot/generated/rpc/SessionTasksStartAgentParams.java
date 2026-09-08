@@ -30,7 +30,7 @@ public record SessionTasksStartAgentParams(
     @JsonProperty("agentType") String agentType,
     /** Task prompt for the agent */
     @JsonProperty("prompt") String prompt,
-    /** Short name for the agent, used to generate a human-readable ID */
+    /** Friendly, non-unique name used when displaying the agent */
     @JsonProperty("name") String name,
     /** Short description of the task */
     @JsonProperty("description") String description,

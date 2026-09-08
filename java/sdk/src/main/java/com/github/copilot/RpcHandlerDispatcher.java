@@ -20,7 +20,12 @@ import com.github.copilot.generated.SessionEvent;
 import com.github.copilot.rpc.AutoModeSwitchRequest;
 import com.github.copilot.rpc.ExitPlanModeRequest;
 import com.github.copilot.rpc.BearerTokenProvider;
+import com.github.copilot.rpc.GitHubTokenProviderArgs;
+import com.github.copilot.rpc.GitHubTokenProviderResult;
 import com.github.copilot.rpc.ProviderTokenArgs;
+import com.github.copilot.generated.rpc.GitHubTokenAcquireRequest;
+import com.github.copilot.generated.rpc.GitHubTokenAcquireResultCancelled;
+import com.github.copilot.generated.rpc.GitHubTokenAcquireResultToken;
 import com.github.copilot.rpc.PermissionRequestResult;
 import com.github.copilot.rpc.PermissionRequestResultKind;
 import com.github.copilot.rpc.SessionLifecycleEvent;
@@ -51,6 +56,7 @@ final class RpcHandlerDispatcher {
     private final Map<String, CopilotSession> sessions;
     private final LifecycleEventDispatcher lifecycleDispatcher;
     private final Executor executor;
+    private final GitHubTokenProviderRegistry gitHubTokenProviders;
 
     /**
      * Creates a dispatcher with session registry and lifecycle dispatcher.
@@ -63,10 +69,11 @@ final class RpcHandlerDispatcher {
      *            the executor for async dispatch, or {@code null} for default
      */
     RpcHandlerDispatcher(Map<String, CopilotSession> sessions, LifecycleEventDispatcher lifecycleDispatcher,
-            Executor executor) {
+            Executor executor, GitHubTokenProviderRegistry gitHubTokenProviders) {
         this.sessions = sessions;
         this.lifecycleDispatcher = lifecycleDispatcher;
         this.executor = executor;
+        this.gitHubTokenProviders = gitHubTokenProviders;
     }
 
     /**
@@ -92,6 +99,71 @@ final class RpcHandlerDispatcher {
                 (requestId, params) -> handleSystemMessageTransform(rpc, requestId, params));
         rpc.registerMethodHandler("providerToken.getToken",
                 (requestId, params) -> handleProviderTokenGetToken(rpc, requestId, params));
+        rpc.registerMethodHandler("gitHubToken.getToken",
+                (requestId, params) -> handleGitHubTokenGetToken(rpc, requestId, params));
+    }
+
+    private void handleGitHubTokenGetToken(JsonRpcClient rpc, String requestId, JsonNode params) {
+        runAsync(() -> {
+            final long requestIdLong = parseRequestId(requestId, "gitHubToken.getToken");
+            if (requestIdLong == -1) {
+                return;
+            }
+            try {
+                GitHubTokenAcquireRequest request = MAPPER.treeToValue(params, GitHubTokenAcquireRequest.class);
+                var provider = gitHubTokenProviders.get(request.registrationId());
+                if (provider == null) {
+                    rpc.sendErrorResponse(requestIdLong, -32603, "Unknown GitHub token provider registration");
+                    return;
+                }
+
+                var resultFuture = provider
+                        .getToken(new GitHubTokenProviderArgs(request.host(), request.sessionId(), request.reason()));
+                if (resultFuture == null) {
+                    rpc.sendErrorResponse(requestIdLong, -32603, "GitHub token provider returned a null future");
+                    return;
+                }
+                resultFuture.thenAccept(result -> sendGitHubTokenResult(rpc, requestIdLong, result))
+                        .exceptionally(error -> {
+                            try {
+                                Throwable cause = error instanceof java.util.concurrent.CompletionException
+                                        && error.getCause() != null ? error.getCause() : error;
+                                rpc.sendErrorResponse(requestIdLong, -32603,
+                                        "GitHub token provider failed: " + cause.getMessage());
+                            } catch (IOException sendError) {
+                                LOG.log(Level.SEVERE, "Error sending GitHub token provider error", sendError);
+                            }
+                            return null;
+                        });
+            } catch (Exception error) {
+                try {
+                    rpc.sendErrorResponse(requestIdLong, -32603,
+                            "GitHub token provider handler failed: " + error.getMessage());
+                } catch (IOException sendError) {
+                    LOG.log(Level.SEVERE, "Error sending GitHub token provider handler error", sendError);
+                }
+            }
+        });
+    }
+
+    private void sendGitHubTokenResult(JsonRpcClient rpc, long requestId, GitHubTokenProviderResult result) {
+        try {
+            if (result == null) {
+                rpc.sendErrorResponse(requestId, -32603, "GitHub token provider returned a null result");
+                return;
+            }
+            if (result.isCancelled()) {
+                rpc.sendResponse(requestId, new GitHubTokenAcquireResultCancelled());
+                return;
+            }
+            var wireResult = new GitHubTokenAcquireResultToken();
+            wireResult.setAccessToken(result.getAccessToken());
+            wireResult.setExpiresIn(result.getExpiresIn());
+            wireResult.setTokenType(result.getTokenType());
+            rpc.sendResponse(requestId, wireResult);
+        } catch (IOException error) {
+            LOG.log(Level.SEVERE, "Error sending GitHub token provider result", error);
+        }
     }
 
     private void handleSessionEvent(JsonNode params) {

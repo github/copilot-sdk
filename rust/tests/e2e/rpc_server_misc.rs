@@ -1,6 +1,6 @@
 use github_copilot_sdk::Client;
 use github_copilot_sdk::rpc::{
-    AccountLoginRequest, AccountLogoutRequest, AgentRegistrySpawnRequest,
+    AccountLoginRequest, AccountLogoutRequest, AgentRegistrySpawnRequest, AuthInfo,
     SendAttachmentsToMessageParams, SessionsOpenStatus, UserSettingsSetRequest,
 };
 use serde_json::{Map, Value, json};
@@ -150,7 +150,7 @@ async fn should_login_list_getcurrentauth_and_logout_account() {
                     .account()
                     .login(AccountLoginRequest {
                         host: "https://github.com".to_string(),
-                        login: "rust-account-user".to_string(),
+                        login: Some("rust-account-user".to_string()),
                         token: "rust-account-token".to_string(),
                     })
                     .await
@@ -164,8 +164,11 @@ async fn should_login_list_getcurrentauth_and_logout_account() {
                     .await
                     .expect("get current auth after login");
                 let auth_info = current.auth_info.expect("auth info after login");
-                assert_eq!(auth_info["login"], json!("rust-account-user"));
-                assert_eq!(auth_info["host"], json!("https://github.com"));
+                let AuthInfo::User(user_auth_info) = &auth_info else {
+                    panic!("expected user auth info, got {auth_info:?}");
+                };
+                assert_eq!(user_auth_info.login, "rust-account-user");
+                assert_eq!(user_auth_info.host, "https://github.com");
 
                 let users = client
                     .rpc()
@@ -173,10 +176,12 @@ async fn should_login_list_getcurrentauth_and_logout_account() {
                     .get_all_users()
                     .await
                     .expect("get all users");
-                if let Some(user) = users
-                    .iter()
-                    .find(|user| user.auth_info["login"] == json!("rust-account-user"))
-                {
+                if let Some(user) = users.iter().find(|user| {
+                    matches!(
+                        &user.auth_info,
+                        AuthInfo::User(auth_info) if auth_info.login == "rust-account-user"
+                    )
+                }) {
                     user.token
                         .as_deref()
                         .filter(|token| *token == "rust-account-token")
@@ -188,7 +193,10 @@ async fn should_login_list_getcurrentauth_and_logout_account() {
                 let logout = client
                     .rpc()
                     .account()
-                    .logout(AccountLogoutRequest { auth_info })
+                    .logout(AccountLogoutRequest {
+                        auth_info: Some(auth_info),
+                        ..Default::default()
+                    })
                     .await
                     .expect("account logout");
                 assert!(!logout.has_more_users);

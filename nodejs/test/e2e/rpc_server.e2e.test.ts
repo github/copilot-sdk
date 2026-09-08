@@ -144,7 +144,7 @@ describe("Server-scoped RPC", async () => {
 
         const result = await authClient.listModels();
         expect(Array.isArray(result)).toBe(true);
-        expect(result.some((m) => m.id === "claude-sonnet-4.5")).toBe(true);
+        expect(result.some((m) => m.id === "claude-sonnet-5")).toBe(true);
         for (const model of result) {
             expect(model.name).toBeTruthy();
         }

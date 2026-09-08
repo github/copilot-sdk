@@ -28,6 +28,8 @@ public record PlanSqlTodosRow(
     /** Todo description. */
     @JsonProperty("description") String description,
     /** Todo status. */
-    @JsonProperty("status") String status
+    @JsonProperty("status") String status,
+    /** Todo creation time, as stored by the session SQL schema's `datetime('now')` default: `YYYY-MM-DD HH:MM:SS` in UTC. Lets clients attribute todos to the work item that created them (e.g. scoping a goal's progress to the todos it produced) rather than to the whole session. */
+    @JsonProperty("createdAt") String createdAt
 ) {
 }

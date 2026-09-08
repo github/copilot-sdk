@@ -21,17 +21,29 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionSettingsRepoSnapshot(
+    /** Repository name. */
     @JsonProperty("name") String name,
+    /** GitHub repository database ID. */
     @JsonProperty("id") Double id,
+    /** Checked-out repository branch. */
     @JsonProperty("branch") String branch,
+    /** Checked-out commit SHA. */
     @JsonProperty("commit") String commit,
+    /** Whether the repository is writable. */
     @JsonProperty("readWrite") Boolean readWrite,
+    /** Repository owner login. */
     @JsonProperty("ownerName") String ownerName,
+    /** GitHub repository owner database ID. */
     @JsonProperty("ownerId") Double ownerId,
+    /** GitHub server base URL. */
     @JsonProperty("serverUrl") String serverUrl,
+    /** GitHub server host name. */
     @JsonProperty("host") String host,
+    /** Protocol used to access the GitHub host. */
     @JsonProperty("hostProtocol") String hostProtocol,
+    /** GitHub secret-scanning service URL. */
     @JsonProperty("secretScanningUrl") String secretScanningUrl,
+    /** Number of commits in the pull request. */
     @JsonProperty("prCommitCount") Double prCommitCount
 ) {
 }

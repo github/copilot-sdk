@@ -1,5 +1,5 @@
 models:
-  - claude-sonnet-4.5
+  - claude-sonnet-5
 conversations:
   - messages:
       - role: system
@@ -61,7 +61,7 @@ conversations:
           task.
       - role: tool
         tool_call_id: toolcall_1
-        content: 1. This file is attached
+        content: This file is attached
       - role: assistant
         content: |-
           The attached file contains a single line of text that says: "This file is attached"

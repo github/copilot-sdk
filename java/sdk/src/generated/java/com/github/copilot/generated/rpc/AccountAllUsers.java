@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Authenticated account entry returned by `account.getAllUsers`, with auth info and an optional associated token.
+ * Authenticated account entry returned by `account.getAllUsers`.
  *
  * @since 1.0.0
  */
@@ -23,6 +23,8 @@ import javax.annotation.processing.Generated;
 public record AccountAllUsers(
     /** Authentication information for this user */
     @JsonProperty("authInfo") Object authInfo,
+    /** Opaque identifier accepted by account and model selection APIs */
+    @JsonProperty("selectionId") String selectionId,
     /** Associated token, if available */
     @JsonProperty("token") String token
 ) {

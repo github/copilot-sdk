@@ -21,6 +21,7 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionManagedSettings(
+    /** Managed permission policy injected by the SDK host. */
     @JsonProperty("permissions") SessionManagedPermissions permissions
 ) {
 }

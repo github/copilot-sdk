@@ -67,6 +67,38 @@ public final class SessionFactoryApi {
     }
 
     /**
+     * Internal parameters for invoking a registered factory from a tool.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionFactoryRunFromToolResult> runFromTool(SessionFactoryRunFromToolParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.factory.runFromTool", _p, SessionFactoryRunFromToolResult.class);
+    }
+
+    /**
+     * Internal parameters for resuming a factory run from a tool.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionFactoryResumeFromToolResult> resumeFromTool(SessionFactoryResumeFromToolParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.factory.resumeFromTool", _p, SessionFactoryResumeFromToolResult.class);
+    }
+
+    /**
      * Parameters for retrieving a factory run.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden

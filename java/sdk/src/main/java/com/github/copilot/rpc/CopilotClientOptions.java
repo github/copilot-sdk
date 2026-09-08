@@ -55,6 +55,7 @@ public class CopilotClientOptions {
     private String cliPath;
     private String cliUrl;
     private RuntimeConnection connection;
+    private ClientInfo clientInfo;
     private String copilotHome;
     private String cwd;
     private Map<String, String> environment;
@@ -192,19 +193,20 @@ public class CopilotClientOptions {
     }
 
     /**
-     * Gets the path to the Copilot CLI executable.
+     * Gets the path to an explicitly configured Copilot executable.
      *
-     * @return the CLI path, or {@code null} to use "copilot" from PATH
+     * @return the executable path, or {@code null} to use the bundled runtime
+     *         wrapper
      */
     public String getCliPath() {
         return cliPath;
     }
 
     /**
-     * Sets the path to the Copilot CLI executable.
+     * Sets the path to the Copilot CLI or runtime wrapper executable.
      *
      * @param cliPath
-     *            the path to the CLI executable
+     *            the path to the executable
      * @return this options instance for method chaining
      */
     public CopilotClientOptions setCliPath(String cliPath) {
@@ -678,6 +680,36 @@ public class CopilotClientOptions {
     }
 
     /**
+     * Gets the integrating application's declared identity.
+     *
+     * @return the client info, or {@code null}
+     * @since 1.6.0
+     */
+    public ClientInfo getClientInfo() {
+        return clientInfo;
+    }
+
+    /**
+     * Declares the integrating application's identity, forwarded to the runtime on
+     * the {@code server.connect} handshake.
+     * <p>
+     * Declaring it lets the telemetry the runtime emits on this connection be
+     * attributed to a consistent surface (the application and its Copilot
+     * integration) instead of the runtime's own build. All fields on
+     * {@link ClientInfo} are optional; leave this unset to keep the runtime's
+     * default attribution.
+     *
+     * @param clientInfo
+     *            the application identity to declare
+     * @return this options instance for method chaining
+     * @since 1.6.0
+     */
+    public CopilotClientOptions setClientInfo(ClientInfo clientInfo) {
+        this.clientInfo = Objects.requireNonNull(clientInfo, "clientInfo must not be null");
+        return this;
+    }
+
+    /**
      * Gets the server-wide idle timeout for sessions in seconds.
      *
      * @return an {@link OptionalInt} containing the session idle timeout in
@@ -829,6 +861,7 @@ public class CopilotClientOptions {
         copy.cliPath = this.cliPath;
         copy.cliUrl = this.cliUrl;
         copy.connection = this.connection;
+        copy.clientInfo = this.clientInfo;
         copy.copilotHome = this.copilotHome;
         copy.cwd = this.cwd;
         copy.environment = this.environment != null ? new java.util.HashMap<>(this.environment) : null;

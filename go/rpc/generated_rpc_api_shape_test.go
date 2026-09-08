@@ -35,11 +35,14 @@ func TestGeneratedRPCAPIShape(t *testing.T) {
 	assertTypeExpr(t, fileSet, findTypeSpec(t, file, "FilterMappingEnumMap").Type, "map[string]ContentFilterMode")
 
 	assertInterfaceType(t, file, "MCPServerConfig")
-	assertStructFieldType(t, file, fileSet, "MCPConfigAddRequest", "Config", "MCPServerConfig")
-	assertStructFieldType(t, file, fileSet, "MCPConfigList", "Servers", "map[string]MCPServerConfig")
-	assertStructFieldType(t, file, fileSet, "MCPConfigUpdateRequest", "Config", "MCPServerConfig")
+	assertStructFieldType(t, file, fileSet, "MCPConfigAddRequest", "Config", "MCPSerializableServerConfig")
+	assertStructFieldType(t, file, fileSet, "MCPConfigList", "Servers", "map[string]MCPSerializableServerConfig")
+	assertStructFieldType(t, file, fileSet, "MCPConfigUpdateRequest", "Config", "MCPSerializableServerConfig")
 	assertStructFieldType(t, file, fileSet, "MCPServerConfigHTTP", "FilterMapping", "FilterMapping")
 	assertStructFieldType(t, file, fileSet, "MCPServerConfigStdio", "FilterMapping", "FilterMapping")
+	assertStructFieldType(t, file, fileSet, "ModelSwitchToRequest", "AutoTier", "**AutoTier")
+	assertStructFieldType(t, file, fileSet, "TaskClientUpdateProgress", "Percentage", "**float64")
+	assertStructFieldType(t, file, fileSet, "TaskClientUpdateProgress", "Phase", "**string")
 
 	assertInterfaceType(t, file, "UIElicitationFieldValue")
 	assertTypeExpr(t, fileSet, findTypeSpec(t, file, "UIElicitationStringArrayValue").Type, "[]string")

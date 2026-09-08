@@ -29,6 +29,8 @@ public final class SessionRpc {
     private final RpcCaller caller;
     private final String sessionId;
 
+    /** API methods for the {@code sandbox} namespace. */
+    public final SessionSandboxApi sandbox;
     /** API methods for the {@code gitHubAuth} namespace. */
     public final SessionGitHubAuthApi gitHubAuth;
     /** API methods for the {@code debug} namespace. */
@@ -47,6 +49,8 @@ public final class SessionRpc {
     public final SessionPlanApi plan;
     /** API methods for the {@code workspaces} namespace. */
     public final SessionWorkspacesApi workspaces;
+    /** API methods for the {@code autopilotObjective} namespace. */
+    public final SessionAutopilotObjectiveApi autopilotObjective;
     /** API methods for the {@code completions} namespace. */
     public final SessionCompletionsApi completions;
     /** API methods for the {@code instructions} namespace. */
@@ -115,6 +119,7 @@ public final class SessionRpc {
     public SessionRpc(RpcCaller caller, String sessionId) {
         this.caller = caller;
         this.sessionId = sessionId;
+        this.sandbox = new SessionSandboxApi(caller, sessionId);
         this.gitHubAuth = new SessionGitHubAuthApi(caller, sessionId);
         this.debug = new SessionDebugApi(caller, sessionId);
         this.canvas = new SessionCanvasApi(caller, sessionId);
@@ -124,6 +129,7 @@ public final class SessionRpc {
         this.name = new SessionNameApi(caller, sessionId);
         this.plan = new SessionPlanApi(caller, sessionId);
         this.workspaces = new SessionWorkspacesApi(caller, sessionId);
+        this.autopilotObjective = new SessionAutopilotObjectiveApi(caller, sessionId);
         this.completions = new SessionCompletionsApi(caller, sessionId);
         this.instructions = new SessionInstructionsApi(caller, sessionId);
         this.fleet = new SessionFleetApi(caller, sessionId);

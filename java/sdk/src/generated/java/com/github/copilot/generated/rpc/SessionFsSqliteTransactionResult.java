@@ -25,7 +25,9 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionFsSqliteTransactionResult(
+    /** Per-statement query results in input order. */
     @JsonProperty("results") List<SessionFsSqliteQueryResult> results,
+    /** Classified transaction failure, when execution did not succeed. */
     @JsonProperty("error") SessionFsSqliteTransactionError error
 ) {
 }

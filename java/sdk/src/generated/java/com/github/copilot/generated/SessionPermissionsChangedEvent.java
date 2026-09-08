@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Session event "session.permissions_changed". Permissions change details carrying the aggregate allow-all transition.
+ * Session event "session.permissions_changed". Permission-mode transition details.
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -34,14 +34,12 @@ public final class SessionPermissionsChangedEvent extends SessionEvent {
     @JsonIgnoreProperties(ignoreUnknown = true)
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record SessionPermissionsChangedEventData(
-        /** Aggregate allow-all flag before the change */
-        @JsonProperty("previousAllowAllPermissions") Boolean previousAllowAllPermissions,
-        /** Aggregate allow-all flag after the change */
-        @JsonProperty("allowAllPermissions") Boolean allowAllPermissions,
-        /** Allow-all mode before the change */
-        @JsonProperty("previousAllowAllPermissionMode") PermissionAllowAllMode previousAllowAllPermissionMode,
-        /** Allow-all mode after the change */
-        @JsonProperty("allowAllPermissionMode") PermissionAllowAllMode allowAllPermissionMode
+        /** Permission mode before the change */
+        @JsonProperty("previousMode") PermissionMode previousMode,
+        /** Permission mode after the change */
+        @JsonProperty("mode") PermissionMode mode,
+        /** Explicit LLM judge model override used by assisted mode; omitted when the provider default applies */
+        @JsonProperty("assistedApprovalModel") String assistedApprovalModel
     ) {
     }
 }

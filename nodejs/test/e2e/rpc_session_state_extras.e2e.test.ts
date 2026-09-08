@@ -70,7 +70,7 @@ describe("Session-scoped state extras RPC", async () => {
         try {
             await authClient.start();
             session = await authClient.createSession({
-                model: "claude-sonnet-4.5",
+                model: "claude-sonnet-5",
                 onPermissionRequest: approveAll,
             });
 
@@ -79,7 +79,7 @@ describe("Session-scoped state extras RPC", async () => {
             expect(Array.isArray(result.list)).toBe(true);
             expect(result.list.length).toBeGreaterThan(0);
             expect(
-                result.list.some((model) => JSON.stringify(model).includes("claude-sonnet-4.5"))
+                result.list.some((model) => JSON.stringify(model).includes("claude-sonnet-5"))
             ).toBe(true);
         } finally {
             await disconnect(session);
@@ -126,7 +126,7 @@ describe("Session-scoped state extras RPC", async () => {
                         provider: providerName,
                         id: modelId,
                         name: "SDK Runtime Model",
-                        modelId: "claude-sonnet-4.5",
+                        modelId: "claude-sonnet-5",
                         wireModel: "wire-sdk-runtime-model",
                         maxContextWindowTokens: 4096,
                         maxPromptTokens: 3072,
@@ -203,21 +203,21 @@ describe("Session-scoped state extras RPC", async () => {
     it("should get and set allowall permissions", { timeout: 120_000 }, async () => {
         const session = await createSession();
         try {
-            const initial = await session.rpc.permissions.getAllowAll();
-            expect(initial.enabled).toBe(false);
+            const initial = await session.rpc.permissions.getMode();
+            expect(initial.mode).toBe("manual");
 
-            const enable = await session.rpc.permissions.setAllowAll({ enabled: true });
+            const enable = await session.rpc.permissions.setMode({ mode: "allow-all" });
             expect(enable.success).toBe(true);
-            expect(enable.enabled).toBe(true);
-            expect((await session.rpc.permissions.getAllowAll()).enabled).toBe(true);
+            expect(enable.mode).toBe("allow-all");
+            expect((await session.rpc.permissions.getMode()).mode).toBe("allow-all");
 
-            const disable = await session.rpc.permissions.setAllowAll({ enabled: false });
+            const disable = await session.rpc.permissions.setMode({ mode: "manual" });
             expect(disable.success).toBe(true);
-            expect(disable.enabled).toBe(false);
-            expect((await session.rpc.permissions.getAllowAll()).enabled).toBe(false);
+            expect(disable.mode).toBe("manual");
+            expect((await session.rpc.permissions.getMode()).mode).toBe("manual");
         } finally {
             try {
-                await session.rpc.permissions.setAllowAll({ enabled: false });
+                await session.rpc.permissions.setMode({ mode: "manual" });
             } catch {
                 // Best-effort reset.
             }

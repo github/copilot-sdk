@@ -49,6 +49,10 @@ public record RemoteSessionMetadataValue(
     /** Deadline (ISO 8601) at which a CLI remote session becomes stale without further heartbeats. */
     @JsonProperty("staleAt") String staleAt,
     /** Server-side task state returned by GitHub. */
-    @JsonProperty("state") String state
+    @JsonProperty("state") String state,
+    /** Live status as the owning host reports it in its session listing, so a row for a session running elsewhere can show that it is running. Absent for hosts that publish no such status (the cloud task managers), which read as idle. */
+    @JsonProperty("hostStatus") RemoteSessionHostStatus hostStatus,
+    /** Host-supplied human description of what the session is doing right now ("running tests", "waiting for approval"). Optional in the protocol and absent on hosts that do not publish it, so never rely on it -- it enriches `hostStatus`, it does not replace it. */
+    @JsonProperty("hostActivity") String hostActivity
 ) {
 }

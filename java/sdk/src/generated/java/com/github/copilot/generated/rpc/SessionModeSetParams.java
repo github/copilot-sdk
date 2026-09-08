@@ -27,6 +27,26 @@ public record SessionModeSetParams(
     /** Target session identifier */
     @JsonProperty("sessionId") String sessionId,
     /** The session mode the agent is operating in */
-    @JsonProperty("mode") SessionMode mode
+    @JsonProperty("mode") SessionMode mode,
+    /** Session whose plan-mode base state should be inherited. */
+    @JsonProperty("inheritPlanBaseFromSessionId") String inheritPlanBaseFromSessionId,
+    /** Whether a dedicated plan model is configured. */
+    @JsonProperty("planModelConfigured") Boolean planModelConfigured,
+    /** Dedicated model to use in plan mode, when configured. */
+    @JsonProperty("planModel") String planModel,
+    /** Reasoning effort to use with the dedicated plan model. */
+    @JsonProperty("planReasoningEffort") String planReasoningEffort,
+    /** Context tier to use with the dedicated plan model. */
+    @JsonProperty("planContextTier") String planContextTier,
+    /** Explicit response to a model-switch compaction preflight. */
+    @JsonProperty("compactionDecision") String compactionDecision,
+    /** Whether leaving plan mode should restore the session's previous model. */
+    @JsonProperty("restorePlanModel") Boolean restorePlanModel,
+    /** Whether the selected plan model should be persisted. */
+    @JsonProperty("persistPlanSelection") Boolean persistPlanSelection,
+    /** Settings context used when persisting the selected plan model. */
+    @JsonProperty("pickerSettingsContext") ModelPickerSettingsContext pickerSettingsContext,
+    /** Action to perform when leaving plan mode. */
+    @JsonProperty("planExitAction") String planExitAction
 ) {
 }

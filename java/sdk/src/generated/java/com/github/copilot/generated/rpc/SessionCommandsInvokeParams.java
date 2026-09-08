@@ -29,6 +29,8 @@ public record SessionCommandsInvokeParams(
     /** Command name. Leading slashes are stripped and the name is matched case-insensitively. */
     @JsonProperty("name") String name,
     /** Raw input after the command name */
-    @JsonProperty("input") String input
+    @JsonProperty("input") String input,
+    /** Optional client surface that initiated the invocation */
+    @JsonProperty("origin") CommandsInvocationOrigin origin
 ) {
 }

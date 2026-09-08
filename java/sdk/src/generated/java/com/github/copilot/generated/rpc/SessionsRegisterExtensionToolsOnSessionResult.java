@@ -24,7 +24,7 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionsRegisterExtensionToolsOnSessionResult(
-    /** In-process unsubscribe function (CLI-only optimization). Marked internal: replaced by an explicit `extensions.unregister` RPC in the SDK migration. */
+    /** In-process unsubscribe function used only by the CLI. */
     @JsonProperty("unsubscribe") Object unsubscribe
 ) {
 }

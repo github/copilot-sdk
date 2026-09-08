@@ -13,6 +13,7 @@ import type {
     PermissionRequestResult,
 } from "../../src/index.js";
 import { createSdkTestContext, DEFAULT_GITHUB_TOKEN } from "./harness/sdkTestContext.js";
+import { waitForCondition } from "./harness/sdkTestHelper.js";
 
 const PENDING_WORK_TIMEOUT_MS = 60_000;
 const TEST_TIMEOUT_MS = 180_000;
@@ -516,7 +517,46 @@ describe("Pending work resume", async () => {
                     ).toBe("beta");
 
                     if (scenario.disconnectOriginalClient) {
-                        await suspendedClient.forceStop();
+                        const lockObserver = new CopilotClient({
+                            workingDirectory: workDir,
+                            env,
+                            gitHubToken: DEFAULT_GITHUB_TOKEN,
+                            connection: RuntimeConnection.forStdio({
+                                path: process.env.COPILOT_CLI_PATH,
+                            }),
+                        });
+                        try {
+                            await lockObserver.start();
+                            await waitForCondition(
+                                async () => {
+                                    const result = await lockObserver.rpc.sessions.checkInUse({
+                                        sessionIds: [sessionId],
+                                    });
+                                    return result.inUse.includes(sessionId);
+                                },
+                                {
+                                    timeoutMs: PENDING_WORK_TIMEOUT_MS,
+                                    timeoutMessage: `Timed out waiting for session '${sessionId}' to acquire its lock.`,
+                                }
+                            );
+
+                            await suspendedClient.forceStop();
+
+                            await waitForCondition(
+                                async () => {
+                                    const result = await lockObserver.rpc.sessions.checkInUse({
+                                        sessionIds: [sessionId],
+                                    });
+                                    return !result.inUse.includes(sessionId);
+                                },
+                                {
+                                    timeoutMs: PENDING_WORK_TIMEOUT_MS,
+                                    timeoutMessage: `Timed out waiting for session '${sessionId}' to release its lock.`,
+                                }
+                            );
+                        } finally {
+                            await lockObserver.forceStop();
+                        }
                     }
 
                     const resumedClient = createConnectingClient(cliUrl);

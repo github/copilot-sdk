@@ -31,7 +31,7 @@ class PermissionRequestResultDecisionContextTest {
 
     private static PermissionDecisionContext sampleContext() {
         return new PermissionDecisionContext(PermissionDecisionOutcome.AUTO_APPROVED,
-                PermissionDecisionSource.HOST_POLICY, PermissionDecisionSurface.SDK);
+                PermissionDecisionSource.HOST_POLICY, PermissionDecisionSurface.SDK, null);
     }
 
     @Test
@@ -68,7 +68,7 @@ class PermissionRequestResultDecisionContextTest {
     void setDecisionContextTwiceReplacesRatherThanNests() {
         var first = sampleContext();
         var second = new PermissionDecisionContext(PermissionDecisionOutcome.PROMPTED_USER,
-                PermissionDecisionSource.HUMAN_RESPONSE, PermissionDecisionSurface.TUI);
+                PermissionDecisionSource.HUMAN_RESPONSE, PermissionDecisionSurface.TUI, null);
 
         var result = PermissionRequestResult.approveOnce().setDecisionContext(first).setDecisionContext(second);
 

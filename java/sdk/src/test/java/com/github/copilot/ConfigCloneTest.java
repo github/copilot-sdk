@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import com.github.copilot.generated.SessionEvent;
 import com.github.copilot.generated.rpc.SessionLimitsConfig;
 import com.github.copilot.rpc.AutoModeSwitchResponse;
+import com.github.copilot.rpc.AskUserVariant;
 import com.github.copilot.rpc.CopilotClientOptions;
 import com.github.copilot.rpc.DefaultAgentConfig;
 import com.github.copilot.rpc.ExitPlanModeResult;
@@ -119,6 +120,7 @@ class ConfigCloneTest {
         original.setModel("gpt-4o");
         original.setReasoningSummary("detailed");
         original.setContextTier("long_context");
+        original.setAskUserVariant(AskUserVariant.ELICITATION);
         original.setPluginDirectories(List.of("/plugins/a", "/plugins/b"));
         original.setDisabledMcpServers(List.of("local-files", "remote-github"));
         original.setLargeOutput(
@@ -133,6 +135,7 @@ class ConfigCloneTest {
         assertEquals(original.getModel(), cloned.getModel());
         assertEquals(original.getReasoningSummary(), cloned.getReasoningSummary());
         assertEquals(original.getContextTier(), cloned.getContextTier());
+        assertEquals(original.getAskUserVariant(), cloned.getAskUserVariant());
         assertEquals(original.getPluginDirectories(), cloned.getPluginDirectories());
         assertEquals(original.getDisabledMcpServers(), cloned.getDisabledMcpServers());
         assertEquals(original.getLargeOutput(), cloned.getLargeOutput());
@@ -198,6 +201,7 @@ class ConfigCloneTest {
         original.setModel("o1");
         original.setReasoningSummary("none");
         original.setContextTier("long_context");
+        original.setAskUserVariant(AskUserVariant.LEGACY);
         original.setPluginDirectories(List.of("/plugins/r"));
         original.setDisabledMcpServers(List.of("local-files-r"));
         original.setLargeOutput(
@@ -210,6 +214,7 @@ class ConfigCloneTest {
         assertEquals(original.getModel(), cloned.getModel());
         assertEquals(original.getReasoningSummary(), cloned.getReasoningSummary());
         assertEquals(original.getContextTier(), cloned.getContextTier());
+        assertEquals(original.getAskUserVariant(), cloned.getAskUserVariant());
         assertEquals(original.getPluginDirectories(), cloned.getPluginDirectories());
         assertEquals(original.getDisabledMcpServers(), cloned.getDisabledMcpServers());
         assertEquals(original.getLargeOutput(), cloned.getLargeOutput());

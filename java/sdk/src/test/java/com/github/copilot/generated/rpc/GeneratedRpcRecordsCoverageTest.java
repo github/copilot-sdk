@@ -48,7 +48,7 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void mcpConfigRemoveParams_record() {
-        var params = new McpConfigRemoveParams("old-server");
+        var params = new McpConfigRemoveParams("old-server", null);
         assertEquals("old-server", params.name());
     }
 
@@ -301,7 +301,8 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionModeSetParams_record() {
-        var params = new SessionModeSetParams("sess-30", SessionMode.PLAN);
+        var params = new SessionModeSetParams("sess-30", SessionMode.PLAN, null, null, null, null, null, null, null,
+                null, null, null);
         assertEquals("sess-30", params.sessionId());
         assertEquals(SessionMode.PLAN, params.mode());
     }
@@ -325,10 +326,10 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionModelSwitchToParams_record() {
-        var params = new SessionModelSwitchToParams("sess-32", "claude-sonnet-4.5", "high", null, null, null, null,
-                null);
+        var params = new SessionModelSwitchToParams("sess-32", "claude-sonnet-5", null, "high", null, null, null, null,
+                null, null, null, null, null, null, null, null);
         assertEquals("sess-32", params.sessionId());
-        assertEquals("claude-sonnet-4.5", params.modelId());
+        assertEquals("claude-sonnet-5", params.modelId());
         assertEquals("high", params.reasoningEffort());
         assertNull(params.reasoningSummary());
         assertNull(params.verbosity());
@@ -435,7 +436,7 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionUiElicitationParams_record() {
-        var params = new SessionUiElicitationParams("sess-45", "What is your name?", null);
+        var params = new SessionUiElicitationParams("sess-45", null, "What is your name?", null, null, null);
         assertEquals("sess-45", params.sessionId());
         assertEquals("What is your name?", params.message());
         assertNull(params.requestedSchema());
@@ -469,7 +470,7 @@ class GeneratedRpcRecordsCoverageTest {
     @Test
     void sessionAgentListResult_with_items() {
         var item = new AgentInfo("name1", "Name One", "Desc 1", "/path/to/agent1", null, null, null, null, null, null,
-                null, null);
+                null, null, null, null);
         var result = new SessionAgentListResult(List.of(item));
         assertEquals(1, result.agents().size());
         assertEquals("name1", result.agents().get(0).name());
@@ -481,7 +482,7 @@ class GeneratedRpcRecordsCoverageTest {
     @Test
     void sessionAgentGetCurrentResult_nested() {
         var agent = new AgentInfo("agent-1", "Agent One", "Does things", null, null, null, null, null, null, null, null,
-                null);
+                null, null, null);
         var result = new SessionAgentGetCurrentResult(agent);
         assertEquals("agent-1", result.agent().name());
         assertEquals("Agent One", result.agent().displayName());
@@ -497,7 +498,8 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionAgentReloadResult_with_items() {
-        var item = new AgentInfo("a", "A", "Desc", "/path/to/a", null, null, null, null, null, null, null, null);
+        var item = new AgentInfo("a", "A", "Desc", "/path/to/a", null, null, null, null, null, null, null, null, null,
+                null);
         var result = new SessionAgentReloadResult(List.of(item));
         assertEquals(1, result.agents().size());
         assertEquals("a", result.agents().get(0).name());
@@ -506,7 +508,7 @@ class GeneratedRpcRecordsCoverageTest {
     @Test
     void sessionAgentSelectResult_nested() {
         var agent = new AgentInfo("selected", "Selected", "The selected agent", "/path/to/selected", null, null, null,
-                null, null, null, null, null);
+                null, null, null, null, null, null, null);
         var result = new SessionAgentSelectResult(agent);
         assertEquals("selected", result.agent().name());
     }
@@ -636,12 +638,16 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionMcpListResult_nested() {
-        var server = new McpServer("my-mcp", McpServerStatus.CONNECTED, McpServerSource.USER, null, null, null);
+        var metadata = new McpServerMetadata("Use this server for repository operations.");
+        var server = new McpServer("my-mcp", McpServerStatus.CONNECTED, McpServerSource.USER, null, null, null,
+                metadata);
         var result = new SessionMcpListResult(List.of(server), null);
         assertEquals(1, result.servers().size());
         assertEquals("my-mcp", result.servers().get(0).name());
         assertEquals(McpServerStatus.CONNECTED, result.servers().get(0).status());
         assertEquals(McpServerSource.USER, result.servers().get(0).source());
+        assertEquals("Use this server for repository operations.",
+                result.servers().get(0).serverMetadata().instructions());
     }
 
     @Test
@@ -655,13 +661,13 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionModelGetCurrentResult_record() {
-        var result = new SessionModelGetCurrentResult("claude-sonnet-4.5", null, null);
-        assertEquals("claude-sonnet-4.5", result.modelId());
+        var result = new SessionModelGetCurrentResult("claude-sonnet-5", null, null, null, null, null);
+        assertEquals("claude-sonnet-5", result.modelId());
     }
 
     @Test
     void sessionModelSwitchToResult_record() {
-        var result = new SessionModelSwitchToResult("gpt-5", true);
+        var result = new SessionModelSwitchToResult("gpt-5", true, null, null, null, null, null, null, null);
         assertEquals("gpt-5", result.modelId());
         assertEquals(true, result.deferred());
     }
@@ -731,7 +737,7 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionUiElicitationResult_accept() {
-        var result = new SessionUiElicitationResult(UIElicitationResponseAction.ACCEPT, Map.of("name", "Alice"));
+        var result = new SessionUiElicitationResult(UIElicitationResponseAction.ACCEPT, Map.of("name", "Alice"), null);
         assertEquals(UIElicitationResponseAction.ACCEPT, result.action());
         assertEquals("Alice", result.content().get("name"));
     }
@@ -756,8 +762,8 @@ class GeneratedRpcRecordsCoverageTest {
     @Test
     void sessionUsageGetMetricsResult_nested() {
         var changes = new UsageMetricsCodeChanges(100L, 50L, 5L, null);
-        var result = new SessionUsageGetMetricsResult(0.5, 10L, null, null, 2000L, null, changes, null, "gpt-5", 1000L,
-                500L);
+        var result = new SessionUsageGetMetricsResult(0.5, 10L, null, null, 2000L, null, changes, null, null, "gpt-5",
+                1000L, 500L);
         assertEquals(0.5, result.totalPremiumRequestCost());
         assertEquals(10L, result.totalUserRequests());
         assertNotNull(result.codeChanges());
@@ -815,9 +821,10 @@ class GeneratedRpcRecordsCoverageTest {
         var limits = new ModelCapabilitiesLimits(100000L, 8192L, 128000L, null);
         var capabilities = new ModelCapabilities(supports, limits);
         var policy = new ModelPolicy(ModelPolicyState.ENABLED, null);
-        var promo = new ModelBillingPromo("summer-2026", 25.0, "2026-08-01T00:00:00Z", "Summer discount");
+        var promo = new ModelBillingPromo("summer-2026", 25.0, "2026-08-01T00:00:00Z", "Summer discount", true);
         var billing = new ModelBilling(1.0, null, null, promo);
-        var modelItem = new Model("gpt-5", "GPT-5", capabilities, policy, billing, null, null, null);
+        var modelItem = new Model("gpt-5", "GPT-5", capabilities, null, policy, billing, null, null, null, null, null,
+                null, null, null);
         var result = new ModelsListResult(List.of(modelItem));
 
         assertEquals(1, result.models().size());
@@ -832,6 +839,7 @@ class GeneratedRpcRecordsCoverageTest {
         assertEquals(Double.valueOf(25.0), result.models().get(0).billing().promo().discountPercent());
         assertEquals("2026-08-01T00:00:00Z", result.models().get(0).billing().promo().endsAt());
         assertEquals("Summer discount", result.models().get(0).billing().promo().message());
+        assertTrue(result.models().get(0).billing().promo().showBanner());
     }
 
     @Test
@@ -853,7 +861,8 @@ class GeneratedRpcRecordsCoverageTest {
         var limits = new ModelCapabilitiesOverrideLimits(100000L, 8192L, 128000L, limitsVision);
         var supports = new ModelCapabilitiesOverrideSupports(true, true, null);
         var capabilities = new ModelCapabilitiesOverride(supports, limits);
-        var params = new SessionModelSwitchToParams("sess-m", "gpt-5", null, null, null, capabilities, null, null);
+        var params = new SessionModelSwitchToParams("sess-m", "gpt-5", null, null, null, null, capabilities, null, null,
+                null, null, null, null, null, null, null);
 
         assertEquals("gpt-5", params.modelId());
         assertNotNull(params.modelCapabilities());
@@ -868,7 +877,7 @@ class GeneratedRpcRecordsCoverageTest {
     @Test
     void sessionUiElicitationParams_nested_schema() {
         var schema = new UIElicitationSchema("object", Map.of("name", Map.of("type", "string")), List.of("name"));
-        var params = new SessionUiElicitationParams("sess-elicit", "Please fill form", schema);
+        var params = new SessionUiElicitationParams("sess-elicit", null, "Please fill form", schema, null, null);
         assertEquals("sess-elicit", params.sessionId());
         assertEquals("object", params.requestedSchema().type());
         assertTrue(params.requestedSchema().required().contains("name"));

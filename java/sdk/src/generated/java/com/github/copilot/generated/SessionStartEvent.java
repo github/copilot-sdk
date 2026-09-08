@@ -55,6 +55,8 @@ public final class SessionStartEvent extends SessionEvent {
         @JsonProperty("verbosity") Verbosity verbosity,
         /** Context tier selected at session creation time for models with tiered context pricing; null when no tier is selected (e.g., non-tiered model) */
         @JsonProperty("contextTier") ContextTier contextTier,
+        /** Auto routing preference selected at session creation time */
+        @JsonProperty("autoTier") AutoTier autoTier,
         /** Session limits configured at session creation time, if any */
         @JsonProperty("sessionLimits") SessionLimitsConfig sessionLimits,
         /** Working directory and git context at session start */

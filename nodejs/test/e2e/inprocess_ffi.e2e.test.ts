@@ -11,9 +11,8 @@ describe("In-process FFI transport", () => {
     // exercised by the full E2E suite running under the `inprocess` CI matrix cell,
     // not a dedicated test.
     it("should start and connect over in-process FFI", async () => {
-        // In-process FFI hosting resolves the CLI entrypoint (COPILOT_CLI_PATH or the
-        // bundled platform package) and its sibling native runtime library itself. If
-        // neither is available, start() throws and the test fails hard.
+        // In-process FFI hosting loads runtime.node directly from the bundled runtime.
+        // If it is unavailable, start() throws and the test fails hard.
         const client = new CopilotClient({ connection: RuntimeConnection.forInProcess() });
         await client.start();
 

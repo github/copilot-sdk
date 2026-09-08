@@ -174,6 +174,9 @@ class TestSessionFs:
         messages = await session.get_events()
         tool_result = find_tool_call_result(messages, "get_big_string")
         assert tool_result is not None
+        # The CLI joins the temp path using the host separator, so normalize before
+        # matching to keep the assertion valid on Windows.
+        tool_result = tool_result.replace("\\", "/")
         assert f"{SESSION_STATE_PATH}/temp/" in tool_result
         match = re.search(rf"({re.escape(SESSION_STATE_PATH)}/temp/[^\s]+)", tool_result)
         assert match is not None
