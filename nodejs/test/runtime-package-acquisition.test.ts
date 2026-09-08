@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
     acquireRuntimePackages,
     getSourceRuntimePackageName,
+    parseArguments,
     validateRuntimePackageRoot,
 } from "../scripts/runtime-package-acquisition.js";
 import { RUNTIME_PLATFORMS } from "../src/runtimeArtifacts.js";
@@ -69,6 +70,34 @@ async function createRuntimePackage(root: string, platform: string): Promise<str
 }
 
 describe("runtime npm package acquisition", () => {
+    it("requires exactly one non-empty value for every CLI option", () => {
+        const valid = [
+            "--version",
+            runtimeVersion,
+            "--sha",
+            runtimeSha,
+            "--registry",
+            "https://npm.pkg.github.com",
+            "--output",
+            "runtime-packages",
+        ];
+        expect(parseArguments(valid)).toEqual({
+            outputDirectory: "runtime-packages",
+            registry: "https://npm.pkg.github.com",
+            runtimeSha,
+            runtimeVersion,
+        });
+        for (const invalid of [
+            valid.slice(0, -2),
+            [...valid.slice(0, -2), "--outpt", "runtime-packages"],
+            [...valid.slice(0, -2), "--sha", runtimeSha],
+            [...valid.slice(0, -1), ""],
+            [...valid.slice(0, -1), "--unknown"],
+        ]) {
+            expect(() => parseArguments(invalid)).toThrow();
+        }
+    });
+
     it("downloads and validates all eight exact runtime platform packages", async () => {
         const root = temporaryRoot("copilot-runtime-acquisition-");
         const output = join(root, "output");
