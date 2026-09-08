@@ -1,11 +1,15 @@
 """Tests for generated RPC method behavior."""
 
+import inspect
 import json
+from typing import get_type_hints
 from unittest.mock import AsyncMock
 
 import pytest
 
 from copilot.rpc import (
+    AccountGetQuotaRequest,
+    AccountLoginRequest,
     BuiltinToolInputSchemaType,
     CommandsApi,
     CommandsInvokeRequest,
@@ -17,11 +21,40 @@ from copilot.rpc import (
     RemoteControlStatusResult,
     RemoteSessionMetadataValue,
     SandboxConfig,
+    ServerAccountApi,
     SessionList,
     SlashCommandTextResult,
     TaskAgentInfo,
     UIElicitationSchemaType,
 )
+
+
+def test_referenced_optional_request_is_omittable_and_required_request_is_not():
+    quota_params = inspect.signature(ServerAccountApi.get_quota).parameters["params"]
+    login_params = inspect.signature(ServerAccountApi.login).parameters["params"]
+
+    assert get_type_hints(ServerAccountApi.get_quota)["params"] == AccountGetQuotaRequest | None
+    assert quota_params.default is None
+    assert get_type_hints(ServerAccountApi.login)["params"] is AccountLoginRequest
+    assert login_params.default is inspect.Parameter.empty
+
+
+@pytest.mark.asyncio
+async def test_referenced_optional_request_serializes_omitted_and_explicit_params():
+    client = AsyncMock()
+    client.request = AsyncMock(return_value={"quotaSnapshots": {}})
+    api = ServerAccountApi(client)
+
+    await api.get_quota()
+    client.request.assert_awaited_once_with("account.getQuota", {})
+
+    client.request.reset_mock()
+    await api.get_quota(AccountGetQuotaRequest())
+    client.request.assert_awaited_once_with("account.getQuota", {})
+
+    client.request.reset_mock()
+    await api.get_quota(AccountGetQuotaRequest(git_hub_token="github-token"))
+    client.request.assert_awaited_once_with("account.getQuota", {"gitHubToken": "github-token"})
 
 
 def test_sandbox_config_round_trips_allow_bypass_and_omits_when_absent():

@@ -1193,11 +1193,10 @@ if (premium) {
 <!-- docs-validate: hidden -->
 ```python
 from copilot import CopilotClient
-from copilot.rpc import AccountGetQuotaRequest
 
 client = CopilotClient()
 
-result = await client.rpc.account.get_quota(AccountGetQuotaRequest())
+result = await client.rpc.account.get_quota()
 premium = result.quota_snapshots.get("premium_interactions")
 
 if premium is not None:
@@ -1209,7 +1208,7 @@ if premium is not None:
 <!-- /docs-validate: hidden -->
 
 ```python
-result = await client.rpc.account.get_quota(AccountGetQuotaRequest())
+result = await client.rpc.account.get_quota()
 premium = result.quota_snapshots.get("premium_interactions")
 
 if premium is not None:

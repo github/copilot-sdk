@@ -40622,9 +40622,9 @@ class ServerModelsApi:
     def __init__(self, client: "JsonRpcClient"):
         self._client = client
 
-    async def list(self, params: ModelsListRequest, *, timeout: float | None = None) -> ModelList:
+    async def list(self, params: ModelsListRequest | None = None, *, timeout: float | None = None) -> ModelList:
         "Lists Copilot models available to the authenticated user.\n\nArgs:\n    params: Optional opaque account selection or compatibility GitHub token used to list models.\n\nReturns:\n    List of Copilot models available to the resolved user, including capabilities and billing metadata."
-        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None} if params is not None else {}
         return ModelList.from_dict(_patch_model_capabilities(await self._client.request("models.list", params_dict, **_timeout_kwargs(timeout))))
 
     async def get_built_in_catalog(self, *, timeout: float | None = None) -> BuiltInModelCatalog:
@@ -40648,9 +40648,9 @@ class ServerAccountApi:
     def __init__(self, client: "JsonRpcClient"):
         self._client = client
 
-    async def get_quota(self, params: AccountGetQuotaRequest, *, timeout: float | None = None) -> AccountGetQuotaResult:
+    async def get_quota(self, params: AccountGetQuotaRequest | None = None, *, timeout: float | None = None) -> AccountGetQuotaResult:
         "Gets Copilot quota usage for the current or opaquely selected authenticated user.\n\nArgs:\n    params: Optional opaque account selection or compatibility GitHub token used to look up quota.\n\nReturns:\n    Quota usage snapshots for the resolved user, keyed by quota type."
-        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None} if params is not None else {}
         return AccountGetQuotaResult.from_dict(await self._client.request("account.getQuota", params_dict, **_timeout_kwargs(timeout)))
 
     async def get_current_auth(self, *, timeout: float | None = None) -> AccountGetCurrentAuthResult:
@@ -40805,9 +40805,9 @@ class ServerPluginsMarketplacesApi:
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return MarketplaceBrowseResult.from_dict(await self._client.request("plugins.marketplaces.browse", params_dict, **_timeout_kwargs(timeout)))
 
-    async def refresh(self, params: PluginsMarketplacesRefreshRequest, *, timeout: float | None = None) -> MarketplaceRefreshResult:
+    async def refresh(self, params: PluginsMarketplacesRefreshRequest | None = None, *, timeout: float | None = None) -> MarketplaceRefreshResult:
         "Re-fetches one or all registered marketplace catalogs.\n\nArgs:\n    params: Optional marketplace name; omit to refresh all.\n\nReturns:\n    Result of refreshing one or more marketplace catalogs."
-        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None} if params is not None else {}
         return MarketplaceRefreshResult.from_dict(await self._client.request("plugins.marketplaces.refresh", params_dict, **_timeout_kwargs(timeout)))
 
 
@@ -41028,9 +41028,9 @@ class ServerSessionsApi:
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return RemoteSessionConnectionResult.from_dict(await self._client.request("sessions.connect", params_dict, **_timeout_kwargs(timeout)))
 
-    async def list(self, params: SessionsListRequest, *, timeout: float | None = None) -> SessionList:
+    async def list(self, params: SessionsListRequest | None = None, *, timeout: float | None = None) -> SessionList:
         "Lists sessions, optionally filtered by source and working-directory context. Returned entries are discriminated by `isRemote`: local entries carry only the lightweight `LocalSessionMetadataValue` shape; remote entries carry the full `RemoteSessionMetadataValue` shape (repository, PR number, taskType, etc.).\n\nArgs:\n    params: Optional source filter, metadata-load limit, and context filter applied to the returned sessions.\n\nReturns:\n    Sessions matching the filter, ordered most-recently-modified first."
-        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None} if params is not None else {}
         return SessionList.from_dict(await self._client.request("sessions.list", params_dict, **_timeout_kwargs(timeout)))
 
     async def read_persisted_events(self, params: SessionsReadPersistedEventsRequest, *, timeout: float | None = None) -> EventsReadResult:
@@ -41122,9 +41122,9 @@ class ServerSessionsApi:
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return RemoteControlStatusResult.from_dict(await self._client.request("sessions.setRemoteControlSteering", params_dict, **_timeout_kwargs(timeout)))
 
-    async def stop_remote_control(self, params: SessionsStopRemoteControlRequest, *, timeout: float | None = None) -> RemoteControlStopResult:
+    async def stop_remote_control(self, params: SessionsStopRemoteControlRequest | None = None, *, timeout: float | None = None) -> RemoteControlStopResult:
         "Stops the remote-control singleton. When `expectedSessionId` is provided and does not match the singleton's current `attachedSessionId`, the stop is rejected with `stopped: false` and the current status is returned unchanged (unless `force` is set, in which case the singleton is unconditionally torn down).\n\nArgs:\n    params: Parameters for stopping the remote-control singleton.\n\nReturns:\n    Outcome of a stopRemoteControl call."
-        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None} if params is not None else {}
         return RemoteControlStopResult.from_dict(await self._client.request("sessions.stopRemoteControl", params_dict, **_timeout_kwargs(timeout)))
 
     async def get_remote_control_status(self, *, timeout: float | None = None) -> RemoteControlStatusResult:

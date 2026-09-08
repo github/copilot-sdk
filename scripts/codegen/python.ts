@@ -1527,9 +1527,9 @@ function pythonResultTypeName(method: RpcMethod, schemaOverride?: JSONSchema7): 
     return getRpcSchemaTypeName(schema, toPascalCase(method.rpcMethod) + "Result");
 }
 
-/** Detect the Zod optional params pattern: `anyOf: [{ not: {} }, { $ref }]` */
+/** Detect the Zod optional params pattern: `anyOf: [{ not: {} }, { $ref }]`, including behind a `$ref`. */
 function isParamsOptional(method: RpcMethod): boolean {
-    const schema = method.params;
+    const schema = resolveSchema(method.params, rpcDefinitions);
     if (!schema?.anyOf) return false;
     return schema.anyOf.some(
         (item) =>
