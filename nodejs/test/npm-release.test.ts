@@ -4,10 +4,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
+    assertPackageSetVersionAbsent,
     assertPublishedIntegrity,
     assertVersionAbsent,
     publishManifest,
     publishTarball,
+    sdkPackageNames,
 } from "../scripts/npm-release.js";
 
 const packageName = "@github/copilot-sdk";
@@ -46,6 +48,19 @@ describe("npm release preflight", () => {
         await expect(assertVersionAbsent(packageName, version, registry, runner)).rejects.toThrow(
             "Could not read"
         );
+    });
+
+    it("checks the complete nine-package SDK set", async () => {
+        const runner = vi
+            .fn()
+            .mockResolvedValue(result(1, JSON.stringify({ error: { code: "E404" } })));
+        await expect(
+            assertPackageSetVersionAbsent(version, registry, runner)
+        ).resolves.toBeUndefined();
+        expect(runner).toHaveBeenCalledTimes(9);
+        expect(
+            runner.mock.calls.map(([, args]) => args[1].slice(0, args[1].lastIndexOf("@")))
+        ).toEqual(sdkPackageNames);
     });
 });
 
