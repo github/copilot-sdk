@@ -389,6 +389,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
+	case SessionEventTypeSessionAutoTierRecommendation:
+		var d SessionAutoTierRecommendationData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
 	case SessionEventTypeSessionAutoTierSwitchFailed:
 		var d SessionAutoTierSwitchFailedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
@@ -1560,6 +1566,107 @@ func (r SystemNotificationAgentIdle) MarshalJSON() ([]byte, error) {
 		Type:  r.Type(),
 		alias: alias(r),
 	})
+}
+
+func unmarshalSystemNotificationFactoryPauseInfo(data []byte) (SystemNotificationFactoryPauseInfo, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		Type SystemNotificationFactoryPauseInfoType `json:"type"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.Type {
+	case SystemNotificationFactoryPauseInfoTypeCheckpoint:
+		var d SystemNotificationFactoryPauseInfoCheckpoint
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case SystemNotificationFactoryPauseInfoTypeUser:
+		var d SystemNotificationFactoryPauseInfoUser
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	default:
+		return &RawSystemNotificationFactoryPauseInfo{Discriminator: raw.Type, Raw: data}, nil
+	}
+}
+
+func (r RawSystemNotificationFactoryPauseInfo) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		Type SystemNotificationFactoryPauseInfoType `json:"type"`
+	}{
+		Type: r.Discriminator,
+	})
+}
+
+func (r SystemNotificationFactoryPauseInfoCheckpoint) MarshalJSON() ([]byte, error) {
+	type alias SystemNotificationFactoryPauseInfoCheckpoint
+	return json.Marshal(struct {
+		Type SystemNotificationFactoryPauseInfoType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func (r SystemNotificationFactoryPauseInfoUser) MarshalJSON() ([]byte, error) {
+	type alias SystemNotificationFactoryPauseInfoUser
+	return json.Marshal(struct {
+		Type SystemNotificationFactoryPauseInfoType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func (r *SystemNotificationFactoryCompleted) UnmarshalJSON(data []byte) error {
+	type rawSystemNotificationFactoryCompleted struct {
+		Attempt           int64                                    `json:"attempt"`
+		ConsumedNanoAiu   int64                                    `json:"consumedNanoAiu"`
+		ConsumedSubagents int64                                    `json:"consumedSubagents"`
+		ElapsedMs         int64                                    `json:"elapsedMs"`
+		FactoryName       string                                   `json:"factoryName"`
+		Failure           any                                      `json:"failure,omitempty"`
+		PauseInfo         json.RawMessage                          `json:"pauseInfo,omitempty"`
+		ResultPreview     *string                                  `json:"resultPreview,omitempty"`
+		RetryGuidance     *string                                  `json:"retryGuidance,omitempty"`
+		RunID             string                                   `json:"runId"`
+		Status            SystemNotificationFactoryCompletedStatus `json:"status"`
+	}
+	var raw rawSystemNotificationFactoryCompleted
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	r.Attempt = raw.Attempt
+	r.ConsumedNanoAiu = raw.ConsumedNanoAiu
+	r.ConsumedSubagents = raw.ConsumedSubagents
+	r.ElapsedMs = raw.ElapsedMs
+	r.FactoryName = raw.FactoryName
+	r.Failure = raw.Failure
+	if raw.PauseInfo != nil {
+		value, err := unmarshalSystemNotificationFactoryPauseInfo(raw.PauseInfo)
+		if err != nil {
+			return err
+		}
+		r.PauseInfo = value
+	}
+	r.ResultPreview = raw.ResultPreview
+	r.RetryGuidance = raw.RetryGuidance
+	r.RunID = raw.RunID
+	r.Status = raw.Status
+	return nil
 }
 
 func (r SystemNotificationFactoryCompleted) MarshalJSON() ([]byte, error) {

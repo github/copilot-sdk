@@ -23,7 +23,7 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record SessionFactoryCancelResult(
+public record SessionFactoryPauseResult(
     /** Factory run identifier. */
     @JsonProperty("runId") String runId,
     /** One-based execution attempt represented by this envelope. Absent before the first attempt starts or when returned by an older runtime. */

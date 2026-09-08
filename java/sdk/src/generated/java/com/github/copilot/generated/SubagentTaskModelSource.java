@@ -10,30 +10,30 @@ package com.github.copilot.generated;
 import javax.annotation.processing.Generated;
 
 /**
- * Routing preference used when the session model is `auto`. `fast` is an integrator-only latency preset and is not a first-party GitHub Copilot product preference.
+ * Where the model input for a task-tool sub-agent came from.
  *
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
-public enum AutoTier {
-    /** The {@code efficiency} variant. */
-    EFFICIENCY("efficiency"),
-    /** The {@code balance} variant. */
-    BALANCE("balance"),
-    /** The {@code intelligence} variant. */
-    INTELLIGENCE("intelligence"),
-    /** The {@code fast} variant. */
-    FAST("fast");
+public enum SubagentTaskModelSource {
+    /** The {@code task_argument} variant. */
+    TASK_ARGUMENT("task_argument"),
+    /** The {@code subagent_configuration} variant. */
+    SUBAGENT_CONFIGURATION("subagent_configuration"),
+    /** The {@code custom_agent_definition} variant. */
+    CUSTOM_AGENT_DEFINITION("custom_agent_definition"),
+    /** The {@code unset} variant. */
+    UNSET("unset");
 
     private final String value;
-    AutoTier(String value) { this.value = value; }
+    SubagentTaskModelSource(String value) { this.value = value; }
     @com.fasterxml.jackson.annotation.JsonValue
     public String getValue() { return value; }
     @com.fasterxml.jackson.annotation.JsonCreator
-    public static AutoTier fromValue(String value) {
-        for (AutoTier v : values()) {
+    public static SubagentTaskModelSource fromValue(String value) {
+        for (SubagentTaskModelSource v : values()) {
             if (v.value.equals(value)) return v;
         }
-        throw new IllegalArgumentException("Unknown AutoTier value: " + value);
+        throw new IllegalArgumentException("Unknown SubagentTaskModelSource value: " + value);
     }
 }
