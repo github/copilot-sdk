@@ -4,6 +4,18 @@ import { readFileSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
+export const sdkPackageNames = [
+    "@github/copilot-sdk",
+    "@github/copilot-sdk-darwin-arm64",
+    "@github/copilot-sdk-darwin-x64",
+    "@github/copilot-sdk-linux-arm64",
+    "@github/copilot-sdk-linux-x64",
+    "@github/copilot-sdk-linuxmusl-arm64",
+    "@github/copilot-sdk-linuxmusl-x64",
+    "@github/copilot-sdk-win32-arm64",
+    "@github/copilot-sdk-win32-x64",
+];
+
 export function runCommand(command, args, { stream = false } = {}) {
     return new Promise((resolveResult, reject) => {
         const child = spawn(command, args, { shell: false });
@@ -85,6 +97,12 @@ export async function assertVersionAbsent(packageName, version, registry, runner
     }
 }
 
+export async function assertPackageSetVersionAbsent(version, registry, runner = runCommand) {
+    for (const packageName of sdkPackageNames) {
+        await assertVersionAbsent(packageName, version, registry, runner);
+    }
+}
+
 export async function assertPublishedIntegrity(
     packageName,
     version,
@@ -149,17 +167,7 @@ function readReleaseManifest(manifestPath, packageDirectory) {
     if (manifest.packages.length !== 9) {
         throw new Error(`Expected nine release packages, found ${manifest.packages.length}.`);
     }
-    const expectedNames = new Set([
-        "@github/copilot-sdk",
-        "@github/copilot-sdk-darwin-arm64",
-        "@github/copilot-sdk-darwin-x64",
-        "@github/copilot-sdk-linux-arm64",
-        "@github/copilot-sdk-linux-x64",
-        "@github/copilot-sdk-linuxmusl-arm64",
-        "@github/copilot-sdk-linuxmusl-x64",
-        "@github/copilot-sdk-win32-arm64",
-        "@github/copilot-sdk-win32-x64",
-    ]);
+    const expectedNames = new Set(sdkPackageNames);
     const names = new Set();
     for (const packed of manifest.packages) {
         if (
@@ -284,6 +292,9 @@ async function main() {
     if (command === "preflight" && args.length === 3) {
         await assertVersionAbsent(...args);
         console.log(`${args[0]}@${args[1]} is available on ${args[2]}.`);
+    } else if (command === "preflight-package-set" && args.length === 2) {
+        await assertPackageSetVersionAbsent(...args);
+        console.log(`All SDK packages at ${args[0]} are available on ${args[1]}.`);
     } else if (command === "publish" && args.length === 7) {
         const [tarball, name, version, tag, registry, mode, expectedIntegrity] = args;
         const localIntegrity = `sha512-${createHash("sha512")
@@ -301,7 +312,7 @@ async function main() {
         await publishManifest(...args);
     } else {
         throw new Error(
-            "Usage: npm-release.js preflight <package> <version> <registry> | publish <tarball> <name> <version> <tag> <registry> <public|azure> <sha512-integrity> | publish-manifest <manifest> <package-directory> <tag> <registry> <public|azure>"
+            "Usage: npm-release.js preflight <package> <version> <registry> | preflight-package-set <version> <registry> | publish <tarball> <name> <version> <tag> <registry> <public|azure> <sha512-integrity> | publish-manifest <manifest> <package-directory> <tag> <registry> <public|azure>"
         );
     }
 }

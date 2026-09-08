@@ -7,6 +7,10 @@ const workflow = (name: string) =>
     readFileSync(join(repositoryRoot, ".github", "workflows", name), "utf8");
 const publish = workflow("publish.yml");
 const runtimeSdk = workflow("runtime-sdk.yml");
+const runtimeDispatchLedger = readFileSync(
+    join(repositoryRoot, "nodejs", "scripts", "runtime-dispatch-ledger.ts"),
+    "utf8"
+);
 
 describe("normal publishing workflow contract", () => {
     it("remains the stable and prerelease entry without runtime handoff inputs", () => {
@@ -50,23 +54,26 @@ describe("runtime-driven Node SDK entry contract", () => {
 
     it("owns both strict runtime handoff matrices", () => {
         expect(runtimeSdk).toContain("name: Runtime-driven Node SDK");
-        expect(runtimeSdk).toContain("canary:azure:tests-only");
-        expect(runtimeSdk).toContain("canary:azure:internal");
-        expect(runtimeSdk).toContain("unstable:github-packages:internal");
         expect(runtimeSdk).toContain("runtime_run_id:");
         expect(runtimeSdk).toContain("runtime_source:");
+        expect(runtimeDispatchLedger).toContain('expected.channel === "canary"');
+        expect(runtimeDispatchLedger).toContain('expected.runtimeSource === "azure"');
+        expect(runtimeDispatchLedger).toMatch(
+            /expected\.runtimeSource === "github-packages"\s+&&\s+expected\.mode === "internal"/
+        );
     });
 
     it("serializes and durably claims each runtime run", () => {
         expect(runtimeSdk).toContain("group: sdk-runtime-dispatch-${{ inputs.runtime_run_id }}");
         expect(runtimeSdk).toContain("cancel-in-progress: false");
         expect(runtimeSdk).toContain("sdk-runtime-dispatch-${{ inputs.runtime_run_id }}");
-        expect(runtimeSdk).toContain("More than one unexpired");
-        expect(runtimeSdk).toContain("for ATTEMPT in 1 2 3 4 5 6");
-        expect(runtimeSdk).toContain("actions/workflows/runtime-sdk.yml/runs");
-        expect(runtimeSdk).toContain('if [ "$EARLIER" -eq 0 ]; then');
-        expect(runtimeSdk).not.toContain('GITHUB_RUN_ATTEMPT" -gt 1');
-        expect(runtimeSdk).toContain("runtime-dispatch-ledger.ts validate");
+        expect(runtimeSdk).toContain("runtime-dispatch-ledger.ts claim");
+        expect(runtimeSdk).toContain("steps.claim.outputs.created == 'true'");
+        expect(runtimeSdk).not.toContain("actions/artifacts");
+        expect(runtimeSdk).not.toContain("actions/workflows/runtime-sdk.yml/runs");
+        expect(runtimeDispatchLedger).toContain("More than one unexpired");
+        expect(runtimeDispatchLedger).toContain("attempts ?? 6");
+        expect(runtimeDispatchLedger).toContain("actions/workflows/runtime-sdk.yml/runs");
         expect(runtimeSdk).toContain('gh run watch "$CANONICAL_RUN_ID" --exit-status');
         expect(runtimeSdk).toContain("retention-days: 90");
         expect(runtimeSdk).not.toContain("resume_run_id");
@@ -91,9 +98,11 @@ describe("runtime-driven Node SDK entry contract", () => {
 
 describe("runtime-backed Node release implementation", () => {
     it("enforces the channel, source, and mode matrix", () => {
-        expect(runtimeSdk).toContain("canary:azure:tests-only");
-        expect(runtimeSdk).toContain("canary:azure:internal");
-        expect(runtimeSdk).toContain("unstable:github-packages:internal");
+        expect(runtimeDispatchLedger).toContain('expected.mode === "tests-only"');
+        expect(runtimeDispatchLedger).toContain('expected.mode === "internal"');
+        expect(runtimeDispatchLedger).toContain(
+            "Invalid channel, runtime source, or mode combination"
+        );
     });
 
     it("owns acquisition, cross-platform tests, packaging, and internal verification", () => {
@@ -101,6 +110,8 @@ describe("runtime-backed Node release implementation", () => {
         expect(runtimeSdk).toContain("npm run acquire:runtime-packages");
         expect(runtimeSdk).toContain("npm run verify:release-packages");
         expect(runtimeSdk).toContain("publish-manifest");
+        expect(runtimeSdk.match(/preflight-package-set/g)).toHaveLength(2);
+        expect(runtimeSdk).not.toContain("for PACKAGE in");
         expect(runtimeSdk).toContain("group: sdk-runtime-internal-${{ inputs.channel }}");
         expect(runtimeSdk).not.toContain('"$runtime_path" --version');
         expect(runtimeSdk).not.toContain('"$RUNTIME" --version');

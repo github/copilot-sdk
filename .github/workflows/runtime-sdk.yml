@@ -62,8 +62,8 @@ jobs:
       actions: read
       contents: read
     outputs:
-      canonical_run_id: ${{ steps.existing.outputs.canonical_run_id || steps.created.outputs.canonical_run_id }}
-      role: ${{ steps.existing.outputs.role || steps.created.outputs.role }}
+      canonical_run_id: ${{ steps.claim.outputs.canonical_run_id }}
+      role: ${{ steps.claim.outputs.role }}
     defaults:
       run:
         shell: bash
@@ -76,106 +76,12 @@ jobs:
           node-version: 22
       - run: npm ci --ignore-scripts
         working-directory: ./nodejs
-      - name: Validate entry boundary
-        env:
-          CHANNEL: ${{ inputs.channel }}
-          MODE: ${{ inputs.mode }}
-          RUNTIME_RUN_ID: ${{ inputs.runtime_run_id }}
-          RUNTIME_SHA: ${{ inputs.runtime_sha }}
-          RUNTIME_SOURCE: ${{ inputs.runtime_source }}
-          RUNTIME_VERSION: ${{ inputs.runtime_version }}
-          VERSION: ${{ inputs.version }}
-        run: |
-          set -euo pipefail
-          case "$CHANNEL:$RUNTIME_SOURCE:$MODE" in
-            canary:azure:tests-only|canary:azure:internal|unstable:github-packages:internal) ;;
-            *) echo "::error::Invalid runtime-driven release matrix: $CHANNEL/$RUNTIME_SOURCE/$MODE."; exit 1 ;;
-          esac
-          [[ "$RUNTIME_VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]] ||
-            { echo "::error::runtime_version must be exact SemVer."; exit 1; }
-          [[ "$RUNTIME_SHA" =~ ^[0-9a-f]{40}$ ]] ||
-            { echo "::error::runtime_sha must be a lowercase full SHA."; exit 1; }
-          [[ "$RUNTIME_RUN_ID" =~ ^[0-9]+$ ]] ||
-            { echo "::error::runtime_run_id must be numeric."; exit 1; }
-          if [ "$CHANNEL" = "canary" ] && [ -n "$VERSION" ]; then
-            echo "::error::Canary runs do not accept a version override."
-            exit 1
-          fi
-      - name: Find the canonical dispatch marker
-        id: lookup
-        env:
-          GH_TOKEN: ${{ github.token }}
-          MARKER_NAME: sdk-runtime-dispatch-${{ inputs.runtime_run_id }}
-          RUN_TITLE: Runtime-driven SDK from runtime run ${{ inputs.runtime_run_id }}
-        run: |
-          set -euo pipefail
-          for ATTEMPT in 1 2 3 4 5 6; do
-            gh api "/repos/$GITHUB_REPOSITORY/actions/artifacts?name=$MARKER_NAME&per_page=100" \
-              > "$RUNNER_TEMP/artifacts.json"
-            MATCHES="$(jq --arg name "$MARKER_NAME" \
-              '[.artifacts[] | select(.name == $name and .expired == false)] | length' \
-              "$RUNNER_TEMP/artifacts.json")"
-            if [ "$MATCHES" -gt 1 ]; then
-              echo "::error::More than one unexpired $MARKER_NAME artifact exists."
-              exit 1
-            fi
-            if [ "$MATCHES" -eq 1 ]; then
-              jq --arg name "$MARKER_NAME" \
-                '.artifacts[] | select(.name == $name and .expired == false)' \
-                "$RUNNER_TEMP/artifacts.json" > "$RUNNER_TEMP/artifact.json"
-              {
-                echo "found=true"
-                echo "artifact_id=$(jq -r .id "$RUNNER_TEMP/artifact.json")"
-                echo "artifact_run_id=$(jq -r .workflow_run.id "$RUNNER_TEMP/artifact.json")"
-              } >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-
-            gh api "/repos/$GITHUB_REPOSITORY/actions/workflows/runtime-sdk.yml/runs?event=workflow_dispatch&per_page=100" \
-              > "$RUNNER_TEMP/runs.json"
-            EARLIER="$(jq --arg title "$RUN_TITLE" --argjson current "$GITHUB_RUN_ID" \
-              '[.workflow_runs[] | select(.display_title == $title and .id < $current)] | length' \
-              "$RUNNER_TEMP/runs.json")"
-            if [ "$EARLIER" -eq 0 ]; then
-              echo "found=false" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-            if [ "$ATTEMPT" -lt 6 ]; then
-              echo "An earlier matching run is visible; waiting for its marker (attempt $ATTEMPT/6)."
-              sleep 10
-            fi
-          done
-
-          ACTIVE="$(jq --arg title "$RUN_TITLE" --argjson current "$GITHUB_RUN_ID" \
-            '[.workflow_runs[] | select(
-              .display_title == $title and
-              .id < $current and
-              .status != "completed"
-            )] | length' "$RUNNER_TEMP/runs.json")"
-          if [ "$ACTIVE" -gt 0 ]; then
-            echo "::error::An earlier matching run is still initializing without a visible marker. Retry this run later."
-            exit 1
-          fi
-          echo "Earlier matching runs completed before claiming; none could have started release work."
-          echo "found=false" >> "$GITHUB_OUTPUT"
-      - name: Download the existing marker
-        if: steps.lookup.outputs.found == 'true'
-        env:
-          ARTIFACT_ID: ${{ steps.lookup.outputs.artifact_id }}
-          ARTIFACT_RUN_ID: ${{ steps.lookup.outputs.artifact_run_id }}
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/marker"
-          gh api "/repos/$GITHUB_REPOSITORY/actions/artifacts/$ARTIFACT_ID/zip" > "$RUNNER_TEMP/marker.zip"
-          unzip -q "$RUNNER_TEMP/marker.zip" -d "$RUNNER_TEMP/marker"
-          gh api "/repos/$GITHUB_REPOSITORY/actions/runs/$ARTIFACT_RUN_ID" > "$RUNNER_TEMP/run.json"
-      - name: Validate the existing marker and API provenance
-        if: steps.lookup.outputs.found == 'true'
-        id: existing
+      - name: Claim or resolve the canonical dispatch
+        id: claim
         env:
           CHANNEL: ${{ inputs.channel }}
           CURRENT_RUN_ID: ${{ github.run_id }}
+          GH_TOKEN: ${{ github.token }}
           MODE: ${{ inputs.mode }}
           RUNTIME_RUN_ID: ${{ inputs.runtime_run_id }}
           RUNTIME_SHA: ${{ inputs.runtime_sha }}
@@ -184,13 +90,11 @@ jobs:
           SDK_REF: ${{ github.ref }}
           SDK_SHA: ${{ github.sha }}
           VERSION_OVERRIDE: ${{ inputs.version }}
-        run: |
-          node nodejs/node_modules/.bin/tsx nodejs/scripts/runtime-dispatch-ledger.ts validate \
-            "$RUNNER_TEMP/marker/marker.json" "$RUNNER_TEMP/artifact.json" "$RUNNER_TEMP/run.json"
+        run: node nodejs/node_modules/.bin/tsx nodejs/scripts/runtime-dispatch-ledger.ts claim "$RUNNER_TEMP/new-marker/marker.json"
       - name: Mirror the canonical run
-        if: steps.existing.outputs.role == 'duplicate'
+        if: steps.claim.outputs.role == 'duplicate'
         env:
-          CANONICAL_RUN_ID: ${{ steps.existing.outputs.canonical_run_id }}
+          CANONICAL_RUN_ID: ${{ steps.claim.outputs.canonical_run_id }}
           GH_TOKEN: ${{ github.token }}
         run: |
           set +e
@@ -202,30 +106,8 @@ jobs:
             exit "$RESULT"
           fi
           echo "Canonical SDK run $CANONICAL_RUN_ID succeeded; this duplicate is complete."
-      - name: Create the canonical marker
-        if: steps.lookup.outputs.found == 'false'
-        id: created
-        env:
-          CHANNEL: ${{ inputs.channel }}
-          CURRENT_RUN_ID: ${{ github.run_id }}
-          MODE: ${{ inputs.mode }}
-          RUNTIME_RUN_ID: ${{ inputs.runtime_run_id }}
-          RUNTIME_SHA: ${{ inputs.runtime_sha }}
-          RUNTIME_SOURCE: ${{ inputs.runtime_source }}
-          RUNTIME_VERSION: ${{ inputs.runtime_version }}
-          SDK_REF: ${{ github.ref }}
-          SDK_SHA: ${{ github.sha }}
-          VERSION_OVERRIDE: ${{ inputs.version }}
-        run: |
-          mkdir -p "$RUNNER_TEMP/new-marker"
-          node nodejs/node_modules/.bin/tsx nodejs/scripts/runtime-dispatch-ledger.ts create \
-            "$RUNNER_TEMP/new-marker/marker.json"
-          {
-            echo "role=owner"
-            echo "canonical_run_id=$GITHUB_RUN_ID"
-          } >> "$GITHUB_OUTPUT"
       - name: Persist the canonical marker
-        if: steps.lookup.outputs.found == 'false'
+        if: steps.claim.outputs.created == 'true'
         uses: actions/upload-artifact@v7.0.0
         with:
           name: sdk-runtime-dispatch-${{ inputs.runtime_run_id }}
@@ -302,19 +184,7 @@ jobs:
         working-directory: ./nodejs
         env:
           SDK_VERSION: ${{ steps.plan.outputs.sdk_version }}
-        run: |
-          for PACKAGE in \
-            @github/copilot-sdk \
-            @github/copilot-sdk-darwin-arm64 \
-            @github/copilot-sdk-darwin-x64 \
-            @github/copilot-sdk-linux-arm64 \
-            @github/copilot-sdk-linux-x64 \
-            @github/copilot-sdk-linuxmusl-arm64 \
-            @github/copilot-sdk-linuxmusl-x64 \
-            @github/copilot-sdk-win32-arm64 \
-            @github/copilot-sdk-win32-x64; do
-            node scripts/npm-release.js preflight "$PACKAGE" "$SDK_VERSION" https://registry.npmjs.org
-          done
+        run: node scripts/npm-release.js preflight-package-set "$SDK_VERSION" https://registry.npmjs.org
       - name: Azure login for explicit-version preflight
         if: needs.claim-runtime-dispatch.outputs.role == 'owner' && inputs.channel == 'unstable' && inputs.version != ''
         uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
@@ -338,18 +208,7 @@ jobs:
           printf '%s\n' \
             "${FEED_AUTH_REGISTRY}:_authToken=${TOKEN}" \
             "${FEED_AUTH_BASE}:_authToken=${TOKEN}" > "$HOME/.npmrc"
-          for PACKAGE in \
-            @github/copilot-sdk \
-            @github/copilot-sdk-darwin-arm64 \
-            @github/copilot-sdk-darwin-x64 \
-            @github/copilot-sdk-linux-arm64 \
-            @github/copilot-sdk-linux-x64 \
-            @github/copilot-sdk-linuxmusl-arm64 \
-            @github/copilot-sdk-linuxmusl-x64 \
-            @github/copilot-sdk-win32-arm64 \
-            @github/copilot-sdk-win32-x64; do
-            node scripts/npm-release.js preflight "$PACKAGE" "$SDK_VERSION" "$FEED_URL"
-          done
+          node scripts/npm-release.js preflight-package-set "$SDK_VERSION" "$FEED_URL"
 
   acquire-runtime:
     name: Acquire exact runtime packages
