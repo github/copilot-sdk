@@ -83,12 +83,24 @@ export interface ClaimOptions {
 
 const workflowPath = ".github/workflows/runtime-sdk.yml";
 const workflowName = "Runtime-driven Node SDK";
+const canonicalNumericIdPattern = /^(0|[1-9][0-9]*)$/;
 const runtimeVersionPattern =
     /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$/;
 
 function validateInputs(expected: ExpectedDispatch): void {
-    assert.match(expected.currentRunId, /^[0-9]+$/, "Current workflow run ID must be numeric");
-    assert.match(expected.runtimeRunId, /^[0-9]+$/, "Runtime workflow run ID must be numeric");
+    for (const [name, value] of Object.entries(expected)) {
+        assert.equal(value, value.trim(), `${name} must not contain surrounding whitespace`);
+    }
+    assert.match(
+        expected.currentRunId,
+        canonicalNumericIdPattern,
+        "Current workflow run ID must be canonical numeric"
+    );
+    assert.match(
+        expected.runtimeRunId,
+        canonicalNumericIdPattern,
+        "Runtime workflow run ID must be canonical numeric"
+    );
     assert.match(expected.runtimeSha, /^[0-9a-f]{40}$/, "Runtime SHA must be lowercase full SHA");
     assert.match(
         expected.runtimeVersion,
@@ -145,7 +157,11 @@ export function validateRuntimeDispatchMarker(
 ): DispatchRole {
     validateInputs(expected);
     assert.equal(marker.schemaVersion, 1, "Unsupported dispatch marker schema");
-    assert.match(marker.canonicalRunId, /^[0-9]+$/, "Canonical workflow run ID must be numeric");
+    assert.match(
+        marker.canonicalRunId,
+        canonicalNumericIdPattern,
+        "Canonical workflow run ID must be canonical numeric"
+    );
     assert.equal(artifact.expired, false, "Dispatch marker artifact is expired");
     assert.equal(
         String(artifact.workflow_run?.id),
@@ -260,7 +276,7 @@ export async function claimRuntimeDispatch(
 }
 
 function requiredEnvironment(name: string): string {
-    const value = process.env[name]?.trim();
+    const value = process.env[name];
     if (!value) {
         throw new Error(`${name} is required.`);
     }
@@ -278,7 +294,7 @@ function expectedFromEnvironment(): ExpectedDispatch {
         runtimeVersion: requiredEnvironment("RUNTIME_VERSION"),
         sdkRef: requiredEnvironment("SDK_REF"),
         sdkSha: requiredEnvironment("SDK_SHA"),
-        versionOverride: process.env.VERSION_OVERRIDE?.trim() ?? "",
+        versionOverride: process.env.VERSION_OVERRIDE ?? "",
     };
 }
 
