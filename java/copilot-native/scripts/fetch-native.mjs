@@ -7,7 +7,7 @@
  *
  * Steps:
  *   1. Read the pinned version from `nodejs/package.json`.
- *   2. Download the platform npm tarball and `SHA256SUMS.txt` from the matching release.
+ *   2. Download the platform tarball and `SHA256SUMS.txt` from the matching release.
  *   3. Verify the downloaded tarball against the release checksum.
  *   4. Stage the hostless runtime tree, flattening the selected prebuild directory
  *      beside the package's retained top-level runtime assets.
@@ -49,13 +49,13 @@ if (!repoRoot || !stagingDir || !classifier) {
 }
 
 const packagePath = path.join(repoRoot, 'nodejs', 'package.json');
-const packageName = `@github/copilot-${classifier}`;
 const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
 const version = packageJson.copilotCliVersion;
 if (!version) {
   console.error(`Could not find copilotCliVersion in ${packagePath}`);
   process.exit(1);
 }
+const assetName = `github-copilot-${version}-${classifier}.tgz`;
 
 const outDir = path.join(stagingDir, classifier);
 const resourceDir = path.join(outDir, 'native', classifier);
@@ -90,7 +90,7 @@ if (
     stampTreeDigest === currentTreeDigest &&
     currentPlatformProperties === expectedPlatformProperties
   ) {
-    console.log(`${packageName}@${version} already staged at ${runtimePath}`);
+    console.log(`${assetName} already staged at ${runtimePath}`);
     process.exit(0);
   }
 }
@@ -98,8 +98,7 @@ if (
 fs.rmSync(outDir, { recursive: true, force: true });
 fs.mkdirSync(resourceDir, { recursive: true });
 
-console.log(`Downloading ${packageName}@${version} ...`);
-const assetName = `github-copilot-${version}-${classifier}.tgz`;
+console.log(`Downloading ${assetName} ...`);
 const releaseBase = (
   process.env.COPILOT_CLI_DOWNLOAD_BASE_URL ??
   'https://github.com/github/copilot-cli/releases/download'
@@ -166,7 +165,7 @@ inventory.sort();
 fs.writeFileSync(inventoryPath, `${inventory.join('\n')}\n`);
 
 if (!fs.existsSync(runtimePath) || !fs.existsSync(wrapperPath)) {
-  throw new Error(`Package ${packageName}@${version} is missing the runtime wrapper pair`);
+  throw new Error(`${assetName} is missing the runtime wrapper pair`);
 }
 fs.writeFileSync(platformPropertiesPath, expectedPlatformProperties);
 const treeDigest = digestTree(resourceDir);

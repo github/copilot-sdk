@@ -41,7 +41,7 @@ from copilot.client import (
     ModelSupports,
 )
 from copilot.generated.rpc import AutoTier as AutoTierEnum
-from copilot.session import PermissionHandler
+from copilot.session import CopilotSession, PermissionHandler
 from copilot.session_events import (
     McpOauthRequestReason,
     McpOauthRequiredData,
@@ -197,6 +197,67 @@ class TestClientShutdown:
         process.terminate.assert_called_once()
         assert client._process is None
         assert client._cli_process is None
+
+    @pytest.mark.asyncio
+    async def test_force_stop_cancels_pending_external_tools(self):
+        client = CopilotClient(connection=RuntimeConnection.for_uri("localhost:1234"))
+        session = CopilotSession("session-1", Mock())
+        cancelled = asyncio.Event()
+
+        async def blocked():
+            try:
+                await asyncio.Future()
+            finally:
+                cancelled.set()
+
+        task = asyncio.create_task(blocked())
+        session._pending_external_tools["request-1"] = task
+        client._sessions["session-1"] = session
+        await asyncio.sleep(0)
+
+        await client.force_stop()
+
+        await asyncio.wait_for(cancelled.wait(), timeout=1)
+        assert session._destroyed
+
+    @pytest.mark.asyncio
+    async def test_connection_close_cancels_pending_external_tools(self):
+        client = CopilotClient(connection=RuntimeConnection.for_uri("localhost:1234"))
+        session = CopilotSession("session-1", Mock())
+        cancelled = asyncio.Event()
+
+        async def blocked():
+            try:
+                await asyncio.Future()
+            finally:
+                cancelled.set()
+
+        task = asyncio.create_task(blocked())
+        session._pending_external_tools["request-1"] = task
+        client._sessions["session-1"] = session
+        await asyncio.sleep(0)
+
+        client._client = Mock(_loop=asyncio.get_running_loop())
+        await asyncio.to_thread(client._handle_connection_close)
+
+        await asyncio.wait_for(cancelled.wait(), timeout=1)
+        assert not session._destroyed
+        assert client._sessions == {"session-1": session}
+
+    def test_connection_close_tolerates_event_loop_close_race(self):
+        client = CopilotClient(connection=RuntimeConnection.for_uri("localhost:1234"))
+        session = CopilotSession("session-1", Mock())
+        loop = Mock()
+        loop.is_closed.return_value = False
+        loop.call_soon_threadsafe.side_effect = RuntimeError("Event loop is closed")
+        client._client = Mock(_loop=loop)
+        client._sessions["session-1"] = session
+        client._github_token_providers["registration-1"] = Mock()
+
+        client._handle_connection_close()
+
+        assert client._sessions == {"session-1": session}
+        assert client._github_token_providers == {}
 
 
 class TestPermissionHandlerOptional:

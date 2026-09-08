@@ -5,11 +5,13 @@ on:
     branches:
       - main
     paths:
+      - 'nodejs/package.json'
       - 'java/scripts/codegen/**'
       - 'java/sdk/src/generated/**'
       - '.github/workflows/java-codegen-check.yml'
   pull_request:
     paths:
+      - 'nodejs/package.json'
       - 'java/scripts/codegen/**'
       - 'java/sdk/src/generated/**'
       - '.github/workflows/java-codegen-check.yml'
@@ -48,9 +50,13 @@ jobs:
         working-directory: ./java/scripts/codegen
         run: npm ci
 
+      - name: Test schema fetcher
+        working-directory: ./java/scripts/codegen
+        run: npm test
+
       - name: Run codegen
         working-directory: ./java/scripts/codegen
-        run: npx tsx java.ts
+        run: npm run generate
 
       - name: Check for uncommitted changes
         id: check-changes
@@ -68,7 +74,7 @@ jobs:
       - name: Fail on stale generated files (push to main)
         if: steps.check-changes.outputs.changed == 'true' && github.event_name != 'pull_request'
         run: |
-          echo "::error::Generated files are out of date. Run 'cd java/scripts/codegen && npx tsx java.ts' and commit the changes."
+          echo "::error::Generated files are out of date. Run 'cd java/scripts/codegen && npm run generate' and commit the changes."
           git diff
           exit 1
 
@@ -93,7 +99,7 @@ jobs:
         if: steps.push-regen.outcome == 'failure'
         run: |
           echo "::error::Could not push regenerated files to the PR branch. This is expected for Dependabot PRs (read-only token) and fork PRs."
-          echo "To fix: check out this PR branch locally, run 'cd java/scripts/codegen && npx tsx java.ts', commit, and push."
+          echo "To fix: check out this PR branch locally, run 'cd java/scripts/codegen && npm run generate', commit, and push."
           exit 1
 
       - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5

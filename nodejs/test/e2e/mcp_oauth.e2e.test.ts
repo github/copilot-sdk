@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { spawn } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
@@ -10,7 +10,7 @@ import { describe, expect, it, onTestFinished } from "vitest";
 import type { CopilotSession, MCPServerConfig, McpAuthRequest } from "../../src/index.js";
 import { approveAll } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
-import { waitForCondition } from "./harness/sdkTestHelper.js";
+import { stopChildProcess, waitForCondition } from "./harness/sdkTestHelper.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -322,7 +322,7 @@ async function startOAuthMcpServer(): Promise<{
         env: { ...process.env, EXPECTED_TOKEN },
         stdio: ["ignore", "pipe", "pipe"],
     });
-    onTestFinished(() => stopChild(child));
+    onTestFinished(() => stopChildProcess(child));
 
     const stderr: string[] = [];
     child.stderr.on("data", (chunk) => stderr.push(String(chunk)));
@@ -373,17 +373,6 @@ async function disconnectSession(session: CopilotSession): Promise<void> {
     } catch {
         // Best-effort cleanup.
     }
-}
-
-function stopChild(child: ChildProcessWithoutNullStreams): Promise<void> {
-    if (child.exitCode !== null || child.killed) {
-        return Promise.resolve();
-    }
-    const exitPromise = new Promise<void>((resolvePromise) => {
-        child.once("exit", () => resolvePromise());
-    });
-    child.kill("SIGTERM");
-    return exitPromise;
 }
 
 function createAsyncQueue<T>(): { push(value: T): void; next(): Promise<T> } {

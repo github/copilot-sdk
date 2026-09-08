@@ -24,12 +24,13 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use futures_util::{SinkExt, StreamExt};
 use github_copilot_sdk::handler::ApproveAllHandler;
-use github_copilot_sdk::session_events::AssistantMessageData;
+use github_copilot_sdk::rpc::{SendMode, SendRequest};
+use github_copilot_sdk::session_events::{AssistantMessageData, UserMessageData};
 use github_copilot_sdk::{
     CopilotHttpRequest, CopilotHttpResponse, CopilotRequestContext, CopilotRequestError,
     CopilotRequestHandler, CopilotWebSocketForwarder, CopilotWebSocketHandler,
-    CopilotWebSocketResponse, MessageOptions, ProviderConfig, SessionConfig, SessionEvent,
-    forward_http,
+    CopilotWebSocketResponse, DeliveryMode, MessageOptions, MessageSource, ProviderConfig,
+    SessionConfig, SessionEvent, forward_http,
 };
 use http::header::{HeaderName, HeaderValue};
 use http::{HeaderMap, Uri};
@@ -38,7 +39,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio_tungstenite::tungstenite::Message;
 
-use super::support::with_e2e_context_no_snapshot;
+use super::support::{collect_until_idle, with_e2e_context_no_snapshot};
 
 const SYNTHETIC_TEXT: &str = "OK from the synthetic stream.";
 const HANDLER_HTTP_TEXT: &str = "OK from synthetic HTTP upstream.";
@@ -623,6 +624,87 @@ impl CopilotRequestHandler for RecordingHandler {
             Ok(synth_non_inference_response(&request.url, None))
         }
     }
+}
+
+#[tokio::test]
+async fn preserves_message_source_through_runtime_delivery() {
+    if super::support::skip_inprocess("LLM inference providers are process-global in-process") {
+        return;
+    }
+    with_e2e_context_no_snapshot(|ctx| {
+        Box::pin(async move {
+            let handler = Arc::new(RecordingHandler::default());
+            let client = ctx.start_llm_client(handler.clone(), &[]).await;
+
+            for typed_rpc in [false, true] {
+                for immediate in [false, true] {
+                    for source in [None, Some(MessageSource::Agent("sender-id".into()))] {
+                        let session = client
+                            .create_session(ctx.approve_all_session_config())
+                            .await
+                            .expect("create session");
+                        let events = session.subscribe();
+                        let wire_source = source.as_ref().map(ToString::to_string);
+                        let message_id = if typed_rpc {
+                            let mut request = SendRequest::default();
+                            request.prompt = "Say OK.".to_string();
+                            request.mode = Some(if immediate {
+                                SendMode::Immediate
+                            } else {
+                                SendMode::Enqueue
+                            });
+                            if let Some(source) = source {
+                                request = request.with_source(source);
+                            }
+                            session
+                                .rpc()
+                                .send(request)
+                                .await
+                                .expect("RPC send")
+                                .message_id
+                        } else {
+                            let mut options = say_ok().with_mode(if immediate {
+                                DeliveryMode::Immediate
+                            } else {
+                                DeliveryMode::Enqueue
+                            });
+                            if let Some(source) = source {
+                                options = options.with_source(source);
+                            }
+                            session.send(options).await.expect("send")
+                        };
+
+                        let observed = collect_until_idle(events).await;
+                        let messages: Vec<_> = observed
+                            .iter()
+                            .filter(|event| event.event_type == "user.message")
+                            .map(|event| {
+                                event.typed_data::<UserMessageData>().expect("user message")
+                            })
+                            .collect();
+                        assert_eq!(messages.len(), 1, "expected one delivered user message");
+                        assert_eq!(messages[0].content, "Say OK.");
+                        assert_eq!(messages[0].source, wire_source);
+                        assert_eq!(messages[0].message_id.as_deref(), Some(message_id.as_str()));
+                        assert!(
+                            observed.iter().any(|event| {
+                                event.event_type == "assistant.message"
+                                    && event
+                                        .typed_data::<AssistantMessageData>()
+                                        .is_some_and(|data| data.content == SYNTHETIC_TEXT)
+                            }),
+                            "expected the synthetic provider response"
+                        );
+
+                        session.disconnect().await.expect("disconnect session");
+                    }
+                }
+            }
+            assert!(!handler.inference_records().is_empty());
+            client.stop().await.expect("stop client");
+        })
+    })
+    .await;
 }
 
 #[tokio::test]

@@ -14,6 +14,13 @@ To use the SDK, you'll need:
 dotnet add package GitHub.Copilot.SDK
 ```
 
+The package downloads the pinned Copilot CLI runtime for the build RID from the
+matching `github/copilot-cli` GitHub release and verifies the archive against
+that release's `SHA256SUMS.txt`. Set `CopilotCliReleaseBaseUrl` in MSBuild (or
+`COPILOT_CLI_DOWNLOAD_BASE_URL` in the environment) to use a release mirror.
+Set `CopilotCliBinaryPath` to copy a preinstalled binary instead, or set
+`CopilotSkipCliDownload=true` to omit runtime acquisition.
+
 ## Run the Samples
 
 Try the interactive chat sample (from the repo root):
@@ -243,8 +250,32 @@ Send a message to the session.
 - `Prompt` - The message/prompt to send
 - `Attachments` - File attachments
 - `Mode` - Delivery mode ("enqueue" or "immediate")
+- `Source` - Optional message origin: `MessageSource.User`, `MessageSource.System`, or `MessageSource.Agent(id)`. Omitted by default, preserving the runtime's default user behavior.
 
 Returns the message ID.
+
+Use `MessageSource.System` for application-generated system context and
+`MessageSource.Agent(id)` for messages from an identified agent. This marks the
+message's origin; it does not replace the session's system prompt or change
+delivery mode. `SendAndWaitAsync` accepts the same option and still waits for
+session idle, returning null if no assistant message was received.
+
+```csharp
+await session.SendAsync(new MessageOptions
+{
+    Prompt = "The background build completed successfully.",
+    Source = MessageSource.System,
+});
+
+await session.SendAndWaitAsync(new MessageOptions
+{
+    Prompt = "The review found no blocking issues.",
+    Source = MessageSource.Agent("reviewer"),
+});
+```
+
+Agent sources serialize as `agent-<id>`. Pass the agent ID without adding a
+prefix. The SDK preserves its case and whitespace and rejects null IDs.
 
 ##### `On(Action<SessionEvent> handler): IDisposable`
 

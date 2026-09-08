@@ -215,9 +215,9 @@ pub const HAS_BUNDLED_CLI: bool = cfg!(has_bundled_cli);
 /// Returns the path to the bundled Copilot CLI, extracting it from the
 /// embedded archive on first call.
 ///
-/// This exposes the CLI artifact directly for callers such as health checks,
-/// diagnostics, version probes, and in-process hosting. Managed child-process
-/// transports resolve the bundled `copilot-runtime` wrapper instead.
+/// This exposes the full CLI artifact directly for callers such as health
+/// checks, diagnostics, and version probes. Managed child-process and
+/// in-process transports resolve the bundled runtime artifacts instead.
 ///
 /// Subsequent calls return the cached result. Extraction is skipped when
 /// an already-published binary passes a cheap integrity re-check; a

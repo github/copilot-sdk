@@ -174,53 +174,15 @@ function toEnumConstant(value: string): string {
 
 // ── Schema path resolution ───────────────────────────────────────────────────
 
-/**
- * Resolve a JSON schema shipped by the `@github/copilot` CLI package.
- *
- * The CLI package layout changed in 1.0.64-1: the umbrella `@github/copilot`
- * package became a thin loader and its bundled assets (including the JSON
- * schemas) moved into the platform-specific packages installed as optional
- * dependencies, e.g. `@github/copilot-linux-x64` or `@github/copilot-win32-x64`.
- *
- * We search both the Java codegen install (`scripts/codegen/node_modules`) and
- * the Node SDK install (`nodejs/node_modules`), checking the umbrella package
- * first (older versions) and then whichever platform package is present.
- */
+/** Resolve a JSON schema staged from the pinned GitHub Release artifact. */
 async function resolveCopilotSchemaPath(fileName: string): Promise<string> {
-    const nodeModulesDirs = [
-        path.join(REPO_ROOT, "scripts/codegen/node_modules"),
-        path.join(REPO_ROOT, "nodejs/node_modules"),
-    ];
-
-    const candidates: string[] = [];
-    for (const nodeModulesDir of nodeModulesDirs) {
-        candidates.push(path.join(nodeModulesDir, "@github/copilot/schemas", fileName));
-        const githubScopeDir = path.join(nodeModulesDir, "@github");
-        try {
-            for (const entry of await fs.readdir(githubScopeDir)) {
-                if (entry.startsWith("copilot-")) {
-                    candidates.push(path.join(githubScopeDir, entry, "schemas", fileName));
-                }
-            }
-        } catch (err) {
-            const code = (err as NodeJS.ErrnoException).code;
-            if (code !== "ENOENT" && code !== "ENOTDIR") {
-                throw err;
-            }
-            // @github scope directory may not exist; try the next location.
-        }
+    const schemaPath = path.join(REPO_ROOT, "scripts/codegen/target/schemas", fileName);
+    try {
+        await fs.access(schemaPath);
+        return schemaPath;
+    } catch {
+        throw new Error(`${fileName} not found. Run 'npm run fetch:schemas' in java/scripts/codegen.`);
     }
-
-    for (const candidate of candidates) {
-        try {
-            await fs.access(candidate);
-            return candidate;
-        } catch {
-            // Try the next candidate.
-        }
-    }
-
-    throw new Error(`${fileName} not found. Run 'npm ci' in java/scripts/codegen or java/nodejs first.`);
 }
 
 async function getSessionEventsSchemaPath(): Promise<string> {
@@ -252,6 +214,7 @@ interface JavaTypeResult {
 // Set before each schema generation pass; used by schemaTypeToJava and helpers.
 let currentDefinitions: Record<string, JSONSchema7> = {};
 const pendingStandaloneTypes = new Map<string, JSONSchema7>();
+const promotedNestedUnionTypes = new Set<string>();
 const generatedSessionEventTypeNames = new Set<string>();
 
 // Cross-schema definitions: keyed by schema filename (e.g. "session-events.schema.json"),
@@ -365,16 +328,99 @@ function findDiscriminator(variants: JSONSchema7[]): DiscriminatorInfo | null {
 /**
  * Resolve anyOf variants, handling $ref to definitions.
  */
-function resolveAnyOfVariants(anyOf: JSONSchema7[]): JSONSchema7[] {
+function resolveAnyOfVariants(
+    anyOf: JSONSchema7[],
+    definitions: Record<string, JSONSchema7> = currentDefinitions
+): JSONSchema7[] {
     return anyOf
         .map((v) => {
             if (v.$ref) {
                 const name = v.$ref.replace(/^#\/definitions\//, "");
-                return currentDefinitions[name] ?? v;
+                return definitions[name] ?? v;
             }
             return v;
         })
         .filter((v) => v.type !== "null");
+}
+
+export function collectNestedDiscriminatedUnionTypeNames(
+    root: unknown,
+    definitions: Record<string, JSONSchema7>
+): Set<string> {
+    const promotedTypes = new Set<string>();
+    const definitionName = (schema: JSONSchema7): string | null => {
+        return schema.$ref?.match(/^#\/definitions\/([^/]+)$/)?.[1] ?? null;
+    };
+    const resolveLocal = (schema: JSONSchema7): JSONSchema7 | null => {
+        const name = definitionName(schema);
+        return name ? definitions[name] ?? null : schema;
+    };
+    const closedDiscriminatedUnionVariants = (schema: JSONSchema7): JSONSchema7[] | null => {
+        const resolved = resolveLocal(schema);
+        if (!resolved?.anyOf || !Array.isArray(resolved.anyOf)) return null;
+        const variants = resolveAnyOfVariants(resolved.anyOf as JSONSchema7[], definitions);
+        return variants.length > 1
+            && findDiscriminator(variants)
+            && variants.every((variant) => variant.additionalProperties === false)
+            ? variants
+            : null;
+    };
+
+    const rootSchema = typeof root === "object" && root !== null ? root as JSONSchema7 : null;
+    const rootVariants = rootSchema ? closedDiscriminatedUnionVariants(rootSchema) : null;
+    if (!rootVariants) return promotedTypes;
+
+    const nestedUnionItems: JSONSchema7[] = [];
+    for (const variant of rootVariants) {
+        for (const property of Object.values(variant.properties ?? {})) {
+            if (!property || typeof property !== "object") continue;
+            const propertySchema = resolveLocal(property as JSONSchema7);
+            if (
+                propertySchema?.type === "array"
+                && propertySchema.items
+                && !Array.isArray(propertySchema.items)
+                && closedDiscriminatedUnionVariants(propertySchema.items as JSONSchema7)
+            ) {
+                nestedUnionItems.push(propertySchema.items as JSONSchema7);
+            }
+        }
+    }
+
+    const visitedDefinitions = new Set<string>();
+    const visit = (schema: JSONSchema7): void => {
+        const name = definitionName(schema);
+        if (name) {
+            if (visitedDefinitions.has(name)) return;
+            visitedDefinitions.add(name);
+            const resolved = definitions[name];
+            if (!resolved) return;
+            if (closedDiscriminatedUnionVariants(schema)) {
+                promotedTypes.add(name);
+            }
+            visit(resolved);
+            return;
+        }
+
+        for (const property of Object.values(schema.properties ?? {})) {
+            if (property && typeof property === "object") {
+                visit(property as JSONSchema7);
+            }
+        }
+        if (schema.items && !Array.isArray(schema.items)) {
+            visit(schema.items as JSONSchema7);
+        }
+        if (schema.additionalProperties && typeof schema.additionalProperties === "object") {
+            visit(schema.additionalProperties as JSONSchema7);
+        }
+        for (const branch of [...(schema.anyOf ?? []), ...(schema.allOf ?? [])]) {
+            if (branch && typeof branch === "object") {
+                visit(branch as JSONSchema7);
+            }
+        }
+    };
+
+    for (const items of nestedUnionItems) visit(items);
+    return promotedTypes;
 }
 
 /**
@@ -429,7 +475,10 @@ async function generatePolymorphicResultClass(
         baseLines.push(` * @since 1.0.0`);
         baseLines.push(` */`);
     }
-    baseLines.push(`@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "${discriminator.property}", visible = true)`);
+    const typeInfoInclude = promotedNestedUnionTypes.has(className)
+        ? `, include = JsonTypeInfo.As.EXISTING_PROPERTY`
+        : "";
+    baseLines.push(`@JsonTypeInfo(use = JsonTypeInfo.Id.NAME${typeInfoInclude}, property = "${discriminator.property}", visible = true)`);
     baseLines.push(`@JsonSubTypes({`);
     for (let i = 0; i < variantInfos.length; i++) {
         const v = variantInfos[i];
@@ -578,12 +627,23 @@ async function generatePolymorphicVariantClass(
     await writeGeneratedFile(`${packageDir}/${className}.java`, lines.join("\n"));
 }
 
-function schemaTypeToJava(
+interface JavaTypeResolution {
+    definitions: Record<string, JSONSchema7>;
+    standaloneTypes: Map<string, JSONSchema7>;
+    promotedUnionTypes: Set<string>;
+}
+
+export function schemaTypeToJava(
     schema: JSONSchema7,
     required: boolean,
     context: string,
     propName: string,
-    nestedTypes: Map<string, JavaClassDef>
+    nestedTypes: Map<string, JavaClassDef>,
+    resolution: JavaTypeResolution = {
+        definitions: currentDefinitions,
+        standaloneTypes: pendingStandaloneTypes,
+        promotedUnionTypes: promotedNestedUnionTypes,
+    }
 ): JavaTypeResult {
     const imports = new Set<string>();
 
@@ -606,16 +666,27 @@ function schemaTypeToJava(
         }
 
         const name = schema.$ref.replace(/^#\/definitions\//, "");
-        const resolved = currentDefinitions[name];
+        const resolved = resolution.definitions[name];
         if (resolved) {
+            if (
+                resolution.promotedUnionTypes.has(name)
+                && resolved.anyOf
+                && Array.isArray(resolved.anyOf)
+            ) {
+                const variants = resolveAnyOfVariants(resolved.anyOf as JSONSchema7[], resolution.definitions);
+                if (variants.length > 1 && findDiscriminator(variants)) {
+                    resolution.standaloneTypes.set(name, resolved);
+                    return { javaType: name, imports };
+                }
+            }
             // Enum or object types → register for standalone generation, return ref name
             if ((resolved.type === "string" && resolved.enum) ||
                 (resolved.type === "object" && resolved.properties)) {
-                pendingStandaloneTypes.set(name, resolved);
+                resolution.standaloneTypes.set(name, resolved);
                 return { javaType: name, imports };
             }
             // Other types (primitives, arrays, maps, anyOf unions) → resolve and recurse
-            return schemaTypeToJava(resolved, required, context, propName, nestedTypes);
+            return schemaTypeToJava(resolved, required, context, propName, nestedTypes, resolution);
         }
         // Unresolved $ref — return name as-is
         console.warn(`[codegen] Unresolved $ref: ${schema.$ref}`);
@@ -626,7 +697,8 @@ function schemaTypeToJava(
         const hasNull = schema.anyOf.some((s) => typeof s === "object" && (s as JSONSchema7).type === "null");
         const nonNull = schema.anyOf.filter((s) => typeof s === "object" && (s as JSONSchema7).type !== "null");
         if (nonNull.length === 1) {
-            const result = schemaTypeToJava(nonNull[0] as JSONSchema7, required && !hasNull, context, propName, nestedTypes);
+            const result = schemaTypeToJava(nonNull[0] as JSONSchema7, required && !hasNull,
+                context, propName, nestedTypes, resolution);
             return result;
         }
         // Multi-branch anyOf: fall through to Object, matching the C# generator's
@@ -662,7 +734,8 @@ function schemaTypeToJava(
         const nonNullTypes = schema.type.filter((t) => t !== "null");
         if (nonNullTypes.length === 1) {
             const baseSchema = { ...schema, type: nonNullTypes[0] };
-            return schemaTypeToJava(baseSchema as JSONSchema7, required, context, propName, nestedTypes);
+            return schemaTypeToJava(baseSchema as JSONSchema7, required, context, propName,
+                nestedTypes, resolution);
         }
     }
 
@@ -684,7 +757,8 @@ function schemaTypeToJava(
         const items = schema.items as JSONSchema7 | undefined;
         if (items) {
             // Always pass required=false so primitives are boxed (List<Long>, not List<long>)
-            const itemResult = schemaTypeToJava(items, false, context, propName + "Item", nestedTypes);
+            const itemResult = schemaTypeToJava(items, false, context, propName + "Item",
+                nestedTypes, resolution);
             imports.add("java.util.List");
             for (const imp of itemResult.imports) imports.add(imp);
             return { javaType: `List<${itemResult.javaType}>`, imports };
@@ -712,7 +786,8 @@ function schemaTypeToJava(
                 ? schema.additionalProperties as JSONSchema7
                 : { type: "object" } as JSONSchema7;
             // Always pass required=false so primitives are boxed (Map<String, Long>, not Map<String, long>)
-            const valueResult = schemaTypeToJava(valueSchema, false, context, propName + "Value", nestedTypes);
+            const valueResult = schemaTypeToJava(valueSchema, false, context,
+                propName + "Value", nestedTypes, resolution);
             imports.add("java.util.Map");
             for (const imp of valueResult.imports) imports.add(imp);
             return { javaType: `Map<String, ${valueResult.javaType}>`, imports };
@@ -1391,6 +1466,7 @@ async function generateRpcTypes(schemaPath: string): Promise<void> {
     // Set module-level definitions for $ref resolution
     currentDefinitions = (schema.definitions ?? {}) as Record<string, JSONSchema7>;
     pendingStandaloneTypes.clear();
+    promotedNestedUnionTypes.clear();
     crossSchemaDefinitions.clear();
 
     // Load cross-schema definitions (session-events) so that cross-schema $ref values
@@ -1414,6 +1490,14 @@ async function generateRpcTypes(schemaPath: string): Promise<void> {
     if (schema.session) sections.push(["session", schema.session]);
     if (schema.clientSession) sections.push(["clientSession", schema.clientSession]);
     if (schema.clientGlobal) sections.push(["clientGlobal", schema.clientGlobal]);
+
+    for (const [, sectionNode] of sections) {
+        for (const [, method] of collectRpcMethods(sectionNode)) {
+            for (const typeName of collectNestedDiscriminatedUnionTypeNames(method.result, currentDefinitions)) {
+                promotedNestedUnionTypes.add(typeName);
+            }
+        }
+    }
 
     const generatedClasses = new Map<string, boolean>();
     const allFiles: string[] = [];
@@ -2392,7 +2476,9 @@ async function main(): Promise<void> {
     console.log("\n✅ Java code generation complete!");
 }
 
-main().catch((err) => {
-    console.error("❌ Code generation failed:", err);
-    process.exit(1);
-});
+if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {
+    main().catch((err) => {
+        console.error("❌ Code generation failed:", err);
+        process.exit(1);
+    });
+}

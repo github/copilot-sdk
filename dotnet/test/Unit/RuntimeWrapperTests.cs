@@ -122,7 +122,9 @@ public sealed class RuntimeWrapperTests
     {
         var os = OperatingSystem.IsWindows() ? "win"
             : OperatingSystem.IsMacOS() ? "osx"
-            : "linux";
+            : IsMusl()
+                ? "linux-musl"
+                : "linux";
         var architecture = System.Runtime.InteropServices.RuntimeInformation.OSArchitecture switch
         {
             System.Runtime.InteropServices.Architecture.X64 => "x64",
@@ -130,5 +132,16 @@ public sealed class RuntimeWrapperTests
             _ => throw new PlatformNotSupportedException(),
         };
         return $"{os}-{architecture}";
+    }
+
+    private static bool IsMusl()
+    {
+#if NETFRAMEWORK
+        return false;
+#else
+        return System.Runtime.InteropServices.RuntimeInformation.RuntimeIdentifier.StartsWith(
+            "linux-musl-",
+            StringComparison.Ordinal);
+#endif
     }
 }

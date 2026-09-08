@@ -553,6 +553,7 @@ public final class CopilotClient implements AutoCloseable {
             JsonRpcClient connectedRpc = rpc;
             Connection connection = new Connection(connectedRpc, process, new ServerRpc(connectedRpc::invoke),
                     inProcessTransport == null ? null : inProcessTransport.host());
+            connectedRpc.setCloseHandler(() -> sessions.values().forEach(CopilotSession::cancelPendingExternalTools));
 
             // Register handlers for server-to-client calls
             RpcHandlerDispatcher dispatcher = new RpcHandlerDispatcher(sessions, lifecycleManager::dispatch, executor,
@@ -746,7 +747,9 @@ public final class CopilotClient implements AutoCloseable {
      */
     public CompletableFuture<Void> forceStop() {
         disposed = true;
+        var activeSessions = new ArrayList<>(sessions.values());
         sessions.clear();
+        activeSessions.forEach(CopilotSession::cancelPendingExternalTools);
         gitHubTokenProviders.clear();
         // Dispatch the blocking shutdownOwnedExecutor() on a dedicated thread:
         // cleanupConnection() is chained off async work running on the owned
@@ -1018,6 +1021,7 @@ public final class CopilotClient implements AutoCloseable {
                         CopilotSession session = preRegisteredSessionHolder[0] != null
                                 ? preRegisteredSessionHolder[0]
                                 : initializeSession.apply(returnedId);
+                        preRegisteredSessionHolder[0] = session;
                         if (tokenRegistration != null) {
                             session.setGitHubTokenProviderRegistration(tokenRegistration);
                         }
@@ -1049,6 +1053,9 @@ public final class CopilotClient implements AutoCloseable {
                             return session;
                         });
                     }).exceptionally(ex -> {
+                        if (preRegisteredSessionHolder[0] != null) {
+                            preRegisteredSessionHolder[0].cancelPendingExternalTools();
+                        }
                         if (registeredIdHolder[0] != null) {
                             sessions.remove(registeredIdHolder[0]);
                         }
@@ -1229,6 +1236,7 @@ public final class CopilotClient implements AutoCloseable {
                                     return session;
                                 });
                     }).exceptionally(ex -> {
+                        session.cancelPendingExternalTools();
                         sessions.remove(sessionId);
                         // Also remove the re-keyed entry if the server returned a different ID
                         String activeId = session.getSessionId();

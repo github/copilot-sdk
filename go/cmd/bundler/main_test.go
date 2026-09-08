@@ -4,9 +4,13 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"crypto/sha256"
+	"fmt"
 	"go/parser"
 	"go/token"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -31,8 +35,8 @@ func TestCreateRuntimeAssetsArchiveRetainsUnknownAssetsAndFiltersCLIContent(t *t
 	})
 
 	if err := createRuntimeAssetsArchive(source, output, platformInfo{
-		npmPlatform: "linux-x64",
-		binaryName:  "copilot",
+		runtimePlatform: "linux-x64",
+		binaryName:      "copilot",
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -51,6 +55,93 @@ func TestCreateRuntimeAssetsArchiveRetainsUnknownAssetsAndFiltersCLIContent(t *t
 		if _, ok := files[excluded]; ok {
 			t.Fatalf("excluded asset %q was retained", excluded)
 		}
+	}
+}
+
+func TestDownloadCLIBinaryUsesVerifiedReleasePackage(t *testing.T) {
+	dir := t.TempDir()
+	archivePath := filepath.Join(dir, "source.tgz")
+	writeTarGz(t, archivePath, map[string]string{
+		"package/prebuilds/linux-x64/copilot-runtime": "runtime wrapper",
+	})
+	archive, err := os.ReadFile(archivePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	checksum := fmt.Sprintf("%x", sha256.Sum256(archive))
+	version := "1.2.3"
+	assetName := releaseAssetName(version, "linux-x64")
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case "/v1.2.3/SHA256SUMS.txt":
+			fmt.Fprintf(writer, "%s  %s\n", checksum, assetName)
+		case "/v1.2.3/" + assetName:
+			writer.Write(archive)
+		default:
+			http.NotFound(writer, request)
+		}
+	}))
+	defer server.Close()
+	t.Setenv(cliDownloadBaseURLEnvironment, server.URL)
+	releaseChecksumCache = map[string]map[string]string{}
+
+	binaryPath, downloadedArchive, err := downloadCLIBinary(
+		"linux-x64",
+		"copilot",
+		version,
+		t.TempDir(),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := os.ReadFile(binaryPath); err != nil || string(got) != "runtime wrapper" {
+		t.Fatalf("downloaded CLI = %q, %v", got, err)
+	}
+	if filepath.Base(downloadedArchive) != assetName {
+		t.Fatalf("downloaded archive = %q, want basename %q", downloadedArchive, assetName)
+	}
+}
+
+func TestDownloadCLIBinaryRejectsChecksumMismatch(t *testing.T) {
+	dir := t.TempDir()
+	archivePath := filepath.Join(dir, "source.tgz")
+	writeTarGz(t, archivePath, map[string]string{
+		"package/prebuilds/linux-x64/copilot-runtime": "runtime wrapper",
+	})
+	archive, err := os.ReadFile(archivePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	version := "1.2.3"
+	assetName := releaseAssetName(version, "linux-x64")
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case "/v1.2.3/SHA256SUMS.txt":
+			fmt.Fprintf(writer, "%s  %s\n", strings.Repeat("0", 64), assetName)
+		case "/v1.2.3/" + assetName:
+			_, _ = writer.Write(archive)
+		default:
+			http.NotFound(writer, request)
+		}
+	}))
+	defer server.Close()
+	t.Setenv(cliDownloadBaseURLEnvironment, server.URL)
+	releaseChecksumCache = map[string]map[string]string{}
+
+	_, _, err = downloadCLIBinary("linux-x64", "copilot", version, t.TempDir())
+	if err == nil || !strings.Contains(err.Error(), "checksum mismatch") {
+		t.Fatalf("downloadCLIBinary() error = %v, want checksum mismatch", err)
+	}
+}
+
+func TestParseReleaseChecksums(t *testing.T) {
+	hash := strings.Repeat("a", 64)
+	checksums := parseReleaseChecksums(
+		"invalid\n" +
+			strings.ToUpper(hash) + " *github-copilot-1.2.3-linux-x64.tgz\n",
+	)
+	if got := checksums["github-copilot-1.2.3-linux-x64.tgz"]; got != hash {
+		t.Fatalf("checksum = %q, want %q", got, hash)
 	}
 }
 

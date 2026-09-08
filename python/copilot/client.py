@@ -2192,7 +2192,10 @@ class CopilotClient:
         """
         # Clear sessions immediately without trying to destroy them
         with self._sessions_lock:
+            sessions = list(self._sessions.values())
             self._sessions.clear()
+        for session in sessions:
+            session._mark_disconnected()
         with self._github_token_providers_lock:
             self._github_token_providers.clear()
 
@@ -4860,8 +4863,22 @@ class CopilotClient:
 
     def _handle_connection_close(self) -> None:
         self._state = "disconnected"
+        with self._sessions_lock:
+            sessions = list(self._sessions.values())
         with self._github_token_providers_lock:
             self._github_token_providers.clear()
+        client = self._client
+        loop = client._loop if client is not None else None
+        if loop is not None and not loop.is_closed():
+
+            def cancel_pending_external_tools() -> None:
+                for session in sessions:
+                    session._cancel_pending_external_tools()
+
+            try:
+                loop.call_soon_threadsafe(cancel_pending_external_tools)
+            except RuntimeError:
+                logger.debug("Event loop closed while handling connection loss")
 
     def _assign_github_token_provider(self, registration_id: str | None, session_id: str) -> None:
         if registration_id is None:

@@ -38,6 +38,8 @@ ASSETS=(
   "copilot-darwin-x64.tar.gz"
   "copilot-linux-arm64.tar.gz"
   "copilot-linux-x64.tar.gz"
+  "copilot-linuxmusl-arm64.tar.gz"
+  "copilot-linuxmusl-x64.tar.gz"
   "copilot-win32-arm64.zip"
   "copilot-win32-x64.zip"
 )

@@ -17,7 +17,7 @@ import {
 import { approveAll, RuntimeConnection } from "../../src/index.js";
 import { getSdkProtocolVersion } from "../../src/sdkProtocolVersion.js";
 import { createSdkTestContext, getLegacyCliPathForTests } from "./harness/sdkTestContext.js";
-import { retry } from "./harness/sdkTestHelper.js";
+import { retry, stopChildProcess } from "./harness/sdkTestHelper.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const FIXTURE = join(__dirname, "fixtures", "env-access-extension.mjs");
@@ -120,16 +120,12 @@ async function runExtensionAgainstStubHost(options: {
         };
     } finally {
         connection.dispose();
-        child.kill();
-        // Windows keeps the directory locked until the child is gone.
-        await new Promise<void>((resolveExit) => {
-            if (child.exitCode !== null || child.signalCode !== null) {
-                resolveExit();
-                return;
-            }
-            child.once("exit", () => resolveExit());
-        });
-        await rm(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
+        try {
+            await stopChildProcess(child);
+        } finally {
+            // Windows keeps the directory locked until the child is gone.
+            await rm(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
+        }
     }
 }
 

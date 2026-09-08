@@ -541,6 +541,67 @@ func TestClient_ForceStopAndExternalStopDoNotRequestRuntimeShutdown(t *testing.T
 	externalServer.Stop()
 }
 
+func TestClient_ForceStopCancelsPendingExternalTools(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	session := &Session{
+		pendingExternalTools: map[string]*pendingExternalTool{
+			"request-1": {ctx: ctx, cancel: cancel},
+		},
+	}
+
+	client := &Client{sessions: map[string]*Session{"session-1": session}}
+
+	client.ForceStop()
+
+	if len(client.sessions) != 0 {
+		t.Fatal("ForceStop did not clear sessions")
+	}
+	select {
+	case <-ctx.Done():
+	case <-time.After(time.Second):
+		t.Fatal("ForceStop did not cancel the pending external tool")
+	}
+}
+
+func TestClient_ConnectionCloseCancelsPendingExternalTools(t *testing.T) {
+	rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
+	server.SetRequestHandler("session.detach", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		return []byte(`{"success":true}`), nil
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	session := newSession("session-1", rpcClient, "", false)
+	session.pendingExternalTools = map[string]*pendingExternalTool{
+		"request-1": {ctx: ctx, cancel: cancel},
+	}
+	client := &Client{
+		client:           rpcClient,
+		RPC:              rpc.NewServerRPC(rpcClient),
+		sessions:         map[string]*Session{"session-1": session},
+		isExternalServer: true,
+	}
+
+	client.handleConnectionClose()
+
+	if len(client.sessions) != 1 {
+		t.Fatal("connection close removed sessions before Stop could clean them up")
+	}
+	select {
+	case <-ctx.Done():
+	case <-time.After(time.Second):
+		t.Fatal("connection close did not cancel the pending external tool")
+	}
+
+	if err := client.Stop(); err != nil {
+		t.Fatalf("Stop failed after connection close: %v", err)
+	}
+	session.toolHandlersM.RLock()
+	defer session.toolHandlersM.RUnlock()
+	if session.toolHandlers != nil {
+		t.Fatal("Stop did not clean up the retained session")
+	}
+	server.Stop()
+}
+
 func newRuntimeShutdownRpcPair(t *testing.T) (*jsonrpc2.Client, *jsonrpc2.Client, chan struct{}) {
 	t.Helper()
 

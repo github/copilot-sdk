@@ -101,6 +101,9 @@ tool name is `<server-key>-<tool-name>`. For `AvailableTools` and
 
 The SDK supports bundling, using Go's `embed` package, the Copilot CLI binary within your application's distribution.
 This allows you to bundle a specific CLI version and avoid external dependencies on the user's system.
+The bundler downloads the matching `github-copilot-<version>-<platform>.tgz`
+asset from the `github/copilot-cli` release and verifies it against that
+release's `SHA256SUMS.txt`.
 
 Follow these steps to embed the CLI:
 
@@ -274,6 +277,30 @@ Initial acquisition runs during session creation or resume. Cancellation, provid
 - `Disconnect() error` - Disconnect the session (releases in-memory resources, preserves disk state)
 - `UI() *SessionUI` - Interactive UI API for elicitation dialogs
 - `Capabilities() SessionCapabilities` - Host capabilities (e.g. elicitation support)
+
+#### Message source
+
+Set `MessageOptions.Source` to `copilot.MessageSourceAgent(id)` for messages from
+an identified agent. Use `copilot.MessageSourceSystem` for application-internal
+context, not as a substitute for agent provenance. Use `copilot.MessageSourceUser`
+for explicit user provenance, or leave it empty to omit `source` from the request
+and preserve the runtime's default behavior.
+
+```go
+_, err := session.Send(ctx, copilot.MessageOptions{
+    Prompt: "Review complete. The build passed.",
+    Source: copilot.MessageSourceAgent("reviewer"),
+    Mode:   "enqueue",
+})
+```
+
+`MessageSourceAgent` returns a `MessageSource` containing `agent-` followed by the
+unchanged ID, so `"reviewer"` becomes `"agent-reviewer"`. It does not trim
+whitespace, change case, or remove an existing prefix.
+
+Source is independent of delivery `Mode` and `AgentMode`; it does not replace the
+session's `SystemMessage` configuration. `SendAndWait` accepts the same options
+and still waits for session idle, returning `nil` if no assistant message arrives.
 
 ### Helper Functions
 

@@ -74,6 +74,7 @@ from .generated.session_events import (
     CapabilitiesChangedData,
     CommandExecuteData,
     ElicitationRequestedData,
+    ExternalToolCompletedData,
     ExternalToolRequestedData,
     McpOauthRequiredData,
     PermissionRequest,
@@ -274,6 +275,24 @@ class BlobAttachment(TypedDict):
 
 
 Attachment = FileAttachment | DirectoryAttachment | SelectionAttachment | BlobAttachment
+
+
+@dataclass(frozen=True)
+class AgentMessageSource:
+    """Identify the agent that produced a message.
+
+    The agent ID is opaque and is sent unchanged after the ``agent-`` prefix.
+    """
+
+    agent_id: str
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.agent_id, str):
+            raise TypeError("agent_id must be a string")
+
+
+MessageSource = Literal["user", "system"] | AgentMessageSource
+"""Message provenance, independent of delivery mode."""
 
 # ============================================================================
 # System Message Configuration
@@ -1607,6 +1626,7 @@ class CopilotSession:
         self._event_handlers_lock = threading.Lock()
         self._tool_handlers: dict[str, ToolHandler] = {}
         self._tool_handlers_lock = threading.Lock()
+        self._pending_external_tools: dict[str, asyncio.Task[None]] = {}
         self._permission_handler: _PermissionHandlerFn | None = None
         self._permission_handler_lock = threading.Lock()
         self._mcp_auth_handler: McpAuthHandler | None = None
@@ -1647,6 +1667,19 @@ class CopilotSession:
         self._on_disconnect = None
         if callback is not None:
             callback()
+
+    def _cancel_pending_external_tools(self) -> None:
+        pending_external_tools = list(self._pending_external_tools.values())
+        self._pending_external_tools.clear()
+        current_task = asyncio.current_task()
+        for task in pending_external_tools:
+            if task is not current_task:
+                task.cancel()
+
+    def _mark_disconnected(self) -> None:
+        self._destroyed = True
+        self._cancel_pending_external_tools()
+        self._run_disconnect_callback()
 
     @property
     def rpc(self) -> SessionRpc:
@@ -1696,6 +1729,7 @@ class CopilotSession:
         prompt: str,
         *,
         attachments: list[Attachment] | None = None,
+        source: MessageSource | None = None,
         mode: Literal["enqueue", "immediate"] | None = None,
         agent_mode: Literal["interactive", "plan", "autopilot", "shell"] | None = None,
         request_headers: dict[str, str] | None = None,
@@ -1711,6 +1745,9 @@ class CopilotSession:
         Args:
             prompt: The message text to send.
             attachments: Optional file, directory, or selection attachments.
+            source: Optional message provenance (``"user"``, ``"system"``, or
+                :class:`AgentMessageSource` for an identified agent).
+                Omitted when None, preserving the runtime's default for user messages.
             mode: Message delivery mode (``"enqueue"`` or ``"immediate"``).
             agent_mode: The UI mode the agent was in when this message was sent
                 (for example ``"plan"`` or ``"autopilot"``). Defaults to the
@@ -1737,6 +1774,10 @@ class CopilotSession:
         }
         if attachments is not None:
             params["attachments"] = attachments
+        if source is not None:
+            params["source"] = (
+                "agent-" + source.agent_id if isinstance(source, AgentMessageSource) else source
+            )
         if mode is not None:
             params["mode"] = mode
         if agent_mode is not None:
@@ -1765,6 +1806,7 @@ class CopilotSession:
         prompt: str,
         *,
         attachments: list[Attachment] | None = None,
+        source: MessageSource | None = None,
         mode: Literal["enqueue", "immediate"] | None = None,
         agent_mode: Literal["interactive", "plan", "autopilot", "shell"] | None = None,
         request_headers: dict[str, str] | None = None,
@@ -1783,6 +1825,9 @@ class CopilotSession:
         Args:
             prompt: The message text to send.
             attachments: Optional file, directory, or selection attachments.
+            source: Optional message provenance (``"user"``, ``"system"``, or
+                :class:`AgentMessageSource` for an identified agent),
+                independent of delivery mode. Omitted when None.
             mode: Message delivery mode (``"enqueue"`` or ``"immediate"``).
             agent_mode: The UI mode the agent was in when this message was sent
                 (for example ``"plan"`` or ``"autopilot"``). Defaults to the
@@ -1846,6 +1891,7 @@ class CopilotSession:
             await self.send(
                 prompt,
                 attachments=attachments,
+                source=source,
                 mode=mode,
                 agent_mode=agent_mode,
                 request_headers=request_headers,
@@ -1966,7 +2012,7 @@ class CopilotSession:
             case ExternalToolRequestedData() as data:
                 request_id = data.request_id
                 tool_name = data.tool_name
-                if not request_id or not tool_name:
+                if self._destroyed or not request_id or not tool_name:
                     return
 
                 handler = self._get_tool_handler(tool_name)
@@ -1977,11 +2023,26 @@ class CopilotSession:
                 arguments = data.arguments
                 tp = getattr(data, "traceparent", None)
                 ts = getattr(data, "tracestate", None)
-                asyncio.ensure_future(
+                task = asyncio.create_task(
                     self._execute_tool_and_respond(
                         request_id, tool_name, tool_call_id, arguments, handler, tp, ts
                     )
                 )
+                if request_id in self._pending_external_tools:
+                    task.cancel()
+                    return
+                self._pending_external_tools[request_id] = task
+                task.add_done_callback(
+                    lambda completed, rid=request_id: self._remove_pending_external_tool(
+                        rid, completed
+                    )
+                )
+
+            case ExternalToolCompletedData() as data:
+                if data.request_id:
+                    task = self._pending_external_tools.pop(data.request_id, None)
+                    if task is not None:
+                        task.cancel()
 
             case PermissionRequestedData() as data:
                 if logger.isEnabledFor(logging.DEBUG):
@@ -2189,6 +2250,8 @@ class CopilotSession:
             # standard "Failed to execute..." message. Deliberate user-returned
             # failures send the full structured result to preserve metadata.
             if tool_result._from_exception:
+                if not self._claim_external_tool(request_id):
+                    return
                 rpc_start = time.perf_counter()
                 await self.rpc.tools.handle_pending_tool_call(
                     HandlePendingToolCallRequest(
@@ -2207,6 +2270,8 @@ class CopilotSession:
                     tool_name=tool_name,
                 )
             else:
+                if not self._claim_external_tool(request_id):
+                    return
                 rpc_start = time.perf_counter()
                 await self.rpc.tools.handle_pending_tool_call(
                     HandlePendingToolCallRequest(
@@ -2225,6 +2290,8 @@ class CopilotSession:
                     tool_name=tool_name,
                 )
         except Exception as exc:
+            if not self._claim_external_tool(request_id):
+                return
             try:
                 await self.rpc.tools.handle_pending_tool_call(
                     HandlePendingToolCallRequest(
@@ -2234,6 +2301,17 @@ class CopilotSession:
                 )
             except (JsonRpcError, ProcessExitedError, OSError):
                 pass  # Connection lost or RPC error — nothing we can do
+
+    def _remove_pending_external_tool(self, request_id: str, completed: asyncio.Task[None]) -> None:
+        if self._pending_external_tools.get(request_id) is completed:
+            self._pending_external_tools.pop(request_id, None)
+
+    def _claim_external_tool(self, request_id: str) -> bool:
+        current = asyncio.current_task()
+        if self._destroyed or self._pending_external_tools.get(request_id) is not current:
+            return False
+        self._pending_external_tools.pop(request_id, None)
+        return True
 
     async def _execute_permission_and_respond(
         self,
@@ -3020,6 +3098,7 @@ class CopilotSession:
                 detail = response.get("error") or "unknown error"
                 raise RuntimeError(f"Failed to detach session {self.session_id}: {detail}")
 
+            self._cancel_pending_external_tools()
             self._run_disconnect_callback()
             with self._event_handlers_lock:
                 self._destroyed = True

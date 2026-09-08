@@ -45,6 +45,7 @@ public class MessageOptions {
     private String prompt;
     private List<MessageAttachment> attachments;
     private String mode;
+    private MessageSource source;
     private AgentMode agentMode;
     private Map<String, String> requestHeaders;
     private String displayPrompt;
@@ -126,6 +127,30 @@ public class MessageOptions {
      */
     public String getMode() {
         return mode;
+    }
+
+    /**
+     * Gets the message source.
+     *
+     * @return the source, or {@code null} to use the runtime's default
+     */
+    public MessageSource getSource() {
+        return source;
+    }
+
+    /**
+     * Sets the origin of this message.
+     * <p>
+     * When unset, the source is omitted from the request and the runtime treats the
+     * message as user input. This is independent of the delivery mode.
+     *
+     * @param source
+     *            the source, or {@code null} to omit it
+     * @return this options instance for method chaining
+     */
+    public MessageOptions setSource(MessageSource source) {
+        this.source = source;
+        return this;
     }
 
     /**
@@ -217,6 +242,7 @@ public class MessageOptions {
         copy.prompt = this.prompt;
         copy.attachments = this.attachments != null ? new ArrayList<>(this.attachments) : null;
         copy.mode = this.mode;
+        copy.source = this.source;
         copy.agentMode = this.agentMode;
         copy.requestHeaders = this.requestHeaders != null ? new HashMap<>(this.requestHeaders) : null;
         copy.displayPrompt = this.displayPrompt;

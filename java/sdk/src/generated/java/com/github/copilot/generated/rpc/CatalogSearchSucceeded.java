@@ -35,7 +35,7 @@ public final class CatalogSearchSucceeded extends CatalogSearchResult {
 
     /** Matching candidates, never more than the requested limit. All text is inert untrusted data. */
     @JsonProperty("candidates")
-    private List<Object> candidates;
+    private List<CatalogCandidate> candidates;
 
     /** Whether further matches existed beyond the requested limit. */
     @JsonProperty("truncated")
@@ -48,8 +48,8 @@ public final class CatalogSearchSucceeded extends CatalogSearchResult {
     public String getSearchId() { return searchId; }
     public void setSearchId(String searchId) { this.searchId = searchId; }
 
-    public List<Object> getCandidates() { return candidates; }
-    public void setCandidates(List<Object> candidates) { this.candidates = candidates; }
+    public List<CatalogCandidate> getCandidates() { return candidates; }
+    public void setCandidates(List<CatalogCandidate> candidates) { this.candidates = candidates; }
 
     public Boolean getTruncated() { return truncated; }
     public void setTruncated(Boolean truncated) { this.truncated = truncated; }
