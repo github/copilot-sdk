@@ -14,9 +14,8 @@ run ID.
 The runtime workflow dispatches `.github/workflows/runtime-sdk.yml`. This
 runtime-driven Node entry is separate from `publish.yml`, which remains the
 manual stable and prerelease entry for all SDK languages. `runtime-sdk.yml`
-invokes `runtime-backed-node-release.yml` for runtime acquisition,
-cross-platform tests, packaging, manifest retention, and optional internal
-publication. It alone contains public unstable npm publication.
+owns runtime acquisition, cross-platform tests, packaging, manifest retention,
+optional internal publication, and public unstable npm publication.
 
 The runtime dispatch includes these inputs:
 
