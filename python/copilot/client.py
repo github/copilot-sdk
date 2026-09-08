@@ -1753,6 +1753,7 @@ class CopilotClient:
         self._cli_process: subprocess.Popen | None = None
         self._client: JsonRpcClient | None = None
         self._state: _ConnectionState = "disconnected"
+        self._start_lock = asyncio.Lock()
         self._sessions: dict[str, CopilotSession] = {}
         self._sessions_lock = threading.Lock()
         self._github_token_providers: dict[str, _GitHubTokenProviderRegistration] = {}
@@ -1938,6 +1939,13 @@ class CopilotClient:
             >>> await client.start()
             >>> # Now ready to create sessions
         """
+        # Concurrent session creation can auto-start the same client. Keep the
+        # state check and all transport initialization under one lock so only
+        # one caller can spawn a runtime and install its connection at a time.
+        async with self._start_lock:
+            await self._start()
+
+    async def _start(self) -> None:
         if self._state == "connected":
             return
 
