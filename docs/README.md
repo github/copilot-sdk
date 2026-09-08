@@ -67,17 +67,17 @@ Detailed API reference for each session hook.
 * [Session Lifecycle](./hooks/session-lifecycle.md): session start and end
 * [Error Handling](./hooks/error-handling.md): custom error handling
 
-### [Troubleshooting](./troubleshooting/debugging.md)
+### [Troubleshooting](./troubleshooting/README.md)
 
 * [Debugging Guide](./troubleshooting/debugging.md): common issues and solutions
 * [MCP Debugging](./troubleshooting/mcp-debugging.md): MCP-specific troubleshooting
 * [Compatibility](./troubleshooting/compatibility.md): SDK vs CLI feature matrix
 
-### [Observability](./observability/opentelemetry.md)
+### [Observability](./observability/README.md)
 
 * [OpenTelemetry Instrumentation](./observability/opentelemetry.md): built-in TelemetryConfig and trace context propagation
 
-### [Integrations](./integrations/microsoft-agent-framework.md)
+### [Integrations](./integrations/README.md)
 
 Guides for using the SDK with other platforms and frameworks.
 
