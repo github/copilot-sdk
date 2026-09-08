@@ -119,8 +119,11 @@ describe("runtime-backed Node release implementation", () => {
         expect(runtimeSdk).not.toContain('"$runtime_path" --version');
         expect(runtimeSdk).not.toContain('"$RUNTIME" --version');
         expect(runtimeSdk).not.toContain("resume_run_id");
-        expect(runtimeSdk).toContain("const parsed = semver.parse(process.argv[1])");
-        expect(runtimeSdk).toContain("parsed.major}.${parsed.minor}.${parsed.patch");
+        expect(runtimeSdk).toContain("SDK_CHANNEL: ${{ inputs.channel }}");
+        expect(runtimeSdk).not.toContain("scripts/get-version.js current");
+        expect(runtimeSdk.indexOf("WORKFLOW_CREATED_AT=")).toBeLessThan(
+            runtimeSdk.indexOf("scripts/unstable-version.ts")
+        );
         expect(runtimeSdk).not.toContain('BASE="${PUBLIC_LATEST%%-*}"');
         expect(runtimeSdk.indexOf("npm run verify:release-packages")).toBeLessThan(
             runtimeSdk.indexOf("publish-manifest")
