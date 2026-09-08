@@ -5319,14 +5319,45 @@ pub fn ensure_attachment_display_names(attachments: &mut [Attachment]) {
 ///
 /// Source is independent of delivery mode. Leaving [`MessageOptions::source`]
 /// unset omits the field and preserves the runtime's default for user messages.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum MessageSource {
     /// A message from a human user.
     User,
     /// An automated message from the integrating application.
     System,
+    /// A message from the agent with this opaque sender ID.
+    Agent(String),
+}
+
+impl std::fmt::Display for MessageSource {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::User => f.write_str("user"),
+            Self::System => f.write_str("system"),
+            Self::Agent(id) => write!(f, "agent-{id}"),
+        }
+    }
+}
+
+impl Serialize for MessageSource {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.collect_str(self)
+    }
+}
+
+impl<'de> Deserialize<'de> for MessageSource {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let value = String::deserialize(deserializer)?;
+        match value.as_str() {
+            "user" => Ok(Self::User),
+            "system" => Ok(Self::System),
+            value => value
+                .strip_prefix("agent-")
+                .map(|id| Self::Agent(id.to_owned()))
+                .ok_or_else(|| serde::de::Error::custom("expected user, system, or agent-<id>")),
+        }
+    }
 }
 
 /// Message delivery mode for [`MessageOptions::mode`].

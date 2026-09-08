@@ -4,6 +4,8 @@
 
 package com.github.copilot.rpc;
 
+import java.util.Objects;
+
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
 
@@ -11,23 +13,37 @@ import com.fasterxml.jackson.annotation.JsonValue;
  * The origin of a message sent to a Copilot session.
  * <p>
  * Set on {@link MessageOptions#setSource(MessageSource)} to distinguish user
- * input from programmatic context. This does not configure the session's system
- * prompt or change the message delivery mode.
+ * input, system context, and messages from identified agents. This does not
+ * configure the session's system prompt or change the message delivery mode.
  *
  * @see MessageOptions
  */
-public enum MessageSource {
+public final class MessageSource {
 
     /** Input originating from the user. */
-    USER("user"),
+    public static final MessageSource USER = new MessageSource("user");
 
-    /** Programmatic context or an automated message. */
-    SYSTEM("system");
+    /** Application-generated system context. */
+    public static final MessageSource SYSTEM = new MessageSource("system");
 
     private final String value;
 
-    MessageSource(String value) {
+    private MessageSource(String value) {
         this.value = value;
+    }
+
+    /**
+     * Identifies a message from an agent.
+     *
+     * @param id
+     *            the opaque agent identifier, preserved exactly after
+     *            {@code agent-}
+     * @return the agent message source
+     * @throws NullPointerException
+     *             if {@code id} is {@code null}
+     */
+    public static MessageSource agent(String id) {
+        return new MessageSource("agent-" + Objects.requireNonNull(id, "id"));
     }
 
     /**
@@ -54,11 +70,30 @@ public enum MessageSource {
         if (value == null) {
             return null;
         }
-        for (MessageSource source : values()) {
-            if (source.value.equals(value)) {
-                return source;
-            }
+        if (USER.value.equals(value)) {
+            return USER;
+        }
+        if (SYSTEM.value.equals(value)) {
+            return SYSTEM;
+        }
+        if (value.startsWith("agent-")) {
+            return new MessageSource(value);
         }
         throw new IllegalArgumentException("Unknown MessageSource value: " + value);
+    }
+
+    @Override
+    public String toString() {
+        return value;
+    }
+
+    @Override
+    public boolean equals(Object other) {
+        return other instanceof MessageSource source && value.equals(source.value);
+    }
+
+    @Override
+    public int hashCode() {
+        return value.hashCode();
     }
 }

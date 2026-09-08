@@ -280,17 +280,23 @@ Initial acquisition runs during session creation or resume. Cancellation, provid
 
 #### Message source
 
-Set `MessageOptions.Source` to `copilot.MessageSourceUser` or
-`copilot.MessageSourceSystem` to identify the message's origin. Leave it empty to
-omit `source` from the request and preserve the runtime's default behavior.
+Set `MessageOptions.Source` to `copilot.MessageSourceAgent(id)` for messages from
+an identified agent. Use `copilot.MessageSourceSystem` for application-internal
+context, not as a substitute for agent provenance. Use `copilot.MessageSourceUser`
+for explicit user provenance, or leave it empty to omit `source` from the request
+and preserve the runtime's default behavior.
 
 ```go
 _, err := session.Send(ctx, copilot.MessageOptions{
-    Prompt: "Background check completed. The build passed.",
-    Source: copilot.MessageSourceSystem,
+    Prompt: "Review complete. The build passed.",
+    Source: copilot.MessageSourceAgent("reviewer"),
     Mode:   "enqueue",
 })
 ```
+
+`MessageSourceAgent` returns a `MessageSource` containing `agent-` followed by the
+unchanged ID, so `"reviewer"` becomes `"agent-reviewer"`. It does not trim
+whitespace, change case, or remove an existing prefix.
 
 Source is independent of delivery `Mode` and `AgentMode`; it does not replace the
 session's `SystemMessage` configuration. `SendAndWait` accepts the same options

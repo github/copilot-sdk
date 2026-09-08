@@ -38,7 +38,7 @@ function sessionPair(traceContextProvider?: ConstructorParameters<typeof Copilot
     };
 }
 
-const sources: (MessageSource | undefined)[] = [undefined, "user", "system"];
+const sources: (MessageSource | undefined)[] = [undefined, "user", "system", "agent-sender-id"];
 const modes: MessageOptions["mode"][] = [undefined, "enqueue", "immediate"];
 
 it("omits source when sending a plain human prompt", async () => {
@@ -92,35 +92,40 @@ describe.each(sources)("message source %s", (source) => {
         await expect(session.send(options)).resolves.toBe("message-1");
     });
 
-    it("allows sendAndWait to finish on idle without assistant output", async () => {
-        const { session, server } = sessionPair();
-        server.onRequest("session.send", (params: unknown) => {
-            expect(params).toEqual({
-                sessionId: "session-1",
-                prompt: "context updated",
-                ...(source === undefined ? {} : { source }),
+    it.each(modes)(
+        "allows sendAndWait to finish without assistant output in mode %s",
+        async (mode) => {
+            const { session, server } = sessionPair();
+            server.onRequest("session.send", (params: unknown) => {
+                expect(params).toEqual({
+                    sessionId: "session-1",
+                    prompt: "context updated",
+                    ...(source === undefined ? {} : { source }),
+                    ...(mode === undefined ? {} : { mode }),
+                });
+                session._dispatchEvent({
+                    type: "session.idle",
+                    id: "idle-1",
+                    timestamp: new Date().toISOString(),
+                    parentId: null,
+                    ephemeral: true,
+                    data: {},
+                });
+                return { messageId: "message-1" };
             });
-            session._dispatchEvent({
-                type: "session.idle",
-                id: "idle-1",
-                timestamp: new Date().toISOString(),
-                parentId: null,
-                data: {},
-            });
-            return { messageId: "message-1" };
-        });
-        await expect(
-            session.sendAndWait({ prompt: "context updated", source }, 1000)
-        ).resolves.toBeUndefined();
-    });
+            await expect(
+                session.sendAndWait({ prompt: "context updated", source, mode }, 1000)
+            ).resolves.toBeUndefined();
+        }
+    );
 });
 
-describe("system message errors", () => {
+describe.each(["system", "agent-sender-id"] as const)("%s message errors", (source) => {
     it("propagates an RPC failure from sendAndWait", async () => {
         const { session, server } = sessionPair();
         server.onRequest("session.send", () => new ResponseError(-32603, "send failed"));
         await expect(
-            session.sendAndWait({ prompt: "context updated", source: "system" }, 1000)
+            session.sendAndWait({ prompt: "context updated", source }, 1000)
         ).rejects.toThrow("send failed");
     });
 
@@ -138,7 +143,7 @@ describe("system message errors", () => {
             return { messageId: "message-1" };
         });
         await expect(
-            session.sendAndWait({ prompt: "context updated", source: "system" }, 1000)
+            session.sendAndWait({ prompt: "context updated", source }, 1000)
         ).rejects.toThrow("agent failed");
     });
 });

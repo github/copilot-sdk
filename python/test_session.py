@@ -1,14 +1,15 @@
 """CopilotSession unit tests."""
 
 import asyncio
+from dataclasses import FrozenInstanceError
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, Mock
 from uuid import uuid4
 
 import pytest
 
-from copilot import MessageSource
-from copilot.session import CopilotSession
+from copilot import AgentMessageSource, MessageSource
+from copilot.session import Attachment, CopilotSession
 from copilot.session_events import (
     AssistantMessageData,
     ExternalToolCompletedData,
@@ -20,6 +21,31 @@ from copilot.session_events import (
     SessionMode,
 )
 from copilot.tools import Tool, ToolResult
+
+MESSAGE_SOURCE_CASES = [
+    pytest.param(None, None, id="omitted"),
+    pytest.param("user", "user", id="user"),
+    pytest.param("system", "system", id="system"),
+    pytest.param(AgentMessageSource("reviewer"), "agent-reviewer", id="agent"),
+    pytest.param(AgentMessageSource(""), "agent-", id="empty-agent-id"),
+    pytest.param(AgentMessageSource(" Agent/É "), "agent- Agent/É ", id="opaque-agent-id"),
+    pytest.param(
+        AgentMessageSource("agent-reviewer"), "agent-agent-reviewer", id="prefixed-agent-id"
+    ),
+]
+
+
+@pytest.mark.parametrize("agent_id", [None, 42, False, b"reviewer"])
+def test_agent_message_source_rejects_non_string_ids(agent_id):
+    with pytest.raises(TypeError, match="agent_id must be a string"):
+        AgentMessageSource(agent_id)
+
+
+def test_agent_message_source_is_frozen():
+    source = AgentMessageSource("reviewer")
+    with pytest.raises(FrozenInstanceError):
+        setattr(source, "agent_id", "other")
+    assert source.agent_id == "reviewer"
 
 
 def _event(data, event_type: SessionEventType) -> SessionEvent:
@@ -44,10 +70,10 @@ async def test_send_omits_source_for_plain_human_prompt(monkeypatch):
     )
 
 
-@pytest.mark.parametrize("source", [None, "user", "system"])
+@pytest.mark.parametrize(("source", "wire"), MESSAGE_SOURCE_CASES)
 @pytest.mark.parametrize("mode", [None, "enqueue", "immediate"])
 @pytest.mark.asyncio
-async def test_send_source_is_optional(source: MessageSource | None, mode, monkeypatch):
+async def test_send_source_is_optional(source: MessageSource | None, wire, mode, monkeypatch):
     monkeypatch.setattr("copilot.session.get_trace_context", lambda: {})
     client = Mock()
     client.request = AsyncMock(return_value={"messageId": "message-1"})
@@ -56,15 +82,15 @@ async def test_send_source_is_optional(source: MessageSource | None, mode, monke
     assert await session.send("hello", source=source, mode=mode) == "message-1"
     expected = {"sessionId": "session-1", "prompt": "hello"}
     if source is not None:
-        expected["source"] = source
+        expected["source"] = wire
     if mode is not None:
         expected["mode"] = mode
     client.request.assert_awaited_once_with("session.send", expected)
 
 
-@pytest.mark.parametrize("source", [None, "user", "system"])
+@pytest.mark.parametrize(("source", "wire"), MESSAGE_SOURCE_CASES)
 @pytest.mark.asyncio
-async def test_send_source_preserves_other_options(source: MessageSource | None, monkeypatch):
+async def test_send_source_preserves_other_options(source: MessageSource | None, wire, monkeypatch):
     trace = {
         "traceparent": "00-fedcba0987654321fedcba0987654321-abcdef1234567890-01",
         "tracestate": "vendor=source",
@@ -73,7 +99,7 @@ async def test_send_source_preserves_other_options(source: MessageSource | None,
     client = Mock()
     client.request = AsyncMock(return_value={"messageId": "message-1"})
     session = CopilotSession("session-1", client)
-    attachments = [{"type": "blob", "data": "aGk=", "mimeType": "text/plain"}]
+    attachments: list[Attachment] = [{"type": "blob", "data": "aGk=", "mimeType": "text/plain"}]
 
     await session.send(
         "context updated",
@@ -96,14 +122,15 @@ async def test_send_source_preserves_other_options(source: MessageSource | None,
         **trace,
     }
     if source is not None:
-        expected["source"] = source
+        expected["source"] = wire
     client.request.assert_awaited_once_with("session.send", expected)
 
 
-@pytest.mark.parametrize("source", [None, "user", "system"])
+@pytest.mark.parametrize(("source", "wire"), MESSAGE_SOURCE_CASES)
+@pytest.mark.parametrize("mode", [None, "enqueue", "immediate"])
 @pytest.mark.asyncio
 async def test_send_and_wait_source_allows_idle_without_assistant(
-    source: MessageSource | None, monkeypatch
+    source: MessageSource | None, wire, mode, monkeypatch
 ):
     monkeypatch.setattr("copilot.session.get_trace_context", lambda: {})
     client = Mock()
@@ -113,24 +140,80 @@ async def test_send_and_wait_source_allows_idle_without_assistant(
         assert method == "session.send"
         expected = {"sessionId": "session-1", "prompt": "context updated"}
         if source is not None:
-            expected["source"] = source
+            expected["source"] = wire
+        if mode is not None:
+            expected["mode"] = mode
         assert params == expected
         session._dispatch_event(_event(SessionIdleData(), SessionEventType.SESSION_IDLE))
         return {"messageId": "message-1"}
 
     client.request = AsyncMock(side_effect=respond)
-    assert await session.send_and_wait("context updated", source=source, timeout=1) is None
+    assert (
+        await session.send_and_wait("context updated", source=source, mode=mode, timeout=1) is None
+    )
 
 
+@pytest.mark.parametrize("mode", [None, "enqueue", "immediate"])
+@pytest.mark.asyncio
+async def test_send_and_wait_forwards_agent_source_and_other_options(mode, monkeypatch):
+    trace = {"traceparent": "00-fedcba0987654321fedcba0987654321-abcdef1234567890-01"}
+    monkeypatch.setattr("copilot.session.get_trace_context", lambda: trace)
+    client = Mock()
+    session = CopilotSession("session-1", client)
+    source = AgentMessageSource("reviewer")
+    attachments: list[Attachment] = [{"type": "blob", "data": "aGk=", "mimeType": "text/plain"}]
+    options = {
+        "source": source,
+        "mode": mode,
+        "agent_mode": "plan",
+        "attachments": attachments,
+        "display_prompt": "Review complete",
+        "request_headers": {"X-Tag": "review"},
+    }
+    assistant = _event(
+        AssistantMessageData(content="done", message_id="assistant-1"),
+        SessionEventType.ASSISTANT_MESSAGE,
+    )
+
+    async def respond(method, params):
+        expected = {
+            "sessionId": "session-1",
+            "prompt": "Review complete",
+            "source": "agent-reviewer",
+            "agentMode": "plan",
+            "attachments": attachments,
+            "displayPrompt": "Review complete",
+            "requestHeaders": {"X-Tag": "review"},
+            **trace,
+        }
+        if mode is not None:
+            expected["mode"] = mode
+        assert method == "session.send"
+        assert params == expected
+        session._dispatch_event(assistant)
+        session._dispatch_event(_event(SessionIdleData(), SessionEventType.SESSION_IDLE))
+        return {"messageId": "message-1"}
+
+    client.request = AsyncMock(side_effect=respond)
+    send = AsyncMock(wraps=session.send)
+    monkeypatch.setattr(session, "send", send)
+
+    assert await session.send_and_wait("Review complete", **options, timeout=1) is assistant
+    send.assert_awaited_once_with("Review complete", **options)
+    assert send.await_args is not None
+    assert send.await_args.kwargs["source"] is source
+
+
+@pytest.mark.parametrize(("source", "wire"), MESSAGE_SOURCE_CASES[2:])
 @pytest.mark.parametrize("rpc_error", [True, False])
 @pytest.mark.asyncio
-async def test_send_and_wait_system_source_preserves_errors(rpc_error):
+async def test_send_and_wait_source_preserves_errors(source, wire, rpc_error):
     client = Mock()
     session = CopilotSession("session-1", client)
 
     async def respond(method, params):
         assert method == "session.send"
-        assert params["source"] == "system"
+        assert params["source"] == wire
         if rpc_error:
             raise RuntimeError("send failed")
         session._dispatch_event(
@@ -143,7 +226,7 @@ async def test_send_and_wait_system_source_preserves_errors(rpc_error):
 
     client.request = AsyncMock(side_effect=respond)
     with pytest.raises(RuntimeError if rpc_error else Exception, match="send failed|agent failed"):
-        await session.send_and_wait("context updated", source="system", timeout=1)
+        await session.send_and_wait("context updated", source=source, timeout=1)
 
 
 @pytest.mark.asyncio

@@ -3320,7 +3320,7 @@ export interface ProviderModelConfig {
 /**
  * Message provenance, independent of delivery mode.
  */
-export type MessageSource = "user" | "system";
+export type MessageSource = "user" | "system" | `agent-${string}`;
 
 export interface MessageOptions {
     /**
@@ -3330,7 +3330,8 @@ export interface MessageOptions {
 
     /**
      * Optional message provenance. Omitted by default to preserve the runtime's
-     * default for user messages. Use "system" for automated application messages.
+     * default for user messages. Use "system" for application-generated context
+     * or `agent-${id}` for messages originating from an identified agent.
      */
     source?: MessageSource;
 

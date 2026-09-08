@@ -1496,9 +1496,7 @@ public sealed class ClientSessionLifetimeTests
     }
 
     [Theory]
-    [InlineData(null, null)]
-    [InlineData(MessageSource.User, "user")]
-    [InlineData(MessageSource.System, "system")]
+    [MemberData(nameof(SerializationTests.MessageSources), MemberType = typeof(SerializationTests))]
     public async Task SendAsync_MessageSource_Preserves_Other_Options(MessageSource? source, string? wireSource)
     {
         await using var server = await FakeCopilotServer.StartAsync();
@@ -1551,6 +1549,7 @@ public sealed class ClientSessionLifetimeTests
     [InlineData(null)]
     [InlineData("user")]
     [InlineData("system")]
+    [InlineData("agent-Reviewer-7")]
     public async Task Raw_SendAsync_MessageSource_Remains_Available(string? source)
     {
         await using var server = await FakeCopilotServer.StartAsync();
@@ -1563,14 +1562,25 @@ public sealed class ClientSessionLifetimeTests
         AssertMessageSource(Assert.Single(server.Requests, request => request.Method == "session.send").Params, source);
     }
 
+    public static IEnumerable<object?[]> MessageSourcesAndOutcomes
+    {
+        get
+        {
+            foreach (var row in SerializationTests.MessageSources)
+            {
+                yield return [row[0], row[1], false, null];
+                yield return [row[0], row[1], true, null];
+            }
+            yield return [MessageSource.Agent("Reviewer-7"), "agent-Reviewer-7", false, "enqueue"];
+            yield return [MessageSource.Agent("Reviewer-7"), "agent-Reviewer-7", true, "enqueue"];
+            yield return [MessageSource.Agent("Reviewer-7"), "agent-Reviewer-7", false, "immediate"];
+            yield return [MessageSource.Agent("Reviewer-7"), "agent-Reviewer-7", true, "immediate"];
+        }
+    }
+
     [Theory]
-    [InlineData(null, false)]
-    [InlineData(null, true)]
-    [InlineData(MessageSource.User, false)]
-    [InlineData(MessageSource.User, true)]
-    [InlineData(MessageSource.System, false)]
-    [InlineData(MessageSource.System, true)]
-    public async Task SendAndWaitAsync_MessageSource_Completes_On_Idle(MessageSource? source, bool hasAssistantMessage)
+    [MemberData(nameof(MessageSourcesAndOutcomes))]
+    public async Task SendAndWaitAsync_MessageSource_Completes_On_Idle(MessageSource? source, string? wireSource, bool hasAssistantMessage, string? mode)
     {
         await using var server = await FakeCopilotServer.StartAsync();
         await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
@@ -1578,9 +1588,17 @@ public sealed class ClientSessionLifetimeTests
         var assistantReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         using var subscription = session.On<AssistantMessageEvent>(_ => assistantReceived.TrySetResult());
 
-        var sendTask = session.SendAndWaitAsync(new MessageOptions { Prompt = "Context", Source = source });
+        var sendTask = session.SendAndWaitAsync(new MessageOptions { Prompt = "Context", Source = source, Mode = mode });
         var request = await WaitForRequestAsync(server, "session.send");
-        AssertMessageSource(request.Params, source?.ToString().ToLowerInvariant());
+        AssertMessageSource(request.Params, wireSource);
+        if (mode is null)
+        {
+            Assert.False(request.Params.TryGetProperty("mode", out _));
+        }
+        else
+        {
+            Assert.Equal(mode, request.Params.GetProperty("mode").GetString());
+        }
 
         if (hasAssistantMessage)
         {
@@ -1608,13 +1626,8 @@ public sealed class ClientSessionLifetimeTests
     }
 
     [Theory]
-    [InlineData(null, false)]
-    [InlineData(null, true)]
-    [InlineData(MessageSource.User, false)]
-    [InlineData(MessageSource.User, true)]
-    [InlineData(MessageSource.System, false)]
-    [InlineData(MessageSource.System, true)]
-    public async Task SendAndWaitAsync_MessageSource_Propagates_Errors(MessageSource? source, bool rpcError)
+    [MemberData(nameof(MessageSourcesAndOutcomes))]
+    public async Task SendAndWaitAsync_MessageSource_Propagates_Errors(MessageSource? source, string? wireSource, bool rpcError, string? mode)
     {
         await using var server = await FakeCopilotServer.StartAsync();
         await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
@@ -1624,9 +1637,17 @@ public sealed class ClientSessionLifetimeTests
             server.FailSessionSend();
         }
 
-        var sendTask = session.SendAndWaitAsync(new MessageOptions { Prompt = "Context", Source = source });
+        var sendTask = session.SendAndWaitAsync(new MessageOptions { Prompt = "Context", Source = source, Mode = mode });
         var request = await WaitForRequestAsync(server, "session.send");
-        AssertMessageSource(request.Params, source?.ToString().ToLowerInvariant());
+        AssertMessageSource(request.Params, wireSource);
+        if (mode is null)
+        {
+            Assert.False(request.Params.TryGetProperty("mode", out _));
+        }
+        else
+        {
+            Assert.Equal(mode, request.Params.GetProperty("mode").GetString());
+        }
 
         if (rpcError)
         {
@@ -1645,10 +1666,17 @@ public sealed class ClientSessionLifetimeTests
         }
     }
 
+    public static TheoryData<MessageSource, bool> MessageSourcesAndCancellation => new()
+    {
+        { MessageSource.System, false },
+        { MessageSource.System, true },
+        { MessageSource.Agent("Reviewer-7"), false },
+        { MessageSource.Agent("Reviewer-7"), true },
+    };
+
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task SendAndWaitAsync_MessageSource_Preserves_Timeout_And_Cancellation(bool cancel)
+    [MemberData(nameof(MessageSourcesAndCancellation))]
+    public async Task SendAndWaitAsync_MessageSource_Preserves_Timeout_And_Cancellation(MessageSource source, bool cancel)
     {
         await using var server = await FakeCopilotServer.StartAsync();
         await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
@@ -1656,10 +1684,11 @@ public sealed class ClientSessionLifetimeTests
         using var cancellation = new CancellationTokenSource();
 
         var sendTask = session.SendAndWaitAsync(
-            new MessageOptions { Prompt = "Context", Source = MessageSource.System },
+            new MessageOptions { Prompt = "Context", Source = source },
             timeout: cancel ? TimeSpan.FromSeconds(30) : TimeSpan.FromMilliseconds(50),
             cancellationToken: cancellation.Token);
-        await WaitForRequestAsync(server, "session.send");
+        var request = await WaitForRequestAsync(server, "session.send");
+        AssertMessageSource(request.Params, source.Value);
 
         if (cancel)
         {

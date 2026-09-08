@@ -16,6 +16,26 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 )
 
+func messageSourceTestCases() []struct {
+	name  string
+	value MessageSource
+	wire  string
+} {
+	return []struct {
+		name  string
+		value MessageSource
+		wire  string
+	}{
+		{name: "omitted"},
+		{name: "user", value: MessageSourceUser, wire: "user"},
+		{name: "system", value: MessageSourceSystem, wire: "system"},
+		{name: "agent", value: MessageSourceAgent("reviewer"), wire: "agent-reviewer"},
+		{name: "empty agent id", value: MessageSourceAgent(""), wire: "agent-"},
+		{name: "opaque agent id", value: MessageSourceAgent(" Agent/É "), wire: "agent- Agent/É "},
+		{name: "prefixed agent id", value: MessageSourceAgent("agent-reviewer"), wire: "agent-agent-reviewer"},
+	}
+}
+
 func TestSession_SendMessageSource(t *testing.T) {
 	previousPropagator := otel.GetTextMapPropagator()
 	otel.SetTextMapPropagator(propagation.TraceContext{})
@@ -24,15 +44,7 @@ func TestSession_SendMessageSource(t *testing.T) {
 	const traceparent = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
 	const tracestate = "vendor=value"
 
-	for _, source := range []struct {
-		name  string
-		value MessageSource
-		wire  string
-	}{
-		{name: "omitted"},
-		{name: "user", value: MessageSourceUser, wire: "user"},
-		{name: "system", value: MessageSourceSystem, wire: "system"},
-	} {
+	for _, source := range messageSourceTestCases() {
 		t.Run(source.name, func(t *testing.T) {
 			for _, mode := range []string{"", "enqueue", "immediate"} {
 				name := mode
@@ -86,80 +98,102 @@ func TestSession_SendMessageSource(t *testing.T) {
 }
 
 func TestSession_SendAndWaitMessageSource(t *testing.T) {
-	for _, tc := range []struct {
-		name        string
-		events      []SessionEvent
-		rpcError    *jsonrpc2.Error
-		wantContent string
-		wantError   string
-	}{
-		{
-			name:   "idle without assistant",
-			events: []SessionEvent{{Data: &SessionIdleData{}}},
-		},
-		{
-			name: "assistant then idle",
-			events: []SessionEvent{
-				{Data: &AssistantMessageData{MessageID: "assistant-1", Content: "done"}},
-				{Data: &SessionIdleData{}},
-			},
-			wantContent: "done",
-		},
-		{
-			name:      "session error",
-			events:    []SessionEvent{{Data: &SessionErrorData{Message: "model failed"}}},
-			wantError: "session error: model failed",
-		},
-		{
-			name:      "RPC error",
-			rpcError:  &jsonrpc2.Error{Code: -32602, Message: "invalid prompt"},
-			wantError: "invalid prompt",
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
-			defer cancel()
-			params := captureMessageSourceRequest(t, tc.rpcError, tc.events, func(session *Session) {
-				result, err := session.SendAndWait(ctx, MessageOptions{
-					Prompt: "background update",
-					Source: MessageSourceSystem,
-				})
-				if tc.wantError != "" {
-					if err == nil || !strings.Contains(err.Error(), tc.wantError) {
-						t.Fatalf("expected error containing %q, got %v", tc.wantError, err)
-					}
-					if tc.rpcError != nil {
-						var rpcError *jsonrpc2.Error
-						if !errors.As(err, &rpcError) || rpcError.Code != tc.rpcError.Code {
-							t.Fatalf("expected wrapped RPC error, got %v", err)
+	for _, source := range messageSourceTestCases() {
+		for _, mode := range []string{"", "enqueue", "immediate"} {
+			for _, tc := range []struct {
+				name        string
+				events      []SessionEvent
+				rpcError    *jsonrpc2.Error
+				wantContent string
+				wantError   string
+			}{
+				{
+					name:   "idle without assistant",
+					events: []SessionEvent{{Data: &SessionIdleData{}}},
+				},
+				{
+					name: "assistant then idle",
+					events: []SessionEvent{
+						{Data: &AssistantMessageData{MessageID: "assistant-1", Content: "done"}},
+						{Data: &SessionIdleData{}},
+					},
+					wantContent: "done",
+				},
+				{
+					name:      "session error",
+					events:    []SessionEvent{{Data: &SessionErrorData{Message: "model failed"}}},
+					wantError: "session error: model failed",
+				},
+				{
+					name:      "RPC error",
+					rpcError:  &jsonrpc2.Error{Code: -32602, Message: "invalid prompt"},
+					wantError: "invalid prompt",
+				},
+			} {
+				t.Run(source.name+"/"+mode+"/"+tc.name, func(t *testing.T) {
+					ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+					defer cancel()
+					params := captureMessageSourceRequest(t, tc.rpcError, tc.events, func(session *Session) {
+						result, err := session.SendAndWait(ctx, MessageOptions{
+							Prompt:        "background update",
+							Source:        source.value,
+							Mode:          mode,
+							AgentMode:     AgentModePlan,
+							DisplayPrompt: "Background update",
+							Attachments: []Attachment{
+								&AttachmentFile{Path: "/workspace/main.go", DisplayName: "main.go"},
+							},
+							RequestHeaders: map[string]string{"X-Test": "value"},
+						})
+						if tc.wantError != "" {
+							if err == nil || !strings.Contains(err.Error(), tc.wantError) {
+								t.Fatalf("expected error containing %q, got %v", tc.wantError, err)
+							}
+							if tc.rpcError != nil {
+								var rpcError *jsonrpc2.Error
+								if !errors.As(err, &rpcError) || rpcError.Code != tc.rpcError.Code {
+									t.Fatalf("expected wrapped RPC error, got %v", err)
+								}
+							}
+						} else if err != nil {
+							t.Fatalf("SendAndWait failed: %v", err)
 						}
+						if tc.wantContent == "" {
+							if result != nil {
+								t.Fatalf("expected no assistant message, got %#v", result)
+							}
+						} else {
+							if result == nil {
+								t.Fatal("expected an assistant message")
+							}
+							message, ok := result.Data.(*AssistantMessageData)
+							if !ok || message.Content != tc.wantContent {
+								t.Fatalf("unexpected assistant message: %#v", result.Data)
+							}
+						}
+					})
+					want := map[string]any{
+						"sessionId":     "session-1",
+						"prompt":        "background update",
+						"agentMode":     "plan",
+						"displayPrompt": "Background update",
+						"attachments": []any{
+							map[string]any{"type": "file", "path": "/workspace/main.go", "displayName": "main.go"},
+						},
+						"requestHeaders": map[string]any{"X-Test": "value"},
 					}
-				} else if err != nil {
-					t.Fatalf("SendAndWait failed: %v", err)
-				}
-				if tc.wantContent == "" {
-					if result != nil {
-						t.Fatalf("expected no assistant message, got %#v", result)
+					if source.wire != "" {
+						want["source"] = source.wire
 					}
-				} else {
-					if result == nil {
-						t.Fatal("expected an assistant message")
+					if mode != "" {
+						want["mode"] = mode
 					}
-					message, ok := result.Data.(*AssistantMessageData)
-					if !ok || message.Content != tc.wantContent {
-						t.Fatalf("unexpected assistant message: %#v", result.Data)
+					if !reflect.DeepEqual(params, want) {
+						t.Fatalf("unexpected session.send params:\ngot  %#v\nwant %#v", params, want)
 					}
-				}
-			})
-			want := map[string]any{
-				"sessionId": "session-1",
-				"prompt":    "background update",
-				"source":    "system",
+				})
 			}
-			if !reflect.DeepEqual(params, want) {
-				t.Fatalf("unexpected session.send params:\ngot  %#v\nwant %#v", params, want)
-			}
-		})
+		}
 	}
 }
 

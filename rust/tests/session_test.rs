@@ -1888,12 +1888,35 @@ fn message_options_source_is_opt_in() {
     for (source, wire) in [
         (MessageSource::User, "user"),
         (MessageSource::System, "system"),
+        (MessageSource::Agent("sender-id".into()), "agent-sender-id"),
     ] {
-        assert_eq!(serde_json::to_value(source).unwrap(), wire);
+        assert_eq!(serde_json::to_value(&source).unwrap(), wire);
         assert_eq!(
             serde_json::from_value::<MessageSource>(serde_json::json!(wire)).unwrap(),
             source
         );
+    }
+}
+
+#[test]
+fn agent_source_preserves_opaque_ids() {
+    for id in ["", "agent-sender", "Sender / \"review\""] {
+        let source = MessageSource::Agent(id.into());
+        let wire = format!("agent-{id}");
+        assert_eq!(serde_json::to_value(&source).unwrap(), wire);
+        assert_eq!(
+            serde_json::from_value::<MessageSource>(serde_json::json!(wire)).unwrap(),
+            source
+        );
+        assert_eq!(
+            serde_json::to_value(SendRequest::default().with_source(source.clone())).unwrap()["source"],
+            wire
+        );
+        let options = MessageOptions::new("hello").with_source(source.clone());
+        assert_eq!(options.clone().source, Some(source));
+    }
+    for invalid in ["unknown", "USER", "Agent-sender"] {
+        assert!(serde_json::from_value::<MessageSource>(serde_json::json!(invalid)).is_err());
     }
 }
 
@@ -1908,6 +1931,10 @@ async fn send_source_is_optional_and_preserves_other_options() {
         (None, None),
         (Some(MessageSource::User), Some("user")),
         (Some(MessageSource::System), Some("system")),
+        (
+            Some(MessageSource::Agent("sender-id".into())),
+            Some("agent-sender-id"),
+        ),
     ] {
         for (mode, wire_mode) in [
             (None, None),
@@ -1920,7 +1947,7 @@ async fn send_source_is_optional_and_preserves_other_options() {
                     "sessionId": server.session_id,
                     "prompt": "hello",
                 });
-                if let Some(source) = source {
+                if let Some(source) = source.clone() {
                     options = options.with_source(source);
                     expected["source"] = serde_json::json!(wire_source.unwrap());
                 }
@@ -1979,6 +2006,10 @@ async fn rpc_send_source_is_optional_and_preserves_other_options() {
         (None, None),
         (Some(MessageSource::User), Some("user")),
         (Some(MessageSource::System), Some("system")),
+        (
+            Some(MessageSource::Agent("sender-id".into())),
+            Some("agent-sender-id"),
+        ),
     ] {
         for (mode, wire_mode) in [
             (None, None),
@@ -1993,7 +2024,7 @@ async fn rpc_send_source_is_optional_and_preserves_other_options() {
                     "sessionId": server.session_id,
                     "prompt": "hello",
                 });
-                if let Some(source) = source {
+                if let Some(source) = source.clone() {
                     options = options
                         .with_source(MessageSource::System)
                         .with_source(source);
@@ -3653,6 +3684,59 @@ async fn send_and_wait_returns_last_assistant_message_on_idle() {
 }
 
 #[tokio::test]
+async fn send_and_wait_agent_source_preserves_mode_and_optional_reply() {
+    let (session, mut server) = create_session_pair().await;
+    let session = Arc::new(session);
+    for mode in [
+        None,
+        Some(DeliveryMode::Enqueue),
+        Some(DeliveryMode::Immediate),
+    ] {
+        for has_reply in [false, true] {
+            let handle = tokio::spawn({
+                let session = session.clone();
+                async move {
+                    let mut options = MessageOptions::new("Review complete")
+                        .with_source(MessageSource::Agent("sender-id".into()))
+                        .with_wait_timeout(TIMEOUT);
+                    options.mode = mode;
+                    session.send_and_wait(options).await
+                }
+            });
+            let request = timeout(TIMEOUT, server.read_request()).await.unwrap();
+            let mut expected = serde_json::json!({
+                "sessionId": server.session_id,
+                "prompt": "Review complete",
+                "source": "agent-sender-id",
+            });
+            if let Some(mode) = mode {
+                expected["mode"] = serde_json::to_value(mode).unwrap();
+            }
+            assert_eq!(request["params"], expected);
+            server
+                .respond(&request, serde_json::json!({"messageId": "agent-message"}))
+                .await;
+            if has_reply {
+                server
+                    .send_event(
+                        "assistant.message",
+                        serde_json::json!({"content": "Acknowledged"}),
+                    )
+                    .await;
+            }
+            server
+                .send_event("session.idle", serde_json::json!({}))
+                .await;
+            let reply = timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
+            assert_eq!(reply.is_some(), has_reply);
+            if let Some(reply) = reply {
+                assert_eq!(reply.data["content"], "Acknowledged");
+            }
+        }
+    }
+}
+
+#[tokio::test]
 async fn send_and_wait_system_source_returns_none_on_idle_without_assistant() {
     let (session, mut server) = create_session_pair().await;
     let session = Arc::new(session);
@@ -3700,52 +3784,58 @@ async fn send_and_wait_system_source_returns_none_on_idle_without_assistant() {
 }
 
 #[tokio::test]
-async fn send_and_wait_system_source_preserves_errors() {
+async fn send_and_wait_source_preserves_errors() {
     let (session, mut server) = create_session_pair().await;
     let session = Arc::new(session);
 
-    for rpc_error in [true, false] {
-        let handle = tokio::spawn({
-            let session = session.clone();
-            async move {
-                session
-                    .send_and_wait(
-                        MessageOptions::new("Context updated")
-                            .with_source(MessageSource::System)
-                            .with_wait_timeout(TIMEOUT),
+    for (source, wire_source) in [
+        (MessageSource::System, "system"),
+        (MessageSource::Agent("sender-id".into()), "agent-sender-id"),
+    ] {
+        for rpc_error in [true, false] {
+            let handle = tokio::spawn({
+                let session = session.clone();
+                let source = source.clone();
+                async move {
+                    session
+                        .send_and_wait(
+                            MessageOptions::new("Context updated")
+                                .with_source(source)
+                                .with_wait_timeout(TIMEOUT),
+                        )
+                        .await
+                }
+            });
+            let request = timeout(TIMEOUT, server.read_request()).await.unwrap();
+            assert_eq!(request["params"]["source"], wire_source);
+            if rpc_error {
+                server.respond_error(&request, -32603, "send failed").await;
+            } else {
+                server
+                    .respond(&request, serde_json::json!({"messageId": "source-message"}))
+                    .await;
+                server
+                    .send_event(
+                        "session.error",
+                        serde_json::json!({"message": "agent failed"}),
                     )
-                    .await
+                    .await;
             }
-        });
-        let request = timeout(TIMEOUT, server.read_request()).await.unwrap();
-        assert_eq!(request["params"]["source"], "system");
-        if rpc_error {
-            server.respond_error(&request, -32603, "send failed").await;
-        } else {
-            server
-                .respond(&request, serde_json::json!({"messageId": "system-message"}))
-                .await;
-            server
-                .send_event(
-                    "session.error",
-                    serde_json::json!({"message": "agent failed"}),
-                )
-                .await;
-        }
-        let error = timeout(TIMEOUT, handle)
-            .await
-            .unwrap()
-            .unwrap()
-            .unwrap_err();
-        if rpc_error {
-            assert!(matches!(error.kind(), ErrorKind::Rpc { code: -32603, .. }));
-            assert!(error.to_string().contains("send failed"));
-        } else {
-            assert!(matches!(
-                error.kind(),
-                ErrorKind::Session(github_copilot_sdk::SessionErrorKind::AgentError)
-            ));
-            assert!(error.to_string().contains("agent failed"));
+            let error = timeout(TIMEOUT, handle)
+                .await
+                .unwrap()
+                .unwrap()
+                .unwrap_err();
+            if rpc_error {
+                assert!(matches!(error.kind(), ErrorKind::Rpc { code: -32603, .. }));
+                assert!(error.to_string().contains("send failed"));
+            } else {
+                assert!(matches!(
+                    error.kind(),
+                    ErrorKind::Session(github_copilot_sdk::SessionErrorKind::AgentError)
+                ));
+                assert!(error.to_string().contains("agent failed"));
+            }
         }
     }
 }

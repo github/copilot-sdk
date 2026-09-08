@@ -275,10 +275,13 @@ public class CloneTests
         Assert.True(clone.McpServers!.ContainsKey("SERVER"));
     }
 
+    public static TheoryData<MessageSource?> MessageSources => new()
+    {
+        null, MessageSource.User, MessageSource.System, MessageSource.Agent("Reviewer-7")
+    };
+
     [Theory]
-    [InlineData(null)]
-    [InlineData(MessageSource.User)]
-    [InlineData(MessageSource.System)]
+    [MemberData(nameof(MessageSources))]
     public void MessageOptions_Clone_CopiesAllProperties(MessageSource? source)
     {
         var original = new MessageOptions

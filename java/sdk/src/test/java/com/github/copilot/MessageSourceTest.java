@@ -19,11 +19,12 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
-import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -44,6 +45,32 @@ class MessageSourceTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
+    static Stream<MessageSource> sources() {
+        return Stream.of(MessageSource.USER, MessageSource.SYSTEM, MessageSource.agent("Reviewer-7"));
+    }
+
+    static Stream<Arguments> sourceValues() {
+        return Stream.of(Arguments.of(MessageSource.USER, "user"), Arguments.of(MessageSource.SYSTEM, "system"),
+                Arguments.of(MessageSource.agent("Reviewer-7"), "agent-Reviewer-7"),
+                Arguments.of(MessageSource.agent("agent-Worker"), "agent-agent-Worker"),
+                Arguments.of(MessageSource.agent(" Team/α "), "agent- Team/α "),
+                Arguments.of(MessageSource.agent(""), "agent-"));
+    }
+
+    static Stream<Arguments> sourcesAndModes() {
+        return sources().flatMap(source -> Stream.of("enqueue", "immediate").map(mode -> Arguments.of(source, mode)));
+    }
+
+    static Stream<Arguments> sourcesAndWaitModes() {
+        return sources()
+                .flatMap(source -> Stream.of(null, "enqueue", "immediate").map(mode -> Arguments.of(source, mode)));
+    }
+
+    static Stream<Arguments> sourcesAndErrors() {
+        return sources().flatMap(source -> Stream.of(Outcome.SESSION_ERROR, Outcome.RPC_ERROR).flatMap(
+                outcome -> Stream.of(null, "enqueue", "immediate").map(mode -> Arguments.of(source, outcome, mode))));
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"invalid", "2147483648", "-1"})
     void malformedContentLengthFailsWithIOException(String value) {
@@ -54,7 +81,7 @@ class MessageSourceTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"USER,user", "SYSTEM,system"})
+    @MethodSource("sourceValues")
     void sourceUsesLowercaseJson(MessageSource source, String value) throws Exception {
         assertEquals(value, source.getValue());
         assertEquals("\"" + value + "\"", MAPPER.writeValueAsString(source));
@@ -69,6 +96,23 @@ class MessageSourceTest {
         assertThrows(IllegalArgumentException.class, () -> MessageSource.fromValue("unknown"));
         assertThrows(IllegalArgumentException.class, () -> MessageSource.fromValue("USER"));
         assertThrows(IOException.class, () -> MAPPER.readValue("\"unknown\"", MessageSource.class));
+        assertThrows(NullPointerException.class, () -> MessageSource.agent(null));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"\"SYSTEM\"", "\"Agent-worker\"", "\"agent\"", "\"\"", "0", "true", "{}", "[]"})
+    void sourceRejectsInvalidJson(String json) {
+        assertThrows(IOException.class, () -> MAPPER.readValue(json, MessageSource.class));
+    }
+
+    @Test
+    void agentSourcesHaveCaseSensitiveValueEquality() {
+        var source = MessageSource.agent("Reviewer");
+        var same = MessageSource.agent("Reviewer");
+        assertEquals(source, same);
+        assertEquals(source.hashCode(), same.hashCode());
+        assertNotEquals(source, MessageSource.agent("reviewer"));
+        assertNotEquals(source, MessageSource.SYSTEM);
     }
 
     @Test
@@ -92,7 +136,7 @@ class MessageSourceTest {
     }
 
     @ParameterizedTest
-    @EnumSource(MessageSource.class)
+    @MethodSource("sources")
     void optionsAndRequestRoundTripSource(MessageSource source) throws Exception {
         var options = new MessageOptions().setPrompt("hello").setSource(source);
         var request = new SendMessageRequest();
@@ -108,7 +152,7 @@ class MessageSourceTest {
     }
 
     @ParameterizedTest
-    @EnumSource(MessageSource.class)
+    @MethodSource("sources")
     void clonePreservesSourceAndOtherOptions(MessageSource source) {
         var options = fullOptions().setSource(source);
         var copy = options.clone();
@@ -137,7 +181,7 @@ class MessageSourceTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"USER,enqueue", "USER,immediate", "SYSTEM,enqueue", "SYSTEM,immediate"})
+    @MethodSource("sourcesAndModes")
     void sendForwardsSourceWithoutChangingOtherOptions(MessageSource source, String mode) throws Exception {
         try (var server = new SendServer(Outcome.IDLE);
                 var client = server.createClient();
@@ -154,33 +198,47 @@ class MessageSourceTest {
         }
     }
 
-    @Test
-    void systemSourceCompletesOnIdleWithoutAssistantMessage() throws Exception {
+    @ParameterizedTest
+    @MethodSource("sourcesAndWaitModes")
+    void sourceCompletesOnIdleWithoutAssistantMessage(MessageSource source, String mode) throws Exception {
         try (var server = new SendServer(Outcome.IDLE);
                 var client = server.createClient();
                 var session = client.createSession(sessionConfig()).get(5, TimeUnit.SECONDS)) {
-            assertNull(session.sendAndWait(new MessageOptions().setPrompt("context").setSource(MessageSource.SYSTEM))
-                    .get(5, TimeUnit.SECONDS));
-            assertEquals("system", server.takeSendParams().get("source").asText());
+            var options = new MessageOptions().setPrompt("context").setSource(source).setMode(mode);
+            var expected = MAPPER.createObjectNode().put("sessionId", "source-session").put("prompt", "context")
+                    .put("source", source.getValue());
+            if (mode != null) {
+                expected.put("mode", mode);
+            }
+            assertNull(session.sendAndWait(options).get(5, TimeUnit.SECONDS));
+            assertEquals(expected, server.takeSendParams());
+            assertNull(session.sendAndWait(options, 5_000).get(5, TimeUnit.SECONDS));
+            assertEquals(expected, server.takeSendParams());
         }
     }
 
     @ParameterizedTest
-    @EnumSource(value = Outcome.class, names = {"SESSION_ERROR", "RPC_ERROR"})
-    void systemSourceDoesNotSuppressErrors(Outcome outcome) throws Exception {
+    @MethodSource("sourcesAndErrors")
+    void sourceDoesNotSuppressErrors(MessageSource source, Outcome outcome, String mode) throws Exception {
         try (var server = new SendServer(outcome);
                 var client = server.createClient();
                 var session = client.createSession(sessionConfig()).get(5, TimeUnit.SECONDS)) {
             var pending = session
-                    .sendAndWait(new MessageOptions().setPrompt("context").setSource(MessageSource.SYSTEM));
+                    .sendAndWait(new MessageOptions().setPrompt("context").setSource(source).setMode(mode));
             var error = assertThrows(ExecutionException.class, () -> pending.get(5, TimeUnit.SECONDS));
             assertTrue(error.getCause().getMessage().contains("send failed"), error.toString());
-            assertEquals("system", server.takeSendParams().get("source").asText());
+            var params = server.takeSendParams();
+            assertEquals(source.getValue(), params.get("source").asText());
+            if (mode == null) {
+                assertFalse(params.has("mode"));
+            } else {
+                assertEquals(mode, params.get("mode").asText());
+            }
         }
     }
 
     @ParameterizedTest
-    @EnumSource(MessageSource.class)
+    @MethodSource("sources")
     @NullSource
     void generatedRawRpcAlreadyForwardsSource(MessageSource source) throws Exception {
         try (var server = new SendServer(Outcome.IDLE);

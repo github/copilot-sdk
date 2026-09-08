@@ -16,13 +16,7 @@ impl SendRequest {
     ///
     /// When this is not called, the source field is omitted by default.
     pub fn with_source(mut self, source: crate::MessageSource) -> Self {
-        self.source = Some(
-            match source {
-                crate::MessageSource::User => "user",
-                crate::MessageSource::System => "system",
-            }
-            .to_string(),
-        );
+        self.source = Some(source.to_string());
         self
     }
 }

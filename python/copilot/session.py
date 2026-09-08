@@ -276,7 +276,22 @@ class BlobAttachment(TypedDict):
 
 Attachment = FileAttachment | DirectoryAttachment | SelectionAttachment | BlobAttachment
 
-MessageSource = Literal["user", "system"]
+
+@dataclass(frozen=True)
+class AgentMessageSource:
+    """Identify the agent that produced a message.
+
+    The agent ID is opaque and is sent unchanged after the ``agent-`` prefix.
+    """
+
+    agent_id: str
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.agent_id, str):
+            raise TypeError("agent_id must be a string")
+
+
+MessageSource = Literal["user", "system"] | AgentMessageSource
 """Message provenance, independent of delivery mode."""
 
 # ============================================================================
@@ -1730,7 +1745,8 @@ class CopilotSession:
         Args:
             prompt: The message text to send.
             attachments: Optional file, directory, or selection attachments.
-            source: Optional message provenance (``"user"`` or ``"system"``).
+            source: Optional message provenance (``"user"``, ``"system"``, or
+                :class:`AgentMessageSource` for an identified agent).
                 Omitted when None, preserving the runtime's default for user messages.
             mode: Message delivery mode (``"enqueue"`` or ``"immediate"``).
             agent_mode: The UI mode the agent was in when this message was sent
@@ -1759,7 +1775,9 @@ class CopilotSession:
         if attachments is not None:
             params["attachments"] = attachments
         if source is not None:
-            params["source"] = source
+            params["source"] = (
+                "agent-" + source.agent_id if isinstance(source, AgentMessageSource) else source
+            )
         if mode is not None:
             params["mode"] = mode
         if agent_mode is not None:
@@ -1807,7 +1825,8 @@ class CopilotSession:
         Args:
             prompt: The message text to send.
             attachments: Optional file, directory, or selection attachments.
-            source: Optional message provenance (``"user"`` or ``"system"``),
+            source: Optional message provenance (``"user"``, ``"system"``, or
+                :class:`AgentMessageSource` for an identified agent),
                 independent of delivery mode. Omitted when None.
             mode: Message delivery mode (``"enqueue"`` or ``"immediate"``).
             agent_mode: The UI mode the agent was in when this message was sent

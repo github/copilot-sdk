@@ -267,7 +267,7 @@ Send a message to the session. Returns immediately after the message is queued; 
 **Options:**
 
 - `prompt: string` - The message/prompt to send
-- `source?: MessageSource` - `"user"` or `"system"` provenance; omitted by default
+- `source?: MessageSource` - `"user"`, `"system"`, or `` `agent-${string}` `` provenance; omitted by default
 - `attachments?: Array<{type, path, displayName}>` - File attachments
 - `mode?: "enqueue" | "immediate"` - Delivery mode
 
@@ -277,6 +277,12 @@ Use `source: "system"` for automated messages from your application:
 
 ```typescript
 await session.send({ prompt: "Context updated", source: "system" });
+```
+
+For a message from another agent, use its trusted sender ID:
+
+```typescript
+await session.send({ prompt: "Review complete", source: "agent-reviewer-id" });
 ```
 
 Source is independent of delivery mode. Leaving it unset preserves the existing human-message payload; it does not set billing flags or use the notification API.

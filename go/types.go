@@ -2431,7 +2431,7 @@ type ToolBinaryResult struct {
 	Description string `json:"description,omitempty"`
 }
 
-// MessageSource identifies whether a message originates from a user or the system.
+// MessageSource identifies whether a message originates from a user, the system, or an agent.
 type MessageSource string
 
 const (
@@ -2440,6 +2440,12 @@ const (
 	// MessageSourceSystem identifies a system-originated message.
 	MessageSourceSystem MessageSource = "system"
 )
+
+// MessageSourceAgent identifies the agent that produced a message.
+// The agent ID is opaque and is sent unchanged after the "agent-" prefix.
+func MessageSourceAgent(id string) MessageSource {
+	return MessageSource("agent-" + id)
+}
 
 // MessageOptions configures a message to send
 type MessageOptions struct {

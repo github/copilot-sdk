@@ -822,6 +822,8 @@ The SDK injects the appropriate environment variables (`COPILOT_OTEL_EXPORTER_TY
 
 Use `MessageSource::System` for automated messages sent by your application. Ordinary human sends leave `source` unset, so the field is omitted from the request. Use `MessageSource::User` when you need to set it explicitly.
 
+For messages from another agent, use `MessageSource::Agent("sender-id".into())` with the trusted sender ID. It serializes as `"agent-sender-id"` and works with both `MessageOptions::with_source` and `rpc::SendRequest::with_source`. Unlike internal system context, an identified agent message retains agent provenance.
+
 ```rust,no_run
 use github_copilot_sdk::{MessageOptions, MessageSource, session::Session};
 
