@@ -15,6 +15,10 @@ export const sdkPackageNames = [
     "@github/copilot-sdk-win32-arm64",
     "@github/copilot-sdk-win32-x64",
 ];
+const PUBLIC_CONFLICT =
+    /^(?:npm (?:error|ERR!) code EPUBLISHCONFLICT|npm (?:error|ERR!) (?:403 [^\r\n]* - )?(?:You )?cannot publish over (?:the )?previously published versions(?:: [^\r\n]+)?\.?)\r?$/im;
+const AZURE_CONFLICT =
+    /^npm (?:error|ERR!) (?:403 [^\r\n]* - )?(?:The feed '[^'\r\n]+' )?already contains file '[^'\r\n]+\.tgz' in package '[^'\r\n]+'\.?\r?$/im;
 
 export function runCommand(command, args, { stream = false } = {}) {
     return new Promise((resolveResult, reject) => {
@@ -46,11 +50,11 @@ function parseNpmJson(result) {
     return undefined;
 }
 
-export async function getRegistryIntegrity(packageName, version, registry, runner = runCommand) {
+export async function getRegistryVersion(packageName, version, registry, runner = runCommand) {
     const result = await runner("npm", [
         "view",
         `${packageName}@${version}`,
-        "dist.integrity",
+        "version",
         "--json",
         "--registry",
         registry,
@@ -64,7 +68,7 @@ export async function getRegistryIntegrity(packageName, version, registry, runne
     }
     const output = `${result.stdout}\n${result.stderr}`.trim();
     throw new Error(
-        `Could not read ${packageName}@${version} integrity from ${registry} (npm exited ${result.status}).${output ? `\n${output}` : ""}`
+        `Could not read ${packageName}@${version} from ${registry} (npm exited ${result.status}).${output ? `\n${output}` : ""}`
     );
 }
 
@@ -91,7 +95,7 @@ export async function getRegistryTagVersion(packageName, tag, registry, runner =
 }
 
 export async function assertVersionAbsent(packageName, version, registry, runner = runCommand) {
-    const existing = await getRegistryIntegrity(packageName, version, registry, runner);
+    const existing = await getRegistryVersion(packageName, version, registry, runner);
     if (existing !== undefined) {
         throw new Error(`${packageName}@${version} already exists on ${registry}.`);
     }
@@ -103,25 +107,6 @@ export async function assertPackageSetVersionAbsent(version, registry, runner = 
     }
 }
 
-export async function assertPublishedIntegrity(
-    packageName,
-    version,
-    expectedIntegrity,
-    registry,
-    runner = runCommand
-) {
-    const existing = await getRegistryIntegrity(packageName, version, registry, runner);
-    if (existing === undefined) {
-        return "missing";
-    }
-    if (existing !== expectedIntegrity) {
-        throw new Error(
-            `${packageName}@${version} on ${registry} has integrity ${existing}, expected ${expectedIntegrity}.`
-        );
-    }
-    return "matching";
-}
-
 export async function publishTarball(tarball, tag, registry, mode, identity, runner = runCommand) {
     if (!identity?.name || !identity?.version || !identity?.integrity) {
         throw new Error("Publishing requires an expected package name, version, and integrity.");
@@ -131,32 +116,19 @@ export async function publishTarball(tarball, tag, registry, mode, identity, run
     if (mode !== "public" && mode !== "azure") throw new Error(`Unknown publish mode: ${mode}`);
 
     const result = await runner("npm", args, { stream: true });
-    if (result.status !== 0) {
-        const state = await assertPublishedIntegrity(
-            identity.name,
-            identity.version,
-            identity.integrity,
-            registry,
-            runner
-        );
-        if (state !== "matching") {
-            throw new Error(`npm publish failed with exit code ${result.status}.`);
-        }
-        console.log(`${identity.name}@${identity.version} already exists with matching integrity.`);
+    if (result.status === 0) {
         return;
     }
-    const state = await assertPublishedIntegrity(
-        identity.name,
-        identity.version,
-        identity.integrity,
-        registry,
-        runner
-    );
-    if (state !== "matching") {
-        throw new Error(
-            `${identity.name}@${identity.version} was not readable with matching integrity after publication.`
+
+    const output = `${result.stdout}\n${result.stderr}`;
+    if (PUBLIC_CONFLICT.test(output) || (mode === "azure" && AZURE_CONFLICT.test(output))) {
+        console.log(
+            `${identity.name}@${identity.version} is already published; treating the immutable-version conflict as success.`
         );
+        return;
     }
+
+    throw new Error(`npm publish failed with exit code ${result.status}.`);
 }
 
 function readReleaseManifest(manifestPath, packageDirectory) {
@@ -225,19 +197,6 @@ export async function publishManifest(
             return left.name.localeCompare(right.name);
         });
 
-    const states = new Map();
-    for (const packed of packages) {
-        states.set(
-            packed.name,
-            await assertPublishedIntegrity(
-                packed.name,
-                packed.version,
-                packed.integrity,
-                registry,
-                runner
-            )
-        );
-    }
     const semver = await import("semver");
     for (const packed of packages) {
         const taggedVersion = await getRegistryTagVersion(packed.name, tag, registry, runner);
@@ -246,20 +205,9 @@ export async function publishManifest(
                 `${packed.name}@${tag} already points to newer version ${taggedVersion}; refusing to rewind it to ${packed.version}.`
             );
         }
-        if (
-            mode === "public" &&
-            states.get(packed.name) === "matching" &&
-            taggedVersion !== packed.version
-        ) {
-            throw new Error(
-                `${packed.name}@${tag} resolves to ${taggedVersion ?? "no version"}, expected ${packed.version}. Public trusted publishing cannot repair dist-tags.`
-            );
-        }
     }
     for (const packed of packages) {
-        if (states.get(packed.name) === "missing") {
-            await publishTarball(packed.tarball, tag, registry, mode, packed, runner);
-        }
+        await publishTarball(packed.tarball, tag, registry, mode, packed, runner);
     }
     for (const packed of packages) {
         const taggedVersion = await getRegistryTagVersion(packed.name, tag, registry, runner);

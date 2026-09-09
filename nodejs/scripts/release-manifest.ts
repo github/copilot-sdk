@@ -23,7 +23,7 @@ export interface ReleaseManifest {
         repository: "github/copilot-agent-runtime";
         runId: string;
         sha: string;
-        source: "azure" | "github-packages";
+        source: "github-packages";
         version: string;
     };
     schemaVersion: 1;
@@ -44,7 +44,6 @@ export interface ReleaseManifestMetadata {
     channel: ReleaseManifest["channel"];
     createdAt: string;
     runtimeSha: string;
-    runtimeSource: ReleaseManifest["runtime"]["source"];
     runtimeRunId: string;
     runtimeVersion: string;
     sdkRef: string;
@@ -127,7 +126,7 @@ export async function createReleaseManifest(
         runtime: {
             version: metadata.runtimeVersion,
             sha: metadata.runtimeSha,
-            source: metadata.runtimeSource,
+            source: "github-packages",
             repository: "github/copilot-agent-runtime",
             runId: metadata.runtimeRunId,
         },
@@ -159,11 +158,7 @@ export function verifyReleaseManifest(manifest: ReleaseManifest, packageDirector
     );
     assert.equal(manifest.sdk.repository, "github/copilot-sdk");
     assert.equal(manifest.runtime.repository, "github/copilot-agent-runtime");
-    assert.equal(
-        manifest.runtime.source,
-        manifest.channel === "canary" ? "azure" : "github-packages",
-        "Runtime source does not match the release channel"
-    );
+    assert.equal(manifest.runtime.source, "github-packages", "Invalid runtime package source");
     assert.equal(manifest.packages.length, 9, "Release manifest must contain nine packages");
     assert.deepEqual(
         manifest.packages.map(({ name }) => name).sort(),
@@ -203,9 +198,6 @@ async function main(): Promise<void> {
             channel: requiredEnvironment("RELEASE_CHANNEL") as ReleaseManifest["channel"],
             createdAt: requiredEnvironment("WORKFLOW_CREATED_AT"),
             runtimeSha: requiredEnvironment("RUNTIME_SHA"),
-            runtimeSource: requiredEnvironment(
-                "RUNTIME_SOURCE"
-            ) as ReleaseManifest["runtime"]["source"],
             runtimeRunId: requiredEnvironment("RUNTIME_RUN_ID"),
             runtimeVersion: requiredEnvironment("RUNTIME_VERSION"),
             sdkRef: requiredEnvironment("SDK_REF"),

@@ -40,7 +40,6 @@ describe("release manifest", () => {
             createdAt: "2026-09-04T00:00:00Z",
             runtimeRunId: "9001",
             runtimeSha,
-            runtimeSource: "github-packages",
             runtimeVersion: "1.0.83-5.unstable.123.g1234567",
             sdkRef: "feature/unstable",
             sdkSha,
@@ -51,6 +50,7 @@ describe("release manifest", () => {
 
         expect(manifest.packages).toHaveLength(9);
         expect(manifest.runtime.runId).toBe("9001");
+        expect(manifest.runtime.source).toBe("github-packages");
         expect(() => verifyReleaseManifest(manifest, root)).not.toThrow();
 
         const damaged = join(root, manifest.packages[0].filename);

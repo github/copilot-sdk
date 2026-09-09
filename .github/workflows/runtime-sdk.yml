@@ -19,13 +19,6 @@ on:
         description: "Full github/copilot-agent-runtime source SHA"
         required: true
         type: string
-      runtime_source:
-        description: "Runtime package registry"
-        required: true
-        type: choice
-        options:
-          - azure
-          - github-packages
       runtime_run_id:
         description: "Source runtime workflow run ID and idempotency key"
         required: true
@@ -86,7 +79,6 @@ jobs:
           MODE: ${{ inputs.mode }}
           RUNTIME_RUN_ID: ${{ inputs.runtime_run_id }}
           RUNTIME_SHA: ${{ inputs.runtime_sha }}
-          RUNTIME_SOURCE: ${{ inputs.runtime_source }}
           RUNTIME_VERSION: ${{ inputs.runtime_version }}
           SDK_REF: ${{ github.ref }}
           SDK_SHA: ${{ github.sha }}
@@ -206,7 +198,6 @@ jobs:
     environment: cicd
     permissions:
       contents: read
-      id-token: write
       packages: read
     defaults:
       run:
@@ -220,38 +211,20 @@ jobs:
           cache-dependency-path: ./nodejs/package-lock.json
           node-version: 22
       - run: npm ci --ignore-scripts
-      - name: Azure login
-        if: inputs.runtime_source == 'azure'
-        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
-        with:
-          allow-no-subscriptions: true
-          client-id: ${{ vars.CPD_ID_CLIENT_ID }}
-          tenant-id: ${{ vars.CPD_ID_TENANT_ID }}
-      - name: Configure authentication-only Azure npm access
-        if: inputs.runtime_source == 'azure'
-        run: |
-          TOKEN="$(az account get-access-token --resource "$ADO_RESOURCE" --query accessToken -o tsv)"
-          echo "::add-mask::$TOKEN"
-          FEED_AUTH_REGISTRY="${FEED_URL#https:}"
-          FEED_AUTH_BASE="${FEED_AUTH_REGISTRY%registry/}"
-          printf '%s\n' \
-            "${FEED_AUTH_REGISTRY}:_authToken=${TOKEN}" \
-            "${FEED_AUTH_BASE}:_authToken=${TOKEN}" > "$HOME/.npmrc"
       - name: Configure authentication-only GitHub Packages access
-        if: inputs.runtime_source == 'github-packages'
         env:
           NODE_AUTH_TOKEN: ${{ github.token }}
         run: echo "//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}" > "$HOME/.npmrc"
       - name: Download and validate all runtime platforms
         env:
-          REGISTRY: ${{ inputs.runtime_source == 'azure' && env.FEED_URL || 'https://npm.pkg.github.com' }}
+          NODE_AUTH_TOKEN: ${{ github.token }}
           RUNTIME_SHA: ${{ inputs.runtime_sha }}
           RUNTIME_VERSION: ${{ inputs.runtime_version }}
         run: |
           npm run acquire:runtime-packages -- \
             --version "$RUNTIME_VERSION" \
             --sha "$RUNTIME_SHA" \
-            --registry "$REGISTRY" \
+            --registry https://npm.pkg.github.com \
             --output "$RUNNER_TEMP/runtime-packages"
       - uses: actions/upload-artifact@v7.0.0
         with:
@@ -346,7 +319,6 @@ jobs:
           RELEASE_CHANNEL: ${{ inputs.channel }}
           RUNTIME_RUN_ID: ${{ inputs.runtime_run_id }}
           RUNTIME_SHA: ${{ inputs.runtime_sha }}
-          RUNTIME_SOURCE: ${{ inputs.runtime_source }}
           RUNTIME_VERSION: ${{ inputs.runtime_version }}
           SDK_REF: ${{ github.ref }}
           SDK_SHA: ${{ github.sha }}

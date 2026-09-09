@@ -19,12 +19,11 @@ optional internal publication, and public unstable npm publication.
 
 The runtime dispatch includes these inputs:
 
-- `channel`: `canary` or `unstable`
-- `runtime_version`: Exact runtime package version
-- `runtime_sha`: Lowercase, 40-character `github/copilot-agent-runtime` SHA
-- `runtime_source`: `azure` for canary or `github-packages` for unstable
-- `runtime_run_id`: Source runtime workflow run ID and receiver idempotency key
-- `mode`: `tests-only` or `internal` for canary; `internal` for unstable
+* `channel`: `canary` or `unstable`
+* `runtime_version`: Exact runtime package version
+* `runtime_sha`: Lowercase, 40-character `github/copilot-agent-runtime` SHA
+* `runtime_run_id`: Source runtime workflow run ID and receiver idempotency key
+* `mode`: `tests-only` or `internal` for canary; `internal` for unstable
 
 Maintainers can dispatch `runtime-sdk.yml` directly with the same inputs. The
 optional `version` input is available only for unstable and must be an unstable
@@ -32,11 +31,10 @@ SemVer. Do not reuse an explicit version after an artifact has been built.
 
 ## Release gates
 
-Both channels acquire all eight `@github/copilot-<platform>` packages with an
-explicit registry argument. The workflows validate npm integrity, runtime
-version and SHA metadata, platform metadata, repository metadata, and required
-runtime files. Authentication configuration does not map the entire `@github`
-scope to GitHub Packages.
+Both channels acquire all eight `@github/copilot-<platform>` packages from
+GitHub Packages with the job-scoped `GITHUB_TOKEN`. The workflows validate npm
+integrity, runtime version and SHA metadata, the exact package set, platform
+metadata, repository metadata, and required runtime files.
 
 The workflows run runtime-backed Node SDK tests on Ubuntu, macOS, and Windows.
 They then build and verify eight self-contained
@@ -65,15 +63,16 @@ and package validation gates verify the embedded runtime identity. The public
 job uses npm trusted publishing from `runtime-sdk.yml` and publishes the same
 tarballs under the `unstable` dist-tag, with the umbrella package last.
 
-Before either publication, the workflow checks all nine package coordinates.
-An existing package counts as complete only when registry integrity matches
-the retained manifest. A mismatch fails the release. After all package
-contents are present, the workflow updates the channel dist-tag.
+The workflow validates all nine retained tarballs against the local
+`release-manifest.json` SHA-512 values before publication. A successful
+`npm publish` completes a package publication. A recognized immutable-version
+conflict means the package was already published and also completes that
+package publication; output feeds do not need to expose `dist.integrity`.
 Azure authentication allows the workflow to add or advance its tag, but it
 refuses to rewind a tag that points to a newer version. Public npm trusted
-publishing sets `unstable` as each missing package is published. The workflow
-then verifies all nine `@unstable` resolutions. It fails rather than attempting
-a separate public dist-tag mutation if any resolution differs.
+publishing sets `unstable` during publication. The workflow then verifies all
+nine `@unstable` resolutions. It fails rather than attempting a separate
+public dist-tag mutation if any resolution differs.
 
 ## Recovery
 
@@ -94,10 +93,9 @@ The Azure `copilot-canary` feed continues to use the `cicd` environment and
 Azure workload identity. GitHub Packages acquisition uses the workflow
 `GITHUB_TOKEN` with `packages: read`.
 
-Before enabling unstable dispatch, publish the eight signed runtime package
-coordinates once, set each GitHub Package to public visibility, and confirm
-that this repository can read all eight with its workflow token. Public
-visibility does not remove GitHub Packages npm authentication.
+Before enabling runtime dispatch, publish the eight signed runtime package
+coordinates to GitHub Packages and confirm that this repository can read all
+eight with its workflow token.
 
 Confirm npm trusted publisher configuration authorizes
 both `.github/workflows/publish.yml` and `.github/workflows/runtime-sdk.yml` for
