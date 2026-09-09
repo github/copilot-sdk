@@ -7,6 +7,7 @@ import { z } from "zod";
 import {
     approveAll,
     defineTool,
+    type AssistantMessageEvent,
     type CopilotSession,
     type ProviderConfig,
     type SessionEvent,
@@ -58,11 +59,13 @@ describe("Structured output", async () => {
         ).toBeDefined();
         expect(JSON.parse(result!.data.content)).toEqual({ answer: 42, contract: "raw_schema" });
         expect(result!.data.originatingMessageId).toBeTruthy();
+        expect(result!.data.isFinalReply).toBe(true);
 
         const ordinary = await session.sendAndWait(
             "Reply exactly SCHEMA_CLEARED without JSON or quotes."
         );
         expect(ordinary?.data.content).toBe("SCHEMA_CLEARED");
+        expect(ordinary?.data.isFinalReply).toBe(true);
         const exchanges = await openAiEndpoint.getExchanges();
         expect(exchanges).toHaveLength(2);
         expect(exchanges[0].request).toMatchObject({
@@ -109,6 +112,16 @@ describe("Structured output", async () => {
         expect(result).toEqual({ answer: 63, contract: "typed_tool" });
         expect(events.some((event) => event.type === "tool.execution_complete")).toBe(true);
         expect(events.some((event) => event.type === "assistant.message_delta")).toBe(true);
+        const replies = events.filter(
+            (event) => event.type === "assistant.message" && !event.agentId
+        );
+        expect(replies.filter((event) => event.data.isFinalReply)).toEqual([replies.at(-1)]);
+        expect(replies.some((event) => event.data.toolRequests?.length)).toBe(true);
+        expect(
+            replies
+                .filter((event) => event.data.toolRequests?.length)
+                .every((event) => event.data.isFinalReply !== true)
+        ).toBe(true);
         const exchanges = await openAiEndpoint.getExchanges();
         expect(exchanges.length).toBeGreaterThanOrEqual(2);
         for (const exchange of exchanges) {
@@ -118,6 +131,84 @@ describe("Structured output", async () => {
             );
         }
     });
+
+    it("node_send_exposes_final_reply_before_stop_hook_completes", async () => {
+        let releaseHook!: () => void;
+        let hookEntered = false;
+        const hookReleased = new Promise<void>((resolve) => {
+            releaseHook = resolve;
+        });
+        const session = await client.createSession({
+            model: "gpt-4.1",
+            provider,
+            onPermissionRequest: approveAll,
+            availableTools: [],
+            tools: [
+                defineTool("read_inventory", {
+                    description: "Read the current widget count and color.",
+                    parameters: z.object({}),
+                    skipPermission: true,
+                    handler: () => ({ count: 42, color: "red" }),
+                }),
+            ],
+            hooks: {
+                onAgentStop: async () => {
+                    hookEntered = true;
+                    await hookReleased;
+                },
+            },
+        });
+        const replies: AssistantMessageEvent[] = [];
+        let resolveReply!: (event: AssistantMessageEvent) => void;
+        let rejectReply!: (error: Error) => void;
+        const replyReceived = new Promise<AssistantMessageEvent>((resolve, reject) => {
+            resolveReply = resolve;
+            rejectReply = reject;
+        });
+        let idle = false;
+        const unsubscribe = session.on((event) => {
+            if (event.agentId) return;
+            if (event.type === "assistant.message") {
+                replies.push(event);
+                if (event.data.isFinalReply === true) resolveReply(event);
+            } else if (event.type === "session.error") {
+                rejectReply(new Error(event.data.message));
+            } else if (event.type === "session.idle") {
+                idle = true;
+            }
+        });
+        const schema = z.object({ count: z.number().int(), color: z.literal("red") });
+        const timeout = setTimeout(() => rejectReply(new Error("No final reply received")), 45_000);
+        try {
+            const [messageId, reply] = await Promise.all([
+                session.send({
+                    prompt: "Call read_inventory once, then report the current widget count and color.",
+                    responseSchema: schema,
+                }),
+                replyReceived,
+            ]);
+            await waitForCondition(() => hookEntered, {
+                timeoutMessage: "Stop hook did not start",
+            });
+            expect(reply.data.originatingMessageId).toBe(messageId);
+            expect(schema.parse(JSON.parse(reply.data.content))).toEqual({
+                count: 42,
+                color: "red",
+            });
+            expect(idle).toBe(false);
+            expect(replies.filter((event) => event.data.isFinalReply)).toEqual([reply]);
+            expect(replies.some((event) => event.data.toolRequests?.length)).toBe(true);
+            expect(reply.data.toolRequests ?? []).toEqual([]);
+
+            releaseHook();
+            await waitForCondition(() => idle, { timeoutMessage: "Session did not become idle" });
+            expect(replies.at(-1)).toBe(reply);
+        } finally {
+            clearTimeout(timeout);
+            releaseHook();
+            unsubscribe();
+        }
+    }, 60_000);
 
     it("node_concurrent_typed_sends_return_their_own_results", async () => {
         let markToolEntered!: () => void;
@@ -207,5 +298,6 @@ describe("Structured output", async () => {
         if (final?.type !== "assistant.message") throw new Error("No assistant response");
         expect(schema.parse(JSON.parse(final.data.content))).toEqual({ total: 42 });
         expect(final.data.originatingMessageId).toBe(response.messageIds[0]);
+        expect(final.data.isFinalReply).toBe(true);
     });
 });

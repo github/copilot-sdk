@@ -2448,6 +2448,7 @@ class AssistantMessageData:
     # Experimental: this field is part of an experimental API and may change or be removed.
     fusion: FusionAttribution | None = None
     interaction_id: str | None = None
+    is_final_reply: bool | None = None
     model: str | None = None
     originating_message_id: str | None = None
     output_tokens: int | None = None
@@ -2478,6 +2479,7 @@ class AssistantMessageData:
         encrypted_content = from_union([from_none, from_str], obj.get("encryptedContent"))
         fusion = from_union([from_none, FusionAttribution.from_dict], obj.get("fusion"))
         interaction_id = from_union([from_none, from_str], obj.get("interactionId"))
+        is_final_reply = from_union([from_none, from_bool], obj.get("isFinalReply"))
         model = from_union([from_none, from_str], obj.get("model"))
         originating_message_id = from_union([from_none, from_str], obj.get("originatingMessageId"))
         output_tokens = from_union([from_none, from_int], obj.get("outputTokens"))
@@ -2504,6 +2506,7 @@ class AssistantMessageData:
             encrypted_content=encrypted_content,
             fusion=fusion,
             interaction_id=interaction_id,
+            is_final_reply=is_final_reply,
             model=model,
             originating_message_id=originating_message_id,
             output_tokens=output_tokens,
@@ -2541,6 +2544,8 @@ class AssistantMessageData:
             result["fusion"] = from_union([from_none, lambda x: to_class(FusionAttribution, x)], self.fusion)
         if self.interaction_id is not None:
             result["interactionId"] = from_union([from_none, from_str], self.interaction_id)
+        if self.is_final_reply is not None:
+            result["isFinalReply"] = from_union([from_none, from_bool], self.is_final_reply)
         if self.model is not None:
             result["model"] = from_union([from_none, from_str], self.model)
         if self.originating_message_id is not None:

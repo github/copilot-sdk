@@ -39,6 +39,8 @@ public final class AssistantMessageEvent extends SessionEvent {
         @JsonProperty("messageId") String messageId,
         /** Logical ID of the primary user message that initiated this run, matching the messageId returned by session.send (or the last messageId of session.sendMessages). Stable across model/tool iterations and steering messages. Subagent runs use their own initiating message ID, not the parent's. Absent for runs without an associated initiating message, such as empty batches. */
         @JsonProperty("originatingMessageId") String originatingMessageId,
+        /** True when this is the last assistant reply for the originatingMessageId. Does not indicate successful completion of hooks or cleanup; session.error or abort events may still follow. */
+        @JsonProperty("isFinalReply") Boolean isFinalReply,
         /** Model that produced this assistant message, if known */
         @JsonProperty("model") String model,
         /** The assistant's text response content */

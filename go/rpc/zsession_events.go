@@ -382,6 +382,8 @@ type AssistantMessageData struct {
 	Fusion *FusionAttribution `json:"fusion,omitempty"`
 	// CAPI interaction ID for correlating this message with upstream telemetry
 	InteractionID *string `json:"interactionId,omitempty"`
+	// True when this is the last assistant reply for the originatingMessageId. Does not indicate successful completion of hooks or cleanup; session.error or abort events may still follow.
+	IsFinalReply *bool `json:"isFinalReply,omitempty"`
 	// Unique identifier for this assistant message
 	MessageID string `json:"messageId"`
 	// Model that produced this assistant message, if known

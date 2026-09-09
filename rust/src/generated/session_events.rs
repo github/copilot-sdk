@@ -2875,6 +2875,9 @@ pub struct AssistantMessageData {
     /// CAPI interaction ID for correlating this message with upstream telemetry
     #[serde(skip_serializing_if = "Option::is_none")]
     pub interaction_id: Option<String>,
+    /// True when this is the last assistant reply for the originatingMessageId. Does not indicate successful completion of hooks or cleanup; session.error or abort events may still follow.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_final_reply: Option<bool>,
     /// Unique identifier for this assistant message
     pub message_id: String,
     /// Model that produced this assistant message, if known

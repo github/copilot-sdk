@@ -3816,6 +3816,11 @@ public sealed partial class AssistantMessageData
     [JsonPropertyName("interactionId")]
     public string? InteractionId { get; set; }
 
+    /// <summary>True when this is the last assistant reply for the originatingMessageId. Does not indicate successful completion of hooks or cleanup; session.error or abort events may still follow.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("isFinalReply")]
+    public bool? IsFinalReply { get; set; }
+
     /// <summary>Unique identifier for this assistant message.</summary>
     [JsonPropertyName("messageId")]
     public required string MessageId { get; set; }

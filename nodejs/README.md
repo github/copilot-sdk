@@ -303,7 +303,8 @@ Returns the final assistant message event, or undefined if none was received.
 
 ##### Structured output (preview)
 
-Requires a runtime build with `responseFormat` and `originatingMessageId` support.
+Requires a runtime build with `responseFormat`, `originatingMessageId`, and
+`isFinalReply` support.
 Pass a raw JSON Schema or a Zod schema as `responseSchema` to `send` or
 `sendAndWait`. As with custom tool parameters, the SDK converts Zod schemas to
 JSON Schema before sending them:
@@ -347,6 +348,16 @@ matches the ID returned by their send, then return at a non-autopilot
 selected result. The existing unformatted overload retains its session-wide
 behavior. `turnId` identifies an individual model/tool iteration, not the whole
 run; telemetry interaction IDs are not unique run identifiers.
+
+For event-driven consumption with `send`, a root `assistant.message` with
+`data.isFinalReply === true` identifies the reply to parse without waiting for
+idle. Match its `data.originatingMessageId` to the ID returned by `send`.
+Subscribe before sending and allow for events arriving before that acknowledgement.
+Tool-call messages are not final replies; for multi-message terminal responses,
+only the last message is marked. The optional flag is a content-selection signal,
+not a success guarantee: stop hooks and other processing can still run, and later
+errors arrive through normal `session.error` events. `sendAndWait` deliberately
+continues waiting for idle and can still reject after receiving a final reply.
 
 Streaming still delivers ordinary text events, including intermediate messages
 and tool calls. Only the final selected message is parsed by the typed overload;
