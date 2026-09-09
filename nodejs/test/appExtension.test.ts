@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { CancellationTokenSource } from "vscode-jsonrpc/node.js";
 import {
     defineAppExtension,
     type AppExtensionHost,
@@ -394,6 +395,58 @@ describe("defineAppExtension", () => {
         ).rejects.toThrow("must be registered before mediated fetch");
         finishCallback!({});
         await expect(invocation).resolves.toEqual({});
+    });
+
+    it("propagates peer cancellation to app canvas callbacks", async () => {
+        const { session } = arrange();
+        vi.mocked(CopilotClient.prototype[registerPrivateAppExtensionSymbol]).mockResolvedValueOnce(
+            {
+                protocolVersion: 1,
+                principal: {
+                    packageId: "bundled:github-app:canvas",
+                    activationId: "activation-canvas",
+                },
+                capabilities: { canvases: true },
+                contributions: [
+                    {
+                        contributionPoint: "canvases",
+                        contributionId: "repository-overview",
+                    },
+                ],
+            }
+        );
+        let callbackSignal: AbortSignal | undefined;
+        let finishCallback: (() => void) | undefined;
+        const activation = await defineAppExtension(async (host) => {
+            await host.canvases.register({
+                contributionId: host.contributions[0]!.contributionId,
+                onOpen: ({ signal }) =>
+                    new Promise((resolve) => {
+                        callbackSignal = signal;
+                        finishCallback = () => resolve({});
+                    }),
+                onAction: () => null,
+            });
+        });
+        const cancellation = new CancellationTokenSource();
+        const invocation = session.clientSessionApis.appCanvas!.open(
+            {
+                sessionId: "hidden-app-session",
+                protocolVersion: 1,
+                contributionId: "repository-overview",
+                instanceId: "canvas-1",
+            },
+            cancellation.token
+        );
+        await vi.waitFor(() => expect(callbackSignal).toBeDefined());
+
+        cancellation.cancel();
+
+        expect(callbackSignal!.aborted).toBe(true);
+        finishCallback!();
+        await expect(invocation).resolves.toEqual({});
+        cancellation.dispose();
+        await activation.dispose();
     });
 
     it("unregisters a canvas whose registration completes after activation disposal", async () => {

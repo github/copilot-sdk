@@ -392,6 +392,7 @@ export interface RpcMethod {
     visibility?: string;
     deprecated?: boolean;
     notification?: boolean;
+    supportsCancellation?: boolean;
 }
 
 export function getRpcSchemaTypeName(schema: JSONSchema7 | null | undefined, fallback: string): string {

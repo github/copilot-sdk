@@ -874,6 +874,7 @@
             "open": {
                 "rpcMethod": "appCanvas.open",
                 "description": "Opens an app-scoped canvas contribution on its owning extension connection.",
+                "supportsCancellation": true,
                 "stability": "experimental",
                 "params": {
                     "$ref": "#/definitions/AppCanvasOpenCallbackRequest"
@@ -885,6 +886,7 @@
             "close": {
                 "rpcMethod": "appCanvas.close",
                 "description": "Closes an app-scoped canvas contribution on its owning extension connection.",
+                "supportsCancellation": true,
                 "stability": "experimental",
                 "params": {
                     "$ref": "#/definitions/AppCanvasCloseCallbackRequest"
@@ -897,6 +899,7 @@
                 "invoke": {
                     "rpcMethod": "appCanvas.action.invoke",
                     "description": "Invokes an action on an app-scoped canvas contribution.",
+                    "supportsCancellation": true,
                     "stability": "experimental",
                     "params": {
                         "$ref": "#/definitions/AppCanvasActionCallbackRequest"
@@ -912,6 +915,7 @@
             "invoke": {
                 "rpcMethod": "appForge.invoke",
                 "description": "Invokes one registered forge-provider operation on its owning extension connection.",
+                "supportsCancellation": true,
                 "stability": "experimental",
                 "params": {
                     "$ref": "#/definitions/AppForgeInvokeCallbackRequest"

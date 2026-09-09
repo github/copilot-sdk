@@ -5,6 +5,7 @@
 import type { CopilotClient } from "./client.js";
 import type { CopilotSession } from "./session.js";
 import type { JsonValue } from "./factory.js";
+import type { CancellationToken } from "vscode-jsonrpc/node.js";
 import type {
     AppCanvasActionCallbackRequest,
     AppCanvasCloseCallbackRequest,
@@ -508,68 +509,88 @@ class CanvasRegistration implements AppCanvasRegistration {
         this.#controllers.clear();
     }
 
-    async open(params: AppCanvasOpenCallbackRequest): Promise<WireAppCanvasOpenResult> {
+    async open(
+        params: AppCanvasOpenCallbackRequest,
+        cancellation?: CancellationToken
+    ): Promise<WireAppCanvasOpenResult> {
         this.assertActive();
         assertProtocolVersion(params.protocolVersion);
         assertBoundedString(params.instanceId, "instanceId", MAX_CANVAS_INSTANCE_ID_LENGTH);
-        const result = await this.run((signal) =>
-            this.options.onOpen(
-                Object.freeze({
-                    instanceId: params.instanceId,
-                    input: params.input,
-                    context: copyCanvasContext(params.context),
-                    signal,
-                })
-            )
+        const result = await this.run(
+            (signal) =>
+                this.options.onOpen(
+                    Object.freeze({
+                        instanceId: params.instanceId,
+                        input: params.input,
+                        context: copyCanvasContext(params.context),
+                        signal,
+                    })
+                ),
+            cancellation
         );
         return validateCanvasOpenResult(result);
     }
 
-    async action(params: AppCanvasActionCallbackRequest): Promise<JsonValue> {
+    async action(
+        params: AppCanvasActionCallbackRequest,
+        cancellation?: CancellationToken
+    ): Promise<JsonValue> {
         this.assertActive();
         assertProtocolVersion(params.protocolVersion);
         assertBoundedString(params.instanceId, "instanceId", MAX_CANVAS_INSTANCE_ID_LENGTH);
         assertBoundedString(params.actionName, "actionName", MAX_OPERATION_NAME_LENGTH);
-        const result = await this.run((signal) =>
-            this.options.onAction(
-                Object.freeze({
-                    instanceId: params.instanceId,
-                    actionName: params.actionName,
-                    input: params.input,
-                    context: copyCanvasContext(params.context),
-                    signal,
-                })
-            )
+        const result = await this.run(
+            (signal) =>
+                this.options.onAction(
+                    Object.freeze({
+                        instanceId: params.instanceId,
+                        actionName: params.actionName,
+                        input: params.input,
+                        context: copyCanvasContext(params.context),
+                        signal,
+                    })
+                ),
+            cancellation
         );
         assertJsonPayload(result, "canvas action result");
         return result;
     }
 
-    async close(params: AppCanvasCloseCallbackRequest): Promise<void> {
+    async close(
+        params: AppCanvasCloseCallbackRequest,
+        cancellation?: CancellationToken
+    ): Promise<void> {
         this.assertActive();
         assertProtocolVersion(params.protocolVersion);
         assertBoundedString(params.instanceId, "instanceId", MAX_CANVAS_INSTANCE_ID_LENGTH);
         if (!this.options.onClose) return;
-        await this.run((signal) =>
-            this.options.onClose!(
-                Object.freeze({
-                    instanceId: params.instanceId,
-                    context: copyCanvasContext(params.context),
-                    signal,
-                })
-            )
+        await this.run(
+            (signal) =>
+                this.options.onClose!(
+                    Object.freeze({
+                        instanceId: params.instanceId,
+                        context: copyCanvasContext(params.context),
+                        signal,
+                    })
+                ),
+            cancellation
         );
     }
 
-    private async run<T>(callback: (signal: AbortSignal) => T | Promise<T>): Promise<T> {
+    private async run<T>(
+        callback: (signal: AbortSignal) => T | Promise<T>,
+        cancellation?: CancellationToken
+    ): Promise<T> {
         const controller = new AbortController();
         this.#controllers.add(controller);
-        if (this.disposed) {
+        const subscription = cancellation?.onCancellationRequested(() => controller.abort());
+        if (this.disposed || cancellation?.isCancellationRequested) {
             controller.abort();
         }
         try {
             return await callback(controller.signal);
         } finally {
+            subscription?.dispose();
             this.#controllers.delete(controller);
         }
     }
@@ -595,12 +616,18 @@ class CanvasesRegistrar implements AppCanvasesHost {
         private readonly session: CopilotSession
     ) {
         this.#handler = {
-            open: (params) =>
-                this.dispatch(params.contributionId, (registration) => registration.open(params)),
-            invoke: (params) =>
-                this.dispatch(params.contributionId, (registration) => registration.action(params)),
-            close: (params) =>
-                this.dispatch(params.contributionId, (registration) => registration.close(params)),
+            open: (params, cancellation) =>
+                this.dispatch(params.contributionId, (registration) =>
+                    registration.open(params, cancellation)
+                ),
+            invoke: (params, cancellation) =>
+                this.dispatch(params.contributionId, (registration) =>
+                    registration.action(params, cancellation)
+                ),
+            close: (params, cancellation) =>
+                this.dispatch(params.contributionId, (registration) =>
+                    registration.close(params, cancellation)
+                ),
         };
         this.session.clientSessionApis.appCanvas = this.#handler;
     }
@@ -747,7 +774,10 @@ class ForgeProviderRegistration implements AppForgeProviderRegistration {
         this.#controllers.clear();
     }
 
-    async invoke(params: AppForgeInvokeCallbackRequest): Promise<JsonValue> {
+    async invoke(
+        params: AppForgeInvokeCallbackRequest,
+        cancellation?: CancellationToken
+    ): Promise<JsonValue> {
         this.assertActive();
         assertProtocolVersion(params.protocolVersion);
         const handler = this.handlers.get(params.operation);
@@ -758,7 +788,8 @@ class ForgeProviderRegistration implements AppForgeProviderRegistration {
         }
         const controller = new AbortController();
         this.#controllers.add(controller);
-        if (this.disposed) {
+        const subscription = cancellation?.onCancellationRequested(() => controller.abort());
+        if (this.disposed || cancellation?.isCancellationRequested) {
             controller.abort();
         }
         try {
@@ -773,6 +804,7 @@ class ForgeProviderRegistration implements AppForgeProviderRegistration {
             assertJsonPayload(result, "forge provider result");
             return result;
         } finally {
+            subscription?.dispose();
             this.#controllers.delete(controller);
         }
     }
@@ -798,8 +830,10 @@ class ForgeProvidersRegistrar implements AppForgeProvidersHost {
         private readonly session: CopilotSession
     ) {
         this.#handler = {
-            invoke: (params) =>
-                this.dispatch(params.contributionId, (registration) => registration.invoke(params)),
+            invoke: (params, cancellation) =>
+                this.dispatch(params.contributionId, (registration) =>
+                    registration.invoke(params, cancellation)
+                ),
         };
         this.session.clientSessionApis.appForgeProvider = this.#handler;
     }

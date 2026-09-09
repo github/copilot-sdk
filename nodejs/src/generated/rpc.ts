@@ -3,7 +3,7 @@
  * Generated from: api.schema.json
  */
 
-import type { MessageConnection } from "vscode-jsonrpc/node.js";
+import type { CancellationToken, MessageConnection } from "vscode-jsonrpc/node.js";
 
 import type { AbortReason, AgentModelPolicy, Attachment, AutoTier, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource, McpServerStatus, ModelChangeSource, PermissionMode, PermissionPromptRequest, PermissionRule, ReasoningSummary, RemediationAction, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskCompleteData, TaskCompletionOutcome, UserToolSessionApproval, Verbosity } from "./session-events.js";
 
@@ -27539,13 +27539,13 @@ export interface AppCanvasHandler {
      *
      * @returns Bounded app-canvas state and display metadata. Arbitrary navigation URLs are not supported.
      */
-    open(params: AppCanvasOpenCallbackRequest): Promise<AppCanvasOpenResult>;
+    open(params: AppCanvasOpenCallbackRequest, cancellation?: CancellationToken): Promise<AppCanvasOpenResult>;
     /**
      * Closes an app-scoped canvas contribution on its owning extension connection.
      *
      * @param params App-canvas close callback routed to the owning extension connection.
      */
-    close(params: AppCanvasCloseCallbackRequest): Promise<void>;
+    close(params: AppCanvasCloseCallbackRequest, cancellation?: CancellationToken): Promise<void>;
     /**
      * Invokes an action on an app-scoped canvas contribution.
      *
@@ -27553,7 +27553,7 @@ export interface AppCanvasHandler {
      *
      * @returns Serializable action result.
      */
-    invoke(params: AppCanvasActionCallbackRequest): Promise<AppCanvasActionInvokeResult>;
+    invoke(params: AppCanvasActionCallbackRequest, cancellation?: CancellationToken): Promise<AppCanvasActionInvokeResult>;
 }
 
 /** Handler for `appForgeProvider` client session API methods. */
@@ -27566,7 +27566,7 @@ export interface AppForgeProviderHandler {
      *
      * @returns Serializable forge-provider operation result.
      */
-    invoke(params: AppForgeInvokeCallbackRequest): Promise<AppForgeInvokeResult>;
+    invoke(params: AppForgeInvokeCallbackRequest, cancellation?: CancellationToken): Promise<AppForgeInvokeResult>;
 }
 
 /** Handler for `appForgeHost` client session API methods. */
@@ -27704,25 +27704,25 @@ export function registerClientSessionApiHandlers(
         if (!handler) throw new Error(`No canvas handler registered for session: ${params.sessionId}`);
         return handler.invoke(params);
     });
-    connection.onRequest("appCanvas.open", async (params: AppCanvasOpenCallbackRequest) => {
+    connection.onRequest("appCanvas.open", async (params: AppCanvasOpenCallbackRequest, cancellation: CancellationToken) => {
         const handler = getHandlers(params.sessionId).appCanvas;
         if (!handler) throw new Error(`No appCanvas handler registered for session: ${params.sessionId}`);
-        return handler.open(params);
+        return handler.open(params, cancellation);
     });
-    connection.onRequest("appCanvas.close", async (params: AppCanvasCloseCallbackRequest) => {
+    connection.onRequest("appCanvas.close", async (params: AppCanvasCloseCallbackRequest, cancellation: CancellationToken) => {
         const handler = getHandlers(params.sessionId).appCanvas;
         if (!handler) throw new Error(`No appCanvas handler registered for session: ${params.sessionId}`);
-        return handler.close(params);
+        return handler.close(params, cancellation);
     });
-    connection.onRequest("appCanvas.action.invoke", async (params: AppCanvasActionCallbackRequest) => {
+    connection.onRequest("appCanvas.action.invoke", async (params: AppCanvasActionCallbackRequest, cancellation: CancellationToken) => {
         const handler = getHandlers(params.sessionId).appCanvas;
         if (!handler) throw new Error(`No appCanvas handler registered for session: ${params.sessionId}`);
-        return handler.invoke(params);
+        return handler.invoke(params, cancellation);
     });
-    connection.onRequest("appForge.invoke", async (params: AppForgeInvokeCallbackRequest) => {
+    connection.onRequest("appForge.invoke", async (params: AppForgeInvokeCallbackRequest, cancellation: CancellationToken) => {
         const handler = getHandlers(params.sessionId).appForgeProvider;
         if (!handler) throw new Error(`No appForgeProvider handler registered for session: ${params.sessionId}`);
-        return handler.invoke(params);
+        return handler.invoke(params, cancellation);
     });
     connection.onRequest("appForge.fetch", async (params: AppMediatedFetchHostRequest) => {
         const handler = getHandlers(params.sessionId).appForgeHost;
