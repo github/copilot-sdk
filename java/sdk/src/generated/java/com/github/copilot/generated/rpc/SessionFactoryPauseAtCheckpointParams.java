@@ -10,26 +10,27 @@ package com.github.copilot.generated.rpc;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * Prompt-safe terminal factory outcome.
+ * Parameters for an owned durable pause checkpoint.
  *
+ * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
+@CopilotExperimental
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record FactoryRunTerminal(
-    /** Human-readable terminal reason. */
-    @JsonProperty("reason") String reason,
-    /** Machine-readable terminal failure. */
-    @JsonProperty("failure") Object failure,
-    /** Human-readable terminal error. */
-    @JsonProperty("error") String error,
-    /** Prompt-safe preview of the completed result. */
-    @JsonProperty("resultPreview") String resultPreview,
-    /** Pause initiator metadata, or null when the run did not pause. */
-    @JsonProperty("pauseInfo") Object pauseInfo
+public record SessionFactoryPauseAtCheckpointParams(
+    /** Target session identifier */
+    @JsonProperty("sessionId") String sessionId,
+    /** Factory run identifier. */
+    @JsonProperty("runId") String runId,
+    /** Opaque token identifying the execution attempt that reached the checkpoint. */
+    @JsonProperty("executionToken") String executionToken,
+    /** Stable author-defined checkpoint key. */
+    @JsonProperty("key") String key
 ) {
 }

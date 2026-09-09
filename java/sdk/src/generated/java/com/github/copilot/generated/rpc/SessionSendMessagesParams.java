@@ -38,6 +38,8 @@ public record SessionSendMessagesParams(
     @JsonProperty("agentMode") SendAgentMode agentMode,
     /** Custom HTTP headers to include in outbound model requests for this turn. Merged with session-level provider headers; per-turn headers augment and overwrite session-level headers with the same key. */
     @JsonProperty("requestHeaders") Map<String, String> requestHeaders,
+    /** Provider-native output format for the whole turn, including an empty message batch and all tool-call iterations. Not inherited by later turns or subagents. Ordinary steering inherits the active format; specifying responseFormat with mode: immediate is an error, even while idle. Returned assistant content remains text; the runtime does not parse or validate it. Unsupported models or schemas produce provider errors. */
+    @JsonProperty("responseFormat") SessionSendMessagesParamsResponseFormat responseFormat,
     /** W3C Trace Context traceparent header for distributed tracing of this agent turn */
     @JsonProperty("traceparent") String traceparent,
     /** W3C Trace Context tracestate header for distributed tracing */
@@ -45,4 +47,14 @@ public record SessionSendMessagesParams(
     /** If true, await completion of the agentic loop for this turn before returning. Defaults to false (fire-and-forget). When true, the result still contains the same `messageIds`; the caller can rely on the agent having processed the messages before the call resolves. Transport-dependent tail semantics: on a LOCAL (in-process) session the wait additionally blocks until the completed turn's event tail has been dispatched to this session's in-process subscribers, so a subsequent read of subscriber state already reflects the turn; on a REMOTE session the wait resolves once the loop completes and mirrored delivery follows over the wire. Callers that need the stronger local guarantee on remote sessions should await the event stream explicitly. */
     @JsonProperty("wait") Boolean wait_
 ) {
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record SessionSendMessagesParamsResponseFormat(
+        /** JSON Schema and provider options for the turn's output. */
+        @JsonProperty("jsonSchema") JsonSchemaResponseFormat jsonSchema,
+        /** Output format discriminator. Currently only json_schema is supported. */
+        @JsonProperty("type") String type
+    ) {
+    }
 }

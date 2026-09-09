@@ -98,6 +98,9 @@ never author model responses by hand. Rerun with `GITHUB_ACTIONS=true` and real
 provider credentials removed to require replay instead of forwarding cache
 misses upstream. A draft targeting an unreleased runtime should document the
 required runtime revision; update the pinned release only after it ships.
+Pinned-schema CI can report drift in such a draft. Java codegen reports this
+without automatically rewriting draft branches; automatic updates resume once
+the pull request is ready for review.
 
 ## Submitting a Pull Request
 
