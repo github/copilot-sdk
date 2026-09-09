@@ -13,6 +13,7 @@ use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::app_extension::AppMediatedFetchHandler;
 use crate::canvas::{CanvasDeclaration, CanvasHandler};
 pub use crate::copilot_request_handler::{
     CopilotHttpRequest, CopilotHttpResponse, CopilotHttpResponseBody, CopilotRequestContext,
@@ -1973,6 +1974,9 @@ pub struct SessionConfig {
     /// this handler. Use [`with_canvas_handler`](Self::with_canvas_handler)
     /// to install one.
     pub canvas_handler: Option<Arc<dyn CanvasHandler>>,
+    /// Trusted app-host handler for validated mediated-fetch effects.
+    #[doc(hidden)]
+    pub app_mediated_fetch_handler: Option<Arc<dyn AppMediatedFetchHandler>>,
     /// Request canvas renderer tools for this connection.
     pub request_canvas_renderer: Option<bool>,
     /// Request extension tools and dispatch for this connection.
@@ -2312,6 +2316,10 @@ impl std::fmt::Debug for SessionConfig {
                 "canvas_handler",
                 &self.canvas_handler.as_ref().map(|_| "<set>"),
             )
+            .field(
+                "app_mediated_fetch_handler",
+                &self.app_mediated_fetch_handler.as_ref().map(|_| "<set>"),
+            )
             .field("request_canvas_renderer", &self.request_canvas_renderer)
             .field("request_extensions", &self.request_extensions)
             .field("app_extension_package_ids", &self.app_extension_package_ids)
@@ -2453,6 +2461,7 @@ impl Default for SessionConfig {
             tools: None,
             canvases: None,
             canvas_handler: None,
+            app_mediated_fetch_handler: None,
             request_canvas_renderer: None,
             request_extensions: None,
             app_extension_package_ids: None,
@@ -2548,6 +2557,7 @@ pub(crate) struct SessionConfigRuntime {
     pub system_message_transform: Option<Arc<dyn SystemMessageTransform>>,
     pub tool_handlers: HashMap<String, Arc<dyn crate::tool::ToolHandler>>,
     pub canvas_handler: Option<Arc<dyn CanvasHandler>>,
+    pub app_mediated_fetch_handler: Option<Arc<dyn AppMediatedFetchHandler>>,
     pub session_fs_provider: Option<Arc<dyn SessionFsProvider>>,
     pub bearer_token_providers: HashMap<String, Arc<dyn BearerTokenProvider>>,
     pub github_token_provider: Option<Arc<dyn GitHubTokenProvider>>,
@@ -2608,6 +2618,7 @@ impl SessionConfig {
         });
         let wire_canvases = self.canvases.clone();
         let canvas_handler = self.canvas_handler.clone();
+        let app_mediated_fetch_handler = self.app_mediated_fetch_handler.clone();
         let bearer_token_providers =
             prepare_bearer_token_providers(&mut self.provider, &mut self.providers);
 
@@ -2704,6 +2715,7 @@ impl SessionConfig {
             system_message_transform: self.system_message_transform,
             tool_handlers,
             canvas_handler,
+            app_mediated_fetch_handler,
             session_fs_provider: self.session_fs_provider,
             bearer_token_providers,
             github_token_provider: self.github_token_provider,
@@ -2892,6 +2904,16 @@ impl SessionConfig {
     /// Install the provider-side [`CanvasHandler`] for this session.
     pub fn with_canvas_handler(mut self, handler: Arc<dyn CanvasHandler>) -> Self {
         self.canvas_handler = Some(handler);
+        self
+    }
+
+    /// Install the trusted app-host mediated-fetch handler for this session.
+    #[doc(hidden)]
+    pub fn with_app_mediated_fetch_handler(
+        mut self,
+        handler: Arc<dyn AppMediatedFetchHandler>,
+    ) -> Self {
+        self.app_mediated_fetch_handler = Some(handler);
         self
     }
 
@@ -3429,6 +3451,9 @@ pub struct ResumeSessionConfig {
     /// Provider-side canvas lifecycle handler. See
     /// [`SessionConfig::canvas_handler`].
     pub canvas_handler: Option<Arc<dyn CanvasHandler>>,
+    /// Trusted app-host handler for validated mediated-fetch effects.
+    #[doc(hidden)]
+    pub app_mediated_fetch_handler: Option<Arc<dyn AppMediatedFetchHandler>>,
     /// Open canvas instances the caller knows were open before this resume.
     pub open_canvases: Option<Vec<OpenCanvasInstance>>,
     /// Request canvas renderer tools for this connection.
@@ -3681,6 +3706,10 @@ impl std::fmt::Debug for ResumeSessionConfig {
                 "canvas_handler",
                 &self.canvas_handler.as_ref().map(|_| "<set>"),
             )
+            .field(
+                "app_mediated_fetch_handler",
+                &self.app_mediated_fetch_handler.as_ref().map(|_| "<set>"),
+            )
             .field("open_canvases", &self.open_canvases)
             .field("request_canvas_renderer", &self.request_canvas_renderer)
             .field("request_extensions", &self.request_extensions)
@@ -3849,6 +3878,7 @@ impl ResumeSessionConfig {
         });
         let wire_canvases = self.canvases.clone();
         let canvas_handler = self.canvas_handler.clone();
+        let app_mediated_fetch_handler = self.app_mediated_fetch_handler.clone();
         let bearer_token_providers =
             prepare_bearer_token_providers(&mut self.provider, &mut self.providers);
 
@@ -3947,6 +3977,7 @@ impl ResumeSessionConfig {
             system_message_transform: self.system_message_transform,
             tool_handlers,
             canvas_handler,
+            app_mediated_fetch_handler,
             session_fs_provider: self.session_fs_provider,
             bearer_token_providers,
             github_token_provider: self.github_token_provider,
@@ -3974,6 +4005,7 @@ impl ResumeSessionConfig {
             tools: None,
             canvases: None,
             canvas_handler: None,
+            app_mediated_fetch_handler: None,
             open_canvases: None,
             request_canvas_renderer: None,
             request_extensions: None,
@@ -4212,6 +4244,16 @@ impl ResumeSessionConfig {
     /// Install the provider-side [`CanvasHandler`] for the resumed session.
     pub fn with_canvas_handler(mut self, handler: Arc<dyn CanvasHandler>) -> Self {
         self.canvas_handler = Some(handler);
+        self
+    }
+
+    /// Install the trusted app-host mediated-fetch handler for the resumed session.
+    #[doc(hidden)]
+    pub fn with_app_mediated_fetch_handler(
+        mut self,
+        handler: Arc<dyn AppMediatedFetchHandler>,
+    ) -> Self {
+        self.app_mediated_fetch_handler = Some(handler);
         self
     }
 

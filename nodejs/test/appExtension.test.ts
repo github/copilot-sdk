@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
     defineAppExtension,
+    type AppExtensionHost,
     type AppSessionBadgesContribution,
     type AppSessionBadgesHost,
 } from "../src/appExtension.js";
@@ -12,7 +13,12 @@ import type {
 } from "../src/appSessionBadges.js";
 import {
     onExtensionTransportClosedSymbol,
+    registerPrivateAppCanvasSymbol,
     registerPrivateAppExtensionSymbol,
+    registerPrivateAppForgeProviderSymbol,
+    requestPrivateAppMediatedFetchSymbol,
+    unregisterPrivateAppCanvasSymbol,
+    unregisterPrivateAppForgeProviderSymbol,
 } from "../src/appExtensionClientAccess.js";
 import { CopilotClient } from "../src/client.js";
 import type { CopilotSession } from "../src/session.js";
@@ -33,6 +39,7 @@ describe("defineAppExtension", () => {
         process.env.SESSION_ID = "hidden-app-session";
         const session = {
             disconnect: vi.fn().mockResolvedValue(undefined),
+            clientSessionApis: {},
         } as unknown as CopilotSession;
         vi.spyOn(CopilotClient.prototype, "resumeSessionForExtension").mockResolvedValue(session);
         vi.spyOn(CopilotClient.prototype, registerPrivateAppExtensionSymbol).mockResolvedValue({
@@ -50,6 +57,21 @@ describe("defineAppExtension", () => {
             ],
         });
         vi.spyOn(CopilotClient.prototype, "stop").mockResolvedValue([]);
+        vi.spyOn(CopilotClient.prototype, registerPrivateAppCanvasSymbol).mockResolvedValue();
+        vi.spyOn(CopilotClient.prototype, unregisterPrivateAppCanvasSymbol).mockResolvedValue();
+        vi.spyOn(
+            CopilotClient.prototype,
+            registerPrivateAppForgeProviderSymbol
+        ).mockResolvedValue();
+        vi.spyOn(
+            CopilotClient.prototype,
+            unregisterPrivateAppForgeProviderSymbol
+        ).mockResolvedValue();
+        vi.spyOn(CopilotClient.prototype, requestPrivateAppMediatedFetchSymbol).mockResolvedValue({
+            status: 200,
+            headers: {},
+            truncated: false,
+        });
         let closeTransport: (() => void) | undefined;
         vi.spyOn(CopilotClient.prototype, onExtensionTransportClosedSymbol).mockImplementation(
             (handler) => {
@@ -80,12 +102,379 @@ describe("defineAppExtension", () => {
             expect(host).not.toHaveProperty("fetch");
         });
 
-        expect(hostKeys).toEqual(["capabilities", "principal", "sessionBadges", "signal"]);
+        expect(hostKeys).toEqual([
+            "canvases",
+            "capabilities",
+            "contributions",
+            "forgeProviders",
+            "mediatedFetch",
+            "principal",
+            "sessionBadges",
+            "signal",
+        ]);
         expect(Object.keys(activation).sort()).toEqual(["dispose", "principal", "signal"]);
         expect(activation).not.toHaveProperty("client");
         expect(activation).not.toHaveProperty("session");
         expect(activation).not.toHaveProperty("sessionBadges");
         expect(CopilotClient.prototype[registerPrivateAppExtensionSymbol]).toHaveBeenCalledOnce();
+        await activation.dispose();
+    });
+
+    it("registers app canvases, strips routing identity, and unregisters on disposal", async () => {
+        const { session } = arrange();
+        vi.mocked(CopilotClient.prototype[registerPrivateAppExtensionSymbol]).mockResolvedValueOnce(
+            {
+                protocolVersion: 1,
+                principal: {
+                    packageId: "bundled:github-app:canvas",
+                    activationId: "activation-canvas",
+                },
+                capabilities: { canvases: true },
+                contributions: [
+                    {
+                        contributionPoint: "canvases",
+                        contributionId: "repository-overview",
+                    },
+                ],
+            }
+        );
+        const onOpen = vi.fn().mockReturnValue({
+            state: { selected: 1 },
+            title: "Repository",
+            status: "Ready",
+        });
+        const onAction = vi.fn().mockReturnValue({ selected: 2 });
+        const onClose = vi.fn();
+        let host: AppExtensionHost | undefined;
+        const activation = await defineAppExtension(async (value) => {
+            host = value;
+            await value.canvases.register({
+                contributionId: value.contributions[0]!.contributionId,
+                onOpen,
+                onAction,
+                onClose,
+            });
+        });
+
+        expect(CopilotClient.prototype[registerPrivateAppCanvasSymbol]).toHaveBeenCalledWith(
+            "repository-overview"
+        );
+        const context = {
+            projectId: "project-1",
+            workspaceId: "workspace-1",
+            project: {
+                forgeProviderId: "github",
+                repositoryLocator: { owner: "github", repo: "copilot-sdk" },
+                forgeAccountId: "account-1",
+            },
+        };
+        await expect(
+            session.clientSessionApis.appCanvas!.open({
+                sessionId: "hidden-app-session",
+                protocolVersion: 1,
+                contributionId: "repository-overview",
+                instanceId: "canvas-1",
+                input: { tab: "pulls" },
+                context,
+            })
+        ).resolves.toEqual({
+            state: { selected: 1 },
+            title: "Repository",
+            status: "Ready",
+        });
+        expect(onOpen).toHaveBeenCalledWith({
+            instanceId: "canvas-1",
+            input: { tab: "pulls" },
+            context,
+            signal: expect.any(AbortSignal),
+        });
+        expect(onOpen.mock.calls[0]![0]).not.toHaveProperty("sessionId");
+
+        await expect(
+            session.clientSessionApis.appCanvas!.invoke({
+                sessionId: "hidden-app-session",
+                protocolVersion: 1,
+                contributionId: "repository-overview",
+                instanceId: "canvas-1",
+                actionName: "select",
+                input: 2,
+                context,
+            })
+        ).resolves.toEqual({ selected: 2 });
+        await session.clientSessionApis.appCanvas!.close({
+            sessionId: "hidden-app-session",
+            protocolVersion: 1,
+            contributionId: "repository-overview",
+            instanceId: "canvas-1",
+            context,
+        });
+        expect(onAction.mock.calls[0]![0]).not.toHaveProperty("sessionId");
+        expect(onClose.mock.calls[0]![0]).not.toHaveProperty("sessionId");
+        expect(host).not.toHaveProperty("session");
+        expect(host).not.toHaveProperty("client");
+
+        await activation.dispose();
+        expect(CopilotClient.prototype[unregisterPrivateAppCanvasSymbol]).toHaveBeenCalledWith(
+            "repository-overview"
+        );
+        expect(session.clientSessionApis.appCanvas).toBeUndefined();
+    });
+
+    it("registers forge operations and mediates bounded credential-free fetch", async () => {
+        const { session } = arrange();
+        vi.mocked(CopilotClient.prototype[registerPrivateAppExtensionSymbol]).mockResolvedValueOnce(
+            {
+                protocolVersion: 1,
+                principal: {
+                    packageId: "bundled:github-app:forge",
+                    activationId: "activation-forge",
+                },
+                capabilities: { forgeProvider: true, mediatedFetch: true },
+                contributions: [
+                    {
+                        contributionPoint: "forgeProvider",
+                        contributionId: "github",
+                    },
+                ],
+            }
+        );
+        const getPullRequest = vi.fn().mockReturnValue({ number: 2574 });
+        const listPullRequests = vi.fn().mockReturnValue([]);
+        const fetch = vi
+            .mocked(CopilotClient.prototype[requestPrivateAppMediatedFetchSymbol])
+            .mockResolvedValue({
+                status: 200,
+                headers: { "content-type": "application/json" },
+                body: '{"number":2574}',
+                truncated: false,
+            });
+        let host: AppExtensionHost | undefined;
+        const activation = await defineAppExtension(async (value) => {
+            host = value;
+            const contributionId = value.contributions[0]!.contributionId;
+            await value.forgeProviders.register({
+                contributionId,
+                operations: { getPullRequest, listPullRequests },
+            });
+        });
+        const contributionId = host!.contributions[0]!.contributionId;
+
+        expect(CopilotClient.prototype[registerPrivateAppForgeProviderSymbol]).toHaveBeenCalledWith(
+            "github",
+            ["getPullRequest", "listPullRequests"]
+        );
+        await expect(
+            session.clientSessionApis.appForgeProvider!.invoke({
+                sessionId: "hidden-app-session",
+                protocolVersion: 1,
+                contributionId: "github",
+                operation: "getPullRequest",
+                accountId: "account-1",
+                input: { number: 2574 },
+            })
+        ).resolves.toEqual({ number: 2574 });
+        expect(getPullRequest).toHaveBeenCalledWith({
+            operation: "getPullRequest",
+            accountId: "account-1",
+            input: { number: 2574 },
+            signal: expect.any(AbortSignal),
+        });
+        expect(getPullRequest.mock.calls[0]![0]).not.toHaveProperty("sessionId");
+
+        await expect(
+            host!.mediatedFetch.request({
+                contributionId,
+                accountId: "account-1",
+                operation: "getPullRequest",
+                method: "GET",
+                path: "/repos/github/copilot-sdk/pulls/2574",
+                headers: { Accept: "application/json" },
+            })
+        ).resolves.toEqual({
+            status: 200,
+            headers: { "content-type": "application/json" },
+            body: '{"number":2574}',
+            truncated: false,
+        });
+        expect(fetch).toHaveBeenCalledWith(
+            {
+                protocolVersion: 1,
+                contributionId: "github",
+                accountId: "account-1",
+                operation: "getPullRequest",
+                request: {
+                    method: "GET",
+                    path: "/repos/github/copilot-sdk/pulls/2574",
+                    headers: { Accept: "application/json" },
+                },
+            },
+            expect.any(AbortSignal)
+        );
+        await expect(
+            host!.mediatedFetch.request({
+                contributionId,
+                accountId: "account-1",
+                operation: "getPullRequest",
+                method: "GET",
+                path: "https://api.github.com/repos/github/copilot-sdk",
+            })
+        ).rejects.toThrow("root-relative URL path");
+        await expect(
+            host!.mediatedFetch.request({
+                contributionId,
+                accountId: "account-1",
+                operation: "getPullRequest",
+                method: "GET",
+                path: "/repos/github/copilot-sdk",
+                headers: { Authorization: "secret" },
+            })
+        ).rejects.toThrow("header Authorization is not permitted");
+
+        await activation.dispose();
+        expect(
+            CopilotClient.prototype[unregisterPrivateAppForgeProviderSymbol]
+        ).toHaveBeenCalledWith("github");
+        expect(session.clientSessionApis.appForgeProvider).toBeUndefined();
+    });
+
+    it("requires a live forge registration and aborts in-flight provider callbacks", async () => {
+        const { session } = arrange();
+        vi.mocked(CopilotClient.prototype[registerPrivateAppExtensionSymbol]).mockResolvedValueOnce(
+            {
+                protocolVersion: 1,
+                principal: {
+                    packageId: "bundled:github-app:forge",
+                    activationId: "activation-forge",
+                },
+                capabilities: { forgeProvider: true, mediatedFetch: true },
+                contributions: [
+                    {
+                        contributionPoint: "forgeProvider",
+                        contributionId: "github",
+                    },
+                ],
+            }
+        );
+        let host: AppExtensionHost | undefined;
+        let callbackSignal: AbortSignal | undefined;
+        let finishCallback: ((value: object) => void) | undefined;
+        const activation = await defineAppExtension(async (value) => {
+            host = value;
+            await value.forgeProviders.register({
+                contributionId: value.contributions[0]!.contributionId,
+                operations: {
+                    pending: ({ signal }) =>
+                        new Promise((resolve) => {
+                            callbackSignal = signal;
+                            finishCallback = resolve;
+                        }),
+                },
+            });
+        });
+        const contributionId = host!.contributions[0]!.contributionId;
+        const invocation = session.clientSessionApis.appForgeProvider!.invoke({
+            sessionId: "hidden-app-session",
+            protocolVersion: 1,
+            contributionId: "github",
+            operation: "pending",
+        });
+        await vi.waitFor(() => expect(callbackSignal).toBeDefined());
+
+        await activation.dispose();
+
+        expect(callbackSignal!.aborted).toBe(true);
+        await expect(
+            host!.mediatedFetch.request({
+                contributionId,
+                accountId: "account-1",
+                operation: "pending",
+                method: "GET",
+                path: "/user",
+            })
+        ).rejects.toThrow("must be registered before mediated fetch");
+        finishCallback!({});
+        await expect(invocation).resolves.toEqual({});
+    });
+
+    it("unregisters a canvas whose registration completes after activation disposal", async () => {
+        arrange();
+        vi.mocked(CopilotClient.prototype[registerPrivateAppExtensionSymbol]).mockResolvedValueOnce(
+            {
+                protocolVersion: 1,
+                principal: {
+                    packageId: "bundled:github-app:canvas",
+                    activationId: "activation-canvas",
+                },
+                capabilities: { canvases: true },
+                contributions: [
+                    {
+                        contributionPoint: "canvases",
+                        contributionId: "repository-overview",
+                    },
+                ],
+            }
+        );
+        let finishRegistration: (() => void) | undefined;
+        vi.mocked(CopilotClient.prototype[registerPrivateAppCanvasSymbol]).mockImplementation(
+            () =>
+                new Promise<void>((resolve) => {
+                    finishRegistration = resolve;
+                })
+        );
+        let registration: Promise<unknown> | undefined;
+        const activation = await defineAppExtension((host) => {
+            registration = host.canvases.register({
+                contributionId: host.contributions[0]!.contributionId,
+                onOpen: () => ({}),
+                onAction: () => null,
+            });
+            void registration.catch(() => {});
+        });
+        await vi.waitFor(() => expect(finishRegistration).toBeDefined());
+
+        const disposal = activation.dispose();
+        finishRegistration!();
+
+        await expect(registration).rejects.toThrow("disposed during registration");
+        await disposal;
+        expect(CopilotClient.prototype[unregisterPrivateAppCanvasSymbol]).toHaveBeenCalledWith(
+            "repository-overview"
+        );
+    });
+
+    it("retains remote registration state so failed unregister can be retried", async () => {
+        arrange();
+        vi.mocked(CopilotClient.prototype[registerPrivateAppExtensionSymbol]).mockResolvedValueOnce(
+            {
+                protocolVersion: 1,
+                principal: {
+                    packageId: "bundled:github-app:canvas",
+                    activationId: "activation-canvas",
+                },
+                capabilities: { canvases: true },
+                contributions: [
+                    {
+                        contributionPoint: "canvases",
+                        contributionId: "repository-overview",
+                    },
+                ],
+            }
+        );
+        vi.mocked(CopilotClient.prototype[unregisterPrivateAppCanvasSymbol])
+            .mockRejectedValueOnce(new Error("temporary unregister failure"))
+            .mockResolvedValueOnce(undefined);
+        let registration: Awaited<ReturnType<AppExtensionHost["canvases"]["register"]>> | undefined;
+        const activation = await defineAppExtension(async (host) => {
+            registration = await host.canvases.register({
+                contributionId: host.contributions[0]!.contributionId,
+                onOpen: () => ({}),
+                onAction: () => null,
+            });
+        });
+
+        await expect(registration!.dispose()).rejects.toThrow("temporary unregister failure");
+        await expect(registration!.dispose()).resolves.toBeUndefined();
+        expect(CopilotClient.prototype[unregisterPrivateAppCanvasSymbol]).toHaveBeenCalledTimes(2);
         await activation.dispose();
     });
 
@@ -146,8 +535,10 @@ describe("defineAppExtension", () => {
 
     it("aborts cancellation and runs cleanup once on explicit disposal", async () => {
         const { session } = arrange();
-        const disposer = vi.fn();
         let signal: AbortSignal | undefined;
+        const disposer = vi.fn(() => {
+            expect(signal?.aborted).toBe(true);
+        });
         const activation = await defineAppExtension((host) => {
             signal = host.signal;
             return disposer;

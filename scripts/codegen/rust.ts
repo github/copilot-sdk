@@ -36,6 +36,7 @@ import {
 	getSessionEventsSchemaPath,
 	isIntegerSchemaBoundedToInt32,
 	isObjectSchema,
+	isOpaqueJson,
 	isRpcMethod,
 	isSchemaDeprecated,
 	isSchemaExperimental,
@@ -1379,6 +1380,9 @@ function rustParamsTypeName(
 }
 
 function rustResultTypeName(method: RpcMethod, ctx: RustCodegenCtx): string {
+	if (isOpaqueJson(method.result)) {
+		return "serde_json::Value";
+	}
 	if (method.result?.$ref && parseExternalSchemaRef(method.result.$ref)) {
 		recordExternalRustTypeRef(method.result.$ref, ctx);
 		return rustRefTypeName(method.result.$ref);
@@ -1870,6 +1874,7 @@ function getResultTypeName(
 ): string | null {
 	const result = method.result as (JSONSchema7 & { $ref?: string }) | null;
 	if (!result || isVoidSchema(result)) return null;
+	if (isOpaqueJson(result)) return "serde_json::Value";
 	if (typeof result.$ref === "string") {
 		return refTypeName(result.$ref, defCollections);
 	}

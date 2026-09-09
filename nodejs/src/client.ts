@@ -17,6 +17,7 @@ import { existsSync } from "node:fs";
 import { isIPv6, Socket } from "node:net";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import {
+    CancellationTokenSource,
     createMessageConnection,
     ErrorCodes,
     type Message,
@@ -33,6 +34,8 @@ import {
 } from "./generated/rpc.js";
 import type {
     AppExtensionRegisterResult,
+    AppMediatedFetchRequest,
+    AppMediatedFetchResponse,
     ConnectClientInfo,
     GitHubTelemetryNotification,
     GitHubTokenAcquireRequest,
@@ -97,7 +100,13 @@ import type { FactoryHandle } from "./factory.js";
 import { AppSessionBadgesExtension } from "./appSessionBadges.js";
 import {
     onExtensionTransportClosedSymbol,
+    registerPrivateAppCanvasSymbol,
     registerPrivateAppExtensionSymbol,
+    registerPrivateAppForgeProviderSymbol,
+    registerPrivateAppSessionBadgesSymbol,
+    requestPrivateAppMediatedFetchSymbol,
+    unregisterPrivateAppCanvasSymbol,
+    unregisterPrivateAppForgeProviderSymbol,
 } from "./appExtensionClientAccess.js";
 
 /**
@@ -1824,8 +1833,78 @@ export class CopilotClient {
     }
 
     /** @internal */
+    async [registerPrivateAppSessionBadgesSymbol](
+        session: CopilotSession
+    ): Promise<AppSessionBadgesExtension> {
+        return this.registerAppSessionBadges(session);
+    }
+
+    /** @internal */
     async [registerPrivateAppExtensionSymbol](): Promise<AppExtensionRegisterResult> {
         return this.internalRpc.extensions.appExtension.register({ protocolVersion: 1 });
+    }
+
+    /** @internal */
+    async [registerPrivateAppCanvasSymbol](contributionId: string): Promise<void> {
+        await this.internalRpc.extensions.appCanvas.register({
+            protocolVersion: 1,
+            contributionId,
+        });
+    }
+
+    /** @internal */
+    async [unregisterPrivateAppCanvasSymbol](contributionId: string): Promise<void> {
+        await this.internalRpc.extensions.appCanvas.unregister({
+            protocolVersion: 1,
+            contributionId,
+        });
+    }
+
+    /** @internal */
+    async [registerPrivateAppForgeProviderSymbol](
+        contributionId: string,
+        operations: [string, ...string[]]
+    ): Promise<void> {
+        await this.internalRpc.extensions.appForge.register({
+            protocolVersion: 1,
+            contributionId,
+            operations,
+        });
+    }
+
+    /** @internal */
+    async [unregisterPrivateAppForgeProviderSymbol](contributionId: string): Promise<void> {
+        await this.internalRpc.extensions.appForge.unregister({
+            protocolVersion: 1,
+            contributionId,
+        });
+    }
+
+    /** @internal */
+    async [requestPrivateAppMediatedFetchSymbol](
+        params: AppMediatedFetchRequest,
+        signal: AbortSignal
+    ): Promise<AppMediatedFetchResponse> {
+        if (!this.connection) {
+            throw new Error("Client not connected");
+        }
+        const cancellation = new CancellationTokenSource();
+        const abort = () => cancellation.cancel();
+        if (signal.aborted) {
+            abort();
+        } else {
+            signal.addEventListener("abort", abort, { once: true });
+        }
+        try {
+            return await this.connection.sendRequest(
+                "extensions.appForge.fetch",
+                params,
+                cancellation.token
+            );
+        } finally {
+            signal.removeEventListener("abort", abort);
+            cancellation.dispose();
+        }
     }
 
     /** @internal */

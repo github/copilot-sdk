@@ -36,7 +36,7 @@ function largeSnapshot(): AppSessionBadgesSnapshot {
     };
 }
 
-it("authenticates a private app extension and preserves badge notifications after malformed input", async () => {
+it("transports private app extension badges, canvases, forge operations, and mediated fetch", async () => {
     const privateModule = join(DIST_DIR, "appExtension.js");
     if (!existsSync(privateModule)) {
         throw new Error(`Built SDK not found at ${DIST_DIR}. Run \`npm run build\` first.`);
@@ -92,11 +92,24 @@ it("authenticates a private app extension and preserves badge notifications afte
                 packageId: "bundled:github-app:badges",
                 activationId: "activation-stdio",
             },
-            capabilities: { sessionBadges: true },
+            capabilities: {
+                sessionBadges: true,
+                canvases: true,
+                forgeProvider: true,
+                mediatedFetch: true,
+            },
             contributions: [
                 {
                     contributionPoint: "sessionBadges",
                     contributionId: "github-pr",
+                },
+                {
+                    contributionPoint: "canvases",
+                    contributionId: "repository-overview",
+                },
+                {
+                    contributionPoint: "forgeProvider",
+                    contributionId: "github",
                 },
             ],
         };
@@ -108,6 +121,23 @@ it("authenticates a private app extension and preserves badge notifications afte
     connection.onRequest("extensions.appSessionBadges.setBadges", (params: unknown) => {
         requests.push({ method: "extensions.appSessionBadges.setBadges", params });
         return null;
+    });
+    connection.onRequest("extensions.appCanvas.register", (params: unknown) => {
+        requests.push({ method: "extensions.appCanvas.register", params });
+        return null;
+    });
+    connection.onRequest("extensions.appForge.register", (params: unknown) => {
+        requests.push({ method: "extensions.appForge.register", params });
+        return null;
+    });
+    connection.onRequest("extensions.appForge.fetch", (params: unknown) => {
+        requests.push({ method: "extensions.appForge.fetch", params });
+        return {
+            status: 200,
+            headers: { "content-type": "application/json" },
+            body: '{"number":2574}',
+            truncated: false,
+        };
     });
     connection.onRequest(() => ({}));
     connection.onNotification(() => {});
@@ -130,6 +160,18 @@ it("authenticates a private app extension and preserves badge notifications afte
                 });
                 expect(requests[1]?.method).toBe("extensions.appSessionBadges.register");
                 expect(requests[1]?.params ?? null).toBeNull();
+                expect(requests[2]).toEqual({
+                    method: "extensions.appCanvas.register",
+                    params: { protocolVersion: 1, contributionId: "repository-overview" },
+                });
+                expect(requests[3]).toEqual({
+                    method: "extensions.appForge.register",
+                    params: {
+                        protocolVersion: 1,
+                        contributionId: "github",
+                        operations: ["getPullRequest"],
+                    },
+                });
             },
             100,
             50
@@ -149,13 +191,100 @@ it("authenticates a private app extension and preserves badge notifications afte
         });
         await connection.sendNotification("appSessionBadges.snapshot", snapshot);
 
+        await expect(
+            connection.sendRequest("appCanvas.open", {
+                sessionId: "hidden-app-session",
+                protocolVersion: 2,
+                contributionId: "repository-overview",
+                instanceId: "canvas-invalid",
+            })
+        ).rejects.toThrow();
+        const context = {
+            projectId: "project-1",
+            workspaceId: "workspace-0",
+            project: {
+                forgeProviderId: "github",
+                repositoryLocator: { owner: "github", repo: "copilot-sdk" },
+                forgeAccountId: "account-1",
+            },
+        };
+        await expect(
+            connection.sendRequest("appCanvas.open", {
+                sessionId: "hidden-app-session",
+                protocolVersion: 1,
+                contributionId: "repository-overview",
+                instanceId: "canvas-1",
+                input: { tab: "pulls" },
+                context,
+            })
+        ).resolves.toEqual({
+            state: {
+                instanceId: "canvas-1",
+                input: { tab: "pulls" },
+                context,
+            },
+            title: "Repository overview",
+            status: "Ready",
+        });
+        await expect(
+            connection.sendRequest("appCanvas.action.invoke", {
+                sessionId: "hidden-app-session",
+                protocolVersion: 1,
+                contributionId: "repository-overview",
+                instanceId: "canvas-1",
+                actionName: "select",
+                input: { number: 2574 },
+                context,
+            })
+        ).resolves.toEqual({
+            actionName: "select",
+            input: { number: 2574 },
+        });
+        await expect(
+            connection.sendRequest("appForge.invoke", {
+                sessionId: "hidden-app-session",
+                protocolVersion: 1,
+                contributionId: "github",
+                operation: "getPullRequest",
+                accountId: "account-1",
+                input: { number: 2574 },
+            })
+        ).resolves.toEqual({
+            status: 200,
+            body: '{"number":2574}',
+            truncated: false,
+        });
+        await expect(
+            connection.sendRequest("appCanvas.close", {
+                sessionId: "hidden-app-session",
+                protocolVersion: 1,
+                contributionId: "repository-overview",
+                instanceId: "canvas-1",
+                context,
+            })
+        ).resolves.toBeNull();
+
         await retry(
             "wait for post-notification badge batch",
             async () => {
                 expect(existsSync(batchSentFile), `stderr: ${stderr.join("")}`).toBe(true);
-                expect(requests.at(-1)).toEqual({
+                expect(requests).toContainEqual({
                     method: "extensions.appSessionBadges.setBadges",
                     params: { protocolVersion: 1, updates: badgeUpdates },
+                });
+                expect(requests).toContainEqual({
+                    method: "extensions.appForge.fetch",
+                    params: {
+                        protocolVersion: 1,
+                        contributionId: "github",
+                        accountId: "account-1",
+                        operation: "getPullRequest",
+                        request: {
+                            method: "GET",
+                            path: "/repos/github/copilot-sdk/pulls/2574",
+                            headers: { Accept: "application/json" },
+                        },
+                    },
                 });
             },
             100,
@@ -165,15 +294,32 @@ it("authenticates a private app extension and preserves badge notifications afte
         const activation = JSON.parse(readFileSync(readyFile, "utf8")) as {
             principal: object;
             hostKeys: string[];
-            contributionKeys: string[];
+            contributions: {
+                badges: string[];
+                canvas: string[];
+                forge: string[];
+            };
         };
         expect(activation).toEqual({
             principal: {
                 packageId: "bundled:github-app:badges",
                 activationId: "activation-stdio",
             },
-            hostKeys: ["capabilities", "principal", "sessionBadges", "signal"],
-            contributionKeys: ["identity"],
+            hostKeys: [
+                "canvases",
+                "capabilities",
+                "contributions",
+                "forgeProviders",
+                "mediatedFetch",
+                "principal",
+                "sessionBadges",
+                "signal",
+            ],
+            contributions: {
+                badges: ["identity"],
+                canvas: ["identity"],
+                forge: ["identity", "operations"],
+            },
         });
         const delivered = readFileSync(snapshotFile, "utf8")
             .trim()
