@@ -329,7 +329,8 @@ export interface AppExtensionHost {
 
 /** Cleanup returned by an app-extension activation callback. */
 export type AppExtensionDisposer =
-    (() => void | Promise<void>) | { dispose(): void | Promise<void> };
+    | (() => void | Promise<void>)
+    | { dispose(): void | Promise<void> };
 
 /** App-extension activation callback. */
 export type AppExtensionDefinition = (
