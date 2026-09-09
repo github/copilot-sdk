@@ -1,0 +1,22 @@
+models:
+  - gpt-4.1
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Call lookup_number exactly once, then add 5 to the returned number. Do not guess its result.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: lookup_number
+              arguments: "{}"
+      - role: tool
+        tool_call_id: toolcall_0
+        content: "58"
+      - role: user
+        content: Continue with the original calculation. Do not call any more tools.
+      - role: assistant
+        content: '{"answer":63,"contract":"typed_tool"}'

@@ -331,6 +331,16 @@ public sealed partial class CopilotSession : IAsyncDisposable
             Traceparent = traceparent,
             Tracestate = tracestate,
             RequestHeaders = options.RequestHeaders,
+            ResponseFormat = options.ResponseSchema is { } schema ? new ResponseFormat
+            {
+                Type = "json_schema",
+                JsonSchema = new JsonSchemaResponseFormat
+                {
+                    Name = "response",
+                    Schema = schema,
+                    Strict = true,
+                },
+            } : null,
         };
 
         var rpcTimestamp = Stopwatch.GetTimestamp();
@@ -379,6 +389,11 @@ public sealed partial class CopilotSession : IAsyncDisposable
     {
         ArgumentNullException.ThrowIfNull(options);
         ThrowIfDisposed();
+
+        if (options.ResponseSchema is not null)
+        {
+            return await SendAndWaitForStructuredMessageAsync(options, timeout, cancellationToken);
+        }
 
         var totalTimestamp = Stopwatch.GetTimestamp();
         var effectiveTimeout = timeout ?? TimeSpan.FromSeconds(60);
@@ -2275,6 +2290,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
         public string? Traceparent { get; init; }
         public string? Tracestate { get; init; }
         public IDictionary<string, string>? RequestHeaders { get; init; }
+        public ResponseFormat? ResponseFormat { get; init; }
     }
 
     internal record SendMessageResponse
