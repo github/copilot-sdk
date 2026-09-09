@@ -2578,6 +2578,68 @@ async fn set_session_store_identity_sends_null_to_clear() {
 }
 
 #[tokio::test]
+async fn claim_legacy_session_sends_exact_wire_shape() {
+    let (client, mut server_read, mut server_write) = make_client();
+
+    let handle = tokio::spawn({
+        let client = client.clone();
+        async move {
+            client
+                .claim_legacy_session(&SessionId::new("legacy-session"))
+                .await
+        }
+    });
+
+    let request = read_framed(&mut server_read).await;
+    assert_eq!(request["method"], "sessionStore.claimLegacySession");
+    assert_eq!(
+        request["params"],
+        serde_json::json!({ "sessionId": "legacy-session" })
+    );
+    let response = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": request["id"],
+        "result": {}
+    });
+    write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
+    handle.await.unwrap().unwrap();
+}
+
+#[tokio::test]
+async fn claim_legacy_session_propagates_rpc_errors() {
+    let (client, mut server_read, mut server_write) = make_client();
+
+    let handle = tokio::spawn({
+        let client = client.clone();
+        async move {
+            client
+                .claim_legacy_session(&SessionId::new("owned-session"))
+                .await
+        }
+    });
+
+    let request = read_framed(&mut server_read).await;
+    assert_eq!(request["method"], "sessionStore.claimLegacySession");
+    let response = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": request["id"],
+        "error": {
+            "code": -32000,
+            "message": "legacy session is not eligible for claim"
+        }
+    });
+    write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
+
+    let error = handle.await.unwrap().unwrap_err();
+    assert!(matches!(error.kind(), ErrorKind::Rpc { code: -32000 }));
+    assert!(
+        error
+            .to_string()
+            .contains("legacy session is not eligible for claim")
+    );
+}
+
+#[tokio::test]
 async fn list_sessions_serializes_typed_filter() {
     use github_copilot_sdk::SessionListFilter;
 
