@@ -176,6 +176,8 @@ type AgentGetCurrentResult struct {
 type AgentInfo struct {
 	// Description of the agent's purpose
 	Description string `json:"description"`
+	// Whether model-driven invocation is disabled for this agent.
+	DisableModelInvocation *bool `json:"disableModelInvocation,omitempty"`
 	// Human-readable display name
 	DisplayName string `json:"displayName"`
 	// Stable identifier for selection. For most agents this is the same as `name`; for
@@ -1414,7 +1416,8 @@ type CapiSessionOptions struct {
 	// resume, the runtime restores the last committed preference. On resident resume, a
 	// different value requests a safe switch after resume succeeds and cannot change an
 	// in-flight turn. Successful switches are persisted for later cold resume. When no
-	// preference is supplied or restored, CAPI default routing is used.
+	// preference is supplied or restored, CAPI default routing is used. `fast` is an
+	// integrator-only latency preset, not a first-party GitHub Copilot product preference.
 	AutoTier *AutoTier `json:"autoTier,omitempty"`
 	// Whether to use WebSocket transport for the CAPI Responses API. Enabled by default when
 	// the model advertises `ws:/responses` support; set to `false` to force the HTTP Responses
@@ -3219,6 +3222,8 @@ type ExternalToolTextResultForLlmContentResourceLinkIcon struct {
 // Experimental: FactoryAbortRequest is part of an experimental API and may change or be
 // removed.
 type FactoryAbortRequest struct {
+	// Opaque token identifying the execution attempt to abort.
+	ExecutionToken string `json:"executionToken"`
 	// Factory run identifier.
 	RunID string `json:"runId"`
 	// Target session identifier
@@ -3235,15 +3240,15 @@ type FactoryAckResult struct {
 // Experimental: FactoryAgentOptions is part of an experimental API and may change or be
 // removed.
 type FactoryAgentOptions struct {
-	// Optional custom agent name for the subagent. This field is accepted but not yet honored.
+	// Optional built-in or custom agent name whose definition configures the subagent.
 	Agent *string `json:"agent,omitempty"`
-	// Optional context tier for the subagent. This field is accepted but not yet honored.
+	// Optional context tier override for the subagent.
 	ContextTier *ContextTier `json:"contextTier,omitempty"`
 	// Optional label distinguishing otherwise identical memoized agent calls.
 	Label *string `json:"label,omitempty"`
 	// Optional model identifier for the subagent.
 	Model *string `json:"model,omitempty"`
-	// Optional reasoning effort for the subagent. This field is accepted but not yet honored.
+	// Optional reasoning effort override for the subagent.
 	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
 	// Optional JSON Schema for structured agent output.
 	Schema any `json:"schema,omitempty"`
@@ -3472,6 +3477,69 @@ type FactoryLogRequest struct {
 	RunID string `json:"runId"`
 }
 
+// Parameters for an owned durable pause checkpoint.
+// Experimental: FactoryPauseCheckpointRequest is part of an experimental API and may change
+// or be removed.
+type FactoryPauseCheckpointRequest struct {
+	// Opaque token identifying the execution attempt that reached the checkpoint.
+	ExecutionToken string `json:"executionToken"`
+	// Stable author-defined checkpoint key.
+	Key string `json:"key"`
+	// Factory run identifier.
+	RunID string `json:"runId"`
+}
+
+// Experimental: FactoryPauseCheckpointResult is part of an experimental API and may change
+// or be removed.
+type FactoryPauseCheckpointResult struct {
+	// Whether this execution attempt must pause or may continue.
+	Action FactoryPauseCheckpointAction `json:"action"`
+}
+
+// Durable metadata describing who initiated a factory pause.
+// Experimental: FactoryPauseInfo is part of an experimental API and may change or be
+// removed.
+type FactoryPauseInfo interface {
+	factoryPauseInfo()
+	Type() FactoryPauseInfoType
+}
+
+type RawFactoryPauseInfoData struct {
+	Discriminator FactoryPauseInfoType
+	Raw           json.RawMessage
+}
+
+func (RawFactoryPauseInfoData) factoryPauseInfo() {}
+func (r RawFactoryPauseInfoData) Type() FactoryPauseInfoType {
+	return r.Discriminator
+}
+
+type FactoryPauseInfoCheckpoint struct {
+	// Stable author-defined checkpoint key that initiated the pause.
+	Key string `json:"key"`
+}
+
+func (FactoryPauseInfoCheckpoint) factoryPauseInfo() {}
+func (FactoryPauseInfoCheckpoint) Type() FactoryPauseInfoType {
+	return FactoryPauseInfoTypeCheckpoint
+}
+
+type FactoryPauseInfoUser struct {
+}
+
+func (FactoryPauseInfoUser) factoryPauseInfo() {}
+func (FactoryPauseInfoUser) Type() FactoryPauseInfoType {
+	return FactoryPauseInfoTypeUser
+}
+
+// Parameters for pausing a running factory.
+// Experimental: FactoryPauseRequest is part of an experimental API and may change or be
+// removed.
+type FactoryPauseRequest struct {
+	// Factory run identifier.
+	RunID string `json:"runId"`
+}
+
 // Durable lifecycle and timing for one factory phase.
 // Experimental: FactoryPhaseObservation is part of an experimental API and may change or be
 // removed.
@@ -3589,6 +3657,8 @@ type FactoryRunDetail struct {
 	Agents []FactoryAgentSummary `json:"agents"`
 	// Approved effective resource ceilings, or null until approved.
 	Approved *FactoryDeclaredLimits `json:"approved"`
+	// Whether the durable run state currently passes runtime resume eligibility checks.
+	CanResume bool `json:"canResume"`
 	// Epoch milliseconds when the run completed, or null while nonterminal.
 	CompletedAt *int64 `json:"completedAt"`
 	// Durable resource consumption.
@@ -3679,6 +3749,8 @@ type FactoryRunFailureFactoryLimitReached struct {
 	Kind FactoryRunFailureKind `json:"kind"`
 	// Factory run identifier.
 	RunID string `json:"runId"`
+	// Suggested larger ceiling when the runtime can derive one safely.
+	SuggestedValue *float64 `json:"suggestedValue,omitempty"`
 	// Approved effective ceiling that was reached.
 	Value float64 `json:"value"`
 }
@@ -3752,6 +3824,8 @@ type FactoryRunResult struct {
 	Error *string `json:"error,omitempty"`
 	// Machine-readable failure details for a halted or errored run.
 	Failure FactoryRunFailure `json:"failure,omitempty"`
+	// Structured pause initiator metadata for a paused attempt.
+	PauseInfo FactoryPauseInfo `json:"pauseInfo,omitempty"`
 	// Reason for a halted or cancelled run.
 	Reason *string `json:"reason,omitempty"`
 	// Completed factory result.
@@ -3772,6 +3846,8 @@ type FactoryRunSummary struct {
 	ActiveSegmentStartedAt *int64 `json:"activeSegmentStartedAt"`
 	// Approved effective resource ceilings, or null until approved.
 	Approved *FactoryDeclaredLimits `json:"approved"`
+	// Whether the durable run state currently passes runtime resume eligibility checks.
+	CanResume bool `json:"canResume"`
 	// Epoch milliseconds when the run completed, or null while nonterminal.
 	CompletedAt *int64 `json:"completedAt"`
 	// Durable resource consumption.
@@ -3816,6 +3892,8 @@ type FactoryRunTerminal struct {
 	Error *string `json:"error,omitempty"`
 	// Machine-readable terminal failure.
 	Failure FactoryRunFailure `json:"failure,omitempty"`
+	// Pause initiator metadata, or null when the run did not pause.
+	PauseInfo FactoryPauseInfo `json:"pauseInfo"`
 	// Human-readable terminal reason.
 	Reason *string `json:"reason,omitempty"`
 	// Prompt-safe preview of the completed result.
@@ -7339,6 +7417,36 @@ type ModelPolicy struct {
 	Terms *string `json:"terms,omitempty"`
 }
 
+// Host-supplied exact model selection IDs to allow for this running session. CAPI IDs are
+// intersected with repository `.github/allowed_models.txt` policy; provider-qualified IDs
+// remain exempt from repository-only policy but are restricted by this host list. Omit or
+// pass null to clear the host restriction; an explicit empty or disjoint list is rejected.
+// Validation and pre-selection fallback failures preserve the previous restriction.
+// Failures after a fallback selection commits retain the new restriction and selected
+// model; callers should inspect current session state after such an error.
+// Experimental: ModelSetAllowedModelsRequest is part of an experimental API and may change
+// or be removed.
+type ModelSetAllowedModelsRequest struct {
+	// Exact model IDs to permit, or null to clear the host restriction.
+	AllowedModels []string `json:"allowedModels,omitzero"`
+}
+
+// The applied host allowlist and effective session model policy after intersection.
+// Experimental: ModelSetAllowedModelsResult is part of an experimental API and may change
+// or be removed.
+type ModelSetAllowedModelsResult struct {
+	// Normalized host allowlist. Omitted when the host restriction was cleared, or when a relay
+	// client does not return the host policy.
+	AllowedModels []string `json:"allowedModels,omitzero"`
+	// Effective exact IDs or repository policy patterns after applying the host restriction.
+	// Omitted by relay clients that do not return the host policy.
+	EffectiveAllowedModels []string `json:"effectiveAllowedModels,omitzero"`
+	// Effective deterministic fallback model, when the policy defines one.
+	FallbackModel *string `json:"fallbackModel,omitempty"`
+	// Selected session model after reconciling a now-disallowed concrete selection.
+	ModelID *string `json:"modelId,omitempty"`
+}
+
 // Reasoning effort level to apply to the currently selected model.
 // Experimental: ModelSetReasoningEffortRequest is part of an experimental API and may
 // change or be removed.
@@ -9100,7 +9208,8 @@ type PluginsBuiltinSetRequest struct {
 type PluginsBuiltinSetResult struct {
 }
 
-// Plugin names (or specs) to disable.
+// Plugin names (or specs) to disable, plus the optional working directory the
+// repository-controlled guard is evaluated against.
 // Experimental: PluginsDisableRequest is part of an experimental API and may change or be
 // removed.
 type PluginsDisableRequest struct {
@@ -9109,6 +9218,12 @@ type PluginsDisableRequest struct {
 	// Plugin-owned MCP servers are stopped in active sessions immediately; other plugin
 	// contributions remain available until each session reloads plugins.
 	Names []string `json:"names"`
+	// Working directory whose repository `enabledPlugins` overlay decides whether this mutation
+	// is repository-controlled. Hosts that serve sessions across several repositories (the SDK
+	// server) should pass the session's directory; otherwise the guard is evaluated against the
+	// server process's own working directory, which may belong to a different repository.
+	// Defaults to the server's current working directory.
+	WorkingDirectory *string `json:"workingDirectory,omitempty"`
 }
 
 // Experimental: PluginsDisableResult is part of an experimental API and may change or be
@@ -9116,13 +9231,20 @@ type PluginsDisableRequest struct {
 type PluginsDisableResult struct {
 }
 
-// Plugin names (or specs) to enable.
+// Plugin names (or specs) to enable, plus the optional working directory the
+// repository-controlled guard is evaluated against.
 // Experimental: PluginsEnableRequest is part of an experimental API and may change or be
 // removed.
 type PluginsEnableRequest struct {
 	// Plugin names or "plugin@marketplace" specs to enable. Unknown names are ignored.
 	// Non-marketplace direct installs are always enabled and cannot be toggled via this API.
 	Names []string `json:"names"`
+	// Working directory whose repository `enabledPlugins` overlay decides whether this mutation
+	// is repository-controlled. Hosts that serve sessions across several repositories (the SDK
+	// server) should pass the session's directory; otherwise the guard is evaluated against the
+	// server process's own working directory, which may belong to a different repository.
+	// Defaults to the server's current working directory.
+	WorkingDirectory *string `json:"workingDirectory,omitempty"`
 }
 
 // Experimental: PluginsEnableResult is part of an experimental API and may change or be
@@ -10625,6 +10747,28 @@ type SandboxConfigUserPolicySeatbelt struct {
 	KeychainAccess *bool `json:"keychainAccess,omitempty"`
 }
 
+// Request to disable sandboxing for the current session while resolving an active
+// sandbox-bypass permission prompt.
+// Experimental: SandboxDisableForSessionRequest is part of an experimental API and may
+// change or be removed.
+type SandboxDisableForSessionRequest struct {
+	// Optional attribution for the permission decision.
+	DecisionContext *PermissionDecisionContext `json:"decisionContext,omitempty"`
+	// Identifier of the exact pending sandbox-bypass permission request that authorized the
+	// session opt-out.
+	RequestID string `json:"requestId"`
+}
+
+// Result of attempting to disable sandboxing for the current session.
+// Experimental: SandboxDisableForSessionResult is part of an experimental API and may
+// change or be removed.
+type SandboxDisableForSessionResult struct {
+	// The authoritative sandbox enabled state after the operation.
+	Enabled bool `json:"enabled"`
+	// Whether this call resolved the pending request and applied the session opt-out.
+	Success bool `json:"success"`
+}
+
 // Managed sandbox enforcement state for a session.
 // Experimental: SandboxEnforcementStatus is part of an experimental API and may change or
 // be removed.
@@ -11321,8 +11465,15 @@ type SessionExtensionsReloadResult struct {
 type SessionExtensionsSendAttachmentsToMessageResult struct {
 }
 
+// Experimental: SessionFactoryPauseAtCheckpointResult is part of an experimental API and
+// may change or be removed.
+type SessionFactoryPauseAtCheckpointResult struct {
+	// Whether this execution attempt must pause or may continue.
+	Action FactoryPauseCheckpointAction `json:"action"`
+}
+
 // File path, content to append, and optional mode for the client-provided session
-// filesystem.
+// filesystem. Implementations create parent directories as needed.
 // Experimental: SessionFSAppendFileRequest is part of an experimental API and may change or
 // be removed.
 type SessionFSAppendFileRequest struct {
@@ -16505,7 +16656,8 @@ const (
 	AutopilotObjectiveStatusPaused AutopilotObjectiveStatus = "paused"
 )
 
-// Routing preference used when the session model is `auto`.
+// Routing preference used when the session model is `auto`. `fast` is an integrator-only
+// latency preset and is not a first-party GitHub Copilot product preference.
 // Experimental: AutoTier is part of an experimental API and may change or be removed.
 type AutoTier string
 
@@ -16514,6 +16666,8 @@ const (
 	AutoTierBalance AutoTier = "balance"
 	// Optimize for efficiency.
 	AutoTierEfficiency AutoTier = "efficiency"
+	// Integrator-only preset that optimizes for latency.
+	AutoTierFast AutoTier = "fast"
 	// Optimize for intelligence.
 	AutoTierIntelligence AutoTier = "intelligence"
 )
@@ -17208,6 +17362,26 @@ const (
 	FactoryLogLineKindPhase FactoryLogLineKind = "phase"
 )
 
+// Action the runtime selected for a durable factory pause checkpoint.
+// Experimental: FactoryPauseCheckpointAction is part of an experimental API and may change
+// or be removed.
+type FactoryPauseCheckpointAction string
+
+const (
+	// The checkpoint was committed by a prior paused attempt, so execution may continue.
+	FactoryPauseCheckpointActionContinue FactoryPauseCheckpointAction = "continue"
+	// This attempt claimed the checkpoint and must cooperatively stop.
+	FactoryPauseCheckpointActionPause FactoryPauseCheckpointAction = "pause"
+)
+
+// Type discriminator for FactoryPauseInfo.
+type FactoryPauseInfoType string
+
+const (
+	FactoryPauseInfoTypeCheckpoint FactoryPauseInfoType = "checkpoint"
+	FactoryPauseInfoTypeUser       FactoryPauseInfoType = "user"
+)
+
 // Derived lifecycle state of a factory phase.
 // Experimental: FactoryPhaseStatus is part of an experimental API and may change or be
 // removed.
@@ -17265,6 +17439,8 @@ const (
 	FactoryRunStatusError FactoryRunStatus = "error"
 	// The run was interrupted while resource budget remained.
 	FactoryRunStatusHalted FactoryRunStatus = "halted"
+	// The current attempt stopped intentionally and the run may be resumed.
+	FactoryRunStatusPaused FactoryRunStatus = "paused"
 	// The run was minted and is awaiting approval.
 	FactoryRunStatusPending FactoryRunStatus = "pending"
 	// The run is executing.
@@ -20549,7 +20725,8 @@ type ServerPluginsAPI serverAPI
 //
 // RPC method: plugins.disable.
 //
-// Parameters: Plugin names (or specs) to disable.
+// Parameters: Plugin names (or specs) to disable, plus the optional working directory the
+// repository-controlled guard is evaluated against.
 func (a *ServerPluginsAPI) Disable(ctx context.Context, params *PluginsDisableRequest) (*PluginsDisableResult, error) {
 	raw, err := a.client.Request(ctx, "plugins.disable", params)
 	if err != nil {
@@ -20566,7 +20743,8 @@ func (a *ServerPluginsAPI) Disable(ctx context.Context, params *PluginsDisableRe
 //
 // RPC method: plugins.enable.
 //
-// Parameters: Plugin names (or specs) to enable.
+// Parameters: Plugin names (or specs) to enable, plus the optional working directory the
+// repository-controlled guard is evaluated against.
 func (a *ServerPluginsAPI) Enable(ctx context.Context, params *PluginsEnableRequest) (*PluginsEnableResult, error) {
 	raw, err := a.client.Request(ctx, "plugins.enable", params)
 	if err != nil {
@@ -22888,6 +23066,29 @@ func (a *FactoryAPI) Log(ctx context.Context, params *FactoryLogRequest) (*Facto
 	return &result, nil
 }
 
+// Pauses a running factory and returns its settled run envelope.
+//
+// RPC method: session.factory.pause.
+//
+// Parameters: Parameters for pausing a running factory.
+//
+// Returns: Complete current or terminal factory run envelope.
+func (a *FactoryAPI) Pause(ctx context.Context, params *FactoryPauseRequest) (*FactoryRunResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["runId"] = params.RunID
+	}
+	raw, err := a.client.Request(ctx, "session.factory.pause", req)
+	if err != nil {
+		return nil, err
+	}
+	var result FactoryRunResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // Resumes a factory run using its persisted name, arguments, journal, and accounting.
 //
 // RPC method: session.factory.resume.
@@ -24532,6 +24733,39 @@ func (a *ModelAPI) List(ctx context.Context, params ...*SessionModelListRequest)
 	return &result, nil
 }
 
+// SetAllowedModels replaces or clears the host-supplied model allowlist for a running
+// session.
+//
+// RPC method: session.model.setAllowedModels.
+//
+// Parameters: Host-supplied exact model selection IDs to allow for this running session.
+// CAPI IDs are intersected with repository `.github/allowed_models.txt` policy;
+// provider-qualified IDs remain exempt from repository-only policy but are restricted by
+// this host list. Omit or pass null to clear the host restriction; an explicit empty or
+// disjoint list is rejected. Validation and pre-selection fallback failures preserve the
+// previous restriction. Failures after a fallback selection commits retain the new
+// restriction and selected model; callers should inspect current session state after such
+// an error.
+//
+// Returns: The applied host allowlist and effective session model policy after intersection.
+func (a *ModelAPI) SetAllowedModels(ctx context.Context, params *ModelSetAllowedModelsRequest) (*ModelSetAllowedModelsResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.AllowedModels != nil {
+			req["allowedModels"] = params.AllowedModels
+		}
+	}
+	raw, err := a.client.Request(ctx, "session.model.setAllowedModels", req)
+	if err != nil {
+		return nil, err
+	}
+	var result ModelSetAllowedModelsResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // SetReasoningEffort updates the session's reasoning effort without changing the selected
 // model.
 //
@@ -26031,6 +26265,36 @@ func (a *RemoteAPI) NotifySteerableChanged(ctx context.Context, params *RemoteNo
 
 // Experimental: SandboxAPI contains experimental APIs that may change or be removed.
 type SandboxAPI sessionAPI
+
+// DisableForSession disables sandboxing for the remainder of the current session and
+// approves the referenced pending sandbox-bypass permission request. The request is
+// rejected unless the exact request is still pending and the effective sandbox policy
+// permits bypass.
+//
+// RPC method: session.sandbox.disableForSession.
+//
+// Parameters: Request to disable sandboxing for the current session while resolving an
+// active sandbox-bypass permission prompt.
+//
+// Returns: Result of attempting to disable sandboxing for the current session.
+func (a *SandboxAPI) DisableForSession(ctx context.Context, params *SandboxDisableForSessionRequest) (*SandboxDisableForSessionResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.DecisionContext != nil {
+			req["decisionContext"] = *params.DecisionContext
+		}
+		req["requestId"] = params.RequestID
+	}
+	raw, err := a.client.Request(ctx, "session.sandbox.disableForSession", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SandboxDisableForSessionResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
 
 // GetEnforcementStatus returns whether managed policy requires sandbox enforcement and
 // whether an enforcement failure has permanently blocked the session.
@@ -28097,6 +28361,31 @@ func (a *InternalCommandsAPI) FinalizeInvocationEffect(ctx context.Context, para
 // Experimental: InternalFactoryAPI contains experimental APIs that may change or be removed.
 type InternalFactoryAPI internalSessionAPI
 
+// PauseAtCheckpoint atomically pauses an owned factory attempt at a durable checkpoint.
+//
+// RPC method: session.factory.pauseAtCheckpoint.
+//
+// Parameters: Parameters for an owned durable pause checkpoint.
+// Internal: PauseAtCheckpoint is part of the SDK's internal handshake/plumbing; external
+// callers should not use it.
+func (a *InternalFactoryAPI) PauseAtCheckpoint(ctx context.Context, params *FactoryPauseCheckpointRequest) (*SessionFactoryPauseAtCheckpointResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["executionToken"] = params.ExecutionToken
+		req["key"] = params.Key
+		req["runId"] = params.RunID
+	}
+	raw, err := a.client.Request(ctx, "session.factory.pauseAtCheckpoint", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionFactoryPauseAtCheckpointResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // ResumeFromTool internal tool-originated factory resume.
 //
 // RPC method: session.factory.resumeFromTool.
@@ -29089,12 +29378,13 @@ type ProviderTokenHandler interface {
 
 // Experimental: SessionFSHandler contains experimental APIs that may change or be removed.
 type SessionFSHandler interface {
-	// AppendFile appends content to a file in the client-provided session filesystem.
+	// AppendFile appends content to a file in the client-provided session filesystem, creating
+	// parent directories as needed.
 	//
 	// RPC method: sessionFs.appendFile.
 	//
 	// Parameters: File path, content to append, and optional mode for the client-provided
-	// session filesystem.
+	// session filesystem. Implementations create parent directories as needed.
 	//
 	// Returns: Describes a filesystem error.
 	AppendFile(request *SessionFSAppendFileRequest) (*SessionFSError, error)
