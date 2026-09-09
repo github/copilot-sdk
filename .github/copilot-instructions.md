@@ -28,9 +28,9 @@
   - Go: `cd go && go test ./...`
   - .NET: `cd dotnet && dotnet test test/GitHub.Copilot.SDK.Test.csproj`
   - **.NET testing note:** Never add `InternalsVisibleTo` to any project file when writing tests. Tests must only access public APIs.
-  - Java: `cd java && mvn clean verify` (full build + tests), `mvn spotless:apply` (format code before commit)
+  - Java: `cd java && mvn clean verify` (full build + tests), `mvn -pl sdk spotless:apply` (format code)
   - Java single test: `cd java && mvn test -Dtest=CopilotClientTest` | single method: `mvn test -Dtest=ToolsTest#testToolInvocation`
-  - Java format check only: `mvn spotless:check` | Build without tests: `mvn clean package -DskipTests`
+  - Java formatting and Javadoc checks: `mvn -pl sdk spotless:check checkstyle:check` | Build without tests: `mvn clean package -DskipTests`
   - **Java testing note:** Always use `mvn verify` without `-q` and without piping through `grep`. Never add `InternalsVisibleTo` equivalent — tests must only access public APIs.
 - Use configured LSPs for supported operations like finding references instead of pattern matching, renaming symbols, etc.
 
@@ -57,7 +57,7 @@
 - Some scripts (typegen, formatting) call external tools: `gofmt`, `dotnet format`, `tsx` (available via npm), `quicktype`/`quicktype-core` (used by the Node typegen script), and `prettier` (provided as an npm devDependency). Most of these are available through the repo's package scripts or devDependencies—run `just install` (and `cd nodejs && npm ci`) to install them. Ensure the required tools are available in CI / developer machines.
 - Tests may assume `node >= 18`, `python >= 3.9`, platform differences handled (Windows uses `shell=True` for npx in harness).
 - Java requires JDK 17+ and Maven 3.9+. Java E2E tests also require Node.js (for the replay proxy).
-- Java pre-commit hook runs `mvn spotless:check`. Enable with `git config core.hooksPath .githooks` (auto-enabled in Copilot coding agent environment via `copilot-setup-steps.yml`).
+- Java formatting and Javadoc checks use `just format-java` and `just lint-java` from the repository root, and are included in `just format` and `just lint`. CI enforces Spotless and Checkstyle; `mvn verify` alone does not run Spotless.
 
 ## Where to add new code or tests 🧭
 
